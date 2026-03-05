@@ -10,7 +10,7 @@ type KelasProps = { id: string, tingkat: number, nomor_kelas: string, kelompok: 
 type PenugasanProps = { id: string, mapel: { nama_mapel: string }, kelas: KelasProps }
 
 export default async function KehadiranPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   // 1. Cek User & Role
   const { data: { user } } = await supabase.auth.getUser()
@@ -27,7 +27,7 @@ export default async function KehadiranPage() {
   // 2. Ambil Tahun Ajaran Aktif (Wajib untuk semua role)
   const { data: taAktif } = await supabase
     .from('tahun_ajaran')
-    .select('id, nama_tahun, semester')
+    .select('id, nama, semester')
     .eq('is_active', true)
     .single()
 

@@ -29,7 +29,7 @@ export async function tambahPegawai(prevState: any, formData: FormData) {
 
 export async function editPegawai(id: string, nama_lengkap: string, email: string) {
   const supabaseAdmin = createAdminClient()
-  const supabase = createClient()
+  const supabase = await createClient()
 
   // Update email di sistem Autentikasi Supabase
   const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, { 
@@ -56,7 +56,7 @@ export async function resetPasswordPegawai(id: string) {
 
 export async function ubahRolePegawai(id: string, newRole: string) {
   const supabaseAdmin = createAdminClient()
-  const supabase = createClient()
+  const supabase = await createClient()
   
   const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, { user_metadata: { role: newRole } })
   if (authError) return { error: authError.message }

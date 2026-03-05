@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useFormState, useFormStatus } from 'react-dom'
+import { useActionState } from 'react'
+import { useFormStatus } from 'react-dom'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +24,7 @@ function SubmitButton() {
 
 export function TambahModal() {
   const [isOpen, setIsOpen] = useState(false)
-  const [state, formAction] = useFormState(tambahSiswa, initialState)
+  const [state, formAction] = useActionState(tambahSiswa, initialState)
 
   useEffect(() => {
     if (state?.success) {

@@ -1,4 +1,4 @@
-// BUAT FILE BARU
+// TIMPA SELURUH ISI FILE INI
 // Lokasi: app/dashboard/kelas/components/import-modal.tsx
 'use client'
 
@@ -23,16 +23,16 @@ export function ImportModal() {
     }
 
     const templateData = [
-      { TINGKAT: 10, KELOMPOK: 'MIPA', NOMOR_KELAS: '1', KAPASITAS: 36 },
-      { TINGKAT: 10, KELOMPOK: 'MIPA', NOMOR_KELAS: '2', KAPASITAS: 36 },
-      { TINGKAT: 11, KELOMPOK: 'SOSHUM', NOMOR_KELAS: '1', KAPASITAS: 36 },
-      { TINGKAT: 12, KELOMPOK: 'KEAGAMAAN', NOMOR_KELAS: 'A', KAPASITAS: 36 }
+      { TINGKAT: 10, KELOMPOK: 'MIPA', NOMOR_KELAS: '1', KAPASITAS: 36, WALI_KELAS: 'Budi Santoso, S.Pd' },
+      { TINGKAT: 10, KELOMPOK: 'MIPA', NOMOR_KELAS: '2', KAPASITAS: 36, WALI_KELAS: '' },
+      { TINGKAT: 11, KELOMPOK: 'SOSHUM', NOMOR_KELAS: '1', KAPASITAS: 36, WALI_KELAS: '' },
+      { TINGKAT: 12, KELOMPOK: 'KEAGAMAAN', NOMOR_KELAS: 'A', KAPASITAS: 36, WALI_KELAS: '' }
     ]
 
     const worksheet = XLSX.utils.json_to_sheet(templateData)
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, "Data_Kelas")
-    XLSX.writeFile(workbook, "Template_Import_Kelas_MANSATAS.xlsx")
+    XLSX.writeFile(workbook, "Template_Import_Kelas_Lengkap.xlsx")
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,53 +76,52 @@ export function ImportModal() {
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
-          <Button variant="outline" className="gap-2 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800">
+          <Button variant="outline" className="gap-2 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 rounded-xl h-11 px-5 shadow-sm">
             <FileSpreadsheet className="h-4 w-4" />
             Import Excel
           </Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md rounded-3xl">
           <DialogHeader>
-            <DialogTitle>Import Data Kelas Massal</DialogTitle>
+            <DialogTitle className="text-xl font-bold">Import Data Kelas Massal</DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="flex items-center justify-between rounded-lg border bg-slate-50 p-3 shadow-sm">
+            <div className="flex items-center justify-between rounded-xl border bg-slate-50 p-4 shadow-sm">
               <div className="text-sm font-medium text-slate-700">Belum punya format Excel?</div>
-              <Button type="button" size="sm" variant="secondary" onClick={handleDownloadTemplate} className="gap-2">
+              <Button type="button" size="sm" variant="outline" onClick={handleDownloadTemplate} className="gap-2 bg-white rounded-lg">
                 <Download className="h-4 w-4" /> Template
               </Button>
             </div>
 
-            <div className="rounded-md bg-blue-50 p-4 text-sm text-blue-700">
-              <p className="font-semibold mb-1">Format Kolom Excel Wajib:</p>
-              <ul className="list-disc list-inside space-y-1 text-xs">
-                <li><span className="font-mono bg-blue-100 px-1 rounded">TINGKAT</span> (Isi dengan angka 10, 11, atau 12)</li>
-                <li><span className="font-mono bg-blue-100 px-1 rounded">KELOMPOK</span> (MIPA / SOSHUM / KEAGAMAAN / UMUM)</li>
-                <li><span className="font-mono bg-blue-100 px-1 rounded">NOMOR_KELAS</span> (Contoh: 1, 2, atau A, B)</li>
-                <li><span className="font-mono bg-blue-100 px-1 rounded">KAPASITAS</span> (Opsional, Default: 36)</li>
+            <div className="rounded-2xl bg-blue-50/80 border border-blue-100 p-4 text-sm text-blue-800">
+              <p className="font-semibold mb-2 text-blue-900">Format Kolom Excel:</p>
+              <ul className="list-disc list-inside space-y-1.5 text-xs">
+                <li><strong className="font-mono bg-white px-1 py-0.5 rounded shadow-sm text-blue-700">TINGKAT</strong> (10, 11, atau 12)</li>
+                <li><strong className="font-mono bg-white px-1 py-0.5 rounded shadow-sm text-blue-700">KELOMPOK</strong> (MIPA / SOSHUM / KEAGAMAAN / UMUM)</li>
+                <li><strong className="font-mono bg-white px-1 py-0.5 rounded shadow-sm text-blue-700">NOMOR_KELAS</strong> (Contoh: 1, 2, atau A)</li>
+                <li><strong className="font-mono bg-white px-1 py-0.5 rounded shadow-sm text-blue-700">WALI_KELAS</strong> (Opsional. Tulis nama guru sesuai akunnya di aplikasi)</li>
               </ul>
             </div>
 
-            <div className="grid w-full max-w-sm items-center gap-1.5">
+            <div className="grid w-full items-center gap-1.5">
               <Input 
-                id="excel-file" 
                 type="file" 
                 accept=".xlsx, .xls"
                 onChange={handleFileUpload}
                 disabled={isUploading}
-                className="cursor-pointer file:cursor-pointer"
+                className="cursor-pointer file:cursor-pointer h-12 pt-2.5 rounded-xl border-slate-300 focus:border-emerald-500"
               />
             </div>
 
             {isUploading && (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Loader2 className="h-4 w-4 animate-spin" /> Sedang memproses...
+              <div className="flex items-center justify-center gap-2 p-3 text-sm text-emerald-600 bg-emerald-50 rounded-xl font-bold animate-pulse">
+                <Loader2 className="h-4 w-4 animate-spin" /> Sedang memproses database...
               </div>
             )}
 
             {message && (
-              <div className={`p-3 rounded-md text-sm ${message.type === 'error' ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-emerald-50 text-emerald-600 border border-emerald-200'}`}>
+              <div className={`p-3 rounded-xl text-sm font-medium ${message.type === 'error' ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
                 {message.text}
               </div>
             )}

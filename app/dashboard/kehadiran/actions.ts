@@ -5,12 +5,12 @@ import { revalidatePath } from 'next/cache'
 
 // --- 1. Fungsi Ambil Data Siswa per Kelas ---
 export async function getSiswaByKelas(kelas_id: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('siswa')
     .select('id, nama_lengkap, nisn')
     .eq('kelas_id', kelas_id)
-    .eq('status', 'Aktif')
+    .eq('status', 'aktif')
     .order('nama_lengkap', { ascending: true })
 
   if (error) return { error: error.message, data: null }
@@ -19,7 +19,7 @@ export async function getSiswaByKelas(kelas_id: string) {
 
 // --- 2. Fungsi REKAP BULANAN (Untuk Admin/TU) ---
 export async function getRekapBulanan(kelas_id: string, bulan: number, ta_id: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('rekap_kehadiran_bulanan')
     .select('*')
@@ -32,7 +32,7 @@ export async function getRekapBulanan(kelas_id: string, bulan: number, ta_id: st
 }
 
 export async function simpanRekapBulanan(kelas_id: string, bulan: number, ta_id: string, rekapData: any[]) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -61,7 +61,7 @@ export async function simpanRekapBulanan(kelas_id: string, bulan: number, ta_id:
 
 // --- 3. Fungsi JURNAL HARIAN GURU (Sparse Data) ---
 export async function simpanJurnalHarian(penugasan_id: string, tanggal: string, jurnalData: any[]) {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   // Karena sparse data, kita HANYA menyimpan yang statusnya BUKAN 'Hadir/Aman' ATAU yang punya catatan
   const payloadToInsert = jurnalData

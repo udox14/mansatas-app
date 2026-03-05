@@ -7,7 +7,7 @@ import { LineChart } from 'lucide-react'
 export const metadata = { title: 'Analitik Kelulusan - MANSATAS App' }
 
 export default async function AnalitikPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 

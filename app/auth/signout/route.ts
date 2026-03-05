@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   // Mengecek apakah ada session aktif
   const { data: { session } } = await supabase.auth.getSession()
