@@ -10,14 +10,15 @@ import {
   Settings,
   Library,
   Shuffle,
-  LineChart
+  LineChart,
+  DoorOpen // Tambahan Icon Baru
 } from 'lucide-react'
 
 export type MenuItem = {
   title: string
   href: string
   icon: any
-  roles: string[] // Role apa saja yang bisa melihat menu ini
+  roles: string[]
 }
 
 export const MENU_ITEMS: MenuItem[] = [
@@ -68,6 +69,12 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/kehadiran',
     icon: CalendarCheck,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'guru_piket', 'wali_murid']
+  },
+  {
+    title: 'Perizinan Siswa', // MENU BARU UNTUK SATPAM & PIKET
+    href: '/dashboard/izin',
+    icon: DoorOpen,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'satpam']
   },
   {
     title: 'Kedisiplinan',

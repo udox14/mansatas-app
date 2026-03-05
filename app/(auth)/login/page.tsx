@@ -1,6 +1,7 @@
 'use client'
 
-import { useFormState, useFormStatus } from 'react-dom'
+import { useActionState } from 'react'
+import { useFormStatus } from 'react-dom'
 import { login } from './actions'
 
 const initialState = {
@@ -23,7 +24,7 @@ function SubmitButton() {
 
 export default function LoginPage() {
   // Hook useFormState untuk menangkap return data { error } dari actions.ts
-  const [state, formAction] = useFormState(login, initialState)
+  const [state, formAction] = useActionState(login, initialState)
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">

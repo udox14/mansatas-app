@@ -8,15 +8,22 @@ import { DetailKelasClient } from './components/detail-client'
 
 export const metadata = { title: 'Detail Kelas - MANSATAS App' }
 
-export default async function DetailKelasPage({ params }: { params: { id: string } }) {
-  const supabase = createClient()
+// PERBAIKAN 1: params harus didefinisikan sebagai Promise di Next.js 16
+export default async function DetailKelasPage({ params }: { params: Promise<{ id: string }> }) {
+  
+  // PERBAIKAN 2: Wajib await params sebelum mengekstrak id
+  const { id } = await params
+  
+  // PERBAIKAN 3: Wajib await createClient()
+  const supabase = await createClient()
+  
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const { data: kelasData, error: kelasError } = await supabase
     .from('kelas')
     .select(`id, tingkat, kelompok, nomor_kelas, kapasitas, wali_kelas:profiles(nama_lengkap)`)
-    .eq('id', params.id)
+    .eq('id', id) // Gunakan variabel id yang sudah di-await
     .single()
 
   if (kelasError || !kelasData) return <div className="p-8 text-center text-red-500">Data kelas tidak ditemukan.</div>
@@ -24,7 +31,7 @@ export default async function DetailKelasPage({ params }: { params: { id: string
   const { data: siswaData, error: siswaError } = await supabase
     .from('siswa')
     .select('id, nisn, nama_lengkap, jenis_kelamin, status')
-    .eq('kelas_id', params.id)
+    .eq('kelas_id', id) // Gunakan variabel id yang sudah di-await
     .eq('status', 'aktif')
     .order('nama_lengkap', { ascending: true })
 
@@ -39,49 +46,50 @@ export default async function DetailKelasPage({ params }: { params: { id: string
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center gap-2 text-sm text-slate-500">
-        <Link href="/dashboard/kelas" className="hover:text-blue-600 flex items-center gap-1 transition-colors">
+        <Link href="/dashboard/kelas" className="hover:text-blue-600 flex items-center gap-1 transition-colors bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200 w-fit font-bold">
           <ChevronLeft className="h-4 w-4" /> Kembali ke Manajemen Kelas
         </Link>
       </div>
 
-      <div className="bg-white rounded-2xl p-6 border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-32 h-32 bg-blue-50 rounded-bl-full -z-0 opacity-50"></div>
+      <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+        <div className="absolute right-0 top-0 w-48 h-48 bg-blue-50 rounded-bl-full -z-0 opacity-50"></div>
         
         <div className="relative z-10 space-y-2">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{namaKelasSingkat}</h1>
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">{namaKelasSingkat}</h1>
             {kelasData.kelompok !== 'UMUM' && (
-              <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 border border-indigo-200 rounded-full">
+              <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 border border-indigo-200 rounded-full shadow-sm">
                 {kelasData.kelompok}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-slate-600">
-            <UserCircle className="h-4 w-4" />
+          <div className="flex items-center gap-2 text-slate-600 font-medium">
+            <UserCircle className="h-5 w-5 text-slate-400" />
             <span>Wali Kelas: <strong className="text-slate-800">{namaWaliKelas}</strong></span>
           </div>
         </div>
 
-        <div className="relative z-10 flex items-center gap-6 bg-slate-50 p-4 rounded-xl border">
-          <div className="flex items-center gap-3">
-            <div className={`p-3 rounded-full ${isFull ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+        <div className="relative z-10 flex items-center gap-6 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className={`p-3.5 rounded-xl shadow-inner ${isFull ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
               <Users className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Kapasitas</p>
-              <div className="flex items-baseline gap-1">
-                <span className={`text-2xl font-bold ${isFull ? 'text-red-600' : 'text-slate-900'}`}>{siswaList.length}</span>
-                <span className="text-slate-500 font-medium">/ {kelasData.kapasitas}</span>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-0.5">Kapasitas Kelas</p>
+              <div className="flex items-baseline gap-1.5">
+                <span className={`text-2xl sm:text-3xl font-black tracking-tight ${isFull ? 'text-red-600' : 'text-slate-900'}`}>{siswaList.length}</span>
+                <span className="text-slate-400 font-bold text-sm">/ {kelasData.kapasitas}</span>
               </div>
             </div>
           </div>
-          {isFull && <div className="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full animate-pulse">KELAS PENUH</div>}
+          {isFull && <div className="px-4 py-1.5 bg-red-100 border border-red-200 text-red-700 text-xs font-black tracking-wider rounded-full shadow-sm animate-pulse">PENUH</div>}
         </div>
       </div>
 
       <div className="pt-2">
-        <h2 className="text-lg font-bold text-slate-800 mb-4">Daftar Siswa Kelas Ini</h2>
-        {/* FIX: Props disesuaikan penuh dengan detail-client.tsx yang baru */}
+        <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+          <Users className="h-5 w-5 text-blue-600"/> Daftar Siswa Kelas {namaKelasSingkat}
+        </h2>
         <DetailKelasClient 
           siswaData={siswaList} 
           kelasId={kelasData.id} 

@@ -7,7 +7,7 @@ import { GraduationCap } from 'lucide-react'
 export const metadata = { title: 'Data Guru & Pegawai - MANSATAS App' }
 
 export default async function GuruPage() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const supabaseAdmin = createAdminClient()
   
   const { data: { user } } = await supabase.auth.getUser()

@@ -1,10 +1,8 @@
-// TIMPA SELURUH ISI FILE INI
-// Lokasi: components/layout/header.tsx
 'use client'
 
 import { Menu, LogOut, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +28,26 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
   const pathname = usePathname()
   const filteredMenu = MENU_ITEMS.filter((item) => item.roles.includes(userRole))
 
+  // --- LOGIKA JUDUL BREADCRUMB PINTAR ---
+  const pathSegments = pathname.split('/').filter(Boolean)
+  let pageTitle = 'Dashboard Overview'
+  
+  if (pathname !== '/dashboard' && pathSegments.length > 0) {
+    const lastSegment = pathSegments[pathSegments.length - 1]
+    
+    // Deteksi apakah text terakhir adalah UUID (Contoh: 93230b2e-81ca-4d35-9b17-c0978961354e)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lastSegment)
+    
+    if (isUUID) {
+      // Jika yang muncul UUID, ambil nama folder sebelumnya (contoh: 'kelas' atau 'siswa')
+      const parentSegment = pathSegments[pathSegments.length - 2]
+      pageTitle = `Detail ${parentSegment}`
+    } else {
+      // Jika bukan UUID, tampilkan teks normal
+      pageTitle = lastSegment.replace(/-/g, ' ')
+    }
+  }
+
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200/60 bg-white/80 backdrop-blur-xl px-4 shadow-sm md:px-6">
       <div className="flex items-center gap-4">
@@ -41,8 +59,9 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
               <span className="sr-only">Toggle menu</span>
             </Button>
           </SheetTrigger>
-          {/* SheetContent disamakan dengan Dark Theme Sidebar Desktop */}
           <SheetContent side="left" className="w-64 p-0 bg-slate-950 border-r-slate-800 text-slate-300">
+             <SheetTitle className="sr-only">Menu Navigasi Mobile</SheetTitle>
+
              <div className="flex h-16 items-center border-b border-slate-800/80 px-6">
               <span className="font-bold text-xl text-white flex items-center gap-3 tracking-tight">
                 <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 flex items-center justify-center font-black shadow-[0_0_15px_rgba(52,211,153,0.4)]">M</div>
@@ -72,9 +91,9 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
           </SheetContent>
         </Sheet>
         
-        {/* Breadcrumb / Title (Desktop) */}
+        {/* BREADCRUMB / TITLE YANG SUDAH DIPERBAIKI */}
         <h1 className="text-lg font-bold text-slate-800 capitalize hidden sm:block tracking-tight">
-          {pathname === '/dashboard' ? 'Dashboard Overview' : pathname.split('/').pop()?.replace('-', ' ')}
+          {pageTitle}
         </h1>
       </div>
 
@@ -86,7 +105,7 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
               <Avatar className="h-10 w-10 ring-2 ring-emerald-100 transition-all hover:ring-emerald-300 shadow-sm">
                 <AvatarImage src={avatarUrl || ''} alt={userName} />
                 <AvatarFallback className="bg-gradient-to-br from-emerald-100 to-teal-200 text-emerald-800 font-bold">
-                  {userName.charAt(0).toUpperCase()}
+                  {userName?.charAt(0).toUpperCase() || 'U'}
                 </AvatarFallback>
               </Avatar>
             </Button>

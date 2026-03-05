@@ -5,14 +5,14 @@ import { revalidatePath } from 'next/cache'
 
 // --- 1. Ambil Pengaturan (Rumus & Mapel Pilihan) ---
 export async function getPengaturanAkademik() {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase.from('pengaturan_akademik').select('*').eq('id', 'global').single()
   if (error) return null
   return data
 }
 
 export async function simpanPengaturanAkademik(payload: any) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { error } = await supabase.from('pengaturan_akademik').update({
     mapel_snbp: payload.mapel_snbp,
     mapel_span: payload.mapel_span,
@@ -29,7 +29,7 @@ export async function simpanPengaturanAkademik(payload: any) {
 // --- 2. Mesin Import Cerdas (Anti Duplikat, Berdasarkan NISN) ---
 export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string) {
   // targetKolom isinya: 'nilai_smt1', 'nilai_smt2', ..., atau 'nilai_um'
-  const supabase = createClient()
+  const supabase = await createClient()
   
   // 1. Ambil semua siswa untuk dicocokkan NISN-nya
   const { data: dbSiswa } = await supabase.from('siswa').select('id, nisn, nama_lengkap')

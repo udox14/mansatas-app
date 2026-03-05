@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Script from 'next/script'
-import { useFormState, useFormStatus } from 'react-dom'
+import { useActionState } from 'react'
+import { useFormStatus } from 'react-dom'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -49,7 +50,7 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
   // Modals State
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [editingPegawai, setEditingPegawai] = useState<ProfilType | null>(null)
-  const [state, formAction] = useFormState(tambahPegawai, initialState)
+  const [state, formAction] = useActionState(tambahPegawai, initialState)
   
   // Import State
   const [isImporting, setIsImporting] = useState(false)
