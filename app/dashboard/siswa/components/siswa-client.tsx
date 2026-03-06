@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search, Users, Trash2, MapPin, Loader2, Pencil, LayoutGrid, List, Camera, CheckCircle2 } from 'lucide-react'
 import { TambahModal } from './tambah-modal'
 import { ImportModalSiswa } from './import-modal'
-import { hapusSiswa, uploadFotoSiswa } from '../actions'
+import { hapusSiswa, uploadFotoSiswa, getDetailSiswaLengkap } from '../actions'
 import { EditSiswaModal } from './edit-modal'
 
 // --- HELPER KOMPRESI GAMBAR CLIENT SIDE ---
@@ -65,6 +65,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
 
   // Fitur Baru: Edit Lengkap
   const [editingSiswa, setEditingSiswa] = useState<any | null>(null)
+  const [isFetchingDetail, setIsFetchingDetail] = useState<string | null>(null)
 
   const userRole = currentUser?.role || 'wali_murid'
   const canFullEdit = ['super_admin', 'admin_tu'].includes(userRole)
@@ -124,6 +125,15 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
     if (s === 'aktif') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
     if (s === 'lulus') return 'bg-blue-50 text-blue-700 border-blue-200'
     return 'bg-rose-50 text-rose-700 border-rose-200'
+  }
+
+  const handleEditClick = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    setIsFetchingDetail(id)
+    const res = await getDetailSiswaLengkap(id)
+    setIsFetchingDetail(null)
+    if (res.data) setEditingSiswa(res.data)
+    else alert(res.error || 'Gagal memuat detail siswa.')
   }
 
   return (
@@ -249,8 +259,8 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                     </div>
                     {canEditThis && (
                       <div className="flex justify-end gap-2 pt-1 border-t border-slate-100" onClick={e => e.stopPropagation()}>
-                        <Button variant="outline" size="sm" onClick={() => setEditingSiswa(s)} className="h-9 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 flex-1">
-                          <Pencil className="h-4 w-4 mr-2" /> Edit Biodata
+                        <Button variant="outline" size="sm" onClick={(e) => handleEditClick(e, s.id)} disabled={isFetchingDetail === s.id} className="h-9 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 flex-1">
+                          {isFetchingDetail === s.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Pencil className="h-4 w-4 mr-2" />} Edit Biodata
                         </Button>
                         {canFullEdit && (
                           <Button variant="outline" size="sm" onClick={() => handleHapus(s.id, s.nama_lengkap)} disabled={isPending} className="h-9 rounded-xl text-rose-600 border-rose-200 hover:bg-rose-50 flex-1">
@@ -316,7 +326,9 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                         <TableCell className="text-right px-6 py-4">
                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                               {canEditThis && (
-                                <Button variant="ghost" size="icon" onClick={(e) => {e.stopPropagation(); setEditingSiswa(s)}} className="h-10 w-10 rounded-xl text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 shadow-sm" title="Edit Biodata"><Pencil className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" onClick={(e) => handleEditClick(e, s.id)} disabled={isFetchingDetail === s.id} className="h-10 w-10 rounded-xl text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 shadow-sm" title="Edit Biodata">
+                                  {isFetchingDetail === s.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+                                </Button>
                               )}
                               {canFullEdit && (
                                 <Button variant="ghost" size="icon" onClick={(e) => {e.stopPropagation(); handleHapus(s.id, s.nama_lengkap)}} disabled={isPending} className="h-10 w-10 rounded-xl text-rose-500 bg-rose-50 hover:bg-rose-100 border border-rose-100 shadow-sm"><Trash2 className="h-4 w-4" /></Button>

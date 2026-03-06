@@ -2,12 +2,14 @@
 // Lokasi: app/dashboard/plotting/components/tab-kelulusan.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Loader2, GraduationCap, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Loader2, GraduationCap, AlertCircle, CheckCircle2, Filter, Search } from 'lucide-react'
 import { prosesKelulusanMassal } from '../actions'
 
 type SiswaType = { id: string, nama_lengkap: string, nisn: string, jenis_kelamin: string, kelas_lama: string, kelompok: string }
@@ -17,13 +19,35 @@ export function TabKelulusan({ siswaList }: { siswaList: SiswaType[] }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
 
+  // LAZY LOAD FILTER STATE
+  const [filterKelas, setFilterKelas] = useState('NONE')
+  const [searchSiswa, setSearchSiswa] = useState('') // STATE PENCARIAN
+  const kelasLamaUnik = useMemo(() => Array.from(new Set(siswaList.map(s => s.kelas_lama))).sort(), [siswaList])
+
+  const displayedSiswa = useMemo(() => {
+    if (filterKelas === 'NONE') return []
+    return siswaList.filter(s => {
+      const matchKelas = filterKelas === 'ALL' || s.kelas_lama === filterKelas
+      const matchSearch = s.nama_lengkap.toLowerCase().includes(searchSiswa.toLowerCase()) || s.nisn.includes(searchSiswa)
+      return matchKelas && matchSearch
+    })
+  }, [siswaList, filterKelas, searchSiswa])
+
   const handleToggleSiswa = (id: string) => {
     setSelectedSiswaIds(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id])
   }
 
+  // Pilih Semua hanya menyeleksi siswa yang TERTAMPIL saat ini (berdasarkan filter)
   const handleSelectAll = () => {
-    if (selectedSiswaIds.length === siswaList.length) setSelectedSiswaIds([])
-    else setSelectedSiswaIds(siswaList.map(s => s.id))
+    const displayedIds = displayedSiswa.map(s => s.id)
+    const allDisplayedSelected = displayedIds.length > 0 && displayedIds.every(id => selectedSiswaIds.includes(id))
+
+    if (allDisplayedSelected) {
+      setSelectedSiswaIds(prev => prev.filter(id => !displayedIds.includes(id)))
+    } else {
+      const newSelected = new Set([...selectedSiswaIds, ...displayedIds])
+      setSelectedSiswaIds(Array.from(newSelected))
+    }
   }
 
   const handleLuluskan = async () => {
@@ -61,6 +85,9 @@ export function TabKelulusan({ siswaList }: { siswaList: SiswaType[] }) {
     )
   }
 
+  const displayedIds = displayedSiswa.map(s => s.id)
+  const isAllDisplayedSelected = displayedIds.length > 0 && displayedIds.every(id => selectedSiswaIds.includes(id))
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-1 space-y-6">
@@ -94,22 +121,50 @@ export function TabKelulusan({ siswaList }: { siswaList: SiswaType[] }) {
 
       <div className="lg:col-span-2">
         <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col h-[600px]">
-          <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+          <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h3 className="font-bold text-slate-800 text-lg">Daftar Kandidat Lulus</h3>
-              <p className="text-sm text-slate-500 mt-1">Pilih semua siswa yang memenuhi syarat kelulusan.</p>
+              <p className="text-sm text-slate-500 mt-1">Pilih kelas asal dan centang siswa yang layak diluluskan.</p>
             </div>
-            <div className="text-sm font-bold text-rose-700 bg-rose-100 px-4 py-1.5 rounded-full border border-rose-200 shadow-sm">
-              {selectedSiswaIds.length} Dipilih
+            
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+              <div className="relative w-full sm:w-[200px]">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Cari nama/NISN..."
+                  value={searchSiswa}
+                  onChange={e => setSearchSiswa(e.target.value)}
+                  className="pl-9 h-10 rounded-xl bg-white border-slate-200 focus:border-indigo-500"
+                />
+              </div>
+
+              <Select value={filterKelas} onValueChange={setFilterKelas}>
+                <SelectTrigger className={`h-10 w-full sm:w-[160px] rounded-xl transition-colors font-semibold ${filterKelas === 'NONE' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 ring-2 ring-indigo-100' : 'bg-white'}`}>
+                  <SelectValue placeholder="Pilih Kelas" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="NONE" disabled className="text-slate-400 italic">-- Pilih Kelas --</SelectItem>
+                  <SelectItem value="ALL" className="font-bold text-indigo-600">Tampilkan Semua</SelectItem>
+                  {kelasLamaUnik.map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
+                </SelectContent>
+              </Select>
+
+              <div className="text-sm font-bold text-rose-700 bg-rose-100 px-4 py-2 rounded-xl border border-rose-200 shadow-sm whitespace-nowrap w-full sm:w-auto text-center">
+                {selectedSiswaIds.length} Dipilih
+              </div>
             </div>
           </div>
           
-          <ScrollArea className="flex-1 bg-white">
+          <ScrollArea className="flex-1 bg-white relative">
             <Table>
               <TableHeader className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10 shadow-sm">
                 <TableRow>
                   <TableHead className="w-[60px] text-center pl-4">
-                    <Checkbox checked={selectedSiswaIds.length === siswaList.length && siswaList.length > 0} onCheckedChange={handleSelectAll} />
+                    <Checkbox 
+                      checked={isAllDisplayedSelected} 
+                      onCheckedChange={handleSelectAll} 
+                      disabled={filterKelas === 'NONE'}
+                    />
                   </TableHead>
                   <TableHead className="font-bold text-slate-600">NISN / Nama Siswa</TableHead>
                   <TableHead className="text-center font-bold text-slate-600">L/P</TableHead>
@@ -117,7 +172,18 @@ export function TabKelulusan({ siswaList }: { siswaList: SiswaType[] }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {siswaList.map((siswa) => (
+                {filterKelas === 'NONE' ? (
+                  <TableRow>
+                     <TableCell colSpan={4} className="h-48 text-center">
+                        <div className="flex flex-col items-center text-slate-400">
+                          <Filter className="h-10 w-10 mb-3 opacity-50" />
+                          <p className="font-medium text-slate-500">Pilih <strong className="text-indigo-600">Kelas Asal</strong> di atas untuk memuat daftar kandidat lulus.</p>
+                        </div>
+                     </TableCell>
+                   </TableRow>
+                ) : displayedSiswa.length === 0 ? (
+                   <TableRow><TableCell colSpan={4} className="text-center h-32 text-slate-500">Tidak ada siswa yang cocok.</TableCell></TableRow>
+                ) : displayedSiswa.map((siswa) => (
                   <TableRow key={siswa.id} className={`${selectedSiswaIds.includes(siswa.id) ? 'bg-rose-50/30' : 'hover:bg-slate-50/50'} transition-colors`}>
                     <TableCell className="text-center pl-4">
                       <Checkbox checked={selectedSiswaIds.includes(siswa.id)} onCheckedChange={() => handleToggleSiswa(siswa.id)} />

@@ -75,6 +75,14 @@ export async function editSiswaLengkap(prevState: any, formData: FormData) {
   return { error: null, success: 'Biodata lengkap berhasil diperbarui!' }
 }
 
+// --- FUNGSI BARU: Ambil Detail Lengkap (Lazy Load) ---
+export async function getDetailSiswaLengkap(id: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('siswa').select('*').eq('id', id).single()
+  if (error) return { error: error.message, data: null }
+  return { error: null, data }
+}
+
 // --- 5. Upload Foto Cepat dari Mode Galeri ---
 export async function uploadFotoSiswa(siswaId: string, formData: FormData) {
   const supabase = await createClient()

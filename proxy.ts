@@ -1,10 +1,9 @@
-// BUAT FILE BARU bernama proxy.ts di root folder proyek (sejajar dengan package.json)
-// PENTING: Hapus file middleware.ts yang lama setelah membuat file ini.
+// TIMPA SELURUH ISI FILE INI
+// Lokasi: proxy.ts (sejajar dengan package.json di root folder)
 
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Fungsi diubah dari 'middleware' menjadi 'proxy' mengikuti konvensi baru
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request: {
@@ -63,23 +62,27 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // PERBAIKAN LOGIKA RUTE DI SINI
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login')
+  const isDashboardRoute = request.nextUrl.pathname.startsWith('/dashboard')
 
-  // Proteksi Route Dasar:
-  // Jika user belum login dan mencoba akses route selain /login, arahkan ke /login
-  if (!user && !isAuthRoute) {
+  // 1. Proteksi Halaman Dashboard:
+  // Jika user belum login TAPI mencoba akses /dashboard, tendang ke /login
+  if (!user && isDashboardRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // Jika user sudah login dan mencoba akses halaman /login, arahkan ke /dashboard
+  // 2. Proteksi Halaman Login:
+  // Jika user SUDAH login dan mencoba buka /login, arahkan ke /dashboard
   if (user && isAuthRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }
 
+  // Jika mencoba akses '/' (Landing Page) atau route publik lainnya, biarkan saja lolos!
   return supabaseResponse
 }
 

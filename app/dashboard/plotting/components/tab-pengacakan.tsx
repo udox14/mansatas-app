@@ -2,7 +2,7 @@
 // Lokasi: app/dashboard/plotting/components/tab-pengacakan.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -22,13 +22,18 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
   const [isSaving, setIsSaving] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
 
+  // PERBAIKAN: Mengurutkan daftar wadah kelas menggunakan Natural Sort agar urut dari 12-1, 12-2 dst
+  const sortedKelasList = useMemo(() => {
+    return [...kelasList].sort((a, b) => a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' }))
+  }, [kelasList])
+
   const handleToggleKelas = (id: string) => {
     setSelectedKelasIds(prev => prev.includes(id) ? prev.filter(k => k !== id) : [...prev, id])
   }
 
   const handleSelectAllKelas = () => {
-    if (selectedKelasIds.length === kelasList.length) setSelectedKelasIds([])
-    else setSelectedKelasIds(kelasList.map(k => k.id))
+    if (selectedKelasIds.length === sortedKelasList.length) setSelectedKelasIds([])
+    else setSelectedKelasIds(sortedKelasList.map(k => k.id))
   }
 
   const jalankanSimulasi = () => {
@@ -38,7 +43,8 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
       let sisaSiswa = 0
       let errorMessage = ''
 
-      const targetKelas = kelasList.filter(k => selectedKelasIds.includes(k.id)).map(k => ({ ...k, sisa_kuota: k.kapasitas - k.jumlah_siswa }))
+      // Menggunakan sortedKelasList untuk pembagian yang lebih natural (berurutan)
+      const targetKelas = sortedKelasList.filter(k => selectedKelasIds.includes(k.id)).map(k => ({ ...k, sisa_kuota: k.kapasitas - k.jumlah_siswa }))
 
       const distributeGroup = (siswaGroup: SiswaType[], kelompok: string) => {
         const wadah = targetKelas.filter(k => k.kelompok === kelompok)
@@ -127,7 +133,8 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
           
           <ScrollArea className="flex-1 min-h-[150px] border border-slate-200/60 rounded-2xl p-4 bg-slate-50 shadow-inner">
             <div className="space-y-3">
-              {kelasList.map(k => {
+              {/* MENGGUNAKAN SORTED KELAS LIST AGAR NATURAL SORT */}
+              {sortedKelasList.map(k => {
                 const isFull = k.jumlah_siswa >= k.kapasitas
                 return (
                   <div key={k.id} className="flex items-center space-x-3 bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm">

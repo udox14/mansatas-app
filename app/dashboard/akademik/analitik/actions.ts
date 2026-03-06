@@ -1,9 +1,10 @@
+// TIMPA SELURUH ISI FILE INI
+// Lokasi: app/dashboard/akademik/analitik/actions.ts
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-// --- 1. Ambil Pengaturan (Rumus & Mapel Pilihan) ---
 export async function getPengaturanAkademik() {
   const supabase = await createClient()
   const { data, error } = await supabase.from('pengaturan_akademik').select('*').eq('id', 'global').single()
@@ -26,16 +27,25 @@ export async function simpanPengaturanAkademik(payload: any) {
   return { success: 'Pengaturan rumus dan mata pelajaran berhasil disimpan!' }
 }
 
-// --- 2. Mesin Import Cerdas (Anti Duplikat, Berdasarkan NISN) ---
+// --- 2. Mesin Import Cerdas dengan Kamus Translasi & Pembersih Noise ---
 export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string) {
-  // targetKolom isinya: 'nilai_smt1', 'nilai_smt2', ..., atau 'nilai_um'
   const supabase = await createClient()
   
-  // 1. Ambil semua siswa untuk dicocokkan NISN-nya
   const { data: dbSiswa } = await supabase.from('siswa').select('id, nisn, nama_lengkap')
   if (!dbSiswa) return { error: 'Gagal memuat database siswa' }
 
-  // Buat mapping NISN ke ID Siswa untuk pencarian super cepat
+  // Buat Kamus Translasi (Cth: IPAT -> IPA Terpadu)
+  const { data: dbMapel } = await supabase.from('mata_pelajaran').select('nama_mapel, kode_mapel')
+  const kamusMapel = new Map()
+  if (dbMapel) {
+    dbMapel.forEach(m => {
+      kamusMapel.set(m.nama_mapel.toLowerCase().trim(), m.nama_mapel)
+      if (m.kode_mapel) {
+        kamusMapel.set(m.kode_mapel.toLowerCase().trim(), m.nama_mapel)
+      }
+    })
+  }
+
   const nisnMap = new Map(dbSiswa.map(s => [s.nisn, s.id]))
 
   let toUpsert = []
@@ -44,41 +54,59 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
 
   for (let i = 0; i < dataExcel.length; i++) {
     const row = dataExcel[i]
-    const nisn = String(row.NISN || '').trim()
     
-    // Kalau tidak ada NISN, coba cari by Nama (opsional, tapi NISN lebih akurat)
+    // Cari key NISN secara dinamis (tidak peduli uppercase/lowercase)
+    const nisnKey = Object.keys(row).find(k => k.toUpperCase().trim() === 'NISN')
+    const nisn = nisnKey ? String(row[nisnKey]).trim() : ''
+    
+    // PERBAIKAN: Cari key Nama Siswa agar bisa dimunculkan di log
+    const namaKey = Object.keys(row).find(k => {
+      const upper = k.toUpperCase().trim()
+      return upper === 'NAMA' || upper === 'NAMA LENGKAP' || upper === 'NAMA_LENGKAP'
+    })
+    const namaSiswa = namaKey ? String(row[namaKey]).trim() : 'Nama Tidak Tersedia'
+
     if (!nisn) {
-        errorLogs.push(`Baris ${i+2}: Dilewati karena tidak ada NISN.`)
+        errorLogs.push(`Baris Excel ke-${i+1}: Dilewati (Tidak terdeteksi angka NISN untuk siswa ${namaSiswa}).`)
         continue
     }
 
     const siswa_id = nisnMap.get(nisn)
     if (!siswa_id) {
-        errorLogs.push(`Baris ${i+2} (NISN: ${nisn}): Siswa tidak ditemukan di database. Pastikan siswa sudah diinput di Menu Siswa.`)
+        errorLogs.push(`Siswa bernama "${namaSiswa}" (NISN: ${nisn}) tidak ditemukan di database Madrasah. Pastikan data siswa ini sudah ditambahkan di menu Data Siswa.`)
         continue
     }
 
-    // Bersihkan data row: hapus kolom identitas (NISN, NAMA, KELAS) agar yang tersisa HANYA nilai mapel saja
-    const nilaiMapel = { ...row }
-    delete nilaiMapel['NISN']
-    delete nilaiMapel['NAMA']
-    delete nilaiMapel['NAMA_LENGKAP']
-    delete nilaiMapel['KELAS']
-    delete nilaiMapel['NO']
+    const nilaiMapelTerjemahan: any = {}
+    
+    Object.keys(row).forEach(kolomExcel => {
+      const upperKey = kolomExcel.toUpperCase().trim()
+      
+      // Blacklist semua kolom yang bukan mata pelajaran
+      const blacklist = ['NO', 'NIS', 'NISN', 'NAMA', 'JK', 'L/P', 'JUMLAH', 'RATA', 'RATA-RATA', 'KELAS']
+      if (blacklist.includes(upperKey)) return
 
-    // Siapkan payload Upsert
+      const cleanCol = kolomExcel.toLowerCase().trim()
+      
+      // Terjemahkan kode RDM ke Nama Mapel Asli
+      const namaMapelStandar = kamusMapel.get(cleanCol) || kolomExcel.trim()
+
+      // Pastikan yang diinput adalah angka
+      const nilaiAngka = Number(row[kolomExcel])
+      if (!isNaN(nilaiAngka)) {
+        nilaiMapelTerjemahan[namaMapelStandar] = nilaiAngka
+      }
+    })
+
     const payload: any = {
         siswa_id: siswa_id,
         updated_at: new Date().toISOString()
     }
-    // Masukkan data JSON ke kolom yang dituju (misal: nilai_smt1)
-    payload[targetKolom] = nilaiMapel
-
+    
+    payload[targetKolom] = nilaiMapelTerjemahan
     toUpsert.push(payload)
   }
 
-  // Lakukan Upsert (Menimpa jika sudah ada, membuat baru jika belum)
-  // Karena kita upsert berdasarkan 'siswa_id', nilai semester lain TIDAK AKAN HILANG!
   if (toUpsert.length > 0) {
     const { error } = await supabase.from('rekap_nilai_akademik').upsert(toUpsert, { onConflict: 'siswa_id' })
     if (error) return { error: error.message }
@@ -87,7 +115,7 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
 
   revalidatePath('/dashboard/akademik/analitik')
   return { 
-    success: `Berhasil mengimport dan mencocokkan nilai untuk ${successCount} siswa ke dalam ${targetKolom.replace('nilai_', '').toUpperCase()}.`, 
+    success: `Selesai! Berhasil memploting nilai RDM untuk ${successCount} Siswa.`, 
     logs: errorLogs 
   }
 }

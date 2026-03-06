@@ -2,7 +2,7 @@
 // Lokasi: app/dashboard/akademik/akademik-client.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Script from 'next/script'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -12,10 +12,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { BookOpen, FileSpreadsheet, Trash2, Loader2, Download, AlertCircle, Pencil, CalendarDays, RefreshCw, Search, GraduationCap } from 'lucide-react'
+import { BookOpen, FileSpreadsheet, Trash2, Loader2, Download, AlertCircle, Pencil, CalendarDays, RefreshCw, Search, GraduationCap, Eye, Layers, User, LayoutGrid, Save } from 'lucide-react'
 import { tambahMapel, editMapel, hapusMapel, importPenugasanASC, hapusPenugasan, importMapelMassal, resetPenugasanSemesterIni } from './actions'
 
-type MapelType = { id: string, nama_mapel: string, kelompok: string, tingkat: string, kategori: string }
+type MapelType = { id: string, nama_mapel: string, kode_mapel?: string, kelompok: string, tingkat: string, kategori: string }
 type PenugasanType = { 
   id: string, 
   guru: { nama_lengkap: string }, 
@@ -41,28 +41,243 @@ export function AkademikClient({
   const [currentMapelPage, setCurrentMapelPage] = useState(1)
   const [mapelItemsPerPage, setMapelItemsPerPage] = useState(10)
 
-  const filteredMapel = mapelData.filter(m => m.nama_mapel.toLowerCase().includes(searchMapel.toLowerCase()))
+  // ==============================================================================
+  // STATE & LOGIKA BATCH EDIT KODE RDM MAPEL
+  // ==============================================================================
+  const [pendingMapelChanges, setPendingMapelChanges] = useState<Record<string, {kode_mapel?: string}>>({})
+  const [isSavingBatchMapel, setIsSavingBatchMapel] = useState(false)
+
+  const handleQueueMapelChange = (id: string, value: string) => {
+    setPendingMapelChanges(prev => ({
+      ...prev,
+      [id]: {
+        ...(prev[id] || {}),
+        kode_mapel: value
+      }
+    }))
+  }
+
+  const getMapelValue = (id: string, originalValue: string | undefined) => {
+    return pendingMapelChanges[id]?.kode_mapel !== undefined ? pendingMapelChanges[id].kode_mapel : (originalValue || '')
+  }
+
+  const executeBatchSaveMapel = async () => {
+    setIsSavingBatchMapel(true)
+    
+    // Eksekusi update secara berurutan atau paralel untuk setiap mapel yang diubah
+    const updatePromises = Object.entries(pendingMapelChanges).map(async ([id, changes]) => {
+      const originalMapel = mapelData.find(m => m.id === id)
+      if (!originalMapel) return { error: 'Mapel tidak ditemukan' }
+      
+      const formData = new FormData()
+      formData.append('id', id)
+      formData.append('nama_mapel', originalMapel.nama_mapel)
+      formData.append('kode_mapel', changes.kode_mapel || '')
+      formData.append('kelompok', originalMapel.kelompok)
+      formData.append('tingkat', originalMapel.tingkat)
+      formData.append('kategori', originalMapel.kategori)
+      
+      return editMapel({}, formData)
+    })
+
+    const results = await Promise.all(updatePromises)
+    const hasError = results.some(res => res?.error)
+
+    if (hasError) {
+      alert('Terjadi kesalahan saat menyimpan beberapa perubahan.')
+    } else {
+      setPendingMapelChanges({}) // Bersihkan antrean jika sukses
+    }
+    
+    setIsSavingBatchMapel(false)
+  }
+
+  const filteredMapel = mapelData.filter(m => 
+    m.nama_mapel.toLowerCase().includes(searchMapel.toLowerCase()) || 
+    (m.kode_mapel && m.kode_mapel.toLowerCase().includes(searchMapel.toLowerCase()))
+  )
   const totalMapelPages = Math.ceil(filteredMapel.length / mapelItemsPerPage)
   const paginatedMapel = filteredMapel.slice((currentMapelPage - 1) * mapelItemsPerPage, currentMapelPage * mapelItemsPerPage)
 
   useEffect(() => { setCurrentMapelPage(1) }, [searchMapel, mapelItemsPerPage])
 
+  // ==============================================================================
+  // STATE PENUGASAN
+  // ==============================================================================
   const [searchPenugasan, setSearchPenugasan] = useState('')
-  
-  // Pagination Penugasan
   const [currentPenugasanPage, setCurrentPenugasanPage] = useState(1)
   const [penugasanItemsPerPage, setPenugasanItemsPerPage] = useState(10)
-
-  const filteredPenugasan = penugasanData.filter(p => p.guru?.nama_lengkap?.toLowerCase().includes(searchPenugasan.toLowerCase()) || p.kelas?.nomor_kelas?.includes(searchPenugasan))
-  const totalPenugasanPages = Math.ceil(filteredPenugasan.length / penugasanItemsPerPage)
-  const paginatedPenugasan = filteredPenugasan.slice((currentPenugasanPage - 1) * penugasanItemsPerPage, currentPenugasanPage * penugasanItemsPerPage)
-
-  useEffect(() => { setCurrentPenugasanPage(1) }, [searchPenugasan, penugasanItemsPerPage])
   
+  // Toggle View: 'guru' (default) atau 'mapel'
+  const [viewModePenugasan, setViewModePenugasan] = useState<'guru' | 'mapel'>('guru')
+  
+  // State untuk modal detail (guru atau mapel)
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null)
+  const [selectedMapelKey, setSelectedMapelKey] = useState<string | null>(null)
+
+  // ==============================================================================
+  // HELPER: NORMALISASI NAMA MAPEL (AGAR IPA BIOLOGI = BIOLOGI)
+  // ==============================================================================
+  const normalizeMapelName = (name: string) => {
+    const lower = name.toLowerCase()
+    
+    // Pengecualian khusus untuk IPA Terpadu dan IPS Terpadu agar "IPA"-nya tidak terhapus
+    if (lower.includes('terpadu') || lower === 'ipat' || lower === 'ipst') {
+      return name.trim()
+    }
+
+    return name
+      .replace(/^IPA\s+/i, '')
+      .replace(/^IPS\s+/i, '')
+      .replace(/\s+Tingkat Lanjut/i, '')
+      .replace(/\s+TL/i, '')
+      .replace(/\s*\(Peminatan\)/i, '')
+      .trim()
+  }
+
+  // ==============================================================================
+  // LOGIKA PENGELOMPOKAN JADWAL (VIEW 1: GROUP BY GURU)
+  // ==============================================================================
+  const groupedByGuru = useMemo(() => {
+    const groups = new Map<string, any>()
+    penugasanData.forEach(p => {
+      if (!p.guru || !p.mapel || !p.kelas) return
+      
+      const key = `${p.guru.nama_lengkap}__${p.mapel.nama_mapel}`
+      if (!groups.has(key)) {
+        groups.set(key, {
+          guru_nama: p.guru.nama_lengkap,
+          mapel_nama: p.mapel.nama_mapel,
+          mapel_kelompok: p.mapel.kelompok,
+          key: key,
+          list: []
+        })
+      }
+      groups.get(key).list.push(p)
+    })
+
+    groups.forEach(g => {
+      g.list.sort((a: any, b: any) => {
+        const nameA = `${a.kelas.tingkat}-${a.kelas.nomor_kelas}`
+        const nameB = `${b.kelas.tingkat}-${b.kelas.nomor_kelas}`
+        return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' })
+      })
+    })
+
+    return Array.from(groups.values())
+  }, [penugasanData])
+
+  const filteredByGuru = useMemo(() => {
+    return groupedByGuru.filter(g => 
+      g.guru_nama.toLowerCase().includes(searchPenugasan.toLowerCase()) ||
+      g.mapel_nama.toLowerCase().includes(searchPenugasan.toLowerCase()) ||
+      g.list.some((p: any) => p.kelas.nomor_kelas.toLowerCase().includes(searchPenugasan.toLowerCase()))
+    ).sort((a, b) => a.guru_nama.localeCompare(b.guru_nama))
+  }, [groupedByGuru, searchPenugasan])
+
+  // Dapatkan detail grup yang sedang di-klik untuk Modal Guru
+  const selectedGuruGroup = useMemo(() => {
+    return groupedByGuru.find(g => g.key === selectedGroupKey)
+  }, [groupedByGuru, selectedGroupKey])
+
+  useEffect(() => {
+    if (selectedGroupKey && !selectedGuruGroup) setSelectedGroupKey(null)
+  }, [selectedGuruGroup, selectedGroupKey])
+
+
+  // ==============================================================================
+  // LOGIKA PENGELOMPOKAN JADWAL (VIEW 2: GROUP BY MATA PELAJARAN)
+  // ==============================================================================
+  const groupedByMapel = useMemo(() => {
+    const groups = new Map<string, any>()
+    
+    penugasanData.forEach(p => {
+      if (!p.guru || !p.mapel || !p.kelas) return
+      
+      const normalizedName = normalizeMapelName(p.mapel.nama_mapel)
+      const key = normalizedName.toLowerCase() // Case insensitive key
+      
+      if (!groups.has(key)) {
+        groups.set(key, {
+          mapel_nama_utama: normalizedName,
+          key: key,
+          total_kelas: 0,
+          guru_list: new Map<string, any>() // Map untuk mengelompokkan per guru lagi di dalamnya
+        })
+      }
+      
+      const mapelGroup = groups.get(key)
+      mapelGroup.total_kelas++
+      
+      const guruKey = p.guru.nama_lengkap
+      if (!mapelGroup.guru_list.has(guruKey)) {
+        mapelGroup.guru_list.set(guruKey, {
+          guru_nama: guruKey,
+          mapel_asli: p.mapel.nama_mapel, // Menyimpan nama asli (misal: Biologi TL)
+          kelas_list: []
+        })
+      }
+      
+      mapelGroup.guru_list.get(guruKey).kelas_list.push(p)
+    })
+
+    // Konversi guru_list Map ke Array dan urutkan kelasnya
+    const finalResult = Array.from(groups.values()).map(group => {
+      const guruArr = Array.from(group.guru_list.values())
+      
+      // Urutkan kelas per guru secara natural
+      guruArr.forEach((g: any) => {
+        g.kelas_list.sort((a: any, b: any) => {
+          const nameA = `${a.kelas.tingkat}-${a.kelas.nomor_kelas}`
+          const nameB = `${b.kelas.tingkat}-${b.kelas.nomor_kelas}`
+          return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' })
+        })
+      })
+      
+      // Urutkan guru berdasarkan abjad
+      guruArr.sort((a: any, b: any) => a.guru_nama.localeCompare(b.guru_nama))
+      
+      return {
+        ...group,
+        guru_list: guruArr
+      }
+    })
+
+    // Urutkan berdasarkan nama mapel abjad
+    return finalResult.sort((a, b) => a.mapel_nama_utama.localeCompare(b.mapel_nama_utama))
+  }, [penugasanData])
+
+  const filteredByMapel = useMemo(() => {
+    return groupedByMapel.filter(g => 
+      g.mapel_nama_utama.toLowerCase().includes(searchPenugasan.toLowerCase()) ||
+      g.guru_list.some((guru: any) => guru.guru_nama.toLowerCase().includes(searchPenugasan.toLowerCase()))
+    )
+  }, [groupedByMapel, searchPenugasan])
+
+  // Dapatkan detail grup yang sedang di-klik untuk Modal Mapel
+  const selectedMapelGroup = useMemo(() => {
+    return groupedByMapel.find(g => g.key === selectedMapelKey)
+  }, [groupedByMapel, selectedMapelKey])
+
+  useEffect(() => {
+    if (selectedMapelKey && !selectedMapelGroup) setSelectedMapelKey(null)
+  }, [selectedMapelGroup, selectedMapelKey])
+
+
+  // Tentukan data mana yang dipaginasi berdasarkan mode
+  const currentActiveData = viewModePenugasan === 'guru' ? filteredByGuru : filteredByMapel
+  const totalPenugasanPages = Math.ceil(currentActiveData.length / penugasanItemsPerPage)
+  const paginatedPenugasan = currentActiveData.slice((currentPenugasanPage - 1) * penugasanItemsPerPage, currentPenugasanPage * penugasanItemsPerPage)
+
+  useEffect(() => { setCurrentPenugasanPage(1) }, [searchPenugasan, penugasanItemsPerPage, viewModePenugasan])
+
+
+  // ==============================================================================
+  // HANDLERS LAINNYA
+  // ==============================================================================
   const [isImportingASC, setIsImportingASC] = useState(false)
   const [importLogs, setImportLogs] = useState<string[]>([])
   const [isImportingMapel, setIsImportingMapel] = useState(false)
-  
   const [editingMapel, setEditingMapel] = useState<MapelType | null>(null)
 
   const handleHapusMapel = async (id: string, nama: string) => {
@@ -88,14 +303,14 @@ export function AkademikClient({
     setIsMapelPending(false)
   }
 
-  // --- HANDLER IMPORT MAPEL ---
   const handleDownloadTemplateMapel = () => {
     const XLSX = (window as any).XLSX
     if (!XLSX) return alert('Library belum siap.')
     const data = [
-      { NAMA_MAPEL: "Matematika Tingkat Lanjut", KELOMPOK: "MIPA", TINGKAT: "11 & 12", KATEGORI: "Kelompok Mata Pelajaran Pilihan" },
-      { NAMA_MAPEL: "Biologi", KELOMPOK: "MIPA", TINGKAT: "11 & 12", KATEGORI: "Kelompok Mata Pelajaran Pilihan" },
-      { NAMA_MAPEL: "Bahasa Indonesia", KELOMPOK: "UMUM", TINGKAT: "Semua", KATEGORI: "Kelompok Mata Pelajaran Umum" }
+      { KODE_RDM: "IPAT", NAMA_MAPEL: "IPA Terpadu", KELOMPOK: "UMUM", TINGKAT: "10", KATEGORI: "Kelompok Mata Pelajaran Umum" },
+      { KODE_RDM: "IPST", NAMA_MAPEL: "IPS Terpadu", KELOMPOK: "UMUM", TINGKAT: "10", KATEGORI: "Kelompok Mata Pelajaran Umum" },
+      { KODE_RDM: "BIO", NAMA_MAPEL: "Biologi", KELOMPOK: "MIPA", TINGKAT: "11 & 12", KATEGORI: "Kelompok Mata Pelajaran Pilihan" },
+      { KODE_RDM: "B-IND", NAMA_MAPEL: "Bahasa Indonesia", KELOMPOK: "UMUM", TINGKAT: "Semua", KATEGORI: "Kelompok Mata Pelajaran Umum" }
     ]
     const ws = XLSX.utils.json_to_sheet(data)
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Master_Mapel")
@@ -128,7 +343,6 @@ export function AkademikClient({
     reader.readAsBinaryString(file)
   }
 
-  // --- HANDLER IMPORT ASC ---
   const handleDownloadTemplateASC = () => {
     const XLSX = (window as any).XLSX
     if (!XLSX) return alert('Library belum siap.')
@@ -169,7 +383,6 @@ export function AkademikClient({
     reader.readAsBinaryString(file)
   }
 
-  // Fungsi helper warna avatar untuk guru
   const getAvatarColor = (name: string) => {
     const colors = [
       'from-emerald-100 to-emerald-200 text-emerald-800',
@@ -200,12 +413,24 @@ export function AkademikClient({
             setIsMapelPending(false); 
             setEditingMapel(null);
           }} className="space-y-5 pt-2">
+            
+            <div className="space-y-2">
+              <Label className="text-slate-600 font-semibold text-xs uppercase tracking-wider">Nama Mata Pelajaran <span className="text-rose-500">*</span></Label>
+              <Input name="nama_mapel" defaultValue={editingMapel?.nama_mapel} required placeholder="Contoh: Biologi" className="h-11 rounded-xl bg-slate-50 border-slate-200 focus:border-emerald-500 transition-colors" />
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="text-slate-600 font-semibold text-xs uppercase tracking-wider flex justify-between">
+                <span>Kode RDM <span className="text-slate-400 font-normal">(Opsional)</span></span>
+              </Label>
+              <Input name="kode_mapel" defaultValue={editingMapel?.kode_mapel || ''} placeholder="Contoh: IPAT, BIO" className="h-11 rounded-xl bg-slate-50 border-slate-200 focus:border-emerald-500 transition-colors font-mono font-bold text-emerald-700" />
+            </div>
+
             <div className="space-y-2">
               <Label className="text-slate-600 font-semibold text-xs uppercase tracking-wider">Kelompok Jurusan</Label>
               <Select name="kelompok" defaultValue={editingMapel?.kelompok}>
                 <SelectTrigger className="h-11 rounded-xl bg-slate-50 border-slate-200 focus:border-emerald-500 transition-colors"><SelectValue /></SelectTrigger>
                 <SelectContent className="rounded-xl">
-                  {/* GENERATE DARI MASTER DINAMIS */}
                   {daftarJurusan.map(jur => <SelectItem key={`edit-${jur}`} value={jur}>{jur}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -242,7 +467,156 @@ export function AkademikClient({
         </DialogContent>
       </Dialog>
 
-      <div className="space-y-6 pb-20 sm:pb-8">
+      {/* ============================================================================== */}
+      {/* MODAL DETAIL GURU (VIEW 1) */}
+      {/* ============================================================================== */}
+      <Dialog open={!!selectedGroupKey} onOpenChange={(open) => !open && setSelectedGroupKey(null)}>
+        <DialogContent className="sm:max-w-md rounded-3xl bg-white/95 backdrop-blur-xl border border-slate-200/60 shadow-xl overflow-hidden p-0">
+          <DialogHeader className="p-5 border-b border-slate-100 bg-slate-50/50">
+            <DialogTitle className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              <Layers className="h-5 w-5 text-indigo-600" />
+              Detail Rombongan Belajar
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedGuruGroup && (
+            <div className="flex flex-col h-[60vh] sm:h-auto max-h-[500px]">
+              <div className="p-5 pb-2">
+                <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100 shadow-sm">
+                  <h3 className="font-extrabold text-indigo-900 text-lg leading-tight mb-1">{selectedGuruGroup.guru_nama}</h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-bold text-indigo-700">{selectedGuruGroup.mapel_nama}</span>
+                    {selectedGuruGroup.mapel_kelompok !== 'UMUM' && (
+                      <span className="text-[10px] uppercase font-bold tracking-wider bg-white px-2 py-0.5 rounded text-indigo-600 border border-indigo-200 shadow-sm">
+                        {selectedGuruGroup.mapel_kelompok}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-hidden p-5 pt-3 flex flex-col">
+                <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 pl-1">
+                  Daftar Kelas yang Diajar ({selectedGuruGroup.list.length} Kelas)
+                </Label>
+                <ScrollArea className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-2 shadow-inner">
+                  <div className="space-y-2">
+                    {selectedGuruGroup.list.map((p: any) => (
+                      <div key={p.id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-100 shadow-sm hover:border-indigo-200 hover:shadow-md transition-all group">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-sm border border-indigo-200">
+                            {p.kelas.tingkat}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-700 text-sm">Kelas {p.kelas.tingkat}-{p.kelas.nomor_kelas}</span>
+                            {p.kelas.kelompok !== 'UMUM' && <span className="text-[10px] font-semibold text-slate-500">{p.kelas.kelompok}</span>}
+                          </div>
+                        </div>
+                        <Button 
+                          variant="ghost" size="icon" 
+                          onClick={async () => { 
+                            if(confirm(`Hapus jadwal ${selectedGuruGroup.mapel_nama} di Kelas ${p.kelas.tingkat}-${p.kelas.nomor_kelas}?`)) { 
+                              setIsMapelPending(true); 
+                              await hapusPenugasan(p.id); 
+                              setIsMapelPending(false); 
+                            } 
+                          }} 
+                          className="h-8 w-8 text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition-colors opacity-60 group-hover:opacity-100"
+                          title="Hapus Kelas Ini"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ============================================================================== */}
+      {/* MODAL DETAIL MAPEL (VIEW 2) */}
+      {/* ============================================================================== */}
+      <Dialog open={!!selectedMapelKey} onOpenChange={(open) => !open && setSelectedMapelKey(null)}>
+        <DialogContent className="sm:max-w-xl rounded-3xl bg-white/95 backdrop-blur-xl border border-slate-200/60 shadow-xl overflow-hidden p-0">
+          <DialogHeader className="p-5 border-b border-slate-100 bg-slate-50/50">
+            <DialogTitle className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-emerald-600" />
+              Detail Pengajar Mata Pelajaran
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedMapelGroup && (
+            <div className="flex flex-col h-[70vh] sm:h-auto max-h-[600px]">
+              <div className="p-5 pb-2">
+                <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 shadow-sm flex justify-between items-center">
+                  <div>
+                    <h3 className="font-extrabold text-emerald-900 text-lg leading-tight mb-1">{selectedMapelGroup.mapel_nama_utama}</h3>
+                    <p className="text-xs text-emerald-700 font-medium">Beban Mengajar: <strong>{selectedMapelGroup.total_kelas} Kelas</strong> (Diampu oleh {selectedMapelGroup.guru_list.length} Guru)</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-hidden p-5 pt-3 flex flex-col">
+                <ScrollArea className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-inner">
+                  <div className="space-y-4">
+                    {selectedMapelGroup.guru_list.map((guruItem: any) => (
+                      <div key={guruItem.guru_nama} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                        
+                        {/* Header Guru */}
+                        <div className="bg-slate-100/50 p-3 border-b border-slate-100 flex items-center justify-between">
+                           <div className="flex items-center gap-3">
+                              <div className={`h-8 w-8 rounded-full bg-gradient-to-br ${getAvatarColor(guruItem.guru_nama)} flex items-center justify-center text-xs font-bold text-white shadow-sm border border-white`}>
+                                {guruItem.guru_nama.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-slate-800 text-sm leading-tight">{guruItem.guru_nama}</h4>
+                                {guruItem.mapel_asli !== selectedMapelGroup.mapel_nama_utama && (
+                                   <p className="text-[10px] text-slate-500">Alias: <span className="font-medium italic">{guruItem.mapel_asli}</span></p>
+                                )}
+                              </div>
+                           </div>
+                           <span className="bg-white px-2 py-1 rounded-lg text-xs font-bold text-slate-600 border shadow-sm">
+                             {guruItem.kelas_list.length} Kelas
+                           </span>
+                        </div>
+
+                        {/* List Kelas */}
+                        <div className="p-3 grid grid-cols-2 gap-2">
+                           {guruItem.kelas_list.map((p: any) => (
+                              <div key={p.id} className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 group hover:border-emerald-200 transition-colors">
+                                 <span className="text-xs font-bold text-slate-700">
+                                   {p.kelas.tingkat}-{p.kelas.nomor_kelas}
+                                 </span>
+                                 <button 
+                                    onClick={async () => { 
+                                      if(confirm(`Hapus jadwal ${guruItem.guru_nama} di Kelas ${p.kelas.tingkat}-${p.kelas.nomor_kelas}?`)) { 
+                                        setIsMapelPending(true); 
+                                        await hapusPenugasan(p.id); 
+                                        setIsMapelPending(false); 
+                                      } 
+                                    }}
+                                    className="text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
+                                 >
+                                    <Trash2 className="h-3 w-3" />
+                                 </button>
+                              </div>
+                           ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+
+      <div className="space-y-6 pb-20 sm:pb-8 animate-in fade-in">
         <Tabs defaultValue="penugasan" className="space-y-6">
           <div className="overflow-x-auto custom-scrollbar pb-2">
             <TabsList className="bg-white border p-1.5 flex flex-nowrap w-max sm:w-full min-w-full sm:grid sm:grid-cols-2 h-auto shadow-sm rounded-2xl">
@@ -273,24 +647,43 @@ export function AkademikClient({
             {/* TOOLBAR JADWAL */}
             <div className="flex flex-col bg-white/80 backdrop-blur-xl p-4 sm:p-5 rounded-3xl border border-slate-200/60 shadow-sm gap-4">
               <div className="flex flex-col lg:flex-row justify-between gap-4">
-                <div className="relative w-full lg:max-w-md">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                  <Input 
-                    placeholder="Cari Nama Guru / Kelas..." 
-                    value={searchPenugasan} 
-                    onChange={e => setSearchPenugasan(e.target.value)} 
-                    className="pl-11 rounded-2xl bg-slate-50 border-slate-200 focus:bg-white focus:border-indigo-500 transition-all h-12 text-base shadow-inner" 
-                  />
+                
+                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                  <div className="relative w-full sm:w-72">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                    <Input 
+                      placeholder={viewModePenugasan === 'guru' ? "Cari Nama Guru / Mapel..." : "Cari Mapel / Guru..."}
+                      value={searchPenugasan} 
+                      onChange={e => setSearchPenugasan(e.target.value)} 
+                      className="pl-11 rounded-xl bg-slate-50 border-slate-200 focus:bg-white focus:border-indigo-500 transition-all h-12 text-base shadow-inner" 
+                    />
+                  </div>
+
+                  {/* TOGGLE VIEW MODE (GURU vs MAPEL) */}
+                  <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner w-fit">
+                    <button 
+                      onClick={() => setViewModePenugasan('guru')} 
+                      className={`px-4 h-10 rounded-lg flex items-center gap-2 text-sm font-bold transition-all ${viewModePenugasan === 'guru' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <User className="h-4 w-4"/> Per Guru
+                    </button>
+                    <button 
+                      onClick={() => setViewModePenugasan('mapel')} 
+                      className={`px-4 h-10 rounded-lg flex items-center gap-2 text-sm font-bold transition-all ${viewModePenugasan === 'mapel' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <BookOpen className="h-4 w-4"/> Per Mapel
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="grid grid-cols-1 sm:flex sm:flex-row gap-3 w-full lg:w-auto">
-                  <Button onClick={handleResetJadwal} disabled={isMapelPending || !taAktif || penugasanData.length === 0} variant="outline" className="h-11 rounded-xl text-rose-600 border-rose-200 hover:bg-rose-50 flex-1 sm:flex-none transition-all font-medium">
+                  <Button onClick={handleResetJadwal} disabled={isMapelPending || !taAktif || penugasanData.length === 0} variant="outline" className="h-12 sm:h-11 rounded-xl text-rose-600 border-rose-200 hover:bg-rose-50 flex-1 sm:flex-none transition-all font-medium">
                     <RefreshCw className="h-4 w-4 mr-2" /> <span className="sm:hidden">Reset</span><span className="hidden sm:inline">Reset Jadwal Smt Ini</span>
                   </Button>
                   
                   <Dialog>
                     <DialogTrigger asChild>
-                      <Button disabled={!taAktif} className="gap-2 bg-indigo-600 hover:bg-indigo-700 h-11 rounded-xl shadow-md flex-1 sm:flex-none text-white transition-all border-0 font-medium">
+                      <Button disabled={!taAktif} className="gap-2 bg-indigo-600 hover:bg-indigo-700 h-12 sm:h-11 rounded-xl shadow-md flex-1 sm:flex-none text-white transition-all border-0 font-medium">
                         <FileSpreadsheet className="h-4 w-4" /> Import ASC Baru
                       </Button>
                     </DialogTrigger>
@@ -334,88 +727,179 @@ export function AkademikClient({
                   <p className="font-medium text-slate-500">Belum ada jadwal mengajar di semester ini.</p>
                 </div>
               ) : (
-                paginatedPenugasan.map(p => (
-                  <div key={p.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4 relative overflow-hidden">
-                    <div className="flex gap-3 items-start">
-                      <div className={`h-12 w-12 shrink-0 rounded-full bg-gradient-to-br ${getAvatarColor(p.guru?.nama_lengkap)} flex items-center justify-center text-xl font-bold shadow-sm border-2 border-white`}>
-                        {p.guru?.nama_lengkap?.charAt(0).toUpperCase() || '?'}
-                      </div>
-                      <div className="flex-1 pr-10">
-                        <h3 className="font-bold text-slate-800 text-base leading-tight">{p.guru?.nama_lengkap}</h3>
-                        <div className="text-sm font-medium text-indigo-600 mt-1">{p.mapel?.nama_mapel}</div>
-                      </div>
-                    </div>
+                paginatedPenugasan.map(item => {
+                  if (viewModePenugasan === 'guru') {
+                    const g = item as any
+                    return (
+                      <div key={g.key} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                        <div className="flex gap-3 items-start">
+                          <div className={`h-12 w-12 shrink-0 rounded-full bg-gradient-to-br ${getAvatarColor(g.guru_nama)} flex items-center justify-center text-xl font-bold shadow-sm border-2 border-white text-white`}>
+                            {g.guru_nama.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-bold text-slate-800 text-base leading-tight">{g.guru_nama}</h3>
+                            <div className="text-sm font-medium text-indigo-600 mt-1 line-clamp-1">{g.mapel_nama}</div>
+                            {g.mapel_kelompok !== 'UMUM' && (
+                              <span className="inline-block mt-1.5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-100 rounded">
+                                {g.mapel_kelompok}
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
-                    <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Mengajar di</span>
-                        <span className="font-bold text-slate-700 flex items-center gap-1.5 text-base">
-                          <GraduationCap className="h-4 w-4 text-emerald-500" />
-                          {p.kelas?.tingkat}-{p.kelas?.nomor_kelas} {p.kelas?.kelompok !== 'UMUM' ? p.kelas?.kelompok : ''}
-                        </span>
+                        <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+                          <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-sm">
+                              {g.list.length}
+                            </div>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Kelas</span>
+                          </div>
+                          <Button onClick={() => setSelectedGroupKey(g.key)} variant="outline" size="sm" className="h-8 rounded-lg border-indigo-200 text-indigo-600 bg-white hover:bg-indigo-50 text-xs font-bold">
+                            <Eye className="h-3.5 w-3.5 mr-1.5" /> Lihat Detail
+                          </Button>
+                        </div>
                       </div>
-                      {p.mapel?.kelompok !== 'UMUM' && (
-                        <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 border border-indigo-200 rounded-lg">
-                          {p.mapel?.kelompok}
-                        </span>
-                      )}
-                    </div>
+                    )
+                  } else {
+                    // VIEW MOBILE MAPEL
+                    const m = item as any
+                    return (
+                      <div key={m.key} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                        <div className="flex gap-3 items-center border-b border-slate-100 pb-3">
+                          <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
+                            <BookOpen className="h-6 w-6" />
+                          </div>
+                          <div>
+                             <h3 className="font-bold text-slate-800 text-lg leading-tight">{m.mapel_nama_utama}</h3>
+                             <p className="text-xs text-slate-500 font-medium mt-0.5">{m.guru_list.length} Guru Pengampu</p>
+                          </div>
+                        </div>
 
-                    <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">
-                      <Button variant="ghost" size="sm" onClick={async () => { if(confirm('Hapus penugasan ini?')) { setIsMapelPending(true); await hapusPenugasan(p.id); setIsMapelPending(false); } }} className="h-9 rounded-xl text-rose-600 hover:bg-rose-50 w-full font-medium">
-                        <Trash2 className="h-4 w-4 mr-2" /> Hapus Jadwal
-                      </Button>
-                    </div>
-                  </div>
-                ))
+                        <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+                          <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-black text-sm">
+                              {m.total_kelas}
+                            </div>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Kelas</span>
+                          </div>
+                          <Button onClick={() => setSelectedMapelKey(m.key)} variant="outline" size="sm" className="h-8 rounded-lg border-emerald-200 text-emerald-600 bg-white hover:bg-emerald-50 text-xs font-bold">
+                            <Eye className="h-3.5 w-3.5 mr-1.5" /> Lihat Rincian
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  }
+                })
               )}
             </div>
 
             {/* TAMPILAN DESKTOP: TABEL JADWAL */}
-            <div className="hidden lg:flex bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex-col">
+            <div className="hidden lg:flex bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex-col animate-in fade-in">
               <div className="overflow-x-auto custom-scrollbar">
                 <Table className="min-w-[800px]">
                   <TableHeader className="bg-slate-50 border-b border-slate-200">
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="font-semibold text-slate-600 h-12 px-6">Nama Guru Pengajar</TableHead>
-                      <TableHead className="font-semibold text-slate-600 h-12">Mata Pelajaran</TableHead>
-                      <TableHead className="font-semibold text-slate-600 h-12">Mengajar di Kelas</TableHead>
-                      <TableHead className="text-right font-semibold text-slate-600 h-12 px-6">Aksi</TableHead>
+                      {viewModePenugasan === 'guru' ? (
+                        <>
+                          <TableHead className="font-bold text-slate-600 h-14 px-6 w-[350px]">Nama Guru Pengajar</TableHead>
+                          <TableHead className="font-bold text-slate-600 h-14">Mata Pelajaran</TableHead>
+                        </>
+                      ) : (
+                         <>
+                          <TableHead className="font-bold text-slate-600 h-14 px-6 w-[350px]">Mata Pelajaran (Normalisasi)</TableHead>
+                          <TableHead className="font-bold text-slate-600 h-14">Daftar Pengampu</TableHead>
+                        </>
+                      )}
+                      <TableHead className="font-bold text-slate-600 h-14 text-center w-[150px]">Beban Mengajar</TableHead>
+                      <TableHead className="text-right font-bold text-slate-600 h-14 px-6 w-[180px]">Rincian & Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedPenugasan.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="h-48 text-center text-slate-500">Belum ada jadwal mengajar di semester ini. Silakan import dari ASC.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={4} className="h-48 text-center text-slate-500">Belum ada jadwal mengajar di semester ini.</TableCell></TableRow>
                     ) : (
-                      paginatedPenugasan.map(p => (
-                        <TableRow key={p.id} className="hover:bg-slate-50/50 transition-colors border-slate-100 group">
-                          <TableCell className="px-6 py-4">
-                             <div className="flex items-center gap-3">
-                              <div className={`h-10 w-10 shrink-0 rounded-full bg-gradient-to-br ${getAvatarColor(p.guru?.nama_lengkap)} shadow-sm flex items-center justify-center text-sm font-bold ring-2 ring-white`}>
-                                {p.guru?.nama_lengkap?.charAt(0).toUpperCase() || '?'}
-                              </div>
-                              <span className="font-bold text-slate-800 text-base">{p.guru?.nama_lengkap}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <div className="flex flex-col gap-1.5">
-                              <span className="font-medium text-slate-700">{p.mapel?.nama_mapel}</span>
-                              {p.mapel?.kelompok !== 'UMUM' && (
-                                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md w-fit">{p.mapel?.kelompok}</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <span className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-sm font-bold text-slate-700 border border-slate-200 shadow-sm">
-                              <GraduationCap className="h-4 w-4 text-emerald-500" />
-                              {p.kelas?.tingkat}-{p.kelas?.nomor_kelas} {p.kelas?.kelompok !== 'UMUM' ? p.kelas?.kelompok : ''}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right px-6 py-4">
-                            <Button variant="ghost" size="icon" onClick={async () => { if(confirm('Hapus penugasan ini?')) { setIsMapelPending(true); await hapusPenugasan(p.id); setIsMapelPending(false); } }} className="h-10 w-10 rounded-xl text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-100 shadow-sm opacity-0 group-hover:opacity-100 transition-all"><Trash2 className="h-4 w-4" /></Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      paginatedPenugasan.map(item => {
+                        if (viewModePenugasan === 'guru') {
+                          const g = item as any
+                          return (
+                            <TableRow key={g.key} className="hover:bg-slate-50/50 transition-colors border-slate-100 group">
+                              <TableCell className="px-6 py-4">
+                                <div className="flex items-center gap-4">
+                                  <div className={`h-11 w-11 shrink-0 rounded-full bg-gradient-to-br ${getAvatarColor(g.guru_nama)} shadow-sm flex items-center justify-center text-base font-bold ring-2 ring-white text-white`}>
+                                    {g.guru_nama.charAt(0).toUpperCase()}
+                                  </div>
+                                  <span className="font-bold text-slate-800 text-base">{g.guru_nama}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-4">
+                                <div className="flex flex-col gap-1.5">
+                                  <span className="font-bold text-slate-700 text-sm">{g.mapel_nama}</span>
+                                  {g.mapel_kelompok !== 'UMUM' && (
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded shadow-sm w-fit">
+                                      {g.mapel_kelompok}
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-4 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <span className="inline-flex items-center justify-center bg-indigo-100 text-indigo-800 font-black h-8 w-8 rounded-lg shadow-sm border border-indigo-200">
+                                    {g.list.length}
+                                  </span>
+                                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Kelas</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right px-6 py-4">
+                                <Button onClick={() => setSelectedGroupKey(g.key)} variant="outline" className="gap-2 h-10 rounded-xl border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-bold text-xs shadow-sm bg-white">
+                                  <Layers className="h-4 w-4" /> Lihat Kelas
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        } else {
+                          // DESKTOP VIEW MAPEL
+                          const m = item as any
+                          return (
+                            <TableRow key={m.key} className="hover:bg-slate-50/50 transition-colors border-slate-100 group">
+                              <TableCell className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600 border border-emerald-100">
+                                    <BookOpen className="h-5 w-5" />
+                                  </div>
+                                  <span className="font-bold text-slate-800 text-base">{m.mapel_nama_utama}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-4">
+                                 <div className="flex flex-wrap gap-1.5">
+                                   {m.guru_list.slice(0, 3).map((g: any) => (
+                                     <span key={g.guru_nama} className="text-xs font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md">
+                                       {g.guru_nama.split(',')[0]}
+                                     </span>
+                                   ))}
+                                   {m.guru_list.length > 3 && (
+                                     <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-md">
+                                       +{m.guru_list.length - 3} lagi
+                                     </span>
+                                   )}
+                                 </div>
+                              </TableCell>
+                              <TableCell className="py-4 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <span className="inline-flex items-center justify-center bg-emerald-100 text-emerald-800 font-black h-8 w-8 rounded-lg shadow-sm border border-emerald-200">
+                                    {m.total_kelas}
+                                  </span>
+                                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Kelas</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right px-6 py-4">
+                                <Button onClick={() => setSelectedMapelKey(m.key)} variant="outline" className="gap-2 h-10 rounded-xl border-emerald-200 text-emerald-600 hover:bg-emerald-50 font-bold text-xs shadow-sm bg-white">
+                                  <Eye className="h-4 w-4" /> Rincian
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        }
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -435,7 +919,7 @@ export function AkademikClient({
                     <SelectItem value="100">100</SelectItem>
                   </SelectContent>
                 </Select>
-                <span>dari <strong className="text-slate-800">{filteredPenugasan.length}</strong> jadwal</span>
+                <span>dari <strong className="text-slate-800">{currentActiveData.length}</strong> grup {viewModePenugasan}</span>
               </div>
               
               <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
@@ -462,7 +946,7 @@ export function AkademikClient({
                 <div className="relative w-full lg:max-w-md">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                   <Input 
-                    placeholder="Cari Nama Mapel..." 
+                    placeholder="Cari Nama atau Kode Mapel..." 
                     value={searchMapel} 
                     onChange={e => setSearchMapel(e.target.value)} 
                     className="pl-11 rounded-2xl bg-slate-50 border-slate-200 focus:bg-white focus:border-emerald-500 transition-all h-12 text-base shadow-inner" 
@@ -487,6 +971,7 @@ export function AkademikClient({
                         </div>
                         <div className="bg-emerald-50/50 border border-emerald-100 p-4 rounded-xl text-sm space-y-2 text-emerald-800">
                           <p className="font-mono text-xs"><strong className="text-emerald-700 bg-white px-1 py-0.5 rounded shadow-sm mr-1 font-semibold">NAMA_MAPEL</strong></p>
+                          <p className="font-mono text-xs"><strong className="text-emerald-700 bg-white px-1 py-0.5 rounded shadow-sm mr-1 font-semibold">KODE_RDM</strong> (Opsional: Singkatan di RDM)</p>
                           <p className="font-mono text-xs"><strong className="text-emerald-700 bg-white px-1 py-0.5 rounded shadow-sm mr-1 font-semibold">KELOMPOK</strong> (MIPA/SOSHUM/UMUM)</p>
                           <p className="font-mono text-xs"><strong className="text-emerald-700 bg-white px-1 py-0.5 rounded shadow-sm mr-1 font-semibold">TINGKAT</strong> (10/11/12/Semua)</p>
                           <p className="font-mono text-xs"><strong className="text-emerald-700 bg-white px-1 py-0.5 rounded shadow-sm mr-1 font-semibold">KATEGORI</strong></p>
@@ -508,6 +993,19 @@ export function AkademikClient({
                         <DialogTitle className="text-xl font-bold text-slate-800">Tambah Mata Pelajaran</DialogTitle>
                       </DialogHeader>
                       <form action={async (fd) => { setIsMapelPending(true); await tambahMapel({}, fd); setIsMapelPending(false); }} className="space-y-5 pt-2">
+                        
+                        <div className="space-y-2">
+                          <Label className="text-slate-600 font-semibold text-xs uppercase tracking-wider">Nama Mata Pelajaran <span className="text-rose-500">*</span></Label>
+                          <Input name="nama_mapel" required placeholder="Contoh: Matematika" className="h-11 rounded-xl bg-slate-50 border-slate-200 focus:border-emerald-500 transition-colors" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-slate-600 font-semibold text-xs uppercase tracking-wider flex justify-between">
+                            <span>Kode RDM <span className="text-slate-400 font-normal">(Opsional)</span></span>
+                          </Label>
+                          <Input name="kode_mapel" placeholder="Contoh: IPAT, BIO" className="h-11 rounded-xl bg-slate-50 border-slate-200 focus:border-emerald-500 transition-colors font-mono font-bold text-emerald-700" />
+                        </div>
+
                         <div className="space-y-2">
                           <Label className="text-slate-600 font-semibold text-xs uppercase tracking-wider">Kelompok Jurusan</Label>
                           <Select name="kelompok" defaultValue="UMUM">
@@ -553,7 +1051,7 @@ export function AkademikClient({
               </div>
             </div>
 
-            {/* TAMPILAN MOBILE: KARTU MAPEL */}
+            {/* TAMPILAN MOBILE: KARTU MAPEL (Dengan Inline Edit Kode) */}
             <div className="block lg:hidden space-y-4">
               {paginatedMapel.length === 0 ? (
                 <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center shadow-sm">
@@ -561,43 +1059,62 @@ export function AkademikClient({
                   <p className="font-medium text-slate-500">Belum ada mata pelajaran.</p>
                 </div>
               ) : (
-                paginatedMapel.map(m => (
-                  <div key={m.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3 relative overflow-hidden">
-                    <div className="flex justify-between items-start">
-                      <h3 className="font-bold text-slate-800 text-base leading-tight pr-4">{m.nama_mapel}</h3>
-                    </div>
+                paginatedMapel.map(m => {
+                  const currentKode = getMapelValue(m.id, m.kode_mapel)
+                  const isPendingChange = pendingMapelChanges[m.id]?.kode_mapel !== undefined
+                  
+                  return (
+                    <div key={m.id} className={`bg-white p-4 rounded-2xl border shadow-sm flex flex-col gap-3 relative overflow-hidden transition-colors ${isPendingChange ? 'border-emerald-300 ring-2 ring-emerald-50' : 'border-slate-200'}`}>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-bold text-slate-800 text-base leading-tight pr-4">{m.nama_mapel}</h3>
+                          {/* INLINE EDIT KODE RDM PADA MOBILE */}
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">RDM:</span>
+                            <Input 
+                              value={currentKode} 
+                              onChange={(e) => handleQueueMapelChange(m.id, e.target.value)}
+                              placeholder="Kosong" 
+                              disabled={isSavingBatchMapel}
+                              className={`h-8 w-24 text-xs font-mono font-bold px-2 rounded-lg ${isPendingChange ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`} 
+                            />
+                          </div>
+                        </div>
+                      </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      {m.kelompok !== 'UMUM' ? (
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">{m.kelompok}</span>
-                      ) : (
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md">UMUM</span>
-                      )}
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md">
-                        {m.tingkat === 'Semua' ? 'SEMUA TINGKAT' : `KELAS ${m.tingkat}`}
-                      </span>
-                    </div>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        {m.kelompok !== 'UMUM' ? (
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">{m.kelompok}</span>
+                        ) : (
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md">UMUM</span>
+                        )}
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md">
+                          {m.tingkat === 'Semua' ? 'SEMUA TINGKAT' : `KELAS ${m.tingkat}`}
+                        </span>
+                      </div>
 
-                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 mt-1">
-                      <Button variant="outline" size="sm" onClick={() => setEditingMapel(m)} className="h-9 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 flex-1 font-medium">
-                        <Pencil className="h-4 w-4 mr-2" /> Edit
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleHapusMapel(m.id, m.nama_mapel)} className="h-9 rounded-xl text-rose-600 border-rose-200 hover:bg-rose-50 flex-1 font-medium">
-                        <Trash2 className="h-4 w-4 mr-2" /> Hapus
-                      </Button>
+                      <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 mt-1">
+                        <Button variant="outline" size="sm" onClick={() => setEditingMapel(m)} className="h-9 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50 flex-1 font-medium">
+                          <Pencil className="h-4 w-4 mr-2" /> Edit Full
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleHapusMapel(m.id, m.nama_mapel)} className="h-9 rounded-xl text-rose-600 border-rose-200 hover:bg-rose-50 flex-1 font-medium">
+                          <Trash2 className="h-4 w-4 mr-2" /> Hapus
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
 
-            {/* TAMPILAN DESKTOP: TABEL MAPEL */}
+            {/* TAMPILAN DESKTOP: TABEL MAPEL (Dengan Inline Edit Kode) */}
             <div className="hidden lg:flex bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex-col">
               <div className="overflow-x-auto custom-scrollbar">
                 <Table className="min-w-[800px]">
                   <TableHeader className="bg-slate-50 border-b border-slate-200">
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="font-semibold text-slate-600 h-12 px-6">Nama Mata Pelajaran</TableHead>
+                      <TableHead className="font-semibold text-slate-600 h-12 w-[180px]">Kode RDM (Edit)</TableHead>
                       <TableHead className="font-semibold text-slate-600 h-12">Kelompok</TableHead>
                       <TableHead className="font-semibold text-slate-600 h-12">Tingkat Kelas</TableHead>
                       <TableHead className="text-right font-semibold text-slate-600 h-12 px-6">Aksi</TableHead>
@@ -605,31 +1122,48 @@ export function AkademikClient({
                   </TableHeader>
                   <TableBody>
                     {paginatedMapel.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="h-48 text-center text-slate-500">Belum ada mata pelajaran. Silakan import atau tambah manual.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="h-48 text-center text-slate-500">Belum ada mata pelajaran. Silakan import atau tambah manual.</TableCell></TableRow>
                     ) : (
-                      paginatedMapel.map(m => (
-                        <TableRow key={m.id} className="hover:bg-slate-50/50 transition-colors border-slate-100 group">
-                          <TableCell className="font-bold text-slate-800 px-6 py-4">{m.nama_mapel}</TableCell>
-                          <TableCell className="py-4">
-                            {m.kelompok !== 'UMUM' ? (
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-md">{m.kelompok}</span>
-                            ) : (
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-3 py-1 rounded-md">UMUM</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <span className="text-sm font-semibold text-slate-700 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
-                              {m.tingkat === 'Semua' ? 'Semua Tingkat' : `Kelas ${m.tingkat}`}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right px-6 py-4">
-                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button variant="ghost" size="icon" onClick={() => setEditingMapel(m)} className="h-10 w-10 rounded-xl text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 shadow-sm"><Pencil className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleHapusMapel(m.id, m.nama_mapel)} className="h-10 w-10 rounded-xl text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100 shadow-sm"><Trash2 className="h-4 w-4" /></Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      paginatedMapel.map(m => {
+                        const currentKode = getMapelValue(m.id, m.kode_mapel)
+                        const isPendingChange = pendingMapelChanges[m.id]?.kode_mapel !== undefined
+
+                        return (
+                          <TableRow key={m.id} className={`transition-colors border-slate-100 group ${isPendingChange ? 'bg-emerald-50/30' : 'hover:bg-slate-50/50'}`}>
+                            <TableCell className="px-6 py-4">
+                              <div className="font-bold text-slate-800">{m.nama_mapel}</div>
+                            </TableCell>
+                            <TableCell className="py-4 relative">
+                              {/* INLINE EDIT KODE RDM PADA DESKTOP */}
+                              <Input 
+                                value={currentKode} 
+                                onChange={(e) => handleQueueMapelChange(m.id, e.target.value)}
+                                placeholder="Kosong" 
+                                disabled={isSavingBatchMapel}
+                                className={`h-9 font-mono font-bold w-full transition-all ${isPendingChange ? 'bg-emerald-50 border-emerald-300 text-emerald-700 ring-2 ring-emerald-100' : 'bg-transparent border-transparent hover:border-slate-200 hover:bg-slate-50 focus:bg-white text-slate-600'}`} 
+                              />
+                            </TableCell>
+                            <TableCell className="py-4">
+                              {m.kelompok !== 'UMUM' ? (
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-md">{m.kelompok}</span>
+                              ) : (
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 border border-slate-200 px-3 py-1 rounded-md">UMUM</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <span className="text-sm font-semibold text-slate-700 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+                                {m.tingkat === 'Semua' ? 'Semua Tingkat' : `Kelas ${m.tingkat}`}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right px-6 py-4">
+                              <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button variant="ghost" size="icon" onClick={() => setEditingMapel(m)} className="h-10 w-10 rounded-xl text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-100 shadow-sm"><Pencil className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleHapusMapel(m.id, m.nama_mapel)} className="h-10 w-10 rounded-xl text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100 shadow-sm"><Trash2 className="h-4 w-4" /></Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -666,6 +1200,32 @@ export function AkademikClient({
                 </Button>
               </div>
             </div>
+
+            {/* ============================================================================ */}
+            {/* FLOATING ACTION BAR UNTUK BATCH SAVE KODE RDM */}
+            {/* ============================================================================ */}
+            {Object.keys(pendingMapelChanges).length > 0 && (
+              <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-slate-900/95 backdrop-blur-xl border border-slate-700 text-white px-5 py-4 rounded-[2rem] shadow-[0_20px_40px_rgba(0,0,0,0.4)] flex flex-col sm:flex-row items-center gap-4 sm:gap-6 animate-in slide-in-from-bottom-10 fade-in duration-500 w-[90%] sm:w-auto">
+                <div className="flex items-center gap-4">
+                  <div className="h-10 w-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-lg border border-emerald-500/30 shrink-0">
+                    {Object.keys(pendingMapelChanges).length}
+                  </div>
+                  <div className="text-center sm:text-left">
+                    <p className="font-bold text-sm sm:text-base leading-tight">Perubahan Kode RDM</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Terapkan perubahan kode mapel ke database.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                  <Button variant="ghost" onClick={() => setPendingMapelChanges({})} disabled={isSavingBatchMapel} className="text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl h-12 flex-1 sm:flex-none">
+                    Batal
+                  </Button>
+                  <Button onClick={executeBatchSaveMapel} disabled={isSavingBatchMapel} className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl shadow-lg h-12 px-6 font-bold flex-1 sm:flex-none border-0">
+                    {isSavingBatchMapel ? <><Loader2 className="h-4 w-4 animate-spin mr-2"/> Menyimpan...</> : <><Save className="h-4 w-4 mr-2"/> Simpan Massal</>}
+                  </Button>
+                </div>
+              </div>
+            )}
+
           </TabsContent>
 
         </Tabs>
