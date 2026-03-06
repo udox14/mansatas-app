@@ -6,3 +6,7 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = ".open-next/assets"
 binding = "STATIC_ASSETS"
+
+[[kv_namespaces]]
+binding = "NEXT_CACHE_WORKERS_KV"
+id = "d71a11d5f8ec47318b96e52f52715749"
