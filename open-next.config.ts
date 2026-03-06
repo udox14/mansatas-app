@@ -1,5 +1,5 @@
 import type { OpenNextConfig } from "@opennextjs/cloudflare";
-import { kvIncrementalCache } from "@opennextjs/cloudflare";
+import kvIncrementalCache from "@opennextjs/cloudflare/overrides/incremental-cache/kv-incremental-cache";
 
 const config: OpenNextConfig = {
   default: {
