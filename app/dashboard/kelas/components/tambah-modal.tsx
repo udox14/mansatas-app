@@ -3,7 +3,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useFormState, useFormStatus } from 'react-dom'
+// PERBAIKAN: Mengganti useFormState menjadi useActionState dari 'react'
+import { useActionState } from 'react'
+import { useFormStatus } from 'react-dom'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,7 +27,6 @@ function SubmitButton() {
 
 type GuruType = { id: string; nama_lengkap: string }
 
-// PERBAIKAN TYPE: Menambahkan daftarJurusan?: string[] ke Interface
 export function TambahModal({ 
   daftarGuru = [], 
   daftarJurusan = [] 
@@ -34,7 +35,8 @@ export function TambahModal({
   daftarJurusan?: string[] 
 }) {
   const [isOpen, setIsOpen] = useState(false)
-  const [state, formAction] = useFormState(tambahKelas, initialState)
+  // PERBAIKAN: Menggunakan useActionState
+  const [state, formAction] = useActionState(tambahKelas, initialState)
 
   useEffect(() => {
     if (state?.success) {

@@ -10,6 +10,7 @@ export async function tambahMapel(prevState: any, formData: FormData) {
   const supabase = await createClient()
   const payload = {
     nama_mapel: formData.get('nama_mapel') as string,
+    kode_mapel: formData.get('kode_mapel') as string || null,
     kelompok: formData.get('kelompok') as string,
     tingkat: formData.get('tingkat') as string,
     kategori: formData.get('kategori') as string,
@@ -27,6 +28,7 @@ export async function editMapel(prevState: any, formData: FormData) {
   const id = formData.get('id') as string
   const payload = {
     nama_mapel: formData.get('nama_mapel') as string,
+    kode_mapel: formData.get('kode_mapel') as string || null,
     kelompok: formData.get('kelompok') as string,
     tingkat: formData.get('tingkat') as string,
     kategori: formData.get('kategori') as string,
@@ -52,6 +54,7 @@ export async function importMapelMassal(dataExcel: any[]) {
   const supabase = await createClient()
   const toInsert = dataExcel.map(row => ({
     nama_mapel: String(row.NAMA_MAPEL).trim(),
+    kode_mapel: row.KODE_RDM ? String(row.KODE_RDM).trim() : null,
     kelompok: String(row.KELOMPOK || 'UMUM').trim(),
     tingkat: String(row.TINGKAT || 'Semua').trim(),
     kategori: String(row.KATEGORI || 'Umum').trim()
@@ -76,7 +79,6 @@ export async function hapusPenugasan(id: string) {
   return { success: 'Penugasan mengajar berhasil dihapus' }
 }
 
-// FUNGSI BARU: Menghapus semua penugasan sekaligus di semester aktif
 export async function resetPenugasanSemesterIni(tahun_ajaran_id: string) {
   const supabase = await createClient()
   const { error } = await supabase.from('penugasan_mengajar').delete().eq('tahun_ajaran_id', tahun_ajaran_id)
@@ -89,73 +91,63 @@ export async function resetPenugasanSemesterIni(tahun_ajaran_id: string) {
 export async function importPenugasanASC(dataExcel: any[]) {
   const supabase = await createClient()
   
-  // 1. Ambil Tahun Ajaran Aktif (Syarat wajib untuk penugasan)
   const { data: taAktif } = await supabase.from('tahun_ajaran').select('id').eq('is_active', true).single()
   if (!taAktif) return { error: 'Tahun ajaran aktif belum diatur di sistem. Silakan atur di menu Dashboard/Settings.' }
 
-  // 2. Ambil data master untuk pencocokan
   const { data: dbGuru } = await supabase.from('profiles').select('id, nama_lengkap').neq('role', 'wali_murid')
   const { data: dbMapel } = await supabase.from('mata_pelajaran').select('id, nama_mapel')
   const { data: dbKelas } = await supabase.from('kelas').select('id, tingkat, nomor_kelas')
 
   if (!dbGuru || !dbMapel || !dbKelas) return { error: 'Gagal memuat data referensi dari database.' }
 
-  // 3. Buat Fungsi Normalisasi Nama (Sangat Cerdas)
-  // Menghilangkan gelar seperti S.Pd, M.Ag, Drs., dll untuk toleransi pencocokan dengan ASC
   const normalizeName = (name: string) => {
     return name
       .toLowerCase()
-      .replace(/drs\./gi, '') // Hapus awalan Drs.
-      .replace(/dra\./gi, '') // Hapus awalan Dra.
-      .replace(/[,.]\s*[a-zA-Z.]+/g, '') // Hapus gelar di belakang (setelah koma)
+      .replace(/drs\./gi, '') 
+      .replace(/dra\./gi, '') 
+      .replace(/[,.]\s*[a-zA-Z.]+/g, '') 
       .trim()
   }
 
-  // 4. Buat Kamus (Map) agar pencarian super cepat O(1)
   const mapGuru = new Map()
   dbGuru.forEach(g => {
-    mapGuru.set(g.nama_lengkap.toLowerCase().trim(), g.id) // Pencocokan Persis
-    mapGuru.set(normalizeName(g.nama_lengkap), g.id)       // Pencocokan Tanpa Gelar
+    mapGuru.set(g.nama_lengkap.toLowerCase().trim(), g.id)
+    mapGuru.set(normalizeName(g.nama_lengkap), g.id)
   })
 
   const mapMapel = new Map(dbMapel.map(m => [m.nama_mapel.toLowerCase().trim(), m.id]))
   
   const mapKelas = new Map()
   dbKelas.forEach(k => {
-    mapKelas.set(`${k.tingkat}-${k.nomor_kelas}`, k.id) // Format "12-1"
-    mapKelas.set(`${k.tingkat} ${k.nomor_kelas}`, k.id) // Format "12 1"
+    mapKelas.set(`${k.tingkat}-${k.nomor_kelas}`, k.id) 
+    mapKelas.set(`${k.tingkat} ${k.nomor_kelas}`, k.id) 
   })
 
   let toInsert = []
   let logs = []
   let successCount = 0
 
-  // 5. Proses Baris per Baris (Sesuai format ASC yang diulang-ulang)
   for (let i = 0; i < dataExcel.length; i++) {
     const row = dataExcel[i]
     
-    // Fleksibilitas nama kolom Excel (Mendukung "NAMA_GURU" atau sekadar "Guru")
     const namaGuru = String(row.NAMA_GURU || row.Guru || row.GURU || '').trim()
     const namaKelas = String(row.NAMA_KELAS || row.Kelas || row.KELAS || '').trim()
     const namaMapel = String(row.NAMA_MAPEL || row.Mapel || row.Mata_Pelajaran || '').trim()
 
-    if (!namaGuru || !namaMapel || !namaKelas) continue // Lewati baris kosong
+    if (!namaGuru || !namaMapel || !namaKelas) continue 
 
-    // Coba cari ID Guru
     const guruId = mapGuru.get(namaGuru.toLowerCase()) || mapGuru.get(normalizeName(namaGuru))
     if (!guruId) {
       logs.push(`Baris ${i+2}: Guru "${namaGuru}" tidak ditemukan di database.`)
       continue
     }
 
-    // Coba cari ID Mapel
     const mapelId = mapMapel.get(namaMapel.toLowerCase())
     if (!mapelId) {
       logs.push(`Baris ${i+2}: Mapel "${namaMapel}" belum terdaftar di Master.`)
       continue
     }
 
-    // Coba cari ID Kelas
     const kelasId = mapKelas.get(namaKelas.toLowerCase())
     if (!kelasId) {
       logs.push(`Baris ${i+2}: Kelas "${namaKelas}" tidak dikenali di sistem.`)
@@ -170,7 +162,6 @@ export async function importPenugasanASC(dataExcel: any[]) {
     })
   }
 
-  // 6. Eksekusi ke Database (Upsert: Hindari dobel data jika di-import ulang)
   if (toInsert.length > 0) {
     const { error } = await supabase.from('penugasan_mengajar').upsert(toInsert, { 
       onConflict: 'guru_id,mapel_id,kelas_id,tahun_ajaran_id', 

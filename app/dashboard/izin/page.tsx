@@ -1,23 +1,23 @@
-// BUAT FILE BARU
+// TIMPA SELURUH ISI FILE INI
 // Lokasi: app/dashboard/izin/page.tsx
+import { Suspense } from 'react'
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { IzinClient } from './components/izin-client'
-import { DoorOpen } from 'lucide-react'
+import { DoorOpen, Loader2 } from 'lucide-react'
 
 export const metadata = { title: 'Perizinan Siswa - MANSATAS App' }
 
-export default async function IzinPage() {
+// ============================================================================
+// KOMPONEN PEMUAT DATA (Berjalan Asinkron di Background)
+// ============================================================================
+async function IzinDataFetcher({ currentUserRole }: { currentUserRole: string }) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  
   // Tanggal Hari Ini untuk Filter Data
   const today = new Date().toISOString().split('T')[0]
 
-  // Fetch Paralel (Siswa Aktif, Izin Keluar, Izin Kelas)
+  // Fetch Paralel (Siswa Aktif, Izin Keluar, Izin Kelas) untuk kecepatan maksimal
   const [resSiswa, resKeluar, resKelas] = await Promise.all([
     supabase.from('siswa')
       .select('id, nama_lengkap, nisn, kelas!inner(tingkat, nomor_kelas)')
@@ -45,7 +45,29 @@ export default async function IzinPage() {
   })
 
   return (
+    <IzinClient 
+      siswaList={resSiswa.data || []}
+      izinKeluarList={filteredKeluar}
+      izinKelasList={resKelas.data || []}
+      currentUserRole={currentUserRole}
+    />
+  )
+}
+
+// ============================================================================
+// HALAMAN UTAMA (Merender Kerangka Instan)
+// ============================================================================
+export default async function IzinPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+
+  return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
+      
+      {/* HEADER HALAMAN - MUNCUL INSTAN 0 DETIK */}
       <div className="flex items-center gap-3">
         <div className="bg-blue-100 p-3 rounded-2xl text-blue-700 shadow-sm border border-blue-200/50">
           <DoorOpen className="h-6 w-6" />
@@ -58,12 +80,22 @@ export default async function IzinPage() {
         </div>
       </div>
 
-      <IzinClient 
-        siswaList={resSiswa.data || []}
-        izinKeluarList={filteredKeluar}
-        izinKelasList={resKelas.data || []}
-        currentUserRole={profile?.role || ''}
-      />
+      {/* SUSPENSE BOUNDARY: Loading State yang Elegan */}
+      <Suspense fallback={
+        <div className="bg-white/50 backdrop-blur-sm rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[400px] animate-in zoom-in-95 duration-300 mt-6">
+           <div className="bg-blue-50 p-5 rounded-full mb-5 shadow-inner border border-blue-100 relative">
+             <div className="absolute inset-0 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin"></div>
+             <DoorOpen className="h-8 w-8 text-blue-600 animate-pulse" />
+           </div>
+           <h3 className="text-xl font-bold text-slate-800">Menarik Data Perizinan...</h3>
+           <p className="text-slate-500 text-sm mt-2 font-medium max-w-sm text-center">
+             Memuat daftar siswa dan mencocokkan riwayat keluar-masuk hari ini. Mohon tunggu.
+           </p>
+        </div>
+      }>
+        <IzinDataFetcher currentUserRole={profile?.role || ''} />
+      </Suspense>
+
     </div>
   )
 }
