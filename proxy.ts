@@ -1,12 +1,11 @@
-// Lokasi: middleware.ts (root project, sejajar package.json)
-// WAJIB pakai Edge Runtime agar kompatibel dengan Cloudflare Workers
-
-export const runtime = 'edge'
+// Lokasi: proxy.ts (root project, sejajar package.json)
+// Next.js 16 menggunakan konvensi "proxy.ts" bukan "middleware.ts"
+// TIDAK perlu export const runtime = 'edge' — OpenNext handle ini otomatis
 
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request: {
       headers: request.headers,
