@@ -1,13 +1,11 @@
 'use client'
 
 // Lokasi: app/(auth)/login/login-client.tsx
-// Semua UI login dipindahkan ke sini sebagai client component murni.
 
 import { useActionState, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import Image from 'next/image'
 import Link from 'next/link'
-import { login } from './actions'
 import { Mail, Lock, Loader2, ArrowRight, AlertCircle, ShieldCheck, Eye, EyeOff } from 'lucide-react'
 
 const initialState = {
@@ -31,8 +29,10 @@ function SubmitButton() {
   )
 }
 
-export default function LoginClient() {
-  const [state, formAction] = useActionState(login, initialState)
+type LoginAction = (prevState: { error: string | null }, formData: FormData) => Promise<{ error: string | null }>
+
+export default function LoginClient({ loginAction }: { loginAction: LoginAction }) {
+  const [state, formAction] = useActionState(loginAction, initialState)
   const [showPassword, setShowPassword] = useState(false)
 
   const handleLupaSandi = (e: React.MouseEvent) => {
@@ -43,7 +43,6 @@ export default function LoginClient() {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center bg-slate-50 font-sans selection:bg-emerald-100 selection:text-emerald-900 overflow-hidden">
       
-      {/* BACKGROUND DEKORASI (GLOWING BLOBS) */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] h-[50%] w-[50%] rounded-full bg-emerald-400/20 blur-[120px] animate-pulse duration-10000" />
         <div className="absolute bottom-[-10%] right-[-10%] h-[60%] w-[60%] rounded-full bg-blue-400/20 blur-[150px]" />
@@ -51,10 +50,8 @@ export default function LoginClient() {
 
       <div className="relative z-10 w-full max-w-[420px] px-6 py-12 lg:px-8 animate-in fade-in zoom-in-95 duration-700">
         
-        {/* CARD UTAMA */}
         <div className="rounded-[2.5rem] bg-white/90 backdrop-blur-2xl p-8 sm:p-10 shadow-2xl ring-1 ring-slate-100">
           
-          {/* LOGO & TITLE */}
           <div className="flex flex-col items-center text-center mb-8">
             <div className="mb-5 relative h-16 w-16 drop-shadow-md transition-transform hover:scale-105">
               <Image 
@@ -75,7 +72,6 @@ export default function LoginClient() {
           
           <form className="space-y-5" action={formAction}>
             
-            {/* ERROR MESSAGE */}
             {state?.error && (
               <div className="flex items-start gap-3 rounded-2xl border border-rose-100 bg-rose-50/80 p-4 text-sm font-medium text-rose-600 animate-in slide-in-from-top-2">
                 <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
@@ -83,7 +79,6 @@ export default function LoginClient() {
               </div>
             )}
 
-            {/* INPUT EMAIL */}
             <div className="space-y-1.5">
               <label htmlFor="email" className="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">
                 Alamat Email
@@ -102,7 +97,6 @@ export default function LoginClient() {
               </div>
             </div>
 
-            {/* INPUT PASSWORD */}
             <div className="space-y-1.5">
               <label htmlFor="password" className="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">
                 Kata Sandi
@@ -133,7 +127,6 @@ export default function LoginClient() {
               </div>
             </div>
 
-            {/* OPTIONS: INGAT SAYA & LUPA SANDI */}
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
                 <input
@@ -160,7 +153,6 @@ export default function LoginClient() {
             </div>
           </form>
 
-          {/* FOOTER INFO */}
           <div className="mt-8 text-center flex flex-col items-center justify-center gap-2 border-t border-slate-100 pt-6">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
