@@ -1,12 +1,8 @@
 // Lokasi: app/layout.tsx
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 
-// 1. IMPORT GLOBAL ALERT PROVIDER YANG BARU KITA BUAT
 import { GlobalAlertProvider } from '@/components/ui/global-alert'
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "MANSATAS ERP",
@@ -20,11 +16,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
-      <body className={inter.className}>
-        
-        {/* 2. TARUH PROVIDER DI SINI (PALING ATAS DI DALAM BODY) */}
+      {/*
+        next/font/google dihapus karena tidak kompatibel saat build di Cloudflare Workers.
+        Font Inter di-load via CSS variable di globals.css (lihat catatan di bawah).
+      */}
+      <body style={{ fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif" }}>
         <GlobalAlertProvider />
-        
         {children}
       </body>
     </html>

@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Tambahkan konfigurasi Next.js kamu di sini jika perlu
+  // Diperlukan agar next/font/google tidak mencoba download saat build di Cloudflare
+  // Inter akan di-load via CSS fallback
+  images: {
+    // Cloudflare Workers tidak mendukung Image Optimization bawaan Next.js
+    // Gunakan loader: 'custom' atau unoptimized: true
+    unoptimized: true,
+  },
 };
 
 export default nextConfig;
