@@ -1,4 +1,3 @@
-// TIMPA SELURUH ISI FILE INI
 // Lokasi: app/dashboard/page.tsx
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/utils/auth/server'
@@ -16,17 +15,18 @@ export default async function DashboardPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
-  // getDB() adalah async dan tidak menerima argumen — dia ambil context sendiri
   const db = await getDB()
 
-  const taAktif = await db.prepare(
-    'SELECT nama, semester FROM tahun_ajaran WHERE is_active = 1'
-  ).first<{ nama: string; semester: number }>()
+  // Query DB langsung untuk data terbaru
+  const [freshUser, taAktif] = await Promise.all([
+    db.prepare('SELECT nama_lengkap, role, avatar_url FROM "user" WHERE id = ?').bind(user.id).first<any>(),
+    db.prepare('SELECT nama, semester FROM tahun_ajaran WHERE is_active = 1').first<{ nama: string; semester: number }>(),
+  ])
 
   const [jmlSiswa, jmlGuru, jmlKelas, pelanggaranRaw] = await Promise.all([
     db.prepare("SELECT COUNT(*) as c FROM siswa WHERE status = 'aktif'")
       .first<{ c: number }>().then((r: any) => r?.c ?? 0),
-    db.prepare("SELECT COUNT(*) as c FROM user WHERE role IN ('guru','guru_bk','wakamad','kepsek','guru_piket')")
+    db.prepare("SELECT COUNT(*) as c FROM \"user\" WHERE role IN ('guru','guru_bk','wakamad','kepsek','guru_piket')")
       .first<{ c: number }>().then((r: any) => r?.c ?? 0),
     db.prepare('SELECT COUNT(*) as c FROM kelas')
       .first<{ c: number }>().then((r: any) => r?.c ?? 0),
@@ -45,9 +45,10 @@ export default async function DashboardPage() {
 
   const hour = new Date().getHours()
   const sapaan = hour < 11 ? 'Selamat Pagi' : hour < 15 ? 'Selamat Siang' : hour < 18 ? 'Selamat Sore' : 'Selamat Malam'
-  const namaDepan = ((user as any).nama_lengkap ?? user.name ?? 'Pengguna').split(' ')[0]
-  const avatarUrl = (user as any).avatar_url ?? null
-  const userRole = (user as any).role ?? ''
+  const namaLengkap = freshUser?.nama_lengkap || user.name || 'Pengguna'
+  const namaDepan = namaLengkap.split(' ')[0]
+  const avatarUrl = freshUser?.avatar_url ?? null
+  const userRole = freshUser?.role || (user as any).role || ''
 
   return (
     <div className="space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-1000 pb-12 max-w-[1600px] mx-auto">
@@ -85,7 +86,7 @@ export default async function DashboardPage() {
               <div className="absolute -bottom-1 -right-1 h-3.5 w-3.5 bg-emerald-500 border-2 border-slate-900 rounded-full animate-pulse"></div>
             </div>
             <div className="pr-2">
-              <p className="font-bold text-white text-base leading-tight">{(user as any).nama_lengkap ?? user.name}</p>
+              <p className="font-bold text-white text-base leading-tight">{namaLengkap}</p>
               <p className="text-[10px] text-emerald-300 font-bold uppercase tracking-widest mt-1 bg-white/10 w-fit px-2 py-0.5 rounded-md">
                 {userRole.replace('_', ' ')}
               </p>
