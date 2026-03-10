@@ -27,7 +27,7 @@ async function KehadiranDataFetcher({ profile, isAdmin }: { profile: any, isAdmi
       FROM penugasan_mengajar pm
       JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
       JOIN kelas k ON pm.kelas_id = k.id
-      JOIN user u ON pm.guru_id = u.id
+      JOIN "user" u ON pm.guru_id = u.id
       WHERE pm.tahun_ajaran_id = ?
     `
     const params: any[] = [taAktif.id]

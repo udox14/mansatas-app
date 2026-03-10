@@ -18,7 +18,7 @@ export default async function DetailKelasPage({ params }: { params: Promise<{ id
   const kelasData = await db.prepare(`
     SELECT k.id, k.tingkat, k.kelompok, k.nomor_kelas, k.kapasitas, k.wali_kelas_id,
       u.nama_lengkap as wali_kelas_nama
-    FROM kelas k LEFT JOIN user u ON k.wali_kelas_id = u.id
+    FROM kelas k LEFT JOIN "user" u ON k.wali_kelas_id = u.id
     WHERE k.id = ?
   `).bind(id).first<any>()
 

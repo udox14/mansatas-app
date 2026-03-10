@@ -20,7 +20,7 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId }: { currentUser
       JOIN siswa s ON sp.siswa_id = s.id
       LEFT JOIN kelas k ON s.kelas_id = k.id
       JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
-      LEFT JOIN user u ON sp.diinput_oleh = u.id
+      LEFT JOIN "user" u ON sp.diinput_oleh = u.id
       WHERE sp.tahun_ajaran_id = ?
       ORDER BY sp.tanggal DESC, sp.created_at DESC
     `).bind(taAktifId).all<any>(),
