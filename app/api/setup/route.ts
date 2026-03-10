@@ -1,17 +1,16 @@
-// TEMPORARY FILE - HAPUS SETELAH BERHASIL LOGIN!
+// HAPUS FILE INI SETELAH BERHASIL LOGIN!
 // Lokasi: app/api/setup/route.ts
-import { NextRequest, NextResponse } from 'next/server'
-import { createAuth } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { createAuth } from '@/utils/auth'
 
 export const runtime = 'edge'
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const { env } = await getCloudflareContext({ async: true })
     const auth = createAuth(env.DB)
 
-    await (auth.api as any).createUser({
+    const result = await (auth.api as any).createUser({
       body: {
         name: 'Super Admin',
         email: 'admin@mansatas.sch.id',
@@ -21,8 +20,8 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    return NextResponse.json({ ok: true, message: 'User created! Sekarang login, lalu HAPUS file ini.' })
+    return Response.json({ ok: true, message: 'User created! Sekarang login lalu HAPUS file ini.' })
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message }, { status: 500 })
+    return Response.json({ ok: false, error: e?.message || String(e) }, { status: 500 })
   }
 }
