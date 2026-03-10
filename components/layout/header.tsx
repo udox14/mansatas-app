@@ -16,7 +16,6 @@ import { MENU_ITEMS } from '@/config/menu'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { logout } from '@/app/dashboard/actions'
 
 interface HeaderProps {
   userRole: string
@@ -119,12 +118,11 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-slate-100" />
-            <DropdownMenuItem
-              onClick={() => logout()}
-              className="p-2.5 cursor-pointer focus:bg-rose-50 focus:text-rose-700 rounded-lg m-1 text-rose-600 font-medium"
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Keluar Sistem</span>
+            <DropdownMenuItem asChild className="p-2.5 cursor-pointer focus:bg-rose-50 focus:text-rose-700 rounded-lg m-1 text-rose-600 font-medium">
+              <a href="/api/logout">
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Keluar Sistem</span>
+              </a>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
