@@ -14,8 +14,9 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { MENU_ITEMS } from '@/config/menu'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { authClient } from '@/utils/auth/client'
 
 interface HeaderProps {
   userRole: string
@@ -26,6 +27,7 @@ interface HeaderProps {
 
 export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const filteredMenu = MENU_ITEMS.filter((item) => item.roles.includes(userRole))
 
   // --- LOGIKA JUDUL BREADCRUMB PINTAR ---
@@ -34,18 +36,19 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
   
   if (pathname !== '/dashboard' && pathSegments.length > 0) {
     const lastSegment = pathSegments[pathSegments.length - 1]
-    
-    // Deteksi apakah text terakhir adalah UUID (Contoh: 93230b2e-81ca-4d35-9b17-c0978961354e)
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lastSegment)
     
     if (isUUID) {
-      // Jika yang muncul UUID, ambil nama folder sebelumnya (contoh: 'kelas' atau 'siswa')
       const parentSegment = pathSegments[pathSegments.length - 2]
       pageTitle = `Detail ${parentSegment}`
     } else {
-      // Jika bukan UUID, tampilkan teks normal
       pageTitle = lastSegment.replace(/-/g, ' ')
     }
+  }
+
+  const handleLogout = async () => {
+    await authClient.signOut()
+    router.push('/login')
   }
 
   return (
@@ -91,14 +94,12 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
           </SheetContent>
         </Sheet>
         
-        {/* BREADCRUMB / TITLE YANG SUDAH DIPERBAIKI */}
         <h1 className="text-lg font-bold text-slate-800 capitalize hidden sm:block tracking-tight">
           {pageTitle}
         </h1>
       </div>
 
       <div className="flex items-center gap-4">
-        {/* User Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
@@ -128,13 +129,12 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-slate-100" />
-            <DropdownMenuItem asChild className="p-2.5 cursor-pointer focus:bg-rose-50 focus:text-rose-700 rounded-lg m-1">
-              <form action="/auth/signout" method="post" className="w-full">
-                <button type="submit" className="flex w-full items-center text-rose-600 font-medium">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Keluar Sistem</span>
-                </button>
-              </form>
+            <DropdownMenuItem
+              onClick={handleLogout}
+              className="p-2.5 cursor-pointer focus:bg-rose-50 focus:text-rose-700 rounded-lg m-1 text-rose-600 font-medium"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Keluar Sistem</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
