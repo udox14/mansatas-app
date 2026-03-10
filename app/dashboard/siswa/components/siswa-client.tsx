@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search, Users, Trash2, MapPin, Loader2, Pencil, LayoutGrid, List, Camera, CheckCircle2 } from 'lucide-react'
 import { TambahModal } from './tambah-modal'
 import { ImportModalSiswa } from './import-modal'
-import { hapusSiswa, uploadFotoSiswa, getDetailSiswaLengkap } from '../actions'
+import { hapusSiswa, uploadFotoSiswaAction, getDetailSiswaLengkap } from '../actions'
 import { EditSiswaModal } from './edit-modal'
 
 // --- HELPER KOMPRESI GAMBAR CLIENT SIDE ---
@@ -101,7 +101,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
       const fd = new FormData()
       fd.append('foto', compressedFile)
       
-      const res = await uploadFotoSiswa(id, fd)
+      const res = await uploadFotoSiswaAction(id, fd)
       if (res.error) alert(res.error)
     } catch (err) {
       alert("Gagal memproses gambar.")

@@ -1,181 +1,189 @@
-// TIMPA SELURUH ISI FILE INI
 // Lokasi: app/dashboard/siswa/actions.ts
 'use server'
 
-import { createClient } from '@/utils/supabase/server'
+import { getDB, dbInsert, dbUpdate, dbDelete, dbSelectOne, dbBatchInsert, dbUpsert } from '@/utils/db'
+import { uploadFotoSiswa } from '@/utils/r2'
+import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 
-// --- 1. Tambah Siswa Manual ---
+// ============================================================
+// 1. TAMBAH SISWA MANUAL
+// ============================================================
 export async function tambahSiswa(prevState: any, formData: FormData) {
-  const supabase = await createClient()
+  const db = await getDB()
   const payload = {
     nisn: formData.get('nisn') as string,
-    nis_lokal: formData.get('nis_lokal') as string || null,
+    nis_lokal: (formData.get('nis_lokal') as string) || null,
     nama_lengkap: formData.get('nama_lengkap') as string,
     jenis_kelamin: formData.get('jenis_kelamin') as string,
     tempat_tinggal: formData.get('tempat_tinggal') as string,
   }
-  
-  if (!payload.nisn || !payload.nama_lengkap) return { error: 'NISN dan Nama wajib diisi', success: null }
 
-  const { error } = await supabase.from('siswa').insert(payload)
-  if (error) return { error: error.message.includes('unique') ? 'NISN sudah terdaftar' : error.message, success: null }
+  if (!payload.nisn || !payload.nama_lengkap) {
+    return { error: 'NISN dan Nama wajib diisi', success: null }
+  }
+
+  const result = await dbInsert(db, 'siswa', payload)
+  if (result.error) {
+    return {
+      error: result.error.includes('UNIQUE') ? 'NISN sudah terdaftar' : result.error,
+      success: null,
+    }
+  }
 
   revalidatePath('/dashboard/siswa')
   return { error: null, success: 'Siswa berhasil ditambahkan' }
 }
 
-// --- 2. Hapus Siswa ---
+// ============================================================
+// 2. HAPUS SISWA
+// ============================================================
 export async function hapusSiswa(id: string) {
-  const supabase = await createClient()
-  const { error } = await supabase.from('siswa').delete().eq('id', id)
-  if (error) return { error: error.message }
-  
+  const db = await getDB()
+  const result = await dbDelete(db, 'siswa', { id })
+  if (result.error) return { error: result.error }
+
   revalidatePath('/dashboard/siswa')
   return { success: 'Data siswa berhasil dihapus permanen.' }
 }
 
-// --- 3. Edit Siswa Manual (Basic) ---
+// ============================================================
+// 3. EDIT SISWA (Basic)
+// ============================================================
 export async function editSiswa(id: string, payload: any) {
-  const supabase = await createClient()
-  
-  const { error } = await supabase.from('siswa').update(payload).eq('id', id)
-  
-  if (error) return { error: error.message.includes('unique') ? 'NISN sudah terdaftar untuk siswa lain' : error.message }
+  const db = await getDB()
+  const result = await dbUpdate(db, 'siswa', { ...payload, updated_at: new Date().toISOString() }, { id })
+  if (result.error) {
+    return {
+      error: result.error.includes('UNIQUE') ? 'NISN sudah terdaftar untuk siswa lain' : result.error,
+    }
+  }
 
   revalidatePath('/dashboard/siswa')
   return { success: 'Data siswa berhasil diperbarui!' }
 }
 
-// --- 4. Edit Siswa Super Lengkap (Dari Modal) ---
+// ============================================================
+// 4. EDIT SISWA LENGKAP (Dari Modal)
+// ============================================================
 export async function editSiswaLengkap(prevState: any, formData: FormData) {
-  const supabase = await createClient()
+  const db = await getDB()
   const id = formData.get('id') as string
-  
-  // PERBAIKAN: Menambahkan casting ": any" agar TypeScript tidak komplain saat kita memasukkan tipe Number (angka)
-  const payload: any = Object.fromEntries(formData.entries())
-  delete payload.id // Buang ID dari payload
 
-  // Bersihkan data kosong menjadi null agar database rapi
+  const payload: any = Object.fromEntries(formData.entries())
+  delete payload.id
+
+  // Bersihkan empty string → null
   Object.keys(payload).forEach(key => {
     if (payload[key] === '' || payload[key] === 'undefined') {
       payload[key] = null
     }
   })
 
-  // Pastikan angka benar-benar angka
   if (payload.anak_ke) payload.anak_ke = parseInt(payload.anak_ke as string)
   if (payload.jumlah_saudara) payload.jumlah_saudara = parseInt(payload.jumlah_saudara as string)
 
-  const { error } = await supabase.from('siswa').update(payload).eq('id', id)
-  if (error) return { error: error.message, success: null }
+  payload.updated_at = new Date().toISOString()
+
+  const result = await dbUpdate(db, 'siswa', payload, { id })
+  if (result.error) return { error: result.error, success: null }
 
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${id}`)
   return { error: null, success: 'Biodata lengkap berhasil diperbarui!' }
 }
 
-// --- FUNGSI BARU: Ambil Detail Lengkap (Lazy Load) ---
+// ============================================================
+// 5. GET DETAIL SISWA (Lazy Load)
+// ============================================================
 export async function getDetailSiswaLengkap(id: string) {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('siswa').select('*').eq('id', id).single()
-  if (error) return { error: error.message, data: null }
+  const db = await getDB()
+  const data = await dbSelectOne<any>(db, 'siswa', { id })
+  if (!data) return { error: 'Data tidak ditemukan', data: null }
   return { error: null, data }
 }
 
-// --- 5. Upload Foto Cepat dari Mode Galeri ---
-export async function uploadFotoSiswa(siswaId: string, formData: FormData) {
-  const supabase = await createClient()
+// ============================================================
+// 6. UPLOAD FOTO SISWA KE R2
+// ============================================================
+export async function uploadFotoSiswaAction(siswaId: string, formData: FormData) {
+  const db = await getDB()
   const file = formData.get('foto') as File
   if (!file) return { error: 'Tidak ada file.' }
 
-  const ext = file.name.split('.').pop()
-  const fileName = `${siswaId}_${Date.now()}.${ext}`
+  const { url, error: uploadError } = await uploadFotoSiswa(siswaId, file)
+  if (uploadError || !url) return { error: uploadError || 'Upload gagal' }
 
-  // Upload ke bucket 'foto_siswa'
-  const { error: uploadError } = await supabase.storage.from('foto_siswa').upload(fileName, file, { upsert: true })
-  if (uploadError) return { error: uploadError.message }
-
-  const { data: publicUrl } = supabase.storage.from('foto_siswa').getPublicUrl(fileName)
-
-  // Update kolom foto_url di tabel siswa
-  const { error: dbError } = await supabase.from('siswa').update({ foto_url: publicUrl.publicUrl }).eq('id', siswaId)
-  if (dbError) return { error: dbError.message }
+  const result = await dbUpdate(
+    db,
+    'siswa',
+    { foto_url: url, updated_at: new Date().toISOString() },
+    { id: siswaId }
+  )
+  if (result.error) return { error: result.error }
 
   revalidatePath('/dashboard/siswa')
-  return { success: 'Foto berhasil diperbarui!', url: publicUrl.publicUrl }
+  return { success: 'Foto berhasil diperbarui!', url }
 }
 
-// --- 6. Import Siswa Massal (DENGAN BIODATA SUPER LENGKAP) ---
+// ============================================================
+// 7. IMPORT MASSAL SISWA
+// ============================================================
 export async function importSiswaMassal(dataSiswa: any[]) {
-  const supabase = await createClient()
-  
-  const { data: { user } } = await supabase.auth.getUser()
+  const db = await getDB()
+  const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
   // A. Ambil data kelas untuk auto-plot
-  const { data: kelasDb } = await supabase.from('kelas').select('id, tingkat, kelompok, nomor_kelas')
-  const kelasMap = new Map()
-  if (kelasDb) {
-    kelasDb.forEach(k => {
-      const key = `${k.tingkat}-${k.kelompok}-${k.nomor_kelas}`.toUpperCase()
-      kelasMap.set(key, k.id)
-    })
-  }
+  const kelasDb = await db.prepare('SELECT id, tingkat, kelompok, nomor_kelas FROM kelas').all<any>()
+  const kelasMap = new Map<string, string>()
+  kelasDb.results.forEach((k: any) => {
+    const key = `${k.tingkat}-${k.kelompok}-${k.nomor_kelas}`.toUpperCase()
+    kelasMap.set(key, k.id)
+  })
 
-  // B. Ambil data siswa yang SUDAH ADA untuk dicocokkan Namanya
-  const { data: existingSiswa } = await supabase.from('siswa').select('id, nama_lengkap')
-  const existingMap = new Map()
-  if (existingSiswa) {
-    existingSiswa.forEach(s => {
-      existingMap.set(s.nama_lengkap.toLowerCase().trim(), s.id)
-    })
-  }
+  // B. Ambil siswa yang sudah ada untuk matching nama
+  const existingDb = await db.prepare('SELECT id, nama_lengkap FROM siswa').all<any>()
+  const existingMap = new Map<string, string>()
+  existingDb.results.forEach((s: any) => {
+    existingMap.set(s.nama_lengkap.toLowerCase().trim(), s.id)
+  })
 
-  let toInsert = []
-  let toUpdate = []
-  let errorLogs: string[] = []
+  const toInsert: any[] = []
+  const toUpdate: any[] = []
+  const errorLogs: string[] = []
 
-  // Helper function: Excel date (serial number) to YYYY-MM-DD
   const parseExcelDate = (excelDate: any) => {
-    if (!excelDate) return null;
+    if (!excelDate) return null
     if (typeof excelDate === 'number') {
-      const date = new Date((excelDate - (25567 + 2)) * 86400 * 1000);
-      return date.toISOString().split('T')[0];
+      const date = new Date((excelDate - (25567 + 2)) * 86400 * 1000)
+      return date.toISOString().split('T')[0]
     }
-    // Jika formatnya sudah string tanggal (misal YYYY-MM-DD atau DD/MM/YYYY)
-    return excelDate.toString();
+    return excelDate.toString()
   }
 
-  // C. Proses Data dari Excel (Sesuai dengan kolom PPDB yang diminta)
   for (let i = 0; i < dataSiswa.length; i++) {
     const item = dataSiswa[i]
     const namaLengkap = String(item['NAMA LENGKAP'] || item.NAMA_LENGKAP || '').trim()
     const nisn = String(item.NISN || '').trim()
-
-    // Lewati baris kosong
     if (!namaLengkap || !nisn) continue
 
-    // Cari ID Kelas
-    let kelas_id = null
+    let kelas_id: string | null = null
     if (item.KELAS_TINGKAT && item.KELAS_NOMOR) {
       const kelompok = String(item.KELAS_KELOMPOK || 'UMUM').toUpperCase().trim()
       const key = `${item.KELAS_TINGKAT}-${kelompok}-${item.KELAS_NOMOR}`.toUpperCase().trim()
       kelas_id = kelasMap.get(key) || null
     }
 
-    // Payload Raksasa
-    const payload = {
-      nisn: nisn,
+    const payload: any = {
+      nisn,
       nis_lokal: item.NIS_LOKAL ? String(item.NIS_LOKAL).trim() : null,
       nama_lengkap: namaLengkap,
       jenis_kelamin: (item['JENIS KELAMIN'] || item.JK) === 'P' ? 'P' : 'L',
       tempat_tinggal: item.PESANTREN || item.TEMPAT_TINGGAL || 'Non-Pesantren',
-      kelas_id: kelas_id,
+      kelas_id,
       status: 'aktif',
       updated_at: new Date().toISOString(),
-
-      // BIODATA DIRI
       nik: item.NIK ? String(item.NIK).trim() : null,
       tempat_lahir: item['TEMPAT LAHIR'] || null,
       tanggal_lahir: parseExcelDate(item['TANGGAL LAHIR']),
@@ -183,8 +191,6 @@ export async function importSiswaMassal(dataSiswa: any[]) {
       jumlah_saudara: item['JML SAUDARA'] ? parseInt(item['JML SAUDARA']) : null,
       anak_ke: item['ANAK KE'] ? parseInt(item['ANAK KE']) : null,
       status_anak: item['STS ANAK'] || null,
-
-      // ALAMAT
       alamat_lengkap: item['ALAMAT LENGKAP (JL/ KP.)'] || null,
       rt: item.RT ? String(item.RT).trim() : null,
       rw: item.RW ? String(item.RW).trim() : null,
@@ -195,8 +201,6 @@ export async function importSiswaMassal(dataSiswa: any[]) {
       kode_pos: item['KD POS'] ? String(item['KD POS']).trim() : null,
       nomor_whatsapp: item['NOMOR WHATSAPP'] ? String(item['NOMOR WHATSAPP']).trim() : null,
       nomor_kk: item['No. KK'] || item['NO KK'] ? String(item['No. KK'] || item['NO KK']).trim() : null,
-
-      // DATA AYAH
       nama_ayah: item['NAMA AYAH'] || null,
       nik_ayah: item['NIK AYAH'] ? String(item['NIK AYAH']).trim() : null,
       tempat_lahir_ayah: item['TMP LHR AYAH'] || null,
@@ -205,8 +209,6 @@ export async function importSiswaMassal(dataSiswa: any[]) {
       pendidikan_ayah: item['PENDIDIKAN AYAH'] || null,
       pekerjaan_ayah: item['PEKERJAAN AYAH'] || null,
       penghasilan_ayah: item['PENGHASILAN AYAH'] || null,
-
-      // DATA IBU
       nama_ibu: item['NAMA IBU'] || null,
       nik_ibu: item['NIK IBU'] ? String(item['NIK IBU']).trim() : null,
       tempat_lahir_ibu: item['TMP LHR IBU'] || null,
@@ -217,17 +219,14 @@ export async function importSiswaMassal(dataSiswa: any[]) {
       penghasilan_ibu: item['PENGHASILAN IBU'] || null,
     }
 
-    // Buang properti bernilai null agar tidak menimpa data yang sudah ada menjadi kosong (saat update)
+    // Buang null agar tidak overwrite data lama
     Object.keys(payload).forEach(key => {
-      if ((payload as any)[key] === null) {
-        delete (payload as any)[key];
-      }
-    });
+      if (payload[key] === null) delete payload[key]
+    })
 
-    const existingSiswaId = existingMap.get(namaLengkap.toLowerCase())
-    
-    if (existingSiswaId) {
-      toUpdate.push({ ...payload, id: existingSiswaId })
+    const existingId = existingMap.get(namaLengkap.toLowerCase())
+    if (existingId) {
+      toUpdate.push({ ...payload, id: existingId })
     } else {
       toInsert.push(payload)
     }
@@ -235,21 +234,34 @@ export async function importSiswaMassal(dataSiswa: any[]) {
 
   let successCount = 0
 
-  // D. Eksekusi ke Database
-  if (toUpdate.length > 0) {
-    const { error } = await supabase.from('siswa').upsert(toUpdate, { onConflict: 'id' })
-    if (error) errorLogs.push(`Gagal menimpa data: ${error.message}`)
-    else successCount += toUpdate.length
+  // INSERT baru
+  if (toInsert.length > 0) {
+    const { successCount: inserted, error } = await dbBatchInsert(db, 'siswa', toInsert)
+    if (error) errorLogs.push(`Gagal membuat data baru: ${error}`)
+    else successCount += inserted
   }
 
-  if (toInsert.length > 0) {
-    const { error } = await supabase.from('siswa').insert(toInsert)
-    if (error) errorLogs.push(`Gagal membuat data baru: ${error.message}`)
-    else successCount += toInsert.length
+  // UPDATE yang sudah ada — D1 batch update
+  if (toUpdate.length > 0) {
+    const stmts = toUpdate.map((row: any) => {
+      const { id, ...data } = row
+      const keys = Object.keys(data)
+      const sets = keys.map(k => `${k} = ?`).join(', ')
+      const vals = keys.map(k => data[k] ?? null)
+      return db.prepare(`UPDATE siswa SET ${sets} WHERE id = ?`).bind(...vals, id)
+    })
+    try {
+      await db.batch(stmts)
+      successCount += toUpdate.length
+    } catch (e: any) {
+      errorLogs.push(`Gagal menimpa data: ${e.message}`)
+    }
   }
 
   revalidatePath('/dashboard/siswa')
-  
-  if (errorLogs.length > 0) return { success: `Selesai. ${successCount} biodata berhasil di-import/ditimpa.`, logs: errorLogs }
+
+  if (errorLogs.length > 0) {
+    return { success: `Selesai. ${successCount} biodata berhasil di-import/ditimpa.`, logs: errorLogs }
+  }
   return { success: `Luar Biasa! Berhasil menyimpan biodata super lengkap untuk ${successCount} siswa!`, logs: [] }
 }

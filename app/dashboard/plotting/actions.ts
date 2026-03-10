@@ -1,163 +1,191 @@
-// TIMPA SELURUH ISI FILE INI
 // Lokasi: app/dashboard/plotting/actions.ts
 'use server'
 
-import { createClient } from '@/utils/supabase/server'
+import { getDB, dbUpdate, dbInsert } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
 
-// 1. Ambil Tahun Ajaran Aktif
+// ============================================================
+// 1. AMBIL TAHUN AJARAN AKTIF
+// ============================================================
 export async function getTahunAjaranAktif() {
-  const supabase = await createClient()
-  let { data: ta } = await supabase.from('tahun_ajaran').select('id, nama, semester').eq('is_active', true).single()
-  
+  const db = await getDB()
+  let ta = await db
+    .prepare(`SELECT id, nama, semester FROM tahun_ajaran WHERE is_active = 1 LIMIT 1`)
+    .first<any>()
+
   if (!ta) {
-    const { data: newTa } = await supabase
-      .from('tahun_ajaran')
-      .insert({ nama: '2024/2025', semester: 1, is_active: true })
-      .select('id, nama, semester')
-      .single()
-    ta = newTa
+    // Buat tahun ajaran default jika belum ada
+    const id = crypto.randomUUID()
+    await db
+      .prepare(
+        `INSERT INTO tahun_ajaran (id, nama, semester, is_active) VALUES (?, ?, ?, 1)`
+      )
+      .bind(id, '2024/2025', 1)
+      .run()
+    ta = { id, nama: '2024/2025', semester: 1 }
   }
+
   return ta
 }
 
-// 2. Ambil Siswa yang BELUM punya kelas
+// ============================================================
+// 2. SISWA BELUM PUNYA KELAS (Pagination manual)
+// ============================================================
 export async function getSiswaBelumAdaKelas() {
-  const supabase = await createClient()
-  let allData: any[] = []
-  let hasMore = true
-  let page = 0
-  const limit = 1000
-  
-  while (hasMore) {
-    const { data, error } = await supabase
-      .from('siswa')
-      .select('id, nisn, nama_lengkap, jenis_kelamin')
-      .is('kelas_id', null)
-      .eq('status', 'aktif')
-      .order('nama_lengkap')
-      .range(page * limit, (page + 1) * limit - 1)
-    
-    if (error) break
-    
-    allData = [...allData, ...data]
-    if (data.length < limit) hasMore = false
-    page++
-  }
-  return allData
+  const db = await getDB()
+  // D1 support query besar, ambil semua sekaligus
+  const result = await db
+    .prepare(
+      `SELECT id, nisn, nama_lengkap, jenis_kelamin FROM siswa
+       WHERE kelas_id IS NULL AND status = 'aktif'
+       ORDER BY nama_lengkap ASC`
+    )
+    .all<any>()
+  return result.results
 }
 
-// 3. Ambil daftar kelas berdasarkan Tingkat
+// ============================================================
+// 3. KELAS BERDASARKAN TINGKAT
+// ============================================================
 export async function getKelasByTingkat(tingkat: number) {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('kelas')
-    .select('id, tingkat, kelompok, nomor_kelas, kapasitas, siswa(count)')
-    .eq('tingkat', tingkat)
-    .order('kelompok')
-    .order('nomor_kelas')
+  const db = await getDB()
+  const rows = await db
+    .prepare(
+      `SELECT k.id, k.tingkat, k.kelompok, k.nomor_kelas, k.kapasitas,
+              COUNT(s.id) as jumlah_siswa
+       FROM kelas k
+       LEFT JOIN siswa s ON s.kelas_id = k.id AND s.status = 'aktif'
+       WHERE k.tingkat = ?
+       GROUP BY k.id
+       ORDER BY k.kelompok ASC, k.nomor_kelas ASC`
+    )
+    .bind(tingkat)
+    .all<any>()
 
-  if (error) return []
-  return data.map(k => ({
+  return rows.results.map((k: any) => ({
     id: k.id,
     nama: `${k.tingkat}-${k.nomor_kelas} ${k.kelompok !== 'UMUM' ? k.kelompok : ''}`.trim(),
     kelompok: k.kelompok,
     kapasitas: k.kapasitas,
-    jumlah_siswa: k.siswa && k.siswa.length > 0 ? (k.siswa[0] as any).count : 0
+    jumlah_siswa: k.jumlah_siswa || 0,
   }))
 }
 
-// 4. Ambil Siswa yang SEDANG berada di tingkat tertentu (Ditambah Minat Jurusan)
+// ============================================================
+// 4. SISWA BERDASARKAN TINGKAT (Dengan Minat Jurusan)
+// ============================================================
 export async function getSiswaByTingkat(tingkat: number) {
-  const supabase = await createClient()
-  
-  const { data, error } = await supabase
-    .from('siswa')
-    .select(`
-      id, nisn, nama_lengkap, jenis_kelamin, kelas_id, minat_jurusan,
-      kelas!inner(id, tingkat, kelompok, nomor_kelas)
-    `)
-    .eq('kelas.tingkat', tingkat)
-    .eq('status', 'aktif')
-    .order('nama_lengkap')
-  
-  if (error) return []
+  const db = await getDB()
+  const rows = await db
+    .prepare(
+      `SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin, s.kelas_id, s.minat_jurusan,
+              k.tingkat as k_tingkat, k.kelompok as k_kelompok, k.nomor_kelas as k_nomor
+       FROM siswa s
+       INNER JOIN kelas k ON s.kelas_id = k.id
+       WHERE k.tingkat = ? AND s.status = 'aktif'
+       ORDER BY s.nama_lengkap ASC`
+    )
+    .bind(tingkat)
+    .all<any>()
 
-  return data.map(s => {
-    const k = s.kelas as any
-    return {
-      id: s.id,
-      nisn: s.nisn,
-      nama_lengkap: s.nama_lengkap,
-      jenis_kelamin: s.jenis_kelamin,
-      minat_jurusan: s.minat_jurusan || null,
-      kelas_lama: k ? `${k.tingkat}-${k.nomor_kelas} ${k.kelompok !== 'UMUM' ? k.kelompok : ''}`.trim() : 'Tidak diketahui',
-      kelompok: k ? k.kelompok : 'UMUM'
-    }
-  })
+  return rows.results.map((s: any) => ({
+    id: s.id,
+    nisn: s.nisn,
+    nama_lengkap: s.nama_lengkap,
+    jenis_kelamin: s.jenis_kelamin,
+    minat_jurusan: s.minat_jurusan || null,
+    kelas_lama: `${s.k_tingkat}-${s.k_nomor} ${s.k_kelompok !== 'UMUM' ? s.k_kelompok : ''}`.trim(),
+    kelompok: s.k_kelompok,
+  }))
 }
 
-// ======================================================================
-// FUNGSI BARU: AUTO-SAVE DRAFT PENJURUSAN
-// ======================================================================
+// ============================================================
+// 5. DRAFT PENJURUSAN
+// ============================================================
 export async function setDraftPenjurusan(siswa_id: string, minat_jurusan: string | null) {
-  const supabase = await createClient()
-  const { error } = await supabase.from('siswa').update({ minat_jurusan }).eq('id', siswa_id)
-  if (error) return { error: error.message }
+  const db = await getDB()
+  const result = await dbUpdate(db, 'siswa', { minat_jurusan }, { id: siswa_id })
+  if (result.error) return { error: result.error }
   revalidatePath('/dashboard/plotting')
   return { success: true }
 }
 
-export async function setDraftPenjurusanMassal(payload: {id: string, minat_jurusan: string}[]) {
-  const supabase = await createClient()
-  const updatePromises = payload.map(p => supabase.from('siswa').update({ minat_jurusan: p.minat_jurusan }).eq('id', p.id))
-  await Promise.all(updatePromises)
+export async function setDraftPenjurusanMassal(payload: { id: string; minat_jurusan: string }[]) {
+  const db = await getDB()
+  const stmts = payload.map(p =>
+    db.prepare('UPDATE siswa SET minat_jurusan = ? WHERE id = ?').bind(p.minat_jurusan, p.id)
+  )
+  await db.batch(stmts)
   revalidatePath('/dashboard/plotting')
   return { success: true }
 }
 
-// 5. Eksekusi Simpan Plotting Massal & Catat Riwayat
-export async function simpanPlottingMassal(hasilPlotting: { siswa_id: string, kelas_id: string }[]) {
-  const supabase = await createClient()
+// ============================================================
+// 6. SIMPAN PLOTTING MASSAL
+// ============================================================
+export async function simpanPlottingMassal(
+  hasilPlotting: { siswa_id: string; kelas_id: string }[]
+) {
+  const db = await getDB()
   const ta = await getTahunAjaranAktif()
-  
   if (!ta) return { error: 'Gagal mendapatkan Tahun Ajaran Aktif.' }
 
   try {
-    // Update kelas & BERSIHKAN tiket yang sudah dipakai agar kosong untuk tahun depan
-    const updatePromises = hasilPlotting.map(plot => 
-      supabase.from('siswa').update({ 
-        kelas_id: plot.kelas_id, 
-        minat_jurusan: null, 
-        updated_at: new Date().toISOString() 
-      }).eq('id', plot.siswa_id)
-    )
-    await Promise.all(updatePromises)
+    const now = new Date().toISOString()
 
-    const riwayatData = hasilPlotting.map(plot => ({
-      siswa_id: plot.siswa_id, kelas_id: plot.kelas_id, tahun_ajaran_id: ta.id
-    }))
-    
-    await supabase.from('riwayat_kelas').upsert(riwayatData, { onConflict: 'siswa_id, tahun_ajaran_id', ignoreDuplicates: true })
+    // Update kelas siswa + bersihkan minat_jurusan
+    const updateStmts = hasilPlotting.map(plot =>
+      db
+        .prepare('UPDATE siswa SET kelas_id = ?, minat_jurusan = NULL, updated_at = ? WHERE id = ?')
+        .bind(plot.kelas_id, now, plot.siswa_id)
+    )
+
+    // Upsert riwayat_kelas (ON CONFLICT siswa_id, tahun_ajaran_id)
+    const riwayatStmts = hasilPlotting.map(plot =>
+      db
+        .prepare(
+          `INSERT INTO riwayat_kelas (siswa_id, kelas_id, tahun_ajaran_id)
+           VALUES (?, ?, ?)
+           ON CONFLICT(siswa_id, tahun_ajaran_id) DO NOTHING`
+        )
+        .bind(plot.siswa_id, plot.kelas_id, ta.id)
+    )
+
+    // D1 batch max ~100, chunking jika besar
+    const allStmts = [...updateStmts, ...riwayatStmts]
+    const chunkSize = 100
+    for (let i = 0; i < allStmts.length; i += chunkSize) {
+      await db.batch(allStmts.slice(i, i + chunkSize))
+    }
 
     revalidatePath('/dashboard/kelas')
     revalidatePath('/dashboard/plotting')
     revalidatePath('/dashboard/siswa')
-    
     return { success: `Berhasil memploting ${hasilPlotting.length} siswa secara permanen!` }
   } catch (err: any) {
     return { error: 'Terjadi kesalahan sistem saat menyimpan plotting.' }
   }
 }
 
-// 6. Proses Kelulusan Massal Kelas 12
+// ============================================================
+// 7. PROSES KELULUSAN MASSAL KELAS 12
+// ============================================================
 export async function prosesKelulusanMassal(siswaIds: string[]) {
-  const supabase = await createClient()
+  const db = await getDB()
   if (!siswaIds || siswaIds.length === 0) return { error: 'Tidak ada siswa yang dipilih.' }
 
   try {
-    const { error } = await supabase.from('siswa').update({ status: 'lulus', kelas_id: null, updated_at: new Date().toISOString() }).in('id', siswaIds)
-    if (error) throw error
+    const now = new Date().toISOString()
+    const stmts = siswaIds.map(id =>
+      db
+        .prepare('UPDATE siswa SET status = ?, kelas_id = NULL, updated_at = ? WHERE id = ?')
+        .bind('lulus', now, id)
+    )
+
+    const chunkSize = 100
+    for (let i = 0; i < stmts.length; i += chunkSize) {
+      await db.batch(stmts.slice(i, i + chunkSize))
+    }
 
     revalidatePath('/dashboard/kelas')
     revalidatePath('/dashboard/plotting')

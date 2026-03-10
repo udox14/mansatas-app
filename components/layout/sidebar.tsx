@@ -6,7 +6,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { createClient } from '@/utils/supabase/client'
 import { MENU_ITEMS } from '@/config/menu'
 import { 
   LogOut, Menu, X, 
@@ -135,17 +134,13 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
   const pathname = usePathname()
   const router = useRouter()
   
-  // States
   const [isOpen, setIsOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>('emerald')
   const [mounted, setMounted] = useState(false)
-  
-  // State untuk Theme Picker Accordion
   const [isThemeOpen, setIsThemeOpen] = useState(false)
 
-  // Persist Theme & Load on Mount
   useEffect(() => {
     setMounted(true)
     const savedTheme = localStorage.getItem('mansatas_theme') as ThemeKey
@@ -157,17 +152,20 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
     localStorage.setItem('mansatas_theme', theme)
   }
 
-  // Auto-close mobile drawer on navigation
   useEffect(() => setIsOpen(false), [pathname])
 
   const allowedMenus = MENU_ITEMS.filter(item => item.roles.includes(userRole))
   const t = THEMES[currentTheme]
 
+  // PERBAIKAN: Logout sekarang via API route Better Auth, bukan Supabase client
   const handleLogout = async () => {
     if (!confirm('Yakin ingin keluar dari aplikasi?')) return
     setIsLoggingOut(true)
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    try {
+      await fetch('/api/auth/sign-out', { method: 'POST' })
+    } catch (_) {
+      // ignore
+    }
     router.push('/login')
     router.refresh()
   }
@@ -176,7 +174,6 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
 
   return (
     <>
-      {/* --- TOMBOL HAMBURGER MOBILE (POSISI PRESISI DENGAN HEADER) --- */}
       {!isOpen && (
         <button 
           onClick={() => setIsOpen(true)}
@@ -186,7 +183,6 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
         </button>
       )}
 
-      {/* --- OVERLAY GELAP UNTUK MOBILE --- */}
       {isOpen && (
         <div 
           onClick={() => setIsOpen(false)} 
@@ -194,7 +190,6 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
         />
       )}
 
-      {/* --- KOTAK SIDEBAR UTAMA --- */}
       <aside className={`
         fixed lg:relative top-0 left-0 z-50 h-[100dvh] 
         ${t.sidebarBg} border-r border-white/5 
@@ -203,7 +198,6 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
         ${isCollapsed ? 'lg:w-20 w-72' : 'w-72'}
       `}>
         
-        {/* TOMBOL LIPAT (KHUSUS DESKTOP) */}
         <button 
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={`hidden lg:flex absolute -right-3.5 top-20 z-50 h-7 w-7 rounded-full items-center justify-center shadow-lg transition-all border ${t.collapseBtn}`}
@@ -211,7 +205,6 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
           {isCollapsed ? <ChevronRight className="h-4 w-4 ml-0.5" /> : <ChevronLeft className="h-4 w-4 mr-0.5" />}
         </button>
 
-        {/* HEADER LOGO */}
         <div className={`h-20 flex items-center border-b border-white/10 px-4 ${isCollapsed ? 'justify-center py-2' : 'justify-between py-3'}`}>
           <Link href="/dashboard" className="flex items-center gap-3 group h-full">
             <div className={`relative flex items-center justify-center transition-transform duration-500 group-hover:scale-105 ${isCollapsed ? 'w-10 h-10' : 'w-12 h-12'}`}>
@@ -236,7 +229,6 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
           </button>
         </div>
 
-        {/* AREA MENU DENGAN THEMED SCROLLBAR */}
         <div className={`flex-1 overflow-y-auto py-6 px-3 space-y-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full ${t.scrollbarThumb}`}>
           {!isCollapsed && <p className="px-3 text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3 animate-in fade-in">Menu Utama</p>}
           
@@ -258,17 +250,14 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
                   ${isActive ? t.activeBg : t.inactiveText}
                 `}
               >
-                {/* Indikator Menyala (Glow Line Kiri) */}
                 {isActive && !isCollapsed && (
                   <span className={`absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1.5 rounded-r-full ${t.activeBar} ${t.glow} animate-in slide-in-from-left-2`} />
                 )}
                 
-                {/* Ikon Menu */}
                 <Icon className={`h-5 w-5 shrink-0 transition-all duration-300 
                   ${isActive ? `text-white drop-shadow-[0_0_8px_currentColor] scale-110` : 'group-hover:scale-110'}`} 
                 />
                 
-                {/* Label Menu (Tetap Putih) */}
                 {!isCollapsed && (
                   <span className={`truncate text-sm ${isActive ? 'text-white font-bold' : 'font-medium'}`}>{item.title}</span>
                 )}
@@ -277,10 +266,8 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
           })}
         </div>
 
-        {/* FOOTER: THEME SWITCHER & USER PROFILE */}
         <div className={`p-4 ${t.footerBg}`}>
           
-          {/* THEME PICKER (ACCORDION STYLE) */}
           {!isCollapsed && (
             <div className={`flex flex-col rounded-xl mb-4 transition-colors ${t.footerCard}`}>
               <button 
@@ -293,14 +280,13 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-300 ${isThemeOpen ? 'rotate-180' : ''}`} />
               </button>
               
-              {/* Grid pilihan warna (Hanya icon bulat) */}
               <div className={`grid grid-cols-4 gap-2 px-3 overflow-hidden transition-all duration-300 ease-in-out ${isThemeOpen ? 'max-h-20 pb-3 opacity-100' : 'max-h-0 opacity-0'}`}>
                 {Object.values(THEMES).map(theme => (
                   <button 
                     key={theme.id} 
                     onClick={() => {
                       changeTheme(theme.id as ThemeKey)
-                      setIsThemeOpen(false) // Otomatis menutup saat tema dipilih
+                      setIsThemeOpen(false)
                     }}
                     className={`h-5 w-5 rounded-full ${theme.dot} transition-all duration-300 hover:scale-125 mx-auto
                       ${currentTheme === theme.id ? `ring-2 ring-offset-2 ring-offset-slate-900 ring-white scale-110 ${theme.glow}` : 'opacity-40 hover:opacity-100'}`}
@@ -311,7 +297,6 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
             </div>
           )}
 
-          {/* USER INFO */}
           <div className={`flex items-center ${isCollapsed ? 'justify-center' : `gap-3 p-3 rounded-xl ${t.footerCard}`} mb-3 transition-colors`}>
             <div className={`h-10 w-10 shrink-0 rounded-full ${t.logoIconBg} text-slate-900 flex items-center justify-center font-black text-sm ring-2 ring-white/20 shadow-md`}>
               {userName.charAt(0).toUpperCase()}
@@ -324,7 +309,6 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
             )}
           </div>
 
-          {/* LOGOUT BUTTON */}
           <button 
             onClick={handleLogout}
             disabled={isLoggingOut}

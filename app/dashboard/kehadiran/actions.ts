@@ -1,90 +1,136 @@
+// Lokasi: app/dashboard/kehadiran/actions.ts
 'use server'
 
-import { createClient } from '@/utils/supabase/server'
+import { getDB, dbUpsert } from '@/utils/db'
+import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 
-// --- 1. Fungsi Ambil Data Siswa per Kelas ---
+// ============================================================
+// 1. AMBIL SISWA PER KELAS
+// ============================================================
 export async function getSiswaByKelas(kelas_id: string) {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('siswa')
-    .select('id, nama_lengkap, nisn')
-    .eq('kelas_id', kelas_id)
-    .eq('status', 'aktif')
-    .order('nama_lengkap', { ascending: true })
+  const db = await getDB()
+  const result = await db
+    .prepare(
+      `SELECT id, nama_lengkap, nisn FROM siswa
+       WHERE kelas_id = ? AND status = 'aktif'
+       ORDER BY nama_lengkap ASC`
+    )
+    .bind(kelas_id)
+    .all<any>()
 
-  if (error) return { error: error.message, data: null }
-  return { error: null, data }
+  if (result.error) return { error: String(result.error), data: null }
+  return { error: null, data: result.results }
 }
 
-// --- 2. Fungsi REKAP BULANAN (Untuk Admin/TU) ---
+// ============================================================
+// 2. REKAP BULANAN (Admin/TU)
+// ============================================================
 export async function getRekapBulanan(kelas_id: string, bulan: number, ta_id: string) {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('rekap_kehadiran_bulanan')
-    .select('*')
-    .eq('kelas_id', kelas_id)
-    .eq('bulan', bulan)
-    .eq('tahun_ajaran_id', ta_id)
+  const db = await getDB()
+  const result = await db
+    .prepare(
+      `SELECT * FROM rekap_kehadiran_bulanan
+       WHERE kelas_id = ? AND bulan = ? AND tahun_ajaran_id = ?`
+    )
+    .bind(kelas_id, bulan, ta_id)
+    .all<any>()
 
-  if (error) return { error: error.message, data: null }
-  return { error: null, data }
+  if (result.error) return { error: String(result.error), data: null }
+  return { error: null, data: result.results }
 }
 
-export async function simpanRekapBulanan(kelas_id: string, bulan: number, ta_id: string, rekapData: any[]) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export async function simpanRekapBulanan(
+  kelas_id: string,
+  bulan: number,
+  ta_id: string,
+  rekapData: any[]
+) {
+  const db = await getDB()
+  const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
-  // Siapkan data untuk di-upsert
-  const payload = rekapData.map(item => ({
-    siswa_id: item.siswa_id,
-    kelas_id,
-    tahun_ajaran_id: ta_id,
-    bulan,
-    sakit: item.sakit || 0,
-    izin: item.izin || 0,
-    alpa: item.alpa || 0,
-    diinput_oleh: user.id,
-    updated_at: new Date().toISOString()
-  }))
+  // D1 tidak support multi-column conflict target di ON CONFLICT
+  // Kita upsert manual: delete lama lalu insert baru (dalam batch)
+  const deleteStmt = db
+    .prepare(
+      `DELETE FROM rekap_kehadiran_bulanan
+       WHERE kelas_id = ? AND bulan = ? AND tahun_ajaran_id = ?`
+    )
+    .bind(kelas_id, bulan, ta_id)
 
-  const { error } = await supabase
-    .from('rekap_kehadiran_bulanan')
-    .upsert(payload, { onConflict: 'siswa_id, bulan, tahun_ajaran_id' })
+  const insertStmts = rekapData.map(item =>
+    db
+      .prepare(
+        `INSERT INTO rekap_kehadiran_bulanan
+         (siswa_id, kelas_id, tahun_ajaran_id, bulan, sakit, izin, alpa, diinput_oleh, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        item.siswa_id,
+        kelas_id,
+        ta_id,
+        bulan,
+        item.sakit || 0,
+        item.izin || 0,
+        item.alpa || 0,
+        user.id,
+        new Date().toISOString()
+      )
+  )
 
-  if (error) return { error: error.message }
-  
+  try {
+    await db.batch([deleteStmt, ...insertStmts])
+  } catch (e: any) {
+    return { error: e.message }
+  }
+
   revalidatePath('/dashboard/kehadiran')
   return { success: 'Rekap kehadiran bulanan berhasil disimpan!' }
 }
 
-// --- 3. Fungsi JURNAL HARIAN GURU (Sparse Data) ---
-export async function simpanJurnalHarian(penugasan_id: string, tanggal: string, jurnalData: any[]) {
-  const supabase = await createClient()
-  
-  // Karena sparse data, kita HANYA menyimpan yang statusnya BUKAN 'Hadir/Aman' ATAU yang punya catatan
-  const payloadToInsert = jurnalData
-    .filter(item => item.status !== 'Aman' || (item.catatan && item.catatan.trim() !== ''))
-    .map(item => ({
-      penugasan_id,
-      siswa_id: item.siswa_id,
-      tanggal,
-      status_kehadiran: item.status === 'Aman' ? null : item.status,
-      catatan: item.catatan || null
-    }))
+// ============================================================
+// 3. JURNAL HARIAN GURU (Sparse Data)
+// ============================================================
+export async function simpanJurnalHarian(
+  penugasan_id: string,
+  tanggal: string,
+  jurnalData: any[]
+) {
+  const db = await getDB()
 
-  // 1. Hapus dulu jurnal hari ini untuk penugasan tersebut (agar bersih jika ada perubahan)
-  await supabase
-    .from('jurnal_guru_harian')
-    .delete()
-    .eq('penugasan_id', penugasan_id)
-    .eq('tanggal', tanggal)
+  // Hanya simpan yang statusnya bukan 'Aman' atau punya catatan
+  const toInsert = jurnalData.filter(
+    item => item.status !== 'Aman' || (item.catatan && item.catatan.trim() !== '')
+  )
 
-  // 2. Insert data baru (jika ada yang bermasalah)
-  if (payloadToInsert.length > 0) {
-    const { error } = await supabase.from('jurnal_guru_harian').insert(payloadToInsert)
-    if (error) return { error: error.message }
+  const deleteStmt = db
+    .prepare(
+      `DELETE FROM jurnal_guru_harian
+       WHERE penugasan_id = ? AND tanggal = ?`
+    )
+    .bind(penugasan_id, tanggal)
+
+  const insertStmts = toInsert.map(item =>
+    db
+      .prepare(
+        `INSERT INTO jurnal_guru_harian
+         (penugasan_id, siswa_id, tanggal, status_kehadiran, catatan)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      .bind(
+        penugasan_id,
+        item.siswa_id,
+        tanggal,
+        item.status === 'Aman' ? null : item.status,
+        item.catatan || null
+      )
+  )
+
+  try {
+    await db.batch([deleteStmt, ...insertStmts])
+  } catch (e: any) {
+    return { error: e.message }
   }
 
   revalidatePath('/dashboard/kehadiran')

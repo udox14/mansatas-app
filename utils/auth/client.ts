@@ -1,0 +1,18 @@
+// Lokasi: utils/auth/client.ts
+// Better Auth client - dipakai di Client Components ('use client')
+
+import { createAuthClient } from 'better-auth/react'
+import { adminClient } from 'better-auth/client/plugins'
+
+export const authClient = createAuthClient({
+  baseURL: process.env.NEXT_PUBLIC_APP_URL || '',
+  plugins: [
+    adminClient(),
+  ],
+})
+
+export const {
+  signIn,
+  signOut,
+  useSession,
+} = authClient

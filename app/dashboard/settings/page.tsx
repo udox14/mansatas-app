@@ -1,6 +1,6 @@
-// TIMPA SELURUH ISI FILE INI
 // Lokasi: app/dashboard/settings/page.tsx
-import { createClient } from '@/utils/supabase/server'
+import { getCurrentUser } from '@/utils/auth/server'
+import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { Settings } from 'lucide-react'
 import { SettingsClient } from './components/settings-client'
@@ -8,23 +8,14 @@ import { SettingsClient } from './components/settings-client'
 export const metadata = { title: 'Pengaturan Global - MANSATAS App' }
 
 export default async function SettingsPage() {
-  const supabase = await createClient()
-  
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  
-  if (profile?.role !== 'super_admin' && profile?.role !== 'admin_tu') {
-    redirect('/dashboard') 
-  }
+  const role = (user as any).role ?? ''
+  if (role !== 'super_admin' && role !== 'admin_tu') redirect('/dashboard')
 
-  // Ambil data Tahun Ajaran (Daftar jurusan sekarang sudah menempel di sini)
-  const { data: taData } = await supabase
-    .from('tahun_ajaran')
-    .select('*')
-    .order('nama', { ascending: false })
-    .order('semester', { ascending: false })
+  const db = await getDB()
+  const taResult = await db.prepare('SELECT * FROM tahun_ajaran ORDER BY nama DESC, semester DESC').all<any>()
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
@@ -34,14 +25,10 @@ export default async function SettingsPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Pengaturan Sistem</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Kelola kalender akademik dan daftar jurusan/peminatan madrasah.
-          </p>
+          <p className="text-sm text-slate-500 mt-1">Kelola kalender akademik dan daftar jurusan/peminatan madrasah.</p>
         </div>
       </div>
-
-      {/* Tidak perlu pass 'pengaturan' global lagi */}
-      <SettingsClient taData={taData || []} />
+      <SettingsClient taData={taResult.results || []} />
     </div>
   )
 }

@@ -1,26 +1,38 @@
+// Lokasi: app/(auth)/login/actions.ts
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { createAuth } from '@/utils/auth'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/utils/supabase/server'
+import { APIError } from 'better-auth/api'
 
-// WAJIB menambahkan parameter 'prevState' agar sesuai dengan standar useFormState di Next.js 14
 export async function login(prevState: any, formData: FormData) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
-  const supabase = await createClient()
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
-
-  if (error) {
-    // Return error message ke UI jika login gagal
-    return { error: error.message }
+  if (!email || !password) {
+    return { error: 'Email dan password wajib diisi.' }
   }
 
-  // Bersihkan cache dan arahkan ke dashboard jika berhasil
-  revalidatePath('/', 'layout')
+  const { env } = await getCloudflareContext({ async: true })
+  const auth = createAuth(env.DB)
+
+  try {
+    await auth.api.signInEmail({
+      body: { email, password },
+      headers: await headers(),
+    })
+  } catch (e) {
+    if (e instanceof APIError) {
+      const msg = e.message
+      if (msg.includes('Invalid') || msg.includes('credentials')) {
+        return { error: 'Email atau password salah.' }
+      }
+      return { error: msg }
+    }
+    return { error: 'Terjadi kesalahan sistem. Coba lagi.' }
+  }
+
   redirect('/dashboard')
 }

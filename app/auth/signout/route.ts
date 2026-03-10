@@ -1,21 +1,16 @@
-import { createClient } from '@/utils/supabase/server'
-import { revalidatePath } from 'next/cache'
+// Lokasi: app/auth/signout/route.ts
+import { createAuth } from '@/utils/auth'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
-  const supabase = await createClient()
+  const { env } = await getCloudflareContext({ async: true })
+  const auth = createAuth(env.DB)
 
-  // Mengecek apakah ada session aktif
-  const { data: { session } } = await supabase.auth.getSession()
-
-  if (session) {
-    await supabase.auth.signOut()
-  }
-
-  revalidatePath('/', 'layout')
-  
-  // Menggunakan request URL agar absolute redirect bisa dilakukan
-  return NextResponse.redirect(new URL('/login', req.url), {
-    status: 302,
+  await auth.api.signOut({
+    headers: await headers(),
   })
+
+  return NextResponse.redirect(new URL('/login', req.url), { status: 302 })
 }

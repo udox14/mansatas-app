@@ -1,97 +1,80 @@
-// TIMPA SELURUH ISI FILE INI
 // Lokasi: app/dashboard/akademik/analitik/page.tsx
 import { Suspense } from 'react'
-import { createClient } from '@/utils/supabase/server'
+import { getCurrentUser } from '@/utils/auth/server'
+import { getDB, parseJsonCol } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { PengaturanPanel } from './components/pengaturan-panel'
 import { AnalitikClient } from './components/analitik-client'
-import { LineChart, Loader2 } from 'lucide-react'
+import { LineChart } from 'lucide-react'
 
 export const metadata = { title: 'Analitik Kelulusan - MANSATAS App' }
 
-// ============================================================================
-// KOMPONEN PEMUAT DATA (Berjalan Asinkron di Background)
-// ============================================================================
 async function AnalitikDataFetcher() {
-  const supabase = await createClient()
+  const db = await getDB()
 
-  // Ambil semua data berat (Pengaturan, Master Mapel, dan JSONB Nilai Siswa) 
-  // secara paralel agar prosesnya jauh lebih cepat
-  const [
-    { data: pengaturan },
-    { data: mapelList },
-    { data: dataSiswa }
-  ] = await Promise.all([
-    supabase.from('pengaturan_akademik').select('*').eq('id', 'global').single(),
-    supabase.from('mata_pelajaran').select('id, nama_mapel').order('nama_mapel'),
-    supabase.from('siswa')
-      .select(`
-        id, nisn, nama_lengkap, kelas_id,
-        kelas!inner (tingkat, kelompok, nomor_kelas),
-        rekap_nilai_akademik (nilai_smt1, nilai_smt2, nilai_smt3, nilai_smt4, nilai_smt5, nilai_um)
-      `)
-      .eq('kelas.tingkat', 12)
-      .eq('status', 'aktif')
-      .order('nama_lengkap')
+  const [pengaturan, mapelResult, siswaResult] = await Promise.all([
+    db.prepare("SELECT * FROM pengaturan_akademik WHERE id = 'global'").first<any>(),
+    db.prepare('SELECT id, nama_mapel FROM mata_pelajaran ORDER BY nama_mapel').all<any>(),
+    db.prepare(`
+      SELECT s.id, s.nisn, s.nama_lengkap, s.kelas_id,
+        k.tingkat, k.kelompok, k.nomor_kelas,
+        rn.nilai_smt1, rn.nilai_smt2, rn.nilai_smt3, rn.nilai_smt4, rn.nilai_smt5, rn.nilai_um
+      FROM siswa s
+      JOIN kelas k ON s.kelas_id = k.id
+      LEFT JOIN rekap_nilai_akademik rn ON rn.siswa_id = s.id
+      WHERE k.tingkat = 12 AND s.status = 'aktif'
+      ORDER BY s.nama_lengkap
+    `).all<any>()
   ])
+
+  // Parse nilai JSON columns
+  const dataSiswa = (siswaResult.results || []).map((s: any) => ({
+    ...s,
+    kelas: { tingkat: s.tingkat, kelompok: s.kelompok, nomor_kelas: s.nomor_kelas },
+    rekap_nilai_akademik: s.nilai_smt1 ? [{
+      nilai_smt1: parseJsonCol(s.nilai_smt1, null),
+      nilai_smt2: parseJsonCol(s.nilai_smt2, null),
+      nilai_smt3: parseJsonCol(s.nilai_smt3, null),
+      nilai_smt4: parseJsonCol(s.nilai_smt4, null),
+      nilai_smt5: parseJsonCol(s.nilai_smt5, null),
+      nilai_um: parseJsonCol(s.nilai_um, null),
+    }] : []
+  }))
 
   return (
     <>
-      {/* Bagian Atas: Panel Pengaturan Rumus */}
-      <PengaturanPanel 
-        pengaturan={pengaturan} 
-        mapelList={mapelList || []} 
-      />
-
-      {/* Bagian Bawah: Dashboard Tabel Super Canggih */}
-      <AnalitikClient 
-        dataSiswa={(dataSiswa as any) || []} 
-        pengaturan={pengaturan} 
-      />
+      <PengaturanPanel pengaturan={pengaturan} mapelList={mapelResult.results || []} />
+      <AnalitikClient dataSiswa={dataSiswa} pengaturan={pengaturan} />
     </>
   )
 }
 
-// ============================================================================
-// HALAMAN UTAMA (Merender Kerangka Instan)
-// ============================================================================
 export default async function AnalitikPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) redirect('/login')
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      
-      {/* HEADER HALAMAN - MUNCUL INSTAN 0 DETIK */}
       <div className="flex items-center gap-3">
         <div className="bg-emerald-100 p-3 rounded-2xl text-emerald-700 shadow-sm border border-emerald-200/50">
           <LineChart className="h-6 w-6" />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Analitik Kelulusan & SNBP</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Data Warehouse nilai dari RDM. Penghitungan otomatis kuota Eligible SNBP 40% & SPAN-PTKIN.
-          </p>
+          <p className="text-sm text-slate-500 mt-1">Data Warehouse nilai dari RDM. Penghitungan otomatis kuota Eligible SNBP 40% & SPAN-PTKIN.</p>
         </div>
       </div>
-
-      {/* SUSPENSE BOUNDARY: Loading State yang Cantik & Informatif */}
       <Suspense fallback={
-        <div className="bg-white/50 backdrop-blur-sm rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[500px] animate-in zoom-in-95 duration-300 mt-6">
-           <div className="bg-emerald-50 p-5 rounded-full mb-5 shadow-inner border border-emerald-100 relative">
+        <div className="bg-white/50 rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[500px]">
+           <div className="bg-emerald-50 p-5 rounded-full mb-5 border border-emerald-100 relative">
              <div className="absolute inset-0 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin"></div>
              <LineChart className="h-8 w-8 text-emerald-600 animate-pulse" />
            </div>
            <h3 className="text-xl font-bold text-slate-800">Menarik Data Warehouse RDM...</h3>
-           <p className="text-slate-500 text-sm mt-2 font-medium max-w-sm text-center">
-             Mengkalkulasi matriks nilai 5 semester dan memproses perankingan algoritma SNBP & SPAN. Mohon tunggu.
-           </p>
         </div>
       }>
         <AnalitikDataFetcher />
       </Suspense>
-
     </div>
   )
 }
