@@ -145,7 +145,7 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
         const worksheet = workbook.Sheets[workbook.SheetNames[0]]
         const jsonData = XLSX.utils.sheet_to_json(worksheet)
         
-        const result = await importPegawaiMassal(jsonData) as { error?: string, success?: string, logs?: string[] }
+        const result = await importPegawaiMassal(jsonData) as any
         
         if (result.error) alert(result.error)
         else alert(result.success)
