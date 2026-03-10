@@ -35,7 +35,6 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
   if (pathname !== '/dashboard' && pathSegments.length > 0) {
     const lastSegment = pathSegments[pathSegments.length - 1]
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lastSegment)
-    
     if (isUUID) {
       const parentSegment = pathSegments[pathSegments.length - 2]
       pageTitle = `Detail ${parentSegment}`
