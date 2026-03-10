@@ -1,87 +1,127 @@
+// Lokasi: app/dashboard/guru/actions.ts
 'use server'
 
-import { createClient } from '@/utils/supabase/server'
-import { createAdminClient } from '@/utils/supabase/admin'
+import { getDB, dbSelect, dbUpdate } from '@/utils/db'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { createAuth } from '@/utils/auth'
+import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { getCurrentUser } from '@/utils/auth/server'
 
+async function getAuth() {
+  const { env } = await getCloudflareContext({ async: true })
+  return createAuth(env.DB)
+}
+
+// ============================================================
+// TAMBAH PEGAWAI
+// ============================================================
 export async function tambahPegawai(prevState: any, formData: FormData) {
-  const supabaseAdmin = createAdminClient()
-  
   const nama_lengkap = (formData.get('nama_lengkap') as string).trim()
   const email = (formData.get('email') as string).trim()
   const role = formData.get('role') as string
-  const password = 'mansatas2026' 
+  const password = 'mansatas2026'
 
-  if (!nama_lengkap || !email || !role) return { error: 'Semua field wajib diisi.', success: null }
+  if (!nama_lengkap || !email || !role) {
+    return { error: 'Semua field wajib diisi.', success: null }
+  }
 
-  const { data, error } = await supabaseAdmin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { nama_lengkap, role }
-  })
+  const auth = await getAuth()
 
-  if (error) return { error: error.message.includes('already registered') ? 'Email sudah terdaftar!' : error.message, success: null }
+  try {
+    await (auth.api as any).createUser({
+      body: { name: nama_lengkap, email, password, role, nama_lengkap },
+      headers: await headers(),
+    })
+  } catch (e: any) {
+    const msg = e?.message || ''
+    return { error: msg.includes('already') ? 'Email sudah terdaftar!' : msg, success: null }
+  }
 
   revalidatePath('/dashboard/guru')
   return { error: null, success: `Akun berhasil dibuat! Password default: ${password}` }
 }
 
+// ============================================================
+// EDIT PEGAWAI
+// ============================================================
 export async function editPegawai(id: string, nama_lengkap: string, email: string) {
-  const supabaseAdmin = createAdminClient()
-  const supabase = await createClient()
+  const db = await getDB()
 
-  // Update email di sistem Autentikasi Supabase
-  const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, { 
-    email, 
-    user_metadata: { nama_lengkap } 
-  })
-  if (authError) return { error: authError.message.includes('already registered') ? 'Email tersebut sudah dipakai orang lain!' : authError.message }
-
-  // Update nama di tabel Profiles
-  const { error: dbError } = await supabase.from('profiles').update({ nama_lengkap }).eq('id', id)
-  if (dbError) return { error: dbError.message }
+  const result = await dbUpdate(
+    db,
+    '"user"',
+    { nama_lengkap, name: nama_lengkap, email, updatedAt: new Date().toISOString() },
+    { id }
+  )
+  if (result.error) return { error: result.error }
 
   revalidatePath('/dashboard/guru')
   return { success: 'Data pegawai berhasil diperbarui.' }
 }
 
+// ============================================================
+// RESET PASSWORD PEGAWAI
+// ============================================================
 export async function resetPasswordPegawai(id: string) {
-  const supabaseAdmin = createAdminClient()
-  const { error } = await supabaseAdmin.auth.admin.updateUserById(id, { password: 'mansatas2026' })
-  
-  if (error) return { error: 'Gagal mereset password: ' + error.message }
+  const auth = await getAuth()
+
+  try {
+    await (auth.api as any).setUserData({
+      body: { userId: id, password: 'mansatas2026' },
+      headers: await headers(),
+    })
+  } catch (e: any) {
+    return { error: 'Gagal mereset password: ' + (e?.message || '') }
+  }
+
   return { success: 'Password berhasil direset ke: mansatas2026' }
 }
 
+// ============================================================
+// UBAH ROLE PEGAWAI
+// ============================================================
 export async function ubahRolePegawai(id: string, newRole: string) {
-  const supabaseAdmin = createAdminClient()
-  const supabase = await createClient()
-  
-  const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, { user_metadata: { role: newRole } })
-  if (authError) return { error: authError.message }
-  
-  const { error: dbError } = await supabase.from('profiles').update({ role: newRole }).eq('id', id)
-  if (dbError) return { error: dbError.message }
-  
+  const db = await getDB()
+
+  const result = await dbUpdate(
+    db,
+    '"user"',
+    { role: newRole, updatedAt: new Date().toISOString() },
+    { id }
+  )
+  if (result.error) return { error: result.error }
+
   revalidatePath('/dashboard/guru')
   return { success: 'Jabatan/Role berhasil diperbarui.' }
 }
 
+// ============================================================
+// HAPUS PEGAWAI
+// ============================================================
 export async function hapusPegawai(id: string) {
-  const supabaseAdmin = createAdminClient()
-  const { error } = await supabaseAdmin.auth.admin.deleteUser(id)
-  if (error) return { error: 'Gagal menghapus akun: ' + error.message }
-  
+  const auth = await getAuth()
+
+  try {
+    await (auth.api as any).deleteUser({
+      body: { userId: id },
+      headers: await headers(),
+    })
+  } catch (e: any) {
+    return { error: 'Gagal menghapus akun: ' + (e?.message || '') }
+  }
+
   revalidatePath('/dashboard/guru')
   return { success: 'Akun pegawai berhasil dihapus permanen.' }
 }
 
-// FUNGSI BARU: Import Massal dari Excel
+// ============================================================
+// IMPORT MASSAL PEGAWAI
+// ============================================================
 export async function importPegawaiMassal(dataExcel: any[]) {
-  const supabaseAdmin = createAdminClient()
+  const auth = await getAuth()
   let successCount = 0
-  let errorLogs: string[] = []
+  const errorLogs: string[] = []
 
   for (let i = 0; i < dataExcel.length; i++) {
     const row = dataExcel[i]
@@ -92,7 +132,6 @@ export async function importPegawaiMassal(dataExcel: any[]) {
 
     if (!nama_lengkap || !email) continue
 
-    // Normalisasi role agar sesuai dengan enum di database
     let role = 'guru'
     if (rawJabatan.includes('bk')) role = 'guru_bk'
     else if (rawJabatan.includes('piket')) role = 'guru_piket'
@@ -102,20 +141,21 @@ export async function importPegawaiMassal(dataExcel: any[]) {
     else if (rawJabatan.includes('satpam')) role = 'satpam'
     else if (rawJabatan.includes('pramu') || rawJabatan.includes('bersih')) role = 'pramubakti'
 
-    const { error } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { nama_lengkap, role }
-    })
-
-    if (error) {
-      errorLogs.push(`Baris ${i+2} (${nama_lengkap}): ${error.message.includes('already registered') ? 'Email sudah terdaftar' : error.message}`)
-    } else {
+    try {
+      await (auth.api as any).createUser({
+        body: { name: nama_lengkap, email, password, role, nama_lengkap },
+        headers: await headers(),
+      })
       successCount++
+    } catch (e: any) {
+      const msg = e?.message || ''
+      errorLogs.push(`Baris ${i + 2} (${nama_lengkap}): ${msg.includes('already') ? 'Email sudah terdaftar' : msg}`)
     }
   }
 
   revalidatePath('/dashboard/guru')
-  return { success: `Berhasil mengimport dan membuat ${successCount} akun pegawai baru.`, logs: errorLogs }
+  return {
+    success: `Berhasil mengimport dan membuat ${successCount} akun pegawai baru.`,
+    logs: errorLogs,
+  }
 }

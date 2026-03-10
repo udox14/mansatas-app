@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Camera, Loader2, Save, KeyRound, User, CheckCircle2, AlertCircle } from 'lucide-react'
-import { updateProfileInfo, updatePassword, uploadAvatar } from '../actions'
+import { updateProfileInfo, updatePassword, uploadAvatarAction } from '../actions'
 
 const initialState = { error: null as string | null, success: null as string | null }
 
@@ -85,7 +85,7 @@ export function ProfileClient({ profile, email }: { profile: any, email: string 
       const formData = new FormData()
       formData.append('avatar', compressedFile)
       
-      const res = await uploadAvatar(formData)
+      const res = await uploadAvatarAction(formData)
       if (res.error) alert(res.error)
       else if (res.url) setAvatarUrl(res.url)
     } catch (err) {

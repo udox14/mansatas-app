@@ -1,101 +1,91 @@
-// TIMPA SELURUH ISI FILE INI
 // Lokasi: app/dashboard/izin/page.tsx
 import { Suspense } from 'react'
-import { createClient } from '@/utils/supabase/server'
+import { getCurrentUser } from '@/utils/auth/server'
+import { getDB, parseJsonCol } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { IzinClient } from './components/izin-client'
-import { DoorOpen, Loader2 } from 'lucide-react'
+import { DoorOpen } from 'lucide-react'
 
 export const metadata = { title: 'Perizinan Siswa - MANSATAS App' }
 
-// ============================================================================
-// KOMPONEN PEMUAT DATA (Berjalan Asinkron di Background)
-// ============================================================================
 async function IzinDataFetcher({ currentUserRole }: { currentUserRole: string }) {
-  const supabase = await createClient()
-
-  // Tanggal Hari Ini untuk Filter Data
+  const db = await getDB()
   const today = new Date().toISOString().split('T')[0]
 
-  // Fetch Paralel (Siswa Aktif, Izin Keluar, Izin Kelas) untuk kecepatan maksimal
-  const [resSiswa, resKeluar, resKelas] = await Promise.all([
-    supabase.from('siswa')
-      .select('id, nama_lengkap, nisn, kelas!inner(tingkat, nomor_kelas)')
-      .eq('status', 'aktif')
-      .order('nama_lengkap'),
-      
-    // Ambil izin keluar: Yang belum kembali (kapanpun), ATAU yang keluar hari ini (limit 300 data terakhir)
-    supabase.from('izin_keluar_komplek')
-      .select('id, waktu_keluar, waktu_kembali, status, keterangan, siswa(nama_lengkap, kelas(tingkat, nomor_kelas)), pelapor:profiles!diinput_oleh(nama_lengkap)')
-      .order('waktu_keluar', { ascending: false })
-      .limit(300),
-
-    // Ambil izin kelas khusus hari ini saja
-    supabase.from('izin_tidak_masuk_kelas')
-      .select('id, tanggal, jam_pelajaran, alasan, keterangan, siswa(nama_lengkap, kelas(tingkat, nomor_kelas)), pelapor:profiles!diinput_oleh(nama_lengkap)')
-      .eq('tanggal', today)
-      .order('created_at', { ascending: false })
+  const [siswaResult, keluarResult, kelasResult] = await Promise.all([
+    db.prepare(`
+      SELECT s.id, s.nama_lengkap, s.nisn, k.tingkat, k.nomor_kelas
+      FROM siswa s JOIN kelas k ON s.kelas_id = k.id
+      WHERE s.status = 'aktif' ORDER BY s.nama_lengkap
+    `).all<any>(),
+    db.prepare(`
+      SELECT ik.id, ik.waktu_keluar, ik.waktu_kembali, ik.status, ik.keterangan,
+        s.nama_lengkap as siswa_nama, k.tingkat, k.nomor_kelas, u.nama_lengkap as pelapor_nama
+      FROM izin_keluar_komplek ik
+      JOIN siswa s ON ik.siswa_id = s.id
+      LEFT JOIN kelas k ON s.kelas_id = k.id
+      LEFT JOIN user u ON ik.diinput_oleh = u.id
+      ORDER BY ik.waktu_keluar DESC LIMIT 300
+    `).all<any>(),
+    db.prepare(`
+      SELECT itk.id, itk.tanggal, itk.jam_pelajaran, itk.alasan, itk.keterangan,
+        s.nama_lengkap as siswa_nama, k.tingkat, k.nomor_kelas, u.nama_lengkap as pelapor_nama
+      FROM izin_tidak_masuk_kelas itk
+      JOIN siswa s ON itk.siswa_id = s.id
+      LEFT JOIN kelas k ON s.kelas_id = k.id
+      LEFT JOIN user u ON itk.diinput_oleh = u.id
+      WHERE itk.tanggal = ?
+      ORDER BY itk.created_at DESC
+    `).bind(today).all<any>()
   ])
 
-  // Filter izin keluar di server: hanya tampilkan yang hari ini atau yang masih 'BELUM KEMBALI'
-  const filteredKeluar = (resKeluar.data || []).filter(k => {
-    const isToday = k.waktu_keluar.startsWith(today)
-    const isNotReturned = k.status === 'BELUM KEMBALI'
-    return isToday || isNotReturned
-  })
+  const filteredKeluar = (keluarResult.results || [])
+    .filter((k: any) => k.waktu_keluar?.startsWith(today) || k.status === 'BELUM KEMBALI')
+    .map((k: any) => ({ ...k, siswa: { nama_lengkap: k.siswa_nama, kelas: k.tingkat ? { tingkat: k.tingkat, nomor_kelas: k.nomor_kelas } : null }, pelapor: { nama_lengkap: k.pelapor_nama } }))
 
-  return (
-    <IzinClient 
-      siswaList={resSiswa.data || []}
-      izinKeluarList={filteredKeluar}
-      izinKelasList={resKelas.data || []}
-      currentUserRole={currentUserRole}
-    />
-  )
+  const formattedSiswa = (siswaResult.results || []).map((s: any) => ({
+    id: s.id, nama_lengkap: s.nama_lengkap, nisn: s.nisn,
+    kelas: s.tingkat ? { tingkat: s.tingkat, nomor_kelas: s.nomor_kelas } : null
+  }))
+
+  const formattedIzinKelas = (kelasResult.results || []).map((itk: any) => ({
+    ...itk,
+    jam_pelajaran: parseJsonCol(itk.jam_pelajaran, null) ?? itk.jam_pelajaran,
+    siswa: { nama_lengkap: itk.siswa_nama, kelas: itk.tingkat ? { tingkat: itk.tingkat, nomor_kelas: itk.nomor_kelas } : null },
+    pelapor: { nama_lengkap: itk.pelapor_nama }
+  }))
+
+  return <IzinClient siswaList={formattedSiswa} izinKeluarList={filteredKeluar} izinKelasList={formattedIzinKelas} currentUserRole={currentUserRole} />
 }
 
-// ============================================================================
-// HALAMAN UTAMA (Merender Kerangka Instan)
-// ============================================================================
 export default async function IzinPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const role = (user as any).role ?? ''
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      
-      {/* HEADER HALAMAN - MUNCUL INSTAN 0 DETIK */}
       <div className="flex items-center gap-3">
         <div className="bg-blue-100 p-3 rounded-2xl text-blue-700 shadow-sm border border-blue-200/50">
           <DoorOpen className="h-6 w-6" />
         </div>
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Perizinan Siswa Harian</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Posko pencatatan siswa keluar komplek dan izin meninggalkan jam pelajaran hari ini.
-          </p>
+          <p className="text-sm text-slate-500 mt-1">Posko pencatatan siswa keluar komplek dan izin meninggalkan jam pelajaran hari ini.</p>
         </div>
       </div>
-
-      {/* SUSPENSE BOUNDARY: Loading State yang Elegan */}
       <Suspense fallback={
-        <div className="bg-white/50 backdrop-blur-sm rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[400px] animate-in zoom-in-95 duration-300 mt-6">
-           <div className="bg-blue-50 p-5 rounded-full mb-5 shadow-inner border border-blue-100 relative">
+        <div className="bg-white/50 rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[400px]">
+           <div className="bg-blue-50 p-5 rounded-full mb-5 border border-blue-100 relative">
              <div className="absolute inset-0 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin"></div>
              <DoorOpen className="h-8 w-8 text-blue-600 animate-pulse" />
            </div>
            <h3 className="text-xl font-bold text-slate-800">Menarik Data Perizinan...</h3>
-           <p className="text-slate-500 text-sm mt-2 font-medium max-w-sm text-center">
-             Memuat daftar siswa dan mencocokkan riwayat keluar-masuk hari ini. Mohon tunggu.
-           </p>
         </div>
       }>
-        <IzinDataFetcher currentUserRole={profile?.role || ''} />
+        <IzinDataFetcher currentUserRole={role} />
       </Suspense>
-
     </div>
   )
 }

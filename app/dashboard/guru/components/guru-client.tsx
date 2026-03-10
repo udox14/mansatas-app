@@ -27,7 +27,7 @@ const ROLES = [
   { value: 'pramubakti', label: 'Pramubakti / Kebersihan' },
 ]
 
-const initialState = { error: null as string | null, success: null as string | null }
+const initialState: { error: any; success: null } | { error: null; success: string } = { error: null, success: null } as any
 
 function SubmitButton() {
   const { pending } = useFormStatus()

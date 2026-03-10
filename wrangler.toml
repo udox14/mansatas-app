@@ -7,6 +7,31 @@ compatibility_flags = ["nodejs_compat"]
 directory = ".open-next/assets"
 binding = "STATIC_ASSETS"
 
+# KV untuk incremental cache Next.js
 [[kv_namespaces]]
 binding = "NEXT_INC_CACHE_KV"
 id = "d71a11d5f8ec47318b96e52f52715749"
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "mansatas-db"
+database_id = "76b7b346-3f3f-4c1e-a347-2d51497bad97"
+# Cara buat: wrangler d1 create mansatas-db
+# Lalu copy database_id dari output ke sini
+# Lalu jalankan: wrangler d1 execute mansatas-db --file=schema.sql
+
+# R2 Storage (foto siswa, avatar, bukti pelanggaran)
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "mansatas-storage"
+# Cara buat: wrangler r2 bucket create mansatas-storage
+
+[vars]
+# Better Auth secret - ganti dengan string random yang kuat (min 32 char)
+# Generate: openssl rand -base64 32
+BETTER_AUTH_SECRET = "FHbNALpfZ89rvTMq9jtBqhfCqkWHBsvAaitD7WxWUbc="
+BETTER_AUTH_URL = "https://mansatas-app.workers.dev"
+
+# R2 Public URL (setelah aktifkan public access di dashboard Cloudflare)
+R2_PUBLIC_URL = "https://pub-84873e7206c44c4ba6e4aa405b6a8192.r2.dev"

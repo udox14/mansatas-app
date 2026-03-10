@@ -1,6 +1,5 @@
-// BUAT FILE BARU
 // Lokasi: app/dashboard/settings/profile/page.tsx
-import { createClient } from '@/utils/supabase/server'
+import { getCurrentUser } from '@/utils/auth/server'
 import { redirect } from 'next/navigation'
 import { UserCircle } from 'lucide-react'
 import { ProfileClient } from './components/profile-client'
@@ -8,15 +7,16 @@ import { ProfileClient } from './components/profile-client'
 export const metadata = { title: 'Profil Saya - MANSATAS App' }
 
 export default async function ProfilePage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getCurrentUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+  // Bentuk profile object dari Better Auth user
+  const profile = {
+    id: user.id,
+    nama_lengkap: (user as any).nama_lengkap ?? user.name ?? '',
+    role: (user as any).role ?? '',
+    avatar_url: (user as any).avatar_url ?? null,
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
@@ -26,13 +26,10 @@ export default async function ProfilePage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Profil Saya</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Kelola informasi pribadi, foto profil, dan kata sandi akun Anda.
-          </p>
+          <p className="text-sm text-slate-500 mt-1">Kelola informasi pribadi, foto profil, dan kata sandi akun Anda.</p>
         </div>
       </div>
-
-      <ProfileClient profile={profile} email={user.email || ''} />
+      <ProfileClient profile={profile} email={user.email ?? ''} />
     </div>
   )
 }

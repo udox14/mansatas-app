@@ -1,121 +1,140 @@
-// TIMPA SELURUH ISI FILE INI
 // Lokasi: app/dashboard/akademik/analitik/actions.ts
 'use server'
 
-import { createClient } from '@/utils/supabase/server'
+import { getDB, dbUpdate, parseJsonCol } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
 
+// ============================================================
+// 1. PENGATURAN AKADEMIK (row singleton 'global')
+// ============================================================
 export async function getPengaturanAkademik() {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('pengaturan_akademik').select('*').eq('id', 'global').single()
-  if (error) return null
-  return data
+  const db = await getDB()
+  const row = await db
+    .prepare('SELECT * FROM pengaturan_akademik WHERE id = ?')
+    .bind('global')
+    .first<any>()
+
+  if (!row) return null
+
+  // Parse JSON columns
+  return {
+    ...row,
+    mapel_snbp: parseJsonCol<string[]>(row.mapel_snbp, []),
+    mapel_span: parseJsonCol<string[]>(row.mapel_span, []),
+    daftar_jurusan: parseJsonCol<string[]>(row.daftar_jurusan, ['MIPA','SOSHUM','KEAGAMAAN','UMUM']),
+  }
 }
 
 export async function simpanPengaturanAkademik(payload: any) {
-  const supabase = await createClient()
-  const { error } = await supabase.from('pengaturan_akademik').update({
-    mapel_snbp: payload.mapel_snbp,
-    mapel_span: payload.mapel_span,
-    bobot_rapor: payload.bobot_rapor,
-    bobot_um: payload.bobot_um,
-    updated_at: new Date().toISOString()
-  }).eq('id', 'global')
+  const db = await getDB()
+  const result = await dbUpdate(
+    db,
+    'pengaturan_akademik',
+    {
+      mapel_snbp: JSON.stringify(payload.mapel_snbp),
+      mapel_span: JSON.stringify(payload.mapel_span),
+      bobot_rapor: payload.bobot_rapor,
+      bobot_um: payload.bobot_um,
+      updated_at: new Date().toISOString(),
+    },
+    { id: 'global' }
+  )
 
-  if (error) return { error: error.message }
+  if (result.error) return { error: result.error }
   revalidatePath('/dashboard/akademik/analitik')
   return { success: 'Pengaturan rumus dan mata pelajaran berhasil disimpan!' }
 }
 
-// --- 2. Mesin Import Cerdas dengan Kamus Translasi & Pembersih Noise ---
+// ============================================================
+// 2. IMPORT NILAI DARI EXCEL
+// ============================================================
 export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string) {
-  const supabase = await createClient()
-  
-  const { data: dbSiswa } = await supabase.from('siswa').select('id, nisn, nama_lengkap')
-  if (!dbSiswa) return { error: 'Gagal memuat database siswa' }
+  const db = await getDB()
 
-  // Buat Kamus Translasi (Cth: IPAT -> IPA Terpadu)
-  const { data: dbMapel } = await supabase.from('mata_pelajaran').select('nama_mapel, kode_mapel')
-  const kamusMapel = new Map()
-  if (dbMapel) {
-    dbMapel.forEach(m => {
-      kamusMapel.set(m.nama_mapel.toLowerCase().trim(), m.nama_mapel)
-      if (m.kode_mapel) {
-        kamusMapel.set(m.kode_mapel.toLowerCase().trim(), m.nama_mapel)
-      }
-    })
-  }
+  const dbSiswa = await db.prepare('SELECT id, nisn, nama_lengkap FROM siswa').all<any>()
+  if (!dbSiswa.results.length) return { error: 'Gagal memuat database siswa' }
 
-  const nisnMap = new Map(dbSiswa.map(s => [s.nisn, s.id]))
+  const dbMapel = await db
+    .prepare('SELECT nama_mapel, kode_mapel FROM mata_pelajaran')
+    .all<any>()
+  const kamusMapel = new Map<string, string>()
+  dbMapel.results.forEach((m: any) => {
+    kamusMapel.set(m.nama_mapel.toLowerCase().trim(), m.nama_mapel)
+    if (m.kode_mapel) kamusMapel.set(m.kode_mapel.toLowerCase().trim(), m.nama_mapel)
+  })
 
-  let toUpsert = []
-  let errorLogs: string[] = []
-  let successCount = 0
+  const nisnMap = new Map<string, string>(dbSiswa.results.map((s: any) => [s.nisn, s.id]))
+
+  const toUpsert: any[] = []
+  const errorLogs: string[] = []
 
   for (let i = 0; i < dataExcel.length; i++) {
     const row = dataExcel[i]
-    
-    // Cari key NISN secara dinamis (tidak peduli uppercase/lowercase)
+
     const nisnKey = Object.keys(row).find(k => k.toUpperCase().trim() === 'NISN')
     const nisn = nisnKey ? String(row[nisnKey]).trim() : ''
-    
-    // PERBAIKAN: Cari key Nama Siswa agar bisa dimunculkan di log
+
     const namaKey = Object.keys(row).find(k => {
-      const upper = k.toUpperCase().trim()
-      return upper === 'NAMA' || upper === 'NAMA LENGKAP' || upper === 'NAMA_LENGKAP'
+      const u = k.toUpperCase().trim()
+      return u === 'NAMA' || u === 'NAMA LENGKAP' || u === 'NAMA_LENGKAP'
     })
     const namaSiswa = namaKey ? String(row[namaKey]).trim() : 'Nama Tidak Tersedia'
 
     if (!nisn) {
-        errorLogs.push(`Baris Excel ke-${i+1}: Dilewati (Tidak terdeteksi angka NISN untuk siswa ${namaSiswa}).`)
-        continue
+      errorLogs.push(`Baris Excel ke-${i + 1}: Dilewati (Tidak terdeteksi NISN untuk ${namaSiswa}).`)
+      continue
     }
 
     const siswa_id = nisnMap.get(nisn)
     if (!siswa_id) {
-        errorLogs.push(`Siswa bernama "${namaSiswa}" (NISN: ${nisn}) tidak ditemukan di database Madrasah. Pastikan data siswa ini sudah ditambahkan di menu Data Siswa.`)
-        continue
+      errorLogs.push(
+        `Siswa "${namaSiswa}" (NISN: ${nisn}) tidak ditemukan di database Madrasah.`
+      )
+      continue
     }
 
-    const nilaiMapelTerjemahan: any = {}
-    
+    const nilaiMapel: any = {}
+    const blacklist = ['NO', 'NIS', 'NISN', 'NAMA', 'JK', 'L/P', 'JUMLAH', 'RATA', 'RATA-RATA', 'KELAS']
+
     Object.keys(row).forEach(kolomExcel => {
-      const upperKey = kolomExcel.toUpperCase().trim()
-      
-      // Blacklist semua kolom yang bukan mata pelajaran
-      const blacklist = ['NO', 'NIS', 'NISN', 'NAMA', 'JK', 'L/P', 'JUMLAH', 'RATA', 'RATA-RATA', 'KELAS']
-      if (blacklist.includes(upperKey)) return
-
-      const cleanCol = kolomExcel.toLowerCase().trim()
-      
-      // Terjemahkan kode RDM ke Nama Mapel Asli
-      const namaMapelStandar = kamusMapel.get(cleanCol) || kolomExcel.trim()
-
-      // Pastikan yang diinput adalah angka
+      if (blacklist.includes(kolomExcel.toUpperCase().trim())) return
+      const namaStandar = kamusMapel.get(kolomExcel.toLowerCase().trim()) || kolomExcel.trim()
       const nilaiAngka = Number(row[kolomExcel])
-      if (!isNaN(nilaiAngka)) {
-        nilaiMapelTerjemahan[namaMapelStandar] = nilaiAngka
-      }
+      if (!isNaN(nilaiAngka)) nilaiMapel[namaStandar] = nilaiAngka
     })
 
-    const payload: any = {
-        siswa_id: siswa_id,
-        updated_at: new Date().toISOString()
-    }
-    
-    payload[targetKolom] = nilaiMapelTerjemahan
-    toUpsert.push(payload)
+    toUpsert.push({
+      siswa_id,
+      [targetKolom]: JSON.stringify(nilaiMapel),
+      updated_at: new Date().toISOString(),
+    })
   }
 
   if (toUpsert.length > 0) {
-    const { error } = await supabase.from('rekap_nilai_akademik').upsert(toUpsert, { onConflict: 'siswa_id' })
-    if (error) return { error: error.message }
-    successCount = toUpsert.length
+    // Upsert per siswa_id (UNIQUE constraint)
+    const stmts = toUpsert.map(row =>
+      db
+        .prepare(
+          `INSERT INTO rekap_nilai_akademik (siswa_id, ${targetKolom}, updated_at)
+           VALUES (?, ?, ?)
+           ON CONFLICT(siswa_id) DO UPDATE SET ${targetKolom} = excluded.${targetKolom}, updated_at = excluded.updated_at`
+        )
+        .bind(row.siswa_id, row[targetKolom], row.updated_at)
+    )
+
+    try {
+      const chunkSize = 100
+      for (let i = 0; i < stmts.length; i += chunkSize) {
+        await db.batch(stmts.slice(i, i + chunkSize))
+      }
+    } catch (e: any) {
+      return { error: e.message }
+    }
   }
 
   revalidatePath('/dashboard/akademik/analitik')
-  return { 
-    success: `Selesai! Berhasil memploting nilai RDM untuk ${successCount} Siswa.`, 
-    logs: errorLogs 
+  return {
+    success: `Selesai! Berhasil memploting nilai RDM untuk ${toUpsert.length} Siswa.`,
+    logs: errorLogs,
   }
 }
