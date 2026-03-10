@@ -16,7 +16,7 @@ import { MENU_ITEMS } from '@/config/menu'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { authClient } from '@/utils/auth/client'
+import { logout } from '@/app/dashboard/actions'
 
 interface HeaderProps {
   userRole: string
@@ -29,7 +29,6 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
   const pathname = usePathname()
   const filteredMenu = MENU_ITEMS.filter((item) => item.roles.includes(userRole))
 
-  // --- LOGIKA JUDUL BREADCRUMB PINTAR ---
   const pathSegments = pathname.split('/').filter(Boolean)
   let pageTitle = 'Dashboard Overview'
   
@@ -45,15 +44,9 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
     }
   }
 
-  const handleLogout = async () => {
-    await authClient.signOut()
-    window.location.href = "/login"
-  }
-
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200/60 bg-white/80 backdrop-blur-xl px-4 shadow-sm md:px-6">
       <div className="flex items-center gap-4">
-        {/* Mobile Menu Trigger */}
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="md:hidden text-slate-600 hover:text-emerald-700 hover:bg-emerald-50">
@@ -62,9 +55,8 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0 bg-slate-950 border-r-slate-800 text-slate-300">
-             <SheetTitle className="sr-only">Menu Navigasi Mobile</SheetTitle>
-
-             <div className="flex h-16 items-center border-b border-slate-800/80 px-6">
+            <SheetTitle className="sr-only">Menu Navigasi Mobile</SheetTitle>
+            <div className="flex h-16 items-center border-b border-slate-800/80 px-6">
               <span className="font-bold text-xl text-white flex items-center gap-3 tracking-tight">
                 <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 text-slate-950 flex items-center justify-center font-black shadow-[0_0_15px_rgba(52,211,153,0.4)]">M</div>
                 MANSATAS
@@ -129,7 +121,7 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-slate-100" />
             <DropdownMenuItem
-              onClick={handleLogout}
+              onClick={() => logout()}
               className="p-2.5 cursor-pointer focus:bg-rose-50 focus:text-rose-700 rounded-lg m-1 text-rose-600 font-medium"
             >
               <LogOut className="mr-2 h-4 w-4" />
