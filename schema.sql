@@ -2,13 +2,6 @@
 -- MANSATAS - Cloudflare D1 Schema (SQLite)
 -- Converted from Supabase PostgreSQL
 -- ============================================================
--- Catatan konversi:
---   uuid        → TEXT
---   timestamptz → TEXT (ISO 8601)
---   jsonb/array → TEXT (JSON.stringify)
---   boolean     → INTEGER (0/1)
---   USER-DEFINED enum → TEXT + CHECK constraint
--- ============================================================
 
 -- Better Auth core tables
 CREATE TABLE IF NOT EXISTS "user" (
@@ -19,11 +12,12 @@ CREATE TABLE IF NOT EXISTS "user" (
   image             TEXT,
   createdAt         TEXT NOT NULL DEFAULT (datetime('now')),
   updatedAt         TEXT NOT NULL DEFAULT (datetime('now')),
-  -- Extended fields (merged dari profiles)
-  role              TEXT NOT NULL DEFAULT 'wali_murid'
-                    CHECK(role IN ('kepsek','wakamad','admin_tu','guru','guru_bk','guru_piket','satpam','pramubakti','wali_murid')),
+  role              TEXT NOT NULL DEFAULT 'wali_murid',
   nama_lengkap      TEXT,
-  avatar_url        TEXT
+  avatar_url        TEXT,
+  banned            INTEGER DEFAULT 0,
+  banReason         TEXT,
+  banExpires        TEXT
 );
 
 CREATE TABLE IF NOT EXISTS session (
@@ -98,7 +92,6 @@ CREATE TABLE IF NOT EXISTS siswa (
   status              TEXT NOT NULL DEFAULT 'aktif',
   foto_url            TEXT,
   minat_jurusan       TEXT,
-  -- Biodata
   nik                 TEXT,
   tempat_lahir        TEXT,
   tanggal_lahir       TEXT,
@@ -106,7 +99,6 @@ CREATE TABLE IF NOT EXISTS siswa (
   jumlah_saudara      INTEGER,
   anak_ke             INTEGER,
   status_anak         TEXT,
-  -- Alamat
   alamat_lengkap      TEXT,
   rt                  TEXT,
   rw                  TEXT,
@@ -117,7 +109,6 @@ CREATE TABLE IF NOT EXISTS siswa (
   kode_pos            TEXT,
   nomor_whatsapp      TEXT,
   nomor_kk            TEXT,
-  -- Ayah
   nama_ayah           TEXT,
   nik_ayah            TEXT,
   tempat_lahir_ayah   TEXT,
@@ -126,7 +117,6 @@ CREATE TABLE IF NOT EXISTS siswa (
   pendidikan_ayah     TEXT,
   pekerjaan_ayah      TEXT,
   penghasilan_ayah    TEXT,
-  -- Ibu
   nama_ibu            TEXT,
   nik_ibu             TEXT,
   tempat_lahir_ibu    TEXT,
@@ -229,7 +219,7 @@ CREATE TABLE IF NOT EXISTS izin_tidak_masuk_kelas (
   id             TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   siswa_id       TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
   tanggal        TEXT NOT NULL DEFAULT (date('now')),
-  jam_pelajaran  TEXT NOT NULL, -- JSON array: "[1,2,3]"
+  jam_pelajaran  TEXT NOT NULL,
   alasan         TEXT NOT NULL CHECK(alasan IN ('Sakit','Izin','Keperluan Keluarga','Lainnya')),
   keterangan     TEXT,
   diinput_oleh   TEXT REFERENCES "user"(id),
@@ -239,8 +229,8 @@ CREATE TABLE IF NOT EXISTS izin_tidak_masuk_kelas (
 
 CREATE TABLE IF NOT EXISTS pengaturan_akademik (
   id              TEXT PRIMARY KEY DEFAULT 'global',
-  mapel_snbp      TEXT DEFAULT '[]',  -- JSON array
-  mapel_span      TEXT DEFAULT '[]',  -- JSON array
+  mapel_snbp      TEXT DEFAULT '[]',
+  mapel_span      TEXT DEFAULT '[]',
   bobot_rapor     INTEGER DEFAULT 60,
   bobot_um        INTEGER DEFAULT 40,
   daftar_jurusan  TEXT DEFAULT '["MIPA","SOSHUM","KEAGAMAAN","UMUM"]',
@@ -250,7 +240,7 @@ CREATE TABLE IF NOT EXISTS pengaturan_akademik (
 CREATE TABLE IF NOT EXISTS rekap_nilai_akademik (
   id          TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   siswa_id    TEXT NOT NULL UNIQUE REFERENCES siswa(id) ON DELETE CASCADE,
-  nilai_smt1  TEXT DEFAULT '{}',  -- JSON object
+  nilai_smt1  TEXT DEFAULT '{}',
   nilai_smt2  TEXT DEFAULT '{}',
   nilai_smt3  TEXT DEFAULT '{}',
   nilai_smt4  TEXT DEFAULT '{}',
@@ -262,16 +252,16 @@ CREATE TABLE IF NOT EXISTS rekap_nilai_akademik (
 -- ============================================================
 -- INDEXES
 -- ============================================================
-CREATE INDEX IF NOT EXISTS idx_siswa_kelas_id      ON siswa(kelas_id);
-CREATE INDEX IF NOT EXISTS idx_siswa_status         ON siswa(status);
-CREATE INDEX IF NOT EXISTS idx_siswa_nisn            ON siswa(nisn);
-CREATE INDEX IF NOT EXISTS idx_kelas_tingkat         ON kelas(tingkat);
-CREATE INDEX IF NOT EXISTS idx_rekap_kehadiran_siswa ON rekap_kehadiran_bulanan(siswa_id, bulan, tahun_ajaran_id);
-CREATE INDEX IF NOT EXISTS idx_jurnal_penugasan       ON jurnal_guru_harian(penugasan_id, tanggal);
-CREATE INDEX IF NOT EXISTS idx_pelanggaran_siswa      ON siswa_pelanggaran(siswa_id, tahun_ajaran_id);
-CREATE INDEX IF NOT EXISTS idx_izin_keluar_siswa      ON izin_keluar_komplek(siswa_id, status);
-CREATE INDEX IF NOT EXISTS idx_session_token          ON session(token);
-CREATE INDEX IF NOT EXISTS idx_session_userId         ON session(userId);
+CREATE INDEX IF NOT EXISTS idx_siswa_kelas_id       ON siswa(kelas_id);
+CREATE INDEX IF NOT EXISTS idx_siswa_status          ON siswa(status);
+CREATE INDEX IF NOT EXISTS idx_siswa_nisn             ON siswa(nisn);
+CREATE INDEX IF NOT EXISTS idx_kelas_tingkat          ON kelas(tingkat);
+CREATE INDEX IF NOT EXISTS idx_rekap_kehadiran_siswa  ON rekap_kehadiran_bulanan(siswa_id, bulan, tahun_ajaran_id);
+CREATE INDEX IF NOT EXISTS idx_jurnal_penugasan        ON jurnal_guru_harian(penugasan_id, tanggal);
+CREATE INDEX IF NOT EXISTS idx_pelanggaran_siswa       ON siswa_pelanggaran(siswa_id, tahun_ajaran_id);
+CREATE INDEX IF NOT EXISTS idx_izin_keluar_siswa       ON izin_keluar_komplek(siswa_id, status);
+CREATE INDEX IF NOT EXISTS idx_session_token           ON session(token);
+CREATE INDEX IF NOT EXISTS idx_session_userId          ON session(userId);
 
 -- ============================================================
 -- SEED DATA
