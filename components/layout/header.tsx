@@ -14,7 +14,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { MENU_ITEMS } from '@/config/menu'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { authClient } from '@/utils/auth/client'
 
@@ -27,7 +27,6 @@ interface HeaderProps {
 
 export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps) {
   const pathname = usePathname()
-  const router = useRouter()
   const filteredMenu = MENU_ITEMS.filter((item) => item.roles.includes(userRole))
 
   // --- LOGIKA JUDUL BREADCRUMB PINTAR ---
@@ -48,7 +47,7 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
 
   const handleLogout = async () => {
     await authClient.signOut()
-    router.push('/login')
+    window.location.href = "/login"
   }
 
   return (
