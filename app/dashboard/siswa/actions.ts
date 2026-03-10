@@ -73,7 +73,6 @@ export async function editSiswaLengkap(prevState: any, formData: FormData) {
   const payload: any = Object.fromEntries(formData.entries())
   delete payload.id
 
-  // Bersihkan empty string → null
   Object.keys(payload).forEach(key => {
     if (payload[key] === '' || payload[key] === 'undefined') {
       payload[key] = null
@@ -142,11 +141,13 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     kelasMap.set(key, k.id)
   })
 
-  // B. Ambil siswa yang sudah ada untuk matching nama
-  const existingDb = await db.prepare('SELECT id, nama_lengkap FROM siswa').all<any>()
-  const existingMap = new Map<string, string>()
+  // B. Ambil siswa existing: lookup by nama & by NISN
+  const existingDb = await db.prepare('SELECT id, nisn, nama_lengkap FROM siswa').all<any>()
+  const existingByNama = new Map<string, { id: string; nisn: string }>()
+  const existingByNisn = new Map<string, { id: string; nama_lengkap: string }>()
   existingDb.results.forEach((s: any) => {
-    existingMap.set(s.nama_lengkap.toLowerCase().trim(), s.id)
+    existingByNama.set(s.nama_lengkap.toLowerCase().trim(), { id: s.id, nisn: s.nisn })
+    if (s.nisn) existingByNisn.set(s.nisn.trim(), { id: s.id, nama_lengkap: s.nama_lengkap })
   })
 
   const toInsert: any[] = []
@@ -167,6 +168,25 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     const namaLengkap = String(item['NAMA LENGKAP'] || item.NAMA_LENGKAP || '').trim()
     const nisn = String(item.NISN || '').trim()
     if (!namaLengkap || !nisn) continue
+
+    // --- CEK DUPLIKAT NISN vs NAMA ---
+    const existingByNisnEntry = existingByNisn.get(nisn)
+    if (existingByNisnEntry) {
+      const namaYangAda = existingByNisnEntry.nama_lengkap.toLowerCase().trim()
+      if (namaYangAda !== namaLengkap.toLowerCase()) {
+        // NISN sama tapi nama beda — warning, skip
+        errorLogs.push(
+          `⚠️ Baris ${i + 2}: NISN ${nisn} milik "${namaLengkap}" sudah dipakai oleh "${existingByNisnEntry.nama_lengkap}" — periksa NISN-nya.`
+        )
+        continue
+      }
+      // NISN sama + nama sama → true duplicate, skip diam-diam
+      continue
+    }
+
+    // --- CEK DUPLIKAT DI DALAM FILE EXCEL SENDIRI ---
+    // (NISN yang sama muncul dua kali di Excel, belum ada di DB)
+    // Ditangani oleh INSERT OR IGNORE di dbBatchInsert nanti
 
     let kelas_id: string | null = null
     if (item.KELAS_TINGKAT && item.KELAS_NOMOR) {
@@ -224,9 +244,10 @@ export async function importSiswaMassal(dataSiswa: any[]) {
       if (payload[key] === null) delete payload[key]
     })
 
-    const existingId = existingMap.get(namaLengkap.toLowerCase())
-    if (existingId) {
-      toUpdate.push({ ...payload, id: existingId })
+    // Cek apakah nama sudah ada di DB (untuk UPDATE)
+    const existingByNamaEntry = existingByNama.get(namaLengkap.toLowerCase())
+    if (existingByNamaEntry) {
+      toUpdate.push({ ...payload, id: existingByNamaEntry.id })
     } else {
       toInsert.push(payload)
     }
@@ -260,8 +281,12 @@ export async function importSiswaMassal(dataSiswa: any[]) {
 
   revalidatePath('/dashboard/siswa')
 
-  if (errorLogs.length > 0) {
-    return { success: `Selesai. ${successCount} biodata berhasil di-import/ditimpa.`, logs: errorLogs }
-  }
-  return { success: `Luar Biasa! Berhasil menyimpan biodata super lengkap untuk ${successCount} siswa!`, logs: [] }
+  const nisnWarnings = errorLogs.filter(l => l.startsWith('⚠️')).length
+  const otherErrors = errorLogs.filter(l => !l.startsWith('⚠️')).length
+
+  let successMsg = `Berhasil menyimpan biodata ${successCount} siswa.`
+  if (nisnWarnings > 0) successMsg += ` ${nisnWarnings} siswa dilewati karena konflik NISN (lihat log).`
+  if (otherErrors > 0) successMsg += ` ${otherErrors} error lainnya.`
+
+  return { success: successMsg, logs: errorLogs }
 }
