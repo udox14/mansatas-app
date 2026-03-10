@@ -60,7 +60,6 @@ export async function importMapelMassal(dataExcel: any[]) {
 
   if (toInsert.length === 0) return { error: 'Data Excel kosong atau format tidak sesuai.' }
 
-  // Batch insert 50 per chunk
   const chunkSize = 50
   let totalInserted = 0
   for (let i = 0; i < toInsert.length; i += chunkSize) {
@@ -68,13 +67,13 @@ export async function importMapelMassal(dataExcel: any[]) {
     const placeholders = chunk.map(() => '(lower(hex(randomblob(16))), ?, ?, ?, ?, ?)').join(', ')
     const values = chunk.flatMap(r => [r.nama_mapel, r.kode_mapel, r.kelompok, r.tingkat, r.kategori])
     await db.prepare(
-      `INSERT OR IGNORE INTO mata_pelajaran (id, nama_mapel, kode_mapel, kelompok, tingkat, kategori) VALUES ${placeholders}`
+      'INSERT OR IGNORE INTO mata_pelajaran (id, nama_mapel, kode_mapel, kelompok, tingkat, kategori) VALUES ' + placeholders
     ).bind(...values).run()
     totalInserted += chunk.length
   }
 
   revalidatePath('/dashboard/akademik')
-  return { success: `Berhasil mengimport ${totalInserted} data mata pelajaran.` }
+  return { success: 'Berhasil mengimport ' + totalInserted + ' data mata pelajaran.' }
 }
 
 // ============================================================
@@ -103,32 +102,37 @@ export async function resetPenugasanSemesterIni(tahun_ajaran_id: string) {
 export async function importPenugasanASC(dataExcel: any[]) {
   const db = await getDB()
 
-  // Ambil tahun ajaran aktif
   const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1').first<{ id: string }>()
   if (!ta) return { error: 'Tahun Ajaran aktif belum diatur.', success: null, logs: [] }
 
-  // Ambil SEMUA data sekali — tidak ada loop query lagi
   const [guruAll, mapelAll, kelasAll] = await Promise.all([
-    db.prepare('SELECT id, LOWER(nama_lengkap) as nama FROM "user" WHERE nama_lengkap IS NOT NULL').all<any>(),
-    db.prepare('SELECT id, LOWER(nama_mapel) as nama FROM mata_pelajaran').all<any>(),
-    db.prepare('SELECT id, tingkat, CAST(nomor_kelas AS TEXT) as nomor_kelas, UPPER(kelompok) as kelompok FROM kelas').all<any>(),
+    db.prepare('SELECT id, LOWER(TRIM(nama_lengkap)) as nama FROM "user" WHERE nama_lengkap IS NOT NULL').all<any>(),
+    db.prepare('SELECT id, LOWER(TRIM(nama_mapel)) as nama FROM mata_pelajaran').all<any>(),
+    db.prepare('SELECT id, CAST(tingkat AS INTEGER) as tingkat, TRIM(nomor_kelas) as nomor_kelas, UPPER(TRIM(kelompok)) as kelompok FROM kelas').all<any>(),
   ])
 
-  // Buat lookup map di memory (jauh lebih cepat)
+  // Guru map
   const guruMap = new Map<string, string>()
-  for (const g of guruAll.results || []) {
-    guruMap.set(g.nama.trim(), g.id)
-  }
+  for (const g of guruAll.results || []) guruMap.set(g.nama, g.id)
 
+  // Mapel map
   const mapelMap = new Map<string, string>()
-  for (const m of mapelAll.results || []) {
-    mapelMap.set(m.nama.trim(), m.id)
-  }
+  for (const m of mapelAll.results || []) mapelMap.set(m.nama, m.id)
 
-  const kelasMap = new Map<string, string>()
+  // Kelas: exact map (tingkat-nomor-kelompok) + fallback map (tingkat-nomor → id[])
+  const kelasExactMap = new Map<string, string>()
+  const kelasFallbackMap = new Map<string, string[]>()
+
   for (const k of kelasAll.results || []) {
-    const key = `${k.tingkat}-${k.nomor_kelas}-${k.kelompok}`
-    kelasMap.set(key, k.id)
+    const tingkat = String(k.tingkat)
+    const nomor = String(k.nomor_kelas).trim()
+    const kelompok = String(k.kelompok || 'UMUM').trim()
+
+    kelasExactMap.set(`${tingkat}-${nomor}-${kelompok}`, k.id)
+
+    const fbKey = `${tingkat}-${nomor}`
+    if (!kelasFallbackMap.has(fbKey)) kelasFallbackMap.set(fbKey, [])
+    kelasFallbackMap.get(fbKey)!.push(k.id)
   }
 
   const errorLogs: string[] = []
@@ -143,42 +147,68 @@ export async function importPenugasanASC(dataExcel: any[]) {
 
     if (!namaGuru || !namaKelas || !namaMapel) continue
 
-    // Cari guru (exact match dulu, lalu fuzzy)
+    // --- Cari guru ---
     let guruId = guruMap.get(namaGuru)
     if (!guruId) {
       for (const [nama, id] of guruMap) {
         if (nama.includes(namaGuru) || namaGuru.includes(nama)) { guruId = id; break }
       }
     }
-    if (!guruId) { errorLogs.push(`Baris ${i + 2}: Guru "${row.NAMA_GURU}" tidak ditemukan.`); continue }
+    if (!guruId) { errorLogs.push('Baris ' + (i + 2) + ': Guru "' + row.NAMA_GURU + '" tidak ditemukan.'); continue }
 
-    // Cari mapel (exact match dulu, lalu fuzzy)
+    // --- Cari mapel ---
     let mapelId = mapelMap.get(namaMapel)
     if (!mapelId) {
       for (const [nama, id] of mapelMap) {
         if (nama.includes(namaMapel) || namaMapel.includes(nama)) { mapelId = id; break }
       }
     }
-    if (!mapelId) { errorLogs.push(`Baris ${i + 2}: Mapel "${row.NAMA_MAPEL}" tidak ditemukan.`); continue }
+    if (!mapelId) { errorLogs.push('Baris ' + (i + 2) + ': Mapel "' + row.NAMA_MAPEL + '" tidak ditemukan.'); continue }
 
-    // Parse kelas: "12-1", "12-1 MIPA", "11-2 IPS"
-    const kelasParts = namaKelas.split(/[-\s]+/)
-    const tingkat = parseInt(kelasParts[0]) || 0
-    const nomor_kelas = String(parseInt(kelasParts[1]) || 0)
-    const kelompokRaw = (kelasParts[2] || 'UMUM').toUpperCase()
-    const kelompok = ['MIPA', 'IPS', 'BAHASA', 'AGAMA', 'SOSHUM', 'KEAGAMAAN'].includes(kelompokRaw)
-      ? kelompokRaw : 'UMUM'
+    // --- Parse kelas ---
+    // Format ASC biasanya: "12-1", "12-2 MIPA", "11-3 IPS", dll
+    const namaKelasUpper = namaKelas.toUpperCase()
+
+    // Deteksi kelompok
+    const KELOMPOK_LIST = ['MIPA', 'IPA', 'IPS', 'BAHASA', 'AGAMA', 'SOSHUM', 'KEAGAMAAN']
+    let kelompokExcel = 'UMUM'
+    for (const k of KELOMPOK_LIST) {
+      if (namaKelasUpper.includes(k)) {
+        kelompokExcel = k === 'IPA' ? 'MIPA' : k
+        break
+      }
+    }
+
+    // Ambil semua angka dari nama kelas
+    const angka = namaKelas.match(/\d+/g) || []
+    const tingkat = parseInt(angka[0] || '0')
+    const nomor_kelas = String(parseInt(angka[1] || '0'))
 
     if (!tingkat || nomor_kelas === '0') {
-      errorLogs.push(`Baris ${i + 2}: Format kelas "${namaKelas}" tidak valid.`)
+      errorLogs.push('Baris ' + (i + 2) + ': Format kelas "' + namaKelas + '" tidak valid.')
       continue
     }
 
-    const kelasId = kelasMap.get(`${tingkat}-${nomor_kelas}-${kelompok}`)
-    if (!kelasId) { errorLogs.push(`Baris ${i + 2}: Kelas "${namaKelas}" tidak ditemukan.`); continue }
+    // 1. Coba exact match dengan kelompok
+    let kelasId = kelasExactMap.get(tingkat + '-' + nomor_kelas + '-' + kelompokExcel)
 
-    // Deduplicate
-    const key = `${guruId}-${mapelId}-${kelasId}`
+    // 2. Kalau tidak ketemu, coba fallback tanpa kelompok
+    if (!kelasId) {
+      const candidates = kelasFallbackMap.get(tingkat + '-' + nomor_kelas) || []
+      if (candidates.length === 1) {
+        kelasId = candidates[0]
+      } else if (candidates.length > 1) {
+        errorLogs.push('Baris ' + (i + 2) + ': Kelas "' + namaKelas + '" ambigu (' + candidates.length + ' kelas ditemukan, tambahkan nama kelompok di kolom NAMA_KELAS).')
+        continue
+      }
+    }
+
+    if (!kelasId) {
+      errorLogs.push('Baris ' + (i + 2) + ': Kelas "' + namaKelas + '" tidak ditemukan (tingkat=' + tingkat + ', nomor=' + nomor_kelas + ', kelompok=' + kelompokExcel + ').')
+      continue
+    }
+
+    const key = guruId + '-' + mapelId + '-' + kelasId
     if (seen.has(key)) continue
     seen.add(key)
 
@@ -189,28 +219,27 @@ export async function importPenugasanASC(dataExcel: any[]) {
     return { error: 'Tidak ada data yang berhasil diproses.', success: null, logs: errorLogs }
   }
 
-  // Batch insert 25 per chunk (tiap row = 1 query, hemat API calls)
   const chunkSize = 25
   let successCount = 0
   for (let i = 0; i < toInsert.length; i += chunkSize) {
     const chunk = toInsert.slice(i, i + chunkSize)
     const placeholders = chunk.map(() =>
-      `(lower(hex(randomblob(16))), ?, ?, ?, ?, datetime('now'))`
+      "(lower(hex(randomblob(16))), ?, ?, ?, ?, datetime('now'))"
     ).join(', ')
     const values = chunk.flatMap(r => [r.guru_id, r.mapel_id, r.kelas_id, ta.id])
     try {
       await db.prepare(
-        `INSERT OR IGNORE INTO penugasan_mengajar (id, guru_id, mapel_id, kelas_id, tahun_ajaran_id, created_at) VALUES ${placeholders}`
+        'INSERT OR IGNORE INTO penugasan_mengajar (id, guru_id, mapel_id, kelas_id, tahun_ajaran_id, created_at) VALUES ' + placeholders
       ).bind(...values).run()
       successCount += chunk.length
     } catch (e: any) {
-      errorLogs.push(`Chunk ${Math.floor(i/chunkSize)+1}: ${e.message}`)
+      errorLogs.push('Chunk ' + (Math.floor(i / chunkSize) + 1) + ': ' + e.message)
     }
   }
 
   revalidatePath('/dashboard/akademik')
   return {
-    success: `Berhasil mengimport ${successCount} dari ${dataExcel.length} penugasan.`,
+    success: 'Berhasil mengimport ' + successCount + ' dari ' + dataExcel.length + ' penugasan.',
     error: successCount === 0 ? 'Tidak ada data yang berhasil diimport.' : null,
     logs: errorLogs,
   }
