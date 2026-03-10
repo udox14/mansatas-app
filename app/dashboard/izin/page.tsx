@@ -24,7 +24,7 @@ async function IzinDataFetcher({ currentUserRole }: { currentUserRole: string })
       FROM izin_keluar_komplek ik
       JOIN siswa s ON ik.siswa_id = s.id
       LEFT JOIN kelas k ON s.kelas_id = k.id
-      LEFT JOIN user u ON ik.diinput_oleh = u.id
+      LEFT JOIN "user" u ON ik.diinput_oleh = u.id
       ORDER BY ik.waktu_keluar DESC LIMIT 300
     `).all<any>(),
     db.prepare(`
@@ -33,7 +33,7 @@ async function IzinDataFetcher({ currentUserRole }: { currentUserRole: string })
       FROM izin_tidak_masuk_kelas itk
       JOIN siswa s ON itk.siswa_id = s.id
       LEFT JOIN kelas k ON s.kelas_id = k.id
-      LEFT JOIN user u ON itk.diinput_oleh = u.id
+      LEFT JOIN "user" u ON itk.diinput_oleh = u.id
       WHERE itk.tanggal = ?
       ORDER BY itk.created_at DESC
     `).bind(today).all<any>()

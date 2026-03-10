@@ -16,10 +16,10 @@ async function KelasDataFetcher() {
       SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.kapasitas, k.wali_kelas_id,
         u.nama_lengkap as wali_kelas_nama,
         (SELECT COUNT(*) FROM siswa s WHERE s.kelas_id = k.id AND s.status = 'aktif') as jumlah_siswa
-      FROM kelas k LEFT JOIN user u ON k.wali_kelas_id = u.id
+      FROM kelas k LEFT JOIN "user" u ON k.wali_kelas_id = u.id
       ORDER BY k.tingkat ASC, k.kelompok ASC, k.nomor_kelas ASC
     `).all<any>(),
-    db.prepare(`SELECT id, nama_lengkap FROM user WHERE role IN ('guru','guru_bk') ORDER BY nama_lengkap ASC`).all<any>(),
+    db.prepare(`SELECT id, nama_lengkap FROM "user" WHERE role IN ('guru','guru_bk') ORDER BY nama_lengkap ASC`).all<any>(),
     db.prepare(`SELECT daftar_jurusan FROM tahun_ajaran WHERE is_active = 1`).first<any>()
   ])
 

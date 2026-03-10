@@ -22,7 +22,7 @@ async function AkademikDataFetcher() {
       SELECT pm.id, u.nama_lengkap as guru_nama, mp.nama_mapel, mp.kelompok as mapel_kelompok,
         k.tingkat, k.nomor_kelas, k.kelompok as kelas_kelompok
       FROM penugasan_mengajar pm
-      JOIN user u ON pm.guru_id = u.id
+      JOIN "user" u ON pm.guru_id = u.id
       JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
       JOIN kelas k ON pm.kelas_id = k.id
       WHERE pm.tahun_ajaran_id = ?

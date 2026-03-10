@@ -13,7 +13,7 @@ async function GuruDataFetcher() {
 
   const result = await db.prepare(`
     SELECT id, email, name, role, nama_lengkap
-    FROM user
+    FROM "user"
     WHERE role != 'wali_murid'
     ORDER BY nama_lengkap ASC
   `).all<any>()
