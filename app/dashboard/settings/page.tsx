@@ -17,6 +17,14 @@ export default async function SettingsPage() {
   const db = await getDB()
   const taResult = await db.prepare('SELECT * FROM tahun_ajaran ORDER BY nama DESC, semester DESC').all<any>()
 
+  // Parse daftar_jurusan dari string JSON ke array
+  const taData = (taResult.results || []).map((ta: any) => ({
+    ...ta,
+    daftar_jurusan: (() => {
+      try { return JSON.parse(ta.daftar_jurusan || '[]') } catch { return ['MIPA','SOSHUM','KEAGAMAAN','UMUM'] }
+    })()
+  }))
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="flex items-center gap-3">
@@ -28,7 +36,7 @@ export default async function SettingsPage() {
           <p className="text-sm text-slate-500 mt-1">Kelola kalender akademik dan daftar jurusan/peminatan madrasah.</p>
         </div>
       </div>
-      <SettingsClient taData={taResult.results || []} />
+      <SettingsClient taData={taData} />
     </div>
   )
 }
