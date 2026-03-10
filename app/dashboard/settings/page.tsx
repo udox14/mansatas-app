@@ -12,7 +12,7 @@ export default async function SettingsPage() {
   if (!user) redirect('/login')
 
   const role = (user as any).role ?? ''
-  if (role !== 'super_admin' && role !== 'admin_tu') redirect('/dashboard')
+  if (!['super_admin', 'kepsek', 'admin_tu'].includes(role)) redirect('/dashboard')
 
   const db = await getDB()
   const taResult = await db.prepare('SELECT * FROM tahun_ajaran ORDER BY nama DESC, semester DESC').all<any>()
