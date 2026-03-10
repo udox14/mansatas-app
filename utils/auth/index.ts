@@ -27,9 +27,8 @@ export function createAuth(db: any) {
       },
     },
     plugins: [
-      admin({
-        adminRoles: ['kepsek', 'admin_tu', 'wakamad', 'super_admin'],
-      }),
+      // admin plugin tanpa adminRoles custom — role checking dilakukan manual di app
+      admin(),
       nextCookies(),
     ],
   })
