@@ -27,7 +27,13 @@ async function AnalitikDataFetcher() {
     `).all<any>()
   ])
 
-  // Parse nilai JSON columns
+  const parsedPengaturan = pengaturan ? {
+    ...pengaturan,
+    mapel_snbp: parseJsonCol(pengaturan.mapel_snbp, []),
+    mapel_span: parseJsonCol(pengaturan.mapel_span, []),
+    daftar_jurusan: parseJsonCol(pengaturan.daftar_jurusan, ['MIPA','SOSHUM','KEAGAMAAN','UMUM']),
+  } : null
+
   const dataSiswa = (siswaResult.results || []).map((s: any) => ({
     ...s,
     kelas: { tingkat: s.tingkat, kelompok: s.kelompok, nomor_kelas: s.nomor_kelas },
@@ -43,8 +49,8 @@ async function AnalitikDataFetcher() {
 
   return (
     <>
-      <PengaturanPanel pengaturan={pengaturan} mapelList={mapelResult.results || []} />
-      <AnalitikClient dataSiswa={dataSiswa} pengaturan={pengaturan} />
+      <PengaturanPanel pengaturan={parsedPengaturan} mapelList={mapelResult.results || []} />
+      <AnalitikClient dataSiswa={dataSiswa} pengaturan={parsedPengaturan} />
     </>
   )
 }

@@ -1,4 +1,3 @@
-// TIMPA SELURUH ISI FILE INI
 // Lokasi: config/menu.ts
 import { 
   LayoutDashboard, 
@@ -11,7 +10,7 @@ import {
   Library,
   Shuffle,
   LineChart,
-  DoorOpen // Tambahan Icon Baru
+  DoorOpen
 } from 'lucide-react'
 
 export type MenuItem = {
@@ -71,7 +70,7 @@ export const MENU_ITEMS: MenuItem[] = [
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'guru_piket', 'wali_murid']
   },
   {
-    title: 'Perizinan Siswa', // MENU BARU UNTUK SATPAM & PIKET
+    title: 'Perizinan Siswa',
     href: '/dashboard/izin',
     icon: DoorOpen,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'satpam']
@@ -86,6 +85,6 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Pengaturan',
     href: '/dashboard/settings',
     icon: Settings,
-    roles: ['super_admin']
+    roles: ['super_admin', 'kepsek', 'admin_tu']
   }
 ]
