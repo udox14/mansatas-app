@@ -5,7 +5,6 @@ import { createAuth } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { APIError } from 'better-auth/api'
 
 export async function login(prevState: any, formData: FormData) {
   const email = formData.get('email') as string
@@ -23,13 +22,10 @@ export async function login(prevState: any, formData: FormData) {
       body: { email, password },
       headers: await headers(),
     })
-  } catch (e) {
-    if (e instanceof APIError) {
-      const msg = e.message
-      if (msg.includes('Invalid') || msg.includes('credentials')) {
-        return { error: 'Email atau password salah.' }
-      }
-      return { error: msg }
+  } catch (e: any) {
+    const msg = e?.message || ''
+    if (msg.includes('Invalid') || msg.includes('credentials') || msg.includes('password')) {
+      return { error: 'Email atau password salah.' }
     }
     return { error: 'Terjadi kesalahan sistem. Coba lagi.' }
   }
