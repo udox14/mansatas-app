@@ -1,4 +1,4 @@
-// Lokasi: app/dashboard/guru/actions.ts
+// app/dashboard/guru/actions.ts
 'use server'
 
 import { getDB, dbUpdate } from '@/utils/db'
@@ -6,32 +6,24 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { createAuth } from '@/utils/auth'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
-import { scryptSync, randomBytes } from 'node:crypto'
 
 async function getAuth() {
   const { env } = await getCloudflareContext({ async: true })
   return createAuth(env.DB)
 }
 
-// Generate password hash kompatibel dengan oslo/Better Auth
-function hashPassword(password: string): string {
-  const N = 16384, r = 16, p = 1
-  const salt = randomBytes(16)
-  const hash = scryptSync(password, salt, 64, { N, r, p })
-  return `${N}:${r}:${p}:${salt.toString('base64')}:${hash.toString('base64')}`
-}
-
-// Helper: buat user langsung via sign-up lalu set role (untuk tambah 1 user)
-async function createUserDirect(nama_lengkap: string, email: string, password: string, role: string) {
-  const auth = await getAuth()
-  const signUpRes = await auth.api.signUpEmail({
-    body: { name: nama_lengkap, email, password },
-  }) as any
-  if (!signUpRes?.user?.id) throw new Error('Gagal membuat akun.')
-  const db = await getDB()
-  await db.prepare(`UPDATE "user" SET role = ?, nama_lengkap = ?, updatedAt = ? WHERE id = ?`)
-    .bind(role, nama_lengkap, new Date().toISOString(), signUpRes.user.id).run()
-  return signUpRes.user
+// PBKDF2 — sama persis dengan yang di auth/index.ts
+async function hashPassword(password: string): Promise<string> {
+  const enc = new TextEncoder()
+  const salt = crypto.getRandomValues(new Uint8Array(16))
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits'])
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    keyMaterial, 256
+  )
+  const saltB64 = btoa(String.fromCharCode(...salt))
+  const hashB64 = btoa(String.fromCharCode(...new Uint8Array(bits)))
+  return `pbkdf2:100000:${saltB64}:${hashB64}`
 }
 
 // ============================================================
@@ -41,21 +33,27 @@ export async function tambahPegawai(prevState: any, formData: FormData) {
   const nama_lengkap = (formData.get('nama_lengkap') as string).trim()
   const email = (formData.get('email') as string).trim()
   const role = formData.get('role') as string
-  const password = 'mansatas2026'
 
   if (!nama_lengkap || !email || !role) {
     return { error: 'Semua field wajib diisi.', success: null }
   }
 
+  const auth = await getAuth()
   try {
-    await createUserDirect(nama_lengkap, email, password, role)
+    const res = await auth.api.signUpEmail({
+      body: { name: nama_lengkap, email, password: 'mansatas2026' },
+    }) as any
+    if (!res?.user?.id) throw new Error('Gagal membuat akun.')
+    const db = await getDB()
+    await db.prepare(`UPDATE "user" SET role = ?, nama_lengkap = ?, updatedAt = datetime('now') WHERE id = ?`)
+      .bind(role, nama_lengkap, res.user.id).run()
   } catch (e: any) {
     const msg = e?.message || ''
     return { error: msg.includes('already') || msg.includes('exists') ? 'Email sudah terdaftar!' : msg, success: null }
   }
 
   revalidatePath('/dashboard/guru')
-  return { error: null, success: `Akun berhasil dibuat! Password default: ${password}` }
+  return { error: null, success: 'Akun berhasil dibuat! Password default: mansatas2026' }
 }
 
 // ============================================================
@@ -74,15 +72,14 @@ export async function editPegawai(id: string, nama_lengkap: string, email: strin
 }
 
 // ============================================================
-// RESET PASSWORD PEGAWAI
+// RESET PASSWORD
 // ============================================================
 export async function resetPasswordPegawai(id: string) {
-  const auth = await getAuth()
+  const db = await getDB()
   try {
-    await (auth.api as any).setUserData({
-      body: { userId: id, password: 'mansatas2026' },
-      headers: await headers(),
-    })
+    const passwordHash = await hashPassword('mansatas2026')
+    await db.prepare(`UPDATE account SET password = ?, updatedAt = datetime('now') WHERE userId = ? AND providerId = 'credential'`)
+      .bind(passwordHash, id).run()
   } catch (e: any) {
     return { error: 'Gagal mereset password: ' + (e?.message || '') }
   }
@@ -121,22 +118,18 @@ export async function hapusPegawai(id: string) {
 }
 
 // ============================================================
-// IMPORT MASSAL PEGAWAI — BATCH INSERT LANGSUNG KE DB
-// Generate hash SEKALI, pakai untuk semua user (hemat CPU)
+// IMPORT MASSAL — hash PBKDF2 langsung, tanpa Scrypt
 // ============================================================
 export async function importPegawaiMassal(dataExcel: any[]) {
   const db = await getDB()
   const errorLogs: string[] = []
 
-  // Parse semua baris dulu di memory
   const users: Array<{ nama_lengkap: string; email: string; role: string }> = []
 
-  for (let i = 0; i < dataExcel.length; i++) {
-    const row = dataExcel[i]
+  for (const row of dataExcel) {
     const nama_lengkap = String(row.NAMA_LENGKAP || '').trim()
     const email = String(row.EMAIL || '').trim().toLowerCase()
     const rawJabatan = String(row.JABATAN || 'guru').toLowerCase().trim()
-
     if (!nama_lengkap || !email) continue
 
     let role = 'guru'
@@ -153,16 +146,13 @@ export async function importPegawaiMassal(dataExcel: any[]) {
 
   if (users.length === 0) return { success: null, error: 'Data kosong atau format tidak sesuai.', logs: [] }
 
-  // Generate hash SEKALI untuk password default (hemat CPU drastis)
-  const passwordHash = hashPassword('mansatas2026')
-  const now = new Date().toISOString()
+  // Hash SEKALI — PBKDF2 jalan di Workers
+  const passwordHash = await hashPassword('mansatas2026')
 
-  // Cek email yang sudah ada
-  const existingEmails = new Set<string>()
+  // Cek email existing
   const existingRes = await db.prepare('SELECT email FROM "user"').all<any>()
-  for (const u of existingRes.results || []) existingEmails.add(u.email.toLowerCase())
+  const existingEmails = new Set((existingRes.results || []).map((u: any) => u.email.toLowerCase()))
 
-  // Filter yang belum ada
   const toInsert = users.filter(u => {
     if (existingEmails.has(u.email)) {
       errorLogs.push(`${u.nama_lengkap} (${u.email}): Email sudah terdaftar`)
@@ -175,14 +165,13 @@ export async function importPegawaiMassal(dataExcel: any[]) {
     return { success: null, error: 'Semua email sudah terdaftar.', logs: errorLogs }
   }
 
-  // Batch insert user + account, 20 user per chunk
+  // Batch insert 20 per chunk
   const chunkSize = 20
   let successCount = 0
 
   for (let i = 0; i < toInsert.length; i += chunkSize) {
     const chunk = toInsert.slice(i, i + chunkSize)
 
-    // Insert ke tabel user
     const userPlaceholders = chunk.map(() =>
       `(lower(hex(randomblob(16))), ?, ?, 1, ?, ?, datetime('now'), datetime('now'))`
     ).join(', ')
@@ -192,13 +181,11 @@ export async function importPegawaiMassal(dataExcel: any[]) {
       `INSERT OR IGNORE INTO "user" (id, name, email, emailVerified, role, nama_lengkap, createdAt, updatedAt) VALUES ${userPlaceholders}`
     ).bind(...userValues).run()
 
-    // Ambil id user yang baru dibuat
     const emailList = chunk.map(() => '?').join(',')
     const newUsers = await db.prepare(
       `SELECT id, email FROM "user" WHERE email IN (${emailList})`
     ).bind(...chunk.map(u => u.email)).all<any>()
 
-    // Insert ke tabel account (credential)
     if (newUsers.results && newUsers.results.length > 0) {
       const accPlaceholders = newUsers.results.map(() =>
         `(lower(hex(randomblob(16))), ?, 'credential', ?, ?, datetime('now'), datetime('now'))`
