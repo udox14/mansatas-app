@@ -6,10 +6,8 @@ import { nextCookies } from 'better-auth/next-js'
 
 export function createAuth(db: any) {
   return betterAuth({
-    database: {
-      dialect: 'sqlite',
-      db: db,
-    },
+    // Untuk D1: langsung pass db object tanpa wrapper
+    database: db,
     secret: process.env.BETTER_AUTH_SECRET!,
     baseURL: process.env.BETTER_AUTH_URL!,
     emailAndPassword: {
@@ -27,7 +25,6 @@ export function createAuth(db: any) {
       },
     },
     plugins: [
-      // admin plugin tanpa adminRoles custom — role checking dilakukan manual di app
       admin(),
       nextCookies(),
     ],
