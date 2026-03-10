@@ -48,7 +48,7 @@ export function createAuth(db: any) {
     },
     plugins: [admin()],
     session: {
-      cookieCache: { enabled: true, maxAge: 60 * 5 },
+      cookieCache: { enabled: false },
     },
     user: {
       additionalFields: {
