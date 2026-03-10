@@ -1,16 +1,35 @@
 // Lokasi: app/dashboard/guru/actions.ts
 'use server'
 
-import { getDB, dbSelect, dbUpdate } from '@/utils/db'
+import { getDB, dbUpdate } from '@/utils/db'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { createAuth } from '@/utils/auth'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
-import { getCurrentUser } from '@/utils/auth/server'
 
 async function getAuth() {
   const { env } = await getCloudflareContext({ async: true })
   return createAuth(env.DB)
+}
+
+// Helper: buat user langsung via sign-up lalu set role
+async function createUserDirect(nama_lengkap: string, email: string, password: string, role: string) {
+  const auth = await getAuth()
+
+  // Signup dulu (tanpa role)
+  const signUpRes = await auth.api.signUpEmail({
+    body: { name: nama_lengkap, email, password },
+  }) as any
+
+  if (!signUpRes?.user?.id) throw new Error('Gagal membuat akun.')
+
+  // Set role langsung ke DB
+  const db = await getDB()
+  await db.prepare(`UPDATE "user" SET role = ?, nama_lengkap = ?, updatedAt = ? WHERE id = ?`)
+    .bind(role, nama_lengkap, new Date().toISOString(), signUpRes.user.id)
+    .run()
+
+  return signUpRes.user
 }
 
 // ============================================================
@@ -26,16 +45,11 @@ export async function tambahPegawai(prevState: any, formData: FormData) {
     return { error: 'Semua field wajib diisi.', success: null }
   }
 
-  const auth = await getAuth()
-
   try {
-    await (auth.api as any).createUser({
-      body: { name: nama_lengkap, email, password, role, nama_lengkap },
-      headers: await headers(),
-    })
+    await createUserDirect(nama_lengkap, email, password, role)
   } catch (e: any) {
     const msg = e?.message || ''
-    return { error: msg.includes('already') ? 'Email sudah terdaftar!' : msg, success: null }
+    return { error: msg.includes('already') || msg.includes('exists') ? 'Email sudah terdaftar!' : msg, success: null }
   }
 
   revalidatePath('/dashboard/guru')
@@ -47,15 +61,12 @@ export async function tambahPegawai(prevState: any, formData: FormData) {
 // ============================================================
 export async function editPegawai(id: string, nama_lengkap: string, email: string) {
   const db = await getDB()
-
   const result = await dbUpdate(
-    db,
-    '"user"',
+    db, '"user"',
     { nama_lengkap, name: nama_lengkap, email, updatedAt: new Date().toISOString() },
     { id }
   )
   if (result.error) return { error: result.error }
-
   revalidatePath('/dashboard/guru')
   return { success: 'Data pegawai berhasil diperbarui.' }
 }
@@ -65,7 +76,6 @@ export async function editPegawai(id: string, nama_lengkap: string, email: strin
 // ============================================================
 export async function resetPasswordPegawai(id: string) {
   const auth = await getAuth()
-
   try {
     await (auth.api as any).setUserData({
       body: { userId: id, password: 'mansatas2026' },
@@ -74,7 +84,6 @@ export async function resetPasswordPegawai(id: string) {
   } catch (e: any) {
     return { error: 'Gagal mereset password: ' + (e?.message || '') }
   }
-
   return { success: 'Password berhasil direset ke: mansatas2026' }
 }
 
@@ -83,15 +92,12 @@ export async function resetPasswordPegawai(id: string) {
 // ============================================================
 export async function ubahRolePegawai(id: string, newRole: string) {
   const db = await getDB()
-
   const result = await dbUpdate(
-    db,
-    '"user"',
+    db, '"user"',
     { role: newRole, updatedAt: new Date().toISOString() },
     { id }
   )
   if (result.error) return { error: result.error }
-
   revalidatePath('/dashboard/guru')
   return { success: 'Jabatan/Role berhasil diperbarui.' }
 }
@@ -100,17 +106,15 @@ export async function ubahRolePegawai(id: string, newRole: string) {
 // HAPUS PEGAWAI
 // ============================================================
 export async function hapusPegawai(id: string) {
-  const auth = await getAuth()
-
+  const db = await getDB()
   try {
-    await (auth.api as any).deleteUser({
-      body: { userId: id },
-      headers: await headers(),
-    })
+    // Hapus session & account dulu, baru user
+    await db.prepare('DELETE FROM session WHERE userId = ?').bind(id).run()
+    await db.prepare('DELETE FROM account WHERE userId = ?').bind(id).run()
+    await db.prepare('DELETE FROM "user" WHERE id = ?').bind(id).run()
   } catch (e: any) {
     return { error: 'Gagal menghapus akun: ' + (e?.message || '') }
   }
-
   revalidatePath('/dashboard/guru')
   return { success: 'Akun pegawai berhasil dihapus permanen.' }
 }
@@ -142,14 +146,11 @@ export async function importPegawaiMassal(dataExcel: any[]) {
     else if (rawJabatan.includes('pramu') || rawJabatan.includes('bersih')) role = 'pramubakti'
 
     try {
-      await (auth.api as any).createUser({
-        body: { name: nama_lengkap, email, password, role, nama_lengkap },
-        headers: await headers(),
-      })
+      await createUserDirect(nama_lengkap, email, password, role)
       successCount++
     } catch (e: any) {
       const msg = e?.message || ''
-      errorLogs.push(`Baris ${i + 2} (${nama_lengkap}): ${msg.includes('already') ? 'Email sudah terdaftar' : msg}`)
+      errorLogs.push(`Baris ${i + 2} (${nama_lengkap}): ${msg.includes('already') || msg.includes('exists') ? 'Email sudah terdaftar' : msg}`)
     }
   }
 
