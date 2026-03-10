@@ -1,6 +1,7 @@
 // Lokasi: app/dashboard/layout.tsx
 import { redirect } from 'next/navigation'
 import { getSession } from '@/utils/auth/server'
+import { getDB } from '@/utils/db'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 
@@ -20,9 +21,16 @@ export default async function DashboardLayout({
   }
 
   const user = session.user
-  const userRole = (user as any).role || 'wali_murid'
-  const userName = (user as any).nama_lengkap || user.name || 'User MANSATAS'
-  const avatarUrl = (user as any).avatar_url || null
+
+  // Query DB langsung untuk data terbaru (nama, avatar, role)
+  const db = await getDB()
+  const freshUser = await db.prepare(
+    'SELECT nama_lengkap, role, avatar_url FROM "user" WHERE id = ?'
+  ).bind(user.id).first<any>()
+
+  const userRole = freshUser?.role || (user as any).role || 'wali_murid'
+  const userName = freshUser?.nama_lengkap || (user as any).nama_lengkap || user.name || 'User MANSATAS'
+  const avatarUrl = freshUser?.avatar_url || null
 
   return (
     <div className="flex h-screen w-full bg-slate-50/50 text-slate-900 overflow-hidden">
