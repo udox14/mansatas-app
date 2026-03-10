@@ -244,7 +244,7 @@ export async function importSiswaMassal(dataSiswa: any[]) {
   // UPDATE yang sudah ada — D1 batch update
   if (toUpdate.length > 0) {
     const stmts = toUpdate.map((row: any) => {
-      const { id, ...data } = row
+      const { id, nisn, nis_lokal, ...data } = row // nisn & nis_lokal jangan di-overwrite
       const keys = Object.keys(data)
       const sets = keys.map(k => `${k} = ?`).join(', ')
       const vals = keys.map(k => data[k] ?? null)
