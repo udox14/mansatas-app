@@ -1,7 +1,8 @@
 // Lokasi: app/dashboard/siswa/actions.ts
 'use server'
 
-import { getDB, dbInsert, dbUpdate, dbDelete, dbSelectOne, dbBatchInsert } from '@/utils/db'
+// FIX: import serializeValue
+import { getDB, dbInsert, dbUpdate, dbDelete, dbSelectOne, dbBatchInsert, serializeValue } from '@/utils/db'
 import { uploadFotoSiswa } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
@@ -263,11 +264,18 @@ export async function importSiswaMassal(dataSiswa: any[]) {
       const { id, nisn, nis_lokal, ...data } = row
       const keys = Object.keys(data)
       const sets = keys.map(k => `${k} = ?`).join(', ')
-      const vals = keys.map(k => data[k] ?? null)
+      // FIX: Gunakan serializeValue untuk Update Batch
+      const vals = keys.map(k => serializeValue(data[k] ?? null))
       return db.prepare(`UPDATE siswa SET ${sets} WHERE id = ?`).bind(...vals, id)
     })
+    
     try {
-      await db.batch(stmts)
+      // FIX: Chunking Update untuk menghindari Limit D1
+      const chunkSize = 100
+      for (let i = 0; i < stmts.length; i += chunkSize) {
+        const chunk = stmts.slice(i, i + chunkSize)
+        await db.batch(chunk)
+      }
       successCount += toUpdate.length
     } catch (e: any) {
       errorLogs.push(`Gagal menimpa data: ${e.message}`)

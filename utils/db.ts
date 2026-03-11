@@ -7,7 +7,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 // Ambil D1 binding dari Cloudflare context
 export async function getDB(): Promise<D1Database> {
   const { env } = await getCloudflareContext({ async: true })
-  return env.DB
+  return env.DB as D1Database
 }
 
 // ============================================================
@@ -61,11 +61,12 @@ export async function dbSelectOne<T>(
 }
 
 // INSERT INTO table (cols) VALUES (...)
-export async function dbInsert(
+// FIX: Menambahkan RETURNING * agar mengembalikan baris data beserta ID baru
+export async function dbInsert<T = any>(
   db: D1Database,
   table: string,
   data: Record<string, unknown>
-): Promise<{ success: boolean; error: string | null }> {
+): Promise<{ success: boolean; error: string | null; data?: T }> {
   // Filter undefined values
   const clean = Object.fromEntries(
     Object.entries(data).filter(([, v]) => v !== undefined)
@@ -74,11 +75,11 @@ export async function dbInsert(
   const placeholders = keys.map(() => '?').join(', ')
   const values = Object.values(clean).map(serializeValue)
 
-  const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`
+  const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`
 
   try {
-    await db.prepare(sql).bind(...values).run()
-    return { success: true, error: null }
+    const result = await db.prepare(sql).bind(...values).first<T>()
+    return { success: true, error: null, data: result ?? undefined }
   } catch (e: any) {
     return { success: false, error: e.message }
   }
@@ -168,26 +169,38 @@ export async function dbBatchInsert(
 ): Promise<{ successCount: number; error: string | null }> {
   if (rows.length === 0) return { successCount: 0, error: null }
 
-  const keys = Object.keys(rows[0])
+  // FIX: Dapatkan SEMUA keys unik dari seluruh baris untuk menghindari Data Loss
+  const allKeysSet = new Set<string>()
+  rows.forEach(row => Object.keys(row).forEach(k => allKeysSet.add(k)))
+  const keys = Array.from(allKeysSet)
+  
   const placeholders = keys.map(() => '?').join(', ')
   const sql = `INSERT OR IGNORE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`
 
   const statements = rows.map(row => {
-    const values = keys.map(k => serializeValue(row[k]))
+    // Mapping dengan fallback null jika row tersebut tidak punya kolom tsb
+    const values = keys.map(k => serializeValue(row[k] ?? null))
     return db.prepare(sql).bind(...values)
   })
 
   try {
-    const results = await db.batch(statements)
-    const successCount = results.filter(r => r.success).length
+    let successCount = 0
+    // FIX: Chunking Limit Exceeded (pecah per 100 eksekusi)
+    const chunkSize = 100
+    for (let i = 0; i < statements.length; i += chunkSize) {
+      const chunk = statements.slice(i, i + chunkSize)
+      const results = await db.batch(chunk)
+      successCount += results.filter(r => r.success).length
+    }
     return { successCount, error: null }
   } catch (e: any) {
     return { successCount: 0, error: e.message }
   }
 }
 
+// FIX: Di-export agar bisa dipakai di batch update actions.ts
 // Serialize JS values ke format SQLite
-function serializeValue(v: unknown): unknown {
+export function serializeValue(v: unknown): unknown {
   if (v === null || v === undefined) return null
   if (typeof v === 'boolean') return v ? 1 : 0
   if (Array.isArray(v) || (typeof v === 'object' && v !== null)) {
