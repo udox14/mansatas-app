@@ -3,7 +3,6 @@
 import { betterAuth } from 'better-auth'
 import { admin } from 'better-auth/plugins'
 
-// PBKDF2 via WebCrypto — satu-satunya hasher yang bisa jalan di Cloudflare Workers
 async function pbkdf2Hash(password: string): Promise<string> {
   const enc = new TextEncoder()
   const salt = crypto.getRandomValues(new Uint8Array(16))
@@ -39,6 +38,11 @@ async function pbkdf2Verify({ hash, password }: { hash: string; password: string
 export function createAuth(db: any) {
   return betterAuth({
     database: db,
+    trustedOrigins: [
+      'https://mansatas-app.drudox.workers.dev',
+      'http://localhost:3000',
+      'http://localhost:8787',
+    ],
     emailAndPassword: {
       enabled: true,
       password: {

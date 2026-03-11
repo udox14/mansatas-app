@@ -6,7 +6,6 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Mail, Lock, Loader2, ArrowRight, AlertCircle, ShieldCheck, Eye, EyeOff } from 'lucide-react'
-import { authClient } from '@/utils/auth/client'
 
 export default function LoginClient() {
   const [email, setEmail] = useState('')
@@ -20,15 +19,25 @@ export default function LoginClient() {
     setError(null)
     setPending(true)
 
-    const { error } = await authClient.signIn.email({ email, password })
+    try {
+      const res = await fetch('/api/auth/sign-in/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+        credentials: 'include',
+      })
 
-    if (error) {
-      setError('Email atau password salah.')
+      if (!res.ok) {
+        setError('Email atau password salah.')
+        setPending(false)
+        return
+      }
+
+      window.location.href = '/dashboard'
+    } catch {
+      setError('Terjadi kesalahan jaringan. Coba lagi.')
       setPending(false)
-      return
     }
-
-    window.location.href = '/dashboard'
   }
 
   const handleLupaSandi = (e: React.MouseEvent) => {
@@ -91,10 +100,12 @@ export default function LoginClient() {
 
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center gap-2">
-                <input id="remember" name="remember" type="checkbox" className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                <input id="remember" name="remember" type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
                 <label htmlFor="remember" className="text-xs font-semibold text-slate-600 cursor-pointer select-none">Ingat Saya</label>
               </div>
-              <button type="button" onClick={handleLupaSandi} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition-colors focus:outline-none">
+              <button type="button" onClick={handleLupaSandi}
+                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition-colors focus:outline-none">
                 Lupa sandi?
               </button>
             </div>
