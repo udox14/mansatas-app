@@ -1,10 +1,12 @@
 // Lokasi: app/dashboard/siswa/actions.ts
 'use server'
 
-import { getDB, dbInsert, dbUpdate, dbDelete, dbSelectOne, dbBatchInsert, dbUpsert } from '@/utils/db'
+import { getDB, dbInsert, dbUpdate, dbDelete, dbSelectOne, dbBatchInsert } from '@/utils/db'
 import { uploadFotoSiswa } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
+
+const FK_FIELDS = ['kelas_id', 'wali_murid_id']
 
 // ============================================================
 // 1. TAMBAH SISWA MANUAL
@@ -73,8 +75,14 @@ export async function editSiswaLengkap(prevState: any, formData: FormData) {
   const payload: any = Object.fromEntries(formData.entries())
   delete payload.id
 
+  // Bersihkan empty string → null
   Object.keys(payload).forEach(key => {
-    if (payload[key] === '' || payload[key] === 'undefined') {
+    if (
+      payload[key] === '' ||
+      payload[key] === 'undefined' ||
+      payload[key] === 'null' ||
+      (FK_FIELDS.includes(key) && !payload[key])
+    ) {
       payload[key] = null
     }
   })
@@ -133,7 +141,6 @@ export async function importSiswaMassal(dataSiswa: any[]) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
-  // A. Ambil data kelas untuk auto-plot
   const kelasDb = await db.prepare('SELECT id, tingkat, kelompok, nomor_kelas FROM kelas').all<any>()
   const kelasMap = new Map<string, string>()
   kelasDb.results.forEach((k: any) => {
@@ -141,7 +148,6 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     kelasMap.set(key, k.id)
   })
 
-  // B. Ambil siswa existing: lookup by nama & by NISN
   const existingDb = await db.prepare('SELECT id, nisn, nama_lengkap FROM siswa').all<any>()
   const existingByNama = new Map<string, { id: string; nisn: string }>()
   const existingByNisn = new Map<string, { id: string; nama_lengkap: string }>()
@@ -169,24 +175,17 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     const nisn = String(item.NISN || '').trim()
     if (!namaLengkap || !nisn) continue
 
-    // --- CEK DUPLIKAT NISN vs NAMA ---
     const existingByNisnEntry = existingByNisn.get(nisn)
     if (existingByNisnEntry) {
       const namaYangAda = existingByNisnEntry.nama_lengkap.toLowerCase().trim()
       if (namaYangAda !== namaLengkap.toLowerCase()) {
-        // NISN sama tapi nama beda — warning, skip
         errorLogs.push(
           `⚠️ Baris ${i + 2}: NISN ${nisn} milik "${namaLengkap}" sudah dipakai oleh "${existingByNisnEntry.nama_lengkap}" — periksa NISN-nya.`
         )
         continue
       }
-      // NISN sama + nama sama → true duplicate, skip diam-diam
       continue
     }
-
-    // --- CEK DUPLIKAT DI DALAM FILE EXCEL SENDIRI ---
-    // (NISN yang sama muncul dua kali di Excel, belum ada di DB)
-    // Ditangani oleh INSERT OR IGNORE di dbBatchInsert nanti
 
     let kelas_id: string | null = null
     if (item.KELAS_TINGKAT && item.KELAS_NOMOR) {
@@ -239,12 +238,10 @@ export async function importSiswaMassal(dataSiswa: any[]) {
       penghasilan_ibu: item['PENGHASILAN IBU'] || null,
     }
 
-    // Buang null agar tidak overwrite data lama
     Object.keys(payload).forEach(key => {
       if (payload[key] === null) delete payload[key]
     })
 
-    // Cek apakah nama sudah ada di DB (untuk UPDATE)
     const existingByNamaEntry = existingByNama.get(namaLengkap.toLowerCase())
     if (existingByNamaEntry) {
       toUpdate.push({ ...payload, id: existingByNamaEntry.id })
@@ -255,17 +252,15 @@ export async function importSiswaMassal(dataSiswa: any[]) {
 
   let successCount = 0
 
-  // INSERT baru
   if (toInsert.length > 0) {
     const { successCount: inserted, error } = await dbBatchInsert(db, 'siswa', toInsert)
     if (error) errorLogs.push(`Gagal membuat data baru: ${error}`)
     else successCount += inserted
   }
 
-  // UPDATE yang sudah ada — D1 batch update
   if (toUpdate.length > 0) {
     const stmts = toUpdate.map((row: any) => {
-      const { id, nisn, nis_lokal, ...data } = row // nisn & nis_lokal jangan di-overwrite
+      const { id, nisn, nis_lokal, ...data } = row
       const keys = Object.keys(data)
       const sets = keys.map(k => `${k} = ?`).join(', ')
       const vals = keys.map(k => data[k] ?? null)
