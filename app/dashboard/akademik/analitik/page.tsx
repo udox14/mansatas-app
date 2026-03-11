@@ -1,10 +1,11 @@
+// Lokasi: app/dashboard/akademik/analitik/page.tsx
 import { Suspense } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB, parseJsonCol } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { PengaturanPanel } from './components/pengaturan-panel'
 import { AnalitikClient } from './components/analitik-client'
-import { LineChart } from 'lucide-react'
+import { LineChart, Loader2 } from 'lucide-react'
 
 export const metadata = { title: 'Analitik Kelulusan - MANSATAS App' }
 
@@ -47,10 +48,10 @@ async function AnalitikDataFetcher() {
   }))
 
   return (
-    <>
+    <div className="space-y-6 mt-6">
       <PengaturanPanel pengaturan={parsedPengaturan} mapelList={mapelResult.results || []} />
       <AnalitikClient dataSiswa={dataSiswa} pengaturan={parsedPengaturan} />
-    </>
+    </div>
   )
 }
 
@@ -59,27 +60,28 @@ export default async function AnalitikPage() {
   if (!user) redirect('/login')
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <div className="flex items-center gap-3">
-        <div className="bg-emerald-100 p-3 rounded-2xl text-emerald-700 shadow-sm border border-emerald-200/50">
-          <LineChart className="h-6 w-6" />
+    <div className="w-full flex flex-col gap-6 animate-in fade-in duration-500 pb-12">
+      
+      {/* HEADER: Clean, Shadcn Style, No Bulky Badges */}
+      <div className="flex flex-col gap-1.5 border-b border-border pb-5">
+        <div className="flex items-center gap-2 text-foreground">
+          <LineChart className="h-6 w-6 text-muted-foreground" strokeWidth={2.5} />
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Analitik Kelulusan & SNBP</h1>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Analitik Kelulusan & SNBP</h1>
-          <p className="text-sm text-slate-500 mt-1">Data Warehouse nilai dari RDM. Penghitungan otomatis kuota Eligible SNBP 40% & SPAN-PTKIN.</p>
-        </div>
+        <p className="text-sm text-muted-foreground max-w-3xl">
+          Data Warehouse nilai dari RDM. Penghitungan otomatis kuota Eligible SNBP 40% & SPAN-PTKIN.
+        </p>
       </div>
+
       <Suspense fallback={
-        <div className="bg-white/50 rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[500px]">
-           <div className="bg-emerald-50 p-5 rounded-full mb-5 border border-emerald-100 relative">
-             <div className="absolute inset-0 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin"></div>
-             <LineChart className="h-8 w-8 text-emerald-600 animate-pulse" />
-           </div>
-           <h3 className="text-xl font-bold text-slate-800">Menarik Data Warehouse RDM...</h3>
+        <div className="flex flex-col items-center justify-center min-h-[400px] text-muted-foreground space-y-4 rounded-lg border border-dashed border-border bg-muted/10">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm font-medium tracking-tight">Memuat Data Warehouse RDM...</p>
         </div>
       }>
         <AnalitikDataFetcher />
       </Suspense>
+      
     </div>
   )
 }
