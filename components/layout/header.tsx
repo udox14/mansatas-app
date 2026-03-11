@@ -42,6 +42,11 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
     }
   }
 
+  const handleLogout = async () => {
+    await fetch('/api/auth/sign-out', { method: 'POST', credentials: 'include' })
+    window.location.href = '/login'
+  }
+
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-slate-200/60 bg-white/80 backdrop-blur-xl px-4 shadow-sm md:px-6">
       <div className="flex items-center gap-4">
@@ -118,11 +123,12 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-slate-100" />
-            <DropdownMenuItem asChild className="p-2.5 cursor-pointer focus:bg-rose-50 focus:text-rose-700 rounded-lg m-1 text-rose-600 font-medium">
-              <a href="/api/logout">
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Keluar Sistem</span>
-              </a>
+            <DropdownMenuItem
+              onClick={handleLogout}
+              className="p-2.5 cursor-pointer focus:bg-rose-50 focus:text-rose-700 rounded-lg m-1 text-rose-600 font-medium"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Keluar Sistem</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
