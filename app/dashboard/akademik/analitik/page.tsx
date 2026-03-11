@@ -1,4 +1,3 @@
-// Lokasi: app/dashboard/akademik/analitik/page.tsx
 import { Suspense } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB, parseJsonCol } from '@/utils/db'
@@ -37,14 +36,14 @@ async function AnalitikDataFetcher() {
   const dataSiswa = (siswaResult.results || []).map((s: any) => ({
     ...s,
     kelas: { tingkat: s.tingkat, kelompok: s.kelompok, nomor_kelas: s.nomor_kelas },
-    rekap_nilai_akademik: s.nilai_smt1 ? [{
+    rekap_nilai_akademik: {
       nilai_smt1: parseJsonCol(s.nilai_smt1, null),
       nilai_smt2: parseJsonCol(s.nilai_smt2, null),
       nilai_smt3: parseJsonCol(s.nilai_smt3, null),
       nilai_smt4: parseJsonCol(s.nilai_smt4, null),
       nilai_smt5: parseJsonCol(s.nilai_smt5, null),
       nilai_um: parseJsonCol(s.nilai_um, null),
-    }] : []
+    }
   }))
 
   return (
