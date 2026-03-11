@@ -5,14 +5,13 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { MENU_ITEMS } from '@/config/menu'
 import { 
   LogOut, Menu, X, 
   ChevronLeft, ChevronRight, ChevronDown, Palette
 } from 'lucide-react'
 
-// --- KONFIGURASI TEMA WARNA (THEMED DARK GLOW) ---
 const THEMES = {
   emerald: {
     id: 'emerald', dot: 'bg-emerald-400',
@@ -132,7 +131,6 @@ type ThemeKey = keyof typeof THEMES
 
 export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole?: string, userName?: string }) {
   const pathname = usePathname()
-  const router = useRouter()
   
   const [isOpen, setIsOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -157,17 +155,16 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
   const allowedMenus = MENU_ITEMS.filter(item => item.roles.includes(userRole))
   const t = THEMES[currentTheme]
 
-  // PERBAIKAN: Logout sekarang via API route Better Auth, bukan Supabase client
   const handleLogout = async () => {
     if (!confirm('Yakin ingin keluar dari aplikasi?')) return
     setIsLoggingOut(true)
-    try {
-      await fetch('/api/auth/sign-out', { method: 'POST' })
-    } catch (_) {
-      // ignore
-    }
-    router.push('/login')
-    router.refresh()
+    await fetch('/api/auth/sign-out', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+      credentials: 'include',
+    })
+    window.location.href = '/login'
   }
 
   if (!mounted) return null
@@ -330,7 +327,6 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
           </button>
 
         </div>
-
       </aside>
     </>
   )
