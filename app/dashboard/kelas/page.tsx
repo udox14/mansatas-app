@@ -5,6 +5,7 @@ import { getDB, parseJsonCol } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { KelasClient } from './components/kelas-client'
 import { Library } from 'lucide-react'
+import { PageHeader } from '@/components/layout/page-header'
 
 export const metadata = { title: 'Manajemen Kelas - MANSATAS App' }
 
@@ -43,16 +44,8 @@ export default async function KelasPage() {
   if (!user) redirect('/login')
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <div className="flex items-center gap-3">
-        <div className="bg-blue-100 p-3 rounded-2xl text-blue-700 shadow-sm border border-blue-200/50">
-          <Library className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Manajemen Kelas</h1>
-          <p className="text-sm text-slate-500 mt-1">Kelola data kelas, kapasitas, dan penugasan Wali Kelas langsung dari tabel.</p>
-        </div>
-      </div>
+    <div className="space-y-4 animate-in fade-in duration-500 pb-12">
+      <PageHeader title="Manajemen Kelas" description="Kelola data kelas, kapasitas, dan penugasan Wali Kelas." icon={Library} iconColor="text-blue-500" />
 
       <Suspense fallback={
         <div className="bg-white/50 rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[400px]">

@@ -143,12 +143,12 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
     return (
       <div className="space-y-5">
         {/* Filter */}
-        <div className="bg-white/80 backdrop-blur-xl p-5 rounded-2xl border border-slate-200/60 shadow-sm">
+        <div className="bg-white/80 backdrop-blur-xl p-5 rounded-lg border border-slate-200 shadow-sm">
           <div className="flex flex-col md:flex-row gap-4 items-end">
             <div className="w-full md:w-1/3 space-y-2">
               <Label className="text-slate-600 font-medium">Pilih Kelas</Label>
               <Select value={selectedKelasAdmin} onValueChange={handleKelasAdminChange}>
-                <SelectTrigger className="rounded-xl bg-slate-50 h-11"><SelectValue placeholder="Pilih Kelas..." /></SelectTrigger>
+                <SelectTrigger className="rounded-md bg-slate-50 h-8"><SelectValue placeholder="Pilih Kelas..." /></SelectTrigger>
                 <SelectContent className="rounded-xl">
                   {kelasList.map(k => (
                     <SelectItem key={k.id} value={k.id}>{k.tingkat}-{k.nomor_kelas} {k.kelompok}</SelectItem>
@@ -159,7 +159,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
             <div className="w-full md:w-1/3 space-y-2">
               <Label className="text-slate-600 font-medium">Pilih Bulan</Label>
               <Select value={selectedBulan.toString()} onValueChange={handleBulanChange}>
-                <SelectTrigger className="rounded-xl bg-slate-50 h-11"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="rounded-md bg-slate-50 h-8"><SelectValue /></SelectTrigger>
                 <SelectContent className="rounded-xl">
                   {BULAN_LIST.map(b => <SelectItem key={b.val} value={b.val.toString()}>{b.label}</SelectItem>)}
                 </SelectContent>
@@ -176,13 +176,13 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
         )}
 
         {selectedKelasAdmin && (
-          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
               <h3 className="font-bold text-slate-700 flex items-center gap-2">
                 <ClipboardEdit className="h-5 w-5 text-emerald-600" /> Input Rekap Bulanan
               </h3>
               <Button onClick={handleSimpanRekap} disabled={isLoading || siswaList.length === 0}
-                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl shadow-md gap-2">
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg gap-1.5 text-sm">
                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Simpan
               </Button>
             </div>
@@ -296,7 +296,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
         <p className="text-emerald-100 mb-6 text-sm">Pilih kelas yang sedang Anda ajar hari ini. Cukup catat siswa yang bermasalah.</p>
         <div className="w-full md:w-1/2 relative z-10">
           <Select value={selectedPenugasan} onValueChange={handlePenugasanChange}>
-            <SelectTrigger className="rounded-xl bg-white/20 border-white/30 text-white focus:ring-white h-12 backdrop-blur-md">
+            <SelectTrigger className="rounded-lg bg-white/20 border-white/30 text-white focus:ring-white h-10 backdrop-blur-md">
               <SelectValue placeholder="Pilih Kelas & Mata Pelajaran..." />
             </SelectTrigger>
             <SelectContent className="rounded-xl">
@@ -320,7 +320,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
       )}
 
       {selectedPenugasan && (
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
           {/* Header */}
           <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div className="flex items-center gap-3">
@@ -331,7 +331,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
               </div>
             </div>
             <Button onClick={handleSimpanJurnal} disabled={isLoading || siswaList.length === 0}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl w-full sm:w-auto gap-2">
+              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg w-full sm:w-auto gap-1.5 text-sm">
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Simpan Jurnal
             </Button>
           </div>

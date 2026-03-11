@@ -5,6 +5,7 @@ import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { GuruClient } from './components/guru-client'
 import { GraduationCap } from 'lucide-react'
+import { PageHeader } from '@/components/layout/page-header'
 
 export const metadata = { title: 'Data Guru & Pegawai - MANSATAS App' }
 
@@ -33,16 +34,8 @@ export default async function GuruPage() {
   if (!user) redirect('/login')
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <div className="flex items-center gap-3">
-        <div className="bg-indigo-100 p-3 rounded-2xl text-indigo-700 shadow-sm border border-indigo-200/50">
-          <GraduationCap className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Manajemen Guru & Pegawai</h1>
-          <p className="text-sm text-slate-500 mt-1">Kelola data pendidik, hak akses sistem, import massal, dan reset password.</p>
-        </div>
-      </div>
+    <div className="space-y-4 animate-in fade-in duration-500 pb-12">
+      <PageHeader title="Guru & Pegawai" description="Kelola data pendidik, hak akses, dan reset password." icon={GraduationCap} iconColor="text-indigo-500" />
       <Suspense fallback={
         <div className="bg-white/50 rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[400px]">
            <div className="bg-indigo-50 p-5 rounded-full mb-5 border border-indigo-100 relative">

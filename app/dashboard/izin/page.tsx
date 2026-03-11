@@ -5,6 +5,7 @@ import { getDB, parseJsonCol } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { IzinClient } from './components/izin-client'
 import { DoorOpen } from 'lucide-react'
+import { PageHeader } from '@/components/layout/page-header'
 
 export const metadata = { title: 'Perizinan Siswa - MANSATAS App' }
 
@@ -65,16 +66,8 @@ export default async function IzinPage() {
   const role = (user as any).role ?? ''
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <div className="flex items-center gap-3">
-        <div className="bg-blue-100 p-3 rounded-2xl text-blue-700 shadow-sm border border-blue-200/50">
-          <DoorOpen className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Perizinan Siswa Harian</h1>
-          <p className="text-sm text-slate-500 mt-1">Posko pencatatan siswa keluar komplek dan izin meninggalkan jam pelajaran hari ini.</p>
-        </div>
-      </div>
+    <div className="space-y-4 animate-in fade-in duration-500 pb-12">
+      <PageHeader title="Perizinan Siswa Harian" description="Posko pencatatan siswa keluar komplek dan izin meninggalkan jam pelajaran." icon={DoorOpen} iconColor="text-indigo-500" />
       <Suspense fallback={
         <div className="bg-white/50 rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[400px]">
            <div className="bg-blue-50 p-5 rounded-full mb-5 border border-blue-100 relative">
