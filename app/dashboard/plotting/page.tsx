@@ -11,6 +11,7 @@ import { TabPengacakan } from './components/tab-pengacakan'
 import { TabKelulusan } from './components/tab-kelulusan'
 import { PlottingTabs } from './components/plotting-tabs'
 import { CalendarDays, Network } from 'lucide-react'
+import { PageHeader } from '@/components/layout/page-header'
 
 export const metadata = { title: 'Command Center Plotting - MANSATAS App' }
 export const dynamic = 'force-dynamic'
@@ -67,24 +68,20 @@ export default async function PlottingPage({ searchParams }: { searchParams: Pro
   const daftarJurusan = taAktif?.daftar_jurusan ? parseJsonCol<string[]>(taAktif.daftar_jurusan, []) || undefined : undefined
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-100 p-3 rounded-2xl text-blue-700 shadow-sm border border-blue-200/50">
-            <Network className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Command Center: Plotting</h1>
-            <p className="text-sm text-slate-500 mt-1">Pusat kendali algoritma penyebaran siswa, penjurusan, dan kenaikan kelas.</p>
-          </div>
-        </div>
+    <div className="space-y-4 animate-in fade-in duration-500 pb-12">
+      <PageHeader
+        title="Plotting & Kenaikan Kelas"
+        description="Pusat kendali algoritma penyebaran siswa, penjurusan, dan kenaikan kelas."
+        icon={Network}
+        iconColor="text-blue-500"
+      >
         {taAktif && (
-          <div className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-4 py-2.5 rounded-xl border border-indigo-100 shadow-sm shrink-0">
-            <CalendarDays className="h-4 w-4" />
-            <div className="text-sm font-medium">Tahun Ajaran: <strong className="font-bold">{taAktif.nama}</strong> (SMT {taAktif.semester})</div>
+          <div className="flex items-center gap-1.5 text-[12px] text-slate-500 border border-slate-200 px-2.5 py-1 rounded-md bg-slate-50">
+            <CalendarDays className="h-3.5 w-3.5" />
+            <span>TA: <strong className="text-slate-800 font-semibold">{taAktif.nama}</strong> SMT {taAktif.semester}</span>
           </div>
         )}
-      </div>
+      </PageHeader>
       <Suspense fallback={
         <div className="bg-white/50 rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[500px]">
            <div className="bg-blue-50 p-5 rounded-full mb-5 border border-blue-100 relative">

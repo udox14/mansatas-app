@@ -5,6 +5,7 @@ import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { KehadiranClient } from './components/kehadiran-client'
 import { CalendarCheck } from 'lucide-react'
+import { PageHeader } from '@/components/layout/page-header'
 
 export const metadata = { title: 'Kehadiran & Jurnal - MANSATAS App' }
 
@@ -56,18 +57,13 @@ export default async function KehadiranPage() {
   const profile = { id: user.id, role, nama_lengkap: (user as any).nama_lengkap ?? user.name ?? '' }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <div className="flex items-center gap-3">
-        <div className="bg-emerald-100 p-3 rounded-2xl text-emerald-700 shadow-sm border border-emerald-200/50">
-          <CalendarCheck className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Kehadiran & Jurnal</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {isAdmin ? 'Kelola rekapitulasi bulanan dan pantau jurnal harian seluruh kelas.' : 'Isi jurnal kelas harian dan catat absensi/perilaku siswa.'}
-          </p>
-        </div>
-      </div>
+    <div className="space-y-4 animate-in fade-in duration-500 pb-12">
+      <PageHeader
+        title="Kehadiran & Jurnal"
+        description={isAdmin ? 'Rekap bulanan dan pantau jurnal harian seluruh kelas.' : 'Isi jurnal kelas harian dan catat absensi siswa.'}
+        icon={CalendarCheck}
+        iconColor="text-emerald-500"
+      />
       <Suspense fallback={
         <div className="bg-white/50 rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[400px]">
            <div className="bg-emerald-50 p-5 rounded-full mb-5 border border-emerald-100 relative">

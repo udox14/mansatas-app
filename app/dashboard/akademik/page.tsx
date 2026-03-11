@@ -5,6 +5,7 @@ import { getDB, parseJsonCol } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { AkademikClient } from './akademik-client'
 import { BookOpen, Loader2 } from 'lucide-react'
+import { PageHeader } from '@/components/layout/page-header'
 
 export const metadata = { title: 'Pusat Akademik - MANSATAS App' }
 
@@ -49,18 +50,8 @@ export default async function AkademikPage() {
   if (!user) redirect('/login')
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <div className="flex items-end justify-between">
-        <div className="flex items-center gap-3">
-          <div className="bg-emerald-100 p-3 rounded-2xl text-emerald-700 shadow-sm border border-emerald-200/50">
-            <BookOpen className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Pusat Akademik</h1>
-            <p className="text-sm text-slate-500 mt-1">Kelola master mata pelajaran dan jadwal mengajar dari ASC Timetables.</p>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-4 animate-in fade-in duration-500 pb-12">
+      <PageHeader title="Pusat Akademik" description="Kelola master mata pelajaran dan jadwal mengajar." icon={BookOpen} iconColor="text-emerald-500" />
       <Suspense fallback={
         <div className="bg-white/50 rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[400px]">
            <div className="bg-emerald-50 p-4 rounded-full mb-4 shadow-inner border border-emerald-100">

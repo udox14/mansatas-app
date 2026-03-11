@@ -5,6 +5,7 @@ import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { ShieldAlert, CalendarDays } from 'lucide-react'
 import { KedisiplinanClient } from './components/kedisiplinan-client'
+import { PageHeader } from '@/components/layout/page-header'
 
 export const metadata = { title: 'Kedisiplinan & Tata Tertib - MANSATAS App' }
 
@@ -60,22 +61,18 @@ export default async function KedisiplinanPage() {
   if (!taAktif) return <div className="p-8 text-center text-rose-500 font-bold bg-rose-50 rounded-xl m-8">Tahun Ajaran aktif belum diatur oleh Admin. Hubungi Tata Usaha.</div>
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-start md:items-center gap-3">
-          <div className="bg-rose-100 p-3 rounded-2xl text-rose-700 shadow-sm border border-rose-200/50 shrink-0">
-            <ShieldAlert className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight leading-tight">Kedisiplinan & Tata Tertib</h1>
-            <p className="text-sm text-slate-500 mt-1">Catat pelanggaran siswa, pantau akumulasi poin, dan lampirkan bukti.</p>
-          </div>
+    <div className="space-y-4 animate-in fade-in duration-500 pb-12">
+      <PageHeader
+        title="Kedisiplinan & Tata Tertib"
+        description="Catat pelanggaran siswa, pantau akumulasi poin, dan lampirkan bukti."
+        icon={ShieldAlert}
+        iconColor="text-rose-500"
+      >
+        <div className="flex items-center gap-1.5 text-[12px] text-slate-500 border border-slate-200 px-2.5 py-1 rounded-md bg-slate-50">
+          <CalendarDays className="h-3.5 w-3.5" />
+          <span>TA: <strong className="text-slate-800 font-semibold">{taAktif.nama}</strong></span>
         </div>
-        <div className="flex items-center justify-center gap-2 bg-slate-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-md border border-slate-700 w-full md:w-auto shrink-0">
-          <CalendarDays className="h-4 w-4 text-slate-300" />
-          <span>Tahun Ajaran: <strong className="font-bold text-rose-400">{taAktif.nama}</strong></span>
-        </div>
-      </div>
+      </PageHeader>
       <Suspense fallback={
         <div className="bg-white/50 rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[400px]">
            <div className="bg-rose-50 p-5 rounded-full mb-5 border border-rose-100 relative">

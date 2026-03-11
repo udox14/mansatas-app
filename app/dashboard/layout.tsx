@@ -33,17 +33,17 @@ export default async function DashboardLayout({
   const avatarUrl = freshUser?.avatar_url || null
 
   return (
-    <div className="flex h-screen w-full bg-slate-50/50 text-slate-900 overflow-hidden">
-      <Sidebar userRole={userRole} />
-      <div className="flex flex-1 flex-col overflow-hidden relative">
+    <div className="flex h-[100dvh] w-full bg-slate-50 text-slate-900 overflow-hidden">
+      <Sidebar userRole={userRole} userName={userName} />
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <Header
           userRole={userRole}
           userName={userName}
           userEmail={user.email || ''}
           avatarUrl={avatarUrl}
         />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 custom-scrollbar">
-          <div className="mx-auto max-w-7xl pb-16">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-5">
+          <div className="mx-auto max-w-7xl pb-8">
             {children}
           </div>
         </main>

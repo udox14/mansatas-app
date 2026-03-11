@@ -5,6 +5,7 @@ import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { SiswaClient } from './components/siswa-client'
 import { Users, Loader2 } from 'lucide-react'
+import { PageHeader } from '@/components/layout/page-header'
 
 export const metadata = { title: 'Data Siswa - MANSATAS App' }
 
@@ -75,18 +76,13 @@ export default async function SiswaPage() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-center gap-3">
-        <div className="bg-blue-100 p-3 rounded-2xl text-blue-700 shadow-sm border border-blue-200/50">
-          <Users className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Data Siswa</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {isAdmin ? 'Kelola data profil dan status siswa secara massal.' : 'Daftar siswa di kelas yang Anda ajar.'}
-          </p>
-        </div>
-      </div>
+    <div className="space-y-4 animate-in fade-in duration-500">
+      <PageHeader
+        title="Data Siswa"
+        description={isAdmin ? 'Kelola data profil dan status siswa secara massal.' : 'Daftar siswa di kelas yang Anda ajar.'}
+        icon={Users}
+        iconColor="text-blue-500"
+      />
 
       <Suspense fallback={
         <div className="bg-white/50 backdrop-blur-sm rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[400px]">

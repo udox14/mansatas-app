@@ -4,6 +4,7 @@ import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { Settings } from 'lucide-react'
 import { SettingsClient } from './components/settings-client'
+import { PageHeader } from '@/components/layout/page-header'
 
 export const metadata = { title: 'Pengaturan Global - MANSATAS App' }
 
@@ -26,16 +27,8 @@ export default async function SettingsPage() {
   }))
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <div className="flex items-center gap-3">
-        <div className="bg-slate-800 p-3 rounded-2xl text-white shadow-sm border border-slate-700">
-          <Settings className="h-6 w-6" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Pengaturan Sistem</h1>
-          <p className="text-sm text-slate-500 mt-1">Kelola kalender akademik dan daftar jurusan/peminatan madrasah.</p>
-        </div>
-      </div>
+    <div className="space-y-4 animate-in fade-in duration-500 pb-12">
+      <PageHeader title="Pengaturan Sistem" description="Kelola kalender akademik dan daftar jurusan/peminatan madrasah." icon={Settings} iconColor="text-slate-500" />
       <SettingsClient taData={taData} />
     </div>
   )
