@@ -43,7 +43,7 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
   }
 
   const handleLogout = async () => {
-    await fetch('/api/auth/sign-out', { method: 'POST', credentials: 'include' })
+    await fetch('/api/auth/sign-out', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}), credentials: 'include' })
     window.location.href = '/login'
   }
 
