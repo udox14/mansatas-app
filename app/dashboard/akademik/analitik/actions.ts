@@ -1,4 +1,3 @@
-// Lokasi: app/dashboard/akademik/analitik/actions.ts
 'use server'
 
 import { getDB, dbUpdate, parseJsonCol } from '@/utils/db'
@@ -57,13 +56,17 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
   const dbMapel = await db
     .prepare('SELECT nama_mapel, kode_mapel FROM mata_pelajaran')
     .all<any>()
+    
   const kamusMapel = new Map<string, string>()
   dbMapel.results.forEach((m: any) => {
     kamusMapel.set(m.nama_mapel.toLowerCase().trim(), m.nama_mapel)
     if (m.kode_mapel) kamusMapel.set(m.kode_mapel.toLowerCase().trim(), m.nama_mapel)
   })
 
-  const nisnMap = new Map<string, string>(dbSiswa.results.map((s: any) => [s.nisn, s.id]))
+  // FIX: Bersihkan spasi gaib dari NISN di dalam database agar pasti match
+  const nisnMap = new Map<string, string>(
+    dbSiswa.results.map((s: any) => [s.nisn ? String(s.nisn).trim() : '', s.id])
+  )
 
   const toUpsert: any[] = []
   const errorLogs: string[] = []
@@ -81,27 +84,44 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
     const namaSiswa = namaKey ? String(row[namaKey]).trim() : 'Nama Tidak Tersedia'
 
     if (!nisn) {
-      errorLogs.push(`Baris Excel ke-${i + 1}: Dilewati (Tidak terdeteksi NISN untuk ${namaSiswa}).`)
+      errorLogs.push(`Baris Excel ke-${i + 2}: Dilewati (Tidak terdeteksi kolom NISN untuk ${namaSiswa}).`)
       continue
     }
 
     const siswa_id = nisnMap.get(nisn)
     if (!siswa_id) {
       errorLogs.push(
-        `Siswa "${namaSiswa}" (NISN: ${nisn}) tidak ditemukan di database Madrasah.`
+        `Baris Excel ke-${i + 2}: Siswa "${namaSiswa}" (NISN: ${nisn}) tidak ditemukan di database Madrasah.`
       )
       continue
     }
 
-    const nilaiMapel: any = {}
+    const nilaiMapel: Record<string, number> = {}
     const blacklist = ['NO', 'NIS', 'NISN', 'NAMA', 'JK', 'L/P', 'JUMLAH', 'RATA', 'RATA-RATA', 'KELAS']
 
     Object.keys(row).forEach(kolomExcel => {
       if (blacklist.includes(kolomExcel.toUpperCase().trim())) return
+
+      const cellValue = row[kolomExcel]
+      // FIX: Jangan anggap sel kosong sebagai angka 0, lewati saja
+      if (cellValue === null || cellValue === undefined || cellValue === '') return
+
       const namaStandar = kamusMapel.get(kolomExcel.toLowerCase().trim()) || kolomExcel.trim()
-      const nilaiAngka = Number(row[kolomExcel])
-      if (!isNaN(nilaiAngka)) nilaiMapel[namaStandar] = nilaiAngka
+      
+      // FIX: Replace koma (,) menjadi titik (.) agar bisa diparse Javascript
+      const strVal = String(cellValue).trim().replace(',', '.')
+      const nilaiAngka = Number(strVal)
+      
+      if (!isNaN(nilaiAngka)) {
+        nilaiMapel[namaStandar] = nilaiAngka
+      }
     })
+
+    // FIX: Cegah penyimpanan Objek Kosong "{}" jika semua kolom gagal dibaca
+    if (Object.keys(nilaiMapel).length === 0) {
+      errorLogs.push(`Baris Excel ke-${i + 2}: Siswa "${namaSiswa}" dilewati karena tidak mendeteksi format angka nilai yang valid.`)
+      continue
+    }
 
     toUpsert.push({
       siswa_id,
@@ -111,15 +131,15 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
   }
 
   if (toUpsert.length > 0) {
-    // Upsert per siswa_id (UNIQUE constraint)
+    // FIX: Tambahkan explicit ID generate dan Backtick SQLite (`) pada column
     const stmts = toUpsert.map(row =>
       db
         .prepare(
-          `INSERT INTO rekap_nilai_akademik (siswa_id, ${targetKolom}, updated_at)
-           VALUES (?, ?, ?)
-           ON CONFLICT(siswa_id) DO UPDATE SET ${targetKolom} = excluded.${targetKolom}, updated_at = excluded.updated_at`
+          `INSERT INTO rekap_nilai_akademik (id, siswa_id, \`${targetKolom}\`, updated_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(siswa_id) DO UPDATE SET \`${targetKolom}\` = excluded.\`${targetKolom}\`, updated_at = excluded.updated_at`
         )
-        .bind(row.siswa_id, row[targetKolom], row.updated_at)
+        .bind(crypto.randomUUID(), row.siswa_id, row[targetKolom], row.updated_at)
     )
 
     try {
@@ -128,13 +148,19 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
         await db.batch(stmts.slice(i, i + chunkSize))
       }
     } catch (e: any) {
-      return { error: e.message }
+      return { error: `Terjadi kendala pada database: ${e.message}` }
     }
   }
 
   revalidatePath('/dashboard/akademik/analitik')
+  
+  let successMsg = `Selesai! Berhasil memploting nilai RDM untuk ${toUpsert.length} Siswa.`
+  if (errorLogs.length > 0) {
+      successMsg += ` Terdapat ${errorLogs.length} notifikasi baris yang dilewati (lihat log).`
+  }
+
   return {
-    success: `Selesai! Berhasil memploting nilai RDM untuk ${toUpsert.length} Siswa.`,
+    success: successMsg,
     logs: errorLogs,
   }
 }
