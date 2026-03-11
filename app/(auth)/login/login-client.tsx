@@ -2,38 +2,36 @@
 
 // Lokasi: app/(auth)/login/login-client.tsx
 
-import { useActionState, useState } from 'react'
-import { useFormStatus } from 'react-dom'
+import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Mail, Lock, Loader2, ArrowRight, AlertCircle, ShieldCheck, Eye, EyeOff } from 'lucide-react'
+import { authClient } from '@/utils/auth/client'
 
-const initialState = {
-  error: null as string | null,
-}
-
-function SubmitButton() {
-  const { pending } = useFormStatus()
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="group relative flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-4 text-base font-bold text-white shadow-lg shadow-emerald-500/30 transition-all hover:scale-[1.02] hover:shadow-xl hover:from-emerald-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
-    >
-      {pending ? (
-        <><Loader2 className="h-5 w-5 animate-spin" /> Memproses...</>
-      ) : (
-        <>Masuk Sistem <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" /></>
-      )}
-    </button>
-  )
-}
-
-type LoginAction = (prevState: { error: string | null }, formData: FormData) => Promise<{ error: string | null }>
-
-export default function LoginClient({ loginAction }: { loginAction: LoginAction }) {
-  const [state, formAction] = useActionState(loginAction, initialState)
+export default function LoginClient() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setPending(true)
+
+    const { error } = await authClient.signIn.email({
+      email,
+      password,
+      callbackURL: '/dashboard',
+    })
+
+    if (error) {
+      setError('Email atau password salah.')
+      setPending(false)
+    }
+    // Kalau sukses, Better Auth otomatis redirect ke callbackURL
+  }
 
   const handleLupaSandi = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -70,12 +68,12 @@ export default function LoginClient({ loginAction }: { loginAction: LoginAction 
             </p>
           </div>
           
-          <form className="space-y-5" action={formAction}>
+          <form className="space-y-5" onSubmit={handleSubmit}>
             
-            {state?.error && (
+            {error && (
               <div className="flex items-start gap-3 rounded-2xl border border-rose-100 bg-rose-50/80 p-4 text-sm font-medium text-rose-600 animate-in slide-in-from-top-2">
                 <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
-                <p className="leading-snug">{state.error}</p>
+                <p className="leading-snug">{error}</p>
               </div>
             )}
 
@@ -91,6 +89,8 @@ export default function LoginClient({ loginAction }: { loginAction: LoginAction 
                   type="email"
                   autoComplete="email"
                   required
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
                   className="block w-full rounded-2xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-500/10 sm:text-sm font-medium transition-all"
                   placeholder="nama@man1tasikmalaya.sch.id"
                 />
@@ -109,6 +109,8 @@ export default function LoginClient({ loginAction }: { loginAction: LoginAction 
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   required
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
                   className="block w-full rounded-2xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-12 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-500/10 sm:text-sm font-medium transition-all"
                   placeholder="••••••••"
                 />
@@ -116,13 +118,8 @@ export default function LoginClient({ loginAction }: { loginAction: LoginAction 
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-500 focus:outline-none transition-colors"
-                  title={showPassword ? "Sembunyikan sandi" : "Tampilkan sandi"}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
             </div>
@@ -133,7 +130,7 @@ export default function LoginClient({ loginAction }: { loginAction: LoginAction 
                   id="remember"
                   name="remember"
                   type="checkbox"
-                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer transition-all"
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                 />
                 <label htmlFor="remember" className="text-xs font-semibold text-slate-600 cursor-pointer select-none">
                   Ingat Saya
@@ -149,7 +146,17 @@ export default function LoginClient({ loginAction }: { loginAction: LoginAction 
             </div>
 
             <div className="pt-2">
-              <SubmitButton />
+              <button
+                type="submit"
+                disabled={pending}
+                className="group relative flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-4 text-base font-bold text-white shadow-lg shadow-emerald-500/30 transition-all hover:scale-[1.02] hover:shadow-xl hover:from-emerald-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100"
+              >
+                {pending ? (
+                  <><Loader2 className="h-5 w-5 animate-spin" /> Memproses...</>
+                ) : (
+                  <>Masuk Sistem <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" /></>
+                )}
+              </button>
             </div>
           </form>
 
@@ -162,7 +169,6 @@ export default function LoginClient({ loginAction }: { loginAction: LoginAction 
               &larr; Kembali ke Beranda
             </Link>
           </div>
-
         </div>
       </div>
     </div>
