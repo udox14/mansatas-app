@@ -230,9 +230,9 @@ export function TabPenjurusan({
 
   if (siswaList.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200/60 shadow-sm">
-        <CheckCircle2 className="h-16 w-16 text-emerald-400 mb-4" />
-        <h3 className="text-xl font-bold text-slate-800">Semua Terploting!</h3>
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-white rounded-lg border border-slate-200 shadow-sm">
+        <CheckCircle2 className="h-10 w-10 text-emerald-400 mb-3" />
+        <h3 className="text-sm font-semibold text-slate-800">Semua Terploting!</h3>
         <p className="text-slate-500 mt-2">Tidak ada data siswa kelas 10 yang perlu dijuruskan.</p>
       </div>
     )
@@ -246,7 +246,7 @@ export function TabPenjurusan({
       
       {/* ================= PANEL KIRI ================= */}
       <div className="space-y-6">
-        <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-slate-200/60 shadow-sm flex flex-col h-full">
+        <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-col h-full">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
               <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
@@ -264,11 +264,11 @@ export function TabPenjurusan({
                )}
                
                <div className="flex gap-2 w-full sm:w-auto">
-                  <div className="flex flex-col items-center justify-center bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5 min-w-[80px] shadow-sm">
+                  <div className="flex flex-col items-center justify-center bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 min-w-[80px] shadow-sm">
                     <span className="text-lg font-black text-emerald-700 leading-none">{jumlahSiapPlot}</span>
                     <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mt-0.5">Siap Plot</span>
                   </div>
-                  <div className="flex flex-col items-center justify-center bg-rose-50 border border-rose-200 rounded-xl px-3 py-1.5 min-w-[80px] shadow-sm">
+                  <div className="flex flex-col items-center justify-center bg-rose-50 border border-rose-200 rounded-lg px-3 py-1.5 min-w-[80px] shadow-sm">
                     <span className="text-lg font-black text-rose-700 leading-none">{siswaTertahan}</span>
                     <span className="text-[9px] font-bold text-rose-600 uppercase tracking-widest mt-0.5">Belum Diset</span>
                   </div>
@@ -276,24 +276,24 @@ export function TabPenjurusan({
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 mb-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+          <div className="flex flex-col gap-3 mb-3 p-4 bg-slate-50/50 rounded-lg border border-slate-100">
             <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
                 placeholder="Cari nama siswa atau NISN..."
                 value={searchSiswa}
                 onChange={e => setSearchSiswa(e.target.value)}
-                className="pl-9 h-10 rounded-xl bg-white border-slate-200 focus:border-indigo-500 shadow-sm"
+                className="pl-9 h-10 rounded-lg bg-white border-slate-200 focus:border-indigo-500 shadow-sm"
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Filter Kelas Asal</Label>
                 <Select value={filterKelas} onValueChange={setFilterKelas}>
-                  <SelectTrigger className={`h-10 rounded-xl transition-colors ${filterKelas === 'NONE' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 ring-2 ring-indigo-100' : 'bg-white'}`}>
+                  <SelectTrigger className={`h-10 rounded-lg transition-colors ${filterKelas === 'NONE' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 ring-2 ring-indigo-100' : 'bg-white'}`}>
                     <SelectValue placeholder="Pilih Kelas" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl">
+                  <SelectContent className="rounded-lg">
                     <SelectItem value="NONE" disabled className="text-slate-400 italic">-- Pilih Kelas --</SelectItem>
                     <SelectItem value="ALL" className="font-bold text-indigo-600">Tampilkan Semua (Berat)</SelectItem>
                     {kelasLamaUnik.map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
@@ -303,8 +303,8 @@ export function TabPenjurusan({
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status Tiket & Preview</Label>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="h-10 rounded-xl bg-white"><SelectValue placeholder="Semua Status" /></SelectTrigger>
-                  <SelectContent className="rounded-xl">
+                  <SelectTrigger className="h-10 rounded-lg bg-white"><SelectValue placeholder="Semua Status" /></SelectTrigger>
+                  <SelectContent className="rounded-lg">
                     <SelectItem value="ALL">Semua Status</SelectItem>
                     <SelectItem value="UNSET" className="text-rose-600 font-medium">1. Belum Diset</SelectItem>
                     <SelectItem value="SET" className="text-blue-600 font-medium">2. Sudah Diset</SelectItem>
@@ -320,14 +320,14 @@ export function TabPenjurusan({
             </div>
           </div>
 
-          <div className={`transition-all duration-300 ease-in-out overflow-hidden ${hasUnsavedChanges ? 'max-h-20 mb-4 opacity-100' : 'max-h-0 opacity-0'}`}>
-            <Button onClick={handleSimpanDraftMassal} disabled={isSavingDraft} className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-200 gap-2 text-base animate-pulse">
+          <div className={`transition-all duration-300 ease-in-out overflow-hidden ${hasUnsavedChanges ? 'max-h-20 mb-3 opacity-100' : 'max-h-0 opacity-0'}`}>
+            <Button onClick={handleSimpanDraftMassal} disabled={isSavingDraft} className="w-full h-12 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-200 gap-2 text-base animate-pulse">
               {isSavingDraft ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />} 
               SIMPAN TIKET JURUSAN KE CLOUD
             </Button>
           </div>
 
-          <ScrollArea className="h-[490px] border border-slate-200/60 rounded-2xl bg-white shadow-inner relative">
+          <ScrollArea className="h-[490px] border border-slate-200 rounded-lg bg-white shadow-inner relative">
             <Table>
               <TableHeader className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10 shadow-sm">
                 <TableRow>
@@ -407,17 +407,17 @@ export function TabPenjurusan({
 
       {/* ================= PANEL KANAN ================= */}
       <div className="space-y-6 flex flex-col">
-        <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-slate-200/60 shadow-sm flex-shrink-0">
-          <h3 className="font-bold text-slate-800 mb-2 text-lg">2. Pilih Wadah Kelas 11</h3>
-          <p className="text-sm text-slate-500 mb-4">Centang kelas 11 yang akan digunakan sebagai tempat pendaratan penjurusan.</p>
+        <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex-shrink-0">
+          <h3 className="font-bold text-slate-800 mb-1.5 text-lg">2. Pilih Wadah Kelas 11</h3>
+          <p className="text-sm text-slate-500 mb-3">Centang kelas 11 yang akan digunakan sebagai tempat pendaratan penjurusan.</p>
           
-          <ScrollArea className="h-[250px] border border-slate-200/60 rounded-2xl p-4 bg-slate-50 shadow-inner mb-5">
+          <ScrollArea className="h-[250px] border border-slate-200 rounded-lg p-4 bg-slate-50 shadow-inner mb-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* MENGGUNAKAN SORTED KELAS LIST AGAR NATURAL SORT */}
               {sortedKelasList.map(k => {
                 const isFull = k.jumlah_siswa >= k.kapasitas
                 return (
-                  <div key={k.id} className="flex items-center space-x-3 bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm">
+                  <div key={k.id} className="flex items-center space-x-3 bg-white p-2.5 rounded-lg border border-slate-100">
                     <Checkbox id={`p-${k.id}`} checked={selectedKelasIds.includes(k.id)} onCheckedChange={() => handleToggleKelas(k.id)} disabled={isFull} />
                     <Label htmlFor={`p-${k.id}`} className={`text-sm font-semibold cursor-pointer flex-1 flex justify-between ${isFull ? 'text-slate-400' : 'text-slate-700'}`}>
                       {k.nama} 
@@ -432,21 +432,21 @@ export function TabPenjurusan({
           <Button 
             onClick={jalankanSimulasi} 
             disabled={isSimulating || selectedKelasIds.length === 0 || Object.keys(penjurusan).length === 0}
-            className="w-full h-12 rounded-2xl gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold shadow-md transition-all text-base"
+            className="w-full h-12 rounded-lg gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold shadow-md transition-all text-base"
           >
             {isSimulating ? <Loader2 className="animate-spin h-5 w-5" /> : <Play className="h-5 w-5" />}
             Jalankan Algo Penjurusan
           </Button>
         </div>
 
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[400px]">
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[400px]">
           <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h3 className="font-bold text-slate-800 text-lg">3. Preview Sebaran Kelas 11</h3>
               <p className="text-xs font-medium text-slate-500 mt-1">Siswa telah diurutkan & disebar rata (L/P).</p>
             </div>
             {simulasiResult.length > 0 && (
-              <Button onClick={simpanPermanen} disabled={isSavingPermanent} className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-11 rounded-xl shadow-md w-full sm:w-auto">
+              <Button onClick={simpanPermanen} disabled={isSavingPermanent} className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-11 rounded-lg shadow-md w-full sm:w-auto">
                 {isSavingPermanent ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4" />} Simpan Permanen
               </Button>
             )}
@@ -455,8 +455,8 @@ export function TabPenjurusan({
           <div className="flex-1 p-0 relative bg-white">
             {successMsg ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-emerald-50/80 backdrop-blur-sm z-20">
-                <CheckCircle2 className="h-16 w-16 text-emerald-500 mb-4 animate-in zoom-in" />
-                <h2 className="text-2xl font-black text-emerald-900 tracking-tight">Penjurusan Berhasil!</h2>
+                <CheckCircle2 className="h-16 w-16 text-emerald-500 mb-3 animate-in zoom-in" />
+                <h2 className="text-lg font-bold text-emerald-900 tracking-tight">Penjurusan Berhasil!</h2>
                 <p className="text-emerald-700 mt-2 font-medium">{successMsg}</p>
               </div>
             ) : simulasiResult.length === 0 ? (

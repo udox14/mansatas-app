@@ -99,9 +99,9 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
 
   if (siswaList.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200/60 shadow-sm">
-        <CheckCircle2 className="h-16 w-16 text-emerald-400 mb-4" />
-        <h3 className="text-xl font-bold text-slate-800">Tidak ada data kelas 11!</h3>
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-white rounded-lg border border-slate-200 shadow-sm">
+        <CheckCircle2 className="h-10 w-10 text-emerald-400 mb-3" />
+        <h3 className="text-sm font-semibold text-slate-800">Tidak ada data kelas 11!</h3>
         <p className="text-slate-500 mt-2">Semua siswa kelas 11 mungkin sudah dinaikkan atau belum ada data.</p>
       </div>
     )
@@ -110,9 +110,9 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
       <div className="xl:col-span-1 space-y-6 flex flex-col">
-        <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-slate-200/60 shadow-sm flex-shrink-0">
-          <h3 className="font-bold text-slate-800 text-lg mb-2">1. Sumber Data (Kelas 11)</h3>
-          <p className="text-sm text-slate-500 mb-4">Sistem mendeteksi <strong className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{siswaList.length}</strong> siswa siap diacak.</p>
+        <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex-shrink-0">
+          <h3 className="font-bold text-slate-800 text-lg mb-1.5">1. Sumber Data (Kelas 11)</h3>
+          <p className="text-sm text-slate-500 mb-3">Sistem mendeteksi <strong className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">{siswaList.length}</strong> siswa siap diacak.</p>
           <div className="flex gap-2 flex-wrap text-sm font-bold">
             {Array.from(new Set(siswaList.map(s => s.kelompok))).map(k => (
                <div key={k} className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-100 flex-1 min-w-[100px] text-center shadow-sm">
@@ -122,22 +122,22 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
           </div>
         </div>
 
-        <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-slate-200/60 shadow-sm flex-1 flex flex-col">
-          <div className="flex justify-between items-center mb-2">
+        <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex-1 flex flex-col">
+          <div className="flex justify-between items-center mb-1.5">
             <h3 className="font-bold text-slate-800 text-lg">2. Wadah Kelas 12</h3>
             <Button variant="outline" size="sm" onClick={handleSelectAllKelas} className="h-8 rounded-lg text-xs font-bold text-emerald-700 hover:bg-emerald-50 border-emerald-200">
               Pilih Semua
             </Button>
           </div>
-          <p className="text-sm text-slate-500 mb-4">Centang kelas tujuan pengacakan ini.</p>
+          <p className="text-sm text-slate-500 mb-3">Centang kelas tujuan pengacakan ini.</p>
           
-          <ScrollArea className="flex-1 min-h-[150px] border border-slate-200/60 rounded-2xl p-4 bg-slate-50 shadow-inner">
+          <ScrollArea className="flex-1 min-h-[150px] border border-slate-200 rounded-lg p-4 bg-slate-50 shadow-inner">
             <div className="space-y-3">
               {/* MENGGUNAKAN SORTED KELAS LIST AGAR NATURAL SORT */}
               {sortedKelasList.map(k => {
                 const isFull = k.jumlah_siswa >= k.kapasitas
                 return (
-                  <div key={k.id} className="flex items-center space-x-3 bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm">
+                  <div key={k.id} className="flex items-center space-x-3 bg-white p-2.5 rounded-lg border border-slate-100">
                     <Checkbox id={`p-${k.id}`} checked={selectedKelasIds.includes(k.id)} onCheckedChange={() => handleToggleKelas(k.id)} disabled={isFull} />
                     <Label htmlFor={`p-${k.id}`} className={`flex-1 flex justify-between cursor-pointer font-semibold ${isFull ? 'text-slate-400' : 'text-slate-700'}`}>
                       {k.nama} <span className="text-xs font-bold opacity-70 bg-slate-100 px-2 py-0.5 rounded">({k.jumlah_siswa}/{k.kapasitas})</span>
@@ -148,21 +148,21 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
             </div>
           </ScrollArea>
           
-          <Button onClick={jalankanSimulasi} disabled={isSimulating || selectedKelasIds.length === 0} className="w-full mt-5 h-12 rounded-2xl gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold shadow-md transition-all text-base">
+          <Button onClick={jalankanSimulasi} disabled={isSimulating || selectedKelasIds.length === 0} className="w-full mt-5 h-12 rounded-lg gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold shadow-md transition-all text-base">
             {isSimulating ? <Loader2 className="animate-spin h-5 w-5" /> : <Shuffle className="h-5 w-5" />} Jalankan Algo Acak
           </Button>
         </div>
       </div>
 
       <div className="xl:col-span-2">
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col h-full min-h-[500px]">
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[500px]">
           <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h3 className="font-bold text-slate-800 text-lg">3. Preview Hasil Pengacakan</h3>
               <p className="text-sm text-slate-500 mt-1">Siswa diacak silang L/P ke dalam jurusan yang sama.</p>
             </div>
             {simulasiResult.length > 0 && (
-              <Button onClick={simpanPermanen} disabled={isSaving} className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-11 rounded-xl shadow-md w-full sm:w-auto">
+              <Button onClick={simpanPermanen} disabled={isSaving} className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-11 rounded-lg shadow-md w-full sm:w-auto">
                 {isSaving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4" />} Simpan Permanen
               </Button>
             )}
@@ -171,8 +171,8 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
           <div className="flex-1 p-0 relative bg-white">
             {successMsg ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-emerald-50/80 backdrop-blur-sm z-20">
-                <CheckCircle2 className="h-16 w-16 text-emerald-500 mb-4 animate-in zoom-in" />
-                <h2 className="text-2xl font-black text-emerald-900 tracking-tight">Pengacakan Berhasil!</h2>
+                <CheckCircle2 className="h-16 w-16 text-emerald-500 mb-3 animate-in zoom-in" />
+                <h2 className="text-lg font-bold text-emerald-900 tracking-tight">Pengacakan Berhasil!</h2>
                 <p className="text-emerald-700 mt-2 font-medium">{successMsg}</p>
               </div>
             ) : simulasiResult.length === 0 ? (
