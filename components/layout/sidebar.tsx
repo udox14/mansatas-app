@@ -1,7 +1,7 @@
 // Lokasi: components/layout/sidebar.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
@@ -20,28 +20,59 @@ const ACCENT_COLORS = [
 
 type AccentKey = typeof ACCENT_COLORS[number]['id']
 
-export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole?: string, userName?: string }) {
+// Helper: tentukan menu mana yang aktif — strict matching, maksimal 1 yang aktif
+function getActiveMenu(pathname: string, menuItems: typeof MENU_ITEMS) {
+  // Sort by href length descending — cari yang paling spesifik dulu
+  const sorted = [...menuItems].sort((a, b) => b.href.length - a.href.length)
+  for (const item of sorted) {
+    if (item.href === '/dashboard') {
+      if (pathname === '/dashboard') return item.href
+    } else {
+      // Exact match atau sub-path TAPI hanya satu level
+      if (pathname === item.href || pathname.startsWith(item.href + '/')) {
+        return item.href
+      }
+    }
+  }
+  return null
+}
+
+export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole?: string; userName?: string }) {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [accentId, setAccentId] = useState<AccentKey>('emerald')
   const [mounted, setMounted] = useState(false)
+  // FIX: Ref untuk track apakah user sengaja collapse
+  const userCollapsedRef = useRef(false)
 
   useEffect(() => {
     setMounted(true)
     const saved = localStorage.getItem('mansatas_accent') as AccentKey
     if (saved && ACCENT_COLORS.find(c => c.id === saved)) setAccentId(saved)
+    const savedCollapsed = localStorage.getItem('mansatas_collapsed')
+    if (savedCollapsed === 'true') { setIsCollapsed(true); userCollapsedRef.current = true }
   }, [])
 
+  // FIX: Close mobile drawer on navigate — JANGAN auto-expand desktop collapsed
+  useEffect(() => { setIsOpen(false) }, [pathname])
+
   const accent = ACCENT_COLORS.find(c => c.id === accentId) ?? ACCENT_COLORS[0]
+  const activeHref = getActiveMenu(pathname, MENU_ITEMS)
 
   const changeAccent = (id: AccentKey) => {
     setAccentId(id)
     localStorage.setItem('mansatas_accent', id)
   }
 
-  useEffect(() => setIsOpen(false), [pathname])
+  // FIX: Toggle collapse dengan persist ke localStorage
+  const toggleCollapse = () => {
+    const next = !isCollapsed
+    setIsCollapsed(next)
+    userCollapsedRef.current = next
+    localStorage.setItem('mansatas_collapsed', String(next))
+  }
 
   const allowedMenus = MENU_ITEMS.filter(item => item.roles.includes(userRole))
 
@@ -59,170 +90,133 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
 
   if (!mounted) return null
 
-  const NavContent = ({ mobile = false }: { mobile?: boolean }) => (
-    <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className={cn(
-        "flex items-center border-b border-slate-100 shrink-0",
-        (!mobile && isCollapsed) ? "justify-center px-3 py-4" : "gap-2.5 px-4 py-3.5"
-      )}>
-        <Link href="/dashboard" className="flex items-center gap-2.5 group min-w-0 flex-1">
-          <div className="relative w-7 h-7 shrink-0">
-            <Image src="/logokemenag.png" alt="MANSATAS" fill className="object-contain" />
-          </div>
-          {(mobile || !isCollapsed) && (
-            <div className="min-w-0">
-              <p className="text-[13px] font-bold text-slate-900 leading-tight">MANSATAS</p>
-              <p className="text-[10px] text-slate-400 leading-tight">MAN 1 Tasikmalaya</p>
+  const NavContent = ({ mobile = false }: { mobile?: boolean }) => {
+    const collapsed = !mobile && isCollapsed
+    return (
+      <div className="flex flex-col h-full">
+        {/* Logo */}
+        <div className={cn(
+          'flex items-center border-b border-slate-100 shrink-0',
+          collapsed ? 'justify-center px-3 py-4' : 'gap-2.5 px-4 py-3.5'
+        )}>
+          <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="relative w-6 h-6 shrink-0">
+              <Image src="/logokemenag.png" alt="MANSATAS" fill className="object-contain" />
             </div>
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="text-[13px] font-bold text-slate-900 leading-tight">MANSATAS</p>
+                <p className="text-[10px] text-slate-400 leading-tight">MAN 1 Tasikmalaya</p>
+              </div>
+            )}
+          </Link>
+          {mobile && (
+            <button onClick={() => setIsOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100">
+              <X className="h-4 w-4" />
+            </button>
           )}
-        </Link>
-        {mobile && (
-          <button
-            onClick={() => setIsOpen(false)}
-            className="p-1 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
-      </div>
+        </div>
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-        {allowedMenus.map((item) => {
-          const isActive = item.href === '/dashboard'
-            ? pathname === '/dashboard'
-            : pathname === item.href || pathname.startsWith(item.href + '/')
-          const Icon = item.icon
-          const collapsed = !mobile && isCollapsed
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
+          {allowedMenus.map((item) => {
+            // FIX: Gunakan activeHref — HANYA satu menu yang bisa aktif
+            const isActive = activeHref === item.href
+            const Icon = item.icon
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              title={collapsed ? item.title : undefined}
-              className={cn(
-                "flex items-center rounded-md text-[13px] transition-colors duration-150",
-                collapsed ? "justify-center p-2.5" : "gap-2.5 px-3 py-2",
-                isActive
-                  ? cn(accent.active, "font-medium shadow-sm")
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              )}
-            >
-              <Icon className={cn("h-4 w-4 shrink-0", isActive ? "opacity-100" : "opacity-60")} />
-              {!collapsed && <span className="truncate">{item.title}</span>}
-            </Link>
-          )
-        })}
-      </nav>
-
-      {/* Footer */}
-      <div className={cn(
-        "border-t border-slate-100 shrink-0 p-2 space-y-1",
-        (!mobile && isCollapsed) && "px-2"
-      )}>
-        {/* Accent picker */}
-        {(mobile || !isCollapsed) && (
-          <div className="flex items-center gap-1 px-2 py-1.5">
-            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wide mr-auto">Tema</span>
-            {ACCENT_COLORS.map(c => (
-              <button
-                key={c.id}
-                onClick={() => changeAccent(c.id as AccentKey)}
-                title={c.label}
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                title={collapsed ? item.title : undefined}
                 className={cn(
-                  "w-3 h-3 rounded-full transition-all duration-200",
-                  c.swatch,
-                  accentId === c.id
-                    ? cn("ring-2 ring-offset-1", c.ring, "scale-125")
-                    : "opacity-40 hover:opacity-70 hover:scale-110"
+                  'flex items-center rounded-md text-[13px] transition-colors duration-150',
+                  collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-3 py-2',
+                  isActive
+                    ? cn(accent.active, 'font-medium shadow-sm')
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 )}
-              />
-            ))}
-          </div>
-        )}
+              >
+                <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'opacity-100' : 'opacity-60')} />
+                {!collapsed && <span className="truncate">{item.title}</span>}
+              </Link>
+            )
+          })}
+        </nav>
 
-        {/* User */}
-        <Link
-          href="/dashboard/settings/profile"
-          className={cn(
-            "flex items-center rounded-md hover:bg-slate-100 transition-colors",
-            (!mobile && isCollapsed) ? "justify-center p-2.5" : "gap-2.5 px-2 py-2"
-          )}
-          title={(!mobile && isCollapsed) ? userName : undefined}
-        >
-          <div className={cn(
-            "shrink-0 rounded-full flex items-center justify-center font-semibold text-[11px] text-white h-6 w-6",
-            accent.active
-          )}>
-            {userName.charAt(0).toUpperCase()}
-          </div>
-          {(mobile || !isCollapsed) && (
-            <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-semibold text-slate-800 truncate leading-tight">{userName}</p>
-              <p className="text-[10px] text-slate-400 truncate leading-tight capitalize">{userRole.replace(/_/g, ' ')}</p>
+        {/* Footer */}
+        <div className={cn('border-t border-slate-100 shrink-0 p-2 space-y-1', collapsed && 'px-2')}>
+          {/* Accent picker — sembunyikan saat collapsed */}
+          {!collapsed && (
+            <div className="flex items-center gap-1 px-2 py-1.5">
+              <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wide mr-auto">Tema</span>
+              {ACCENT_COLORS.map(c => (
+                <button key={c.id} onClick={() => changeAccent(c.id as AccentKey)} title={c.label}
+                  className={cn(
+                    'w-3 h-3 rounded-full transition-all duration-200', c.swatch,
+                    accentId === c.id ? cn('ring-2 ring-offset-1', c.ring, 'scale-125') : 'opacity-40 hover:opacity-70 hover:scale-110'
+                  )}
+                />
+              ))}
             </div>
           )}
-        </Link>
 
-        {/* Logout */}
-        <button
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-          title={(!mobile && isCollapsed) ? "Keluar" : undefined}
-          className={cn(
-            "w-full flex items-center rounded-md text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors",
-            (!mobile && isCollapsed) ? "justify-center p-2.5" : "gap-2.5 px-2 py-2"
-          )}
-        >
-          <LogOut className="h-3.5 w-3.5 shrink-0" />
-          {(mobile || !isCollapsed) && (
-            <span className="text-[12px] font-medium">{isLoggingOut ? 'Keluar...' : 'Keluar Aplikasi'}</span>
-          )}
-        </button>
+          {/* User */}
+          <Link href="/dashboard/settings/profile"
+            className={cn('flex items-center rounded-md hover:bg-slate-100 transition-colors', collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2 py-2')}
+            title={collapsed ? userName : undefined}
+          >
+            <div className={cn('shrink-0 rounded-full flex items-center justify-center font-semibold text-[11px] text-white h-6 w-6', accent.active)}>
+              {userName.charAt(0).toUpperCase()}
+            </div>
+            {!collapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-semibold text-slate-800 truncate leading-tight">{userName}</p>
+                <p className="text-[10px] text-slate-400 truncate leading-tight capitalize">{userRole.replace(/_/g, ' ')}</p>
+              </div>
+            )}
+          </Link>
+
+          {/* Logout */}
+          <button onClick={handleLogout} disabled={isLoggingOut} title={collapsed ? 'Keluar' : undefined}
+            className={cn('w-full flex items-center rounded-md text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors', collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2 py-2')}
+          >
+            <LogOut className="h-3.5 w-3.5 shrink-0" />
+            {!collapsed && <span className="text-[12px] font-medium">{isLoggingOut ? 'Keluar...' : 'Keluar Aplikasi'}</span>}
+          </button>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <>
       {/* Mobile overlay */}
-      {isOpen && (
-        <div onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/40 z-40 lg:hidden" />
-      )}
+      {isOpen && <div onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/40 z-40 lg:hidden" />}
 
       {/* Desktop sidebar */}
       <aside className={cn(
-        "hidden lg:flex flex-col h-[100dvh] bg-white border-r border-slate-200 shrink-0 sticky top-0 transition-all duration-300 relative",
-        isCollapsed ? "w-[52px]" : "w-52"
+        'hidden lg:flex flex-col h-[100dvh] bg-white border-r border-slate-200 shrink-0 sticky top-0 transition-all duration-300 relative',
+        isCollapsed ? 'w-[52px]' : 'w-52'
       )}>
         <NavContent />
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
+        <button onClick={toggleCollapse}
           className="absolute -right-3 top-14 z-10 h-5 w-5 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
         >
-          {isCollapsed
-            ? <ChevronRight className="h-3 w-3" />
-            : <ChevronLeft className="h-3 w-3" />
-          }
+          {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
         </button>
       </aside>
 
       {/* Mobile drawer */}
       <aside className={cn(
-        "fixed top-0 left-0 z-50 h-[100dvh] w-56 bg-white border-r border-slate-200 flex flex-col lg:hidden transition-transform duration-300 ease-in-out shadow-xl",
-        isOpen ? "translate-x-0" : "-translate-x-full"
+        'fixed top-0 left-0 z-50 h-[100dvh] w-56 bg-white border-r border-slate-200 flex flex-col lg:hidden transition-transform duration-300 ease-in-out shadow-xl',
+        isOpen ? 'translate-x-0' : '-translate-x-full'
       )}>
         <NavContent mobile />
       </aside>
 
-      {/* Mobile trigger (used by header) */}
-      <button
-        id="mobile-sidebar-trigger"
-        onClick={() => setIsOpen(true)}
-        className="hidden"
-        aria-label="Buka menu"
-      />
+      {/* Mobile trigger */}
+      <button id="mobile-sidebar-trigger" onClick={() => setIsOpen(true)} className="hidden" aria-label="Buka menu" />
     </>
   )
 }

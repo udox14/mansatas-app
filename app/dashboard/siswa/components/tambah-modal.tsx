@@ -36,8 +36,9 @@ export function TambahModal() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md px-3">
-          <UserPlus className="h-3.5 w-3.5" /> Tambah Manual
+        <Button size="sm" className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md px-2.5">
+          <UserPlus className="h-3.5 w-3.5 shrink-0" />
+          <span className="hidden sm:inline">Tambah Manual</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md rounded-xl">
