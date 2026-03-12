@@ -62,8 +62,9 @@ export function ImportModalSiswa() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 border-slate-200 rounded-md px-3">
-          <FileSpreadsheet className="h-3.5 w-3.5" /> Import PPDB
+        <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 border-slate-200 rounded-md px-2.5">
+          <FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />
+          <span className="hidden sm:inline">Import PPDB</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg rounded-xl">

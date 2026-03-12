@@ -1,11 +1,8 @@
 'use client'
 
-// Lokasi: app/(auth)/login/login-client.tsx
-
 import { useState } from 'react'
 import Image from 'next/image'
-import Link from 'next/link'
-import { Mail, Lock, Loader2, ArrowRight, AlertCircle, ShieldCheck, Eye, EyeOff } from 'lucide-react'
+import { Mail, Lock, Loader2, ArrowRight, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 
 export default function LoginClient() {
   const [email, setEmail] = useState('')
@@ -15,121 +12,87 @@ export default function LoginClient() {
   const [pending, setPending] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setPending(true)
-
+    e.preventDefault(); setError(null); setPending(true)
     try {
-      const res = await fetch('/api/auth/sign-in/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-        credentials: 'include',
-      })
-
-      if (!res.ok) {
-        setError('Email atau password salah.')
-        setPending(false)
-        return
-      }
-
+      const res = await fetch('/api/auth/sign-in/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }), credentials: 'include' })
+      if (!res.ok) { setError('Email atau password salah.'); setPending(false); return }
       window.location.href = '/dashboard'
-    } catch {
-      setError('Terjadi kesalahan jaringan. Coba lagi.')
-      setPending(false)
-    }
+    } catch { setError('Terjadi kesalahan jaringan. Coba lagi.'); setPending(false) }
   }
 
-  const handleLupaSandi = (e: React.MouseEvent) => {
-    e.preventDefault()
-    alert('Silakan hubungi Admin untuk melakukan reset kata sandi akun Anda.')
-  }
+  const handleLupaSandi = (e: React.MouseEvent) => { e.preventDefault(); alert('Silakan hubungi Admin untuk melakukan reset kata sandi akun Anda.') }
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-slate-50 font-sans selection:bg-emerald-100 selection:text-emerald-900 overflow-hidden">
-      <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] h-[50%] w-[50%] rounded-full bg-emerald-400/20 blur-[120px] animate-pulse duration-10000" />
-        <div className="absolute bottom-[-10%] right-[-10%] h-[60%] w-[60%] rounded-full bg-blue-400/20 blur-[150px]" />
-      </div>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:40px_40px] opacity-50" />
+      <div className="pointer-events-none fixed inset-0 bg-gradient-to-br from-emerald-50/60 via-transparent to-slate-100/80" />
 
-      <div className="relative z-10 w-full max-w-[420px] px-6 py-12 lg:px-8 animate-in fade-in zoom-in-95 duration-700">
-        <div className="rounded-[2.5rem] bg-white/90 backdrop-blur-2xl p-8 sm:p-10 shadow-2xl ring-1 ring-slate-100">
-          <div className="flex flex-col items-center text-center mb-8">
-            <div className="mb-5 relative h-16 w-16 drop-shadow-md transition-transform hover:scale-105">
-              <Image src="/logokemenag.png" alt="Logo Kemenag" fill className="object-contain" priority />
+      <div className="relative w-full max-w-[360px]">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+
+          {/* Logo + nama */}
+          <div className="flex items-center gap-3 mb-5 pb-4 border-b border-slate-100">
+            <div className="relative h-9 w-9 shrink-0">
+              <Image src="/logokemenag.png" alt="Logo" fill className="object-contain" priority />
             </div>
-            <h2 className="text-3xl font-black tracking-tight text-slate-900">
-              MANSATAS <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-500">App</span>
-            </h2>
-            <p className="mt-2 text-sm font-semibold text-slate-500 uppercase tracking-widest">MAN 1 Tasikmalaya</p>
+            <div>
+              <h1 className="text-sm font-bold text-slate-900 leading-tight">MANSATAS App</h1>
+              <p className="text-[10px] text-slate-400 tracking-wide uppercase mt-0.5">MAN 1 Tasikmalaya</p>
+            </div>
           </div>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="space-y-3.5">
             {error && (
-              <div className="flex items-start gap-3 rounded-2xl border border-rose-100 bg-rose-50/80 p-4 text-sm font-medium text-rose-600 animate-in slide-in-from-top-2">
-                <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
-                <p className="leading-snug">{error}</p>
+              <div className="flex items-start gap-2 p-2.5 text-[11px] text-rose-600 bg-rose-50 rounded-lg border border-rose-100">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {error}
               </div>
             )}
 
             <div className="space-y-1.5">
-              <label htmlFor="email" className="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Alamat Email</label>
-              <div className="relative group">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                <input id="email" name="email" type="email" autoComplete="email" required value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="block w-full rounded-2xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-500/10 sm:text-sm font-medium transition-all"
+              <label htmlFor="email" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input id="email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)}
+                  className="w-full h-9 pl-8 pr-3 rounded-md border border-slate-200 bg-slate-50 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                   placeholder="nama@man1tasikmalaya.sch.id" />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="password" className="text-xs font-bold text-slate-600 uppercase tracking-wider ml-1">Kata Sandi</label>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
-                <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required
-                  value={password} onChange={e => setPassword(e.target.value)}
-                  className="block w-full rounded-2xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-12 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-500/10 sm:text-sm font-medium transition-all"
+              <label htmlFor="password" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Kata Sandi</label>
+              <div className="relative">
+                <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input id="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)}
+                  className="w-full h-9 pl-8 pr-9 rounded-md border border-slate-200 bg-slate-50 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                   placeholder="••••••••" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-500 focus:outline-none transition-colors">
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                  {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                 </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between px-1">
-              <div className="flex items-center gap-2">
-                <input id="remember" name="remember" type="checkbox"
-                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
-                <label htmlFor="remember" className="text-xs font-semibold text-slate-600 cursor-pointer select-none">Ingat Saya</label>
-              </div>
-              <button type="button" onClick={handleLupaSandi}
-                className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition-colors focus:outline-none">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input type="checkbox" className="h-3 w-3 rounded border-slate-300 accent-emerald-600" />
+                <span className="text-[11px] text-slate-500">Ingat saya</span>
+              </label>
+              <button type="button" onClick={handleLupaSandi} className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 transition-colors">
                 Lupa sandi?
               </button>
             </div>
 
-            <div className="pt-2">
-              <button type="submit" disabled={pending}
-                className="group relative flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-4 text-base font-bold text-white shadow-lg shadow-emerald-500/30 transition-all hover:scale-[1.02] hover:shadow-xl hover:from-emerald-700 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:scale-100">
-                {pending ? (
-                  <><Loader2 className="h-5 w-5 animate-spin" /> Memproses...</>
-                ) : (
-                  <>Masuk Sistem <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" /></>
-                )}
-              </button>
-            </div>
+            <button type="submit" disabled={pending}
+              className="w-full h-9 flex items-center justify-center gap-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+              {pending
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Memproses...</>
+                : <>Masuk Sistem <ArrowRight className="h-3.5 w-3.5" /></>
+              }
+            </button>
           </form>
 
-          <div className="mt-8 text-center flex flex-col items-center justify-center gap-2 border-t border-slate-100 pt-6">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-              Sistem Terenkripsi Aman
-            </div>
-            <Link href="/" className="text-xs text-slate-400 hover:text-emerald-600 font-medium transition-colors mt-2">
-              &larr; Kembali ke Beranda
-            </Link>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[10px] text-slate-400">
+            <ShieldCheck className="h-3 w-3 text-emerald-500" /> Sistem terenkripsi & aman
           </div>
         </div>
       </div>
