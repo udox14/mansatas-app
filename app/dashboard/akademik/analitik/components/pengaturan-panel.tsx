@@ -14,7 +14,7 @@ import { simpanPengaturanAkademik } from '../actions'
 function SubmitBtn() {
   const { pending } = useFormStatus()
   return (
-    <Button type="submit" disabled={pending} className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl shadow-md h-14 text-base font-bold transition-all">
+    <Button type="submit" disabled={pending} className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg shadow-md h-14 text-base font-bold transition-all">
       {pending ? <><Loader2 className="mr-2 h-5 w-5 animate-spin"/> Menyimpan Perubahan...</> : <><Save className="mr-2 h-5 w-5"/> Simpan Pengaturan & Urutan PDSS</>}
     </Button>
   )
@@ -66,9 +66,9 @@ export function PengaturanPanel({ pengaturan, mapelList }: { pengaturan: any, ma
   }
 
   return (
-    <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200/60 shadow-sm p-6 lg:p-8">
+    <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 lg:p-8">
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8 border-b border-slate-100 pb-6">
-        <div className="bg-gradient-to-br from-emerald-100 to-teal-100 p-3 rounded-2xl text-emerald-700 shadow-inner">
+        <div className="bg-gradient-to-br from-emerald-100 to-teal-100 p-3 rounded-lg text-emerald-700 shadow-inner">
           <Settings2 className="h-6 w-6"/>
         </div>
         <div>
@@ -78,7 +78,7 @@ export function PengaturanPanel({ pengaturan, mapelList }: { pengaturan: any, ma
       </div>
 
       {pesan && (
-        <div className="mb-6 p-4 bg-emerald-50 text-emerald-800 rounded-2xl border border-emerald-100 flex items-center gap-3 text-sm font-medium animate-in fade-in">
+        <div className="mb-6 p-4 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-100 flex items-center gap-3 text-sm font-medium animate-in fade-in">
           <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0"/> {pesan}
         </div>
       )}
@@ -87,7 +87,7 @@ export function PengaturanPanel({ pengaturan, mapelList }: { pengaturan: any, ma
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
           
           {/* BLOK SNBP */}
-          <div className="space-y-5 border border-emerald-100/60 p-5 rounded-2xl bg-gradient-to-b from-emerald-50/30 to-transparent shadow-sm">
+          <div className="space-y-5 border border-emerald-100/60 p-5 rounded-lg bg-gradient-to-b from-emerald-50/30 to-transparent shadow-sm">
             <div className="flex items-center gap-3">
               <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
               <h4 className="font-bold text-emerald-900 text-lg tracking-tight">Jalur SNBP (PDSS Umum)</h4>
@@ -96,7 +96,7 @@ export function PengaturanPanel({ pengaturan, mapelList }: { pengaturan: any, ma
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-3">
                 <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">1. Centang Mapel</Label>
-                <ScrollArea className="h-64 border border-slate-200/60 rounded-2xl p-4 bg-white/60 shadow-inner">
+                <ScrollArea className="h-64 border border-slate-200 rounded-lg p-4 bg-white/60 shadow-inner">
                   <div className="space-y-3">
                     {mapelList.map(m => (
                       <div key={`snbp-${m.id}`} className="flex items-start space-x-3 group">
@@ -113,7 +113,7 @@ export function PengaturanPanel({ pengaturan, mapelList }: { pengaturan: any, ma
                   <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">2. Urutkan Format PDSS</Label>
                   <span className="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{mapelSNBP.length} Mapel</span>
                 </div>
-                <div className="h-64 overflow-y-auto border border-slate-200/60 rounded-2xl p-3 bg-white/60 shadow-inner custom-scrollbar">
+                <div className="h-64 overflow-y-auto border border-slate-200 rounded-lg p-3 bg-white/60 shadow-inner custom-scrollbar">
                   {mapelSNBP.length === 0 ? <p className="text-xs text-slate-400 text-center mt-10">Belum ada mapel terpilih.</p> : (
                     <div className="space-y-2">
                       {mapelSNBP.map((mp, idx) => (
@@ -135,7 +135,7 @@ export function PengaturanPanel({ pengaturan, mapelList }: { pengaturan: any, ma
           </div>
 
           {/* BLOK SPAN */}
-          <div className="space-y-5 border border-indigo-100/60 p-5 rounded-2xl bg-gradient-to-b from-indigo-50/30 to-transparent shadow-sm">
+          <div className="space-y-5 border border-indigo-100/60 p-5 rounded-lg bg-gradient-to-b from-indigo-50/30 to-transparent shadow-sm">
             <div className="flex items-center gap-3">
               <div className="h-2.5 w-2.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]"></div>
               <h4 className="font-bold text-indigo-900 text-lg tracking-tight">Jalur SPAN-PTKIN</h4>
@@ -144,7 +144,7 @@ export function PengaturanPanel({ pengaturan, mapelList }: { pengaturan: any, ma
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-3">
                 <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">1. Centang Mapel</Label>
-                <ScrollArea className="h-64 border border-slate-200/60 rounded-2xl p-4 bg-white/60 shadow-inner">
+                <ScrollArea className="h-64 border border-slate-200 rounded-lg p-4 bg-white/60 shadow-inner">
                   <div className="space-y-3">
                     {mapelList.map(m => (
                       <div key={`span-${m.id}`} className="flex items-start space-x-3 group">
@@ -161,7 +161,7 @@ export function PengaturanPanel({ pengaturan, mapelList }: { pengaturan: any, ma
                   <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">2. Urutkan Format PTKIN</Label>
                   <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">{mapelSPAN.length} Mapel</span>
                 </div>
-                <div className="h-64 overflow-y-auto border border-slate-200/60 rounded-2xl p-3 bg-white/60 shadow-inner custom-scrollbar">
+                <div className="h-64 overflow-y-auto border border-slate-200 rounded-lg p-3 bg-white/60 shadow-inner custom-scrollbar">
                   {mapelSPAN.length === 0 ? <p className="text-xs text-slate-400 text-center mt-10">Belum ada mapel terpilih.</p> : (
                     <div className="space-y-2">
                       {mapelSPAN.map((mp, idx) => (
@@ -185,14 +185,14 @@ export function PengaturanPanel({ pengaturan, mapelList }: { pengaturan: any, ma
         </div>
 
         {/* PENGATURAN BOBOT */}
-        <div className="mt-8 bg-slate-50/50 p-6 rounded-3xl border border-slate-200/60 shadow-sm">
+        <div className="mt-8 bg-slate-50/50 p-4 rounded-lg border border-slate-200 shadow-sm">
           <Label className="font-bold text-slate-800 text-base mb-4 block">Simulasi Bobot Nilai Akhir / Ijazah</Label>
           <div className="flex flex-col sm:flex-row items-center gap-4">
             <div className="flex-1 w-full space-y-2">
               <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bobot Rata-rata 5 Semester (%)</Label>
               <Input type="number" name="bobot_rapor" value={bobotRapor} onChange={(e) => setBobotRapor(Number(e.target.value))} max={100} min={0} className="bg-white rounded-xl h-12 text-lg font-bold text-emerald-700 focus:border-emerald-500 shadow-sm" />
             </div>
-            <div className="text-2xl font-black text-slate-300 pt-6 hidden sm:block">+</div>
+            <div className="text-lg font-bold text-slate-300 pt-6 hidden sm:block">+</div>
             <div className="flex-1 w-full space-y-2">
               <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bobot Ujian Madrasah (%)</Label>
               <Input type="number" name="bobot_um" value={100 - bobotRapor} readOnly className="bg-slate-200/50 border-transparent text-slate-500 rounded-xl h-12 text-lg font-bold shadow-inner" />

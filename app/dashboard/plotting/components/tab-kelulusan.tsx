@@ -64,9 +64,9 @@ export function TabKelulusan({ siswaList }: { siswaList: SiswaType[] }) {
 
   if (siswaList.length === 0 && !successMsg) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200/60 shadow-sm">
-        <CheckCircle2 className="h-16 w-16 text-emerald-400 mb-4" />
-        <h3 className="text-xl font-bold text-slate-800">Semua Lulus!</h3>
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-white rounded-lg border border-slate-200 shadow-sm">
+        <CheckCircle2 className="h-10 w-10 text-emerald-400 mb-3" />
+        <h3 className="text-sm font-semibold text-slate-800">Semua Lulus!</h3>
         <p className="text-slate-500 mt-2">Siswa kelas 12 sudah kosong atau belum ada data baru masuk.</p>
       </div>
     )
@@ -74,11 +74,11 @@ export function TabKelulusan({ siswaList }: { siswaList: SiswaType[] }) {
 
   if (successMsg) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center bg-emerald-50/80 backdrop-blur-xl rounded-3xl border border-emerald-200/60 shadow-sm animate-in zoom-in duration-500">
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-emerald-50/80 rounded-lg border border-emerald-200/60 shadow-sm animate-in zoom-in duration-500">
         <GraduationCap className="h-24 w-24 text-emerald-500 mb-6 drop-shadow-md" />
         <h2 className="text-3xl font-black text-emerald-900 tracking-tight">Proses Kelulusan Selesai!</h2>
         <p className="text-emerald-700 mt-3 text-lg font-medium">{successMsg}</p>
-        <Button onClick={() => setSuccessMsg('')} variant="outline" className="mt-8 border-emerald-300 text-emerald-800 hover:bg-emerald-100 rounded-xl h-11 px-8 font-bold">
+        <Button onClick={() => setSuccessMsg('')} variant="outline" className="mt-8 border-emerald-300 text-emerald-800 hover:bg-emerald-100 rounded-lg h-11 px-8 font-bold">
           Selesai
         </Button>
       </div>
@@ -91,9 +91,9 @@ export function TabKelulusan({ siswaList }: { siswaList: SiswaType[] }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-1 space-y-6">
-        <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-slate-200/60 shadow-sm">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="bg-rose-100 p-2.5 rounded-xl text-rose-600 shadow-inner">
+        <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="bg-rose-100 p-2.5 rounded-lg text-rose-600 shadow-inner">
               <GraduationCap className="h-6 w-6" />
             </div>
             <h3 className="font-bold text-slate-800 text-xl tracking-tight">Kelulusan 12</h3>
@@ -103,7 +103,7 @@ export function TabKelulusan({ siswaList }: { siswaList: SiswaType[] }) {
             Ditemukan <strong className="text-rose-600 font-black">{siswaList.length}</strong> siswa kelas 12. Proses ini akan mengubah status mereka menjadi <strong className="text-slate-800">Lulus</strong> dan membersihkan data wadah kelas mereka.
           </p>
 
-          <div className="bg-orange-50 border border-orange-200 p-5 rounded-2xl mb-6 shadow-sm">
+          <div className="bg-orange-50 border border-orange-200 p-5 rounded-lg mb-6 shadow-sm">
             <div className="flex items-start gap-3 text-orange-800">
               <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
               <div className="text-sm leading-relaxed">
@@ -113,14 +113,14 @@ export function TabKelulusan({ siswaList }: { siswaList: SiswaType[] }) {
             </div>
           </div>
 
-          <Button onClick={handleLuluskan} disabled={isSubmitting || selectedSiswaIds.length === 0} className="w-full h-14 text-base font-bold gap-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 shadow-md transition-all rounded-2xl">
+          <Button onClick={handleLuluskan} disabled={isSubmitting || selectedSiswaIds.length === 0} className="w-full h-14 text-base font-bold gap-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 shadow-md transition-all rounded-lg">
             {isSubmitting ? <><Loader2 className="animate-spin h-5 w-5" /> Memproses...</> : <><GraduationCap className="h-5 w-5" /> Luluskan {selectedSiswaIds.length} Siswa</>}
           </Button>
         </div>
       </div>
 
       <div className="lg:col-span-2">
-        <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col h-[600px]">
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[600px]">
           <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h3 className="font-bold text-slate-800 text-lg">Daftar Kandidat Lulus</h3>
@@ -134,22 +134,22 @@ export function TabKelulusan({ siswaList }: { siswaList: SiswaType[] }) {
                   placeholder="Cari nama/NISN..."
                   value={searchSiswa}
                   onChange={e => setSearchSiswa(e.target.value)}
-                  className="pl-9 h-10 rounded-xl bg-white border-slate-200 focus:border-indigo-500"
+                  className="pl-9 h-10 rounded-lg bg-white border-slate-200 focus:border-indigo-500"
                 />
               </div>
 
               <Select value={filterKelas} onValueChange={setFilterKelas}>
-                <SelectTrigger className={`h-10 w-full sm:w-[160px] rounded-xl transition-colors font-semibold ${filterKelas === 'NONE' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 ring-2 ring-indigo-100' : 'bg-white'}`}>
+                <SelectTrigger className={`h-10 w-full sm:w-[160px] rounded-lg transition-colors font-semibold ${filterKelas === 'NONE' ? 'bg-indigo-50 border-indigo-200 text-indigo-700 ring-2 ring-indigo-100' : 'bg-white'}`}>
                   <SelectValue placeholder="Pilih Kelas" />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl">
+                <SelectContent className="rounded-lg">
                   <SelectItem value="NONE" disabled className="text-slate-400 italic">-- Pilih Kelas --</SelectItem>
                   <SelectItem value="ALL" className="font-bold text-indigo-600">Tampilkan Semua</SelectItem>
                   {kelasLamaUnik.map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
                 </SelectContent>
               </Select>
 
-              <div className="text-sm font-bold text-rose-700 bg-rose-100 px-4 py-2 rounded-xl border border-rose-200 shadow-sm whitespace-nowrap w-full sm:w-auto text-center">
+              <div className="text-sm font-bold text-rose-700 bg-rose-100 px-4 py-2 rounded-lg border border-rose-200 shadow-sm whitespace-nowrap w-full sm:w-auto text-center">
                 {selectedSiswaIds.length} Dipilih
               </div>
             </div>

@@ -86,17 +86,17 @@ export function DetailSiswaClient({
     const isNoData = classStr === 'Belum ada data historis' && mapels.length === 0
 
     return (
-      <div className={`border rounded-2xl overflow-hidden mb-4 shadow-sm transition-all duration-300 ${isOpen ? 'border-indigo-200 ring-4 ring-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300'}`}>
+      <div className={`border rounded-lg overflow-hidden mb-3 transition-all duration-300 ${isOpen ? 'border-indigo-200 ring-2 ring-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-200'}`}>
         <button
           onClick={() => toggleAccordion(tingkat)}
-          className={`w-full flex items-center justify-between p-4 sm:p-5 transition-colors ${isOpen ? 'bg-gradient-to-r from-indigo-50 to-white border-b border-indigo-100' : 'bg-white'}`}
+          className={`w-full flex items-center justify-between p-3 transition-colors ${isOpen ? 'bg-gradient-to-r from-indigo-50 to-white border-b border-indigo-100' : 'bg-white'}`}
         >
           <div className="flex items-center gap-4">
-            <div className={`h-12 w-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-sm transition-all duration-300 ${isOpen ? 'bg-indigo-600 text-white scale-105' : 'bg-slate-100 text-slate-500'}`}>
+            <div className={`h-9 w-9 rounded-lg flex items-center justify-center font-bold text-base shadow-sm transition-all duration-300 ${isOpen ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
               {tingkat}
             </div>
             <div className="text-left">
-              <h4 className={`font-bold text-lg sm:text-xl tracking-tight leading-tight ${isOpen ? 'text-indigo-900' : 'text-slate-800'}`}>
+              <h4 className={`font-bold text-sm font-semibold leading-tight ${isOpen ? 'text-indigo-900' : 'text-slate-800'}`}>
                 Kelas {classStr} <span className="text-xs font-semibold px-2 py-0.5 bg-white border rounded-md ml-2 text-slate-500 hidden sm:inline-block">TA: {taStr}</span>
               </h4>
               <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
@@ -110,7 +110,7 @@ export function DetailSiswaClient({
         </button>
 
         {isOpen && (
-          <div className="p-3 sm:p-5 bg-slate-50/50 animate-in slide-in-from-top-2 fade-in duration-300">
+          <div className="p-3 bg-slate-50/50 animate-in slide-in-from-top-2 fade-in duration-300">
             {isNoData ? (
               <div className="text-center py-12 text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
                 <LineChart className="h-10 w-10 mx-auto mb-3 opacity-30 text-slate-400" />
@@ -155,14 +155,14 @@ export function DetailSiswaClient({
     <div className="space-y-6">
       
       {/* HEADER PROFIL */}
-      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/60 shadow-sm flex flex-col md:flex-row items-center md:items-start gap-6 relative overflow-hidden">
+      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center md:items-start gap-6 relative overflow-hidden">
         {/* Dekorasi Latar */}
         <div className="absolute right-0 top-0 w-64 h-64 bg-emerald-50 rounded-full blur-3xl -z-0 opacity-50"></div>
         <div className="absolute left-0 bottom-0 w-32 h-32 bg-blue-50 rounded-full blur-2xl -z-0 opacity-50"></div>
         
         {/* FOTO PROFIL / INISIAL */}
         <div className="relative z-10 shrink-0">
-          <div className={`h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-gradient-to-br ${getAvatarColor(siswa.nama_lengkap)} shadow-lg flex items-center justify-center text-4xl sm:text-5xl font-black text-white border-4 border-white`}>
+          <div className={`h-20 w-20 rounded-full bg-gradient-to-br ${getAvatarColor(siswa.nama_lengkap)} shadow-lg flex items-center justify-center text-2xl font-black text-white border-4 border-white`}>
             {siswa.nama_lengkap.charAt(0).toUpperCase()}
           </div>
           {totalPoin >= 50 && (
@@ -176,13 +176,13 @@ export function DetailSiswaClient({
         <div className="relative z-10 flex-1 text-center md:text-left space-y-2 w-full">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">{siswa.nama_lengkap}</h1>
+              <h1 className="text-lg font-bold text-slate-900 tracking-tight">{siswa.nama_lengkap}</h1>
               <p className="text-sm font-bold text-slate-500 font-mono mt-1">NISN: {siswa.nisn} {siswa.nis_lokal && `• NIS: ${siswa.nis_lokal}`}</p>
             </div>
             
             {/* BADGES */}
             <div className="flex flex-wrap justify-center md:justify-end gap-2">
-              <span className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider shadow-sm border ${siswa.status === 'aktif' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : siswa.status === 'lulus' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-rose-100 text-rose-800 border-rose-200'}`}>
+              <span className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide border ${siswa.status === 'aktif' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : siswa.status === 'lulus' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-rose-100 text-rose-800 border-rose-200'}`}>
                 {siswa.status}
               </span>
               <span className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200 shadow-sm flex items-center gap-1.5">
@@ -208,14 +208,14 @@ export function DetailSiswaClient({
       <Tabs defaultValue="biodata" className="w-full">
         <div className="overflow-x-auto custom-scrollbar pb-2">
           {/* TAB DIPERSEDIKIT MENJADI 4 */}
-          <TabsList className="bg-white border p-1.5 flex w-max min-w-full h-auto shadow-sm rounded-2xl">
-            <TabsTrigger value="biodata" className="py-3 px-5 rounded-xl data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 font-bold text-sm flex-1 gap-2"><User className="h-4 w-4"/> Biodata Lengkap</TabsTrigger>
-            <TabsTrigger value="akademik_nilai" className="py-3 px-5 rounded-xl data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 font-bold text-sm flex-1 gap-2"><GraduationCap className="h-4 w-4"/> Akademik & Nilai</TabsTrigger>
-            <TabsTrigger value="disiplin" className="py-3 px-5 rounded-xl data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700 font-bold text-sm flex-1 gap-2 relative">
+          <TabsList className="bg-white border border-slate-200 p-0.5 flex w-max min-w-full h-auto rounded-lg">
+            <TabsTrigger value="biodata" className="py-2 px-3 rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-xs font-medium flex-1 gap-1.5"><User className="h-4 w-4"/> Biodata Lengkap</TabsTrigger>
+            <TabsTrigger value="akademik_nilai" className="py-2 px-3 rounded-md data-[state=active]:bg-indigo-600 data-[state=active]:text-white text-xs font-medium flex-1 gap-1.5"><GraduationCap className="h-4 w-4"/> Akademik & Nilai</TabsTrigger>
+            <TabsTrigger value="disiplin" className="py-2 px-3 rounded-md data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs font-medium flex-1 gap-1.5 relative">
               <ShieldAlert className="h-4 w-4"/> Tata Tertib
               {totalPoin > 0 && <span className="absolute top-1 right-2 h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>}
             </TabsTrigger>
-            <TabsTrigger value="izin" className="py-3 px-5 rounded-xl data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700 font-bold text-sm flex-1 gap-2"><DoorOpen className="h-4 w-4"/> Perizinan</TabsTrigger>
+            <TabsTrigger value="izin" className="py-2 px-3 rounded-md data-[state=active]:bg-orange-500 data-[state=active]:text-white text-xs font-medium flex-1 gap-1.5"><DoorOpen className="h-4 w-4"/> Perizinan</TabsTrigger>
           </TabsList>
         </div>
 
@@ -224,7 +224,7 @@ export function DetailSiswaClient({
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             
             {/* Kartu 1: Data Pribadi */}
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
               <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-4 mb-4 flex items-center gap-2"><User className="text-emerald-600 h-5 w-5"/> Data Pribadi Siswa</h3>
               <DataItem label="NIK" value={siswa.nik} />
               <DataItem label="Tempat, Tanggal Lahir" value={`${siswa.tempat_lahir || '-'}, ${siswa.tanggal_lahir ? new Date(siswa.tanggal_lahir).toLocaleDateString('id-ID') : '-'}`} />
@@ -237,7 +237,7 @@ export function DetailSiswaClient({
             </div>
 
             {/* Kartu 2: Tempat Tinggal */}
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
               <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-4 mb-4 flex items-center gap-2"><MapPin className="text-blue-600 h-5 w-5"/> Domisili & Alamat</h3>
               <DataItem label="Status Domisili / Pesantren" value={siswa.tempat_tinggal} className="bg-blue-50/50 p-3 rounded-xl border border-blue-100" />
               <DataItem label="Alamat Lengkap (Jalan/Kp)" value={siswa.alamat_lengkap} />
@@ -251,7 +251,7 @@ export function DetailSiswaClient({
             </div>
 
             {/* Kartu 3: Data Orang Tua */}
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 xl:col-span-1 md:col-span-2">
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 xl:col-span-1 md:col-span-2">
               <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-4 mb-4 flex items-center gap-2"><Users className="text-orange-600 h-5 w-5"/> Data Orang Tua / Wali</h3>
               <DataItem label="Nomor Kartu Keluarga (KK)" value={siswa.nomor_kk} className="bg-orange-50/50 p-3 rounded-xl border border-orange-100" />
               
@@ -303,15 +303,15 @@ export function DetailSiswaClient({
         {/* ======================= TAB 3: KEDISIPLINAN ======================= */}
         <TabsContent value="disiplin" className="mt-4 space-y-6 animate-in fade-in">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className={`p-6 rounded-3xl shadow-sm border md:col-span-1 flex flex-col items-center justify-center text-center ${totalPoin >= 50 ? 'bg-rose-50 border-rose-200' : totalPoin >= 20 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+            <div className={`p-4 rounded-lg border md:col-span-1 flex flex-col items-center justify-center text-center ${totalPoin >= 50 ? 'bg-rose-50 border-rose-200' : totalPoin >= 20 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
               <p className="text-sm font-bold uppercase tracking-wider mb-2 text-slate-500">Total Credit Point</p>
-              <h2 className={`text-6xl font-black ${totalPoin >= 50 ? 'text-rose-600 animate-pulse' : totalPoin >= 20 ? 'text-amber-600' : 'text-emerald-600'}`}>{totalPoin}</h2>
-              {totalPoin >= 50 && <p className="mt-4 text-xs font-bold text-white bg-rose-600 px-4 py-2 rounded-xl shadow-md">PERINGATAN: Memenuhi Syarat SP / Panggilan Orang Tua</p>}
+              <h2 className={`text-5xl font-black ${totalPoin >= 50 ? 'text-rose-600 animate-pulse' : totalPoin >= 20 ? 'text-amber-600' : 'text-emerald-600'}`}>{totalPoin}</h2>
+              {totalPoin >= 50 && <p className="mt-2 text-xs font-medium text-white bg-rose-600 px-3 py-1.5 rounded-lg shadow-md">PERINGATAN: Memenuhi Syarat SP / Panggilan Orang Tua</p>}
               {totalPoin === 0 && <p className="mt-4 text-sm font-bold text-emerald-700"><CheckCircle2 className="inline h-5 w-5 mb-1"/> Bersih dari pelanggaran</p>}
             </div>
 
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 md:col-span-2 overflow-hidden flex flex-col h-[400px]">
-              <h3 className="text-base font-bold text-slate-800 p-4 border-b bg-slate-50 flex items-center gap-2">
+            <div className="bg-white rounded-lg border border-slate-200 md:col-span-2 overflow-hidden flex flex-col h-80">
+              <h3 className="text-sm font-semibold text-slate-800 px-3 py-2.5 border-b bg-slate-50 flex items-center gap-2">
                 <History className="h-5 w-5 text-slate-500"/> Riwayat Pelanggaran Tercatat
               </h3>
               <ScrollArea className="flex-1">
@@ -350,7 +350,7 @@ export function DetailSiswaClient({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             {/* IZIN KELUAR KOMPLEK */}
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[500px]">
+            <div className="bg-white rounded-lg border border-slate-200 overflow-hidden flex flex-col h-96">
               <div className="p-4 border-b bg-blue-50/50 flex items-center gap-2">
                 <DoorOpen className="h-5 w-5 text-blue-600" />
                 <h3 className="font-bold text-slate-800">Riwayat Keluar Komplek</h3>
@@ -359,7 +359,7 @@ export function DetailSiswaClient({
                 {izinKeluar.length === 0 ? <p className="text-center text-sm text-slate-400 mt-10">Tidak ada riwayat izin keluar komplek.</p> : (
                   <div className="space-y-3">
                     {izinKeluar.map(k => (
-                      <div key={k.id} className="border border-slate-200 rounded-2xl p-3 shadow-sm hover:border-blue-300 transition-colors">
+                      <div key={k.id} className="border border-slate-200 rounded-lg p-2.5 hover:border-blue-300 transition-colors">
                         <div className="flex justify-between items-start mb-2">
                           <span className="text-xs font-bold text-slate-500">{new Date(k.waktu_keluar).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                           <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${k.status === 'BELUM KEMBALI' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{k.status}</span>
@@ -383,7 +383,7 @@ export function DetailSiswaClient({
             </div>
 
             {/* IZIN KELAS */}
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[500px]">
+            <div className="bg-white rounded-lg border border-slate-200 overflow-hidden flex flex-col h-96">
               <div className="p-4 border-b bg-indigo-50/50 flex items-center gap-2">
                 <Users className="h-5 w-5 text-indigo-600" />
                 <h3 className="font-bold text-slate-800">Riwayat Izin Tidak Masuk Kelas</h3>
@@ -392,7 +392,7 @@ export function DetailSiswaClient({
                 {izinKelas.length === 0 ? <p className="text-center text-sm text-slate-400 mt-10">Tidak ada riwayat izin jam pelajaran.</p> : (
                   <div className="space-y-3">
                     {izinKelas.map(k => (
-                      <div key={k.id} className="border border-slate-200 rounded-2xl p-3 shadow-sm relative overflow-hidden hover:border-indigo-300 transition-colors">
+                      <div key={k.id} className="border border-slate-200 rounded-lg p-2.5 relative overflow-hidden hover:border-indigo-300 transition-colors">
                         <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500"></div>
                         <div className="pl-3">
                           <div className="flex justify-between items-start mb-2">

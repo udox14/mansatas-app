@@ -1,5 +1,3 @@
-// TIMPA SELURUH ISI FILE INI
-// Lokasi: app/dashboard/kedisiplinan/components/form-modal.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -14,10 +12,7 @@ import { simpanPelanggaran } from '../actions'
 
 const initialState = { error: null as string | null, success: null as string | null }
 
-// ==============================================================================
-// HELPER: FUNGSI KOMPRESI GAMBAR (CLIENT-SIDE)
-// Mengubah foto 5MB+ menjadi ~150KB tanpa kehilangan kejelasan bukti
-// ==============================================================================
+// Kompresi gambar client-side sebelum upload
 const compressImage = async (file: File): Promise<File> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -27,74 +22,42 @@ const compressImage = async (file: File): Promise<File> => {
       img.src = event.target?.result as string
       img.onload = () => {
         const canvas = document.createElement('canvas')
-        const MAX_WIDTH = 1024 // Resolusi aman untuk bukti
-        const MAX_HEIGHT = 1024
-        let width = img.width
-        let height = img.height
-
-        // Kalkulasi rasio aspek
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width
-            width = MAX_WIDTH
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height
-            height = MAX_HEIGHT
-          }
-        }
-
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext('2d')
-        ctx?.drawImage(img, 0, 0, width, height)
-
-        // Konversi ke Blob JPEG Kualitas 70%
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              // Ubah ekstensi file asli menjadi .jpg
-              const newName = file.name.replace(/\.[^/.]+$/, "") + "_compressed.jpg"
-              const newFile = new File([blob], newName, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-              })
-              resolve(newFile)
-            } else {
-              resolve(file) // Fallback jika gagal
-            }
-          },
-          'image/jpeg',
-          0.7 
-        )
+        const MAX = 1024
+        let w = img.width, h = img.height
+        if (w > h) { if (w > MAX) { h *= MAX / w; w = MAX } }
+        else { if (h > MAX) { w *= MAX / h; h = MAX } }
+        canvas.width = w; canvas.height = h
+        canvas.getContext('2d')?.drawImage(img, 0, 0, w, h)
+        canvas.toBlob(blob => {
+          if (blob) {
+            const name = file.name.replace(/\.[^/.]+$/, '') + '_compressed.jpg'
+            resolve(new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() }))
+          } else resolve(file)
+        }, 'image/jpeg', 0.7)
       }
-      img.onerror = (err) => reject(err)
+      img.onerror = reject
     }
-    reader.onerror = (err) => reject(err)
+    reader.onerror = reject
   })
 }
 
 function SubmitBtn({ isEdit }: { isEdit: boolean }) {
   const { pending } = useFormStatus()
   return (
-    <Button type="submit" disabled={pending} className="w-full bg-rose-600 hover:bg-rose-700 h-14 text-white rounded-2xl shadow-md font-bold mt-4 text-base">
-      {pending ? <><Loader2 className="mr-2 h-5 w-5 animate-spin"/> Memproses & Kompresi...</> : isEdit ? 'Simpan Perubahan' : 'Catat Pelanggaran'}
+    <Button type="submit" disabled={pending} className="w-full h-9 text-sm bg-rose-600 hover:bg-rose-700 text-white rounded-md mt-2">
+      {pending ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memproses...</> : isEdit ? 'Simpan Perubahan' : 'Catat Pelanggaran'}
     </Button>
   )
 }
 
-export function FormModal({ 
-  isOpen, onClose, editData, siswaList, masterList
-}: { 
-  isOpen: boolean, onClose: () => void, editData: any,
-  siswaList: {id: string, nama_lengkap: string, kelas: string}[],
-  masterList: {id: string, nama_pelanggaran: string, poin: number}[]
+export function FormModal({ isOpen, onClose, editData, siswaList, masterList }: {
+  isOpen: boolean; onClose: () => void; editData: any
+  siswaList: { id: string; nama_lengkap: string; kelas: string }[]
+  masterList: { id: string; nama_pelanggaran: string; poin: number }[]
 }) {
   const [state, formAction] = useActionState(simpanPelanggaran, initialState)
   const today = new Date().toISOString().split('T')[0]
 
-  // Autocomplete State
   const [searchSiswa, setSearchSiswa] = useState('')
   const [selectedSiswaId, setSelectedSiswaId] = useState('')
   const [showSiswaDropdown, setShowSiswaDropdown] = useState(false)
@@ -122,137 +85,135 @@ export function FormModal({
     }
   }, [state?.success, onClose])
 
-  // ==============================================================================
-  // INTERCEPT FORM SUBMISSION UNTUK KOMPRESI FOTO
-  // ==============================================================================
   const clientAction = async (formData: FormData) => {
     const file = formData.get('foto') as File
-    
-    // Jika user mengunggah file dan file tersebut adalah gambar
     if (file && file.size > 0 && file.type.startsWith('image/')) {
       try {
-        const compressedFile = await compressImage(file)
-        formData.set('foto', compressedFile) // Timpa file asli dengan file yang sudah dikompres
-      } catch (error) {
-        console.error('Gagal mengompres gambar', error)
-      }
+        formData.set('foto', await compressImage(file))
+      } catch (e) { console.error('Kompres gagal', e) }
     }
-    
-    // Lanjutkan eksekusi ke Server Action
     formAction(formData)
   }
 
-  // Filter logika (Dibatasi 20 item agar tidak lag di HP)
   const filteredSiswa = siswaList.filter(s => s.nama_lengkap.toLowerCase().includes(searchSiswa.toLowerCase())).slice(0, 20)
   const filteredMaster = masterList.filter(m => m.nama_pelanggaran.toLowerCase().includes(searchMaster.toLowerCase())).slice(0, 20)
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg rounded-3xl bg-white/95 backdrop-blur-xl shadow-2xl border-slate-200/60 p-4 sm:p-6 max-h-[90vh] overflow-y-auto custom-scrollbar">
-        <DialogHeader className="border-b border-slate-100 pb-4">
-          <DialogTitle className="text-xl font-bold text-slate-800">
+    <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
+      <DialogContent className="sm:max-w-lg rounded-xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="border-b pb-3">
+          <DialogTitle className="text-sm font-semibold text-slate-800">
             {editData ? 'Edit Catatan Pelanggaran' : 'Lapor Pelanggaran Baru'}
           </DialogTitle>
         </DialogHeader>
 
-        {/* PERHATIKAN: action diarahkan ke clientAction, BUKAN formAction secara langsung */}
-        <form action={clientAction} className="space-y-5 pt-2">
-          {state?.error && <div className="p-3 text-sm font-medium text-rose-600 bg-rose-50 rounded-xl border border-rose-100 flex gap-2"><AlertCircle className="h-4 w-4 shrink-0"/> {state.error}</div>}
-          {state?.success && <div className="p-3 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-100 flex gap-2"><CheckCircle2 className="h-4 w-4 shrink-0"/> {state.success}</div>}
+        <form action={clientAction} className="space-y-3 pt-1">
+          {state?.error && (
+            <div className="p-2.5 text-xs text-rose-600 bg-rose-50 rounded-lg border border-rose-100 flex gap-2">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {state.error}
+            </div>
+          )}
+          {state?.success && (
+            <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-100 flex gap-2">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {state.success}
+            </div>
+          )}
 
           {editData && <input type="hidden" name="id" value={editData.id} />}
           {editData?.foto_url && <input type="hidden" name="existing_foto_url" value={editData.foto_url} />}
-          
           <input type="hidden" name="siswa_id" value={selectedSiswaId} />
           <input type="hidden" name="master_pelanggaran_id" value={selectedMasterId} />
 
-          <div className="space-y-2 relative">
-            <Label className="font-bold text-slate-600 text-xs uppercase tracking-wider">Cari Siswa Terlapor <span className="text-rose-500">*</span></Label>
+          {/* SISWA AUTOCOMPLETE */}
+          <div className="space-y-1.5 relative">
+            <Label className="text-xs font-semibold text-slate-600">Siswa Terlapor <span className="text-rose-500">*</span></Label>
             <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-              <Input 
-                placeholder="Ketik 3 huruf nama siswa..." 
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <Input
+                placeholder="Ketik nama siswa..."
                 value={searchSiswa}
-                onChange={(e) => { setSearchSiswa(e.target.value); setShowSiswaDropdown(true); setSelectedSiswaId('') }}
+                onChange={e => { setSearchSiswa(e.target.value); setShowSiswaDropdown(true); setSelectedSiswaId('') }}
                 onFocus={() => setShowSiswaDropdown(true)}
                 onBlur={() => setTimeout(() => setShowSiswaDropdown(false), 200)}
-                className={`pl-11 h-12 rounded-xl bg-slate-50 focus:bg-white focus:border-rose-500 text-base ${selectedSiswaId ? 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/30' : ''}`}
+                className={`pl-8 h-8 text-sm rounded-md bg-slate-50 ${selectedSiswaId ? 'border-emerald-400 bg-emerald-50/30' : ''}`}
                 required={!selectedSiswaId}
               />
             </div>
             {showSiswaDropdown && searchSiswa.length > 1 && (
-              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar">
-                {filteredSiswa.length === 0 ? (
-                  <div className="p-4 text-center text-sm text-slate-500">Siswa tidak ditemukan</div>
-                ) : (
-                  filteredSiswa.map(s => (
-                    <div 
-                      key={s.id} 
-                      onMouseDown={(e) => e.preventDefault()} 
-                      onClick={() => { setSelectedSiswaId(s.id); setSearchSiswa(s.nama_lengkap); setShowSiswaDropdown(false) }} 
-                      className="p-3 hover:bg-rose-50 cursor-pointer border-b border-slate-50 transition-colors flex justify-between items-center"
+              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                {filteredSiswa.length === 0
+                  ? <div className="p-3 text-xs text-center text-slate-400">Siswa tidak ditemukan</div>
+                  : filteredSiswa.map(s => (
+                    <div
+                      key={s.id}
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => { setSelectedSiswaId(s.id); setSearchSiswa(s.nama_lengkap); setShowSiswaDropdown(false) }}
+                      className="px-3 py-2 hover:bg-rose-50 cursor-pointer border-b border-slate-50 flex justify-between items-center"
                     >
-                      <span className="font-bold text-slate-800 text-sm">{s.nama_lengkap}</span>
-                      <span className="text-[10px] font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-600">{s.kelas}</span>
+                      <span className="text-xs font-medium text-slate-800">{s.nama_lengkap}</span>
+                      <span className="text-[10px] font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 shrink-0 ml-2">{s.kelas}</span>
                     </div>
                   ))
-                )}
+                }
               </div>
             )}
           </div>
 
-          <div className="space-y-2 relative">
-            <Label className="font-bold text-slate-600 text-xs uppercase tracking-wider">Jenis Kasus Pelanggaran <span className="text-rose-500">*</span></Label>
+          {/* KASUS AUTOCOMPLETE */}
+          <div className="space-y-1.5 relative">
+            <Label className="text-xs font-semibold text-slate-600">Jenis Pelanggaran <span className="text-rose-500">*</span></Label>
             <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-              <Input 
-                placeholder="Ketik kata kunci kasus (contoh: HP, Telat)..." 
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <Input
+                placeholder="Cari jenis kasus (HP, Telat, ...)"
                 value={searchMaster}
-                onChange={(e) => { setSearchMaster(e.target.value); setShowMasterDropdown(true); setSelectedMasterId('') }}
+                onChange={e => { setSearchMaster(e.target.value); setShowMasterDropdown(true); setSelectedMasterId('') }}
                 onFocus={() => setShowMasterDropdown(true)}
                 onBlur={() => setTimeout(() => setShowMasterDropdown(false), 200)}
-                className={`pl-11 h-12 rounded-xl bg-slate-50 focus:bg-white focus:border-rose-500 text-base ${selectedMasterId ? 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/30' : ''}`}
+                className={`pl-8 h-8 text-sm rounded-md bg-slate-50 ${selectedMasterId ? 'border-emerald-400 bg-emerald-50/30' : ''}`}
                 required={!selectedMasterId}
               />
             </div>
             {showMasterDropdown && searchMaster.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar">
-                {filteredMaster.length === 0 ? (
-                  <div className="p-4 text-center text-sm text-slate-500">Kasus tidak ditemukan</div>
-                ) : (
-                  filteredMaster.map(m => (
-                    <div 
-                      key={m.id} 
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => { setSelectedMasterId(m.id); setSearchMaster(m.nama_pelanggaran); setShowMasterDropdown(false) }} 
-                      className="p-3 hover:bg-rose-50 cursor-pointer border-b border-slate-50 transition-colors flex justify-between items-center"
+              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                {filteredMaster.length === 0
+                  ? <div className="p-3 text-xs text-center text-slate-400">Kasus tidak ditemukan</div>
+                  : filteredMaster.map(m => (
+                    <div
+                      key={m.id}
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => { setSelectedMasterId(m.id); setSearchMaster(m.nama_pelanggaran); setShowMasterDropdown(false) }}
+                      className="px-3 py-2 hover:bg-rose-50 cursor-pointer border-b border-slate-50 flex justify-between items-center gap-2"
                     >
-                      <span className="font-bold text-slate-700 text-sm line-clamp-2 pr-2">{m.nama_pelanggaran}</span>
-                      <span className="text-[10px] font-black bg-rose-100 text-rose-700 px-2 py-1 rounded shrink-0">+{m.poin} Poin</span>
+                      <span className="text-xs text-slate-700 line-clamp-1">{m.nama_pelanggaran}</span>
+                      <span className="text-[10px] font-bold bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded shrink-0">+{m.poin}p</span>
                     </div>
                   ))
-                )}
+                }
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="font-bold text-slate-600 text-xs uppercase tracking-wider">Tanggal Kejadian <span className="text-rose-500">*</span></Label>
-              <Input type="date" name="tanggal" defaultValue={editData?.tanggal || today} required className="h-12 rounded-xl bg-slate-50 text-base" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">Tanggal <span className="text-rose-500">*</span></Label>
+              <Input type="date" name="tanggal" defaultValue={editData?.tanggal || today} required className="h-8 text-xs rounded-md bg-slate-50" />
             </div>
-            <div className="space-y-2">
-              <Label className="font-bold text-slate-600 text-xs uppercase tracking-wider">Foto Bukti (Otomatis Kompres)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">Foto Bukti <span className="text-slate-400 font-normal">(otomatis kompres)</span></Label>
               <div className="relative">
-                <Camera className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                <Input type="file" name="foto" accept="image/*" capture="environment" className="h-12 pl-11 pt-2.5 rounded-xl bg-slate-50 file:hidden cursor-pointer text-sm" />
+                <Camera className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <Input
+                  type="file" name="foto" accept="image/*" capture="environment"
+                  className="h-8 pl-8 pt-1 text-xs rounded-md bg-slate-50 file:hidden cursor-pointer"
+                />
               </div>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="font-bold text-slate-600 text-xs uppercase tracking-wider">Keterangan / Kronologi Singkat</Label>
-            <Input name="keterangan" defaultValue={editData?.keterangan || ''} placeholder="Opsional: Tertangkap di kantin..." className="h-12 rounded-xl bg-slate-50 text-base" />
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-600">Keterangan <span className="text-slate-400 font-normal">(opsional)</span></Label>
+            <Input name="keterangan" defaultValue={editData?.keterangan || ''} placeholder="Kronologi singkat..." className="h-8 text-sm rounded-md bg-slate-50" />
           </div>
 
           <SubmitBtn isEdit={!!editData} />

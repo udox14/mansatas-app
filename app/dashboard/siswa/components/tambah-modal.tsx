@@ -16,8 +16,8 @@ const initialState = { error: null as string | null, success: null as string | n
 function SubmitButton() {
   const { pending } = useFormStatus()
   return (
-    <Button type="submit" disabled={pending} className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl shadow-md h-11">
-      {pending ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Menyimpan...</> : 'Simpan Siswa'}
+    <Button type="submit" disabled={pending} className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-md">
+      {pending ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Menyimpan...</> : 'Simpan Siswa'}
     </Button>
   )
 }
@@ -36,74 +36,75 @@ export function TambahModal() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2 h-11 px-5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all flex-1 sm:flex-none border-0">
-          <UserPlus className="h-4 w-4" />
-          Tambah Manual
+        <Button size="sm" className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md px-3">
+          <UserPlus className="h-3.5 w-3.5" /> Tambah Manual
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md rounded-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-slate-800">Tambah Data Siswa Baru</DialogTitle>
+      <DialogContent className="sm:max-w-md rounded-xl">
+        <DialogHeader className="border-b pb-3">
+          <DialogTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+            <UserPlus className="h-4 w-4 text-emerald-600" /> Tambah Data Siswa Baru
+          </DialogTitle>
         </DialogHeader>
 
-        <form action={formAction} className="space-y-5 py-2">
+        <form action={formAction} className="space-y-3 pt-1">
           {state?.error && (
-            <div className="p-3 text-sm font-medium text-rose-600 bg-rose-50 rounded-xl border border-rose-100 flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5"/> {state.error}
+            <div className="p-2.5 text-xs text-rose-600 bg-rose-50 rounded-lg border border-rose-100 flex items-start gap-2">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {state.error}
             </div>
           )}
           {state?.success && (
-            <div className="p-3 text-sm font-medium text-emerald-600 bg-emerald-50 rounded-xl border border-emerald-100 flex items-start gap-2">
-              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5"/> {state.success}
+            <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-100 flex items-start gap-2">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {state.success}
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="nisn" className="text-slate-600 font-medium">NISN <span className="text-rose-500">*</span></Label>
-            <Input id="nisn" name="nisn" required placeholder="Contoh: 0051234567" className="rounded-xl bg-slate-50 focus:bg-white focus:border-emerald-500 transition-colors" />
+          <div className="space-y-1.5">
+            <Label htmlFor="nisn" className="text-xs font-semibold text-slate-600">NISN <span className="text-rose-500">*</span></Label>
+            <Input id="nisn" name="nisn" required placeholder="Contoh: 0051234567" className="h-8 text-sm rounded-md bg-slate-50" />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="nama_lengkap" className="text-slate-600 font-medium">Nama Lengkap <span className="text-rose-500">*</span></Label>
-            <Input id="nama_lengkap" name="nama_lengkap" required placeholder="Sesuai ijazah sebelumnya" className="rounded-xl bg-slate-50 focus:bg-white focus:border-emerald-500 transition-colors" />
+          <div className="space-y-1.5">
+            <Label htmlFor="nama_lengkap" className="text-xs font-semibold text-slate-600">Nama Lengkap <span className="text-rose-500">*</span></Label>
+            <Input id="nama_lengkap" name="nama_lengkap" required placeholder="Sesuai ijazah sebelumnya" className="h-8 text-sm rounded-md bg-slate-50" />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="nis_lokal" className="text-slate-600 font-medium">NIS Lokal (Opsional)</Label>
-            <Input id="nis_lokal" name="nis_lokal" placeholder="Nomor Induk Siswa internal" className="rounded-xl bg-slate-50 focus:bg-white focus:border-emerald-500 transition-colors" />
+          <div className="space-y-1.5">
+            <Label htmlFor="nis_lokal" className="text-xs font-semibold text-slate-600">NIS Lokal <span className="text-slate-400 font-normal">(opsional)</span></Label>
+            <Input id="nis_lokal" name="nis_lokal" placeholder="Nomor Induk Siswa internal" className="h-8 text-sm rounded-md bg-slate-50" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="jenis_kelamin" className="text-slate-600 font-medium">Jenis Kelamin</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">Jenis Kelamin</Label>
               <Select name="jenis_kelamin" defaultValue="L">
-                <SelectTrigger className="rounded-xl bg-slate-50 focus:ring-emerald-500">
-                  <SelectValue placeholder="Pilih JK" />
+                <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50">
+                  <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  <SelectItem value="L">Laki-laki (L)</SelectItem>
-                  <SelectItem value="P">Perempuan (P)</SelectItem>
+                <SelectContent>
+                  <SelectItem value="L" className="text-xs">Laki-laki (L)</SelectItem>
+                  <SelectItem value="P" className="text-xs">Perempuan (P)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="tempat_tinggal" className="text-slate-600 font-medium">Domisili</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">Domisili</Label>
               <Select name="tempat_tinggal" defaultValue="Non-Pesantren">
-                <SelectTrigger className="rounded-xl bg-slate-50 focus:ring-emerald-500">
-                  <SelectValue placeholder="Pilih Domisili" />
+                <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50">
+                  <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  <SelectItem value="Non-Pesantren">Non-Pesantren</SelectItem>
-                  <SelectItem value="Pesantren Sukahideng">Pesantren Sukahideng</SelectItem>
-                  <SelectItem value="Pesantren Sukamanah">Pesantren Sukamanah</SelectItem>
-                  <SelectItem value="Pesantren Sukaguru">Pesantren Sukaguru</SelectItem>
-                  <SelectItem value="Pesantren Al-Ma'mur">Pesantren Al-Ma'mur</SelectItem>
+                <SelectContent>
+                  <SelectItem value="Non-Pesantren" className="text-xs">Non-Pesantren</SelectItem>
+                  <SelectItem value="Pesantren Sukahideng" className="text-xs">Pesantren Sukahideng</SelectItem>
+                  <SelectItem value="Pesantren Sukamanah" className="text-xs">Pesantren Sukamanah</SelectItem>
+                  <SelectItem value="Pesantren Sukaguru" className="text-xs">Pesantren Sukaguru</SelectItem>
+                  <SelectItem value="Pesantren Al-Ma'mur" className="text-xs">Pesantren Al-Ma'mur</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          <div className="pt-2">
+          <div className="pt-1">
             <SubmitButton />
           </div>
         </form>
