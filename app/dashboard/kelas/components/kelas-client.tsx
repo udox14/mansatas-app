@@ -34,7 +34,7 @@ function WaliKelasSelector({ value, onChange, daftarGuru, disabled }: { value: s
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex items-center justify-between w-full h-8 px-2.5 border rounded text-xs font-medium transition-colors disabled:opacity-50",
-          isOpen ? 'bg-white border-blue-400 ring-1 ring-blue-200' : 'bg-slate-50 border-slate-200 hover:bg-white text-slate-700'
+          isOpen ? 'bg-surface border-blue-400 ring-1 ring-blue-200' : 'bg-surface-2 border-surface hover:bg-surface text-slate-700'
         )}
       >
         <span className="truncate">{selected ? selected.nama_lengkap : <span className="text-slate-400 italic">— Kosong —</span>}</span>
@@ -43,18 +43,18 @@ function WaliKelasSelector({ value, onChange, daftarGuru, disabled }: { value: s
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute z-50 top-full left-0 mt-1 w-full min-w-[200px] bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden">
-            <div className="p-1.5 border-b border-slate-100">
+          <div className="absolute z-50 top-full left-0 mt-1 w-full min-w-[200px] bg-surface border border-surface rounded-lg shadow-lg overflow-hidden">
+            <div className="p-1.5 border-b border-surface-2">
               <div className="relative">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
-                <Input autoFocus placeholder="Cari guru..." value={search} onChange={e => setSearch(e.target.value)} className="pl-7 h-7 text-xs rounded border-slate-200" />
+                <Input autoFocus placeholder="Cari guru..." value={search} onChange={e => setSearch(e.target.value)} className="pl-7 h-7 text-xs rounded border-surface" />
               </div>
             </div>
             <div className="max-h-44 overflow-y-auto p-1 space-y-0.5">
-              <div onClick={() => { onChange('none'); setIsOpen(false) }} className="px-2.5 py-1.5 text-xs text-slate-400 italic hover:bg-slate-50 rounded cursor-pointer">— Kosongkan —</div>
+              <div onClick={() => { onChange('none'); setIsOpen(false) }} className="px-2.5 py-1.5 text-xs text-slate-400 italic hover:bg-surface-2 rounded cursor-pointer">— Kosongkan —</div>
               {filtered.map(g => (
                 <div key={g.id} onClick={() => { onChange(g.id); setIsOpen(false) }}
-                  className={cn("px-2.5 py-1.5 text-xs rounded cursor-pointer transition-colors", value === g.id ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-slate-50 text-slate-700')}
+                  className={cn("px-2.5 py-1.5 text-xs rounded cursor-pointer transition-colors", value === g.id ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-surface-2 text-slate-700')}
                 >{g.nama_lengkap}</div>
               ))}
               {filtered.length === 0 && <div className="px-2.5 py-3 text-center text-xs text-slate-400">Tidak ditemukan</div>}
@@ -115,7 +115,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
       <EditModal isOpen={!!editingKelas} onClose={() => setEditingKelas(null)} kelasData={editingKelas} daftarGuru={daftarGuru} daftarJurusan={daftarJurusan} />
 
       {/* TOOLBAR */}
-      <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-wrap gap-2 items-center">
+      <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           <Input placeholder="Cari kelas atau wali..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
@@ -137,12 +137,12 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
 
       {/* SUMMARY STRIP */}
       <div className="flex gap-3">
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 bg-surface border border-surface rounded-lg px-3 py-2">
           <Library className="h-4 w-4 text-blue-500" />
           <span className="text-xs text-slate-500">Total Kelas</span>
           <span className="text-sm font-bold text-slate-800">{sortedData.length}</span>
         </div>
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 bg-surface border border-surface rounded-lg px-3 py-2">
           <Users className="h-4 w-4 text-emerald-500" />
           <span className="text-xs text-slate-500">Siswa</span>
           <span className="text-sm font-bold text-slate-800">{sortedData.reduce((a, k) => a + k.jumlah_siswa, 0)}</span>
@@ -152,7 +152,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
       {/* MOBILE CARDS */}
       <div className="block xl:hidden space-y-2">
         {sortedData.length === 0 ? (
-          <div className="bg-white py-10 rounded-lg border border-slate-200 text-center">
+          <div className="bg-surface py-10 rounded-lg border border-surface text-center">
             <Library className="h-7 w-7 text-slate-300 mx-auto mb-2" />
             <p className="text-sm text-slate-400">Belum ada kelas.</p>
           </div>
@@ -166,8 +166,8 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
 
           return (
             <div key={k.id} className={cn(
-              "bg-white border rounded-lg p-3 space-y-2.5 transition-colors",
-              isPending ? 'border-blue-300 bg-blue-50/30' : !isJurusanValid ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'
+              "bg-surface border rounded-lg p-3 space-y-2.5 transition-colors",
+              isPending ? 'border-blue-300 bg-blue-50/30' : !isJurusanValid ? 'border-rose-300 bg-rose-50/20' : 'border-surface'
             )}>
               {/* Header row */}
               <div className="flex items-center justify-between cursor-pointer" onClick={() => router.push(`/dashboard/kelas/${k.id}`)}>
@@ -180,7 +180,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600 border-slate-200')}>
+                  <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 border-surface')}>
                     {k.jumlah_siswa}/{k.kapasitas}
                   </span>
                   <ChevronRight className="h-4 w-4 text-slate-400" />
@@ -188,7 +188,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
               </div>
 
               {/* Progress bar */}
-              <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-1 bg-surface-3 rounded-full overflow-hidden">
                 <div className={cn("h-full rounded-full", isFull ? 'bg-red-500' : 'bg-blue-500')} style={{ width: `${pct}%` }} />
               </div>
 
@@ -197,7 +197,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
                 <div>
                   <p className="text-[10px] font-medium text-slate-400 mb-1">Jurusan</p>
                   <Select value={currentKelompok} onValueChange={v => handleQueueChange(k.id, 'kelompok', v)} disabled={isSavingBatch}>
-                    <SelectTrigger className={cn("h-8 text-xs rounded", pendingChanges[k.id]?.kelompok !== undefined ? 'bg-blue-50 border-blue-300 text-blue-700' : !isJurusanValid ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-200')}>
+                    <SelectTrigger className={cn("h-8 text-xs rounded", pendingChanges[k.id]?.kelompok !== undefined ? 'bg-blue-50 border-blue-300 text-blue-700' : !isJurusanValid ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-surface-2 border-surface')}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>{daftarJurusan.map(j => <SelectItem key={j} value={j} className="text-xs">{j}</SelectItem>)}</SelectContent>
@@ -210,7 +210,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
               </div>
 
               {/* Action row */}
-              <div className="flex justify-end gap-1.5 pt-1 border-t border-slate-100">
+              <div className="flex justify-end gap-1.5 pt-1 border-t border-surface-2">
                 <button onClick={() => setEditingKelas(k)} className="p-1.5 rounded text-blue-600 hover:bg-blue-50 transition-colors">
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
@@ -228,10 +228,10 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
       </div>
 
       {/* DESKTOP TABLE */}
-      <div className="hidden xl:block bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div className="hidden xl:block bg-surface rounded-lg border border-surface overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50 hover:bg-slate-50">
+            <TableRow className="bg-surface-2 hover:bg-surface-2">
               <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 w-32">Kelas</TableHead>
               <TableHead className="h-9 text-xs font-semibold text-slate-500 w-44">Jurusan</TableHead>
               <TableHead className="h-9 text-xs font-semibold text-slate-500">Wali Kelas</TableHead>
@@ -252,8 +252,8 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
 
               return (
                 <TableRow key={k.id} className={cn(
-                  "border-slate-100 group transition-colors",
-                  isRowPending ? 'bg-blue-50/40 border-l-2 border-l-blue-400' : 'hover:bg-slate-50/60'
+                  "border-surface-2 group transition-colors",
+                  isRowPending ? 'bg-blue-50/40 border-l-2 border-l-blue-400' : 'hover:bg-surface-2/60'
                 )}>
                   <TableCell className="px-4 py-2.5 cursor-pointer" onClick={() => router.push(`/dashboard/kelas/${k.id}`)}>
                     <span className="text-base font-bold text-slate-800 group-hover:text-blue-700 transition-colors">
@@ -263,7 +263,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
                   </TableCell>
                   <TableCell className="py-2.5">
                     <Select value={currentKelompok} onValueChange={v => handleQueueChange(k.id, 'kelompok', v)} disabled={isSavingBatch}>
-                      <SelectTrigger className={cn("h-7 w-36 text-xs rounded", pendingChanges[k.id]?.kelompok !== undefined ? 'bg-blue-50 border-blue-300 text-blue-700' : !isJurusanValid ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-slate-50 border-slate-200')}>
+                      <SelectTrigger className={cn("h-7 w-36 text-xs rounded", pendingChanges[k.id]?.kelompok !== undefined ? 'bg-blue-50 border-blue-300 text-blue-700' : !isJurusanValid ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-surface-2 border-surface')}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>{daftarJurusan.map(j => <SelectItem key={j} value={j} className="text-xs">{j}</SelectItem>)}</SelectContent>
@@ -279,10 +279,10 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
                   </TableCell>
                   <TableCell className="py-2.5">
                     <div className="flex flex-col items-center gap-1">
-                      <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600 border-slate-200')}>
+                      <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 border-surface')}>
                         {k.jumlah_siswa} / {k.kapasitas}
                       </span>
-                      <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="w-20 h-1.5 bg-surface-3 rounded-full overflow-hidden">
                         <div className={cn("h-full rounded-full", isFull ? 'bg-red-500' : 'bg-blue-500')} style={{ width: `${pct}%` }} />
                       </div>
                     </div>

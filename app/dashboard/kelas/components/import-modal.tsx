@@ -57,7 +57,7 @@ export function ImportModal() {
       <Script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" strategy="lazyOnload" />
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 border-slate-200 rounded-md px-3">
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 border-surface rounded-md px-3">
             <FileSpreadsheet className="h-3.5 w-3.5" /> Import Excel
           </Button>
         </DialogTrigger>
@@ -76,9 +76,9 @@ export function ImportModal() {
               </div>
             )}
 
-            <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-surface-2 border border-surface-2 rounded-lg">
               <p className="text-xs text-slate-600">Belum punya format Excel?</p>
-              <Button type="button" size="sm" variant="outline" onClick={handleDownloadTemplate} className="h-7 text-xs gap-1.5 rounded-md bg-white ml-3 shrink-0">
+              <Button type="button" size="sm" variant="outline" onClick={handleDownloadTemplate} className="h-7 text-xs gap-1.5 rounded-md bg-surface ml-3 shrink-0">
                 <Download className="h-3 w-3" /> Template
               </Button>
             </div>
@@ -92,7 +92,7 @@ export function ImportModal() {
                 ['WALI_KELAS', 'Nama guru (opsional)'],
               ].map(([col, desc]) => (
                 <div key={col} className="flex items-baseline gap-2">
-                  <code className="bg-white px-1.5 py-0.5 rounded border border-blue-100 text-blue-700 font-mono shrink-0">{col}</code>
+                  <code className="bg-surface px-1.5 py-0.5 rounded border border-blue-100 text-blue-700 font-mono shrink-0">{col}</code>
                   <span className="text-blue-700/70">{desc}</span>
                 </div>
               ))}
@@ -103,7 +103,7 @@ export function ImportModal() {
               accept=".xlsx, .xls"
               onChange={handleFileUpload}
               disabled={isUploading}
-              className="cursor-pointer file:cursor-pointer h-9 pt-1.5 text-xs rounded-md border-slate-200"
+              className="cursor-pointer file:cursor-pointer h-9 pt-1.5 text-xs rounded-md border-surface"
             />
 
             {isUploading && (

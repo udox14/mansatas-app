@@ -62,7 +62,7 @@ export function ImportModalSiswa() {
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 border-slate-200 rounded-md px-2.5">
+        <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 border-surface rounded-md px-2.5">
           <FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />
           <span className="hidden sm:inline">Import PPDB</span>
         </Button>
@@ -82,9 +82,9 @@ export function ImportModalSiswa() {
             </div>
           )}
 
-          <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-lg">
+          <div className="flex items-center justify-between p-3 bg-surface-2 border border-surface-2 rounded-lg">
             <p className="text-xs text-slate-600">Download format Excel PPDB terlebih dahulu:</p>
-            <Button size="sm" variant="outline" onClick={handleDownloadTemplate} className="h-7 text-xs gap-1.5 rounded-md bg-white ml-3 shrink-0">
+            <Button size="sm" variant="outline" onClick={handleDownloadTemplate} className="h-7 text-xs gap-1.5 rounded-md bg-surface ml-3 shrink-0">
               <Download className="h-3 w-3" /> Template
             </Button>
           </div>
@@ -99,7 +99,7 @@ export function ImportModalSiswa() {
             accept=".xlsx, .xls"
             onChange={handleFileUpload}
             disabled={isImporting}
-            className="cursor-pointer file:cursor-pointer h-9 pt-1.5 text-xs rounded-md border-slate-200"
+            className="cursor-pointer file:cursor-pointer h-9 pt-1.5 text-xs rounded-md border-surface"
           />
 
           {isImporting && (
@@ -113,7 +113,7 @@ export function ImportModalSiswa() {
               <div className="bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 flex items-center gap-1.5">
                 <AlertCircle className="h-3.5 w-3.5" /> Log Gagal Import ({importLogs.length} baris)
               </div>
-              <ScrollArea className="h-28 bg-white p-3">
+              <ScrollArea className="h-28 bg-surface p-3">
                 {importLogs.map((log, i) => (
                   <div key={i} className="text-[11px] font-mono text-rose-600 mb-1">{log}</div>
                 ))}

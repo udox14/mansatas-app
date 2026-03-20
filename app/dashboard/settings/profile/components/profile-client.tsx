@@ -85,10 +85,10 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
 
       {/* KOLOM KIRI — avatar + info */}
       <div className="lg:col-span-1 space-y-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col items-center text-center">
+        <div className="rounded-xl border border-surface bg-surface p-5 shadow-sm flex flex-col items-center text-center">
           {/* Avatar */}
           <div className="relative group mb-4">
-            <div className={`h-24 w-24 rounded-full overflow-hidden border-2 border-slate-200 bg-slate-100 flex items-center justify-center ${isUploading ? 'opacity-60' : ''}`}>
+            <div className={`h-24 w-24 rounded-full overflow-hidden border-2 border-surface bg-surface-3 flex items-center justify-center ${isUploading ? 'opacity-60' : ''}`}>
               {avatarUrl
                 ? <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
                 : <span className="text-3xl font-bold text-slate-400">
@@ -129,7 +129,7 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
       <div className="lg:col-span-2 space-y-4">
 
         {/* Form ubah nama */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-surface bg-surface p-5 shadow-sm">
           <p className="text-sm font-semibold text-slate-800 mb-0.5">Informasi Dasar</p>
           <p className="text-xs text-slate-400 mb-4">Ubah nama tampilan Anda di dalam sistem.</p>
 
@@ -146,18 +146,18 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
             )}
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-slate-600">Nama Lengkap</Label>
-              <Input name="nama_lengkap" defaultValue={profile.nama_lengkap} required className="h-9 rounded-lg bg-slate-50 text-sm" />
+              <Input name="nama_lengkap" defaultValue={profile.nama_lengkap} required className="h-9 rounded-lg bg-surface-2 text-sm" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-slate-600">Email</Label>
-              <Input value={email} readOnly className="h-9 rounded-lg bg-slate-100 text-slate-400 text-sm cursor-not-allowed" />
+              <Input value={email} readOnly className="h-9 rounded-lg bg-surface-3 text-slate-400 text-sm cursor-not-allowed" />
             </div>
             <SubmitProfileBtn />
           </form>
         </div>
 
         {/* Form ubah password */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-surface bg-surface p-5 shadow-sm">
           <p className="text-sm font-semibold text-slate-800 mb-0.5">Keamanan Akun</p>
           <p className="text-xs text-slate-400 mb-4">Perbarui kata sandi Anda secara berkala.</p>
 
@@ -174,11 +174,11 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
             )}
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-slate-600">Password Baru</Label>
-              <Input name="password" type="password" required minLength={6} placeholder="Minimal 6 karakter" className="h-9 rounded-lg bg-slate-50 text-sm" />
+              <Input name="password" type="password" required minLength={6} placeholder="Minimal 6 karakter" className="h-9 rounded-lg bg-surface-2 text-sm" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-slate-600">Konfirmasi Password Baru</Label>
-              <Input name="confirm_password" type="password" required minLength={6} placeholder="Ketik ulang password baru" className="h-9 rounded-lg bg-slate-50 text-sm" />
+              <Input name="confirm_password" type="password" required minLength={6} placeholder="Ketik ulang password baru" className="h-9 rounded-lg bg-surface-2 text-sm" />
             </div>
             <SubmitPasswordBtn />
           </form>

@@ -123,7 +123,7 @@ export function KedisiplinanClient({
       <Script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" strategy="lazyOnload" />
       <div className="space-y-3">
         <Tabs defaultValue="riwayat" className="space-y-3">
-          <TabsList className={cn("bg-white border border-slate-200 rounded-lg w-full grid p-0.5 gap-0.5 h-auto", canManageMaster ? 'grid-cols-2' : 'grid-cols-1')}>
+          <TabsList className={cn("bg-surface border border-surface rounded-lg w-full grid p-0.5 gap-0.5 h-auto", canManageMaster ? 'grid-cols-2' : 'grid-cols-1')}>
             <TabsTrigger value="riwayat" className="py-2 rounded-md data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
               Riwayat Pelanggaran
             </TabsTrigger>
@@ -137,7 +137,7 @@ export function KedisiplinanClient({
           {/* TAB RIWAYAT */}
           <TabsContent value="riwayat" className="space-y-3 m-0">
             {/* TOOLBAR */}
-            <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
+            <div className="bg-surface border border-surface rounded-lg p-3 space-y-2">
               <div className="flex gap-2">
                 <div className="relative flex-1 min-w-0">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
@@ -172,7 +172,7 @@ export function KedisiplinanClient({
             {/* MOBILE CARDS */}
             <div className="block lg:hidden space-y-2">
               {paginatedKasus.length === 0 ? (
-                <div className="bg-white py-10 rounded-lg border border-slate-200 text-center">
+                <div className="bg-surface py-10 rounded-lg border border-surface text-center">
                   <ShieldCheck className="h-7 w-7 text-emerald-400 mx-auto mb-2" />
                   <p className="text-sm text-slate-400">Belum ada catatan pelanggaran.</p>
                 </div>
@@ -182,13 +182,13 @@ export function KedisiplinanClient({
                 const totalPoin = poinSiswaMap[k.siswa_id] || 0
 
                 return (
-                  <div key={k.id} className="bg-white border border-slate-200 rounded-lg p-3">
+                  <div key={k.id} className="bg-surface border border-surface rounded-lg p-3">
                     {/* Row 1: Nama + Poin */}
                     <div className="flex items-start justify-between mb-2">
                       <div className="min-w-0 flex-1 pr-2">
                         <p className="text-sm font-semibold text-slate-800 leading-tight truncate">{k.siswa.nama_lengkap}</p>
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                          <span className="text-[10px] font-medium text-slate-500 bg-surface-3 px-1.5 py-0.5 rounded border border-surface">
                             {k.siswa.kelas?.tingkat}-{k.siswa.kelas?.nomor_kelas}
                           </span>
                           <span className="text-[10px] text-slate-400">
@@ -214,9 +214,9 @@ export function KedisiplinanClient({
                     {k.keterangan && <p className="text-[10px] text-slate-500 italic mt-1 truncate">"{k.keterangan}"</p>}
 
                     {/* Row 3: Pelapor + aksi */}
-                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-surface-2">
                       <div className="flex items-center gap-1.5">
-                        <div className={cn("h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold", isOwner ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500')}>
+                        <div className={cn("h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-bold", isOwner ? 'bg-blue-100 text-blue-700' : 'bg-surface-3 text-slate-500')}>
                           {k.pelapor?.nama_lengkap?.charAt(0) || '?'}
                         </div>
                         <span className="text-[10px] text-slate-500 truncate max-w-[80px]">{isOwner ? 'Anda' : k.pelapor?.nama_lengkap}</span>
@@ -245,11 +245,11 @@ export function KedisiplinanClient({
             </div>
 
             {/* DESKTOP TABLE */}
-            <div className="hidden lg:block bg-white rounded-lg border border-slate-200 overflow-hidden">
+            <div className="hidden lg:block bg-surface rounded-lg border border-surface overflow-hidden">
               <div className="overflow-x-auto">
                 <Table className="min-w-[820px]">
                   <TableHeader>
-                    <TableRow className="bg-slate-50 hover:bg-slate-50">
+                    <TableRow className="bg-surface-2 hover:bg-surface-2">
                       <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 w-24">Tanggal</TableHead>
                       <TableHead className="h-9 text-xs font-semibold text-slate-500">Siswa</TableHead>
                       <TableHead className="h-9 text-xs font-semibold text-slate-500">Pelanggaran</TableHead>
@@ -274,14 +274,14 @@ export function KedisiplinanClient({
                       const totalPoin = poinSiswaMap[k.siswa_id] || 0
 
                       return (
-                        <TableRow key={k.id} className="hover:bg-rose-50/20 border-slate-100 group">
+                        <TableRow key={k.id} className="hover:bg-rose-50/20 border-surface-2 group">
                           <TableCell className="px-4 py-2.5 text-xs text-slate-500 font-medium">
                             {new Date(k.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: '2-digit' })}
                           </TableCell>
                           <TableCell className="py-2.5">
                             <p className="text-sm font-semibold text-slate-800 group-hover:text-rose-700 transition-colors leading-tight">{k.siswa.nama_lengkap}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-medium">
+                              <span className="text-[10px] text-slate-500 bg-surface-3 px-1.5 py-0.5 rounded border border-surface font-medium">
                                 {k.siswa.kelas?.tingkat}-{k.siswa.kelas?.nomor_kelas} {k.siswa.kelas?.kelompok !== 'UMUM' ? k.siswa.kelas?.kelompok : ''}
                               </span>
                               {totalPoin >= 50 && (
@@ -301,7 +301,7 @@ export function KedisiplinanClient({
                           </TableCell>
                           <TableCell className="py-2.5">
                             <div className="flex items-center gap-2">
-                              <div className={cn("h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0", isOwner ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600')}>
+                              <div className={cn("h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0", isOwner ? 'bg-blue-100 text-blue-700' : 'bg-surface-3 text-slate-600')}>
                                 {k.pelapor?.nama_lengkap?.charAt(0) || '?'}
                               </div>
                               <div>
@@ -334,7 +334,7 @@ export function KedisiplinanClient({
                   </TableBody>
                 </Table>
               </div>
-              <div className="flex items-center justify-between px-4 py-2 border-t border-slate-100 bg-slate-50/50">
+              <div className="flex items-center justify-between px-4 py-2 border-t border-surface-2 bg-slate-50/50">
                 <span className="text-xs text-slate-500">{processedKasus.length} kasus</span>
                 <div className="flex items-center gap-1">
                   <Button variant="outline" size="sm" onClick={() => setPageKasus(p => Math.max(1, p - 1))} disabled={pageKasus === 1} className="h-7 px-2.5 text-xs rounded">←</Button>
@@ -345,7 +345,7 @@ export function KedisiplinanClient({
             </div>
 
             {/* Mobile pagination */}
-            <div className="flex items-center justify-between lg:hidden bg-white border border-slate-200 rounded-lg px-3 py-2">
+            <div className="flex items-center justify-between lg:hidden bg-surface border border-surface rounded-lg px-3 py-2">
               <span className="text-xs text-slate-500">{processedKasus.length} kasus</span>
               <div className="flex items-center gap-1">
                 <Button variant="outline" size="sm" onClick={() => setPageKasus(p => Math.max(1, p - 1))} disabled={pageKasus === 1} className="h-7 px-2.5 text-xs rounded">←</Button>
@@ -358,7 +358,7 @@ export function KedisiplinanClient({
           {/* TAB KAMUS */}
           {canManageMaster && (
             <TabsContent value="kamus" className="space-y-3 m-0">
-              <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-wrap gap-2 items-center">
+              <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
                 <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                   <Input placeholder="Cari pelanggaran..." value={searchMaster} onChange={e => setSearchMaster(e.target.value)} className="pl-8 h-8 text-sm rounded-md" />
@@ -373,18 +373,18 @@ export function KedisiplinanClient({
                     <DialogContent className="sm:max-w-md rounded-xl">
                       <DialogHeader><DialogTitle className="text-base font-semibold">Import Kamus Pelanggaran</DialogTitle></DialogHeader>
                       <div className="space-y-3 py-3">
-                        <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <div className="flex justify-between items-center bg-surface-2 p-2.5 rounded-lg border border-surface">
                           <span className="text-xs font-medium text-slate-600">Download format:</span>
                           <Button size="sm" variant="outline" onClick={handleDownloadTemplateKamus} className="h-7 text-xs gap-1"><Download className="h-3 w-3" />Template</Button>
                         </div>
-                        <div className="bg-slate-100 p-3 rounded-lg text-xs font-mono text-slate-600 space-y-0.5">
+                        <div className="bg-surface-3 p-3 rounded-lg text-xs font-mono text-slate-600 space-y-0.5">
                           <p className="font-bold mb-1">Kolom:</p>
                           <p>1. NAMA_PELANGGARAN</p>
                           <p>2. KATEGORI (Ringan/Sedang/Berat)</p>
                           <p>3. POIN (angka)</p>
                         </div>
                         <Input type="file" accept=".xlsx,.xls" onChange={handleFileUploadKamus} disabled={isImportingKamus} className="h-9 text-xs rounded-lg cursor-pointer" />
-                        {isImportingKamus && <div className="flex items-center text-xs font-medium text-slate-600 bg-slate-100 p-2.5 rounded-lg animate-pulse"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Mengimport...</div>}
+                        {isImportingKamus && <div className="flex items-center text-xs font-medium text-slate-600 bg-surface-3 p-2.5 rounded-lg animate-pulse"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Mengimport...</div>}
                       </div>
                     </DialogContent>
                   </Dialog>
@@ -396,7 +396,7 @@ export function KedisiplinanClient({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {filteredMaster.map(m => (
-                  <div key={m.id} className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col justify-between group hover:border-slate-300 transition-colors">
+                  <div key={m.id} className="bg-surface border border-surface rounded-lg p-3 flex flex-col justify-between group hover:border-slate-300 transition-colors">
                     <div>
                       <div className="flex justify-between items-start mb-2">
                         <span className={cn("text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border", kategoriColor(m.kategori))}>
@@ -406,7 +406,7 @@ export function KedisiplinanClient({
                       </div>
                       <p className="text-xs font-medium text-slate-700 leading-snug">{m.nama_pelanggaran}</p>
                     </div>
-                    <div className="flex justify-end gap-1 mt-2.5 pt-2 border-t border-slate-100 opacity-30 group-hover:opacity-100 transition-opacity">
+                    <div className="flex justify-end gap-1 mt-2.5 pt-2 border-t border-surface-2 opacity-30 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => { setEditMasterData(m); setIsMasterModalOpen(true) }} className="p-1.5 rounded text-blue-600 hover:bg-blue-50">
                         <Pencil className="h-3.5 w-3.5" />
                       </button>

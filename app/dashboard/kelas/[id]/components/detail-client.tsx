@@ -28,10 +28,10 @@ export function DetailKelasClient({ siswaData, kelasId, tingkatKelas }: { siswaD
         <TambahSiswaModal kelasId={kelasId} />
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+      <div className="bg-surface rounded-lg border border-surface overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50 hover:bg-slate-50">
+            <TableRow className="bg-surface-2 hover:bg-surface-2">
               <TableHead className="h-9 w-12 text-center text-xs font-semibold text-slate-500">No</TableHead>
               <TableHead className="h-9 w-28 text-xs font-semibold text-slate-500">NISN</TableHead>
               <TableHead className="h-9 text-xs font-semibold text-slate-500">Nama Lengkap</TableHead>
@@ -43,7 +43,7 @@ export function DetailKelasClient({ siswaData, kelasId, tingkatKelas }: { siswaD
             {filteredData.length === 0 ? (
               <TableRow><TableCell colSpan={5} className="h-24 text-center text-sm text-slate-400">Belum ada siswa di kelas ini.</TableCell></TableRow>
             ) : filteredData.map((s, i) => (
-              <TableRow key={s.id} className="hover:bg-slate-50/60 border-slate-100 group">
+              <TableRow key={s.id} className="hover:bg-surface-2/60 border-surface-2 group">
                 <TableCell className="text-center text-xs text-slate-400 py-2.5">{i + 1}</TableCell>
                 <TableCell className="text-xs font-medium text-slate-600 py-2.5 font-mono">{s.nisn}</TableCell>
                 <TableCell className="text-sm font-medium text-slate-800 py-2.5">{s.nama_lengkap}</TableCell>

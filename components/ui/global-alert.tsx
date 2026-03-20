@@ -83,7 +83,7 @@ export function GlobalAlertProvider() {
       {/* CONFIRM DIALOG CONTAINER (Tengah Layar) */}
       {confirmState.isOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in p-4">
-          <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200 w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-surface w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 text-center">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 mb-4 ring-4 ring-amber-50">
                 <HelpCircle className="h-8 w-8 text-amber-600" />
@@ -93,10 +93,10 @@ export function GlobalAlertProvider() {
                 {confirmState.msg}
               </p>
             </div>
-            <div className="flex bg-slate-50 p-4 gap-3 border-t border-slate-100">
+            <div className="flex bg-surface-2 p-4 gap-3 border-t border-surface-2">
               <button 
                 onClick={() => handleConfirmResult(false)}
-                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors shadow-sm"
+                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-surface border border-surface hover:bg-surface-3 transition-colors shadow-sm"
               >
                 Batal
               </button>

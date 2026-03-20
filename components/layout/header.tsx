@@ -11,8 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { MENU_ITEMS } from '@/config/menu'
+import { useEffect, useState } from 'react'
 
 interface HeaderProps {
   userRole: string
@@ -21,37 +20,30 @@ interface HeaderProps {
   avatarUrl: string | null
 }
 
-function getPageTitle(pathname: string) {
-  if (pathname === '/dashboard') return 'Dashboard'
-  
-  // Cek di menu items
-  const found = MENU_ITEMS.find(item => {
-    if (item.href === '/dashboard') return false
-    return pathname === item.href || pathname.startsWith(item.href + '/')
-  })
-  if (found) {
-    // Kalau ada sub-path setelah, tambahkan "Detail"
-    if (pathname !== found.href && pathname.startsWith(found.href + '/')) {
-      return `Detail · ${found.title}`
-    }
-    return found.title
-  }
-  
-  // Fallback: ambil segment terakhir
-  const segments = pathname.split('/').filter(Boolean)
-  const last = segments[segments.length - 1]
-  const isUUID = /^[0-9a-f-]{36}$/i.test(last)
-  if (isUUID) {
-    const parent = segments[segments.length - 2]
-    return `Detail ${parent.charAt(0).toUpperCase() + parent.slice(1)}`
-  }
-  return last.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+function LiveDate() {
+  const [now, setNow] = useState<Date | null>(null)
+
+  useEffect(() => {
+    setNow(new Date())
+    const timer = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(timer)
+  }, [])
+
+  if (!now) return <span className="text-[13px] text-slate-400">—</span>
+
+  const hari = now.toLocaleDateString('id-ID', { weekday: 'long' })
+  const tanggal = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+
+  return (
+    <span className="text-[13px] sm:text-sm font-medium text-slate-500 dark:text-slate-400 tracking-tight">
+      <span className="font-semibold text-slate-700 dark:text-slate-200">{hari}</span>
+      <span className="mx-1.5 text-slate-300 dark:text-slate-600">·</span>
+      <span>{tanggal}</span>
+    </span>
+  )
 }
 
 export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps) {
-  const pathname = usePathname()
-  const pageTitle = getPageTitle(pathname)
-
   const handleLogout = async () => {
     await fetch('/api/auth/sign-out', {
       method: 'POST',
@@ -77,10 +69,10 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
         <Menu className="h-4.5 w-4.5" style={{ width: '18px', height: '18px' }} />
       </button>
 
-      {/* Page title */}
-      <h1 className="text-[13px] sm:text-sm font-semibold text-slate-800 dark:text-slate-200 tracking-tight truncate flex-1 capitalize">
-        {pageTitle}
-      </h1>
+      {/* Live date */}
+      <div className="flex-1 min-w-0">
+        <LiveDate />
+      </div>
 
       {/* User menu */}
       <DropdownMenu>

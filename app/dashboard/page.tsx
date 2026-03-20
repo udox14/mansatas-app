@@ -73,7 +73,7 @@ export default async function DashboardPage() {
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
 
       {/* ── WELCOME STRIP ── */}
-      <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="flex items-center justify-between gap-4 rounded-xl border border-surface bg-surface px-4 py-3 shadow-sm">
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative h-10 w-10 shrink-0 rounded-full bg-emerald-500 flex items-center justify-center overflow-hidden shadow-sm">
             {avatarUrl
@@ -100,7 +100,7 @@ export default async function DashboardPage() {
         </div>
         <Link
           href="/dashboard/settings/profile"
-          className="shrink-0 hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 hover:border-slate-300 px-3 py-1.5 rounded-md bg-slate-50 hover:bg-white transition-colors"
+          className="shrink-0 hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-surface hover:border-slate-300 px-3 py-1.5 rounded-md bg-surface-2 hover:bg-surface transition-colors"
         >
           <UserCog className="h-3.5 w-3.5" /> Profil saya
         </Link>
@@ -121,8 +121,8 @@ export default async function DashboardPage() {
         <div className="flex flex-col gap-3">
 
           {/* Live counter */}
-          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
+          <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
               <div className="p-1.5 rounded-md bg-emerald-50 border border-emerald-100">
                 <Clock className="h-3.5 w-3.5 text-emerald-600" />
               </div>
@@ -138,8 +138,8 @@ export default async function DashboardPage() {
           </div>
 
           {/* Radar pelanggaran */}
-          <div className="flex-1 rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+          <div className="flex-1 rounded-xl border border-surface bg-surface shadow-sm">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-2">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-md bg-rose-50 border border-rose-100">
                   <ShieldAlert className="h-3.5 w-3.5 text-rose-500" />
@@ -165,7 +165,7 @@ export default async function DashboardPage() {
               ) : (
                 <div className="space-y-0.5">
                   {pelanggaranRaw.map((p: any, i: number) => (
-                    <div key={i} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-50 transition-colors">
+                    <div key={i} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-surface-2 transition-colors">
                       <div className="h-8 w-8 shrink-0 rounded-lg bg-rose-50 border border-rose-100 flex flex-col items-center justify-center">
                         <span className="text-[9px] font-bold text-rose-400 leading-tight">+{p.poin}</span>
                         <span className="text-[8px] text-rose-300 leading-tight">poin</span>
@@ -186,8 +186,8 @@ export default async function DashboardPage() {
         </div>
 
         {/* KANAN: Akses cepat */}
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
+        <div className="rounded-xl border border-surface bg-surface shadow-sm">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
             <div className="p-1.5 rounded-md bg-amber-50 border border-amber-100">
               <Package className="h-3.5 w-3.5 text-amber-600" />
             </div>
@@ -202,7 +202,7 @@ export default async function DashboardPage() {
             <QuickLink href="/dashboard/izin" icon={<Clock className="h-4 w-4" />} iconBg="bg-amber-50" iconColor="text-amber-600" title="Perizinan Siswa" desc="Keluar komplek & izin kelas" />
             <QuickLink href="/dashboard/plotting" icon={<GraduationCap className="h-4 w-4" />} iconBg="bg-blue-50" iconColor="text-blue-600" title="Plotting & Kenaikan" desc="Penjurusan & naik kelas" />
             <QuickLink href="/dashboard/akademik/analitik" icon={<BarChart2 className="h-4 w-4" />} iconBg="bg-violet-50" iconColor="text-violet-600" title="Analitik Kelulusan" desc="SNBP & SPAN-PTKIN" />
-            <QuickLink href="/dashboard/settings" icon={<Settings className="h-4 w-4" />} iconBg="bg-slate-100" iconColor="text-slate-500" title="Pengaturan Sistem" desc="Tahun ajaran & jurusan" />
+            <QuickLink href="/dashboard/settings" icon={<Settings className="h-4 w-4" />} iconBg="bg-surface-3" iconColor="text-slate-500" title="Pengaturan Sistem" desc="Tahun ajaran & jurusan" />
           </div>
         </div>
 
@@ -218,7 +218,7 @@ function StatCard({ title, value, sub, icon, iconBg, iconColor, href }: {
   icon: React.ReactNode; iconBg: string; iconColor: string; href: string
 }) {
   return (
-    <Link href={href} className="group flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-slate-300 hover:shadow-md">
+    <Link href={href} className="group flex flex-col gap-3 rounded-xl border border-surface bg-surface p-4 shadow-sm transition-all hover:border-slate-300 hover:shadow-md">
       <div className="flex items-start justify-between">
         <div className={`p-2 rounded-lg ${iconBg} ${iconColor}`}>{icon}</div>
         <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-400 transition-colors" />
@@ -241,7 +241,7 @@ function LiveCell({ label, value, color, href, activeLabel }: {
   }[color]
   const active = value > 0
   return (
-    <Link href={href} className={`flex flex-col gap-1.5 p-4 hover:bg-slate-50 transition-colors ${active ? c.bg : ''}`}>
+    <Link href={href} className={`flex flex-col gap-1.5 p-4 hover:bg-surface-2 transition-colors ${active ? c.bg : ''}`}>
       <div className="flex items-center gap-1.5">
         <span className={`h-1.5 w-1.5 rounded-full ${active ? `${c.dot} animate-pulse` : 'bg-slate-200'}`} />
         <span className={`text-[10px] font-medium ${active ? c.num : 'text-slate-400'}`}>
@@ -258,7 +258,7 @@ function QuickLink({ href, icon, iconBg, iconColor, title, desc }: {
   href: string; icon: React.ReactNode; iconBg: string; iconColor: string; title: string; desc: string
 }) {
   return (
-    <Link href={href} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors group">
+    <Link href={href} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-2 transition-colors group">
       <div className={`p-1.5 rounded-md ${iconBg} ${iconColor} shrink-0`}>{icon}</div>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium text-slate-700">{title}</p>
