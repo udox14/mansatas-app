@@ -61,7 +61,7 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
     db.prepare('SELECT nama_mapel, kode_mapel FROM mata_pelajaran').all<any>(),
   ])
 
-  if (!dbSiswa.results.length) return { error: 'Gagal memuat database siswa' }
+  if (!dbSiswa.results.length) return { error: 'Gagal memuat database siswa', logs: [] }
 
   // Bangun kamus mapel (nama & kode → nama canonical)
   const kamusMapel = new Map<string, string>()
@@ -118,6 +118,7 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
         errorLogs.length > 0
           ? `Tidak ada data valid. Error: ${errorLogs.slice(0, 3).join('; ')}`
           : 'Tidak ada data nilai yang bisa diimport.',
+      logs: errorLogs,
     }
   }
 
@@ -168,9 +169,16 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
   }
 
   revalidatePath('/dashboard/akademik/analitik')
+
+  let successMsg = `Selesai! Berhasil memploting nilai ${targetKolom} untuk ${successCount} siswa.`
+  if (errorLogs.length > 0) {
+    successMsg += ` Terdapat ${errorLogs.length} notifikasi baris yang dilewati (lihat log).`
+  }
+
   return {
-    error: errorLogs.length > 0 ? `${errorLogs.slice(0, 3).join('; ')}` : null,
-    success: `Berhasil mengimport nilai ${targetKolom} untuk ${successCount} siswa.`,
+    error: successCount === 0 ? 'Tidak ada data yang berhasil diimport.' : null,
+    success: successMsg,
+    logs: errorLogs,
   }
 }
 
