@@ -72,14 +72,14 @@ export function MutasiModal({ isOpen, onClose, siswa, currentKelasId, tingkat }:
             </div>
           )}
           <div className="bg-surface-2 p-2.5 rounded-lg border border-surface-2">
-            <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wide">Siswa dipindah</p>
-            <p className="text-sm font-bold text-slate-900 mt-0.5">{siswa.nama_lengkap}</p>
-            <p className="text-xs text-slate-500">NISN: {siswa.nisn}</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-semibold tracking-wide">Siswa dipindah</p>
+            <p className="text-sm font-bold text-slate-900 dark:text-slate-50 mt-0.5">{siswa.nama_lengkap}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">NISN: {siswa.nisn}</p>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-600">Kelas Tujuan (Tingkat {tingkat})</Label>
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Kelas Tujuan (Tingkat {tingkat})</Label>
             {isKelasLoading ? (
-              <div className="h-9 border rounded-lg flex items-center justify-center bg-surface-2 text-xs text-slate-400"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memuat kelas...</div>
+              <div className="h-9 border rounded-lg flex items-center justify-center bg-surface-2 text-xs text-slate-400 dark:text-slate-500"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memuat kelas...</div>
             ) : (
               <Select value={selectedKelasId} onValueChange={setSelectedKelasId}>
                 <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue placeholder="-- Pilih Kelas --" /></SelectTrigger>

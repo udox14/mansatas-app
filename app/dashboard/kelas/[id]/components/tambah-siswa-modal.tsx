@@ -57,9 +57,9 @@ export function TambahSiswaModal({ kelasId }: { kelasId: string }) {
             Hanya menampilkan siswa aktif yang <strong>belum memiliki kelas</strong>. Untuk memindah dari kelas lain, gunakan tombol <strong>Mutasi</strong>.
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-600">Pilih Siswa</Label>
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Pilih Siswa</Label>
             {isLoading ? (
-              <div className="h-9 border rounded-lg flex items-center justify-center bg-slate-50 text-xs text-slate-400"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memuat siswa...</div>
+              <div className="h-9 border rounded-lg flex items-center justify-center bg-slate-50 text-xs text-slate-400 dark:text-slate-500"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memuat siswa...</div>
             ) : (
               <Select value={selectedSiswaId} onValueChange={setSelectedSiswaId}>
                 <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue placeholder="-- Cari & Pilih Siswa --" /></SelectTrigger>

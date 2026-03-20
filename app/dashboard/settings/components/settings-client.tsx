@@ -30,11 +30,11 @@ function JurusanTag({ label, onRemove }: { label: string; onRemove?: () => void 
   const isUmum = label === 'UMUM'
   return (
     <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-semibold ${
-      isUmum ? 'bg-surface-3 text-slate-500 border-surface' : 'bg-surface text-blue-700 border-blue-200'
+      isUmum ? 'bg-surface-3 text-slate-500 dark:text-slate-400 dark:text-slate-500 border-surface' : 'bg-surface text-blue-700 border-blue-200'
     }`}>
       {label}
       {!isUmum && onRemove && (
-        <button type="button" onClick={onRemove} className="text-slate-300 hover:text-rose-500 transition-colors">
+        <button type="button" onClick={onRemove} className="text-slate-300 dark:text-slate-600 hover:text-rose-500 transition-colors">
           <X className="h-2.5 w-2.5" />
         </button>
       )}
@@ -113,11 +113,11 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-surface-2">
           <div className="flex items-center gap-3">
             <div className="p-1.5 rounded-md bg-surface-3 border border-surface">
-              <CalendarDays className="h-4 w-4 text-slate-500" />
+              <CalendarDays className="h-4 w-4 text-slate-500 dark:text-slate-400 dark:text-slate-500" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-800">Manajemen Tahun Ajaran & Jurusan</p>
-              <p className="text-xs text-slate-400 mt-0.5">Kelola periode aktif dan daftar jurusan tiap periode</p>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Manajemen Tahun Ajaran & Jurusan</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Kelola periode aktif dan daftar jurusan tiap periode</p>
             </div>
           </div>
 
@@ -130,7 +130,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
             </DialogTrigger>
             <DialogContent className="sm:max-w-md rounded-xl border-surface">
               <DialogHeader className="border-b border-surface-2 pb-3">
-                <DialogTitle className="text-sm font-semibold text-slate-800">Setup Tahun Ajaran & Jurusan</DialogTitle>
+                <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-100">Setup Tahun Ajaran & Jurusan</DialogTitle>
               </DialogHeader>
               <ScrollArea className="max-h-[70vh] pr-1 py-1">
                 <form action={formAction} className="space-y-4 px-1">
@@ -145,11 +145,11 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
                     </div>
                   )}
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-medium text-slate-600">Nama periode</Label>
+                    <Label className="text-xs font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600">Nama periode</Label>
                     <Input name="nama" required placeholder="Contoh: 2025/2026" className="h-9 rounded-lg bg-surface-2 text-sm" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-medium text-slate-600">Semester</Label>
+                    <Label className="text-xs font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600">Semester</Label>
                     <Select name="semester" defaultValue="1">
                       <SelectTrigger className="h-9 rounded-lg bg-surface-2 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -194,24 +194,24 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
 
         {/* List TA */}
         {taData.length === 0 ? (
-          <div className="py-12 text-center text-sm text-slate-400">Belum ada data Tahun Ajaran.</div>
+          <div className="py-12 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada data Tahun Ajaran.</div>
         ) : taData.map(ta => (
           <div key={ta.id} className={`flex flex-col xl:flex-row xl:items-center justify-between p-4 border-b border-surface-2 last:border-0 gap-4 transition-colors ${ta.is_active ? 'bg-emerald-50/40' : 'hover:bg-surface-2/50'}`}>
 
             {/* Info */}
             <div className="flex items-start gap-3">
               <div className={`h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-sm font-bold border-2 ${
-                ta.is_active ? 'bg-emerald-500 text-white border-emerald-300' : 'bg-surface-3 text-slate-400 border-surface'
+                ta.is_active ? 'bg-emerald-500 text-white border-emerald-300' : 'bg-surface-3 text-slate-400 dark:text-slate-500 border-surface'
               }`}>
                 {ta.semester}
               </div>
               <div>
-                <p className={`text-sm font-semibold ${ta.is_active ? 'text-emerald-900' : 'text-slate-800'}`}>{ta.nama}</p>
-                <p className="text-xs text-slate-400">Semester {ta.semester === 1 ? 'Ganjil' : 'Genap'}</p>
+                <p className={`text-sm font-semibold ${ta.is_active ? 'text-emerald-900' : 'text-slate-800 dark:text-slate-100'}`}>{ta.nama}</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Semester {ta.semester === 1 ? 'Ganjil' : 'Genap'}</p>
                 <div className="flex flex-wrap gap-1 mt-1.5">
                   {ta.daftar_jurusan?.map(j => (
                     <span key={j} className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded border ${
-                      ta.is_active ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-surface-3 text-slate-500 border-surface'
+                      ta.is_active ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-surface-3 text-slate-500 dark:text-slate-400 dark:text-slate-500 border-surface'
                     }`}>{j}</span>
                   ))}
                 </div>
@@ -232,7 +232,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
               ) : (
                 <>
                   <Button variant="outline" size="sm" onClick={() => handleSetAktif(ta.id)} disabled={isPending}
-                    className="h-8 text-xs gap-1.5 border-surface text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 rounded-lg">
+                    className="h-8 text-xs gap-1.5 border-surface text-slate-600 dark:text-slate-300 dark:text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 rounded-lg">
                     <Power className="h-3.5 w-3.5" /> Aktifkan
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => handleHapus(ta.id, ta.is_active)} disabled={isPending}
@@ -250,7 +250,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
       <Dialog open={!!editingTA} onOpenChange={open => !open && setEditingTA(null)}>
         <DialogContent className="sm:max-w-sm rounded-xl border-surface">
           <DialogHeader className="border-b border-surface-2 pb-3">
-            <DialogTitle className="text-sm font-semibold text-slate-800">
+            <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-100">
               Edit Jurusan — TA {editingTA?.nama}
             </DialogTitle>
           </DialogHeader>

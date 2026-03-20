@@ -38,8 +38,8 @@ export function MasterModal({ isOpen, onClose, editData }: {
     <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-md rounded-xl">
         <DialogHeader className="border-b pb-3">
-          <DialogTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-            <BookOpen className="h-4 w-4 text-slate-600" />
+          <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-slate-600 dark:text-slate-300 dark:text-slate-600" />
             {editData ? 'Edit Kamus Pelanggaran' : 'Tambah Kamus Baru'}
           </DialogTitle>
         </DialogHeader>
@@ -59,7 +59,7 @@ export function MasterModal({ isOpen, onClose, editData }: {
           {editData && <input type="hidden" name="id" value={editData.id} />}
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-600">Nama Pelanggaran <span className="text-rose-500">*</span></Label>
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Nama Pelanggaran <span className="text-rose-500">*</span></Label>
             <Input
               name="nama_pelanggaran"
               defaultValue={editData?.nama_pelanggaran}
@@ -71,7 +71,7 @@ export function MasterModal({ isOpen, onClose, editData }: {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600">Kategori <span className="text-rose-500">*</span></Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Kategori <span className="text-rose-500">*</span></Label>
               <Select name="kategori" defaultValue={editData?.kategori || 'Ringan'}>
                 <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -88,7 +88,7 @@ export function MasterModal({ isOpen, onClose, editData }: {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600">Bobot Poin <span className="text-rose-500">*</span></Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Bobot Poin <span className="text-rose-500">*</span></Label>
               <Input
                 type="number" name="poin" min="1" max="100"
                 defaultValue={editData?.poin || 5}

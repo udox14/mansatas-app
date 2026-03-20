@@ -43,7 +43,7 @@ export function TambahModal() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md rounded-xl">
         <DialogHeader className="border-b pb-3">
-          <DialogTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+          <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
             <UserPlus className="h-4 w-4 text-emerald-600" /> Tambah Data Siswa Baru
           </DialogTitle>
         </DialogHeader>
@@ -61,23 +61,23 @@ export function TambahModal() {
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="nisn" className="text-xs font-semibold text-slate-600">NISN <span className="text-rose-500">*</span></Label>
+            <Label htmlFor="nisn" className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">NISN <span className="text-rose-500">*</span></Label>
             <Input id="nisn" name="nisn" required placeholder="Contoh: 0051234567" className="h-8 text-sm rounded-md bg-slate-50" />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="nama_lengkap" className="text-xs font-semibold text-slate-600">Nama Lengkap <span className="text-rose-500">*</span></Label>
+            <Label htmlFor="nama_lengkap" className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Nama Lengkap <span className="text-rose-500">*</span></Label>
             <Input id="nama_lengkap" name="nama_lengkap" required placeholder="Sesuai ijazah sebelumnya" className="h-8 text-sm rounded-md bg-slate-50" />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="nis_lokal" className="text-xs font-semibold text-slate-600">NIS Lokal <span className="text-slate-400 font-normal">(opsional)</span></Label>
+            <Label htmlFor="nis_lokal" className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">NIS Lokal <span className="text-slate-400 dark:text-slate-500 font-normal">(opsional)</span></Label>
             <Input id="nis_lokal" name="nis_lokal" placeholder="Nomor Induk Siswa internal" className="h-8 text-sm rounded-md bg-slate-50" />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600">Jenis Kelamin</Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Jenis Kelamin</Label>
               <Select name="jenis_kelamin" defaultValue="L">
                 <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50">
                   <SelectValue />
@@ -89,7 +89,7 @@ export function TambahModal() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600">Domisili</Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Domisili</Label>
               <Select name="tempat_tinggal" defaultValue="Non-Pesantren">
                 <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50">
                   <SelectValue />

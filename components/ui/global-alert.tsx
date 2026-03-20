@@ -88,15 +88,15 @@ export function GlobalAlertProvider() {
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 mb-4 ring-4 ring-amber-50">
                 <HelpCircle className="h-8 w-8 text-amber-600" />
               </div>
-              <h3 className="text-xl font-bold text-slate-800 mb-2">Konfirmasi Tindakan</h3>
-              <p className="text-sm text-slate-500 font-medium leading-relaxed">
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Konfirmasi Tindakan</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium leading-relaxed">
                 {confirmState.msg}
               </p>
             </div>
             <div className="flex bg-surface-2 p-4 gap-3 border-t border-surface-2">
               <button 
                 onClick={() => handleConfirmResult(false)}
-                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 bg-surface border border-surface hover:bg-surface-3 transition-colors shadow-sm"
+                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-600 dark:text-slate-300 dark:text-slate-600 bg-surface border border-surface hover:bg-surface-3 transition-colors shadow-sm"
               >
                 Batal
               </button>

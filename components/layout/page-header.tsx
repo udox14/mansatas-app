@@ -20,7 +20,7 @@ export function PageHeader({
   title,
   description,
   icon: Icon,
-  iconColor = 'text-slate-400',
+  iconColor = 'text-slate-400 dark:text-slate-500',
   children,
   className,
 }: PageHeaderProps) {
@@ -29,11 +29,11 @@ export function PageHeader({
       <div className="flex items-center gap-2.5 min-w-0">
         {Icon && <Icon className={cn("h-5 w-5 shrink-0", iconColor)} />}
         <div className="min-w-0">
-          <h1 className="text-base sm:text-lg font-semibold text-slate-900 leading-tight tracking-tight truncate">
+          <h1 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-50 leading-tight tracking-tight truncate">
             {title}
           </h1>
           {description && (
-            <p className="text-[12px] text-slate-500 leading-tight mt-0.5 truncate">
+            <p className="text-[12px] text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-tight mt-0.5 truncate">
               {description}
             </p>
           )}

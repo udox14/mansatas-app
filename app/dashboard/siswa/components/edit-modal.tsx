@@ -42,7 +42,7 @@ export function EditSiswaModal({ isOpen, onClose, siswa, kelasList }: {
     <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-2xl rounded-xl p-0 overflow-hidden">
         <DialogHeader className="px-4 py-3 bg-surface border-b">
-          <DialogTitle className="text-sm font-semibold flex items-center gap-2 text-slate-800">
+          <DialogTitle className="text-sm font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-100">
             <UserCog className="h-4 w-4 text-blue-600" /> Edit Biodata — <span className="text-blue-600 truncate max-w-[200px]">{siswa.nama_lengkap}</span>
           </DialogTitle>
         </DialogHeader>
@@ -79,25 +79,25 @@ export function EditSiswaModal({ isOpen, onClose, siswa, kelasList }: {
               <TabsContent value="utama" className="space-y-3 mt-3 bg-surface p-3 rounded-lg border border-surface-2">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600">NISN</Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">NISN</Label>
                     <Input name="nisn" defaultValue={siswa.nisn} required className="h-8 text-sm rounded-md bg-surface-2" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600">NIS Lokal</Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">NIS Lokal</Label>
                     <Input name="nis_lokal" defaultValue={siswa.nis_lokal} className="h-8 text-sm rounded-md bg-surface-2" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-600">Nama Lengkap</Label>
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Nama Lengkap</Label>
                   <Input name="nama_lengkap" defaultValue={siswa.nama_lengkap} required className="h-8 text-sm rounded-md bg-surface-2" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600">NIK</Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">NIK</Label>
                     <Input name="nik" defaultValue={siswa.nik} className="h-8 text-sm rounded-md bg-surface-2" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600">Jenis Kelamin</Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Jenis Kelamin</Label>
                     <Select name="jenis_kelamin" defaultValue={siswa.jenis_kelamin}>
                       <SelectTrigger className="h-8 text-xs rounded-md bg-surface-2"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -109,21 +109,21 @@ export function EditSiswaModal({ isOpen, onClose, siswa, kelasList }: {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600">Tempat Lahir</Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Tempat Lahir</Label>
                     <Input name="tempat_lahir" defaultValue={siswa.tempat_lahir} className="h-8 text-sm rounded-md bg-surface-2" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600">Tanggal Lahir</Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Tanggal Lahir</Label>
                     <Input type="date" name="tanggal_lahir" defaultValue={siswa.tanggal_lahir} className="h-8 text-xs rounded-md bg-surface-2" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600">Kelas</Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Kelas</Label>
                     <Select name="kelas_id" defaultValue={siswa.kelas?.id || 'none'}>
                       <SelectTrigger className="h-8 text-xs rounded-md bg-surface-2"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none" className="text-xs text-slate-400">Tanpa Kelas</SelectItem>
+                        <SelectItem value="none" className="text-xs text-slate-400 dark:text-slate-500">Tanpa Kelas</SelectItem>
                         {kelasList.map(k => (
                           <SelectItem key={k.id} value={k.id} className="text-xs">
                             {k.tingkat}-{k.nomor_kelas} {k.kelompok}
@@ -133,7 +133,7 @@ export function EditSiswaModal({ isOpen, onClose, siswa, kelasList }: {
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600">Status Siswa</Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Status Siswa</Label>
                     <Select name="status" defaultValue={siswa.status}>
                       <SelectTrigger className="h-8 text-xs rounded-md bg-surface-2"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -150,7 +150,7 @@ export function EditSiswaModal({ isOpen, onClose, siswa, kelasList }: {
               {/* TAB ALAMAT */}
               <TabsContent value="alamat" className="space-y-3 mt-3 bg-surface p-3 rounded-lg border border-surface-2">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-600">Status Domisili / Pesantren</Label>
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Status Domisili / Pesantren</Label>
                   <Select name="tempat_tinggal" defaultValue={siswa.tempat_tinggal}>
                     <SelectTrigger className="h-8 text-xs rounded-md bg-surface-2"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -163,21 +163,21 @@ export function EditSiswaModal({ isOpen, onClose, siswa, kelasList }: {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-600">Alamat Lengkap</Label>
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Alamat Lengkap</Label>
                   <Input name="alamat_lengkap" defaultValue={siswa.alamat_lengkap} className="h-8 text-sm rounded-md bg-surface-2" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600">Desa / Kelurahan</Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Desa / Kelurahan</Label>
                     <Input name="desa_kelurahan" defaultValue={siswa.desa_kelurahan} className="h-8 text-sm rounded-md bg-surface-2" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600">Kecamatan</Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Kecamatan</Label>
                     <Input name="kecamatan" defaultValue={siswa.kecamatan} className="h-8 text-sm rounded-md bg-surface-2" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-600">No. WhatsApp</Label>
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">No. WhatsApp</Label>
                   <Input name="nomor_whatsapp" defaultValue={siswa.nomor_whatsapp} placeholder="0812..." className="h-8 text-sm rounded-md bg-surface-2" />
                 </div>
               </TabsContent>
@@ -185,31 +185,31 @@ export function EditSiswaModal({ isOpen, onClose, siswa, kelasList }: {
               {/* TAB ORANG TUA */}
               <TabsContent value="ortu" className="space-y-3 mt-3 bg-surface p-3 rounded-lg border border-surface-2">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-600">Nomor KK</Label>
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Nomor KK</Label>
                   <Input name="nomor_kk" defaultValue={siswa.nomor_kk} className="h-8 text-sm rounded-md bg-surface-2" />
                 </div>
                 <div className="border border-surface-2 p-3 rounded-lg bg-slate-50/50 space-y-3">
-                  <p className="text-xs font-semibold text-slate-600">Data Ayah</p>
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Data Ayah</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-slate-500">Nama Ayah</Label>
+                      <Label className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Nama Ayah</Label>
                       <Input name="nama_ayah" defaultValue={siswa.nama_ayah} className="h-8 text-sm rounded-md bg-surface" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-slate-500">Pekerjaan</Label>
+                      <Label className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Pekerjaan</Label>
                       <Input name="pekerjaan_ayah" defaultValue={siswa.pekerjaan_ayah} className="h-8 text-sm rounded-md bg-surface" />
                     </div>
                   </div>
                 </div>
                 <div className="border border-surface-2 p-3 rounded-lg bg-slate-50/50 space-y-3">
-                  <p className="text-xs font-semibold text-slate-600">Data Ibu</p>
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Data Ibu</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-slate-500">Nama Ibu</Label>
+                      <Label className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Nama Ibu</Label>
                       <Input name="nama_ibu" defaultValue={siswa.nama_ibu} className="h-8 text-sm rounded-md bg-surface" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-slate-500">Pekerjaan</Label>
+                      <Label className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Pekerjaan</Label>
                       <Input name="pekerjaan_ibu" defaultValue={siswa.pekerjaan_ibu} className="h-8 text-sm rounded-md bg-surface" />
                     </div>
                   </div>

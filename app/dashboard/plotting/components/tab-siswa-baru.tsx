@@ -68,8 +68,8 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
   if (!siswaList.length) return (
     <div className="flex flex-col items-center justify-center py-16 rounded-lg border border-dashed border-surface text-center gap-3">
       <div className="p-3 rounded-full bg-emerald-50"><CheckCircle2 className="h-6 w-6 text-emerald-500" /></div>
-      <p className="text-sm font-medium text-slate-700">Semua siswa sudah terploting</p>
-      <p className="text-xs text-slate-400">Tidak ada siswa baru / tanpa kelas saat ini.</p>
+      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Semua siswa sudah terploting</p>
+      <p className="text-xs text-slate-400 dark:text-slate-500">Tidak ada siswa baru / tanpa kelas saat ini.</p>
     </div>
   )
 
@@ -80,9 +80,9 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
       <div className="space-y-3">
         {/* Info sumber */}
         <div className="rounded-lg border border-surface bg-surface p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Sumber data</p>
-          <p className="text-sm text-slate-600 mb-3">
-            <span className="font-semibold text-slate-900">{siswaList.length}</span> siswa baru siap disebar
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-3">Sumber data</p>
+          <p className="text-sm text-slate-600 dark:text-slate-300 dark:text-slate-600 mb-3">
+            <span className="font-semibold text-slate-900 dark:text-slate-50">{siswaList.length}</span> siswa baru siap disebar
           </p>
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-md bg-blue-50 border border-blue-100 px-3 py-2 text-center">
@@ -98,16 +98,16 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
 
         {/* Pilih kelas */}
         <div className="rounded-lg border border-surface bg-surface p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Wadah kelas 10</p>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-3">Wadah kelas 10</p>
           <div className="space-y-1.5 max-h-52 overflow-y-auto">
             {kelasList.map(k => {
               const full = k.jumlah_siswa >= k.kapasitas
               return (
                 <div key={k.id} className="flex items-center gap-2.5 p-2 rounded-md hover:bg-surface-2 border border-transparent hover:border-surface-2 transition-colors">
                   <Checkbox id={`k-${k.id}`} checked={selectedKelasIds.includes(k.id)} onCheckedChange={() => handleToggleKelas(k.id)} disabled={full} />
-                  <Label htmlFor={`k-${k.id}`} className={`flex-1 flex items-center justify-between text-xs cursor-pointer ${full ? 'text-slate-400' : 'text-slate-700 font-medium'}`}>
+                  <Label htmlFor={`k-${k.id}`} className={`flex-1 flex items-center justify-between text-xs cursor-pointer ${full ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200 font-medium'}`}>
                     <span>{k.nama}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${full ? 'bg-rose-50 text-rose-500' : 'bg-surface-3 text-slate-500'}`}>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${full ? 'bg-rose-50 text-rose-500' : 'bg-surface-3 text-slate-500 dark:text-slate-400 dark:text-slate-500'}`}>
                       {k.jumlah_siswa}/{k.kapasitas}
                     </span>
                   </Label>
@@ -132,8 +132,8 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
         <div className="rounded-lg border border-surface bg-surface flex flex-col min-h-[420px]">
           <div className="flex items-center justify-between px-4 py-3 border-b border-surface-2">
             <div>
-              <p className="text-xs font-semibold text-slate-700">Preview hasil simulasi</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">Cek distribusi L/P sebelum simpan permanen</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Preview hasil simulasi</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Cek distribusi L/P sebelum simpan permanen</p>
             </div>
             {simulasiResult.length > 0 && (
               <Button onClick={simpanPermanen} disabled={isSaving} size="sm"
@@ -152,8 +152,8 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
                 <p className="text-xs text-emerald-600">{successMsg}</p>
               </div>
             ) : simulasiResult.length === 0 ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-400">
-                <UserPlus className="h-8 w-8 text-slate-300" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-400 dark:text-slate-500">
+                <UserPlus className="h-8 w-8 text-slate-300 dark:text-slate-600" />
                 <p className="text-xs">Belum ada simulasi dijalankan</p>
               </div>
             ) : (
@@ -170,10 +170,10 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
                   <TableBody>
                     {simulasiResult.map((r, i) => (
                       <TableRow key={r.siswa_id} className="hover:bg-surface-2/50">
-                        <TableCell className="text-center text-xs text-slate-400 py-2">{i + 1}</TableCell>
-                        <TableCell className="text-xs font-medium text-slate-800 py-2">{r.nama_lengkap}</TableCell>
+                        <TableCell className="text-center text-xs text-slate-400 dark:text-slate-500 py-2">{i + 1}</TableCell>
+                        <TableCell className="text-xs font-medium text-slate-800 dark:text-slate-100 py-2">{r.nama_lengkap}</TableCell>
                         <TableCell className="text-center py-2">
-                          <span className="text-[10px] font-bold bg-surface-3 text-slate-600 px-1.5 py-0.5 rounded">{r.jk}</span>
+                          <span className="text-[10px] font-bold bg-surface-3 text-slate-600 dark:text-slate-300 dark:text-slate-600 px-1.5 py-0.5 rounded">{r.jk}</span>
                         </TableCell>
                         <TableCell className="text-right pr-4 py-2">
                           <span className="text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">{r.kelas_nama}</span>

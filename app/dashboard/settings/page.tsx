@@ -28,7 +28,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
-      <PageHeader title="Pengaturan Sistem" description="Kelola kalender akademik dan daftar jurusan/peminatan madrasah." icon={Settings} iconColor="text-slate-500" />
+      <PageHeader title="Pengaturan Sistem" description="Kelola kalender akademik dan daftar jurusan/peminatan madrasah." icon={Settings} iconColor="text-slate-500 dark:text-slate-400 dark:text-slate-500" />
       <SettingsClient taData={taData} />
     </div>
   )

@@ -63,7 +63,7 @@ export function ImportModal() {
         </DialogTrigger>
         <DialogContent className="sm:max-w-md rounded-xl">
           <DialogHeader className="border-b pb-3">
-            <DialogTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+            <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Import Data Kelas Massal
             </DialogTitle>
           </DialogHeader>
@@ -77,7 +77,7 @@ export function ImportModal() {
             )}
 
             <div className="flex items-center justify-between p-3 bg-surface-2 border border-surface-2 rounded-lg">
-              <p className="text-xs text-slate-600">Belum punya format Excel?</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300 dark:text-slate-600">Belum punya format Excel?</p>
               <Button type="button" size="sm" variant="outline" onClick={handleDownloadTemplate} className="h-7 text-xs gap-1.5 rounded-md bg-surface ml-3 shrink-0">
                 <Download className="h-3 w-3" /> Template
               </Button>

@@ -36,7 +36,7 @@ export default async function DetailKelasPage({ params }: { params: Promise<{ id
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <Link href="/dashboard/kelas" className="hover:text-blue-600 flex items-center gap-1 transition-colors bg-surface px-4 py-2 rounded-xl shadow-sm border border-surface w-fit font-bold text-sm text-slate-500">
+      <Link href="/dashboard/kelas" className="hover:text-blue-600 flex items-center gap-1 transition-colors bg-surface px-4 py-2 rounded-xl shadow-sm border border-surface w-fit font-bold text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">
         <ChevronLeft className="h-4 w-4" /> Kembali ke Manajemen Kelas
       </Link>
 
@@ -44,14 +44,14 @@ export default async function DetailKelasPage({ params }: { params: Promise<{ id
         <div className="absolute right-0 top-0 w-48 h-48 bg-blue-50 rounded-bl-full -z-0 opacity-50"></div>
         <div className="relative z-10 space-y-2">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">{namaKelasSingkat}</h1>
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-slate-50 tracking-tight">{namaKelasSingkat}</h1>
             {kelasData.kelompok !== 'UMUM' && (
               <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 border border-indigo-200 rounded-full shadow-sm">{kelasData.kelompok}</span>
             )}
           </div>
-          <div className="flex items-center gap-2 text-slate-600 font-medium">
-            <UserCircle className="h-5 w-5 text-slate-400" />
-            <span>Wali Kelas: <strong className="text-slate-800">{kelasData.wali_kelas_nama || 'Belum Ditentukan'}</strong></span>
+          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 dark:text-slate-600 font-medium">
+            <UserCircle className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+            <span>Wali Kelas: <strong className="text-slate-800 dark:text-slate-100">{kelasData.wali_kelas_nama || 'Belum Ditentukan'}</strong></span>
           </div>
         </div>
 
@@ -61,10 +61,10 @@ export default async function DetailKelasPage({ params }: { params: Promise<{ id
               <Users className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-0.5">Kapasitas Kelas</p>
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-0.5">Kapasitas Kelas</p>
               <div className="flex items-baseline gap-1.5">
-                <span className={`text-2xl sm:text-3xl font-black tracking-tight ${isFull ? 'text-red-600' : 'text-slate-900'}`}>{siswaList.length}</span>
-                <span className="text-slate-400 font-bold text-sm">/ {kelasData.kapasitas}</span>
+                <span className={`text-2xl sm:text-3xl font-black tracking-tight ${isFull ? 'text-red-600' : 'text-slate-900 dark:text-slate-50'}`}>{siswaList.length}</span>
+                <span className="text-slate-400 dark:text-slate-500 font-bold text-sm">/ {kelasData.kapasitas}</span>
               </div>
             </div>
           </div>
@@ -73,7 +73,7 @@ export default async function DetailKelasPage({ params }: { params: Promise<{ id
       </div>
 
       <div className="pt-2">
-        <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
           <Users className="h-5 w-5 text-blue-600"/> Daftar Siswa Kelas {namaKelasSingkat}
         </h2>
         <DetailKelasClient siswaData={siswaList} kelasId={kelasData.id} tingkatKelas={kelasData.tingkat} />

@@ -42,7 +42,7 @@ export function EditModal({ isOpen, onClose, kelasData, daftarGuru = [], daftarJ
     <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-md rounded-xl">
         <DialogHeader className="border-b pb-3">
-          <DialogTitle className="text-sm font-semibold flex items-center gap-2 text-slate-800">
+          <DialogTitle className="text-sm font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-100">
             <Pencil className="h-4 w-4 text-blue-600" /> Edit Rombongan Belajar
           </DialogTitle>
         </DialogHeader>
@@ -70,7 +70,7 @@ export function EditModal({ isOpen, onClose, kelasData, daftarGuru = [], daftarJ
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600">Tingkat <span className="text-rose-500">*</span></Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Tingkat <span className="text-rose-500">*</span></Label>
               <Select name="tingkat" defaultValue={kelasData.tingkat.toString()} required>
                 <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -81,7 +81,7 @@ export function EditModal({ isOpen, onClose, kelasData, daftarGuru = [], daftarJ
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600">Kelompok / Jurusan <span className="text-rose-500">*</span></Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Kelompok / Jurusan <span className="text-rose-500">*</span></Label>
               <Select name="kelompok" defaultValue={isJurusanUsang ? undefined : kelasData.kelompok} required>
                 <SelectTrigger className={`h-8 text-xs rounded-md ${isJurusanUsang ? 'bg-amber-50 border-amber-300 text-amber-700' : 'bg-slate-50'}`}>
                   <SelectValue placeholder="Pilih jurusan" />
@@ -97,21 +97,21 @@ export function EditModal({ isOpen, onClose, kelasData, daftarGuru = [], daftarJ
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600">Nomor Kelas <span className="text-rose-500">*</span></Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Nomor Kelas <span className="text-rose-500">*</span></Label>
               <Input name="nomor_kelas" defaultValue={kelasData.nomor_kelas} required className="h-8 text-sm rounded-md bg-slate-50" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600">Kapasitas <span className="text-rose-500">*</span></Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Kapasitas <span className="text-rose-500">*</span></Label>
               <Input name="kapasitas" type="number" defaultValue={kelasData.kapasitas} required className="h-8 text-sm rounded-md bg-slate-50 font-bold" />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-600">Wali Kelas</Label>
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Wali Kelas</Label>
             <Select name="wali_kelas_id" defaultValue={kelasData.wali_kelas_id || 'none'}>
               <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50"><SelectValue placeholder="-- Kosong --" /></SelectTrigger>
               <SelectContent className="max-h-56">
-                <SelectItem value="none" className="text-xs text-slate-400 italic">-- Kosongkan --</SelectItem>
+                <SelectItem value="none" className="text-xs text-slate-400 dark:text-slate-500 italic">-- Kosongkan --</SelectItem>
                 {daftarGuru.map(g => (
                   <SelectItem key={g.id} value={g.id} className="text-xs">{g.nama_lengkap}</SelectItem>
                 ))}
