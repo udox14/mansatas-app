@@ -16,10 +16,10 @@ import { hapusPelanggaran, hapusMasterPelanggaran, importMasterPelanggaranMassal
 import { cn } from '@/lib/utils'
 
 export function KedisiplinanClient({
-  currentUser, kasusList, siswaList, masterList
+  currentUser, kasusList, masterList
 }: {
   currentUser: { id: string, role: string, nama: string },
-  kasusList: any[], siswaList: any[], masterList: any[]
+  kasusList: any[], masterList: any[]
 }) {
   const isSuperAdmin = currentUser.role === 'super_admin'
   const canInput = ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'satpam', 'guru'].includes(currentUser.role)
@@ -421,7 +421,7 @@ export function KedisiplinanClient({
           )}
         </Tabs>
 
-        <FormModal isOpen={isKasusModalOpen} onClose={() => setIsKasusModalOpen(false)} editData={editKasusData} siswaList={siswaList} masterList={masterList} />
+        <FormModal isOpen={isKasusModalOpen} onClose={() => setIsKasusModalOpen(false)} editData={editKasusData} masterList={masterList} />
         <MasterModal isOpen={isMasterModalOpen} onClose={() => setIsMasterModalOpen(false)} editData={editMasterData} />
       </div>
     </>

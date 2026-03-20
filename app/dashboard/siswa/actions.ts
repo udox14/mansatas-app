@@ -1,9 +1,8 @@
 // Lokasi: app/dashboard/siswa/actions.ts
 'use server'
 
-// FIX: import serializeValue
 import { getDB, dbInsert, dbUpdate, dbDelete, dbSelectOne, dbBatchInsert, serializeValue } from '@/utils/db'
-import { uploadFotoSiswa } from '@/utils/r2'
+import { uploadFotoSiswa, deleteFromR2, validateImageFile } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 
@@ -43,6 +42,17 @@ export async function tambahSiswa(prevState: any, formData: FormData) {
 // ============================================================
 export async function hapusSiswa(id: string) {
   const db = await getDB()
+
+  // Hapus foto R2 jika ada sebelum hapus record
+  const siswa = await db
+    .prepare('SELECT foto_url FROM siswa WHERE id = ?')
+    .bind(id)
+    .first<{ foto_url: string | null }>()
+
+  if (siswa?.foto_url) {
+    await deleteFromR2(siswa.foto_url)
+  }
+
   const result = await dbDelete(db, 'siswa', { id })
   if (result.error) return { error: result.error }
 
@@ -55,73 +65,92 @@ export async function hapusSiswa(id: string) {
 // ============================================================
 export async function editSiswa(id: string, payload: any) {
   const db = await getDB()
-  const result = await dbUpdate(db, 'siswa', { ...payload, updated_at: new Date().toISOString() }, { id })
+
+  // Bersihkan FK kosong agar tidak simpan string kosong
+  for (const field of FK_FIELDS) {
+    if (payload[field] === '' || payload[field] === 'none') {
+      payload[field] = null
+    }
+  }
+
+  const result = await dbUpdate(
+    db,
+    'siswa',
+    { ...payload, updated_at: new Date().toISOString() },
+    { id }
+  )
+
   if (result.error) {
     return {
-      error: result.error.includes('UNIQUE') ? 'NISN sudah terdaftar untuk siswa lain' : result.error,
+      error: result.error.includes('UNIQUE') ? 'NISN sudah terdaftar pada siswa lain.' : result.error,
+      success: null,
     }
   }
 
   revalidatePath('/dashboard/siswa')
-  return { success: 'Data siswa berhasil diperbarui!' }
+  revalidatePath(`/dashboard/siswa/${id}`)
+  return { error: null, success: 'Data siswa berhasil diperbarui.' }
 }
 
 // ============================================================
-// 4. EDIT SISWA LENGKAP (Dari Modal)
+// 4. EDIT DETAIL LENGKAP SISWA (Buku Induk)
 // ============================================================
-export async function editSiswaLengkap(prevState: any, formData: FormData) {
+export async function editDetailSiswa(id: string, payload: any) {
   const db = await getDB()
-  const id = formData.get('id') as string
 
-  const payload: any = Object.fromEntries(formData.entries())
-  delete payload.id
-
-  // Bersihkan empty string → null
-  Object.keys(payload).forEach(key => {
-    if (
-      payload[key] === '' ||
-      payload[key] === 'undefined' ||
-      payload[key] === 'null' ||
-      (FK_FIELDS.includes(key) && !payload[key])
-    ) {
-      payload[key] = null
+  for (const field of FK_FIELDS) {
+    if (payload[field] === '' || payload[field] === 'none') {
+      payload[field] = null
     }
-  })
+  }
 
-  if (payload.anak_ke) payload.anak_ke = parseInt(payload.anak_ke as string)
-  if (payload.jumlah_saudara) payload.jumlah_saudara = parseInt(payload.jumlah_saudara as string)
+  const result = await dbUpdate(
+    db,
+    'siswa',
+    { ...payload, updated_at: new Date().toISOString() },
+    { id }
+  )
 
-  payload.updated_at = new Date().toISOString()
-
-  const result = await dbUpdate(db, 'siswa', payload, { id })
   if (result.error) return { error: result.error, success: null }
 
-  revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${id}`)
-  return { error: null, success: 'Biodata lengkap berhasil diperbarui!' }
+  revalidatePath('/dashboard/siswa')
+  return { error: null, success: 'Data lengkap siswa berhasil diperbarui.' }
 }
 
 // ============================================================
-// 5. GET DETAIL SISWA (Lazy Load)
+// 5. UBAH STATUS SISWA
 // ============================================================
-export async function getDetailSiswaLengkap(id: string) {
+export async function ubahStatusSiswa(id: string, status: string) {
   const db = await getDB()
-  const data = await dbSelectOne<any>(db, 'siswa', { id })
-  if (!data) return { error: 'Data tidak ditemukan', data: null }
-  return { error: null, data }
+  const result = await dbUpdate(
+    db,
+    'siswa',
+    { status, updated_at: new Date().toISOString() },
+    { id }
+  )
+  if (result.error) return { error: result.error }
+
+  revalidatePath('/dashboard/siswa')
+  return { success: `Status siswa berhasil diubah menjadi ${status}.` }
 }
 
 // ============================================================
 // 6. UPLOAD FOTO SISWA KE R2
+// Nama file tetap per siswa (overwrite otomatis), tidak perlu hapus lama
 // ============================================================
 export async function uploadFotoSiswaAction(siswaId: string, formData: FormData) {
-  const db = await getDB()
   const file = formData.get('foto') as File
-  if (!file) return { error: 'Tidak ada file.' }
+  if (!file || file.size === 0) return { error: 'Tidak ada file.' }
+
+  // Validasi sebelum upload
+  const validationError = validateImageFile(file)
+  if (validationError) return { error: validationError }
 
   const { url, error: uploadError } = await uploadFotoSiswa(siswaId, file)
   if (uploadError || !url) return { error: uploadError || 'Upload gagal' }
 
+  const db = await getDB()
   const result = await dbUpdate(
     db,
     'siswa',
@@ -131,6 +160,7 @@ export async function uploadFotoSiswaAction(siswaId: string, formData: FormData)
   if (result.error) return { error: result.error }
 
   revalidatePath('/dashboard/siswa')
+  revalidatePath(`/dashboard/siswa/${siswaId}`)
   return { success: 'Foto berhasil diperbarui!', url }
 }
 
@@ -142,14 +172,18 @@ export async function importSiswaMassal(dataSiswa: any[]) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
-  const kelasDb = await db.prepare('SELECT id, tingkat, kelompok, nomor_kelas FROM kelas').all<any>()
+  // Ambil data kelas dan siswa existing dalam 1 query masing-masing
+  const [kelasDb, existingDb] = await Promise.all([
+    db.prepare('SELECT id, tingkat, kelompok, nomor_kelas FROM kelas').all<any>(),
+    db.prepare('SELECT id, nisn, nama_lengkap FROM siswa').all<any>(),
+  ])
+
   const kelasMap = new Map<string, string>()
   kelasDb.results.forEach((k: any) => {
     const key = `${k.tingkat}-${k.kelompok}-${k.nomor_kelas}`.toUpperCase()
     kelasMap.set(key, k.id)
   })
 
-  const existingDb = await db.prepare('SELECT id, nisn, nama_lengkap FROM siswa').all<any>()
   const existingByNama = new Map<string, { id: string; nisn: string }>()
   const existingByNisn = new Map<string, { id: string; nama_lengkap: string }>()
   existingDb.results.forEach((s: any) => {
@@ -159,137 +193,67 @@ export async function importSiswaMassal(dataSiswa: any[]) {
 
   const toInsert: any[] = []
   const toUpdate: any[] = []
-  const errorLogs: string[] = []
+  const errors: string[] = []
 
-  const parseExcelDate = (excelDate: any) => {
-    if (!excelDate) return null
-    if (typeof excelDate === 'number') {
-      const date = new Date((excelDate - (25567 + 2)) * 86400 * 1000)
-      return date.toISOString().split('T')[0]
-    }
-    return excelDate.toString()
-  }
+  for (const row of dataSiswa) {
+    const nisn = row.NISN ? String(row.NISN).trim() : ''
+    const nama_lengkap = row.NAMA_LENGKAP ? String(row.NAMA_LENGKAP).trim() : ''
 
-  for (let i = 0; i < dataSiswa.length; i++) {
-    const item = dataSiswa[i]
-    const namaLengkap = String(item['NAMA LENGKAP'] || item.NAMA_LENGKAP || '').trim()
-    const nisn = String(item.NISN || '').trim()
-    if (!namaLengkap || !nisn) continue
+    if (!nama_lengkap) { errors.push(`Baris kosong nama dilewati`); continue }
 
-    const existingByNisnEntry = existingByNisn.get(nisn)
-    if (existingByNisnEntry) {
-      const namaYangAda = existingByNisnEntry.nama_lengkap.toLowerCase().trim()
-      if (namaYangAda !== namaLengkap.toLowerCase()) {
-        errorLogs.push(
-          `⚠️ Baris ${i + 2}: NISN ${nisn} milik "${namaLengkap}" sudah dipakai oleh "${existingByNisnEntry.nama_lengkap}" — periksa NISN-nya.`
-        )
-        continue
-      }
-      continue
-    }
-
-    let kelas_id: string | null = null
-    if (item.KELAS_TINGKAT && item.KELAS_NOMOR) {
-      const kelompok = String(item.KELAS_KELOMPOK || 'UMUM').toUpperCase().trim()
-      const key = `${item.KELAS_TINGKAT}-${kelompok}-${item.KELAS_NOMOR}`.toUpperCase().trim()
-      kelas_id = kelasMap.get(key) || null
-    }
+    const tingkat = row.TINGKAT ? parseInt(row.TINGKAT) : null
+    const kelompok = row.KELOMPOK ? String(row.KELOMPOK).trim().toUpperCase() : 'UMUM'
+    const nomor_kelas = row.NOMOR_KELAS ? String(row.NOMOR_KELAS).trim() : null
+    const kelasKey = tingkat && nomor_kelas ? `${tingkat}-${kelompok}-${nomor_kelas}` : null
+    const kelas_id = kelasKey ? (kelasMap.get(kelasKey) ?? null) : null
 
     const payload: any = {
-      nisn,
-      nis_lokal: item.NIS_LOKAL ? String(item.NIS_LOKAL).trim() : null,
-      nama_lengkap: namaLengkap,
-      jenis_kelamin: (item['JENIS KELAMIN'] || item.JK) === 'P' ? 'P' : 'L',
-      tempat_tinggal: item.PESANTREN || item.TEMPAT_TINGGAL || 'Non-Pesantren',
+      nisn: nisn || null,
+      nama_lengkap,
+      jenis_kelamin: row.JENIS_KELAMIN === 'P' ? 'P' : 'L',
+      tempat_tinggal: row.TEMPAT_TINGGAL === 'Pesantren' ? 'Pesantren' : 'Non-Pesantren',
       kelas_id,
       status: 'aktif',
-      updated_at: new Date().toISOString(),
-      nik: item.NIK ? String(item.NIK).trim() : null,
-      tempat_lahir: item['TEMPAT LAHIR'] || null,
-      tanggal_lahir: parseExcelDate(item['TANGGAL LAHIR']),
-      agama: item.AGAMA || null,
-      jumlah_saudara: item['JML SAUDARA'] ? parseInt(item['JML SAUDARA']) : null,
-      anak_ke: item['ANAK KE'] ? parseInt(item['ANAK KE']) : null,
-      status_anak: item['STS ANAK'] || null,
-      alamat_lengkap: item['ALAMAT LENGKAP (JL/ KP.)'] || null,
-      rt: item.RT ? String(item.RT).trim() : null,
-      rw: item.RW ? String(item.RW).trim() : null,
-      desa_kelurahan: item['DESA/KELURAHAN'] || null,
-      kecamatan: item.KECAMATAN || null,
-      kabupaten_kota: item['KAB./KOTA'] || null,
-      provinsi: item.PROV || null,
-      kode_pos: item['KD POS'] ? String(item['KD POS']).trim() : null,
-      nomor_whatsapp: item['NOMOR WHATSAPP'] ? String(item['NOMOR WHATSAPP']).trim() : null,
-      nomor_kk: item['No. KK'] || item['NO KK'] ? String(item['No. KK'] || item['NO KK']).trim() : null,
-      nama_ayah: item['NAMA AYAH'] || null,
-      nik_ayah: item['NIK AYAH'] ? String(item['NIK AYAH']).trim() : null,
-      tempat_lahir_ayah: item['TMP LHR AYAH'] || null,
-      tanggal_lahir_ayah: parseExcelDate(item['TGL LHR AYAH']),
-      status_ayah: item['STATUS AYAH'] || null,
-      pendidikan_ayah: item['PENDIDIKAN AYAH'] || null,
-      pekerjaan_ayah: item['PEKERJAAN AYAH'] || null,
-      penghasilan_ayah: item['PENGHASILAN AYAH'] || null,
-      nama_ibu: item['NAMA IBU'] || null,
-      nik_ibu: item['NIK IBU'] ? String(item['NIK IBU']).trim() : null,
-      tempat_lahir_ibu: item['TMP LHR IBU'] || null,
-      tanggal_lahir_ibu: parseExcelDate(item['TGL LHR IBU']),
-      status_ibu: item['STATUS IBU'] || null,
-      pendidikan_ibu: item['PENDIDIKAN IBU'] || null,
-      pekerjaan_ibu: item['PEKERJAAN IBU'] || null,
-      penghasilan_ibu: item['PENGHASILAN IBU'] || null,
     }
 
-    Object.keys(payload).forEach(key => {
-      if (payload[key] === null) delete payload[key]
-    })
+    const existBySisn = nisn ? existingByNisn.get(nisn) : null
+    const existByNama = existingByNama.get(nama_lengkap.toLowerCase())
+    const existing = existBySisn || existByNama
 
-    const existingByNamaEntry = existingByNama.get(namaLengkap.toLowerCase())
-    if (existingByNamaEntry) {
-      toUpdate.push({ ...payload, id: existingByNamaEntry.id })
+    if (existing) {
+      toUpdate.push({ id: existing.id, ...payload })
     } else {
       toInsert.push(payload)
     }
   }
 
-  let successCount = 0
+  let insertCount = 0
+  let updateCount = 0
 
   if (toInsert.length > 0) {
-    const { successCount: inserted, error } = await dbBatchInsert(db, 'siswa', toInsert)
-    if (error) errorLogs.push(`Gagal membuat data baru: ${error}`)
-    else successCount += inserted
+    const { successCount } = await dbBatchInsert(db, 'siswa', toInsert)
+    insertCount = successCount
   }
 
   if (toUpdate.length > 0) {
-    const stmts = toUpdate.map((row: any) => {
-      const { id, nisn, nis_lokal, ...data } = row
-      const keys = Object.keys(data)
-      const sets = keys.map(k => `${k} = ?`).join(', ')
-      // FIX: Gunakan serializeValue untuk Update Batch
-      const vals = keys.map(k => serializeValue(data[k] ?? null))
-      return db.prepare(`UPDATE siswa SET ${sets} WHERE id = ?`).bind(...vals, id)
-    })
-    
-    try {
-      // FIX: Chunking Update untuk menghindari Limit D1
-      const chunkSize = 100
-      for (let i = 0; i < stmts.length; i += chunkSize) {
-        const chunk = stmts.slice(i, i + chunkSize)
-        await db.batch(chunk)
-      }
-      successCount += toUpdate.length
-    } catch (e: any) {
-      errorLogs.push(`Gagal menimpa data: ${e.message}`)
+    const chunkSize = 100
+    for (let i = 0; i < toUpdate.length; i += chunkSize) {
+      const chunk = toUpdate.slice(i, i + chunkSize)
+      const stmts = chunk.map((s: any) => {
+        const { id, ...data } = s
+        const keys = Object.keys(data)
+        const sets = keys.map((k) => `${k} = ?`).join(', ')
+        const vals = keys.map((k) => serializeValue(data[k]))
+        return db.prepare(`UPDATE siswa SET ${sets}, updated_at = datetime('now') WHERE id = ?`).bind(...vals, id)
+      })
+      await db.batch(stmts)
+      updateCount += chunk.length
     }
   }
 
   revalidatePath('/dashboard/siswa')
-
-  const nisnWarnings = errorLogs.filter(l => l.startsWith('⚠️')).length
-  const otherErrors = errorLogs.filter(l => !l.startsWith('⚠️')).length
-
-  let successMsg = `Berhasil menyimpan biodata ${successCount} siswa.`
-  if (nisnWarnings > 0) successMsg += ` ${nisnWarnings} siswa dilewati karena konflik NISN (lihat log).`
-  if (otherErrors > 0) successMsg += ` ${otherErrors} error lainnya.`
-
-  return { success: successMsg, logs: errorLogs }
+  return {
+    error: errors.length > 0 ? errors.slice(0, 5).join('; ') : null,
+    success: `Import selesai: ${insertCount} ditambahkan, ${updateCount} diperbarui.`,
+  }
 }
