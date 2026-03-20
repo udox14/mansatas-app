@@ -1,4 +1,3 @@
-// TIMPA SELURUH ISI FILE INI
 // Lokasi: app/dashboard/siswa/[id]/components/detail-client.tsx
 'use client'
 
@@ -6,17 +5,21 @@ import { useMemo, useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
 import { 
   User, GraduationCap, ShieldAlert, DoorOpen, LineChart, 
   MapPin, Phone, Users, CheckCircle2, History, AlertTriangle, 
-  Image as ImageIcon, ChevronDown, ChevronUp, BookOpen 
+  Image as ImageIcon, ChevronDown, ChevronUp, BookOpen, Pencil
 } from 'lucide-react'
+import { EditSiswaModal } from '../../components/edit-modal'
 
 export function DetailSiswaClient({ 
-  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas 
+  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, kelasList
 }: { 
-  siswa: any, riwayatKelas: any[], pelanggaran: any[], izinKeluar: any[], izinKelas: any[] 
+  siswa: any, riwayatKelas: any[], pelanggaran: any[], izinKeluar: any[], izinKelas: any[]
+  kelasList?: any[]
 }) {
+  const [isEditOpen, setIsEditOpen] = useState(false)
   
   // State untuk Accordion Akademik (Otomatis buka kelas saat ini, atau kelas 10 jika belum ada)
   const [openAccordion, setOpenAccordion] = useState<number | null>(siswa.kelas?.tingkat || 10)
@@ -154,6 +157,14 @@ export function DetailSiswaClient({
   return (
     <div className="space-y-6">
       
+      {/* EDIT MODAL */}
+      <EditSiswaModal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        siswa={siswa}
+        kelasList={kelasList ?? []}
+      />
+
       {/* HEADER PROFIL */}
       <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center md:items-start gap-6 relative overflow-hidden">
         {/* Dekorasi Latar */}
@@ -180,8 +191,8 @@ export function DetailSiswaClient({
               <p className="text-sm font-bold text-slate-500 font-mono mt-1">NISN: {siswa.nisn} {siswa.nis_lokal && `• NIS: ${siswa.nis_lokal}`}</p>
             </div>
             
-            {/* BADGES */}
-            <div className="flex flex-wrap justify-center md:justify-end gap-2">
+            {/* BADGES + TOMBOL EDIT */}
+            <div className="flex flex-wrap justify-center md:justify-end gap-2 items-center">
               <span className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide border ${siswa.status === 'aktif' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : siswa.status === 'lulus' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-rose-100 text-rose-800 border-rose-200'}`}>
                 {siswa.status}
               </span>
@@ -193,6 +204,14 @@ export function DetailSiswaClient({
                    <MapPin className="h-3.5 w-3.5" /> Anak Asrama
                  </span>
               )}
+              <Button
+                onClick={() => setIsEditOpen(true)}
+                size="sm"
+                variant="outline"
+                className="h-8 px-3 text-xs font-semibold border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300 gap-1.5"
+              >
+                <Pencil className="h-3.5 w-3.5" /> Edit Biodata
+              </Button>
             </div>
           </div>
           

@@ -21,7 +21,7 @@ const initialState = { error: null as string | null, success: null as string | n
 function SubmitBtn() {
   const { pending } = useFormStatus()
   return (
-    <Button type="submit" disabled={pending} className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-md h-12 text-base font-bold transition-all">
+    <Button type="submit" disabled={pending} className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-lg h-9 text-sm font-medium transition-colors">
       {pending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : 'Simpan Tahun Ajaran'}
     </Button>
   )
@@ -118,25 +118,25 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
       {/* ============================================================== */}
       {/* KOTAK TAHUN AJARAN */}
       {/* ============================================================== */}
-      <div className="bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden flex flex-col">
         <div className="p-6 lg:p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="bg-slate-100 p-2.5 rounded-xl text-slate-600 shadow-inner"><CalendarDays className="h-6 w-6"/></div>
+            <div className="p-1.5 bg-slate-100 rounded-md border border-slate-200"><CalendarDays className="h-4 w-4 text-slate-500"/></div>
             <div>
-              <h2 className="text-xl font-bold text-slate-800">Manajemen Tahun Ajaran & Jurusan</h2>
+              <h2 className="text-sm font-semibold text-slate-800">Manajemen Tahun Ajaran & Jurusan</h2>
               <p className="text-sm text-slate-500">Tentukan periode aktif dan konfigurasi jurusan untuk tiap periode.</p>
             </div>
           </div>
           
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2 bg-slate-900 hover:bg-slate-800 text-white shadow-md transition-all rounded-xl h-11 px-5">
+              <Button className="gap-2 bg-slate-900 hover:bg-slate-800 text-white transition-colors rounded-lg h-9 px-4 text-sm">
                 <PlusCircle className="h-4 w-4" /> Tambah Periode Baru
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md rounded-3xl bg-white/95 backdrop-blur-xl border-slate-200/60 shadow-xl overflow-hidden">
+            <DialogContent className="sm:max-w-md rounded-xl border-slate-200">
               <DialogHeader className="border-b border-slate-100 pb-4">
-                <DialogTitle className="text-xl font-bold text-slate-800">Setup Tahun Ajaran & Jurusan</DialogTitle>
+                <DialogTitle className="text-sm font-semibold text-slate-800">Setup Tahun Ajaran & Jurusan</DialogTitle>
               </DialogHeader>
               
               <ScrollArea className="max-h-[70vh] pr-4 py-2">
@@ -146,14 +146,14 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
 
                   {/* IDENTITAS TA */}
                   <div className="space-y-2">
-                    <Label className="text-slate-600 font-bold text-xs uppercase tracking-wider">Nama Periode</Label>
-                    <Input name="nama" required placeholder="Contoh: 2025/2026" className="h-12 rounded-xl bg-slate-50 focus:bg-white focus:border-slate-500 transition-colors" />
+                    <Label className="text-xs font-medium text-slate-600">Nama Periode</Label>
+                    <Input name="nama" required placeholder="Contoh: 2025/2026" className="h-9 rounded-lg bg-slate-50 focus:bg-white focus:border-slate-400 transition-colors text-sm" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-slate-600 font-bold text-xs uppercase tracking-wider">Semester</Label>
+                    <Label className="text-xs font-medium text-slate-600">Semester</Label>
                     <Select name="semester" defaultValue="1">
-                      <SelectTrigger className="h-12 rounded-xl bg-slate-50 focus:bg-white focus:border-slate-500 transition-colors"><SelectValue/></SelectTrigger>
-                      <SelectContent className="rounded-xl">
+                      <SelectTrigger className="h-9 rounded-lg bg-slate-50 focus:bg-white focus:border-slate-400 transition-colors text-sm"><SelectValue/></SelectTrigger>
+                      <SelectContent className="rounded-lg">
                         <SelectItem value="1">Ganjil (1)</SelectItem>
                         <SelectItem value="2">Genap (2)</SelectItem>
                       </SelectContent>
@@ -161,7 +161,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
                   </div>
 
                   {/* SETUP JURUSAN DI DALAM MODAL */}
-                  <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-2xl space-y-4">
+                  <div className="bg-blue-50/50 border border-blue-100 p-3 rounded-lg space-y-3">
                     <div>
                       <Label className="text-blue-800 font-bold text-sm flex items-center gap-2 mb-1"><Tags className="h-4 w-4" /> Daftar Jurusan (Peminatan)</Label>
                       <p className="text-[11px] text-blue-600/80 leading-tight">Tentukan jurusan apa saja yang dibuka pada tahun ajaran ini. Data ini akan dipakai saat pembuatan kelas dan plotting.</p>
@@ -173,9 +173,9 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
                         onChange={e => setTambahJurusanInput(e.target.value)} 
                         onKeyDown={e => { if(e.key === 'Enter') { e.preventDefault(); handleAddJurusan(false); } }}
                         placeholder="Ketik lalu Enter..." 
-                        className="h-10 rounded-xl bg-white border-blue-200"
+                        className="h-9 rounded-lg bg-white border-blue-200 text-sm"
                       />
-                      <Button type="button" onClick={() => handleAddJurusan(false)} className="h-10 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm">Tambah</Button>
+                      <Button type="button" onClick={() => handleAddJurusan(false)} className="h-9 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium">Tambah</Button>
                     </div>
 
                     <div className="flex flex-wrap gap-2">
@@ -208,7 +208,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
                 
                 {/* IDENTITAS TA & BADGES JURUSAN */}
                 <div className="flex items-start gap-4 mb-4 xl:mb-0">
-                  <div className={`mt-1 h-12 w-12 shrink-0 rounded-full flex items-center justify-center font-black text-lg shadow-sm border-2 ${ta.is_active ? 'bg-emerald-500 text-white border-emerald-200 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-slate-100 text-slate-400 border-white'}`}>
+                  <div className={`mt-1 h-9 w-9 shrink-0 rounded-full flex items-center justify-center font-bold text-sm border-2 ${ta.is_active ? 'bg-emerald-500 text-white border-emerald-300' : 'bg-slate-100 text-slate-400 border-white'}`}>
                     {ta.semester}
                   </div>
                   <div>
@@ -262,12 +262,12 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
       {/* MODAL EDIT JURUSAN UNTUK TA TERTENTU */}
       {/* ============================================================== */}
       <Dialog open={!!editingTA} onOpenChange={(open) => !open && setEditingTA(null)}>
-        <DialogContent className="sm:max-w-md rounded-3xl bg-white/95 backdrop-blur-xl border-slate-200/60 shadow-xl">
+        <DialogContent className="sm:max-w-md rounded-xl border-slate-200">
           <DialogHeader className="border-b border-slate-100 pb-4">
-            <DialogTitle className="text-xl font-bold text-slate-800">Edit Jurusan TA {editingTA?.nama}</DialogTitle>
+            <DialogTitle className="text-sm font-semibold text-slate-800">Edit Jurusan — TA {editingTA?.nama}</DialogTitle>
           </DialogHeader>
           <div className="space-y-5 pt-2">
-            <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-2xl space-y-4">
+            <div className="bg-blue-50/50 border border-blue-100 p-3 rounded-lg space-y-3">
               <div>
                 <Label className="text-blue-800 font-bold text-sm flex items-center gap-2 mb-1"><Tags className="h-4 w-4" /> Daftar Jurusan Terkini</Label>
                 <p className="text-[11px] text-blue-600/80 leading-tight">Peringatan: Menghapus jurusan tidak merusak data kelas lama, hanya menghilangkan dari opsi Dropdown di masa depan.</p>
@@ -279,9 +279,9 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
                   onChange={e => setEditJurusanInput(e.target.value)} 
                   onKeyDown={e => { if(e.key === 'Enter') { e.preventDefault(); handleAddJurusan(true); } }}
                   placeholder="Ketik lalu Enter..." 
-                  className="h-10 rounded-xl bg-white border-blue-200"
+                  className="h-9 rounded-lg bg-white border-blue-200 text-sm"
                 />
-                <Button type="button" onClick={() => handleAddJurusan(true)} className="h-10 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm">Tambah</Button>
+                <Button type="button" onClick={() => handleAddJurusan(true)} className="h-9 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium">Tambah</Button>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -296,7 +296,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
               </div>
             </div>
             
-            <Button onClick={submitEditJurusan} disabled={isSavingJurusan} className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-md h-12 text-base font-bold transition-all">
+            <Button onClick={submitEditJurusan} disabled={isSavingJurusan} className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-lg h-9 text-sm font-medium transition-colors">
               {isSavingJurusan ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : 'Simpan Perubahan'}
             </Button>
           </div>

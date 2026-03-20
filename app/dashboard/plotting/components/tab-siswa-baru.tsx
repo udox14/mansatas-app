@@ -132,7 +132,7 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[],
               <p className="text-sm text-slate-500 mt-1">Cek distribusi (L/P) sebelum simpan permanen.</p>
             </div>
             {simulasiResult.length > 0 && (
-              <Button onClick={simpanPermanen} disabled={isSaving} className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-11 rounded-lg shadow-md w-full sm:w-auto">
+              <Button onClick={simpanPermanen} disabled={isSaving} className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-9 text-sm rounded-lg w-full sm:w-auto">
                 {isSaving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4" />} Simpan Permanen
               </Button>
             )}
