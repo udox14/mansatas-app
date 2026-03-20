@@ -6,7 +6,8 @@ import Link from 'next/link'
 import {
   Users, UserCog, Library, ShieldAlert,
   TrendingUp, CalendarCheck, Clock, ArrowRight,
-  GraduationCap, Sparkles
+  GraduationCap, Settings, BarChart2, AlertTriangle,
+  Package
 } from 'lucide-react'
 
 export const metadata = { title: 'Dashboard - MANSATAS App' }
@@ -17,29 +18,38 @@ export default async function DashboardPage() {
 
   const db = await getDB()
 
+  // Batch 1: user info + TA aktif
   const [freshUser, taAktif] = await Promise.all([
     db.prepare('SELECT nama_lengkap, role, avatar_url FROM "user" WHERE id = ?').bind(user.id).first<any>(),
-    db.prepare('SELECT nama, semester FROM tahun_ajaran WHERE is_active = 1').first<{ nama: string; semester: number }>(),
+    db.prepare('SELECT nama, semester FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ nama: string; semester: number }>(),
   ])
 
-  const [jmlSiswa, jmlGuru, jmlKelas, pelanggaranRaw] = await Promise.all([
-    db.prepare("SELECT COUNT(*) as c FROM siswa WHERE status = 'aktif'")
-      .first<{ c: number }>().then((r: any) => r?.c ?? 0),
-    db.prepare("SELECT COUNT(*) as c FROM \"user\" WHERE role IN ('guru','guru_bk','wakamad','kepsek','guru_piket')")
-      .first<{ c: number }>().then((r: any) => r?.c ?? 0),
-    db.prepare('SELECT COUNT(*) as c FROM kelas')
-      .first<{ c: number }>().then((r: any) => r?.c ?? 0),
+  const today = new Date().toISOString().split('T')[0]
+
+  // Batch 2: stat counts + live counters + pelanggaran — semuanya parallel
+  // Hemat reads: 3 COUNT digabung 1 query scalar, live counter 1 query
+  const [counts, liveData, pelanggaranRaw] = await Promise.all([
     db.prepare(`
-      SELECT sp.id, sp.tanggal, sp.keterangan,
-        s.nama_lengkap as siswa_nama,
-        k.tingkat, k.nomor_kelas, k.kelompok,
+      SELECT
+        (SELECT COUNT(*) FROM siswa WHERE status = 'aktif') as siswa,
+        (SELECT COUNT(*) FROM "user" WHERE role IN ('guru','guru_bk','wakamad','kepsek','guru_piket')) as guru,
+        (SELECT COUNT(*) FROM kelas) as kelas
+    `).first<{ siswa: number; guru: number; kelas: number }>(),
+
+    db.prepare(`
+      SELECT
+        (SELECT COUNT(*) FROM izin_keluar_komplek WHERE status = 'BELUM KEMBALI') as di_luar,
+        (SELECT COUNT(*) FROM izin_tidak_masuk_kelas WHERE tanggal = ?) as izin_kelas
+    `).bind(today).first<{ di_luar: number; izin_kelas: number }>(),
+
+    db.prepare(`
+      SELECT sp.tanggal, s.nama_lengkap as siswa_nama,
         mp.nama_pelanggaran, mp.poin
       FROM siswa_pelanggaran sp
       JOIN siswa s ON sp.siswa_id = s.id
-      LEFT JOIN kelas k ON s.kelas_id = k.id
       JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
       ORDER BY sp.created_at DESC LIMIT 5
-    `).all<any>().then((r: any) => r.results)
+    `).all<any>().then(r => r.results ?? []),
   ])
 
   const hour = new Date().getHours()
@@ -55,26 +65,28 @@ export default async function DashboardPage() {
     guru_piket: 'Guru Piket', satpam: 'Satpam', pramubakti: 'Pramubakti', wali_murid: 'Wali Murid',
   }
 
-  return (
-    <div className="space-y-5 animate-in fade-in duration-500 pb-12">
+  const todayLabel = new Date().toLocaleDateString('id-ID', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  })
 
-      {/* WELCOME CARD — clean, shadcn-style */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-        <div className="flex items-center gap-4 min-w-0">
-          {/* Avatar */}
-          <div className="relative h-11 w-11 shrink-0 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center overflow-hidden shadow-sm">
+  return (
+    <div className="space-y-3 animate-in fade-in duration-500 pb-12">
+
+      {/* ── WELCOME STRIP ── */}
+      <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="relative h-10 w-10 shrink-0 rounded-full bg-emerald-500 flex items-center justify-center overflow-hidden shadow-sm">
             {avatarUrl
               ? <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
-              : <span className="text-lg font-bold text-white">{namaDepan.charAt(0).toUpperCase()}</span>
+              : <span className="text-base font-semibold text-white select-none">{namaDepan.charAt(0).toUpperCase()}</span>
             }
-            <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 border-2 border-white" />
+            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-white" />
           </div>
-          {/* Greeting */}
           <div className="min-w-0">
-            <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest leading-none mb-1">{sapaan}</p>
-            <h1 className="text-base font-semibold text-slate-900 leading-tight truncate">{namaLengkap}</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md uppercase tracking-wide">
+            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest leading-none mb-0.5">{sapaan}</p>
+            <h1 className="text-sm font-semibold text-slate-900 leading-snug truncate">{namaLengkap}</h1>
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                 {roleLabel[userRole] ?? userRole.replace('_', ' ')}
               </span>
               {taAktif && (
@@ -86,89 +98,111 @@ export default async function DashboardPage() {
             </div>
           </div>
         </div>
-
-        {/* Quick action */}
         <Link
           href="/dashboard/settings/profile"
-          className="shrink-0 text-xs font-medium text-slate-500 hover:text-slate-700 border border-slate-200 hover:border-slate-300 px-3 py-1.5 rounded-md transition-colors hidden sm:inline-flex items-center gap-1.5"
+          className="shrink-0 hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 hover:border-slate-300 px-3 py-1.5 rounded-md bg-slate-50 hover:bg-white transition-colors"
         >
-          <UserCog className="h-3.5 w-3.5" /> Profil Saya
+          <UserCog className="h-3.5 w-3.5" /> Profil saya
         </Link>
       </div>
 
-      {/* STAT CARDS */}
+      {/* ── STAT CARDS ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard title="Siswa Aktif" value={jmlSiswa} icon={<Users className="h-4 w-4 text-blue-500" />} href="/dashboard/siswa" accent="blue" />
-        <StatCard title="Guru & Pegawai" value={jmlGuru} icon={<UserCog className="h-4 w-4 text-emerald-500" />} href="/dashboard/guru" accent="emerald" />
-        <StatCard title="Rombel" value={jmlKelas} icon={<Library className="h-4 w-4 text-amber-500" />} href="/dashboard/kelas" accent="amber" />
-        <StatCard title="Analitik SNBP" value="PDSS" icon={<GraduationCap className="h-4 w-4 text-violet-500" />} href="/dashboard/akademik/analitik" accent="violet" />
+        <StatCard title="Siswa aktif" value={counts?.siswa ?? 0} sub={`${counts?.kelas ?? 0} rombel`} icon={<Users className="h-4 w-4" />} iconBg="bg-blue-50" iconColor="text-blue-600" href="/dashboard/siswa" />
+        <StatCard title="Guru & pegawai" value={counts?.guru ?? 0} sub="berbagai peran" icon={<UserCog className="h-4 w-4" />} iconBg="bg-emerald-50" iconColor="text-emerald-600" href="/dashboard/guru" />
+        <StatCard title="Rombel" value={counts?.kelas ?? 0} sub="Kelas 10, 11, 12" icon={<Library className="h-4 w-4" />} iconBg="bg-amber-50" iconColor="text-amber-600" href="/dashboard/kelas" />
+        <StatCard title="Analitik SNBP" value="PDSS" sub="Kelas 12 aktif" icon={<BarChart2 className="h-4 w-4" />} iconBg="bg-violet-50" iconColor="text-violet-600" href="/dashboard/akademik/analitik" />
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      {/* ── MAIN GRID ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
 
-        {/* RADAR KEDISIPLINAN */}
-        <div className="xl:col-span-2 rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 bg-rose-50 rounded-md border border-rose-100">
-                <ShieldAlert className="h-4 w-4 text-rose-500" />
+        {/* KIRI: Live status + Pelanggaran */}
+        <div className="flex flex-col gap-3">
+
+          {/* Live counter */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
+              <div className="p-1.5 rounded-md bg-emerald-50 border border-emerald-100">
+                <Clock className="h-3.5 w-3.5 text-emerald-600" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-800">Radar Kedisiplinan</p>
-                <p className="text-[11px] text-slate-400">5 pelanggaran terbaru</p>
+                <p className="text-xs font-semibold text-slate-800">Status hari ini</p>
+                <p className="text-[10px] text-slate-400">{todayLabel}</p>
               </div>
             </div>
-            <Link
-              href="/dashboard/kedisiplinan"
-              className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
-            >
-              Lihat semua <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
+            <div className="grid grid-cols-2 divide-x divide-slate-100">
+              <LiveCell label="Siswa di luar komplek" value={liveData?.di_luar ?? 0} color="rose" href="/dashboard/izin" activeLabel="Belum kembali" />
+              <LiveCell label="Izin tidak masuk kelas" value={liveData?.izin_kelas ?? 0} color="amber" href="/dashboard/izin" activeLabel="Hari ini" />
+            </div>
           </div>
 
-          <div className="p-4">
-            {!pelanggaranRaw || pelanggaranRaw.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-slate-400 gap-3">
-                <div className="p-3 bg-emerald-50 rounded-full">
-                  <TrendingUp className="h-6 w-6 text-emerald-500" />
+          {/* Radar pelanggaran */}
+          <div className="flex-1 rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-md bg-rose-50 border border-rose-100">
+                  <ShieldAlert className="h-3.5 w-3.5 text-rose-500" />
                 </div>
-                <p className="text-sm font-medium text-slate-600">Situasi aman terkendali</p>
-                <p className="text-xs text-slate-400">Belum ada catatan pelanggaran.</p>
+                <div>
+                  <p className="text-xs font-semibold text-slate-800">Pelanggaran terbaru</p>
+                  <p className="text-[10px] text-slate-400">5 kasus terakhir</p>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-2">
-                {pelanggaranRaw.map((p: any) => (
-                  <div key={p.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
-                    <div className="h-8 w-8 shrink-0 rounded-lg bg-rose-50 border border-rose-100 flex flex-col items-center justify-center">
-                      <span className="text-[9px] font-bold text-rose-400 leading-none">+{p.poin}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-slate-800 truncate">{p.siswa_nama}</p>
-                        <span className="text-[10px] text-slate-400 shrink-0 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {new Date(p.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                        </span>
-                      </div>
-                      <p className="text-xs text-rose-500 truncate">{p.nama_pelanggaran}</p>
-                    </div>
+              <Link href="/dashboard/kedisiplinan" className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition-colors">
+                Lihat semua <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+            <div className="p-2">
+              {pelanggaranRaw.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 gap-2 text-slate-400">
+                  <div className="p-2.5 rounded-full bg-emerald-50">
+                    <TrendingUp className="h-5 w-5 text-emerald-500" />
                   </div>
-                ))}
-              </div>
-            )}
+                  <p className="text-xs font-medium text-slate-600">Situasi aman terkendali</p>
+                  <p className="text-[11px]">Belum ada catatan pelanggaran.</p>
+                </div>
+              ) : (
+                <div className="space-y-0.5">
+                  {pelanggaranRaw.map((p: any, i: number) => (
+                    <div key={i} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-50 transition-colors">
+                      <div className="h-8 w-8 shrink-0 rounded-lg bg-rose-50 border border-rose-100 flex flex-col items-center justify-center">
+                        <span className="text-[9px] font-bold text-rose-400 leading-tight">+{p.poin}</span>
+                        <span className="text-[8px] text-rose-300 leading-tight">poin</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-slate-800 truncate">{p.siswa_nama}</p>
+                        <p className="text-[11px] text-rose-500 truncate">{p.nama_pelanggaran}</p>
+                      </div>
+                      <span className="text-[10px] text-slate-400 shrink-0">
+                        {new Date(p.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* AKSES CEPAT */}
+        {/* KANAN: Akses cepat */}
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-slate-100">
-            <Sparkles className="h-4 w-4 text-amber-400" />
-            <p className="text-sm font-semibold text-slate-800">Akses Cepat</p>
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
+            <div className="p-1.5 rounded-md bg-amber-50 border border-amber-100">
+              <Package className="h-3.5 w-3.5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-800">Akses cepat</p>
+              <p className="text-[10px] text-slate-400">Menu operasional harian</p>
+            </div>
           </div>
-          <div className="p-3 space-y-1.5">
-            <QuickLink href="/dashboard/kehadiran" icon={<CalendarCheck className="h-4 w-4 text-emerald-500" />} title="Jurnal & Kehadiran" desc="Isi absensi harian" />
-            <QuickLink href="/dashboard/kedisiplinan" icon={<ShieldAlert className="h-4 w-4 text-rose-500" />} title="Lapor Pelanggaran" desc="Input kasus tata tertib" />
-            <QuickLink href="/dashboard/izin" icon={<Clock className="h-4 w-4 text-amber-500" />} title="Perizinan Siswa" desc="Keluar komplek / jam kelas" />
+          <div className="p-2 space-y-0.5">
+            <QuickLink href="/dashboard/kehadiran" icon={<CalendarCheck className="h-4 w-4" />} iconBg="bg-emerald-50" iconColor="text-emerald-600" title="Jurnal & Kehadiran" desc="Isi absensi & jurnal kelas" />
+            <QuickLink href="/dashboard/kedisiplinan" icon={<AlertTriangle className="h-4 w-4" />} iconBg="bg-rose-50" iconColor="text-rose-500" title="Lapor Pelanggaran" desc="Input kasus tata tertib" />
+            <QuickLink href="/dashboard/izin" icon={<Clock className="h-4 w-4" />} iconBg="bg-amber-50" iconColor="text-amber-600" title="Perizinan Siswa" desc="Keluar komplek & izin kelas" />
+            <QuickLink href="/dashboard/plotting" icon={<GraduationCap className="h-4 w-4" />} iconBg="bg-blue-50" iconColor="text-blue-600" title="Plotting & Kenaikan" desc="Penjurusan & naik kelas" />
+            <QuickLink href="/dashboard/akademik/analitik" icon={<BarChart2 className="h-4 w-4" />} iconBg="bg-violet-50" iconColor="text-violet-600" title="Analitik Kelulusan" desc="SNBP & SPAN-PTKIN" />
+            <QuickLink href="/dashboard/settings" icon={<Settings className="h-4 w-4" />} iconBg="bg-slate-100" iconColor="text-slate-500" title="Pengaturan Sistem" desc="Tahun ajaran & jurusan" />
           </div>
         </div>
 
@@ -177,40 +211,60 @@ export default async function DashboardPage() {
   )
 }
 
-function StatCard({ title, value, icon, href, accent }: {
-  title: string; value: number | string; icon: React.ReactNode; href: string; accent: string
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function StatCard({ title, value, sub, icon, iconBg, iconColor, href }: {
+  title: string; value: number | string; sub: string
+  icon: React.ReactNode; iconBg: string; iconColor: string; href: string
 }) {
-  const accentMap: Record<string, string> = {
-    blue: 'hover:border-blue-200',
-    emerald: 'hover:border-emerald-200',
-    amber: 'hover:border-amber-200',
-    violet: 'hover:border-violet-200',
-  }
   return (
-    <Link href={href} className={`flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md ${accentMap[accent] ?? ''}`}>
-      <div className="flex items-center justify-between">
-        <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">{icon}</div>
-        <ArrowRight className="h-3.5 w-3.5 text-slate-300" />
+    <Link href={href} className="group flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-slate-300 hover:shadow-md">
+      <div className="flex items-start justify-between">
+        <div className={`p-2 rounded-lg ${iconBg} ${iconColor}`}>{icon}</div>
+        <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-400 transition-colors" />
       </div>
       <div>
-        <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">{title}</p>
-        <p className="text-2xl font-bold text-slate-800 mt-0.5 tracking-tight">{value}</p>
+        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">{title}</p>
+        <p className="text-2xl font-bold text-slate-800 mt-0.5 tracking-tight leading-none">{value}</p>
+        <p className="text-[10px] text-slate-400 mt-1">{sub}</p>
       </div>
     </Link>
   )
 }
 
-function QuickLink({ href, icon, title, desc }: { href: string; icon: React.ReactNode; title: string; desc: string }) {
+function LiveCell({ label, value, color, href, activeLabel }: {
+  label: string; value: number; color: 'rose' | 'amber'; href: string; activeLabel: string
+}) {
+  const c = {
+    rose:  { num: 'text-rose-600',  dot: 'bg-rose-400',  bg: 'bg-rose-50/40' },
+    amber: { num: 'text-amber-600', dot: 'bg-amber-400', bg: 'bg-amber-50/40' },
+  }[color]
+  const active = value > 0
   return (
-    <Link href={href} className="flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors group">
-      <div className="p-1.5 rounded-md bg-slate-50 border border-slate-100 group-hover:border-slate-200 transition-colors shrink-0">
-        {icon}
+    <Link href={href} className={`flex flex-col gap-1.5 p-4 hover:bg-slate-50 transition-colors ${active ? c.bg : ''}`}>
+      <div className="flex items-center gap-1.5">
+        <span className={`h-1.5 w-1.5 rounded-full ${active ? `${c.dot} animate-pulse` : 'bg-slate-200'}`} />
+        <span className={`text-[10px] font-medium ${active ? c.num : 'text-slate-400'}`}>
+          {active ? activeLabel : 'Tidak ada'}
+        </span>
       </div>
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-slate-700">{title}</p>
-        <p className="text-[11px] text-slate-400 truncate">{desc}</p>
+      <p className={`text-2xl font-bold tracking-tight leading-none ${active ? c.num : 'text-slate-300'}`}>{value}</p>
+      <p className="text-[10px] text-slate-400 leading-tight">{label}</p>
+    </Link>
+  )
+}
+
+function QuickLink({ href, icon, iconBg, iconColor, title, desc }: {
+  href: string; icon: React.ReactNode; iconBg: string; iconColor: string; title: string; desc: string
+}) {
+  return (
+    <Link href={href} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors group">
+      <div className={`p-1.5 rounded-md ${iconBg} ${iconColor} shrink-0`}>{icon}</div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-slate-700">{title}</p>
+        <p className="text-[10px] text-slate-400 truncate">{desc}</p>
       </div>
-      <ArrowRight className="h-3.5 w-3.5 text-slate-300 ml-auto shrink-0 group-hover:text-slate-400 transition-colors" />
+      <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-400 shrink-0 transition-colors" />
     </Link>
   )
 }

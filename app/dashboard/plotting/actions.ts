@@ -58,7 +58,12 @@ export async function getKelasByTingkat(tingkat: number) {
     )
     .bind(tingkat)
     .all<any>()
-  return rows.results ?? []
+
+  // Tambah field 'nama' yang dipakai oleh tab-penjurusan dan tab-pengacakan
+  return (rows.results ?? []).map((k: any) => ({
+    ...k,
+    nama: `${k.tingkat}-${k.nomor_kelas}${k.kelompok !== 'UMUM' ? ' ' + k.kelompok : ''}`,
+  }))
 }
 
 // ============================================================
