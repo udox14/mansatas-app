@@ -1,3 +1,4 @@
+// Lokasi: app/dashboard/plotting/components/tab-pengacakan.tsx
 'use client'
 
 import { useState, useMemo } from 'react'
@@ -5,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Loader2, Play, Save, CheckCircle2, ArrowRight, Shuffle } from 'lucide-react'
+import { Loader2, Save, CheckCircle2, ArrowRight, Shuffle } from 'lucide-react'
 import { simpanPlottingMassal } from '../actions'
 
 type SiswaType = { id: string; nama_lengkap: string; nisn: string; jenis_kelamin: string; kelas_lama: string; kelompok: string }
@@ -19,8 +20,9 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
   const [isSaving, setIsSaving] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
 
+  // FIX: field 'nama' sudah ada dari actions.ts — localeCompare aman
   const sortedKelas = useMemo(() =>
-    [...kelasList].sort((a, b) => a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' })),
+    [...kelasList].sort((a, b) => (a.nama ?? '').localeCompare(b.nama ?? '', undefined, { numeric: true, sensitivity: 'base' })),
     [kelasList]
   )
 
@@ -33,8 +35,12 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
   const jalankanSimulasi = () => {
     setIsSimulating(true); setSimulasiResult([]); setSuccessMsg('')
     setTimeout(() => {
-      const targetKelas = sortedKelas.filter(k => selectedKelasIds.includes(k.id)).map(k => ({ ...k, sisa: k.kapasitas - k.jumlah_siswa }))
-      let hasil: HasilType[] = [], sisaSiswa = 0, errMsg = ''
+      const targetKelas = sortedKelas
+        .filter(k => selectedKelasIds.includes(k.id))
+        .map(k => ({ ...k, sisa: k.kapasitas - k.jumlah_siswa }))
+
+      const hasil: HasilType[] = []
+      let sisaSiswa = 0, errMsg = ''
 
       const dist = (group: SiswaType[], kelompok: string) => {
         const wadah = targetKelas.filter(k => k.kelompok === kelompok)
@@ -58,7 +64,7 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
 
       if (sisaSiswa > 0) alert(`PERINGATAN! ${sisaSiswa} siswa gagal di-plot.${errMsg}`)
       setSimulasiResult(hasil); setIsSimulating(false)
-    }, 500)
+    }, 400)
   }
 
   const simpanPermanen = async () => {
@@ -71,48 +77,51 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
   }
 
   if (!siswaList.length) return (
-    <div className="flex flex-col items-center justify-center p-10 text-center bg-white rounded-lg border border-slate-200">
-      <CheckCircle2 className="h-8 w-8 text-emerald-400 mb-2" />
-      <p className="text-sm font-semibold text-slate-700">Tidak ada data kelas 11!</p>
-      <p className="text-xs text-slate-400 mt-1">Semua sudah dinaikkan atau belum ada data.</p>
+    <div className="flex flex-col items-center justify-center py-16 rounded-lg border border-dashed border-slate-200 text-center gap-3">
+      <div className="p-3 rounded-full bg-emerald-50"><CheckCircle2 className="h-6 w-6 text-emerald-500" /></div>
+      <p className="text-sm font-medium text-slate-700">Tidak ada data kelas 11</p>
+      <p className="text-xs text-slate-400">Semua sudah dinaikkan atau belum ada data.</p>
     </div>
   )
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+
       {/* Panel kiri */}
-      <div className="xl:col-span-1 space-y-3">
-        <div className="bg-white rounded-lg border border-slate-200 p-3">
-          <p className="text-xs font-semibold text-slate-600 mb-2">Sumber (Kelas 11)</p>
+      <div className="space-y-3">
+        {/* Info sumber */}
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Sumber (kelas 11)</p>
           <div className="flex flex-wrap gap-1.5">
             {Array.from(new Set(siswaList.map(s => s.kelompok))).map(k => (
-              <div key={k} className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold px-2 py-1 rounded-md">
+              <div key={k} className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-semibold px-2 py-1 rounded">
                 {k}: {siswaList.filter(s => s.kelompok === k).length}
               </div>
             ))}
-            <div className="bg-slate-100 text-slate-700 text-[10px] font-black px-2 py-1 rounded-md">
+            <div className="bg-slate-100 text-slate-600 text-[10px] font-semibold px-2 py-1 rounded">
               Total: {siswaList.length}
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-slate-200 p-3 flex flex-col">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-slate-600">Wadah Kelas 12</p>
+        {/* Pilih kelas */}
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Wadah kelas 12</p>
             <Button variant="outline" size="sm" onClick={handleSelectAll}
-              className="h-6 text-[10px] px-2 rounded border-emerald-200 text-emerald-700 hover:bg-emerald-50">
-              {selectedKelasIds.length === sortedKelas.length ? 'Batal Semua' : 'Pilih Semua'}
+              className="h-6 text-[10px] px-2 rounded border-slate-200 text-slate-600 hover:bg-slate-50">
+              {selectedKelasIds.length === sortedKelas.length ? 'Batal semua' : 'Pilih semua'}
             </Button>
           </div>
-          <div className="space-y-1 max-h-[240px] overflow-y-auto pr-0.5 custom-scrollbar">
+          <div className="space-y-1.5 max-h-56 overflow-y-auto">
             {sortedKelas.map(k => {
-              const isFull = k.jumlah_siswa >= k.kapasitas
+              const full = k.jumlah_siswa >= k.kapasitas
               return (
-                <div key={k.id} className="flex items-center gap-2 p-2 rounded-md border border-slate-100 hover:bg-slate-50 transition-colors">
-                  <Checkbox id={`p-${k.id}`} checked={selectedKelasIds.includes(k.id)} onCheckedChange={() => handleToggleKelas(k.id)} disabled={isFull} />
-                  <Label htmlFor={`p-${k.id}`} className={`flex-1 flex justify-between text-xs cursor-pointer ${isFull ? 'text-slate-400' : 'text-slate-700 font-medium'}`}>
-                    {k.nama}
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isFull ? 'bg-rose-50 text-rose-500' : 'bg-slate-100 text-slate-500'}`}>
+                <div key={k.id} className="flex items-center gap-2.5 p-2 rounded-md hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-colors">
+                  <Checkbox id={`p-${k.id}`} checked={selectedKelasIds.includes(k.id)} onCheckedChange={() => handleToggleKelas(k.id)} disabled={full} />
+                  <Label htmlFor={`p-${k.id}`} className={`flex-1 flex items-center justify-between text-xs cursor-pointer ${full ? 'text-slate-400' : 'text-slate-700 font-medium'}`}>
+                    <span>{k.nama}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${full ? 'bg-rose-50 text-rose-500' : 'bg-slate-100 text-slate-500'}`}>
                       {k.jumlah_siswa}/{k.kapasitas}
                     </span>
                   </Label>
@@ -123,64 +132,66 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
           <Button onClick={jalankanSimulasi} disabled={isSimulating || !selectedKelasIds.length}
             className="w-full h-9 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md mt-3">
             {isSimulating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shuffle className="h-3.5 w-3.5" />}
-            Jalankan Algoritma Acak
+            Jalankan algoritma acak
           </Button>
         </div>
       </div>
 
-      {/* Panel kanan */}
+      {/* Panel kanan - preview */}
       <div className="xl:col-span-2">
-        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden flex flex-col min-h-[400px]">
-          <div className="px-3 py-2.5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between gap-3">
+        <div className="rounded-lg border border-slate-200 bg-white flex flex-col min-h-[420px]">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <div>
-              <p className="text-xs font-semibold text-slate-700">Preview Hasil Pengacakan</p>
-              <p className="text-[10px] text-slate-400 mt-0.5">Siswa diacak silang L/P dalam jurusan yang sama.</p>
+              <p className="text-xs font-semibold text-slate-700">Preview hasil pengacakan</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Siswa diacak silang L/P dalam jurusan yang sama</p>
             </div>
             {simulasiResult.length > 0 && (
               <Button onClick={simpanPermanen} disabled={isSaving} size="sm"
-                className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md shrink-0">
-                {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />} Simpan Permanen
+                className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md">
+                {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                Simpan permanen
               </Button>
             )}
           </div>
+
           <div className="flex-1 relative">
             {successMsg ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center bg-emerald-50 p-8">
-                <CheckCircle2 className="h-10 w-10 text-emerald-500 mb-2" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-emerald-50/60">
+                <CheckCircle2 className="h-10 w-10 text-emerald-500" />
                 <p className="text-sm font-semibold text-emerald-800">Berhasil!</p>
-                <p className="text-xs text-emerald-600 mt-1">{successMsg}</p>
+                <p className="text-xs text-emerald-600">{successMsg}</p>
               </div>
-            ) : simulasiResult.length === 0 ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
-                <Shuffle className="h-8 w-8 mb-2 text-slate-300" />
-                <p className="text-xs text-slate-400">Belum ada simulasi.</p>
+            ) : !simulasiResult.length ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-400">
+                <Shuffle className="h-8 w-8 text-slate-300" />
+                <p className="text-xs">Belum ada simulasi dijalankan</p>
               </div>
             ) : (
-              <div className="overflow-auto h-full">
+              <div className="overflow-auto h-full max-h-[500px]">
                 <Table>
-                  <TableHeader className="sticky top-0 bg-slate-50 z-10">
+                  <TableHeader className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10">
                     <TableRow>
-                      <TableHead className="text-xs h-9">Nama Siswa</TableHead>
+                      <TableHead className="text-xs h-9">Nama siswa</TableHead>
                       <TableHead className="text-xs h-9 text-center w-24">Lama (11)</TableHead>
-                      <TableHead className="text-xs h-9 w-8"></TableHead>
+                      <TableHead className="text-xs h-9 w-8 text-center"></TableHead>
                       <TableHead className="text-xs h-9 text-right pr-4">Baru (12)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {simulasiResult.map(res => (
-                      <TableRow key={res.siswa_id} className="hover:bg-slate-50/50">
+                    {simulasiResult.map(r => (
+                      <TableRow key={r.siswa_id} className="hover:bg-slate-50/50">
                         <TableCell className="text-xs font-medium text-slate-800 py-2">
-                          {res.nama_lengkap}
-                          <span className="ml-1.5 text-[9px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{res.jk}</span>
+                          {r.nama_lengkap}
+                          <span className="ml-1.5 text-[9px] font-bold bg-slate-100 text-slate-500 px-1 py-0.5 rounded">{r.jk}</span>
                         </TableCell>
                         <TableCell className="text-center py-2">
-                          <span className="text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded">{res.kelas_lama}</span>
+                          <span className="text-[10px] font-medium text-rose-600 bg-rose-50 border border-rose-100 px-2 py-0.5 rounded">{r.kelas_lama}</span>
                         </TableCell>
-                        <TableCell className="py-2 text-slate-300">
-                          <ArrowRight className="h-3.5 w-3.5 mx-auto" />
+                        <TableCell className="text-center py-2 text-slate-300">
+                          <ArrowRight className="h-3 w-3 mx-auto" />
                         </TableCell>
                         <TableCell className="text-right py-2 pr-4">
-                          <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">{res.kelas_nama}</span>
+                          <span className="text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">{r.kelas_nama}</span>
                         </TableCell>
                       </TableRow>
                     ))}

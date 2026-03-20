@@ -33,7 +33,7 @@ export default async function DashboardLayout({
   const avatarUrl = freshUser?.avatar_url || null
 
   return (
-    <div className="flex h-[100dvh] w-full bg-slate-50 text-slate-900 overflow-hidden">
+    <div className="flex h-[100dvh] w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden">
       <Sidebar userRole={userRole} userName={userName} />
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <Header

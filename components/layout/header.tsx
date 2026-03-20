@@ -67,41 +67,41 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 w-full items-center gap-3 border-b border-slate-200 bg-white/95 backdrop-blur px-3 sm:px-4">
+    <header className="sticky top-0 z-30 flex h-12 w-full items-center gap-3 border-b border-slate-200 dark:border-slate-700/60 bg-white/95 dark:bg-slate-900/95 backdrop-blur px-3 sm:px-4">
       {/* Mobile menu trigger */}
       <button
         onClick={triggerMobileSidebar}
-        className="lg:hidden flex items-center justify-center h-8 w-8 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+        className="lg:hidden flex items-center justify-center h-8 w-8 rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
         aria-label="Menu"
       >
         <Menu className="h-4.5 w-4.5" style={{ width: '18px', height: '18px' }} />
       </button>
 
       {/* Page title */}
-      <h1 className="text-[13px] sm:text-sm font-semibold text-slate-800 tracking-tight truncate flex-1 capitalize">
+      <h1 className="text-[13px] sm:text-sm font-semibold text-slate-800 dark:text-slate-200 tracking-tight truncate flex-1 capitalize">
         {pageTitle}
       </h1>
 
       {/* User menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-slate-100 transition-colors focus:outline-none">
+          <button className="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none">
             <Avatar className="h-6 w-6">
               <AvatarImage src={avatarUrl || ''} alt={userName} />
               <AvatarFallback className="bg-emerald-100 text-emerald-700 text-[10px] font-bold">
                 {userName?.charAt(0).toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
-            <span className="hidden sm:block text-[12px] font-medium text-slate-700 max-w-[120px] truncate">
+            <span className="hidden sm:block text-[12px] font-medium text-slate-700 dark:text-slate-300 max-w-[120px] truncate">
               {userName}
             </span>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52 text-[13px]">
           <div className="px-3 py-2">
-            <p className="font-semibold text-slate-900 truncate text-[13px]">{userName}</p>
-            <p className="text-slate-400 text-[11px] truncate">{userEmail}</p>
-            <span className="mt-1.5 inline-block text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+            <p className="font-semibold text-slate-900 dark:text-slate-100 truncate text-[13px]">{userName}</p>
+            <p className="text-slate-400 dark:text-slate-500 text-[11px] truncate">{userEmail}</p>
+            <span className="mt-1.5 inline-block text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
               {userRole.replace(/_/g, ' ')}
             </span>
           </div>
