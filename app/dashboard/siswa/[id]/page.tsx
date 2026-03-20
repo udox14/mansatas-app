@@ -7,6 +7,7 @@ import { ChevronLeft } from 'lucide-react'
 import { DetailSiswaClient } from './components/detail-client'
 
 export const metadata = { title: 'Buku Induk Siswa - MANSATAS' }
+export const dynamic = 'force-dynamic'
 
 export default async function DetailSiswaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -15,38 +16,90 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
 
   const db = await getDB()
 
+  // FIX: Ganti SELECT s.* → kolom eksplisit (s.* ambil 40+ kolom tiap query)
   const siswa = await db.prepare(`
-    SELECT s.*, k.tingkat, k.kelompok, k.nomor_kelas
+    SELECT
+      s.id, s.nisn, s.nis_lokal, s.nama_lengkap, s.jenis_kelamin, s.status,
+      s.foto_url, s.tempat_tinggal, s.kelas_id, s.minat_jurusan,
+      s.nik, s.tempat_lahir, s.tanggal_lahir, s.agama,
+      s.jumlah_saudara, s.anak_ke, s.status_anak,
+      s.alamat_lengkap, s.rt, s.rw, s.desa_kelurahan, s.kecamatan,
+      s.kabupaten_kota, s.provinsi, s.kode_pos, s.nomor_whatsapp, s.nomor_kk,
+      s.nama_ayah, s.nik_ayah, s.tempat_lahir_ayah, s.tanggal_lahir_ayah,
+      s.status_ayah, s.pendidikan_ayah, s.pekerjaan_ayah, s.penghasilan_ayah,
+      s.nama_ibu, s.nik_ibu, s.tempat_lahir_ibu, s.tanggal_lahir_ibu,
+      s.status_ibu, s.pendidikan_ibu, s.pekerjaan_ibu, s.penghasilan_ibu,
+      k.tingkat, k.kelompok, k.nomor_kelas
     FROM siswa s LEFT JOIN kelas k ON s.kelas_id = k.id
     WHERE s.id = ?
   `).bind(id).first<any>()
 
   if (!siswa) return (
-    <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500 dark:text-slate-400 dark:text-slate-500">
+    <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500">
       <h1 className="text-2xl font-bold mb-2">Siswa Tidak Ditemukan</h1>
       <Link href="/dashboard/siswa" className="text-blue-600 hover:underline">Kembali ke Daftar Siswa</Link>
     </div>
   )
 
   const [riwayatKelas, pelanggaran, izinKeluar, izinKelas, rekapNilai, kelasResult] = await Promise.all([
-    db.prepare(`SELECT rk.id, rk.created_at, k.tingkat, k.kelompok, k.nomor_kelas, ta.nama, ta.semester FROM riwayat_kelas rk LEFT JOIN kelas k ON rk.kelas_id = k.id LEFT JOIN tahun_ajaran ta ON rk.tahun_ajaran_id = ta.id WHERE rk.siswa_id = ? ORDER BY rk.created_at DESC`).bind(id).all<any>(),
-    db.prepare(`SELECT sp.id, sp.tanggal, sp.keterangan, sp.foto_url, mp.nama_pelanggaran, mp.poin, mp.kategori, u.nama_lengkap as pelapor_nama FROM siswa_pelanggaran sp JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id LEFT JOIN "user" u ON sp.diinput_oleh = u.id WHERE sp.siswa_id = ? ORDER BY sp.tanggal DESC`).bind(id).all<any>(),
-    db.prepare(`SELECT ik.id, ik.waktu_keluar, ik.waktu_kembali, ik.status, ik.keterangan, u.nama_lengkap as pelapor_nama FROM izin_keluar_komplek ik LEFT JOIN "user" u ON ik.diinput_oleh = u.id WHERE ik.siswa_id = ? ORDER BY ik.waktu_keluar DESC`).bind(id).all<any>(),
-    db.prepare(`SELECT itk.id, itk.tanggal, itk.jam_pelajaran, itk.alasan, itk.keterangan, u.nama_lengkap as pelapor_nama FROM izin_tidak_masuk_kelas itk LEFT JOIN "user" u ON itk.diinput_oleh = u.id WHERE itk.siswa_id = ? ORDER BY itk.tanggal DESC`).bind(id).all<any>(),
-    db.prepare(`SELECT * FROM rekap_nilai_akademik WHERE siswa_id = ?`).bind(id).all<any>(),
-    // Ambil daftar kelas untuk dropdown di EditSiswaModal
-    db.prepare(`SELECT id, tingkat, nomor_kelas, kelompok FROM kelas ORDER BY tingkat ASC, kelompok ASC, nomor_kelas ASC`).all<any>(),
+    db.prepare(`
+      SELECT rk.id, rk.created_at, k.tingkat, k.kelompok, k.nomor_kelas, ta.nama, ta.semester
+      FROM riwayat_kelas rk
+      LEFT JOIN kelas k ON rk.kelas_id = k.id
+      LEFT JOIN tahun_ajaran ta ON rk.tahun_ajaran_id = ta.id
+      WHERE rk.siswa_id = ? ORDER BY rk.created_at DESC
+    `).bind(id).all<any>(),
+
+    db.prepare(`
+      SELECT sp.id, sp.tanggal, sp.keterangan, sp.foto_url,
+        mp.nama_pelanggaran, mp.poin, mp.kategori,
+        u.nama_lengkap as pelapor_nama
+      FROM siswa_pelanggaran sp
+      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
+      LEFT JOIN "user" u ON sp.diinput_oleh = u.id
+      WHERE sp.siswa_id = ? ORDER BY sp.tanggal DESC
+    `).bind(id).all<any>(),
+
+    db.prepare(`
+      SELECT ik.id, ik.waktu_keluar, ik.waktu_kembali, ik.status, ik.keterangan,
+        u.nama_lengkap as pelapor_nama
+      FROM izin_keluar_komplek ik
+      LEFT JOIN "user" u ON ik.diinput_oleh = u.id
+      WHERE ik.siswa_id = ? ORDER BY ik.waktu_keluar DESC
+    `).bind(id).all<any>(),
+
+    db.prepare(`
+      SELECT itk.id, itk.tanggal, itk.jam_pelajaran, itk.alasan, itk.keterangan,
+        u.nama_lengkap as pelapor_nama
+      FROM izin_tidak_masuk_kelas itk
+      LEFT JOIN "user" u ON itk.diinput_oleh = u.id
+      WHERE itk.siswa_id = ? ORDER BY itk.tanggal DESC
+    `).bind(id).all<any>(),
+
+    // FIX: Ganti SELECT * → kolom spesifik
+    db.prepare(`
+      SELECT siswa_id, nilai_smt1, nilai_smt2, nilai_smt3, nilai_smt4, nilai_smt5, nilai_um
+      FROM rekap_nilai_akademik WHERE siswa_id = ?
+    `).bind(id).all<any>(),
+
+    db.prepare(`
+      SELECT id, tingkat, nomor_kelas, kelompok
+      FROM kelas ORDER BY tingkat ASC, kelompok ASC, nomor_kelas ASC
+    `).all<any>(),
   ])
 
   const siswaWithNilai = {
     ...siswa,
-    kelas: siswa.tingkat ? { id: siswa.kelas_id, tingkat: siswa.tingkat, kelompok: siswa.kelompok, nomor_kelas: siswa.nomor_kelas } : null,
+    kelas: siswa.tingkat ? {
+      id: siswa.kelas_id, tingkat: siswa.tingkat,
+      kelompok: siswa.kelompok, nomor_kelas: siswa.nomor_kelas
+    } : null,
     rekap_nilai_akademik: rekapNilai.results || []
   }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <Link href="/dashboard/siswa" className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-emerald-600 transition-colors bg-surface px-4 py-2 rounded-xl shadow-sm border border-surface/60 w-fit">
+      <Link href="/dashboard/siswa" className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-emerald-600 transition-colors bg-surface px-4 py-2 rounded-xl shadow-sm border border-surface w-fit">
         <ChevronLeft className="h-4 w-4" /> Kembali ke Data Siswa
       </Link>
       <DetailSiswaClient

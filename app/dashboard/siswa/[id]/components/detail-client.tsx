@@ -201,7 +201,7 @@ export function DetailSiswaClient({
               </span>
               {siswa.tempat_tinggal !== 'Non-Pesantren' && (
                  <span className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-orange-100 text-orange-800 border border-orange-200 shadow-sm flex items-center gap-1.5">
-                   <MapPin className="h-3.5 w-3.5" /> Anak Asrama
+                   <MapPin className="h-3.5 w-3.5" /> Anak Pesantren
                  </span>
               )}
               <Button
