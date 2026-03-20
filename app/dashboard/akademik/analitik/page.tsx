@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
 
 export const metadata = { title: 'Analitik Kelulusan - MANSATAS App' }
+export const dynamic = 'force-dynamic'
 
 async function AnalitikDataFetcher() {
   const db = await getDB()
@@ -17,6 +18,8 @@ async function AnalitikDataFetcher() {
   const [pengaturan, mapelResult, siswaResult] = await Promise.all([
     db.prepare("SELECT * FROM pengaturan_akademik WHERE id = 'global'").first<any>(),
     db.prepare('SELECT id, nama_mapel FROM mata_pelajaran ORDER BY nama_mapel').all<any>(),
+    // Query ini sudah efisien — hanya siswa kelas 12 aktif + nilai mereka
+    // Index idx_siswa_kelas_id dan idx_siswa_status sudah ada di schema
     db.prepare(`
       SELECT s.id, s.nisn, s.nama_lengkap, s.kelas_id,
         k.tingkat, k.kelompok, k.nomor_kelas,
@@ -45,7 +48,7 @@ async function AnalitikDataFetcher() {
       nilai_smt3: parseJsonCol(s.nilai_smt3, null),
       nilai_smt4: parseJsonCol(s.nilai_smt4, null),
       nilai_smt5: parseJsonCol(s.nilai_smt5, null),
-      nilai_um: parseJsonCol(s.nilai_um, null),
+      nilai_um:   parseJsonCol(s.nilai_um, null),
     }
   }))
 

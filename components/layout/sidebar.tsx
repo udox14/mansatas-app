@@ -10,28 +10,30 @@ import { LogOut, X, ChevronLeft, ChevronRight, Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const ACCENT_COLORS = [
-  { id: 'emerald', label: 'Hijau',  active: 'bg-emerald-600 text-white', swatch: 'bg-emerald-500', ring: 'ring-emerald-400' },
-  { id: 'blue',    label: 'Biru',   active: 'bg-blue-600 text-white',    swatch: 'bg-blue-500',    ring: 'ring-blue-400' },
-  { id: 'violet',  label: 'Ungu',   active: 'bg-violet-600 text-white',  swatch: 'bg-violet-500',  ring: 'ring-violet-400' },
-  { id: 'rose',    label: 'Merah',  active: 'bg-rose-600 text-white',    swatch: 'bg-rose-500',    ring: 'ring-rose-400' },
-  { id: 'amber',   label: 'Amber',  active: 'bg-amber-500 text-white',   swatch: 'bg-amber-400',   ring: 'ring-amber-300' },
-  { id: 'cyan',    label: 'Cyan',   active: 'bg-cyan-600 text-white',    swatch: 'bg-cyan-500',    ring: 'ring-cyan-400' },
+  { id: 'emerald', label: 'Hijau',  active: 'bg-emerald-600 text-white', text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40', swatch: 'bg-emerald-500', ring: 'ring-emerald-400' },
+  { id: 'blue',    label: 'Biru',   active: 'bg-blue-600 text-white',    text: 'text-blue-600 dark:text-blue-400',       bg: 'bg-blue-50 dark:bg-blue-950/40',       swatch: 'bg-blue-500',   ring: 'ring-blue-400' },
+  { id: 'violet',  label: 'Ungu',   active: 'bg-violet-600 text-white',  text: 'text-violet-600 dark:text-violet-400',   bg: 'bg-violet-50 dark:bg-violet-950/40',   swatch: 'bg-violet-500', ring: 'ring-violet-400' },
+  { id: 'rose',    label: 'Merah',  active: 'bg-rose-600 text-white',    text: 'text-rose-600 dark:text-rose-400',       bg: 'bg-rose-50 dark:bg-rose-950/40',       swatch: 'bg-rose-500',   ring: 'ring-rose-400' },
+  { id: 'amber',   label: 'Amber',  active: 'bg-amber-500 text-white',   text: 'text-amber-600 dark:text-amber-400',     bg: 'bg-amber-50 dark:bg-amber-950/40',     swatch: 'bg-amber-400',  ring: 'ring-amber-300' },
+  { id: 'cyan',    label: 'Cyan',   active: 'bg-cyan-600 text-white',    text: 'text-cyan-600 dark:text-cyan-400',       bg: 'bg-cyan-50 dark:bg-cyan-950/40',       swatch: 'bg-cyan-500',   ring: 'ring-cyan-400' },
 ]
 
 type AccentKey = typeof ACCENT_COLORS[number]['id']
 
-// Helper: tentukan menu mana yang aktif — strict matching, maksimal 1 yang aktif
+const MENU_GROUPS = [
+  { label: 'Utama',     hrefs: ['/dashboard', '/dashboard/siswa', '/dashboard/kelas', '/dashboard/plotting'] },
+  { label: 'Akademik',  hrefs: ['/dashboard/akademik', '/dashboard/akademik/analitik', '/dashboard/guru', '/dashboard/kehadiran'] },
+  { label: 'Kesiswaan', hrefs: ['/dashboard/izin', '/dashboard/kedisiplinan'] },
+  { label: 'Sistem',    hrefs: ['/dashboard/settings'] },
+]
+
 function getActiveMenu(pathname: string, menuItems: typeof MENU_ITEMS) {
-  // Sort by href length descending — cari yang paling spesifik dulu
   const sorted = [...menuItems].sort((a, b) => b.href.length - a.href.length)
   for (const item of sorted) {
     if (item.href === '/dashboard') {
       if (pathname === '/dashboard') return item.href
     } else {
-      // Exact match atau sub-path TAPI hanya satu level
-      if (pathname === item.href || pathname.startsWith(item.href + '/')) {
-        return item.href
-      }
+      if (pathname === item.href || pathname.startsWith(item.href + '/')) return item.href
     }
   }
   return null
@@ -45,7 +47,6 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
   const [accentId, setAccentId] = useState<AccentKey>('emerald')
   const [isDark, setIsDark] = useState(false)
   const [mounted, setMounted] = useState(false)
-  // FIX: Ref untuk track apakah user sengaja collapse
   const userCollapsedRef = useRef(false)
 
   useEffect(() => {
@@ -54,48 +55,34 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
     if (saved && ACCENT_COLORS.find(c => c.id === saved)) setAccentId(saved)
     const savedCollapsed = localStorage.getItem('mansatas_collapsed')
     if (savedCollapsed === 'true') { setIsCollapsed(true); userCollapsedRef.current = true }
-
-    // Init dark mode dari localStorage
     const savedDark = localStorage.getItem('mansatas_dark') === 'true'
     setIsDark(savedDark)
-    if (savedDark) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
+    if (savedDark) document.documentElement.classList.add('dark')
+    else document.documentElement.classList.remove('dark')
   }, [])
 
-  // FIX: Close mobile drawer on navigate — JANGAN auto-expand desktop collapsed
   useEffect(() => { setIsOpen(false) }, [pathname])
 
   const accent = ACCENT_COLORS.find(c => c.id === accentId) ?? ACCENT_COLORS[0]
   const activeHref = getActiveMenu(pathname, MENU_ITEMS)
+  const allowedMenus = MENU_ITEMS.filter(item => item.roles.includes(userRole))
 
-  const changeAccent = (id: AccentKey) => {
-    setAccentId(id)
-    localStorage.setItem('mansatas_accent', id)
-  }
+  const changeAccent = (id: AccentKey) => { setAccentId(id); localStorage.setItem('mansatas_accent', id) }
 
   const toggleDark = () => {
     const next = !isDark
     setIsDark(next)
     localStorage.setItem('mansatas_dark', String(next))
-    if (next) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
+    if (next) document.documentElement.classList.add('dark')
+    else document.documentElement.classList.remove('dark')
   }
 
-  // FIX: Toggle collapse dengan persist ke localStorage
   const toggleCollapse = () => {
     const next = !isCollapsed
     setIsCollapsed(next)
     userCollapsedRef.current = next
     localStorage.setItem('mansatas_collapsed', String(next))
   }
-
-  const allowedMenus = MENU_ITEMS.filter(item => item.roles.includes(userRole))
 
   const handleLogout = async () => {
     if (!confirm('Yakin ingin keluar dari aplikasi?')) return
@@ -115,10 +102,11 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
     const collapsed = !mobile && isCollapsed
     return (
       <div className="flex flex-col h-full">
-        {/* Logo */}
+
+        {/* ── LOGO — h-12 sejajar header ── */}
         <div className={cn(
-          'flex items-center border-b border-slate-100 dark:border-slate-700/60 shrink-0',
-          collapsed ? 'justify-center px-3 py-4' : 'gap-2.5 px-4 py-3.5'
+          'h-12 flex items-center border-b border-slate-100 dark:border-slate-700/60 shrink-0',
+          collapsed ? 'justify-center px-3' : 'px-4 gap-2.5'
         )}>
           <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0 flex-1">
             <div className="relative w-6 h-6 shrink-0">
@@ -126,88 +114,98 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
             </div>
             {!collapsed && (
               <div className="min-w-0">
-                <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100 leading-tight">MANSATAS</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-tight">MAN 1 Tasikmalaya</p>
+                <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100 leading-tight tracking-tight">MANSATAS</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">MAN 1 Tasikmalaya</p>
               </div>
             )}
           </Link>
           {mobile && (
-            <button onClick={() => setIsOpen(false)} className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 dark:text-slate-600 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800">
+            <button onClick={() => setIsOpen(false)} className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
-          {allowedMenus.map((item) => {
-            // FIX: Gunakan activeHref — HANYA satu menu yang bisa aktif
-            const isActive = activeHref === item.href
-            const Icon = item.icon
+        {/* ── NAV ── */}
+        <nav className="flex-1 overflow-y-auto py-2 px-2">
+          {MENU_GROUPS.map((group, gi) => {
+            const groupItems = group.hrefs
+              .map(href => allowedMenus.find(m => m.href === href))
+              .filter(Boolean) as typeof MENU_ITEMS
+            if (groupItems.length === 0) return null
 
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={collapsed ? item.title : undefined}
-                className={cn(
-                  'flex items-center rounded-md text-[13px] transition-colors duration-150',
-                  collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-3 py-2',
-                  isActive
-                    ? cn(accent.active, 'font-medium shadow-sm')
-                    : 'text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+              <div key={group.label} className={cn(gi > 0 && 'mt-1')}>
+                {/* Section label */}
+                {!collapsed && (
+                  <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-600 select-none">
+                    {group.label}
+                  </p>
                 )}
-              >
-                <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'opacity-100' : 'opacity-60')} />
-                {!collapsed && <span className="truncate">{item.title}</span>}
-              </Link>
+                {/* Divider tipis antar grup saat collapsed */}
+                {collapsed && gi > 0 && (
+                  <div className="h-px bg-slate-100 dark:bg-slate-700/60 mx-2 my-1.5" />
+                )}
+                <div className="space-y-0.5">
+                  {groupItems.map(item => {
+                    const isActive = activeHref === item.href
+                    const Icon = item.icon
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        title={collapsed ? item.title : undefined}
+                        className={cn(
+                          'flex items-center rounded-lg text-[13px] transition-all duration-150',
+                          collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-3 py-[7px]',
+                          isActive
+                            ? cn(accent.bg, accent.text, 'font-semibold')
+                            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-100'
+                        )}
+                      >
+                        <Icon className={cn('h-[15px] w-[15px] shrink-0', !isActive && 'opacity-70')} />
+                        {!collapsed && <span className="truncate leading-snug">{item.title}</span>}
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
             )
           })}
         </nav>
 
-        {/* Footer */}
-        <div className={cn('border-t border-slate-100 dark:border-slate-700/60 shrink-0 p-2 space-y-1', collapsed && 'px-2')}>
-          {/* Accent picker + dark mode toggle — sembunyikan saat collapsed */}
+        {/* ── FOOTER ── */}
+        <div className="border-t border-slate-100 dark:border-slate-700/60 shrink-0 p-2 space-y-0.5">
+
+          {/* Tema + dark toggle */}
           {!collapsed && (
-            <div className="flex items-center gap-1 px-2 py-1.5">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide mr-auto">Tema</span>
+            <div className="flex items-center gap-1.5 px-3 py-2">
+              <span className="text-[10px] text-slate-400 dark:text-slate-600 font-medium uppercase tracking-widest mr-auto">Tema</span>
               {ACCENT_COLORS.map(c => (
                 <button key={c.id} onClick={() => changeAccent(c.id as AccentKey)} title={c.label}
                   className={cn(
-                    'w-3 h-3 rounded-full transition-all duration-200', c.swatch,
-                    accentId === c.id ? cn('ring-2 ring-offset-1', c.ring, 'scale-125') : 'opacity-40 hover:opacity-70 hover:scale-110'
+                    'w-3 h-3 rounded-full transition-all duration-150', c.swatch,
+                    accentId === c.id ? cn('ring-2 ring-offset-1', c.ring, 'scale-125') : 'opacity-30 hover:opacity-60 hover:scale-110'
                   )}
                 />
               ))}
-              {/* Dark mode toggle */}
-              <button
-                onClick={toggleDark}
-                title={isDark ? 'Mode Terang' : 'Mode Gelap'}
+              <button onClick={toggleDark} title={isDark ? 'Mode Terang' : 'Mode Gelap'}
                 className={cn(
-                  'ml-1 w-5 h-5 rounded-md flex items-center justify-center transition-all duration-200',
-                  isDark
-                    ? 'bg-slate-700 text-amber-300 hover:bg-slate-600'
-                    : 'bg-slate-100 text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-200'
+                  'ml-0.5 w-5 h-5 rounded-md flex items-center justify-center transition-all duration-150',
+                  isDark ? 'bg-slate-700 text-amber-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                 )}
               >
-                {isDark
-                  ? <Sun className="h-3 w-3" />
-                  : <Moon className="h-3 w-3" />
-                }
+                {isDark ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
               </button>
             </div>
           )}
 
-          {/* Dark mode toggle saat collapsed — tampilkan sendiri */}
+          {/* Dark toggle saat collapsed */}
           {collapsed && (
-            <button
-              onClick={toggleDark}
-              title={isDark ? 'Mode Terang' : 'Mode Gelap'}
+            <button onClick={toggleDark} title={isDark ? 'Mode Terang' : 'Mode Gelap'}
               className={cn(
-                'w-full flex justify-center p-2.5 rounded-md transition-colors',
-                isDark
-                  ? 'text-amber-300 hover:bg-slate-700'
-                  : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100'
+                'w-full flex justify-center p-2.5 rounded-lg transition-colors',
+                isDark ? 'text-amber-300 hover:bg-slate-700' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
               )}
             >
               {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
@@ -216,7 +214,10 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
 
           {/* User */}
           <Link href="/dashboard/settings/profile"
-            className={cn('flex items-center rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors', collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2 py-2')}
+            className={cn(
+              'flex items-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors',
+              collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-3 py-2'
+            )}
             title={collapsed ? userName : undefined}
           >
             <div className={cn('shrink-0 rounded-full flex items-center justify-center font-semibold text-[11px] text-white h-6 w-6', accent.active)}>
@@ -225,25 +226,30 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
             {!collapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-semibold text-slate-800 dark:text-slate-200 truncate leading-tight">{userName}</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate leading-tight capitalize">{userRole.replace(/_/g, ' ')}</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate leading-tight capitalize">{userRole.replace(/_/g, ' ')}</p>
               </div>
             )}
           </Link>
 
-          <button onClick={handleLogout} disabled={isLoggingOut} title={collapsed ? 'Keluar' : undefined}
-            className={cn('w-full flex items-center rounded-md text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 transition-colors', collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2 py-2')}
+          {/* Logout */}
+          <button onClick={handleLogout} disabled={isLoggingOut}
+            title={collapsed ? 'Keluar' : undefined}
+            className={cn(
+              'w-full flex items-center rounded-lg transition-colors text-slate-400 dark:text-slate-500 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400',
+              collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-3 py-2'
+            )}
           >
             <LogOut className="h-3.5 w-3.5 shrink-0" />
             {!collapsed && <span className="text-[12px] font-medium">{isLoggingOut ? 'Keluar...' : 'Keluar Aplikasi'}</span>}
           </button>
         </div>
+
       </div>
     )
   }
 
   return (
     <>
-      {/* Mobile overlay */}
       {isOpen && <div onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/40 z-40 lg:hidden" />}
 
       {/* Desktop sidebar */}
@@ -253,7 +259,7 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
       )}>
         <NavContent />
         <button onClick={toggleCollapse}
-          className="absolute -right-3 top-14 z-10 h-5 w-5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 shadow-sm flex items-center justify-center text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 dark:text-slate-600 transition-colors"
+          className="absolute -right-3 top-[24px] z-10 h-5 w-5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 shadow-sm flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
         >
           {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
         </button>
@@ -267,7 +273,6 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
         <NavContent mobile />
       </aside>
 
-      {/* Mobile trigger */}
       <button id="mobile-sidebar-trigger" onClick={() => setIsOpen(true)} className="hidden" aria-label="Buka menu" />
     </>
   )

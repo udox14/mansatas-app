@@ -86,7 +86,14 @@ CREATE TABLE IF NOT EXISTS siswa (
   nama_lengkap        TEXT NOT NULL,
   jenis_kelamin       TEXT NOT NULL DEFAULT 'L' CHECK(jenis_kelamin IN ('L','P')),
   tempat_tinggal      TEXT NOT NULL DEFAULT 'Non-Pesantren'
-                      CHECK(tempat_tinggal IN ('Pesantren','Non-Pesantren')),
+                      CHECK(tempat_tinggal IN (
+                        'Non-Pesantren',
+                        'Pesantren',
+                        'Pesantren Sukahideng',
+                        'Pesantren Sukamanah',
+                        'Pesantren Sukaguru',
+                        'Pesantren Al-Ma''mur'
+                      )),
   kelas_id            TEXT REFERENCES kelas(id) ON DELETE SET NULL,
   wali_murid_id       TEXT REFERENCES "user"(id) ON DELETE SET NULL,
   status              TEXT NOT NULL DEFAULT 'aktif',

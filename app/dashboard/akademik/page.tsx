@@ -9,13 +9,15 @@ import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
 
 export const metadata = { title: 'Pusat Akademik - MANSATAS App' }
+export const dynamic = 'force-dynamic'
 
 async function AkademikDataFetcher() {
   const db = await getDB()
 
   const [taAktif, mapelResult] = await Promise.all([
     db.prepare('SELECT id, nama, semester, daftar_jurusan FROM tahun_ajaran WHERE is_active = 1').first<any>(),
-    db.prepare('SELECT * FROM mata_pelajaran ORDER BY nama_mapel ASC').all<any>()
+    // FIX: ganti SELECT * → kolom spesifik yang dipakai di UI
+    db.prepare('SELECT id, nama_mapel, kode_mapel, kelompok, tingkat, kategori FROM mata_pelajaran ORDER BY nama_mapel ASC').all<any>()
   ])
 
   let penugasanData: any[] = []
@@ -53,9 +55,7 @@ export default async function AkademikPage() {
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader title="Pusat Akademik" description="Kelola master mata pelajaran dan jadwal mengajar." icon={BookOpen} iconColor="text-emerald-500" />
-      <Suspense fallback={
-<PageLoading text="Memuat pusat akademik..." />
-      }>
+      <Suspense fallback={<PageLoading text="Memuat pusat akademik..." />}>
         <AkademikDataFetcher />
       </Suspense>
     </div>
