@@ -113,22 +113,62 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
     <div className="space-y-3">
       <EditSiswaModal isOpen={!!editingSiswa} onClose={() => setEditingSiswa(null)} siswa={editingSiswa} kelasList={kelasList} />
 
-      {/* TOOLBAR */}
-      <div className="bg-surface border border-surface rounded-lg p-3 flex flex-col sm:flex-row gap-2">
-        {/* Search + filter baris 1 */}
-        <div className="flex gap-2 flex-1 min-w-0">
+      {/* ── TOOLBAR ── */}
+      <div className="bg-surface border border-surface rounded-lg p-3 space-y-2">
+
+        {/* Baris 1: Search + view toggle + aksi */}
+        <div className="flex items-center gap-2">
+          {/* Search — flex-1, makan sisa ruang */}
           <div className="relative flex-1 min-w-0">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
             <Input
               placeholder="Cari nama / NISN..."
               value={searchTerm}
               onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }}
-              className="pl-8 h-8 text-sm rounded-md"
+              className="pl-8 h-9 text-sm rounded-lg"
             />
           </div>
+
+          {/* View toggle pill */}
+          <div className="flex bg-surface-2 border border-surface p-0.5 rounded-lg shrink-0">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`h-8 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
+                viewMode === 'table'
+                  ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm'
+                  : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 dark:text-slate-600'
+              }`}
+            >
+              <List className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Tabel</span>
+            </button>
+            <button
+              onClick={() => setViewMode('gallery')}
+              className={`h-8 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
+                viewMode === 'gallery'
+                  ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm'
+                  : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 dark:text-slate-600'
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Foto</span>
+            </button>
+          </div>
+
+          {/* Action buttons */}
+          {canFullEdit && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <ImportModalSiswa />
+              <TambahModal />
+            </div>
+          )}
+        </div>
+
+        {/* Baris 2: Filter kelas + status */}
+        <div className="flex items-center gap-2">
           <Select value={filterKelas} onValueChange={v => { setFilterKelas(v); setCurrentPage(1) }}>
-            <SelectTrigger className="h-8 w-32 sm:w-40 text-xs rounded-md shrink-0">
-              <SelectValue placeholder="Kelas" />
+            <SelectTrigger className="h-8 flex-1 text-xs rounded-lg">
+              <SelectValue placeholder="Semua Kelas" />
             </SelectTrigger>
             <SelectContent className="max-h-72">
               <SelectItem value="Semua">Semua Kelas</SelectItem>
@@ -141,7 +181,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={v => { setFilterStatus(v); setCurrentPage(1) }}>
-            <SelectTrigger className="h-8 w-24 text-xs rounded-md shrink-0">
+            <SelectTrigger className="h-8 w-28 text-xs rounded-lg shrink-0">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -151,30 +191,6 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
               <SelectItem value="keluar">Keluar</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-
-        {/* View toggle + action baris 2 di mobile, baris 1 di sm+ */}
-        <div className="flex gap-2 items-center">
-          <div className="flex bg-surface-3 p-0.5 rounded-md">
-            <button
-              onClick={() => setViewMode('table')}
-              className={`px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 transition-colors ${viewMode === 'table' ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-200'}`}
-            >
-              <List className="h-3.5 w-3.5" /> Tabel
-            </button>
-            <button
-              onClick={() => setViewMode('gallery')}
-              className={`px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 transition-colors ${viewMode === 'gallery' ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-200'}`}
-            >
-              <LayoutGrid className="h-3.5 w-3.5" /> Foto
-            </button>
-          </div>
-          {canFullEdit && (
-            <>
-              <ImportModalSiswa />
-              <TambahModal />
-            </>
-          )}
         </div>
       </div>
 
@@ -227,49 +243,57 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                 <div
                   key={s.id}
                   onClick={() => navigateToDetail(s.id)}
-                  className="bg-surface border border-surface rounded-lg p-3 flex items-center gap-3 cursor-pointer active:bg-surface-2 transition-colors"
+                  className="bg-surface border border-surface rounded-xl p-3 flex items-center gap-3 cursor-pointer active:bg-surface-2 transition-colors"
                 >
                   {/* Avatar */}
-                  <div className="h-10 w-10 shrink-0 rounded-lg overflow-hidden bg-surface-3">
+                  <div className="h-11 w-11 shrink-0 rounded-xl overflow-hidden bg-surface-3">
                     {s.foto_url
                       ? <img src={s.foto_url} className="w-full h-full object-cover" alt="" />
-                      : <div className={`w-full h-full bg-gradient-to-br ${getAvatarColor(s.nama_lengkap)} flex items-center justify-center text-base font-bold text-white`}>
+                      : <div className={`w-full h-full bg-gradient-to-br ${getAvatarColor(s.nama_lengkap)} flex items-center justify-center text-lg font-bold text-white`}>
                           {s.nama_lengkap.charAt(0).toUpperCase()}
                         </div>
                     }
                   </div>
+
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">{s.nama_lengkap}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{s.nisn}</span>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase ${getStatusBadge(s.status)}`}>{s.status}</span>
-                      <span className="text-[9px] text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-surface-3 px-1.5 py-0.5 rounded border border-surface font-medium">
-                        {s.kelas ? `${s.kelas.tingkat}-${s.kelas.nomor_kelas}` : 'Tanpa Kelas'}
-                      </span>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border uppercase ${getStatusBadge(s.status)}`}>{s.status}</span>
+                      {s.kelas && (
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-semibold">
+                          {s.kelas.tingkat}-{s.kelas.nomor_kelas}
+                          {s.kelas.kelompok !== 'UMUM' ? ` ${s.kelas.kelompok}` : ''}
+                        </span>
+                      )}
                     </div>
                   </div>
+
                   {/* Actions */}
-                  <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-0.5 shrink-0" onClick={e => e.stopPropagation()}>
                     {canEditThis && (
                       <button
                         onClick={e => handleEditClick(e, s.id)}
                         disabled={isFetchingDetail === s.id}
-                        className="p-1.5 rounded text-blue-600 hover:bg-blue-50 transition-colors"
+                        className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
                       >
-                        {isFetchingDetail === s.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Pencil className="h-3.5 w-3.5" />}
+                        {isFetchingDetail === s.id
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Pencil className="h-3.5 w-3.5" />
+                        }
                       </button>
                     )}
                     {canFullEdit && (
                       <button
                         onClick={() => handleHapus(s.id, s.nama_lengkap)}
                         disabled={isPending}
-                        className="p-1.5 rounded text-rose-500 hover:bg-rose-50 transition-colors"
+                        className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     )}
-                    <ChevronRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />
+                    <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600 ml-0.5" />
                   </div>
                 </div>
               )
@@ -318,7 +342,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                       </TableCell>
                       <TableCell className="py-2.5">
                         {s.kelas ? (
-                          <span className="text-xs font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600 bg-surface-3 px-2 py-0.5 rounded border border-surface">
+                          <span className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-surface-3 px-2 py-0.5 rounded border border-surface">
                             {s.kelas.tingkat}-{s.kelas.nomor_kelas} {s.kelas.kelompok !== 'UMUM' ? s.kelas.kelompok : ''}
                           </span>
                         ) : (
@@ -380,13 +404,13 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
               </SelectContent>
             </Select>
           )}
-          <span><strong className="text-slate-700 dark:text-slate-200">{filteredData.length}</strong> siswa</span>
+          <span><strong className="text-slate-700 dark:text-slate-300 dark:text-slate-600">{filteredData.length}</strong> siswa</span>
         </div>
         <div className="flex items-center gap-1">
           <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 px-2.5 text-xs rounded">
             ←
           </Button>
-          <span className="text-xs font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600 px-2">{currentPage} / {totalPages || 1}</span>
+          <span className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 px-2">{currentPage} / {totalPages || 1}</span>
           <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="h-7 px-2.5 text-xs rounded">
             →
           </Button>

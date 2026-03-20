@@ -11,8 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { MENU_ITEMS } from '@/config/menu'
+import { useEffect, useState } from 'react'
 
 interface HeaderProps {
   userRole: string
@@ -21,37 +20,30 @@ interface HeaderProps {
   avatarUrl: string | null
 }
 
-function getPageTitle(pathname: string) {
-  if (pathname === '/dashboard') return 'Dashboard'
-  
-  // Cek di menu items
-  const found = MENU_ITEMS.find(item => {
-    if (item.href === '/dashboard') return false
-    return pathname === item.href || pathname.startsWith(item.href + '/')
-  })
-  if (found) {
-    // Kalau ada sub-path setelah, tambahkan "Detail"
-    if (pathname !== found.href && pathname.startsWith(found.href + '/')) {
-      return `Detail · ${found.title}`
-    }
-    return found.title
-  }
-  
-  // Fallback: ambil segment terakhir
-  const segments = pathname.split('/').filter(Boolean)
-  const last = segments[segments.length - 1]
-  const isUUID = /^[0-9a-f-]{36}$/i.test(last)
-  if (isUUID) {
-    const parent = segments[segments.length - 2]
-    return `Detail ${parent.charAt(0).toUpperCase() + parent.slice(1)}`
-  }
-  return last.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+function LiveDate() {
+  const [now, setNow] = useState<Date | null>(null)
+
+  useEffect(() => {
+    setNow(new Date())
+    const timer = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(timer)
+  }, [])
+
+  if (!now) return <span className="text-[13px] text-slate-400">—</span>
+
+  const hari = now.toLocaleDateString('id-ID', { weekday: 'long' })
+  const tanggal = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+
+  return (
+    <span className="text-[13px] sm:text-sm font-medium text-slate-500 dark:text-slate-400 tracking-tight">
+      <span className="font-semibold text-slate-700 dark:text-slate-200">{hari}</span>
+      <span className="mx-1.5 text-slate-300 dark:text-slate-600">·</span>
+      <span>{tanggal}</span>
+    </span>
+  )
 }
 
 export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps) {
-  const pathname = usePathname()
-  const pageTitle = getPageTitle(pathname)
-
   const handleLogout = async () => {
     await fetch('/api/auth/sign-out', {
       method: 'POST',
@@ -71,16 +63,16 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
       {/* Mobile menu trigger */}
       <button
         onClick={triggerMobileSidebar}
-        className="lg:hidden flex items-center justify-center h-8 w-8 rounded-md text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+        className="lg:hidden flex items-center justify-center h-8 w-8 rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
         aria-label="Menu"
       >
         <Menu className="h-4.5 w-4.5" style={{ width: '18px', height: '18px' }} />
       </button>
 
-      {/* Page title */}
-      <h1 className="text-[13px] sm:text-sm font-semibold text-slate-800 dark:text-slate-200 tracking-tight truncate flex-1 capitalize">
-        {pageTitle}
-      </h1>
+      {/* Live date */}
+      <div className="flex-1 min-w-0">
+        <LiveDate />
+      </div>
 
       {/* User menu */}
       <DropdownMenu>
@@ -92,7 +84,7 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
                 {userName?.charAt(0).toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
-            <span className="hidden sm:block text-[12px] font-medium text-slate-700 dark:text-slate-300 dark:text-slate-600 max-w-[120px] truncate">
+            <span className="hidden sm:block text-[12px] font-medium text-slate-700 dark:text-slate-300 max-w-[120px] truncate">
               {userName}
             </span>
           </button>
@@ -100,8 +92,8 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
         <DropdownMenuContent align="end" className="w-52 text-[13px]">
           <div className="px-3 py-2">
             <p className="font-semibold text-slate-900 dark:text-slate-100 truncate text-[13px]">{userName}</p>
-            <p className="text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 text-[11px] truncate">{userEmail}</p>
-            <span className="mt-1.5 inline-block text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 dark:text-slate-500">
+            <p className="text-slate-400 dark:text-slate-500 text-[11px] truncate">{userEmail}</p>
+            <span className="mt-1.5 inline-block text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
               {userRole.replace(/_/g, ' ')}
             </span>
           </div>
