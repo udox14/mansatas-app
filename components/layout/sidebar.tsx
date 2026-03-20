@@ -127,12 +127,12 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
             {!collapsed && (
               <div className="min-w-0">
                 <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100 leading-tight">MANSATAS</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">MAN 1 Tasikmalaya</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 leading-tight">MAN 1 Tasikmalaya</p>
               </div>
             )}
           </Link>
           {mobile && (
-            <button onClick={() => setIsOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800">
+            <button onClick={() => setIsOpen(false)} className="p-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 dark:text-slate-600 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800">
               <X className="h-4 w-4" />
             </button>
           )}
@@ -155,7 +155,7 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
                   collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-3 py-2',
                   isActive
                     ? cn(accent.active, 'font-medium shadow-sm')
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+                    : 'text-slate-600 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
                 )}
               >
                 <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'opacity-100' : 'opacity-60')} />
@@ -170,7 +170,7 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
           {/* Accent picker + dark mode toggle — sembunyikan saat collapsed */}
           {!collapsed && (
             <div className="flex items-center gap-1 px-2 py-1.5">
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide mr-auto">Tema</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide mr-auto">Tema</span>
               {ACCENT_COLORS.map(c => (
                 <button key={c.id} onClick={() => changeAccent(c.id as AccentKey)} title={c.label}
                   className={cn(
@@ -187,7 +187,7 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
                   'ml-1 w-5 h-5 rounded-md flex items-center justify-center transition-all duration-200',
                   isDark
                     ? 'bg-slate-700 text-amber-300 hover:bg-slate-600'
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    : 'bg-slate-100 text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-slate-200'
                 )}
               >
                 {isDark
@@ -207,7 +207,7 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
                 'w-full flex justify-center p-2.5 rounded-md transition-colors',
                 isDark
                   ? 'text-amber-300 hover:bg-slate-700'
-                  : 'text-slate-400 hover:bg-slate-100'
+                  : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100'
               )}
             >
               {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
@@ -225,13 +225,13 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
             {!collapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-semibold text-slate-800 dark:text-slate-200 truncate leading-tight">{userName}</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate leading-tight capitalize">{userRole.replace(/_/g, ' ')}</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate leading-tight capitalize">{userRole.replace(/_/g, ' ')}</p>
               </div>
             )}
           </Link>
 
           <button onClick={handleLogout} disabled={isLoggingOut} title={collapsed ? 'Keluar' : undefined}
-            className={cn('w-full flex items-center rounded-md text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 transition-colors', collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2 py-2')}
+            className={cn('w-full flex items-center rounded-md text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400 transition-colors', collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-2 py-2')}
           >
             <LogOut className="h-3.5 w-3.5 shrink-0" />
             {!collapsed && <span className="text-[12px] font-medium">{isLoggingOut ? 'Keluar...' : 'Keluar Aplikasi'}</span>}
@@ -253,7 +253,7 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
       )}>
         <NavContent />
         <button onClick={toggleCollapse}
-          className="absolute -right-3 top-14 z-10 h-5 w-5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 shadow-sm flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+          className="absolute -right-3 top-14 z-10 h-5 w-5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 shadow-sm flex items-center justify-center text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 dark:text-slate-600 transition-colors"
         >
           {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
         </button>

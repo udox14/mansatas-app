@@ -83,14 +83,14 @@ export default async function DashboardPage() {
             <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-white" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest leading-none mb-0.5">{sapaan}</p>
-            <h1 className="text-sm font-semibold text-slate-900 leading-snug truncate">{namaLengkap}</h1>
+            <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-0.5">{sapaan}</p>
+            <h1 className="text-sm font-semibold text-slate-900 dark:text-slate-50 leading-snug truncate">{namaLengkap}</h1>
             <div className="flex items-center gap-1.5 mt-1 flex-wrap">
               <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
                 {roleLabel[userRole] ?? userRole.replace('_', ' ')}
               </span>
               {taAktif && (
-                <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
                   <CalendarCheck className="h-3 w-3" />
                   TA {taAktif.nama} · Smt {taAktif.semester}
                 </span>
@@ -100,7 +100,7 @@ export default async function DashboardPage() {
         </div>
         <Link
           href="/dashboard/settings/profile"
-          className="shrink-0 hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-surface hover:border-slate-300 px-3 py-1.5 rounded-md bg-surface-2 hover:bg-surface transition-colors"
+          className="shrink-0 hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-200 border border-surface hover:border-slate-300 px-3 py-1.5 rounded-md bg-surface-2 hover:bg-surface transition-colors"
         >
           <UserCog className="h-3.5 w-3.5" /> Profil saya
         </Link>
@@ -127,8 +127,8 @@ export default async function DashboardPage() {
                 <Clock className="h-3.5 w-3.5 text-emerald-600" />
               </div>
               <div>
-                <p className="text-xs font-semibold text-slate-800">Status hari ini</p>
-                <p className="text-[10px] text-slate-400">{todayLabel}</p>
+                <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Status hari ini</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">{todayLabel}</p>
               </div>
             </div>
             <div className="grid grid-cols-2 divide-x divide-slate-100">
@@ -145,21 +145,21 @@ export default async function DashboardPage() {
                   <ShieldAlert className="h-3.5 w-3.5 text-rose-500" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-slate-800">Pelanggaran terbaru</p>
-                  <p className="text-[10px] text-slate-400">5 kasus terakhir</p>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Pelanggaran terbaru</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">5 kasus terakhir</p>
                 </div>
               </div>
-              <Link href="/dashboard/kedisiplinan" className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition-colors">
+              <Link href="/dashboard/kedisiplinan" className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 dark:text-slate-600 transition-colors">
                 Lihat semua <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
             <div className="p-2">
               {pelanggaranRaw.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 gap-2 text-slate-400">
+                <div className="flex flex-col items-center justify-center py-8 gap-2 text-slate-400 dark:text-slate-500">
                   <div className="p-2.5 rounded-full bg-emerald-50">
                     <TrendingUp className="h-5 w-5 text-emerald-500" />
                   </div>
-                  <p className="text-xs font-medium text-slate-600">Situasi aman terkendali</p>
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600">Situasi aman terkendali</p>
                   <p className="text-[11px]">Belum ada catatan pelanggaran.</p>
                 </div>
               ) : (
@@ -171,10 +171,10 @@ export default async function DashboardPage() {
                         <span className="text-[8px] text-rose-300 leading-tight">poin</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-slate-800 truncate">{p.siswa_nama}</p>
+                        <p className="text-xs font-medium text-slate-800 dark:text-slate-100 truncate">{p.siswa_nama}</p>
                         <p className="text-[11px] text-rose-500 truncate">{p.nama_pelanggaran}</p>
                       </div>
-                      <span className="text-[10px] text-slate-400 shrink-0">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">
                         {new Date(p.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                       </span>
                     </div>
@@ -192,8 +192,8 @@ export default async function DashboardPage() {
               <Package className="h-3.5 w-3.5 text-amber-600" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-800">Akses cepat</p>
-              <p className="text-[10px] text-slate-400">Menu operasional harian</p>
+              <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Akses cepat</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">Menu operasional harian</p>
             </div>
           </div>
           <div className="p-2 space-y-0.5">
@@ -202,7 +202,7 @@ export default async function DashboardPage() {
             <QuickLink href="/dashboard/izin" icon={<Clock className="h-4 w-4" />} iconBg="bg-amber-50" iconColor="text-amber-600" title="Perizinan Siswa" desc="Keluar komplek & izin kelas" />
             <QuickLink href="/dashboard/plotting" icon={<GraduationCap className="h-4 w-4" />} iconBg="bg-blue-50" iconColor="text-blue-600" title="Plotting & Kenaikan" desc="Penjurusan & naik kelas" />
             <QuickLink href="/dashboard/akademik/analitik" icon={<BarChart2 className="h-4 w-4" />} iconBg="bg-violet-50" iconColor="text-violet-600" title="Analitik Kelulusan" desc="SNBP & SPAN-PTKIN" />
-            <QuickLink href="/dashboard/settings" icon={<Settings className="h-4 w-4" />} iconBg="bg-surface-3" iconColor="text-slate-500" title="Pengaturan Sistem" desc="Tahun ajaran & jurusan" />
+            <QuickLink href="/dashboard/settings" icon={<Settings className="h-4 w-4" />} iconBg="bg-surface-3" iconColor="text-slate-500 dark:text-slate-400 dark:text-slate-500" title="Pengaturan Sistem" desc="Tahun ajaran & jurusan" />
           </div>
         </div>
 
@@ -221,12 +221,12 @@ function StatCard({ title, value, sub, icon, iconBg, iconColor, href }: {
     <Link href={href} className="group flex flex-col gap-3 rounded-xl border border-surface bg-surface p-4 shadow-sm transition-all hover:border-slate-300 hover:shadow-md">
       <div className="flex items-start justify-between">
         <div className={`p-2 rounded-lg ${iconBg} ${iconColor}`}>{icon}</div>
-        <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-400 transition-colors" />
+        <ArrowRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 dark:text-slate-500 transition-colors" />
       </div>
       <div>
-        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">{title}</p>
-        <p className="text-2xl font-bold text-slate-800 mt-0.5 tracking-tight leading-none">{value}</p>
-        <p className="text-[10px] text-slate-400 mt-1">{sub}</p>
+        <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide">{title}</p>
+        <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 mt-0.5 tracking-tight leading-none">{value}</p>
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{sub}</p>
       </div>
     </Link>
   )
@@ -244,12 +244,12 @@ function LiveCell({ label, value, color, href, activeLabel }: {
     <Link href={href} className={`flex flex-col gap-1.5 p-4 hover:bg-surface-2 transition-colors ${active ? c.bg : ''}`}>
       <div className="flex items-center gap-1.5">
         <span className={`h-1.5 w-1.5 rounded-full ${active ? `${c.dot} animate-pulse` : 'bg-slate-200'}`} />
-        <span className={`text-[10px] font-medium ${active ? c.num : 'text-slate-400'}`}>
+        <span className={`text-[10px] font-medium ${active ? c.num : 'text-slate-400 dark:text-slate-500'}`}>
           {active ? activeLabel : 'Tidak ada'}
         </span>
       </div>
-      <p className={`text-2xl font-bold tracking-tight leading-none ${active ? c.num : 'text-slate-300'}`}>{value}</p>
-      <p className="text-[10px] text-slate-400 leading-tight">{label}</p>
+      <p className={`text-2xl font-bold tracking-tight leading-none ${active ? c.num : 'text-slate-300 dark:text-slate-600'}`}>{value}</p>
+      <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">{label}</p>
     </Link>
   )
 }
@@ -261,10 +261,10 @@ function QuickLink({ href, icon, iconBg, iconColor, title, desc }: {
     <Link href={href} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-surface-2 transition-colors group">
       <div className={`p-1.5 rounded-md ${iconBg} ${iconColor} shrink-0`}>{icon}</div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-slate-700">{title}</p>
-        <p className="text-[10px] text-slate-400 truncate">{desc}</p>
+        <p className="text-xs font-medium text-slate-700 dark:text-slate-200">{title}</p>
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{desc}</p>
       </div>
-      <ArrowRight className="h-3.5 w-3.5 text-slate-300 group-hover:text-slate-400 shrink-0 transition-colors" />
+      <ArrowRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 dark:text-slate-500 shrink-0 transition-colors" />
     </Link>
   )
 }

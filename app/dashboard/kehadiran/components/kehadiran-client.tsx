@@ -146,7 +146,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
         <div className="bg-surface/80 backdrop-blur-xl p-5 rounded-lg border border-surface shadow-sm">
           <div className="flex flex-col md:flex-row gap-4 items-end">
             <div className="w-full md:w-1/3 space-y-2">
-              <Label className="text-slate-600 font-medium">Pilih Kelas</Label>
+              <Label className="text-slate-600 dark:text-slate-300 dark:text-slate-600 font-medium">Pilih Kelas</Label>
               <Select value={selectedKelasAdmin} onValueChange={handleKelasAdminChange}>
                 <SelectTrigger className="rounded-md bg-surface-2 h-8"><SelectValue placeholder="Pilih Kelas..." /></SelectTrigger>
                 <SelectContent className="rounded-xl">
@@ -157,7 +157,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
               </Select>
             </div>
             <div className="w-full md:w-1/3 space-y-2">
-              <Label className="text-slate-600 font-medium">Pilih Bulan</Label>
+              <Label className="text-slate-600 dark:text-slate-300 dark:text-slate-600 font-medium">Pilih Bulan</Label>
               <Select value={selectedBulan.toString()} onValueChange={handleBulanChange}>
                 <SelectTrigger className="rounded-md bg-surface-2 h-8"><SelectValue /></SelectTrigger>
                 <SelectContent className="rounded-xl">
@@ -178,7 +178,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
         {selectedKelasAdmin && (
           <div className="bg-surface rounded-lg border border-surface shadow-sm overflow-hidden">
             <div className="p-4 border-b border-surface-2 bg-slate-50/50 flex justify-between items-center">
-              <h3 className="font-bold text-slate-700 flex items-center gap-2">
+              <h3 className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                 <ClipboardEdit className="h-5 w-5 text-emerald-600" /> Input Rekap Bulanan
               </h3>
               <Button onClick={handleSimpanRekap} disabled={isLoading || siswaList.length === 0}
@@ -201,16 +201,16 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    <TableRow><TableCell colSpan={5} className="h-32 text-center text-slate-500"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" /> Memuat data...</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="h-32 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" /> Memuat data...</TableCell></TableRow>
                   ) : siswaList.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="h-32 text-center text-slate-500">Tidak ada siswa di kelas ini.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="h-32 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">Tidak ada siswa di kelas ini.</TableCell></TableRow>
                   ) : (
                     siswaList.map((s, i) => (
                       <TableRow key={s.id} className="hover:bg-surface-2/50">
-                        <TableCell className="text-center font-medium text-slate-500">{i + 1}</TableCell>
+                        <TableCell className="text-center font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500">{i + 1}</TableCell>
                         <TableCell>
-                          <div className="font-bold text-slate-800">{s.nama_lengkap}</div>
-                          <div className="text-xs text-slate-500">NISN: {s.nisn}</div>
+                          <div className="font-bold text-slate-800 dark:text-slate-100">{s.nama_lengkap}</div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">NISN: {s.nisn}</div>
                         </TableCell>
                         <TableCell>
                           <Input type="number" min="0" max="31" className="text-center bg-surface-2 focus:bg-surface rounded-lg h-9"
@@ -240,9 +240,9 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
             {/* Mobile: Card */}
             <div className="md:hidden p-3 space-y-3">
               {isLoading ? (
-                <div className="py-12 text-center text-slate-500"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" /> Memuat data...</div>
+                <div className="py-12 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" /> Memuat data...</div>
               ) : siswaList.length === 0 ? (
-                <div className="py-12 text-center text-slate-500">Tidak ada siswa di kelas ini.</div>
+                <div className="py-12 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">Tidak ada siswa di kelas ini.</div>
               ) : (
                 siswaList.map((s, i) => (
                   <div key={s.id} className="bg-surface-2 rounded-xl border border-surface p-4 space-y-3">
@@ -252,8 +252,8 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
                         {i + 1}
                       </div>
                       <div>
-                        <div className="font-bold text-slate-800 text-sm leading-tight">{s.nama_lengkap}</div>
-                        <div className="text-xs text-slate-500">NISN: {s.nisn}</div>
+                        <div className="font-bold text-slate-800 dark:text-slate-100 text-sm leading-tight">{s.nama_lengkap}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">NISN: {s.nisn}</div>
                       </div>
                     </div>
                     {/* Input S/I/A */}
@@ -326,8 +326,8 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg"><UserCheck className="h-5 w-5" /></div>
               <div>
-                <h3 className="font-bold text-slate-800">Daftar Hadir & Catatan</h3>
-                <p className="text-xs text-slate-500">Biarkan berstatus "Aman" jika siswa hadir dan tidak bermasalah.</p>
+                <h3 className="font-bold text-slate-800 dark:text-slate-100">Daftar Hadir & Catatan</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Biarkan berstatus "Aman" jika siswa hadir dan tidak bermasalah.</p>
               </div>
             </div>
             <Button onClick={handleSimpanJurnal} disabled={isLoading || siswaList.length === 0}
@@ -338,9 +338,9 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
 
           <div className="p-3 space-y-3">
             {isLoading && siswaList.length === 0 ? (
-              <div className="py-12 text-center text-slate-500"><Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-emerald-600" /> Memuat siswa...</div>
+              <div className="py-12 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500"><Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-emerald-600" /> Memuat siswa...</div>
             ) : siswaList.length === 0 ? (
-              <div className="py-12 text-center text-slate-500">Tidak ada siswa di kelas ini.</div>
+              <div className="py-12 text-center text-slate-500 dark:text-slate-400 dark:text-slate-500">Tidak ada siswa di kelas ini.</div>
             ) : (
               siswaList.map((s, i) => {
                 const statusSiswa = jurnalData[s.id]?.status || 'Aman'
@@ -356,12 +356,12 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
 
                         {/* Baris atas: nomor + nama + badge status */}
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-surface-3 text-slate-600 flex items-center justify-center text-xs font-bold shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-surface-3 text-slate-600 dark:text-slate-300 dark:text-slate-600 flex items-center justify-center text-xs font-bold shrink-0">
                             {i + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="font-bold text-slate-800 text-sm truncate">{s.nama_lengkap}</div>
-                            <div className="text-xs text-slate-400">NISN: {s.nisn}</div>
+                            <div className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate">{s.nama_lengkap}</div>
+                            <div className="text-xs text-slate-400 dark:text-slate-500">NISN: {s.nisn}</div>
                           </div>
                           {/* Badge status aktif */}
                           <span className={`shrink-0 text-xs font-bold px-2.5 py-1 rounded-full ring-1 ${cfg.bg} ${cfg.text} ${cfg.ring}`}>
@@ -381,7 +381,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
                                 className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
                                   isActive
                                     ? `${c.bg} ${c.text} ring-1 ${c.ring} border-transparent`
-                                    : 'bg-surface text-slate-500 border-surface hover:border-slate-300'
+                                    : 'bg-surface text-slate-500 dark:text-slate-400 dark:text-slate-500 border-surface hover:border-slate-300'
                                 }`}
                               >
                                 {status}

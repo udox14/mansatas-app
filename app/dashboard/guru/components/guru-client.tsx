@@ -155,11 +155,11 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
           <form onSubmit={handleEditSubmit} className="space-y-3 pt-1">
             <input type="hidden" name="id" value={editingPegawai?.id} />
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600">Nama Lengkap</Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Nama Lengkap</Label>
               <Input name="nama_lengkap" defaultValue={editingPegawai?.nama_lengkap} required className="h-9 text-sm rounded-lg" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600">Email (Login)</Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Email (Login)</Label>
               <Input type="email" name="email" defaultValue={editingPegawai?.email} required className="h-9 text-sm rounded-lg" />
             </div>
             <Button type="submit" disabled={isPending} className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">
@@ -173,7 +173,7 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
         {/* TOOLBAR */}
         <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
           <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
             <Input placeholder="Cari nama atau email..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
           <Select value={filterRole} onValueChange={setFilterRole}>
@@ -195,7 +195,7 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
                 <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Import Akun Pegawai Massal</DialogTitle></DialogHeader>
                 <div className="space-y-3 pt-2">
                   <div className="flex justify-between items-center p-2.5 bg-surface-2 border border-surface rounded-lg">
-                    <p className="text-xs text-slate-600 font-medium">Download format template:</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 dark:text-slate-600 font-medium">Download format template:</p>
                     <Button size="sm" variant="outline" onClick={handleDownloadTemplate} className="h-7 text-xs gap-1"><Download className="h-3 w-3" />Template</Button>
                   </div>
                   <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg text-xs text-emerald-800 space-y-1">
@@ -233,18 +233,18 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
                     Password default: <strong className="font-mono bg-surface px-1 py-0.5 rounded border border-emerald-200">mansatas2026</strong>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600">Nama Lengkap <span className="text-rose-500">*</span></Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Nama Lengkap <span className="text-rose-500">*</span></Label>
                     <Input name="nama_lengkap" required className="h-9 text-sm rounded-lg" placeholder="Contoh: Budi Santoso, S.Pd" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600">Email Resmi <span className="text-rose-500">*</span></Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Email Resmi <span className="text-rose-500">*</span></Label>
                     <div className="relative">
-                      <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                      <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                       <Input name="email" type="email" required className="pl-8 h-9 text-sm rounded-lg" placeholder="guru@mansatas.sch.id" />
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600">Jabatan <span className="text-rose-500">*</span></Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Jabatan <span className="text-rose-500">*</span></Label>
                     <Select name="role" defaultValue="guru">
                       <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
                       <SelectContent>{ROLES.map(r => <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>)}</SelectContent>
@@ -261,8 +261,8 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
         <div className="block md:hidden space-y-2">
           {paginatedData.length === 0 ? (
             <div className="bg-surface py-10 rounded-lg border border-surface text-center">
-              <Users className="h-7 w-7 text-slate-300 mx-auto mb-2" />
-              <p className="text-sm text-slate-400">Tidak ada data pegawai.</p>
+              <Users className="h-7 w-7 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+              <p className="text-sm text-slate-400 dark:text-slate-500">Tidak ada data pegawai.</p>
             </div>
           ) : paginatedData.map(p => (
             <div key={p.id} className="bg-surface border border-surface rounded-lg p-3">
@@ -271,8 +271,8 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
                   {p.nama_lengkap.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-800 truncate leading-tight">{p.nama_lengkap}</p>
-                  <p className="text-[10px] text-slate-400 truncate flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">{p.nama_lengkap}</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
                 </div>
               </div>
               <Select value={p.role} onValueChange={val => handleUbahRole(p.id, val)} disabled={isPending}>
@@ -299,17 +299,17 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
           <Table>
             <TableHeader>
               <TableRow className="bg-surface-2 hover:bg-surface-2">
-                <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500">Profil Pegawai</TableHead>
-                <TableHead className="h-9 text-xs font-semibold text-slate-500 w-52">Jabatan / Hak Akses</TableHead>
-                <TableHead className="h-9 text-xs font-semibold text-slate-500 text-right px-4 w-28">Kelola</TableHead>
+                <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">Profil Pegawai</TableHead>
+                <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 w-52">Jabatan / Hak Akses</TableHead>
+                <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 text-right px-4 w-28">Kelola</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {paginatedData.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={3} className="h-24 text-center">
-                    <div className="flex flex-col items-center gap-2 text-slate-400">
-                      <Users className="h-7 w-7 text-slate-300" />
+                    <div className="flex flex-col items-center gap-2 text-slate-400 dark:text-slate-500">
+                      <Users className="h-7 w-7 text-slate-300 dark:text-slate-600" />
                       <p className="text-sm">Tidak ada data pegawai.</p>
                     </div>
                   </TableCell>
@@ -322,8 +322,8 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
                         {p.nama_lengkap.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-slate-800 group-hover:text-emerald-700 transition-colors leading-tight">{p.nama_lengkap}</p>
-                        <p className="text-[11px] text-slate-400 flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 group-hover:text-emerald-700 transition-colors leading-tight">{p.nama_lengkap}</p>
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
                       </div>
                     </div>
                   </TableCell>
@@ -353,13 +353,13 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
 
           {/* PAGINATION */}
           <div className="flex items-center justify-between px-4 py-2 border-t border-surface-2 bg-slate-50/50">
-            <div className="flex items-center gap-2 text-xs text-slate-500">
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
               <span>Tampilkan</span>
               <Select value={itemsPerPage.toString()} onValueChange={v => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
                 <SelectTrigger className="h-7 w-16 text-xs rounded border-surface"><SelectValue /></SelectTrigger>
                 <SelectContent>{[10, 20, 50].map(n => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}</SelectContent>
               </Select>
-              <span><strong className="text-slate-700">{filteredData.length}</strong> pegawai</span>
+              <span><strong className="text-slate-700 dark:text-slate-200">{filteredData.length}</strong> pegawai</span>
             </div>
             <div className="flex items-center gap-1">
               <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 px-2.5 text-xs rounded">←</Button>
@@ -371,7 +371,7 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
 
         {/* Mobile pagination */}
         <div className="flex items-center justify-between md:hidden bg-surface border border-surface rounded-lg px-3 py-2">
-          <span className="text-xs text-slate-500"><strong>{filteredData.length}</strong> pegawai</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500"><strong>{filteredData.length}</strong> pegawai</span>
           <div className="flex items-center gap-1">
             <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 px-2.5 text-xs rounded">←</Button>
             <span className="text-xs font-medium px-2">{currentPage}/{totalPages || 1}</span>

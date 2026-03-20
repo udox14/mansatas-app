@@ -22,7 +22,7 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
   `).bind(id).first<any>()
 
   if (!siswa) return (
-    <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500">
+    <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500 dark:text-slate-400 dark:text-slate-500">
       <h1 className="text-2xl font-bold mb-2">Siswa Tidak Ditemukan</h1>
       <Link href="/dashboard/siswa" className="text-blue-600 hover:underline">Kembali ke Daftar Siswa</Link>
     </div>
@@ -46,7 +46,7 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <Link href="/dashboard/siswa" className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 hover:text-emerald-600 transition-colors bg-surface px-4 py-2 rounded-xl shadow-sm border border-surface/60 w-fit">
+      <Link href="/dashboard/siswa" className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-emerald-600 transition-colors bg-surface px-4 py-2 rounded-xl shadow-sm border border-surface/60 w-fit">
         <ChevronLeft className="h-4 w-4" /> Kembali ke Data Siswa
       </Link>
       <DetailSiswaClient

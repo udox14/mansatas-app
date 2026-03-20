@@ -11,8 +11,8 @@ interface PageLoadingProps {
 export function PageLoading({ text = 'Memuat data...' }: PageLoadingProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[360px] gap-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/50">
-      <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-      <p className="text-sm text-slate-500">{text}</p>
+      <Loader2 className="h-6 w-6 animate-spin text-slate-400 dark:text-slate-500" />
+      <p className="text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500">{text}</p>
     </div>
   )
 }

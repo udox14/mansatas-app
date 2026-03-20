@@ -61,9 +61,9 @@ export default async function KedisiplinanPage() {
         icon={ShieldAlert}
         iconColor="text-rose-500"
       >
-        <div className="flex items-center gap-1.5 text-[12px] text-slate-500 border border-slate-200 px-2.5 py-1 rounded-md bg-slate-50">
+        <div className="flex items-center gap-1.5 text-[12px] text-slate-500 dark:text-slate-400 dark:text-slate-500 border border-slate-200 px-2.5 py-1 rounded-md bg-slate-50">
           <CalendarDays className="h-3.5 w-3.5" />
-          <span>TA: <strong className="text-slate-800 font-semibold">{taAktif.nama}</strong></span>
+          <span>TA: <strong className="text-slate-800 dark:text-slate-100 font-semibold">{taAktif.nama}</strong></span>
         </div>
       </PageHeader>
       <Suspense fallback={

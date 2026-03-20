@@ -104,7 +104,7 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
     <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-lg rounded-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="border-b pb-3">
-          <DialogTitle className="text-sm font-semibold text-slate-800">
+          <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-100">
             {editData ? 'Edit Catatan Pelanggaran' : 'Lapor Pelanggaran Baru'}
           </DialogTitle>
         </DialogHeader>
@@ -118,26 +118,26 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
           <input type="hidden" name="master_pelanggaran_id" value={selectedMasterId} />
 
           <div className="space-y-1.5 relative">
-            <Label className="text-xs font-semibold text-slate-600">Siswa Terlapor <span className="text-rose-500">*</span></Label>
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Siswa Terlapor <span className="text-rose-500">*</span></Label>
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
               <Input placeholder="Ketik min. 2 huruf nama siswa..." value={searchSiswaQuery}
                 onChange={e => handleSiswaInput(e.target.value)}
                 onFocus={() => setShowSiswaDropdown(true)}
                 onBlur={() => setTimeout(() => setShowSiswaDropdown(false), 200)}
                 className={`pl-8 h-8 text-sm rounded-md bg-surface-2 ${selectedSiswaId ? 'border-emerald-400 bg-emerald-50/30' : ''}`} />
-              {isSearchingSiswa && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-slate-400" />}
+              {isSearchingSiswa && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-slate-400 dark:text-slate-500" />}
             </div>
             {showSiswaDropdown && searchSiswaQuery.length > 1 && (
               <div className="absolute z-50 w-full mt-1 bg-surface border border-surface rounded-lg shadow-lg max-h-52 overflow-y-auto">
                 {siswaResults.length === 0 && !isSearchingSiswa
-                  ? <div className="p-3 text-xs text-center text-slate-400">Siswa tidak ditemukan</div>
+                  ? <div className="p-3 text-xs text-center text-slate-400 dark:text-slate-500">Siswa tidak ditemukan</div>
                   : siswaResults.map(s => (
                     <div key={s.id} onMouseDown={e => e.preventDefault()}
                       onClick={() => { setSelectedSiswaId(s.id); setSearchSiswaQuery(s.nama_lengkap); setShowSiswaDropdown(false) }}
                       className="px-3 py-2 hover:bg-rose-50 cursor-pointer border-b border-slate-50 flex justify-between items-center">
-                      <span className="text-xs font-medium text-slate-800">{s.nama_lengkap}</span>
-                      <span className="text-[10px] font-bold bg-surface-3 px-1.5 py-0.5 rounded text-slate-500 shrink-0 ml-2">{s.kelas}</span>
+                      <span className="text-xs font-medium text-slate-800 dark:text-slate-100">{s.nama_lengkap}</span>
+                      <span className="text-[10px] font-bold bg-surface-3 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-400 dark:text-slate-500 shrink-0 ml-2">{s.kelas}</span>
                     </div>
                   ))}
               </div>
@@ -145,9 +145,9 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
           </div>
 
           <div className="space-y-1.5 relative">
-            <Label className="text-xs font-semibold text-slate-600">Jenis Pelanggaran <span className="text-rose-500">*</span></Label>
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Jenis Pelanggaran <span className="text-rose-500">*</span></Label>
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
               <Input placeholder="Cari jenis kasus (HP, Telat, ...)" value={searchMaster}
                 onChange={e => { setSearchMaster(e.target.value); setShowMasterDropdown(true); setSelectedMasterId('') }}
                 onFocus={() => setShowMasterDropdown(true)}
@@ -157,12 +157,12 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
             {showMasterDropdown && searchMaster.length > 0 && (
               <div className="absolute z-50 w-full mt-1 bg-surface border border-surface rounded-lg shadow-lg max-h-52 overflow-y-auto">
                 {filteredMaster.length === 0
-                  ? <div className="p-3 text-xs text-center text-slate-400">Kasus tidak ditemukan</div>
+                  ? <div className="p-3 text-xs text-center text-slate-400 dark:text-slate-500">Kasus tidak ditemukan</div>
                   : filteredMaster.map(m => (
                     <div key={m.id} onMouseDown={e => e.preventDefault()}
                       onClick={() => { setSelectedMasterId(m.id); setSearchMaster(m.nama_pelanggaran); setShowMasterDropdown(false) }}
                       className="px-3 py-2 hover:bg-rose-50 cursor-pointer border-b border-slate-50 flex justify-between items-center gap-2">
-                      <span className="text-xs text-slate-700 line-clamp-1">{m.nama_pelanggaran}</span>
+                      <span className="text-xs text-slate-700 dark:text-slate-200 line-clamp-1">{m.nama_pelanggaran}</span>
                       <span className="text-[10px] font-bold bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded shrink-0">+{m.poin}p</span>
                     </div>
                   ))}
@@ -172,13 +172,13 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600">Tanggal <span className="text-rose-500">*</span></Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Tanggal <span className="text-rose-500">*</span></Label>
               <Input type="date" name="tanggal" defaultValue={editData?.tanggal || today} required className="h-8 text-xs rounded-md bg-surface-2" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600">Foto Bukti <span className="text-slate-400 font-normal">(otomatis kompres)</span></Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Foto Bukti <span className="text-slate-400 dark:text-slate-500 font-normal">(otomatis kompres)</span></Label>
               <div className="relative">
-                <Camera className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <Camera className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                 <Input type="file" name="foto" accept="image/*" capture="environment"
                   className="h-8 pl-8 pt-1 text-xs rounded-md bg-surface-2 file:hidden cursor-pointer" />
               </div>
@@ -186,7 +186,7 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-600">Keterangan <span className="text-slate-400 font-normal">(opsional)</span></Label>
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Keterangan <span className="text-slate-400 dark:text-slate-500 font-normal">(opsional)</span></Label>
             <Input name="keterangan" defaultValue={editData?.keterangan || ''} placeholder="Kronologi singkat..." className="h-8 text-sm rounded-md bg-surface-2" />
           </div>
 

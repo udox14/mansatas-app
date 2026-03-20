@@ -22,7 +22,7 @@ export function DetailKelasClient({ siswaData, kelasId, tingkatKelas }: { siswaD
     <div className="space-y-3">
       <div className="flex gap-2 items-center">
         <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
           <Input placeholder="Cari siswa..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
         <TambahSiswaModal kelasId={kelasId} />
@@ -32,21 +32,21 @@ export function DetailKelasClient({ siswaData, kelasId, tingkatKelas }: { siswaD
         <Table>
           <TableHeader>
             <TableRow className="bg-surface-2 hover:bg-surface-2">
-              <TableHead className="h-9 w-12 text-center text-xs font-semibold text-slate-500">No</TableHead>
-              <TableHead className="h-9 w-28 text-xs font-semibold text-slate-500">NISN</TableHead>
-              <TableHead className="h-9 text-xs font-semibold text-slate-500">Nama Lengkap</TableHead>
-              <TableHead className="h-9 text-xs font-semibold text-slate-500 text-center w-12">L/P</TableHead>
-              <TableHead className="h-9 text-right text-xs font-semibold text-slate-500 px-4 w-24">Aksi</TableHead>
+              <TableHead className="h-9 w-12 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">No</TableHead>
+              <TableHead className="h-9 w-28 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">NISN</TableHead>
+              <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">Nama Lengkap</TableHead>
+              <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center w-12">L/P</TableHead>
+              <TableHead className="h-9 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 px-4 w-24">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredData.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="h-24 text-center text-sm text-slate-400">Belum ada siswa di kelas ini.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="h-24 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada siswa di kelas ini.</TableCell></TableRow>
             ) : filteredData.map((s, i) => (
               <TableRow key={s.id} className="hover:bg-surface-2/60 border-surface-2 group">
-                <TableCell className="text-center text-xs text-slate-400 py-2.5">{i + 1}</TableCell>
-                <TableCell className="text-xs font-medium text-slate-600 py-2.5 font-mono">{s.nisn}</TableCell>
-                <TableCell className="text-sm font-medium text-slate-800 py-2.5">{s.nama_lengkap}</TableCell>
+                <TableCell className="text-center text-xs text-slate-400 dark:text-slate-500 py-2.5">{i + 1}</TableCell>
+                <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600 py-2.5 font-mono">{s.nisn}</TableCell>
+                <TableCell className="text-sm font-medium text-slate-800 dark:text-slate-100 py-2.5">{s.nama_lengkap}</TableCell>
                 <TableCell className="text-center text-xs py-2.5">
                   <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${s.jenis_kelamin === 'L' ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}`}>{s.jenis_kelamin}</span>
                 </TableCell>

@@ -34,11 +34,11 @@ function WaliKelasSelector({ value, onChange, daftarGuru, disabled }: { value: s
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex items-center justify-between w-full h-8 px-2.5 border rounded text-xs font-medium transition-colors disabled:opacity-50",
-          isOpen ? 'bg-surface border-blue-400 ring-1 ring-blue-200' : 'bg-surface-2 border-surface hover:bg-surface text-slate-700'
+          isOpen ? 'bg-surface border-blue-400 ring-1 ring-blue-200' : 'bg-surface-2 border-surface hover:bg-surface text-slate-700 dark:text-slate-200'
         )}
       >
-        <span className="truncate">{selected ? selected.nama_lengkap : <span className="text-slate-400 italic">— Kosong —</span>}</span>
-        <ChevronDown className="h-3 w-3 text-slate-400 shrink-0 ml-1" />
+        <span className="truncate">{selected ? selected.nama_lengkap : <span className="text-slate-400 dark:text-slate-500 italic">— Kosong —</span>}</span>
+        <ChevronDown className="h-3 w-3 text-slate-400 dark:text-slate-500 shrink-0 ml-1" />
       </button>
       {isOpen && (
         <>
@@ -46,18 +46,18 @@ function WaliKelasSelector({ value, onChange, daftarGuru, disabled }: { value: s
           <div className="absolute z-50 top-full left-0 mt-1 w-full min-w-[200px] bg-surface border border-surface rounded-lg shadow-lg overflow-hidden">
             <div className="p-1.5 border-b border-surface-2">
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 dark:text-slate-500" />
                 <Input autoFocus placeholder="Cari guru..." value={search} onChange={e => setSearch(e.target.value)} className="pl-7 h-7 text-xs rounded border-surface" />
               </div>
             </div>
             <div className="max-h-44 overflow-y-auto p-1 space-y-0.5">
-              <div onClick={() => { onChange('none'); setIsOpen(false) }} className="px-2.5 py-1.5 text-xs text-slate-400 italic hover:bg-surface-2 rounded cursor-pointer">— Kosongkan —</div>
+              <div onClick={() => { onChange('none'); setIsOpen(false) }} className="px-2.5 py-1.5 text-xs text-slate-400 dark:text-slate-500 italic hover:bg-surface-2 rounded cursor-pointer">— Kosongkan —</div>
               {filtered.map(g => (
                 <div key={g.id} onClick={() => { onChange(g.id); setIsOpen(false) }}
-                  className={cn("px-2.5 py-1.5 text-xs rounded cursor-pointer transition-colors", value === g.id ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-surface-2 text-slate-700')}
+                  className={cn("px-2.5 py-1.5 text-xs rounded cursor-pointer transition-colors", value === g.id ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-surface-2 text-slate-700 dark:text-slate-200')}
                 >{g.nama_lengkap}</div>
               ))}
-              {filtered.length === 0 && <div className="px-2.5 py-3 text-center text-xs text-slate-400">Tidak ditemukan</div>}
+              {filtered.length === 0 && <div className="px-2.5 py-3 text-center text-xs text-slate-400 dark:text-slate-500">Tidak ditemukan</div>}
             </div>
           </div>
         </>
@@ -117,7 +117,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
       {/* TOOLBAR */}
       <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
           <Input placeholder="Cari kelas atau wali..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
         </div>
         <Select value={filterTingkat} onValueChange={setFilterTingkat}>
@@ -139,13 +139,13 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
       <div className="flex gap-3">
         <div className="flex items-center gap-2 bg-surface border border-surface rounded-lg px-3 py-2">
           <Library className="h-4 w-4 text-blue-500" />
-          <span className="text-xs text-slate-500">Total Kelas</span>
-          <span className="text-sm font-bold text-slate-800">{sortedData.length}</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Total Kelas</span>
+          <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{sortedData.length}</span>
         </div>
         <div className="flex items-center gap-2 bg-surface border border-surface rounded-lg px-3 py-2">
           <Users className="h-4 w-4 text-emerald-500" />
-          <span className="text-xs text-slate-500">Siswa</span>
-          <span className="text-sm font-bold text-slate-800">{sortedData.reduce((a, k) => a + k.jumlah_siswa, 0)}</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Siswa</span>
+          <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{sortedData.reduce((a, k) => a + k.jumlah_siswa, 0)}</span>
         </div>
       </div>
 
@@ -153,8 +153,8 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
       <div className="block xl:hidden space-y-2">
         {sortedData.length === 0 ? (
           <div className="bg-surface py-10 rounded-lg border border-surface text-center">
-            <Library className="h-7 w-7 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm text-slate-400">Belum ada kelas.</p>
+            <Library className="h-7 w-7 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+            <p className="text-sm text-slate-400 dark:text-slate-500">Belum ada kelas.</p>
           </div>
         ) : sortedData.map(k => {
           const isFull = k.jumlah_siswa >= k.kapasitas
@@ -172,7 +172,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
               {/* Header row */}
               <div className="flex items-center justify-between cursor-pointer" onClick={() => router.push(`/dashboard/kelas/${k.id}`)}>
                 <div>
-                  <span className="text-lg font-bold text-slate-800">{k.tingkat}-{k.nomor_kelas}</span>
+                  <span className="text-lg font-bold text-slate-800 dark:text-slate-100">{k.tingkat}-{k.nomor_kelas}</span>
                   {!isJurusanValid && (
                     <span className="ml-2 text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
                       <AlertTriangle className="h-2.5 w-2.5 inline mr-0.5" />Usang
@@ -180,10 +180,10 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 border-surface')}>
+                  <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 dark:text-slate-300 dark:text-slate-600 border-surface')}>
                     {k.jumlah_siswa}/{k.kapasitas}
                   </span>
-                  <ChevronRight className="h-4 w-4 text-slate-400" />
+                  <ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                 </div>
               </div>
 
@@ -195,7 +195,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
               {/* Editable fields */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <p className="text-[10px] font-medium text-slate-400 mb-1">Jurusan</p>
+                  <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mb-1">Jurusan</p>
                   <Select value={currentKelompok} onValueChange={v => handleQueueChange(k.id, 'kelompok', v)} disabled={isSavingBatch}>
                     <SelectTrigger className={cn("h-8 text-xs rounded", pendingChanges[k.id]?.kelompok !== undefined ? 'bg-blue-50 border-blue-300 text-blue-700' : !isJurusanValid ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-surface-2 border-surface')}>
                       <SelectValue />
@@ -204,7 +204,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
                   </Select>
                 </div>
                 <div>
-                  <p className="text-[10px] font-medium text-slate-400 mb-1">Wali Kelas</p>
+                  <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mb-1">Wali Kelas</p>
                   <WaliKelasSelector value={currentWali} onChange={v => handleQueueChange(k.id, 'wali_kelas_id', v)} daftarGuru={daftarGuru} disabled={isSavingBatch} />
                 </div>
               </div>
@@ -217,7 +217,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
                 <button
                   onClick={() => handleHapus(k.id, `${k.tingkat}-${k.nomor_kelas}`, k.jumlah_siswa)}
                   disabled={k.jumlah_siswa > 0}
-                  className={cn("p-1.5 rounded transition-colors", k.jumlah_siswa > 0 ? 'text-slate-300' : 'text-rose-500 hover:bg-rose-50')}
+                  className={cn("p-1.5 rounded transition-colors", k.jumlah_siswa > 0 ? 'text-slate-300 dark:text-slate-600' : 'text-rose-500 hover:bg-rose-50')}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -232,16 +232,16 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
         <Table>
           <TableHeader>
             <TableRow className="bg-surface-2 hover:bg-surface-2">
-              <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 w-32">Kelas</TableHead>
-              <TableHead className="h-9 text-xs font-semibold text-slate-500 w-44">Jurusan</TableHead>
-              <TableHead className="h-9 text-xs font-semibold text-slate-500">Wali Kelas</TableHead>
-              <TableHead className="h-9 text-xs font-semibold text-slate-500 text-center w-36">Keterisian</TableHead>
-              <TableHead className="h-9 text-xs font-semibold text-slate-500 text-right px-4 w-20">Aksi</TableHead>
+              <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 w-32">Kelas</TableHead>
+              <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 w-44">Jurusan</TableHead>
+              <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">Wali Kelas</TableHead>
+              <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center w-36">Keterisian</TableHead>
+              <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 text-right px-4 w-20">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedData.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="h-24 text-center text-sm text-slate-400">Belum ada data kelas.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="h-24 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada data kelas.</TableCell></TableRow>
             ) : sortedData.map(k => {
               const isFull = k.jumlah_siswa >= k.kapasitas
               const pct = Math.min(Math.round((k.jumlah_siswa / k.kapasitas) * 100), 100)
@@ -256,7 +256,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
                   isRowPending ? 'bg-blue-50/40 border-l-2 border-l-blue-400' : 'hover:bg-surface-2/60'
                 )}>
                   <TableCell className="px-4 py-2.5 cursor-pointer" onClick={() => router.push(`/dashboard/kelas/${k.id}`)}>
-                    <span className="text-base font-bold text-slate-800 group-hover:text-blue-700 transition-colors">
+                    <span className="text-base font-bold text-slate-800 dark:text-slate-100 group-hover:text-blue-700 transition-colors">
                       {k.tingkat}-{k.nomor_kelas}
                     </span>
                     {!isJurusanValid && <AlertTriangle className="h-3 w-3 text-rose-500 inline ml-1" />}
@@ -271,7 +271,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
                   </TableCell>
                   <TableCell className="py-2.5">
                     <div className="flex items-center gap-2">
-                      <UserCircle className={cn("h-4 w-4 shrink-0", pendingChanges[k.id]?.wali_kelas_id !== undefined ? 'text-blue-500' : currentWali === 'none' ? 'text-slate-300' : 'text-emerald-500')} />
+                      <UserCircle className={cn("h-4 w-4 shrink-0", pendingChanges[k.id]?.wali_kelas_id !== undefined ? 'text-blue-500' : currentWali === 'none' ? 'text-slate-300 dark:text-slate-600' : 'text-emerald-500')} />
                       <div className="w-52">
                         <WaliKelasSelector value={currentWali} onChange={v => handleQueueChange(k.id, 'wali_kelas_id', v)} daftarGuru={daftarGuru} disabled={isSavingBatch} />
                       </div>
@@ -279,7 +279,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
                   </TableCell>
                   <TableCell className="py-2.5">
                     <div className="flex flex-col items-center gap-1">
-                      <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 border-surface')}>
+                      <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 dark:text-slate-300 dark:text-slate-600 border-surface')}>
                         {k.jumlah_siswa} / {k.kapasitas}
                       </span>
                       <div className="w-20 h-1.5 bg-surface-3 rounded-full overflow-hidden">
@@ -295,7 +295,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
                       <button
                         onClick={e => { e.stopPropagation(); handleHapus(k.id, `${k.tingkat}-${k.nomor_kelas}`, k.jumlah_siswa) }}
                         disabled={k.jumlah_siswa > 0}
-                        className={cn("p-1.5 rounded", k.jumlah_siswa > 0 ? 'text-slate-300' : 'text-rose-500 hover:bg-rose-50')}
+                        className={cn("p-1.5 rounded", k.jumlah_siswa > 0 ? 'text-slate-300 dark:text-slate-600' : 'text-rose-500 hover:bg-rose-50')}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
@@ -318,7 +318,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
             <p className="text-xs font-semibold leading-tight">Perubahan belum disimpan</p>
           </div>
           <div className="flex gap-1.5">
-            <Button variant="ghost" size="sm" onClick={() => setPendingChanges({})} disabled={isSavingBatch} className="h-7 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded">
+            <Button variant="ghost" size="sm" onClick={() => setPendingChanges({})} disabled={isSavingBatch} className="h-7 text-xs text-slate-400 dark:text-slate-500 hover:text-white hover:bg-slate-800 rounded">
               Batal
             </Button>
             <Button size="sm" onClick={executeBatchSave} disabled={isSavingBatch} className="h-7 text-xs bg-blue-600 hover:bg-blue-500 rounded px-3">
