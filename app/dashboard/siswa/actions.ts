@@ -267,28 +267,47 @@ export async function importSiswaMassal(dataSiswa: any[]) {
 export async function editSiswaLengkap(prevState: any, formData: FormData) {
   const db = await getDB()
   const id = formData.get('id') as string
+  if (!id) return { error: 'ID siswa tidak ditemukan', success: null }
 
   const payload: any = Object.fromEntries(formData.entries())
   delete payload.id
 
+  // Sanitasi menyeluruh:
+  // 1. Field FK (kelas_id, wali_murid_id): string kosong / "none" → null
+  // 2. Semua field lain: string kosong / "undefined" / "null" → null
+  // Ini mencegah FOREIGN KEY constraint failed karena string kosong dikirim sebagai value
   Object.keys(payload).forEach(key => {
-    if (
-      payload[key] === '' ||
-      payload[key] === 'undefined' ||
-      payload[key] === 'null' ||
-      (FK_FIELDS.includes(key) && !payload[key])
-    ) {
-      payload[key] = null
+    const val = payload[key]
+    if (FK_FIELDS.includes(key)) {
+      // FK field: hanya boleh null atau UUID valid — "none", "", dll → null
+      if (!val || val === 'none' || val === 'null' || val === 'undefined') {
+        payload[key] = null
+      }
+    } else {
+      // Non-FK field: kosong → null agar tidak simpan string kosong
+      if (val === '' || val === 'undefined' || val === 'null') {
+        payload[key] = null
+      }
     }
   })
 
-  if (payload.anak_ke) payload.anak_ke = parseInt(payload.anak_ke as string)
-  if (payload.jumlah_saudara) payload.jumlah_saudara = parseInt(payload.jumlah_saudara as string)
+  // Konversi field numerik
+  if (payload.anak_ke !== null) payload.anak_ke = payload.anak_ke ? parseInt(payload.anak_ke) : null
+  if (payload.jumlah_saudara !== null) payload.jumlah_saudara = payload.jumlah_saudara ? parseInt(payload.jumlah_saudara) : null
 
   payload.updated_at = new Date().toISOString()
 
   const result = await dbUpdate(db, 'siswa', payload, { id })
-  if (result.error) return { error: result.error, success: null }
+  if (result.error) {
+    return {
+      error: result.error.includes('FOREIGN KEY')
+        ? 'Gagal: Kelas yang dipilih tidak valid. Coba pilih ulang atau pilih "Tanpa Kelas".'
+        : result.error.includes('UNIQUE')
+        ? 'NISN sudah terdaftar pada siswa lain.'
+        : result.error,
+      success: null,
+    }
+  }
 
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${id}`)

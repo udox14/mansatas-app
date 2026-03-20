@@ -5,6 +5,7 @@ import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { KehadiranClient } from './components/kehadiran-client'
 import { CalendarCheck } from 'lucide-react'
+import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
 
 export const metadata = { title: 'Kehadiran & Jurnal - MANSATAS App' }
@@ -65,13 +66,7 @@ export default async function KehadiranPage() {
         iconColor="text-emerald-500"
       />
       <Suspense fallback={
-        <div className="bg-white/50 rounded-3xl p-12 border border-slate-200/60 shadow-sm flex flex-col items-center justify-center min-h-[400px]">
-           <div className="bg-emerald-50 p-5 rounded-full mb-5 border border-emerald-100 relative">
-             <div className="absolute inset-0 rounded-full border-4 border-emerald-200 border-t-emerald-600 animate-spin"></div>
-             <CalendarCheck className="h-8 w-8 text-emerald-600 animate-pulse" />
-           </div>
-           <h3 className="text-xl font-bold text-slate-800">Menyiapkan Lembar Kehadiran...</h3>
-        </div>
+<PageLoading text="Menyiapkan lembar kehadiran..." />
       }>
         <KehadiranDataFetcher profile={profile} isAdmin={isAdmin} />
       </Suspense>

@@ -28,17 +28,19 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
     </div>
   )
 
-  const [riwayatKelas, pelanggaran, izinKeluar, izinKelas, rekapNilai] = await Promise.all([
+  const [riwayatKelas, pelanggaran, izinKeluar, izinKelas, rekapNilai, kelasResult] = await Promise.all([
     db.prepare(`SELECT rk.id, rk.created_at, k.tingkat, k.kelompok, k.nomor_kelas, ta.nama, ta.semester FROM riwayat_kelas rk LEFT JOIN kelas k ON rk.kelas_id = k.id LEFT JOIN tahun_ajaran ta ON rk.tahun_ajaran_id = ta.id WHERE rk.siswa_id = ? ORDER BY rk.created_at DESC`).bind(id).all<any>(),
     db.prepare(`SELECT sp.id, sp.tanggal, sp.keterangan, sp.foto_url, mp.nama_pelanggaran, mp.poin, mp.kategori, u.nama_lengkap as pelapor_nama FROM siswa_pelanggaran sp JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id LEFT JOIN "user" u ON sp.diinput_oleh = u.id WHERE sp.siswa_id = ? ORDER BY sp.tanggal DESC`).bind(id).all<any>(),
     db.prepare(`SELECT ik.id, ik.waktu_keluar, ik.waktu_kembali, ik.status, ik.keterangan, u.nama_lengkap as pelapor_nama FROM izin_keluar_komplek ik LEFT JOIN "user" u ON ik.diinput_oleh = u.id WHERE ik.siswa_id = ? ORDER BY ik.waktu_keluar DESC`).bind(id).all<any>(),
     db.prepare(`SELECT itk.id, itk.tanggal, itk.jam_pelajaran, itk.alasan, itk.keterangan, u.nama_lengkap as pelapor_nama FROM izin_tidak_masuk_kelas itk LEFT JOIN "user" u ON itk.diinput_oleh = u.id WHERE itk.siswa_id = ? ORDER BY itk.tanggal DESC`).bind(id).all<any>(),
     db.prepare(`SELECT * FROM rekap_nilai_akademik WHERE siswa_id = ?`).bind(id).all<any>(),
+    // Ambil daftar kelas untuk dropdown di EditSiswaModal
+    db.prepare(`SELECT id, tingkat, nomor_kelas, kelompok FROM kelas ORDER BY tingkat ASC, kelompok ASC, nomor_kelas ASC`).all<any>(),
   ])
 
   const siswaWithNilai = {
     ...siswa,
-    kelas: siswa.tingkat ? { tingkat: siswa.tingkat, kelompok: siswa.kelompok, nomor_kelas: siswa.nomor_kelas } : null,
+    kelas: siswa.tingkat ? { id: siswa.kelas_id, tingkat: siswa.tingkat, kelompok: siswa.kelompok, nomor_kelas: siswa.nomor_kelas } : null,
     rekap_nilai_akademik: rekapNilai.results || []
   }
 
@@ -53,6 +55,7 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
         pelanggaran={pelanggaran.results || []}
         izinKeluar={izinKeluar.results || []}
         izinKelas={izinKelas.results || []}
+        kelasList={kelasResult.results || []}
       />
     </div>
   )

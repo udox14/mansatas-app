@@ -321,7 +321,7 @@ export function TabPenjurusan({
           </div>
 
           <div className={`transition-all duration-300 ease-in-out overflow-hidden ${hasUnsavedChanges ? 'max-h-20 mb-3 opacity-100' : 'max-h-0 opacity-0'}`}>
-            <Button onClick={handleSimpanDraftMassal} disabled={isSavingDraft} className="w-full h-12 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-200 gap-2 text-base animate-pulse">
+            <Button onClick={handleSimpanDraftMassal} disabled={isSavingDraft} className="w-full h-9 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium gap-2">
               {isSavingDraft ? <Loader2 className="h-5 w-5 animate-spin" /> : <Save className="h-5 w-5" />} 
               SIMPAN TIKET JURUSAN KE CLOUD
             </Button>
@@ -432,7 +432,7 @@ export function TabPenjurusan({
           <Button 
             onClick={jalankanSimulasi} 
             disabled={isSimulating || selectedKelasIds.length === 0 || Object.keys(penjurusan).length === 0}
-            className="w-full h-12 rounded-lg gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold shadow-md transition-all text-base"
+            className="w-full h-9 text-sm rounded-lg gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium transition-colors"
           >
             {isSimulating ? <Loader2 className="animate-spin h-5 w-5" /> : <Play className="h-5 w-5" />}
             Jalankan Algo Penjurusan
@@ -446,7 +446,7 @@ export function TabPenjurusan({
               <p className="text-xs font-medium text-slate-500 mt-1">Siswa telah diurutkan & disebar rata (L/P).</p>
             </div>
             {simulasiResult.length > 0 && (
-              <Button onClick={simpanPermanen} disabled={isSavingPermanent} className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-11 rounded-lg shadow-md w-full sm:w-auto">
+              <Button onClick={simpanPermanen} disabled={isSavingPermanent} className="gap-2 bg-emerald-600 hover:bg-emerald-700 h-9 text-sm rounded-lg w-full sm:w-auto">
                 {isSavingPermanent ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4" />} Simpan Permanen
               </Button>
             )}

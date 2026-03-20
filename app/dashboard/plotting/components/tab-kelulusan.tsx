@@ -78,7 +78,7 @@ export function TabKelulusan({ siswaList }: { siswaList: SiswaType[] }) {
         <GraduationCap className="h-24 w-24 text-emerald-500 mb-6 drop-shadow-md" />
         <h2 className="text-3xl font-black text-emerald-900 tracking-tight">Proses Kelulusan Selesai!</h2>
         <p className="text-emerald-700 mt-3 text-lg font-medium">{successMsg}</p>
-        <Button onClick={() => setSuccessMsg('')} variant="outline" className="mt-8 border-emerald-300 text-emerald-800 hover:bg-emerald-100 rounded-lg h-11 px-8 font-bold">
+        <Button onClick={() => setSuccessMsg('')} variant="outline" className="mt-4 border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg h-9 px-6 text-sm">
           Selesai
         </Button>
       </div>
