@@ -26,8 +26,7 @@ export async function tambahTahunAjaran(prevState: any, formData: FormData) {
   const payload = {
     nama: formData.get('nama') as string,
     semester: parseInt(formData.get('semester') as string),
-    is_active: 0, // SQLite boolean = integer
-    // D1 simpan array sebagai JSON string
+    is_active: 0,
     daftar_jurusan: JSON.stringify(daftar_jurusan),
   }
 

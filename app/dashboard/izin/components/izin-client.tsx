@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/izin/components/izin-client.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Search, Loader2, DoorOpen, UserX, AlertCircle, CheckCircle2, Trash2, LogIn, Clock } from 'lucide-react'
-import { tambahIzinKeluar, tandaiSudahKembali, tambahIzinKelas, hapusIzinKeluar, hapusIzinKelas } from '../actions'
+import { tambahIzinKeluar, tandaiSudahKembali, tambahIzinKelas, hapusIzinKeluar, hapusIzinKelas, searchSiswaIzin } from '../actions'
 import { cn } from '@/lib/utils'
 
 const initialFormState = { error: null as string | null, success: null as string | null }
@@ -26,8 +26,8 @@ function SubmitBtn({ label }: { label: string }) {
   )
 }
 
-export function IzinClient({ siswaList, izinKeluarList, izinKelasList, currentUserRole }: {
-  siswaList: any[], izinKeluarList: any[], izinKelasList: any[], currentUserRole: string
+export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
+  izinKeluarList: any[], izinKelasList: any[], currentUserRole: string
 }) {
   const isSuperAdmin = currentUserRole === 'super_admin'
 
@@ -44,11 +44,30 @@ export function IzinClient({ siswaList, izinKeluarList, izinKelasList, currentUs
   const [stateKelas, actionKelas] = useActionState(tambahIzinKelas, initialFormState)
   const [selectedJam, setSelectedJam] = useState<number[]>([])
 
-  // Autocomplete siswa (shared)
+  // Autocomplete siswa — lazy via Server Action (bukan pre-load semua siswa)
   const [searchSiswa, setSearchSiswa] = useState('')
   const [selectedSiswaId, setSelectedSiswaId] = useState('')
   const [showSiswaDropdown, setShowSiswaDropdown] = useState(false)
-  const filteredSiswa = siswaList.filter(s => s.nama_lengkap.toLowerCase().includes(searchSiswa.toLowerCase())).slice(0, 20)
+  const [siswaResults, setSiswaResults] = useState<any[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleSiswaSearch = useCallback((val: string) => {
+    setSearchSiswa(val)
+    setSelectedSiswaId('')
+    setShowSiswaDropdown(true)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (val.length < 2) { setSiswaResults([]); return }
+    debounceRef.current = setTimeout(async () => {
+      setIsSearching(true)
+      try {
+        const results = await searchSiswaIzin(val)
+        setSiswaResults(results)
+      } finally {
+        setIsSearching(false)
+      }
+    }, 300)
+  }, [])
 
   const toggleJam = (jam: number) => setSelectedJam(prev => prev.includes(jam) ? prev.filter(j => j !== jam) : [...prev, jam].sort((a, b) => a - b))
   const toggleSemuaJam = () => setSelectedJam(selectedJam.length === 10 ? [] : [1,2,3,4,5,6,7,8,9,10])
@@ -78,17 +97,21 @@ export function IzinClient({ siswaList, izinKeluarList, izinKelasList, currentUs
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
         <Input
-          placeholder="Ketik nama siswa..."
+          placeholder="Ketik min. 2 huruf nama siswa..."
           value={searchSiswa}
-          onChange={e => { setSearchSiswa(e.target.value); setShowSiswaDropdown(true); setSelectedSiswaId('') }}
+          onChange={e => handleSiswaSearch(e.target.value)}
           onFocus={() => setShowSiswaDropdown(true)}
           onBlur={() => setTimeout(() => setShowSiswaDropdown(false), 200)}
           className={cn("pl-8 h-9 text-sm rounded-lg", selectedSiswaId ? 'border-emerald-400 bg-emerald-50/40' : '')}
         />
+        {isSearching && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-slate-400" />}
       </div>
       {showSiswaDropdown && searchSiswa.length > 1 && (
         <div className="absolute z-50 w-full mt-0.5 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
-          {filteredSiswa.map(s => (
+          {siswaResults.length === 0 && !isSearching && (
+            <div className="px-3 py-4 text-center text-xs text-slate-400">Tidak ditemukan</div>
+          )}
+          {siswaResults.map(s => (
             <div
               key={s.id}
               onMouseDown={e => e.preventDefault()}

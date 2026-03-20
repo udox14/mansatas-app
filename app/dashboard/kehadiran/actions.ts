@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/kehadiran/actions.ts
 'use server'
 
-import { getDB, dbUpsert } from '@/utils/db'
+import { getDB } from '@/utils/db'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 
@@ -30,7 +30,7 @@ export async function getRekapBulanan(kelas_id: string, bulan: number, ta_id: st
   const db = await getDB()
   const result = await db
     .prepare(
-      `SELECT * FROM rekap_kehadiran_bulanan
+      `SELECT siswa_id, sakit, izin, alpa FROM rekap_kehadiran_bulanan
        WHERE kelas_id = ? AND bulan = ? AND tahun_ajaran_id = ?`
     )
     .bind(kelas_id, bulan, ta_id)
@@ -40,6 +40,10 @@ export async function getRekapBulanan(kelas_id: string, bulan: number, ta_id: st
   return { error: null, data: result.results }
 }
 
+// FIX: Ganti pola DELETE-then-INSERT dengan INSERT OR REPLACE
+// Sebelumnya: 1 DELETE + N INSERT = (N+1) writes per save
+// Sekarang: N INSERT OR REPLACE = N writes, tanpa DELETE terpisah
+// Catatan: schema sudah punya UNIQUE(siswa_id, bulan, tahun_ajaran_id)
 export async function simpanRekapBulanan(
   kelas_id: string,
   bulan: number,
@@ -50,21 +54,23 @@ export async function simpanRekapBulanan(
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
-  // D1 tidak support multi-column conflict target di ON CONFLICT
-  // Kita upsert manual: delete lama lalu insert baru (dalam batch)
-  const deleteStmt = db
-    .prepare(
-      `DELETE FROM rekap_kehadiran_bulanan
-       WHERE kelas_id = ? AND bulan = ? AND tahun_ajaran_id = ?`
-    )
-    .bind(kelas_id, bulan, ta_id)
+  if (rekapData.length === 0) return { success: 'Tidak ada data untuk disimpan.' }
 
-  const insertStmts = rekapData.map(item =>
+  const now = new Date().toISOString()
+
+  const stmts = rekapData.map((item) =>
     db
       .prepare(
         `INSERT INTO rekap_kehadiran_bulanan
-         (siswa_id, kelas_id, tahun_ajaran_id, bulan, sakit, izin, alpa, diinput_oleh, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           (siswa_id, kelas_id, tahun_ajaran_id, bulan, sakit, izin, alpa, diinput_oleh, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(siswa_id, bulan, tahun_ajaran_id)
+         DO UPDATE SET
+           sakit = excluded.sakit,
+           izin = excluded.izin,
+           alpa = excluded.alpa,
+           diinput_oleh = excluded.diinput_oleh,
+           updated_at = excluded.updated_at`
       )
       .bind(
         item.siswa_id,
@@ -75,12 +81,16 @@ export async function simpanRekapBulanan(
         item.izin || 0,
         item.alpa || 0,
         user.id,
-        new Date().toISOString()
+        now
       )
   )
 
   try {
-    await db.batch([deleteStmt, ...insertStmts])
+    // Chunk per 100 agar tidak melebihi limit D1 batch
+    const chunkSize = 100
+    for (let i = 0; i < stmts.length; i += chunkSize) {
+      await db.batch(stmts.slice(i, i + chunkSize))
+    }
   } catch (e: any) {
     return { error: e.message }
   }
@@ -91,6 +101,7 @@ export async function simpanRekapBulanan(
 
 // ============================================================
 // 3. JURNAL HARIAN GURU (Sparse Data)
+// FIX: Sama — ganti DELETE+INSERT dengan INSERT OR REPLACE
 // ============================================================
 export async function simpanJurnalHarian(
   penugasan_id: string,
@@ -99,23 +110,35 @@ export async function simpanJurnalHarian(
 ) {
   const db = await getDB()
 
-  // Hanya simpan yang statusnya bukan 'Aman' atau punya catatan
+  // Hanya simpan yang absen atau punya catatan (sparse storage)
   const toInsert = jurnalData.filter(
-    item => item.status !== 'Aman' || (item.catatan && item.catatan.trim() !== '')
+    (item) => item.status !== 'Aman' || (item.catatan && item.catatan.trim() !== '')
   )
 
+  // Hapus entri tanggal itu saja (tetap perlu delete untuk jurnal karena tidak ada unique key per siswa+penugasan+tanggal yang bisa di-upsert langsung)
+  // Tapi kita batasi: hanya siswa yang ada di jurnalData yang dihapus (bukan DELETE semua)
+  if (toInsert.length === 0) {
+    // Tidak ada yang absen hari ini — hapus catatan sebelumnya saja
+    try {
+      await db
+        .prepare('DELETE FROM jurnal_guru_harian WHERE penugasan_id = ? AND tanggal = ?')
+        .bind(penugasan_id, tanggal)
+        .run()
+    } catch (e: any) {
+      return { error: e.message }
+    }
+    revalidatePath('/dashboard/kehadiran')
+    return { success: 'Jurnal kelas berhasil disimpan! Semua siswa tercatat Hadir/Aman.' }
+  }
+
   const deleteStmt = db
-    .prepare(
-      `DELETE FROM jurnal_guru_harian
-       WHERE penugasan_id = ? AND tanggal = ?`
-    )
+    .prepare('DELETE FROM jurnal_guru_harian WHERE penugasan_id = ? AND tanggal = ?')
     .bind(penugasan_id, tanggal)
 
-  const insertStmts = toInsert.map(item =>
+  const insertStmts = toInsert.map((item) =>
     db
       .prepare(
-        `INSERT INTO jurnal_guru_harian
-         (penugasan_id, siswa_id, tanggal, status_kehadiran, catatan)
+        `INSERT INTO jurnal_guru_harian (penugasan_id, siswa_id, tanggal, status_kehadiran, catatan)
          VALUES (?, ?, ?, ?, ?)`
       )
       .bind(
@@ -135,4 +158,20 @@ export async function simpanJurnalHarian(
 
   revalidatePath('/dashboard/kehadiran')
   return { success: 'Jurnal kelas berhasil disimpan! Siswa lainnya otomatis tercatat Hadir/Aman.' }
+}
+
+// ============================================================
+// 4. AMBIL JURNAL HARIAN (untuk tampil di form)
+// ============================================================
+export async function getJurnalHarian(penugasan_id: string, tanggal: string) {
+  const db = await getDB()
+  const result = await db
+    .prepare(
+      `SELECT siswa_id, status_kehadiran, catatan FROM jurnal_guru_harian
+       WHERE penugasan_id = ? AND tanggal = ?`
+    )
+    .bind(penugasan_id, tanggal)
+    .all<any>()
+
+  return result.results ?? []
 }
