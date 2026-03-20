@@ -257,3 +257,48 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     success: `Import selesai: ${insertCount} ditambahkan, ${updateCount} diperbarui.`,
   }
 }
+
+// ============================================================
+// FUNGSI YANG DIBUTUHKAN OLEH CLIENT COMPONENTS
+// (tetap ada dari versi original, tidak dihapus)
+// ============================================================
+
+// editSiswaLengkap — dipakai oleh edit-modal.tsx
+export async function editSiswaLengkap(prevState: any, formData: FormData) {
+  const db = await getDB()
+  const id = formData.get('id') as string
+
+  const payload: any = Object.fromEntries(formData.entries())
+  delete payload.id
+
+  Object.keys(payload).forEach(key => {
+    if (
+      payload[key] === '' ||
+      payload[key] === 'undefined' ||
+      payload[key] === 'null' ||
+      (FK_FIELDS.includes(key) && !payload[key])
+    ) {
+      payload[key] = null
+    }
+  })
+
+  if (payload.anak_ke) payload.anak_ke = parseInt(payload.anak_ke as string)
+  if (payload.jumlah_saudara) payload.jumlah_saudara = parseInt(payload.jumlah_saudara as string)
+
+  payload.updated_at = new Date().toISOString()
+
+  const result = await dbUpdate(db, 'siswa', payload, { id })
+  if (result.error) return { error: result.error, success: null }
+
+  revalidatePath('/dashboard/siswa')
+  revalidatePath(`/dashboard/siswa/${id}`)
+  return { error: null, success: 'Biodata lengkap berhasil diperbarui!' }
+}
+
+// getDetailSiswaLengkap — dipakai oleh siswa-client.tsx (lazy load detail)
+export async function getDetailSiswaLengkap(id: string) {
+  const db = await getDB()
+  const data = await dbSelectOne<any>(db, 'siswa', { id })
+  if (!data) return { error: 'Data tidak ditemukan', data: null }
+  return { error: null, data }
+}
