@@ -36,11 +36,11 @@ export default async function DetailKelasPage({ params }: { params: Promise<{ id
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <Link href="/dashboard/kelas" className="hover:text-blue-600 flex items-center gap-1 transition-colors bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200 w-fit font-bold text-sm text-slate-500">
+      <Link href="/dashboard/kelas" className="hover:text-blue-600 flex items-center gap-1 transition-colors bg-surface px-4 py-2 rounded-xl shadow-sm border border-surface w-fit font-bold text-sm text-slate-500">
         <ChevronLeft className="h-4 w-4" /> Kembali ke Manajemen Kelas
       </Link>
 
-      <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+      <div className="bg-surface rounded-3xl p-6 md:p-8 border border-surface/60 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="absolute right-0 top-0 w-48 h-48 bg-blue-50 rounded-bl-full -z-0 opacity-50"></div>
         <div className="relative z-10 space-y-2">
           <div className="flex items-center gap-3">
@@ -55,7 +55,7 @@ export default async function DetailKelasPage({ params }: { params: Promise<{ id
           </div>
         </div>
 
-        <div className="relative z-10 flex items-center gap-6 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-100 shadow-sm">
+        <div className="relative z-10 flex items-center gap-6 bg-surface-2 p-4 sm:p-5 rounded-2xl border border-surface-2 shadow-sm">
           <div className="flex items-center gap-4">
             <div className={`p-3.5 rounded-xl shadow-inner ${isFull ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
               <Users className="h-6 w-6" />

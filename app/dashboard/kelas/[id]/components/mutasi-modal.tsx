@@ -71,7 +71,7 @@ export function MutasiModal({ isOpen, onClose, siswa, currentKelasId, tingkat }:
               {message.text}
             </div>
           )}
-          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+          <div className="bg-surface-2 p-2.5 rounded-lg border border-surface-2">
             <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wide">Siswa dipindah</p>
             <p className="text-sm font-bold text-slate-900 mt-0.5">{siswa.nama_lengkap}</p>
             <p className="text-xs text-slate-500">NISN: {siswa.nisn}</p>
@@ -79,7 +79,7 @@ export function MutasiModal({ isOpen, onClose, siswa, currentKelasId, tingkat }:
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-slate-600">Kelas Tujuan (Tingkat {tingkat})</Label>
             {isKelasLoading ? (
-              <div className="h-9 border rounded-lg flex items-center justify-center bg-slate-50 text-xs text-slate-400"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memuat kelas...</div>
+              <div className="h-9 border rounded-lg flex items-center justify-center bg-surface-2 text-xs text-slate-400"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memuat kelas...</div>
             ) : (
               <Select value={selectedKelasId} onValueChange={setSelectedKelasId}>
                 <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue placeholder="-- Pilih Kelas --" /></SelectTrigger>
@@ -99,10 +99,10 @@ export function MutasiModal({ isOpen, onClose, siswa, currentKelasId, tingkat }:
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-amber-900">Siswa untuk Ditukar</Label>
                 {isSiswaLoading ? (
-                  <div className="h-9 border border-amber-200 rounded-lg flex items-center justify-center bg-white text-xs text-amber-500"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memuat...</div>
+                  <div className="h-9 border border-amber-200 rounded-lg flex items-center justify-center bg-surface text-xs text-amber-500"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memuat...</div>
                 ) : (
                   <Select value={selectedSiswaBarterId} onValueChange={setSelectedSiswaBarterId}>
-                    <SelectTrigger className="h-9 text-xs rounded-lg bg-white border-amber-200"><SelectValue placeholder="-- Pilih Siswa --" /></SelectTrigger>
+                    <SelectTrigger className="h-9 text-xs rounded-lg bg-surface border-amber-200"><SelectValue placeholder="-- Pilih Siswa --" /></SelectTrigger>
                     <SelectContent>
                       {siswaBarterList.map(s => <SelectItem key={s.id} value={s.id} className="text-xs">{s.nama_lengkap} (NISN: {s.nisn})</SelectItem>)}
                     </SelectContent>

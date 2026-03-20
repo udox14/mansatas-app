@@ -143,12 +143,12 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
     return (
       <div className="space-y-5">
         {/* Filter */}
-        <div className="bg-white/80 backdrop-blur-xl p-5 rounded-lg border border-slate-200 shadow-sm">
+        <div className="bg-surface/80 backdrop-blur-xl p-5 rounded-lg border border-surface shadow-sm">
           <div className="flex flex-col md:flex-row gap-4 items-end">
             <div className="w-full md:w-1/3 space-y-2">
               <Label className="text-slate-600 font-medium">Pilih Kelas</Label>
               <Select value={selectedKelasAdmin} onValueChange={handleKelasAdminChange}>
-                <SelectTrigger className="rounded-md bg-slate-50 h-8"><SelectValue placeholder="Pilih Kelas..." /></SelectTrigger>
+                <SelectTrigger className="rounded-md bg-surface-2 h-8"><SelectValue placeholder="Pilih Kelas..." /></SelectTrigger>
                 <SelectContent className="rounded-xl">
                   {kelasList.map(k => (
                     <SelectItem key={k.id} value={k.id}>{k.tingkat}-{k.nomor_kelas} {k.kelompok}</SelectItem>
@@ -159,7 +159,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
             <div className="w-full md:w-1/3 space-y-2">
               <Label className="text-slate-600 font-medium">Pilih Bulan</Label>
               <Select value={selectedBulan.toString()} onValueChange={handleBulanChange}>
-                <SelectTrigger className="rounded-md bg-slate-50 h-8"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="rounded-md bg-surface-2 h-8"><SelectValue /></SelectTrigger>
                 <SelectContent className="rounded-xl">
                   {BULAN_LIST.map(b => <SelectItem key={b.val} value={b.val.toString()}>{b.label}</SelectItem>)}
                 </SelectContent>
@@ -176,8 +176,8 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
         )}
 
         {selectedKelasAdmin && (
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+          <div className="bg-surface rounded-lg border border-surface shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-surface-2 bg-slate-50/50 flex justify-between items-center">
               <h3 className="font-bold text-slate-700 flex items-center gap-2">
                 <ClipboardEdit className="h-5 w-5 text-emerald-600" /> Input Rekap Bulanan
               </h3>
@@ -190,7 +190,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
             {/* Desktop: Tabel */}
             <div className="hidden md:block overflow-x-auto">
               <Table>
-                <TableHeader className="bg-slate-50">
+                <TableHeader className="bg-surface-2">
                   <TableRow>
                     <TableHead className="w-12 text-center">No</TableHead>
                     <TableHead>Nama Siswa</TableHead>
@@ -206,26 +206,26 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
                     <TableRow><TableCell colSpan={5} className="h-32 text-center text-slate-500">Tidak ada siswa di kelas ini.</TableCell></TableRow>
                   ) : (
                     siswaList.map((s, i) => (
-                      <TableRow key={s.id} className="hover:bg-slate-50/50">
+                      <TableRow key={s.id} className="hover:bg-surface-2/50">
                         <TableCell className="text-center font-medium text-slate-500">{i + 1}</TableCell>
                         <TableCell>
                           <div className="font-bold text-slate-800">{s.nama_lengkap}</div>
                           <div className="text-xs text-slate-500">NISN: {s.nisn}</div>
                         </TableCell>
                         <TableCell>
-                          <Input type="number" min="0" max="31" className="text-center bg-slate-50 focus:bg-white rounded-lg h-9"
+                          <Input type="number" min="0" max="31" className="text-center bg-surface-2 focus:bg-surface rounded-lg h-9"
                             value={rekapData[s.id]?.sakit || ''}
                             onChange={e => setRekapData(prev => ({ ...prev, [s.id]: { ...prev[s.id], sakit: parseInt(e.target.value) || 0 } }))}
                           />
                         </TableCell>
                         <TableCell>
-                          <Input type="number" min="0" max="31" className="text-center bg-slate-50 focus:bg-white rounded-lg h-9"
+                          <Input type="number" min="0" max="31" className="text-center bg-surface-2 focus:bg-surface rounded-lg h-9"
                             value={rekapData[s.id]?.izin || ''}
                             onChange={e => setRekapData(prev => ({ ...prev, [s.id]: { ...prev[s.id], izin: parseInt(e.target.value) || 0 } }))}
                           />
                         </TableCell>
                         <TableCell>
-                          <Input type="number" min="0" max="31" className="text-center bg-slate-50 focus:bg-white rounded-lg h-9"
+                          <Input type="number" min="0" max="31" className="text-center bg-surface-2 focus:bg-surface rounded-lg h-9"
                             value={rekapData[s.id]?.alpa || ''}
                             onChange={e => setRekapData(prev => ({ ...prev, [s.id]: { ...prev[s.id], alpa: parseInt(e.target.value) || 0 } }))}
                           />
@@ -245,7 +245,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
                 <div className="py-12 text-center text-slate-500">Tidak ada siswa di kelas ini.</div>
               ) : (
                 siswaList.map((s, i) => (
-                  <div key={s.id} className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-3">
+                  <div key={s.id} className="bg-surface-2 rounded-xl border border-surface p-4 space-y-3">
                     {/* Header Card */}
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm shrink-0">
@@ -267,7 +267,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
                           <span className={`text-xs font-bold ${color}`}>{label}</span>
                           <Input
                             type="number" min="0" max="31"
-                            className="text-center bg-white rounded-lg h-9 text-sm font-bold border-0 shadow-sm"
+                            className="text-center bg-surface rounded-lg h-9 text-sm font-bold border-0 shadow-sm"
                             value={rekapData[s.id]?.[key as 'sakit' | 'izin' | 'alpa'] || ''}
                             onChange={e => setRekapData(prev => ({ ...prev, [s.id]: { ...prev[s.id], [key]: parseInt(e.target.value) || 0 } }))}
                           />
@@ -320,9 +320,9 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
       )}
 
       {selectedPenugasan && (
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="bg-surface rounded-lg border border-surface shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
           {/* Header */}
-          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="p-4 border-b border-surface-2 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg"><UserCheck className="h-5 w-5" /></div>
               <div>
@@ -348,7 +348,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
                 const isAman = statusSiswa === 'Aman'
 
                 return (
-                  <div key={s.id} className={`rounded-2xl border transition-all duration-200 overflow-hidden ${isAman ? 'bg-white border-slate-200' : 'bg-rose-50/60 border-rose-200 shadow-sm'}`}>
+                  <div key={s.id} className={`rounded-2xl border transition-all duration-200 overflow-hidden ${isAman ? 'bg-surface border-surface' : 'bg-rose-50/60 border-rose-200 shadow-sm'}`}>
                     {/* Strip warna status di kiri */}
                     <div className="flex">
                       <div className={`w-1.5 shrink-0 ${cfg.dot}`} />
@@ -356,7 +356,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
 
                         {/* Baris atas: nomor + nama + badge status */}
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs font-bold shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-surface-3 text-slate-600 flex items-center justify-center text-xs font-bold shrink-0">
                             {i + 1}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -381,7 +381,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
                                 className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
                                   isActive
                                     ? `${c.bg} ${c.text} ring-1 ${c.ring} border-transparent`
-                                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                                    : 'bg-surface text-slate-500 border-surface hover:border-slate-300'
                                 }`}
                               >
                                 {status}
@@ -393,7 +393,7 @@ export function KehadiranClient({ currentUser, taAktif, kelasList, penugasanGuru
                         {/* Input catatan */}
                         <Input
                           placeholder="Catatan perilaku (Opsional)..."
-                          className="h-9 text-xs rounded-xl bg-white/80 border-slate-200 focus:border-emerald-400"
+                          className="h-9 text-xs rounded-xl bg-surface/80 border-surface focus:border-emerald-400"
                           value={jurnalData[s.id]?.catatan || ''}
                           onChange={e => setJurnalData(prev => ({ ...prev, [s.id]: { ...prev[s.id], catatan: e.target.value } }))}
                         />

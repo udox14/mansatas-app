@@ -107,7 +107,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
         {isSearching && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-slate-400" />}
       </div>
       {showSiswaDropdown && searchSiswa.length > 1 && (
-        <div className="absolute z-50 w-full mt-0.5 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+        <div className="absolute z-50 w-full mt-0.5 bg-surface border border-surface rounded-lg shadow-lg max-h-52 overflow-y-auto">
           {siswaResults.length === 0 && !isSearching && (
             <div className="px-3 py-4 text-center text-xs text-slate-400">Tidak ditemukan</div>
           )}
@@ -116,10 +116,10 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
               key={s.id}
               onMouseDown={e => e.preventDefault()}
               onClick={() => { setSelectedSiswaId(s.id); setSearchSiswa(s.nama_lengkap); setShowSiswaDropdown(false) }}
-              className="px-3 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100 flex justify-between items-center last:border-0"
+              className="px-3 py-2 hover:bg-surface-2 cursor-pointer border-b border-surface-2 flex justify-between items-center last:border-0"
             >
               <span className="text-sm font-medium text-slate-800">{s.nama_lengkap}</span>
-              <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{s.kelas?.tingkat}-{s.kelas?.nomor_kelas}</span>
+              <span className="text-[10px] bg-surface-3 px-1.5 py-0.5 rounded text-slate-500">{s.kelas?.tingkat}-{s.kelas?.nomor_kelas}</span>
             </div>
           ))}
         </div>
@@ -181,7 +181,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                 {[1,2,3,4,5,6,7,8,9,10].map(jam => (
                   <button
                     key={jam} type="button" onClick={() => toggleJam(jam)}
-                    className={cn("h-9 rounded-lg border text-sm font-bold transition-all", selectedJam.includes(jam) ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100')}
+                    className={cn("h-9 rounded-lg border text-sm font-bold transition-all", selectedJam.includes(jam) ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-surface-2 text-slate-500 border-surface hover:bg-surface-3')}
                   >{jam}</button>
                 ))}
               </div>
@@ -211,7 +211,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
 
       {/* MAIN TABS */}
       <Tabs defaultValue="keluar" className="space-y-3">
-        <TabsList className="bg-white border border-slate-200 p-0.5 h-auto grid grid-cols-2 rounded-lg">
+        <TabsList className="bg-surface border border-surface p-0.5 h-auto grid grid-cols-2 rounded-lg">
           <TabsTrigger value="keluar" className="py-2 rounded-md data-[state=active]:bg-blue-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
             Keluar Komplek
           </TabsTrigger>
@@ -222,7 +222,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
 
         {/* TAB KELUAR */}
         <TabsContent value="keluar" className="m-0 space-y-3">
-          <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-wrap gap-2 items-center">
+          <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <Input placeholder="Cari nama siswa..." value={searchKeluar} onChange={e => setSearchKeluar(e.target.value)} className="pl-8 h-8 text-sm rounded-md" />
@@ -243,11 +243,11 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
           {/* MOBILE */}
           <div className="block lg:hidden space-y-2">
             {displayKeluar.length === 0 ? (
-              <div className="bg-white py-10 rounded-lg border border-slate-200 text-center">
+              <div className="bg-surface py-10 rounded-lg border border-surface text-center">
                 <p className="text-sm text-slate-400">Tidak ada data izin keluar.</p>
               </div>
             ) : displayKeluar.map(k => (
-              <div key={k.id} className={cn("bg-white border rounded-lg p-3 relative", k.status === 'BELUM KEMBALI' ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200')}>
+              <div key={k.id} className={cn("bg-surface border rounded-lg p-3 relative", k.status === 'BELUM KEMBALI' ? 'border-amber-200 bg-amber-50/30' : 'border-surface')}>
                 {isSuperAdmin && (
                   <button onClick={() => handleDeleteKeluar(k.id)} className="absolute top-2 right-2 p-1 text-slate-300 hover:text-rose-500 transition-colors">
                     <Trash2 className="h-3.5 w-3.5" />
@@ -257,18 +257,18 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                   <div>
                     <p className="text-sm font-semibold text-slate-800 leading-tight">{k.siswa?.nama_lengkap}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                      <span className="text-[10px] text-slate-500 bg-surface-3 px-1.5 py-0.5 rounded border border-surface">
                         {k.siswa?.kelas?.tingkat}-{k.siswa?.kelas?.nomor_kelas}
                       </span>
                       <span className="text-[10px] font-mono text-slate-600">{formatTime(k.waktu_keluar)}</span>
                     </div>
                   </div>
-                  <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0", k.status === 'BELUM KEMBALI' ? 'bg-amber-100 text-amber-700 animate-pulse' : 'bg-slate-100 text-slate-500')}>
+                  <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0", k.status === 'BELUM KEMBALI' ? 'bg-amber-100 text-amber-700 animate-pulse' : 'bg-surface-3 text-slate-500')}>
                     {k.status === 'BELUM KEMBALI' ? 'Di Luar' : 'Kembali'}
                   </span>
                 </div>
                 {k.keterangan && <p className="text-[10px] text-slate-500 truncate mb-2">{k.keterangan}</p>}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between pt-2 border-t border-surface-2">
                   <span className="text-[10px] text-slate-400">Oleh: {k.pelapor?.nama_lengkap?.split(' ')[0]}</span>
                   {k.status === 'BELUM KEMBALI' ? (
                     <Button size="sm" onClick={() => handleKembali(k.id)} className="h-7 px-2.5 text-[10px] bg-emerald-600 hover:bg-emerald-700 rounded">
@@ -283,10 +283,10 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
           </div>
 
           {/* DESKTOP TABLE */}
-          <div className="hidden lg:block bg-white rounded-lg border border-slate-200 overflow-hidden">
+          <div className="hidden lg:block bg-surface rounded-lg border border-surface overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50 hover:bg-slate-50">
+                <TableRow className="bg-surface-2 hover:bg-surface-2">
                   <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500">Siswa</TableHead>
                   <TableHead className="h-9 text-xs font-semibold text-slate-500 w-24">Keluar</TableHead>
                   <TableHead className="h-9 text-xs font-semibold text-slate-500">Keterangan</TableHead>
@@ -298,7 +298,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                 {displayKeluar.length === 0 ? (
                   <TableRow><TableCell colSpan={5} className="h-24 text-center text-sm text-slate-400">Tidak ada data izin keluar.</TableCell></TableRow>
                 ) : displayKeluar.map(k => (
-                  <TableRow key={k.id} className={cn("border-slate-100 group", k.status === 'BELUM KEMBALI' ? 'bg-amber-50/20 hover:bg-amber-50/40' : 'hover:bg-slate-50/60')}>
+                  <TableRow key={k.id} className={cn("border-surface-2 group", k.status === 'BELUM KEMBALI' ? 'bg-amber-50/20 hover:bg-amber-50/40' : 'hover:bg-surface-2/60')}>
                     <TableCell className="px-4 py-2.5">
                       <p className="text-sm font-semibold text-slate-800 leading-tight">{k.siswa?.nama_lengkap}</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">Kelas {k.siswa?.kelas?.tingkat}-{k.siswa?.kelas?.nomor_kelas} · {k.pelapor?.nama_lengkap}</p>
@@ -306,7 +306,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                     <TableCell className="py-2.5 text-xs font-mono text-slate-600">{formatTime(k.waktu_keluar)}</TableCell>
                     <TableCell className="py-2.5 text-xs text-slate-500">{k.keterangan || '-'}</TableCell>
                     <TableCell className="py-2.5 text-center">
-                      <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded border", k.status === 'BELUM KEMBALI' ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' : 'bg-slate-50 text-slate-500 border-slate-200')}>
+                      <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded border", k.status === 'BELUM KEMBALI' ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' : 'bg-surface-2 text-slate-500 border-surface')}>
                         {k.status === 'BELUM KEMBALI' ? 'Di Luar' : `Tiba ${formatTime(k.waktu_kembali)}`}
                       </span>
                     </TableCell>
@@ -333,7 +333,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
 
         {/* TAB KELAS */}
         <TabsContent value="kelas" className="m-0 space-y-3">
-          <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-wrap gap-2 items-center">
+          <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
             <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <Input placeholder="Cari nama siswa..." value={searchKelas} onChange={e => setSearchKelas(e.target.value)} className="pl-8 h-8 text-sm rounded-md" />
@@ -357,11 +357,11 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
           {/* MOBILE */}
           <div className="block lg:hidden space-y-2">
             {displayKelas.length === 0 ? (
-              <div className="bg-white py-10 rounded-lg border border-slate-200 text-center">
+              <div className="bg-surface py-10 rounded-lg border border-surface text-center">
                 <p className="text-sm text-slate-400">Tidak ada data izin kelas.</p>
               </div>
             ) : displayKelas.map(k => (
-              <div key={k.id} className="bg-white border border-slate-200 rounded-lg p-3 relative">
+              <div key={k.id} className="bg-surface border border-surface rounded-lg p-3 relative">
                 {isSuperAdmin && (
                   <button onClick={() => handleDeleteKelas(k.id)} className="absolute top-2 right-2 p-1 text-slate-300 hover:text-rose-500 transition-colors">
                     <Trash2 className="h-3.5 w-3.5" />
@@ -369,7 +369,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                 )}
                 <div className="flex items-start justify-between pr-6 mb-1.5">
                   <p className="text-sm font-semibold text-slate-800 leading-tight truncate">{k.siswa?.nama_lengkap}</p>
-                  <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shrink-0 ml-2">
+                  <span className="text-[10px] text-slate-500 bg-surface-3 px-1.5 py-0.5 rounded border border-surface shrink-0 ml-2">
                     {k.siswa?.kelas?.tingkat}-{k.siswa?.kelas?.nomor_kelas}
                   </span>
                 </div>
@@ -378,21 +378,21 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                     {k.alasan}
                   </span>
                   {k.jam_pelajaran.map((jam: number) => (
-                    <span key={jam} className="text-[9px] h-4 w-4 rounded bg-slate-100 text-slate-600 font-bold flex items-center justify-center border border-slate-200">{jam}</span>
+                    <span key={jam} className="text-[9px] h-4 w-4 rounded bg-surface-3 text-slate-600 font-bold flex items-center justify-center border border-surface">{jam}</span>
                   ))}
                 </div>
                 {k.keterangan && <p className="text-[10px] text-slate-500 truncate">{k.keterangan}</p>}
-                <p className="text-[10px] text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100">Oleh: {k.pelapor?.nama_lengkap}</p>
+                <p className="text-[10px] text-slate-400 mt-1.5 pt-1.5 border-t border-surface-2">Oleh: {k.pelapor?.nama_lengkap}</p>
               </div>
             ))}
           </div>
 
           {/* DESKTOP TABLE */}
-          <div className="hidden lg:block bg-white rounded-lg border border-slate-200 overflow-hidden">
+          <div className="hidden lg:block bg-surface rounded-lg border border-surface overflow-hidden">
             <div className="overflow-x-auto">
               <Table className="min-w-[700px]">
                 <TableHeader>
-                  <TableRow className="bg-slate-50 hover:bg-slate-50">
+                  <TableRow className="bg-surface-2 hover:bg-surface-2">
                     <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500">Siswa</TableHead>
                     <TableHead className="h-9 text-xs font-semibold text-slate-500 text-center w-44">Jam Ke-</TableHead>
                     <TableHead className="h-9 text-xs font-semibold text-slate-500 w-44">Alasan</TableHead>
@@ -404,7 +404,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                   {displayKelas.length === 0 ? (
                     <TableRow><TableCell colSpan={5} className="h-24 text-center text-sm text-slate-400">Tidak ada data izin kelas.</TableCell></TableRow>
                   ) : displayKelas.map(k => (
-                    <TableRow key={k.id} className="hover:bg-slate-50/60 border-slate-100 group">
+                    <TableRow key={k.id} className="hover:bg-surface-2/60 border-surface-2 group">
                       <TableCell className="px-4 py-2.5">
                         <p className="text-sm font-semibold text-slate-800 leading-tight">{k.siswa?.nama_lengkap}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">Kelas {k.siswa?.kelas?.tingkat}-{k.siswa?.kelas?.nomor_kelas}</p>

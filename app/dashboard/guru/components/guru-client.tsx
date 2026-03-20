@@ -171,7 +171,7 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
 
       <div className="space-y-3">
         {/* TOOLBAR */}
-        <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-wrap gap-2 items-center">
+        <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
           <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             <Input placeholder="Cari nama atau email..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
@@ -194,12 +194,12 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
               <DialogContent className="sm:max-w-lg rounded-xl">
                 <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Import Akun Pegawai Massal</DialogTitle></DialogHeader>
                 <div className="space-y-3 pt-2">
-                  <div className="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                  <div className="flex justify-between items-center p-2.5 bg-surface-2 border border-surface rounded-lg">
                     <p className="text-xs text-slate-600 font-medium">Download format template:</p>
                     <Button size="sm" variant="outline" onClick={handleDownloadTemplate} className="h-7 text-xs gap-1"><Download className="h-3 w-3" />Template</Button>
                   </div>
                   <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg text-xs text-emerald-800 space-y-1">
-                    <p className="flex items-center gap-1.5 font-medium"><KeyRound className="h-3.5 w-3.5 text-emerald-600" />Password otomatis: <strong className="font-mono bg-white px-1.5 py-0.5 rounded border border-emerald-200">mansatas2026</strong></p>
+                    <p className="flex items-center gap-1.5 font-medium"><KeyRound className="h-3.5 w-3.5 text-emerald-600" />Password otomatis: <strong className="font-mono bg-surface px-1.5 py-0.5 rounded border border-emerald-200">mansatas2026</strong></p>
                     <p>Kolom: <strong>NAMA_LENGKAP</strong>, <strong>EMAIL</strong>, <strong>JABATAN</strong></p>
                   </div>
                   <Input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} disabled={isImporting} className="h-9 text-xs rounded-lg cursor-pointer" />
@@ -207,7 +207,7 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
                   {importLogs.length > 0 && (
                     <div className="border border-rose-200 rounded-lg overflow-hidden">
                       <div className="bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5" />Log Gagal:</div>
-                      <ScrollArea className="h-28 bg-white p-3 text-xs font-mono text-rose-600">
+                      <ScrollArea className="h-28 bg-surface p-3 text-xs font-mono text-rose-600">
                         {importLogs.map((log, i) => <div key={i} className="mb-0.5">{log}</div>)}
                       </ScrollArea>
                     </div>
@@ -230,7 +230,7 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
                   {state?.success && <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200 flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{state.success}</div>}
                   <div className="bg-emerald-50 border border-emerald-100 p-2.5 rounded-lg flex gap-2 text-xs text-emerald-800">
                     <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-emerald-600 mt-0.5" />
-                    Password default: <strong className="font-mono bg-white px-1 py-0.5 rounded border border-emerald-200">mansatas2026</strong>
+                    Password default: <strong className="font-mono bg-surface px-1 py-0.5 rounded border border-emerald-200">mansatas2026</strong>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-slate-600">Nama Lengkap <span className="text-rose-500">*</span></Label>
@@ -260,12 +260,12 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
         {/* MOBILE CARDS */}
         <div className="block md:hidden space-y-2">
           {paginatedData.length === 0 ? (
-            <div className="bg-white py-10 rounded-lg border border-slate-200 text-center">
+            <div className="bg-surface py-10 rounded-lg border border-surface text-center">
               <Users className="h-7 w-7 text-slate-300 mx-auto mb-2" />
               <p className="text-sm text-slate-400">Tidak ada data pegawai.</p>
             </div>
           ) : paginatedData.map(p => (
-            <div key={p.id} className="bg-white border border-slate-200 rounded-lg p-3">
+            <div key={p.id} className="bg-surface border border-surface rounded-lg p-3">
               <div className="flex items-center gap-3 mb-2.5">
                 <div className={cn("h-9 w-9 rounded-full bg-gradient-to-br shrink-0 flex items-center justify-center text-sm font-bold", getAvatarColor(p.nama_lengkap))}>
                   {p.nama_lengkap.charAt(0).toUpperCase()}
@@ -276,7 +276,7 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
                 </div>
               </div>
               <Select value={p.role} onValueChange={val => handleUbahRole(p.id, val)} disabled={isPending}>
-                <SelectTrigger className="h-7 text-xs rounded border-slate-200 bg-slate-50 font-medium w-full mb-2"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 text-xs rounded border-surface bg-surface-2 font-medium w-full mb-2"><SelectValue /></SelectTrigger>
                 <SelectContent>{ROLES.map(r => <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>)}</SelectContent>
               </Select>
               <div className="flex gap-1.5 justify-end">
@@ -295,10 +295,10 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
         </div>
 
         {/* DESKTOP TABLE */}
-        <div className="hidden md:block bg-white rounded-lg border border-slate-200 overflow-hidden">
+        <div className="hidden md:block bg-surface rounded-lg border border-surface overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow className="bg-slate-50 hover:bg-slate-50">
+              <TableRow className="bg-surface-2 hover:bg-surface-2">
                 <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500">Profil Pegawai</TableHead>
                 <TableHead className="h-9 text-xs font-semibold text-slate-500 w-52">Jabatan / Hak Akses</TableHead>
                 <TableHead className="h-9 text-xs font-semibold text-slate-500 text-right px-4 w-28">Kelola</TableHead>
@@ -315,7 +315,7 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
                   </TableCell>
                 </TableRow>
               ) : paginatedData.map(p => (
-                <TableRow key={p.id} className="hover:bg-emerald-50/20 border-slate-100 group">
+                <TableRow key={p.id} className="hover:bg-emerald-50/20 border-surface-2 group">
                   <TableCell className="px-4 py-2.5">
                     <div className="flex items-center gap-3">
                       <div className={cn("h-8 w-8 rounded-full bg-gradient-to-br shrink-0 flex items-center justify-center text-sm font-bold", getAvatarColor(p.nama_lengkap))}>
@@ -329,7 +329,7 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
                   </TableCell>
                   <TableCell className="py-2.5">
                     <Select value={p.role} onValueChange={val => handleUbahRole(p.id, val)} disabled={isPending}>
-                      <SelectTrigger className="h-7 w-48 text-xs rounded border-slate-200 bg-slate-50 font-medium"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-48 text-xs rounded border-surface bg-surface-2 font-medium"><SelectValue /></SelectTrigger>
                       <SelectContent>{ROLES.map(r => <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>)}</SelectContent>
                     </Select>
                   </TableCell>
@@ -352,11 +352,11 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
           </Table>
 
           {/* PAGINATION */}
-          <div className="flex items-center justify-between px-4 py-2 border-t border-slate-100 bg-slate-50/50">
+          <div className="flex items-center justify-between px-4 py-2 border-t border-surface-2 bg-slate-50/50">
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <span>Tampilkan</span>
               <Select value={itemsPerPage.toString()} onValueChange={v => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
-                <SelectTrigger className="h-7 w-16 text-xs rounded border-slate-200"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 w-16 text-xs rounded border-surface"><SelectValue /></SelectTrigger>
                 <SelectContent>{[10, 20, 50].map(n => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}</SelectContent>
               </Select>
               <span><strong className="text-slate-700">{filteredData.length}</strong> pegawai</span>
@@ -370,7 +370,7 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
         </div>
 
         {/* Mobile pagination */}
-        <div className="flex items-center justify-between md:hidden bg-white border border-slate-200 rounded-lg px-3 py-2">
+        <div className="flex items-center justify-between md:hidden bg-surface border border-surface rounded-lg px-3 py-2">
           <span className="text-xs text-slate-500"><strong>{filteredData.length}</strong> pegawai</span>
           <div className="flex items-center gap-1">
             <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 px-2.5 text-xs rounded">←</Button>

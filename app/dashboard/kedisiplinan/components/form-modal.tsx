@@ -125,11 +125,11 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
                 onChange={e => handleSiswaInput(e.target.value)}
                 onFocus={() => setShowSiswaDropdown(true)}
                 onBlur={() => setTimeout(() => setShowSiswaDropdown(false), 200)}
-                className={`pl-8 h-8 text-sm rounded-md bg-slate-50 ${selectedSiswaId ? 'border-emerald-400 bg-emerald-50/30' : ''}`} />
+                className={`pl-8 h-8 text-sm rounded-md bg-surface-2 ${selectedSiswaId ? 'border-emerald-400 bg-emerald-50/30' : ''}`} />
               {isSearchingSiswa && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-slate-400" />}
             </div>
             {showSiswaDropdown && searchSiswaQuery.length > 1 && (
-              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+              <div className="absolute z-50 w-full mt-1 bg-surface border border-surface rounded-lg shadow-lg max-h-52 overflow-y-auto">
                 {siswaResults.length === 0 && !isSearchingSiswa
                   ? <div className="p-3 text-xs text-center text-slate-400">Siswa tidak ditemukan</div>
                   : siswaResults.map(s => (
@@ -137,7 +137,7 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
                       onClick={() => { setSelectedSiswaId(s.id); setSearchSiswaQuery(s.nama_lengkap); setShowSiswaDropdown(false) }}
                       className="px-3 py-2 hover:bg-rose-50 cursor-pointer border-b border-slate-50 flex justify-between items-center">
                       <span className="text-xs font-medium text-slate-800">{s.nama_lengkap}</span>
-                      <span className="text-[10px] font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 shrink-0 ml-2">{s.kelas}</span>
+                      <span className="text-[10px] font-bold bg-surface-3 px-1.5 py-0.5 rounded text-slate-500 shrink-0 ml-2">{s.kelas}</span>
                     </div>
                   ))}
               </div>
@@ -152,10 +152,10 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
                 onChange={e => { setSearchMaster(e.target.value); setShowMasterDropdown(true); setSelectedMasterId('') }}
                 onFocus={() => setShowMasterDropdown(true)}
                 onBlur={() => setTimeout(() => setShowMasterDropdown(false), 200)}
-                className={`pl-8 h-8 text-sm rounded-md bg-slate-50 ${selectedMasterId ? 'border-emerald-400 bg-emerald-50/30' : ''}`} />
+                className={`pl-8 h-8 text-sm rounded-md bg-surface-2 ${selectedMasterId ? 'border-emerald-400 bg-emerald-50/30' : ''}`} />
             </div>
             {showMasterDropdown && searchMaster.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+              <div className="absolute z-50 w-full mt-1 bg-surface border border-surface rounded-lg shadow-lg max-h-52 overflow-y-auto">
                 {filteredMaster.length === 0
                   ? <div className="p-3 text-xs text-center text-slate-400">Kasus tidak ditemukan</div>
                   : filteredMaster.map(m => (
@@ -173,21 +173,21 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-600">Tanggal <span className="text-rose-500">*</span></Label>
-              <Input type="date" name="tanggal" defaultValue={editData?.tanggal || today} required className="h-8 text-xs rounded-md bg-slate-50" />
+              <Input type="date" name="tanggal" defaultValue={editData?.tanggal || today} required className="h-8 text-xs rounded-md bg-surface-2" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-600">Foto Bukti <span className="text-slate-400 font-normal">(otomatis kompres)</span></Label>
               <div className="relative">
                 <Camera className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                 <Input type="file" name="foto" accept="image/*" capture="environment"
-                  className="h-8 pl-8 pt-1 text-xs rounded-md bg-slate-50 file:hidden cursor-pointer" />
+                  className="h-8 pl-8 pt-1 text-xs rounded-md bg-surface-2 file:hidden cursor-pointer" />
               </div>
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-slate-600">Keterangan <span className="text-slate-400 font-normal">(opsional)</span></Label>
-            <Input name="keterangan" defaultValue={editData?.keterangan || ''} placeholder="Kronologi singkat..." className="h-8 text-sm rounded-md bg-slate-50" />
+            <Input name="keterangan" defaultValue={editData?.keterangan || ''} placeholder="Kronologi singkat..." className="h-8 text-sm rounded-md bg-surface-2" />
           </div>
 
           <SubmitBtn isEdit={!!editData} />

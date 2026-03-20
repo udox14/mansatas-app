@@ -10,7 +10,7 @@ import { TabPenjurusan } from './components/tab-penjurusan'
 import { TabPengacakan } from './components/tab-pengacakan'
 import { TabKelulusan } from './components/tab-kelulusan'
 import { PlottingTabs } from './components/plotting-tabs'
-import { CalendarDays, Network } from 'lucide-react'
+import { CalendarDays, Network, Users, GitBranch, Shuffle, GraduationCap } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
 
@@ -33,12 +33,72 @@ async function PlottingDataFetcher({ currentTab, daftarJurusan }: { currentTab: 
 
   return (
     <PlottingTabs defaultValue={currentTab}>
-      <div className="overflow-x-auto custom-scrollbar pb-2">
-        <TabsList className="bg-white border p-1 h-auto grid grid-cols-4 min-w-[700px] gap-1 rounded-2xl shadow-sm">
-          <TabsTrigger value="siswa_baru" className="py-2.5 rounded-xl data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 font-bold">1. Plotting Baru</TabsTrigger>
-          <TabsTrigger value="penjurusan" className="py-2.5 rounded-xl data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 font-bold">2. Penjurusan (11)</TabsTrigger>
-          <TabsTrigger value="pengacakan" className="py-2.5 rounded-xl data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 font-bold">3. Acak Naik (12)</TabsTrigger>
-          <TabsTrigger value="kelulusan" className="py-2.5 rounded-xl text-rose-600 data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700 font-bold">4. Kelulusan</TabsTrigger>
+      <div className="overflow-x-auto pb-1">
+        <TabsList className="bg-surface-2 border border-surface p-1 h-auto grid grid-cols-4 min-w-[560px] gap-1 rounded-xl">
+          <TabsTrigger
+            value="siswa_baru"
+            className="
+              group flex items-center justify-center gap-2 rounded-lg py-2.5 px-3
+              text-slate-500 dark:text-slate-400 font-medium text-sm
+              transition-all duration-150
+              data-[state=active]:bg-blue-600
+              data-[state=active]:text-white
+              data-[state=active]:shadow-sm
+              hover:text-slate-700 dark:hover:text-slate-200
+              hover:bg-surface
+            "
+          >
+            <Users className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">1. Plotting Baru</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="penjurusan"
+            className="
+              group flex items-center justify-center gap-2 rounded-lg py-2.5 px-3
+              text-slate-500 dark:text-slate-400 font-medium text-sm
+              transition-all duration-150
+              data-[state=active]:bg-indigo-600
+              data-[state=active]:text-white
+              data-[state=active]:shadow-sm
+              hover:text-slate-700 dark:hover:text-slate-200
+              hover:bg-surface
+            "
+          >
+            <GitBranch className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">2. Penjurusan (11)</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="pengacakan"
+            className="
+              group flex items-center justify-center gap-2 rounded-lg py-2.5 px-3
+              text-slate-500 dark:text-slate-400 font-medium text-sm
+              transition-all duration-150
+              data-[state=active]:bg-emerald-600
+              data-[state=active]:text-white
+              data-[state=active]:shadow-sm
+              hover:text-slate-700 dark:hover:text-slate-200
+              hover:bg-surface
+            "
+          >
+            <Shuffle className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">3. Acak Naik (12)</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="kelulusan"
+            className="
+              group flex items-center justify-center gap-2 rounded-lg py-2.5 px-3
+              text-slate-500 dark:text-slate-400 font-medium text-sm
+              transition-all duration-150
+              data-[state=active]:bg-rose-600
+              data-[state=active]:text-white
+              data-[state=active]:shadow-sm
+              hover:text-slate-700 dark:hover:text-slate-200
+              hover:bg-surface
+            "
+          >
+            <GraduationCap className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">4. Kelulusan</span>
+          </TabsTrigger>
         </TabsList>
       </div>
       <TabsContent value="siswa_baru" className="m-0 focus-visible:ring-0">
@@ -77,14 +137,14 @@ export default async function PlottingPage({ searchParams }: { searchParams: Pro
         iconColor="text-blue-500"
       >
         {taAktif && (
-          <div className="flex items-center gap-1.5 text-[12px] text-slate-500 border border-slate-200 px-2.5 py-1 rounded-md bg-slate-50">
+          <div className="flex items-center gap-1.5 text-[12px] text-slate-500 border border-surface px-2.5 py-1 rounded-md bg-surface-2">
             <CalendarDays className="h-3.5 w-3.5" />
-            <span>TA: <strong className="text-slate-800 font-semibold">{taAktif.nama}</strong> SMT {taAktif.semester}</span>
+            <span>TA: <strong className="text-slate-800 dark:text-slate-100 font-semibold">{taAktif.nama}</strong> SMT {taAktif.semester}</span>
           </div>
         )}
       </PageHeader>
       <Suspense fallback={
-<PageLoading text="Memuat data plotting..." />
+        <PageLoading text="Memuat data plotting..." />
       }>
         <PlottingDataFetcher currentTab={currentTab} daftarJurusan={daftarJurusan} />
       </Suspense>

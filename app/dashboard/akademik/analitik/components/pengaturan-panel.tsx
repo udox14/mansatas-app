@@ -32,7 +32,7 @@ function JalurSection({
   }
   const c = colorMap[color]
   return (
-    <div className="space-y-3 border border-slate-100 p-3 rounded-lg bg-slate-50/40">
+    <div className="space-y-3 border border-surface-2 p-3 rounded-lg bg-slate-50/40">
       <div className="flex items-center gap-2">
         <div className={`h-2 w-2 rounded-full ${c.dot}`} />
         <h4 className={`text-xs font-bold ${c.title} tracking-wide uppercase`}>{label}</h4>
@@ -42,7 +42,7 @@ function JalurSection({
         {/* Pilih mapel */}
         <div>
           <p className="text-[10px] text-slate-400 font-semibold uppercase mb-1.5">1. Pilih</p>
-          <ScrollArea className="h-52 border border-slate-200 rounded-md p-2.5 bg-white">
+          <ScrollArea className="h-52 border border-surface rounded-md p-2.5 bg-surface">
             <div className="space-y-2">
               {mapelList.map(m => (
                 <div key={m.id} className="flex items-start gap-2">
@@ -58,11 +58,11 @@ function JalurSection({
         {/* Urutkan */}
         <div>
           <p className="text-[10px] text-slate-400 font-semibold uppercase mb-1.5">2. Urutan PDSS</p>
-          <div className="h-52 overflow-y-auto border border-slate-200 rounded-md p-2 bg-white">
+          <div className="h-52 overflow-y-auto border border-surface rounded-md p-2 bg-surface">
             {selected.length === 0
               ? <p className="text-[11px] text-slate-400 text-center mt-8">Belum ada mapel</p>
               : selected.map((mp, idx) => (
-                <div key={mp} className={`flex items-center justify-between bg-slate-50 px-2 py-1.5 rounded-md border border-slate-100 mb-1 group ${c.hover} transition-colors`}>
+                <div key={mp} className={`flex items-center justify-between bg-surface-2 px-2 py-1.5 rounded-md border border-surface-2 mb-1 group ${c.hover} transition-colors`}>
                   <span className="text-[11px] text-slate-700 truncate flex-1">
                     <span className="text-slate-400 mr-1">{idx + 1}.</span>{mp}
                   </span>
@@ -120,9 +120,9 @@ export function PengaturanPanel({ pengaturan, mapelList }: { pengaturan: any; ma
   }
 
   return (
-    <div className="bg-white rounded-lg border border-slate-200 p-4 space-y-4">
+    <div className="bg-surface rounded-lg border border-surface p-4 space-y-4">
       {/* Header */}
-      <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
+      <div className="flex items-center gap-2.5 pb-3 border-b border-surface-2">
         <div className="bg-emerald-100 p-1.5 rounded-md text-emerald-700">
           <Settings2 className="h-4 w-4" />
         </div>
@@ -154,20 +154,20 @@ export function PengaturanPanel({ pengaturan, mapelList }: { pengaturan: any; ma
         </div>
 
         {/* Bobot */}
-        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+        <div className="bg-surface-2 p-3 rounded-lg border border-surface-2">
           <p className="text-xs font-semibold text-slate-700 mb-2">Simulasi Bobot Nilai Akhir</p>
           <div className="flex items-center gap-3">
             <div className="flex-1 space-y-1">
               <Label className="text-[10px] text-slate-500 font-semibold uppercase">Bobot Rapor 5 Smt (%)</Label>
               <Input type="number" name="bobot_rapor" value={bobotRapor}
                 onChange={e => setBobotRapor(Number(e.target.value))} max={100} min={0}
-                className="h-8 text-sm rounded-md bg-white font-bold text-emerald-700" />
+                className="h-8 text-sm rounded-md bg-surface font-bold text-emerald-700" />
             </div>
             <span className="text-slate-300 font-bold mt-4">+</span>
             <div className="flex-1 space-y-1">
               <Label className="text-[10px] text-slate-500 font-semibold uppercase">Bobot Ujian Madrasah (%)</Label>
               <Input type="number" name="bobot_um" value={100 - bobotRapor} readOnly
-                className="h-8 text-sm rounded-md bg-slate-100 border-transparent text-slate-400 font-bold" />
+                className="h-8 text-sm rounded-md bg-surface-3 border-transparent text-slate-400 font-bold" />
             </div>
           </div>
         </div>

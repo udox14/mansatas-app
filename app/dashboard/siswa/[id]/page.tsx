@@ -46,7 +46,7 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <Link href="/dashboard/siswa" className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 hover:text-emerald-600 transition-colors bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200/60 w-fit">
+      <Link href="/dashboard/siswa" className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 hover:text-emerald-600 transition-colors bg-surface px-4 py-2 rounded-xl shadow-sm border border-surface/60 w-fit">
         <ChevronLeft className="h-4 w-4" /> Kembali ke Data Siswa
       </Link>
       <DetailSiswaClient
