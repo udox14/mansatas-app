@@ -416,7 +416,7 @@ function TabRekaman({ currentUserId, userRole, taAktif, topikAll, isAdmin }: {
   const [isLoadingRekaman, setIsLoadingRekaman] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [bidangFilter, setBidangFilter] = useState<BidangBK | 'Semua'>('Semua')
-  const searchTimeout = useRef<NodeJS.Timeout>()
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const canEdit = userRole === 'guru_bk' || userRole === 'super_admin'
 
   // Lazy search dengan debounce
