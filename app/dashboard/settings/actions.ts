@@ -36,7 +36,7 @@ export async function tambahTahunAjaran(prevState: any, formData: FormData) {
   const result = await dbInsert(db, 'tahun_ajaran', payload)
   if (result.error) return { error: result.error, success: null }
 
-  revalidatePath('/dashboard/settings')
+  revalidatePath('/', 'layout')
   return { error: null, success: 'Tahun Ajaran berhasil ditambahkan' }
 }
 
@@ -67,7 +67,7 @@ export async function hapusTahunAjaran(id: string, isActive: boolean) {
   const db = await getDB()
   const result = await dbDelete(db, 'tahun_ajaran', { id })
   if (result.error) return { error: 'Gagal menghapus: ' + result.error }
-  revalidatePath('/dashboard/settings')
+  revalidatePath('/', 'layout')
   return { success: 'Tahun Ajaran berhasil dihapus.' }
 }
 
@@ -114,7 +114,7 @@ export async function simpanJamPelajaran(tahun_ajaran_id: string, pola_jam: Pola
       'UPDATE tahun_ajaran SET jam_pelajaran = ? WHERE id = ?'
     ).bind(jsonStr, tahun_ajaran_id).run()
 
-    revalidatePath('/dashboard/settings')
+    revalidatePath('/', 'layout')
     return { success: 'Jam pelajaran berhasil disimpan!' }
   } catch (e: any) {
     return { error: String(e?.message ?? e ?? 'Terjadi kesalahan tidak diketahui.') }
