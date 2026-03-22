@@ -14,12 +14,14 @@ export const dynamic = 'force-dynamic'
 async function AkademikDataFetcher() {
   const db = await getDB()
 
-  const [taAktif, mapelResult] = await Promise.all([
-    db.prepare('SELECT id, nama, semester, daftar_jurusan FROM tahun_ajaran WHERE is_active = 1').first<any>(),
-    // FIX: ganti SELECT * → kolom spesifik yang dipakai di UI
-    db.prepare('SELECT id, nama_mapel, kode_mapel, kelompok, tingkat, kategori FROM mata_pelajaran ORDER BY nama_mapel ASC').all<any>()
+  // 1 batch: TA aktif + mapel + guru list (untuk dropdown jadwal)
+  const [taAktif, mapelResult, guruResult] = await Promise.all([
+    db.prepare('SELECT id, nama, semester, daftar_jurusan, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1').first<any>(),
+    db.prepare('SELECT id, nama_mapel, kode_mapel, kelompok, tingkat, kategori FROM mata_pelajaran ORDER BY nama_mapel ASC').all<any>(),
+    db.prepare(`SELECT id, nama_lengkap FROM "user" WHERE role IN ('guru','guru_bk','wakamad','kepsek','guru_piket') AND nama_lengkap IS NOT NULL ORDER BY nama_lengkap ASC`).all<any>(),
   ])
 
+  // Penugasan hanya diambil kalau ada TA aktif
   let penugasanData: any[] = []
   if (taAktif) {
     const res = await db.prepare(`
@@ -30,7 +32,7 @@ async function AkademikDataFetcher() {
       JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
       JOIN kelas k ON pm.kelas_id = k.id
       WHERE pm.tahun_ajaran_id = ?
-      ORDER BY pm.created_at DESC
+      ORDER BY k.tingkat ASC, k.nomor_kelas ASC, u.nama_lengkap ASC
     `).bind(taAktif.id).all<any>()
 
     penugasanData = (res.results || []).map((p: any) => ({
@@ -41,11 +43,30 @@ async function AkademikDataFetcher() {
     }))
   }
 
+  // Kelas list untuk dropdown jadwal per kelas
+  const kelasResult = taAktif
+    ? await db.prepare('SELECT id, tingkat, nomor_kelas, kelompok FROM kelas ORDER BY tingkat ASC, kelompok ASC, nomor_kelas ASC').all<any>()
+    : { results: [] }
+
   const daftarJurusan = taAktif?.daftar_jurusan
     ? parseJsonCol<string[]>(taAktif.daftar_jurusan, []) || ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
     : ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
 
-  return <AkademikClient mapelData={mapelResult.results || []} penugasanData={penugasanData} taAktif={taAktif} daftarJurusan={daftarJurusan} />
+  const jamPelajaran = taAktif?.jam_pelajaran
+    ? parseJsonCol<any[]>(taAktif.jam_pelajaran, [])
+    : []
+
+  return (
+    <AkademikClient
+      mapelData={mapelResult.results || []}
+      penugasanData={penugasanData}
+      taAktif={taAktif ?? null}
+      daftarJurusan={daftarJurusan}
+      kelasList={kelasResult.results || []}
+      guruList={guruResult.results || []}
+      jamPelajaran={jamPelajaran}
+    />
+  )
 }
 
 export default async function AkademikPage() {
@@ -54,7 +75,7 @@ export default async function AkademikPage() {
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
-      <PageHeader title="Pusat Akademik" description="Kelola master mata pelajaran dan jadwal mengajar." icon={BookOpen} iconColor="text-emerald-500" />
+      <PageHeader title="Pusat Akademik" description="Kelola mata pelajaran, penugasan mengajar, dan jadwal." icon={BookOpen} iconColor="text-emerald-500" />
       <Suspense fallback={<PageLoading text="Memuat pusat akademik..." />}>
         <AkademikDataFetcher />
       </Suspense>
