@@ -5,10 +5,9 @@ import { useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import {
   Calendar, Upload, Loader2, AlertCircle, CheckCircle2, RefreshCw,
-  ChevronRight, BookOpen, User, Clock, Trash2, X, FileText, Info
+  BookOpen, User, Clock, Trash2, X, FileText, Info
 } from 'lucide-react'
 import {
   importJadwalASC, getJadwalByKelas, getJadwalByGuru,
@@ -17,7 +16,8 @@ import {
 import { cn } from '@/lib/utils'
 
 // ── Types ──────────────────────────────────────────────────────────────
-type JamPelajaran = { id: number; nama: string; mulai: string; selesai: string }
+type SlotJam = { id: number; nama: string; mulai: string; selesai: string }
+type PolaJam = { id: string; nama: string; hari: number[]; slots: SlotJam[] }
 type KelasItem = { id: string; tingkat: number; nomor_kelas: string; kelompok: string }
 type GuruItem = { id: string; nama_lengkap: string }
 
@@ -33,18 +33,26 @@ type JadwalByGuruRow = {
 }
 
 const HARI_LABELS = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+const HARI_SHORT  = ['', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
 const HARI_COLORS = [
-  '', 'bg-blue-50 border-blue-100 text-blue-700',
-  'bg-emerald-50 border-emerald-100 text-emerald-700',
-  'bg-amber-50 border-amber-100 text-amber-700',
-  'bg-violet-50 border-violet-100 text-violet-700',
-  'bg-rose-50 border-rose-100 text-rose-700',
-  'bg-slate-50 border-slate-100 text-slate-600',
+  '',
+  'bg-blue-50 dark:bg-blue-950/40 border-blue-100 text-blue-700 dark:text-blue-400',
+  'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 text-emerald-700 dark:text-emerald-400',
+  'bg-teal-50 dark:bg-teal-950/40 border-teal-100 text-teal-700 dark:text-teal-400',
+  'bg-violet-50 dark:bg-violet-950/40 border-violet-100 text-violet-700 dark:text-violet-400',
+  'bg-rose-50 dark:bg-rose-950/40 border-rose-100 text-rose-700 dark:text-rose-400',
+  'bg-amber-50 dark:bg-amber-950/40 border-amber-100 text-amber-700 dark:text-amber-400',
 ]
 
-// ── Sub: Cell Jadwal ───────────────────────────────────────────────────
+// Helper: cari slots untuk hari tertentu dari daftar pola
+function getSlotsForHari(polaDaftar: PolaJam[], hari: number): SlotJam[] {
+  const pola = polaDaftar.find(p => p.hari.includes(hari))
+  return pola?.slots ?? []
+}
+
+// ── Cell Jadwal ────────────────────────────────────────────────────────
 function JadwalCell({
-  row, mode, onHapus, isDeleting
+  row, mode, onHapus, isDeleting,
 }: {
   row: JadwalByKelasRow | JadwalByGuruRow
   mode: 'kelas' | 'guru'
@@ -53,22 +61,21 @@ function JadwalCell({
 }) {
   const [hover, setHover] = useState(false)
   const byKelas = row as JadwalByKelasRow
-  const byGuru = row as JadwalByGuruRow
+  const byGuru  = row as JadwalByGuruRow
 
   return (
     <div
-      className="relative group bg-surface border border-surface rounded-md px-2 py-1.5 min-h-[44px] flex flex-col gap-0.5"
+      className="relative bg-surface border border-surface rounded-md px-2 py-1.5 min-h-[44px] flex flex-col gap-0.5"
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-100 leading-tight truncate">
+      <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-100 leading-tight truncate pr-3">
         {mode === 'kelas' ? byKelas.nama_mapel : byGuru.nama_mapel}
       </p>
       <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
         {mode === 'kelas'
-          ? byKelas.guru_nama.split(',')[0]  // nama pendek tanpa gelar
-          : `${byGuru.tingkat}-${byGuru.nomor_kelas} ${byGuru.kelas_kelompok}`
-        }
+          ? byKelas.guru_nama.split(',')[0]
+          : `${byGuru.tingkat}-${byGuru.nomor_kelas} ${byGuru.kelas_kelompok}`}
       </p>
       {hover && (
         <button
@@ -76,87 +83,126 @@ function JadwalCell({
           disabled={isDeleting}
           className="absolute top-0.5 right-0.5 p-0.5 rounded text-slate-300 dark:text-slate-600 hover:text-rose-500 hover:bg-rose-50 transition-colors"
         >
-          <X className="h-2.5 w-2.5" />
+          {isDeleting ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <X className="h-2.5 w-2.5" />}
         </button>
       )}
     </div>
   )
 }
 
-// ── Sub: Grid Jadwal ───────────────────────────────────────────────────
+// ── Grid Jadwal (pola-aware) ───────────────────────────────────────────
 function JadwalGrid({
-  jadwal, jamList, mode, onHapusSlot, deletingId
+  jadwal, polaDaftar, mode, onHapusSlot, deletingId,
 }: {
   jadwal: (JadwalByKelasRow | JadwalByGuruRow)[]
-  jamList: JamPelajaran[]
+  polaDaftar: PolaJam[]
   mode: 'kelas' | 'guru'
   onHapusSlot: (id: string) => void
   deletingId: string | null
 }) {
-  // Hitung hari yang ada data
   const hariAktif = Array.from(new Set(jadwal.map(j => j.hari))).sort()
   if (hariAktif.length === 0) return null
 
-  // Index: hari-jamKe → rows
-  const index = new Map<string, typeof jadwal>()
+  // index: "hari-jamKe" → rows
+  const index = new Map<string, (JadwalByKelasRow | JadwalByGuruRow)[]>()
   for (const j of jadwal) {
     const key = `${j.hari}-${j.jam_ke}`
     if (!index.has(key)) index.set(key, [])
     index.get(key)!.push(j)
   }
 
-  // Jam yang ada data
-  const jamAktif = jamList.length > 0 ? jamList : Array.from(new Set(jadwal.map(j => j.jam_ke))).sort((a, b) => a - b).map(id => ({ id, nama: `Jam ${id}`, mulai: '', selesai: '' }))
+  // Kumpulkan semua nomor jam yang ada data, lalu untuk tiap hari
+  // ambil label & waktu dari pola yang sesuai
+  const allJamKe = Array.from(new Set(jadwal.map(j => j.jam_ke))).sort((a, b) => a - b)
 
   return (
     <div className="overflow-x-auto custom-scrollbar">
-      <table className="w-full text-xs border-collapse" style={{ minWidth: `${hariAktif.length * 130 + 90}px` }}>
+      <table
+        className="w-full text-xs border-collapse"
+        style={{ minWidth: `${hariAktif.length * 140 + 100}px` }}
+      >
         <thead>
           <tr>
-            <th className="w-[80px] text-left px-2 py-2 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase bg-surface-2 border-b border-surface sticky left-0 z-10">
+            {/* Kolom jam */}
+            <th className="w-[96px] text-left px-2 py-2 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase bg-surface-2 border-b border-r border-surface sticky left-0 z-10">
               Jam
             </th>
             {hariAktif.map(hari => (
               <th key={hari} className={cn(
-                'px-2 py-2 text-center text-[10px] font-bold uppercase tracking-wide border-b border-surface rounded-t-md',
+                'px-2 py-2 text-center text-[10px] font-bold uppercase tracking-wide border-b border-surface',
                 HARI_COLORS[hari]
               )}>
-                {HARI_LABELS[hari]}
+                <span className="hidden sm:inline">{HARI_LABELS[hari]}</span>
+                <span className="sm:hidden">{HARI_SHORT[hari]}</span>
+                {/* Sub-label pola */}
+                {polaDaftar.length > 0 && (() => {
+                  const pola = polaDaftar.find(p => p.hari.includes(hari))
+                  return pola ? (
+                    <div className="text-[9px] font-normal opacity-70 mt-0.5 hidden sm:block">{pola.nama}</div>
+                  ) : null
+                })()}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {jamAktif.map(jam => {
-            const hasAnyData = hariAktif.some(hari => index.has(`${hari}-${jam.id}`))
-            if (!hasAnyData) return null
+          {allJamKe.map(jamKe => {
+            const hasAny = hariAktif.some(hari => index.has(`${hari}-${jamKe}`))
+            if (!hasAny) return null
+
             return (
-              <tr key={jam.id} className="border-b border-surface-2 last:border-0 hover:bg-surface-2/40 transition-colors">
-                <td className="px-2 py-1.5 sticky left-0 bg-white dark:bg-slate-800 z-10 border-r border-surface">
-                  <div className="font-semibold text-slate-700 dark:text-slate-200 text-[11px]">{jam.nama}</div>
-                  {jam.mulai && (
-                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{jam.mulai}</div>
-                  )}
-                </td>
-                {hariAktif.map(hari => {
-                  const cells = index.get(`${hari}-${jam.id}`) || []
-                  return (
-                    <td key={hari} className="px-1.5 py-1.5 align-top">
-                      <div className="space-y-1">
-                        {cells.length === 0 ? (
-                          <div className="h-[44px] rounded-md border border-dashed border-surface flex items-center justify-center">
-                            <span className="text-[10px] text-slate-200 dark:text-slate-700">—</span>
+              <tr key={jamKe} className="border-b border-surface-2 last:border-0 hover:bg-surface-2/40 transition-colors">
+                {/* Kolom jam — tampilkan info dari pola hari pertama yang punya data */}
+                <td className="px-2 py-1.5 sticky left-0 bg-white dark:bg-slate-800 z-10 border-r border-surface align-top">
+                  {(() => {
+                    // Cari info jam dari hari pertama yang ada slot di pola
+                    for (const hari of hariAktif) {
+                      const slots = getSlotsForHari(polaDaftar, hari)
+                      const slot  = slots.find(s => s.id === jamKe)
+                      if (slot) return (
+                        <>
+                          <div className="font-semibold text-slate-700 dark:text-slate-200 text-[11px]">{slot.nama}</div>
+                          <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono leading-tight">
+                            {slot.mulai}–{slot.selesai}
                           </div>
-                        ) : cells.map(cell => (
-                          <JadwalCell
-                            key={cell.id}
-                            row={cell}
-                            mode={mode}
-                            onHapus={onHapusSlot}
-                            isDeleting={deletingId === cell.id}
-                          />
-                        ))}
-                      </div>
+                        </>
+                      )
+                    }
+                    // Fallback kalau pola belum dikonfigurasi
+                    return <div className="font-semibold text-slate-500 dark:text-slate-400 text-[11px]">Jam {jamKe}</div>
+                  })()}
+                </td>
+
+                {hariAktif.map(hari => {
+                  const cells = index.get(`${hari}-${jamKe}`) ?? []
+                  // Cek apakah jam ini ada di pola hari ini
+                  const slots = getSlotsForHari(polaDaftar, hari)
+                  const slotAda = polaDaftar.length === 0 || slots.some(s => s.id === jamKe)
+
+                  return (
+                    <td key={hari} className="px-1.5 py-1.5 align-top min-w-[130px]">
+                      {!slotAda ? (
+                        // Jam ini tidak ada di pola hari ini
+                        <div className="h-[44px] rounded-md bg-surface-3/60 border border-dashed border-surface flex items-center justify-center">
+                          <span className="text-[9px] text-slate-300 dark:text-slate-700">tidak ada</span>
+                        </div>
+                      ) : cells.length === 0 ? (
+                        <div className="h-[44px] rounded-md border border-dashed border-surface flex items-center justify-center">
+                          <span className="text-[10px] text-slate-200 dark:text-slate-700">—</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          {cells.map(cell => (
+                            <JadwalCell
+                              key={cell.id}
+                              row={cell}
+                              mode={mode}
+                              onHapus={onHapusSlot}
+                              isDeleting={deletingId === cell.id}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </td>
                   )
                 })}
@@ -169,11 +215,14 @@ function JadwalGrid({
   )
 }
 
-// ── Sub: Import XML Panel ──────────────────────────────────────────────
+// ── Import XML Panel ───────────────────────────────────────────────────
 function ImportXMLPanel({ onDone }: { onDone: () => void }) {
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [result, setResult] = useState<{ success: string | null; error: string | null; logs: string[]; stats: { penugasan: number; jadwal: number } } | null>(null)
+  const [result, setResult] = useState<{
+    success: string | null; error: string | null
+    logs: string[]; stats: { penugasan: number; jadwal: number }
+  } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const handleImport = async () => {
@@ -210,30 +259,24 @@ function ImportXMLPanel({ onDone }: { onDone: () => void }) {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {/* Warning */}
             <div className="flex gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <div className="text-[11px] leading-relaxed space-y-1">
                 <p className="font-semibold">Perhatian!</p>
                 <p>Import akan <strong>menghapus semua penugasan & jadwal</strong> semester aktif dan menggantinya dengan data dari file XML.</p>
-                <p>Pastikan file XML berasal dari aSc Timetables dengan format export XML database.</p>
               </div>
             </div>
 
-            {/* File picker */}
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">File XML</label>
-              <div className="flex gap-2">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".xml"
-                  className="flex-1 h-9 text-xs file:mr-2 file:h-full file:border-0 file:bg-slate-100 file:px-3 file:text-xs file:font-medium file:text-slate-700 hover:file:bg-slate-200 rounded-lg border border-surface bg-surface-2 cursor-pointer"
-                />
-              </div>
+              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">File XML (aSc Timetables format)</label>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".xml"
+                className="w-full h-9 text-xs file:mr-2 file:h-full file:border-0 file:bg-slate-100 file:px-3 file:text-xs file:font-medium file:text-slate-700 hover:file:bg-slate-200 rounded-lg border border-surface bg-surface-2 cursor-pointer"
+              />
             </div>
 
-            {/* Result */}
             {result && (
               <div className={cn(
                 'p-3 rounded-lg text-xs border space-y-2',
@@ -251,12 +294,16 @@ function ImportXMLPanel({ onDone }: { onDone: () => void }) {
                 )}
                 {result.logs.length > 0 && (
                   <details className="mt-1">
-                    <summary className="cursor-pointer text-[11px] font-medium opacity-70">{result.logs.length} item tidak diproses (klik untuk lihat)</summary>
+                    <summary className="cursor-pointer text-[11px] font-medium opacity-70">
+                      {result.logs.length} item tidak diproses
+                    </summary>
                     <div className="mt-2 max-h-32 overflow-y-auto space-y-0.5">
                       {result.logs.slice(0, 30).map((l, i) => (
                         <p key={i} className="text-[10px] opacity-80 font-mono">• {l}</p>
                       ))}
-                      {result.logs.length > 30 && <p className="text-[10px] opacity-60">...dan {result.logs.length - 30} lainnya</p>}
+                      {result.logs.length > 30 && (
+                        <p className="text-[10px] opacity-60">...dan {result.logs.length - 30} lainnya</p>
+                      )}
                     </div>
                   </details>
                 )}
@@ -265,7 +312,9 @@ function ImportXMLPanel({ onDone }: { onDone: () => void }) {
 
             <Button onClick={handleImport} disabled={isLoading}
               className="w-full h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium">
-              {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Memproses XML...</> : 'Mulai Import'}
+              {isLoading
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Memproses XML...</>
+                : 'Mulai Import'}
             </Button>
           </div>
         </DialogContent>
@@ -279,26 +328,25 @@ export function JadwalTab({
   taAktif,
   kelasList,
   guruList,
-  jamPelajaran,
+  polaDaftar,
 }: {
   taAktif: { id: string; nama: string; semester: number } | null
   kelasList: KelasItem[]
   guruList: GuruItem[]
-  jamPelajaran: JamPelajaran[]
+  polaDaftar: PolaJam[]   // ← ganti dari jamPelajaran flat ke PolaJam[]
 }) {
-  const [viewMode, setViewMode] = useState<'kelas' | 'guru'>('kelas')
-  const [selectedKelas, setSelectedKelas] = useState<string>('')
-  const [selectedGuru, setSelectedGuru] = useState<string>('')
+  const [viewMode, setViewMode]       = useState<'kelas' | 'guru'>('kelas')
+  const [selectedKelas, setSelectedKelas] = useState('')
+  const [selectedGuru,  setSelectedGuru]  = useState('')
 
   const [jadwalKelas, setJadwalKelas] = useState<JadwalByKelasRow[]>([])
-  const [jadwalGuru, setJadwalGuru] = useState<JadwalByGuruRow[]>([])
+  const [jadwalGuru,  setJadwalGuru]  = useState<JadwalByGuruRow[]>([])
 
-  const [isLoading, setIsLoading] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [loaded, setLoaded] = useState(false)
+  const [isLoading,   setIsLoading]   = useState(false)
+  const [deletingId,  setDeletingId]  = useState<string | null>(null)
+  const [loaded,      setLoaded]      = useState(false)
   const [hasImported, setHasImported] = useState(false)
 
-  // Lazy load jadwal saat pilih kelas/guru
   const loadJadwal = useCallback(async (id: string, mode: 'kelas' | 'guru') => {
     if (!taAktif || !id) return
     setIsLoading(true)
@@ -316,33 +364,23 @@ export function JadwalTab({
     setIsLoading(false)
   }, [taAktif])
 
-  const handleSelectKelas = (id: string) => {
-    setSelectedKelas(id)
-    setLoaded(false)
-    loadJadwal(id, 'kelas')
-  }
-
-  const handleSelectGuru = (id: string) => {
-    setSelectedGuru(id)
-    setLoaded(false)
-    loadJadwal(id, 'guru')
-  }
+  const handleSelectKelas = (id: string) => { setSelectedKelas(id); setLoaded(false); loadJadwal(id, 'kelas') }
+  const handleSelectGuru  = (id: string) => { setSelectedGuru(id);  setLoaded(false); loadJadwal(id, 'guru') }
 
   const handleHapusSlot = async (id: string) => {
     if (!confirm('Hapus slot jadwal ini?')) return
     setDeletingId(id)
     const res = await hapusSlotJadwal(id)
     if (res.error) { alert(res.error); setDeletingId(null); return }
-    // Refresh
     if (viewMode === 'kelas' && selectedKelas) await loadJadwal(selectedKelas, 'kelas')
-    else if (viewMode === 'guru' && selectedGuru) await loadJadwal(selectedGuru, 'guru')
+    else if (viewMode === 'guru' && selectedGuru)  await loadJadwal(selectedGuru,  'guru')
     setDeletingId(null)
   }
 
   const handleHapusJadwalKelas = async () => {
     if (!selectedKelas || !taAktif) return
-    const nama = kelasList.find(k => k.id === selectedKelas)
-    if (!confirm(`Reset semua jadwal kelas ${nama?.tingkat}-${nama?.nomor_kelas}?`)) return
+    const kelas = kelasList.find(k => k.id === selectedKelas)
+    if (!confirm(`Reset semua jadwal kelas ${kelas?.tingkat}-${kelas?.nomor_kelas}?`)) return
     const res = await resetJadwalKelas(selectedKelas, taAktif.id)
     if (res.error) { alert(res.error); return }
     setJadwalKelas([])
@@ -357,7 +395,7 @@ export function JadwalTab({
     setSelectedGuru('')
   }
 
-  // Kelompokkan kelas untuk dropdown
+  // Kelompokkan kelas per tingkat
   const kelasByTingkat = kelasList.reduce((acc, k) => {
     const t = String(k.tingkat)
     if (!acc[t]) acc[t] = []
@@ -367,9 +405,15 @@ export function JadwalTab({
 
   const activeJadwal = viewMode === 'kelas' ? jadwalKelas : jadwalGuru
 
+  // Info pola aktif
+  const polaHariInfo = polaDaftar.length > 0
+    ? `${polaDaftar.length} pola · ${polaDaftar.map(p => p.nama).join(', ')}`
+    : null
+
   return (
     <div className="space-y-3">
-      {/* ── TOOLBAR ── */}
+
+      {/* TOOLBAR */}
       <div className="bg-surface border border-surface rounded-xl p-3 flex flex-wrap gap-2 items-center">
 
         {/* View toggle */}
@@ -394,7 +438,7 @@ export function JadwalTab({
           </button>
         </div>
 
-        {/* Dropdown pilih kelas/guru */}
+        {/* Dropdown */}
         {viewMode === 'kelas' ? (
           <Select value={selectedKelas} onValueChange={handleSelectKelas}>
             <SelectTrigger className="h-8 w-48 text-xs rounded-lg border-surface">
@@ -403,13 +447,14 @@ export function JadwalTab({
             <SelectContent className="max-h-64">
               {[10, 11, 12].map(t => {
                 const items = kelasByTingkat[String(t)] || []
-                if (items.length === 0) return null
+                if (!items.length) return null
                 return (
                   <div key={t}>
                     <div className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Kelas {t}</div>
                     {items.map(k => (
                       <SelectItem key={k.id} value={k.id} className="text-xs">
-                        {k.tingkat}-{k.nomor_kelas} <span className="text-slate-400 dark:text-slate-500 ml-1">{k.kelompok}</span>
+                        {k.tingkat}-{k.nomor_kelas}
+                        <span className="text-slate-400 dark:text-slate-500 ml-1">{k.kelompok}</span>
                       </SelectItem>
                     ))}
                   </div>
@@ -430,10 +475,10 @@ export function JadwalTab({
           </Select>
         )}
 
-        {/* Aksi kontekstual */}
+        {/* Reset jadwal kelas */}
         {loaded && activeJadwal.length > 0 && viewMode === 'kelas' && selectedKelas && (
           <Button variant="ghost" size="sm" onClick={handleHapusJadwalKelas}
-            className="h-8 text-xs gap-1.5 text-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg ml-auto">
+            className="h-8 text-xs gap-1.5 text-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg">
             <Trash2 className="h-3.5 w-3.5" /> Reset Jadwal Kelas
           </Button>
         )}
@@ -452,12 +497,12 @@ export function JadwalTab({
         </div>
       </div>
 
-      {/* ── KONTEN ── */}
+      {/* KONTEN */}
       <div className="bg-surface border border-surface rounded-xl overflow-hidden">
 
-        {/* State: belum pilih */}
+        {/* Empty: belum pilih */}
         {!isLoading && !loaded && !hasImported && (
-          <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400 dark:text-slate-500">
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
             <div className="p-4 rounded-full bg-surface-2 border border-surface">
               <Calendar className="h-8 w-8 text-slate-300 dark:text-slate-600" />
             </div>
@@ -478,10 +523,16 @@ export function JadwalTab({
                 Tahun Ajaran aktif belum diatur di Pengaturan
               </div>
             )}
+            {taAktif && !polaHariInfo && (
+              <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-3 py-2 rounded-lg">
+                <Info className="h-3.5 w-3.5 shrink-0" />
+                Jam pelajaran belum dikonfigurasi — waktu jam tidak akan tampil di grid
+              </div>
+            )}
           </div>
         )}
 
-        {/* State: setelah import, belum pilih kelas/guru */}
+        {/* Empty: setelah import */}
         {!isLoading && !loaded && hasImported && (
           <div className="flex flex-col items-center justify-center py-12 gap-3">
             <div className="p-3 rounded-full bg-emerald-50 border border-emerald-100">
@@ -494,7 +545,7 @@ export function JadwalTab({
           </div>
         )}
 
-        {/* State: loading */}
+        {/* Loading */}
         {isLoading && (
           <div className="flex items-center justify-center py-16 gap-3 text-slate-400 dark:text-slate-500">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -502,9 +553,9 @@ export function JadwalTab({
           </div>
         )}
 
-        {/* State: sudah load, tidak ada data */}
+        {/* Empty: sudah load, tidak ada data */}
         {!isLoading && loaded && activeJadwal.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-14 gap-3 text-slate-400 dark:text-slate-500">
+          <div className="flex flex-col items-center justify-center py-14 gap-3">
             <div className="p-3 rounded-full bg-surface-2 border border-surface">
               <FileText className="h-6 w-6 text-slate-300 dark:text-slate-600" />
             </div>
@@ -517,19 +568,18 @@ export function JadwalTab({
           </div>
         )}
 
-        {/* State: ada data → tampilkan grid */}
+        {/* Ada data → grid */}
         {!isLoading && loaded && activeJadwal.length > 0 && (
           <div className="p-3">
-            {/* Info header */}
-            <div className="flex items-center gap-2 mb-3 px-1">
-              <Clock className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
-              <span className="text-xs text-slate-400 dark:text-slate-500">
-                {activeJadwal.length} slot jadwal
-                {jamPelajaran.length > 0 && (
-                  <span className="ml-1.5">· {jamPelajaran.length} jam pelajaran terdaftar</span>
-                )}
-              </span>
-              {jamPelajaran.length === 0 && (
+            {/* Info bar */}
+            <div className="flex flex-wrap items-center gap-3 mb-3 px-1">
+              <div className="flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                <span className="text-xs text-slate-400 dark:text-slate-500">{activeJadwal.length} slot jadwal</span>
+              </div>
+              {polaHariInfo ? (
+                <span className="text-[11px] text-slate-400 dark:text-slate-500">{polaHariInfo}</span>
+              ) : (
                 <span className="text-[11px] text-amber-500 flex items-center gap-1">
                   <Info className="h-3 w-3" /> Jam pelajaran belum dikonfigurasi di Pengaturan
                 </span>
@@ -538,7 +588,7 @@ export function JadwalTab({
 
             <JadwalGrid
               jadwal={activeJadwal}
-              jamList={jamPelajaran}
+              polaDaftar={polaDaftar}
               mode={viewMode}
               onHapusSlot={handleHapusSlot}
               deletingId={deletingId}
