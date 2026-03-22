@@ -11,17 +11,29 @@ import { PageHeader } from '@/components/layout/page-header'
 export const metadata = { title: 'Pusat Akademik - MANSATAS App' }
 export const dynamic = 'force-dynamic'
 
+// Normalize jam_pelajaran: handle format lama (flat) vs baru (PolaJam[])
+function normalizePolaJam(raw: string | null): any[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed) || parsed.length === 0) return []
+    // Format lama: [{id, nama, mulai, selesai}] — tidak punya field slots/hari
+    if (typeof parsed[0].slots === 'undefined' && typeof parsed[0].hari === 'undefined') {
+      return [{ id: 'pola_legacy', nama: 'Semua Hari', hari: [1,2,3,4,5,6], slots: parsed }]
+    }
+    return parsed
+  } catch { return [] }
+}
+
 async function AkademikDataFetcher() {
   const db = await getDB()
 
-  // 1 batch: TA aktif + mapel + guru list (untuk dropdown jadwal)
   const [taAktif, mapelResult, guruResult] = await Promise.all([
     db.prepare('SELECT id, nama, semester, daftar_jurusan, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1').first<any>(),
     db.prepare('SELECT id, nama_mapel, kode_mapel, kelompok, tingkat, kategori FROM mata_pelajaran ORDER BY nama_mapel ASC').all<any>(),
     db.prepare(`SELECT id, nama_lengkap FROM "user" WHERE role IN ('guru','guru_bk','wakamad','kepsek','guru_piket') AND nama_lengkap IS NOT NULL ORDER BY nama_lengkap ASC`).all<any>(),
   ])
 
-  // Penugasan hanya diambil kalau ada TA aktif
   let penugasanData: any[] = []
   if (taAktif) {
     const res = await db.prepare(`
@@ -43,7 +55,6 @@ async function AkademikDataFetcher() {
     }))
   }
 
-  // Kelas list untuk dropdown jadwal per kelas
   const kelasResult = taAktif
     ? await db.prepare('SELECT id, tingkat, nomor_kelas, kelompok FROM kelas ORDER BY tingkat ASC, kelompok ASC, nomor_kelas ASC').all<any>()
     : { results: [] }
@@ -52,10 +63,7 @@ async function AkademikDataFetcher() {
     ? parseJsonCol<string[]>(taAktif.daftar_jurusan, []) || ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
     : ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
 
-  // Pola jam per hari — format baru [{id, nama, hari:[], slots:[]}]
-  const polaDaftar = taAktif?.jam_pelajaran
-    ? parseJsonCol<any[]>(taAktif.jam_pelajaran, [])
-    : []
+  const polaDaftar = normalizePolaJam(taAktif?.jam_pelajaran ?? null)
 
   return (
     <AkademikClient
