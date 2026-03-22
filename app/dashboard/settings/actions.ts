@@ -204,9 +204,3 @@ export async function getPolaJamByTA(tahun_ajaran_id: string): Promise<PolaJam[]
   if (!row?.jam_pelajaran) return []
   try { return JSON.parse(row.jam_pelajaran) } catch { return [] }
 }
-
-// Helper: cari slot jam untuk hari tertentu
-export function getSlotForHari(polaDaftar: PolaJam[], hari: number): SlotJam[] {
-  const pola = polaDaftar.find(p => p.hari.includes(hari))
-  return pola?.slots ?? []
-}
