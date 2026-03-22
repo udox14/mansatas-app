@@ -25,7 +25,7 @@ type PenugasanType = {
 }
 type KelasItem = { id: string; tingkat: number; nomor_kelas: string; kelompok: string }
 type GuruItem = { id: string; nama_lengkap: string }
-type JamPelajaran = { id: number; nama: string; mulai: string; selesai: string }
+type PolaJam = { id: string; nama: string; hari: number[]; slots: any[] }
 
 const getAvatarColor = (name: string) => {
   const colors = [
@@ -40,7 +40,7 @@ const getAvatarColor = (name: string) => {
 
 export function AkademikClient({
   mapelData, penugasanData, taAktif, daftarJurusan = [],
-  kelasList = [], guruList = [], jamPelajaran = []
+  kelasList = [], guruList = [], polaDaftar = []
 }: {
   mapelData: MapelType[]
   penugasanData: PenugasanType[]
@@ -48,7 +48,7 @@ export function AkademikClient({
   daftarJurusan?: string[]
   kelasList?: KelasItem[]
   guruList?: GuruItem[]
-  jamPelajaran?: JamPelajaran[]
+  polaDaftar?: PolaJam[]
 }) {
   const [isMapelPending, setIsMapelPending] = useState(false)
   const [searchMapel, setSearchMapel] = useState('')
@@ -431,7 +431,7 @@ export function AkademikClient({
               taAktif={taAktif}
               kelasList={kelasList}
               guruList={guruList}
-              jamPelajaran={jamPelajaran}
+              polaDaftar={polaDaftar}
             />
           </TabsContent>
           <TabsContent value="penugasan" className="space-y-3 m-0">

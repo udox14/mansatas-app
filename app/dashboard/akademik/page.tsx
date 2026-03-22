@@ -52,7 +52,8 @@ async function AkademikDataFetcher() {
     ? parseJsonCol<string[]>(taAktif.daftar_jurusan, []) || ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
     : ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
 
-  const jamPelajaran = taAktif?.jam_pelajaran
+  // Pola jam per hari — format baru [{id, nama, hari:[], slots:[]}]
+  const polaDaftar = taAktif?.jam_pelajaran
     ? parseJsonCol<any[]>(taAktif.jam_pelajaran, [])
     : []
 
@@ -64,7 +65,7 @@ async function AkademikDataFetcher() {
       daftarJurusan={daftarJurusan}
       kelasList={kelasResult.results || []}
       guruList={guruResult.results || []}
-      jamPelajaran={jamPelajaran}
+      polaDaftar={polaDaftar}
     />
   )
 }
