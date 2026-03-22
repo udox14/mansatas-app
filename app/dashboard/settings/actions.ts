@@ -87,33 +87,31 @@ export async function simpanDaftarJurusan(tahun_ajaran_id: string, daftar_jurusa
 // SIMPAN JAM PELAJARAN (pola per hari)
 // ============================================================
 export async function simpanJamPelajaran(tahun_ajaran_id: string, pola_jam: PolaJam[]) {
-  const db = await getDB()
+  try {
+    const db = await getDB()
 
-  if (pola_jam.length === 0) return { error: 'Minimal harus ada 1 pola jam.' }
+    if (!pola_jam || pola_jam.length === 0) return { error: 'Minimal harus ada 1 pola jam.' }
 
-  // Validasi: setiap hari (1-6) harus di-cover tepat 1 pola
-  const hariCovered = pola_jam.flatMap(p => p.hari)
-  const duplikat = hariCovered.filter((h, i) => hariCovered.indexOf(h) !== i)
-  if (duplikat.length > 0) {
-    const HARI = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
-    return { error: `Hari duplikat: ${duplikat.map(h => HARI[h]).join(', ')}. Satu hari hanya boleh masuk satu pola.` }
-  }
+    // Sanitize: pastikan hari & slots selalu array
+    const sanitized = pola_jam.map(p => ({
+      ...p,
+      hari: Array.isArray(p.hari) ? p.hari : [],
+      slots: Array.isArray(p.slots) ? p.slots : [],
+    }))
 
-  for (const p of pola_jam) {
-    if (!p.nama.trim()) return { error: 'Nama pola tidak boleh kosong.' }
-    if (p.hari.length === 0) return { error: `Pola "${p.nama}" belum di-assign ke hari manapun.` }
-    if (p.slots.length === 0) return { error: `Pola "${p.nama}" belum memiliki jam pelajaran.` }
-    for (const s of p.slots) {
-      if (!s.mulai || !s.selesai) return { error: `Pola "${p.nama}" Jam ${s.id}: waktu mulai/selesai wajib diisi.` }
+    // Validasi ringan
+    for (const p of sanitized) {
+      if (!p.nama?.trim()) return { error: 'Nama pola tidak boleh kosong.' }
     }
+
+    const result = await dbUpdate(db, 'tahun_ajaran', { jam_pelajaran: JSON.stringify(sanitized) }, { id: tahun_ajaran_id })
+    if (result.error) return { error: result.error }
+
+    revalidatePath('/dashboard/settings')
+    return { success: 'Jam pelajaran berhasil disimpan!' }
+  } catch (e: any) {
+    return { error: e?.message ?? 'Terjadi kesalahan saat menyimpan.' }
   }
-
-  const result = await dbUpdate(db, 'tahun_ajaran', { jam_pelajaran: JSON.stringify(pola_jam) }, { id: tahun_ajaran_id })
-  if (result.error) return { error: result.error }
-
-  revalidatePath('/dashboard/settings')
-  revalidatePath('/dashboard/akademik')
-  return { success: 'Jam pelajaran berhasil disimpan!' }
 }
 
 // ============================================================
