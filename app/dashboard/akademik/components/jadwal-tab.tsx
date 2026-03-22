@@ -90,7 +90,10 @@ function JadwalCell({
   )
 }
 
-// ── Grid Jadwal (pola-aware) ───────────────────────────────────────────
+// ── Grid Jadwal (pola-aware per hari) ─────────────────────────────────
+// Layout: kolom = hari, baris = nomor jam
+// Tiap cell header hari punya jam-nya sendiri sesuai polanya
+// Waktu jam ditampilkan di dalam cell (bukan kolom kiri) karena tiap hari beda pola
 function JadwalGrid({
   jadwal, polaDaftar, mode, onHapusSlot, deletingId,
 }: {
@@ -111,106 +114,81 @@ function JadwalGrid({
     index.get(key)!.push(j)
   }
 
-  // Kumpulkan semua nomor jam yang ada data, lalu untuk tiap hari
-  // ambil label & waktu dari pola yang sesuai
-  const allJamKe = Array.from(new Set(jadwal.map(j => j.jam_ke))).sort((a, b) => a - b)
+  // Untuk tiap hari, ambil daftar jam dari polanya masing-masing
+  // Fallback: kumpulkan nomor jam unik dari data kalau tidak ada pola
+  const getJamForHari = (hari: number): SlotJam[] => {
+    if (polaDaftar.length > 0) {
+      const slots = getSlotsForHari(polaDaftar, hari)
+      if (slots.length > 0) return slots
+    }
+    // Fallback: buat slot dummy dari data yang ada
+    const jamKes = Array.from(new Set(
+      jadwal.filter(j => j.hari === hari).map(j => j.jam_ke)
+    )).sort((a, b) => a - b)
+    return jamKes.map(id => ({ id, nama: `Jam ${id}`, mulai: '', selesai: '' }))
+  }
+
+  // Tinggi max jam per hari untuk menentukan jumlah baris
+  const maxJam = Math.max(...hariAktif.map(h => getJamForHari(h).length))
+  if (maxJam === 0) return null
 
   return (
     <div className="overflow-x-auto custom-scrollbar">
-      <table
-        className="w-full text-xs border-collapse"
-        style={{ minWidth: `${hariAktif.length * 140 + 100}px` }}
-      >
-        <thead>
-          <tr>
-            {/* Kolom jam */}
-            <th className="w-[96px] text-left px-2 py-2 text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase bg-surface-2 border-b border-r border-surface sticky left-0 z-10">
-              Jam
-            </th>
-            {hariAktif.map(hari => (
-              <th key={hari} className={cn(
-                'px-2 py-2 text-center text-[10px] font-bold uppercase tracking-wide border-b border-surface',
+      <div className="flex gap-2" style={{ minWidth: `${hariAktif.length * 150}px` }}>
+        {hariAktif.map(hari => {
+          const jamList = getJamForHari(hari)
+          return (
+            <div key={hari} className="flex-1 min-w-[140px]">
+              {/* Header hari */}
+              <div className={cn(
+                'px-2 py-2 text-center text-[10px] font-bold uppercase tracking-wide rounded-t-lg border border-b-0',
                 HARI_COLORS[hari]
               )}>
-                <span className="hidden sm:inline">{HARI_LABELS[hari]}</span>
-                <span className="sm:hidden">{HARI_SHORT[hari]}</span>
-                {/* Sub-label pola */}
-                {polaDaftar.length > 0 && (() => {
-                  const pola = polaDaftar.find(p => p.hari.includes(hari))
-                  return pola ? (
-                    <div className="text-[9px] font-normal opacity-70 mt-0.5 hidden sm:block">{pola.nama}</div>
-                  ) : null
-                })()}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {allJamKe.map(jamKe => {
-            const hasAny = hariAktif.some(hari => index.has(`${hari}-${jamKe}`))
-            if (!hasAny) return null
+                {HARI_LABELS[hari]}
+              </div>
 
-            return (
-              <tr key={jamKe} className="border-b border-surface-2 last:border-0 hover:bg-surface-2/40 transition-colors">
-                {/* Kolom jam — tampilkan info dari pola hari pertama yang punya data */}
-                <td className="px-2 py-1.5 sticky left-0 bg-white dark:bg-slate-800 z-10 border-r border-surface align-top">
-                  {(() => {
-                    // Cari info jam dari hari pertama yang ada slot di pola
-                    for (const hari of hariAktif) {
-                      const slots = getSlotsForHari(polaDaftar, hari)
-                      const slot  = slots.find(s => s.id === jamKe)
-                      if (slot) return (
-                        <>
-                          <div className="font-semibold text-slate-700 dark:text-slate-200 text-[11px]">{slot.nama}</div>
-                          <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono leading-tight">
-                            {slot.mulai}–{slot.selesai}
-                          </div>
-                        </>
-                      )
-                    }
-                    // Fallback kalau pola belum dikonfigurasi
-                    return <div className="font-semibold text-slate-500 dark:text-slate-400 text-[11px]">Jam {jamKe}</div>
-                  })()}
-                </td>
-
-                {hariAktif.map(hari => {
-                  const cells = index.get(`${hari}-${jamKe}`) ?? []
-                  // Cek apakah jam ini ada di pola hari ini
-                  const slots = getSlotsForHari(polaDaftar, hari)
-                  const slotAda = polaDaftar.length === 0 || slots.some(s => s.id === jamKe)
-
+              {/* Slot jam */}
+              <div className="border border-surface rounded-b-lg overflow-hidden divide-y divide-surface-2">
+                {jamList.map(jam => {
+                  const cells = index.get(`${hari}-${jam.id}`) ?? []
                   return (
-                    <td key={hari} className="px-1.5 py-1.5 align-top min-w-[130px]">
-                      {!slotAda ? (
-                        // Jam ini tidak ada di pola hari ini
-                        <div className="h-[44px] rounded-md bg-surface-3/60 border border-dashed border-surface flex items-center justify-center">
-                          <span className="text-[9px] text-slate-300 dark:text-slate-700">tidak ada</span>
-                        </div>
-                      ) : cells.length === 0 ? (
-                        <div className="h-[44px] rounded-md border border-dashed border-surface flex items-center justify-center">
-                          <span className="text-[10px] text-slate-200 dark:text-slate-700">—</span>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          {cells.map(cell => (
-                            <JadwalCell
-                              key={cell.id}
-                              row={cell}
-                              mode={mode}
-                              onHapus={onHapusSlot}
-                              isDeleting={deletingId === cell.id}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </td>
+                    <div key={jam.id} className="flex gap-1.5 px-1.5 py-1.5 hover:bg-surface-2/40 transition-colors">
+                      {/* Label jam kecil di kiri */}
+                      <div className="shrink-0 w-[28px] flex flex-col items-center justify-start pt-0.5">
+                        <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 leading-tight">{jam.id}</span>
+                        {jam.mulai && (
+                          <span className="text-[8px] text-slate-300 dark:text-slate-600 font-mono leading-tight mt-0.5">{jam.mulai}</span>
+                        )}
+                      </div>
+
+                      {/* Konten cell */}
+                      <div className="flex-1 min-w-0">
+                        {cells.length === 0 ? (
+                          <div className="h-[40px] rounded border border-dashed border-surface-2 flex items-center justify-center">
+                            <span className="text-[9px] text-slate-200 dark:text-slate-700">—</span>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            {cells.map(cell => (
+                              <JadwalCell
+                                key={cell.id}
+                                row={cell}
+                                mode={mode}
+                                onHapus={onHapusSlot}
+                                isDeleting={deletingId === cell.id}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   )
                 })}
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -414,86 +392,99 @@ export function JadwalTab({
     <div className="space-y-3">
 
       {/* TOOLBAR */}
-      <div className="bg-surface border border-surface rounded-xl p-3 flex flex-wrap gap-2 items-center">
+      <div className="bg-surface border border-surface rounded-xl overflow-hidden">
 
-        {/* View toggle */}
-        <div className="flex rounded-lg border border-surface overflow-hidden shrink-0">
-          <button
-            onClick={() => { setViewMode('kelas'); setLoaded(false); setJadwalGuru([]) }}
-            className={cn(
-              'px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors',
-              viewMode === 'kelas' ? 'bg-slate-900 text-white' : 'bg-surface text-slate-500 dark:text-slate-400 hover:bg-surface-2'
-            )}
-          >
-            <BookOpen className="h-3 w-3" /> Per Kelas
-          </button>
-          <button
-            onClick={() => { setViewMode('guru'); setLoaded(false); setJadwalKelas([]) }}
-            className={cn(
-              'px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors',
-              viewMode === 'guru' ? 'bg-slate-900 text-white' : 'bg-surface text-slate-500 dark:text-slate-400 hover:bg-surface-2'
-            )}
-          >
-            <User className="h-3 w-3" /> Per Guru
-          </button>
-        </div>
+        {/* Baris 1: toggle + aksi kanan */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-surface-2">
+          {/* Toggle Per Kelas / Per Guru */}
+          <div className="flex rounded-lg border border-surface overflow-hidden shrink-0">
+            <button
+              onClick={() => { setViewMode('kelas'); setLoaded(false); setJadwalGuru([]) }}
+              className={cn(
+                'px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors',
+                viewMode === 'kelas' ? 'bg-slate-900 text-white' : 'bg-surface text-slate-500 dark:text-slate-400 hover:bg-surface-2'
+              )}
+            >
+              <BookOpen className="h-3 w-3" />
+              <span>Per Kelas</span>
+            </button>
+            <button
+              onClick={() => { setViewMode('guru'); setLoaded(false); setJadwalKelas([]) }}
+              className={cn(
+                'px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 transition-colors',
+                viewMode === 'guru' ? 'bg-slate-900 text-white' : 'bg-surface text-slate-500 dark:text-slate-400 hover:bg-surface-2'
+              )}
+            >
+              <User className="h-3 w-3" />
+              <span>Per Guru</span>
+            </button>
+          </div>
 
-        {/* Dropdown */}
-        {viewMode === 'kelas' ? (
-          <Select value={selectedKelas} onValueChange={handleSelectKelas}>
-            <SelectTrigger className="h-8 w-48 text-xs rounded-lg border-surface">
-              <SelectValue placeholder="Pilih kelas..." />
-            </SelectTrigger>
-            <SelectContent className="max-h-64">
-              {[10, 11, 12].map(t => {
-                const items = kelasByTingkat[String(t)] || []
-                if (!items.length) return null
-                return (
-                  <div key={t}>
-                    <div className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Kelas {t}</div>
-                    {items.map(k => (
-                      <SelectItem key={k.id} value={k.id} className="text-xs">
-                        {k.tingkat}-{k.nomor_kelas}
-                        <span className="text-slate-400 dark:text-slate-500 ml-1">{k.kelompok}</span>
-                      </SelectItem>
-                    ))}
-                  </div>
-                )
-              })}
-            </SelectContent>
-          </Select>
-        ) : (
-          <Select value={selectedGuru} onValueChange={handleSelectGuru}>
-            <SelectTrigger className="h-8 w-56 text-xs rounded-lg border-surface">
-              <SelectValue placeholder="Pilih guru..." />
-            </SelectTrigger>
-            <SelectContent className="max-h-64">
-              {guruList.map(g => (
-                <SelectItem key={g.id} value={g.id} className="text-xs">{g.nama_lengkap}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+          {/* Spacer */}
+          <div className="flex-1" />
 
-        {/* Reset jadwal kelas */}
-        {loaded && activeJadwal.length > 0 && viewMode === 'kelas' && selectedKelas && (
-          <Button variant="ghost" size="sm" onClick={handleHapusJadwalKelas}
-            className="h-8 text-xs gap-1.5 text-rose-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg">
-            <Trash2 className="h-3.5 w-3.5" /> Reset Jadwal Kelas
-          </Button>
-        )}
-
-        <div className="ml-auto flex items-center gap-2">
+          {/* Refresh */}
           {loaded && (viewMode === 'kelas' ? selectedKelas : selectedGuru) && (
             <button
               onClick={() => loadJadwal(viewMode === 'kelas' ? selectedKelas : selectedGuru, viewMode)}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:bg-surface-2 hover:text-slate-600 transition-colors"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:bg-surface-2 hover:text-slate-600 transition-colors shrink-0"
               title="Refresh"
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
           )}
+
+          {/* Import XML */}
           {taAktif && <ImportXMLPanel onDone={handleImportDone} />}
+        </div>
+
+        {/* Baris 2: dropdown + reset */}
+        <div className="flex items-center gap-2 px-3 py-2">
+          {viewMode === 'kelas' ? (
+            <Select value={selectedKelas} onValueChange={handleSelectKelas}>
+              <SelectTrigger className="h-8 flex-1 text-xs rounded-lg border-surface">
+                <SelectValue placeholder="Pilih kelas..." />
+              </SelectTrigger>
+              <SelectContent className="max-h-64">
+                {[10, 11, 12].map(t => {
+                  const items = kelasByTingkat[String(t)] || []
+                  if (!items.length) return null
+                  return (
+                    <div key={t}>
+                      <div className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Kelas {t}</div>
+                      {items.map(k => (
+                        <SelectItem key={k.id} value={k.id} className="text-xs">
+                          {k.tingkat}-{k.nomor_kelas}
+                          <span className="text-slate-400 dark:text-slate-500 ml-1">{k.kelompok}</span>
+                        </SelectItem>
+                      ))}
+                    </div>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Select value={selectedGuru} onValueChange={handleSelectGuru}>
+              <SelectTrigger className="h-8 flex-1 text-xs rounded-lg border-surface">
+                <SelectValue placeholder="Pilih guru..." />
+              </SelectTrigger>
+              <SelectContent className="max-h-64">
+                {guruList.map(g => (
+                  <SelectItem key={g.id} value={g.id} className="text-xs">{g.nama_lengkap}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* Reset jadwal kelas — hanya muncul kalau ada data */}
+          {loaded && activeJadwal.length > 0 && viewMode === 'kelas' && selectedKelas && (
+            <button onClick={handleHapusJadwalKelas}
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition-colors shrink-0"
+              title="Reset Jadwal Kelas"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
