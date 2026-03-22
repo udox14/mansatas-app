@@ -11,13 +11,10 @@ import { PageHeader } from '@/components/layout/page-header'
 export const metadata = { title: 'Manajemen Kelas - MANSATAS App' }
 export const dynamic = 'force-dynamic'
 
-async function KelasDataFetcher() {
+async function KelasDataFetcher({ userRole }: { userRole: string }) {
   const db = await getDB()
 
   const [kelasResult, guruResult, taAktif] = await Promise.all([
-    // FIX: Ganti correlated subquery (N+1) → LEFT JOIN + GROUP BY (1 query flat)
-    // Sebelumnya: (SELECT COUNT(*) FROM siswa WHERE kelas_id = k.id) per baris = ~80k rows
-    // Sekarang: 1 pass GROUP BY = jauh lebih efisien
     db.prepare(`
       SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.kapasitas, k.wali_kelas_id,
         u.nama_lengkap as wali_kelas_nama,
@@ -44,18 +41,26 @@ async function KelasDataFetcher() {
     ? parseJsonCol<string[]>(taAktif.daftar_jurusan, []) || ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
     : ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
 
-  return <KelasClient initialData={formattedData} daftarGuru={guruResult.results || []} daftarJurusan={daftarJurusan} />
+  return (
+    <KelasClient
+      initialData={formattedData}
+      daftarGuru={guruResult.results || []}
+      daftarJurusan={daftarJurusan}
+      userRole={userRole}
+    />
+  )
 }
 
 export default async function KelasPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
+  const userRole = (user as any).role ?? 'admin_tu'
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader title="Manajemen Kelas" description="Kelola data kelas, kapasitas, dan penugasan Wali Kelas." icon={Library} iconColor="text-blue-500" />
       <Suspense fallback={<PageLoading text="Memuat data kelas..." />}>
-        <KelasDataFetcher />
+        <KelasDataFetcher userRole={userRole} />
       </Suspense>
     </div>
   )

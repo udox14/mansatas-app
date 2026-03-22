@@ -25,7 +25,7 @@ function normalizePolaJam(raw: string | null): any[] {
   } catch { return [] }
 }
 
-async function AkademikDataFetcher() {
+async function AkademikDataFetcher({ userRole }: { userRole: string }) {
   const db = await getDB()
 
   const [taAktif, mapelResult, guruResult] = await Promise.all([
@@ -74,6 +74,7 @@ async function AkademikDataFetcher() {
       kelasList={kelasResult.results || []}
       guruList={guruResult.results || []}
       polaDaftar={polaDaftar}
+      userRole={userRole}
     />
   )
 }
@@ -81,12 +82,13 @@ async function AkademikDataFetcher() {
 export default async function AkademikPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
+  const userRole = (user as any).role ?? 'guru'
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader title="Pusat Akademik" description="Kelola mata pelajaran, penugasan mengajar, dan jadwal." icon={BookOpen} iconColor="text-emerald-500" />
       <Suspense fallback={<PageLoading text="Memuat pusat akademik..." />}>
-        <AkademikDataFetcher />
+        <AkademikDataFetcher userRole={userRole} />
       </Suspense>
     </div>
   )

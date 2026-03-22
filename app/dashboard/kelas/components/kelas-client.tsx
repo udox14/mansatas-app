@@ -12,6 +12,7 @@ import { TambahModal } from './tambah-modal'
 import { ImportModal } from './import-modal'
 import { EditModal } from './edit-modal'
 import { hapusKelas, batchUpdateKelas } from '../actions'
+import { AssignBKModal } from './assign-bk-modal'
 import { cn } from '@/lib/utils'
 
 type KelasData = {
@@ -66,7 +67,7 @@ function WaliKelasSelector({ value, onChange, daftarGuru, disabled }: { value: s
   )
 }
 
-export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { initialData: KelasData[], daftarGuru: GuruType[], daftarJurusan?: string[] }) {
+export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userRole = 'admin_tu' }: { initialData: KelasData[], daftarGuru: GuruType[], daftarJurusan?: string[], userRole?: string }) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   const [filterTingkat, setFilterTingkat] = useState('Semua')
@@ -130,6 +131,9 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [] }: { i
           </SelectContent>
         </Select>
         <div className="flex gap-2 ml-auto">
+          {userRole === 'super_admin' && (
+            <AssignBKModal kelasList={sortedData.map(k => ({ id: k.id, tingkat: k.tingkat, nomor_kelas: k.nomor_kelas, kelompok: k.kelompok }))} />
+          )}
           <ImportModal />
           <TambahModal daftarGuru={daftarGuru} daftarJurusan={daftarJurusan} />
         </div>
