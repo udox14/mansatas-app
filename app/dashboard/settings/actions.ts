@@ -4,7 +4,6 @@
 import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
 import type { SlotJam, PolaJam } from './types'
-export type { SlotJam, PolaJam }
 
 // ============================================================
 // TAMBAH TAHUN AJARAN
