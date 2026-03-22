@@ -26,6 +26,24 @@ type TAProps = {
   daftar_jurusan?: string[]; jam_pelajaran?: PolaJam[]
 }
 
+// Guard: pastikan jam_pelajaran selalu PolaJam[] yang valid
+// Handle format lama [{id,nama,mulai,selesai}] maupun null/undefined/non-array
+function ensurePolaArray(raw: any): PolaJam[] {
+  if (!raw) return []
+  const arr = Array.isArray(raw) ? raw : []
+  if (arr.length === 0) return []
+  // Format lama: tidak punya field slots/hari
+  if (typeof arr[0].slots === 'undefined' && typeof arr[0].hari === 'undefined') {
+    return [{ id: 'pola_legacy', nama: 'Semua Hari', hari: [1,2,3,4,5,6], slots: arr }]
+  }
+  // Pastikan setiap pola punya hari & slots sebagai array
+  return arr.map((p: any) => ({
+    ...p,
+    hari: Array.isArray(p.hari) ? p.hari : [],
+    slots: Array.isArray(p.slots) ? p.slots : [],
+  }))
+}
+
 const initialState = { error: null as string | null, success: null as string | null }
 const defaultJurusan = ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
 const HARI_LABELS = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
@@ -525,7 +543,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
         {taData.length === 0 ? (
           <div className="py-12 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada data Tahun Ajaran.</div>
         ) : taData.map(ta => {
-          const jamSummary = getJamSummary(ta.jam_pelajaran || [])
+          const jamSummary = getJamSummary(ensurePolaArray(ta.jam_pelajaran))
           return (
             <div key={ta.id} className={cn(
               'flex flex-col xl:flex-row xl:items-center justify-between p-4 border-b border-surface-2 last:border-0 gap-4 transition-colors',
@@ -562,7 +580,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
                           {jamSummary.pola} pola · maks {jamSummary.maxJam} jam/hari
                         </span>
                         {/* Mini hari pills */}
-                        {(ta.jam_pelajaran || []).map(pola => (
+                        {ensurePolaArray(ta.jam_pelajaran).map(pola => (
                           pola.hari.map(h => (
                             <span key={`${pola.id}-${h}`} className={cn('text-[9px] font-bold px-1 py-0.5 rounded border', HARI_COLORS[h])}>
                               {HARI_LABELS[h]}
@@ -580,7 +598,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
               {/* Aksi */}
               <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <Button variant="outline" size="sm"
-                  onClick={() => { setEditingJamTA(ta); setEditPolaJam(ta.jam_pelajaran && ta.jam_pelajaran.length > 0 ? JSON.parse(JSON.stringify(ta.jam_pelajaran)) : []) }}
+                  onClick={() => { setEditingJamTA(ta); setEditPolaJam(ensurePolaArray(ta.jam_pelajaran)) }}
                   className="h-8 text-xs gap-1.5 border-amber-200 text-amber-700 hover:bg-amber-50 rounded-lg">
                   <Clock className="h-3.5 w-3.5" /> Jam Pelajaran
                 </Button>
