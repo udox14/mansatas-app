@@ -402,10 +402,15 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
   const submitEditJam = async () => {
     if (!editingJamTA) return
     setIsSavingJam(true)
-    const res = await simpanJamPelajaran(editingJamTA.id, editPolaJam)
-    if (res.error) alert(res.error)
-    else { alert(res.success); setEditingJamTA(null) }
-    setIsSavingJam(false)
+    try {
+      const res = await simpanJamPelajaran(editingJamTA.id, editPolaJam)
+      if (res?.error) alert(res.error)
+      else { alert(res?.success ?? 'Berhasil disimpan!'); setEditingJamTA(null) }
+    } catch (e: any) {
+      alert('Gagal menyimpan: ' + (e?.message ?? 'Terjadi kesalahan'))
+    } finally {
+      setIsSavingJam(false)
+    }
   }
 
   useEffect(() => {
