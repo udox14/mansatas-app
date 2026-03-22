@@ -282,26 +282,34 @@ export async function importJadwalASC(xmlText: string): Promise<{
   await db.prepare('DELETE FROM penugasan_mengajar WHERE tahun_ajaran_id = ?').bind(taId).run()
 
   // ── Build penugasan unik ───────────────────────────────────────────────
-  // key = guruId-mapelId-kelasId → penugasan_id
+  // key = "guruId|mapelId|kelasId" (pakai | supaya tidak bentrok dengan hex ID)
   const penugasanKeyToId = new Map<string, string>()
   for (const row of jadwalRows) {
-    const key = `${row.guruId}-${row.mapelId}-${row.kelasId}`
+    const key = `${row.guruId}|${row.mapelId}|${row.kelasId}`
     if (!penugasanKeyToId.has(key)) {
       penugasanKeyToId.set(key, crypto.randomUUID().replace(/-/g, ''))
     }
   }
 
-  // ── Batch insert penugasan (chunk 50) ──────────────────────────────────
+  // ── Batch insert penugasan ─────────────────────────────────────────────
+  // D1 limit: 100 SQL variables per statement
+  // penugasan: 5 kolom per row → max 15 rows per chunk (15×5=75, aman)
+  const CHUNK_P = 15
   const penugasanEntries = Array.from(penugasanKeyToId.entries())
-  const CHUNK = 50
-  let penugasanCount = 0
 
-  for (let i = 0; i < penugasanEntries.length; i += CHUNK) {
-    const chunk = penugasanEntries.slice(i, i + CHUNK)
-    const values = chunk.flatMap(([key, pid]) => {
-      const [guruId, mapelId, kelasId] = key.split('-')
-      return [pid, guruId, mapelId, kelasId, taId]
-    })
+  // Simpan mapping key → {pid, guruId, mapelId, kelasId} supaya split aman
+  type PenugasanEntry = { pid: string; guruId: string; mapelId: string; kelasId: string }
+  const penugasanList: PenugasanEntry[] = []
+  for (const [key, pid] of penugasanEntries) {
+    // key format: "guruId|mapelId|kelasId" — pakai | bukan - supaya tidak bentrok dengan hex ID
+    const parts = key.split('|')
+    penugasanList.push({ pid, guruId: parts[0], mapelId: parts[1], kelasId: parts[2] })
+  }
+
+  let penugasanCount = 0
+  for (let i = 0; i < penugasanList.length; i += CHUNK_P) {
+    const chunk = penugasanList.slice(i, i + CHUNK_P)
+    const values = chunk.flatMap(r => [r.pid, r.guruId, r.mapelId, r.kelasId, taId])
     const placeholders = chunk.map(() => `(?, ?, ?, ?, ?, datetime('now'))`).join(', ')
     try {
       await db.prepare(
@@ -313,23 +321,25 @@ export async function importJadwalASC(xmlText: string): Promise<{
     }
   }
 
-  // ── Batch insert jadwal (chunk 50, deduplicated) ───────────────────────
+  // ── Batch insert jadwal ────────────────────────────────────────────────
+  // jadwal: 5 kolom per row → max 15 rows per chunk (15×5=75, aman)
+  const CHUNK_J = 15
   const jadwalSeen = new Set<string>()
   const jadwalToInsert: Array<{ pid: string; hari: number; jamKe: number }> = []
 
   for (const row of jadwalRows) {
-    const key = `${row.guruId}-${row.mapelId}-${row.kelasId}`
+    const key = `${row.guruId}|${row.mapelId}|${row.kelasId}`
     const pid = penugasanKeyToId.get(key)
     if (!pid) continue
-    const uniqKey = `${pid}-${row.hari}-${row.jamKe}`
+    const uniqKey = `${pid}|${row.hari}|${row.jamKe}`
     if (jadwalSeen.has(uniqKey)) continue
     jadwalSeen.add(uniqKey)
     jadwalToInsert.push({ pid, hari: row.hari, jamKe: row.jamKe })
   }
 
   let jadwalCount = 0
-  for (let i = 0; i < jadwalToInsert.length; i += CHUNK) {
-    const chunk = jadwalToInsert.slice(i, i + CHUNK)
+  for (let i = 0; i < jadwalToInsert.length; i += CHUNK_J) {
+    const chunk = jadwalToInsert.slice(i, i + CHUNK_J)
     const values = chunk.flatMap(r => [crypto.randomUUID().replace(/-/g, ''), r.pid, taId, r.hari, r.jamKe])
     const placeholders = chunk.map(() => `(?, ?, ?, ?, ?, datetime('now'))`).join(', ')
     try {
