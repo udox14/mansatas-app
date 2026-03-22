@@ -224,3 +224,43 @@ export async function prosesMutasi(payload: {
     return { error: err.message || 'Terjadi kesalahan sistem saat mutasi.' }
   }
 }
+
+// ============================================================
+// ASSIGN GURU BK KE KELAS (super_admin only)
+// ============================================================
+
+// Ambil data untuk modal assign BK: semua kelas + guru BK + mapping existing
+export async function getDataAssignBK() {
+  const db = await getDB()
+  const [guruBkAll, mappingAll] = await Promise.all([
+    db.prepare(`SELECT id, nama_lengkap FROM "user" WHERE role = 'guru_bk' ORDER BY nama_lengkap ASC`).all<any>(),
+    db.prepare(`SELECT guru_bk_id, kelas_id FROM kelas_binaan_bk`).all<any>(),
+  ])
+  return {
+    guruBkAll: guruBkAll.results || [],
+    mappingAll: mappingAll.results || [],
+  }
+}
+
+// Set kelas binaan satu guru BK (replace)
+export async function setKelasBinaanBKFromKelas(guru_bk_id: string, kelas_ids: string[]) {
+  const db = await getDB()
+  try {
+    await db.prepare('DELETE FROM kelas_binaan_bk WHERE guru_bk_id = ?').bind(guru_bk_id).run()
+    if (kelas_ids.length > 0) {
+      const CHUNK = 15
+      for (let i = 0; i < kelas_ids.length; i += CHUNK) {
+        const chunk = kelas_ids.slice(i, i + CHUNK)
+        const placeholders = chunk.map(() => `(lower(hex(randomblob(16))), ?, ?, datetime('now'))`).join(', ')
+        const values = chunk.flatMap(kid => [guru_bk_id, kid])
+        await db.prepare(
+          `INSERT OR IGNORE INTO kelas_binaan_bk (id, guru_bk_id, kelas_id, created_at) VALUES ${placeholders}`
+        ).bind(...values).run()
+      }
+    }
+    revalidatePath('/', 'layout')
+    return { success: 'Kelas binaan berhasil disimpan.' }
+  } catch (e: any) {
+    return { error: e?.message ?? 'Gagal menyimpan.' }
+  }
+}

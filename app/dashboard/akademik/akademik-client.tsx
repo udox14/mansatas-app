@@ -40,7 +40,7 @@ const getAvatarColor = (name: string) => {
 
 export function AkademikClient({
   mapelData, penugasanData, taAktif, daftarJurusan = [],
-  kelasList = [], guruList = [], polaDaftar = []
+  kelasList = [], guruList = [], polaDaftar = [], userRole = 'guru'
 }: {
   mapelData: MapelType[]
   penugasanData: PenugasanType[]
@@ -49,6 +49,7 @@ export function AkademikClient({
   kelasList?: KelasItem[]
   guruList?: GuruItem[]
   polaDaftar?: PolaJam[]
+  userRole?: string
 }) {
   const [isMapelPending, setIsMapelPending] = useState(false)
   const [searchMapel, setSearchMapel] = useState('')
@@ -432,6 +433,7 @@ export function AkademikClient({
               kelasList={kelasList}
               guruList={guruList}
               polaDaftar={polaDaftar}
+              userRole={userRole}
             />
           </TabsContent>
           <TabsContent value="penugasan" className="space-y-3 m-0">

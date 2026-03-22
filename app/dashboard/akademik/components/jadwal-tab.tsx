@@ -307,12 +307,16 @@ export function JadwalTab({
   kelasList,
   guruList,
   polaDaftar,
+  userRole = 'guru',
 }: {
   taAktif: { id: string; nama: string; semester: number } | null
   kelasList: KelasItem[]
   guruList: GuruItem[]
-  polaDaftar: PolaJam[]   // ← ganti dari jamPelajaran flat ke PolaJam[]
+  polaDaftar: PolaJam[]
+  userRole?: string
 }) {
+  const isSuperAdmin = userRole === 'super_admin'
+
   const [viewMode, setViewMode]       = useState<'kelas' | 'guru'>('kelas')
   const [selectedKelas, setSelectedKelas] = useState('')
   const [selectedGuru,  setSelectedGuru]  = useState('')
@@ -435,7 +439,7 @@ export function JadwalTab({
           )}
 
           {/* Import XML */}
-          {taAktif && <ImportXMLPanel onDone={handleImportDone} />}
+          {isSuperAdmin && taAktif && <ImportXMLPanel onDone={handleImportDone} />}
         </div>
 
         {/* Baris 2: dropdown + reset */}

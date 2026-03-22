@@ -1,16 +1,17 @@
 // Lokasi: config/menu.ts
-import { 
-  LayoutDashboard, 
-  Users, 
-  GraduationCap, 
-  CalendarCheck, 
-  BookOpen, 
-  AlertTriangle, 
+import {
+  LayoutDashboard,
+  Users,
+  GraduationCap,
+  CalendarCheck,
+  BookOpen,
+  AlertTriangle,
   Settings,
   Library,
   Shuffle,
   LineChart,
-  DoorOpen
+  DoorOpen,
+  HeartHandshake,
 } from 'lucide-react'
 
 export type MenuItem = {
@@ -80,6 +81,12 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/kedisiplinan',
     icon: AlertTriangle,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'satpam', 'pramubakti', 'wali_murid']
+  },
+  {
+    title: 'Bimbingan Konseling',
+    href: '/dashboard/bk',
+    icon: HeartHandshake,
+    roles: ['super_admin', 'kepsek', 'wakamad', 'guru_bk']
   },
   {
     title: 'Pengaturan',
