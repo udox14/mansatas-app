@@ -88,29 +88,36 @@ export async function simpanDaftarJurusan(tahun_ajaran_id: string, daftar_jurusa
 // ============================================================
 export async function simpanJamPelajaran(tahun_ajaran_id: string, pola_jam: PolaJam[]) {
   try {
-    const db = await getDB()
-
-    if (!pola_jam || pola_jam.length === 0) return { error: 'Minimal harus ada 1 pola jam.' }
-
-    // Sanitize: pastikan hari & slots selalu array
-    const sanitized = pola_jam.map(p => ({
-      ...p,
-      hari: Array.isArray(p.hari) ? p.hari : [],
-      slots: Array.isArray(p.slots) ? p.slots : [],
-    }))
-
-    // Validasi ringan
-    for (const p of sanitized) {
-      if (!p.nama?.trim()) return { error: 'Nama pola tidak boleh kosong.' }
+    if (!tahun_ajaran_id) return { error: 'ID tahun ajaran tidak valid.' }
+    if (!pola_jam || !Array.isArray(pola_jam) || pola_jam.length === 0) {
+      return { error: 'Minimal harus ada 1 pola jam.' }
     }
 
-    const result = await dbUpdate(db, 'tahun_ajaran', { jam_pelajaran: JSON.stringify(sanitized) }, { id: tahun_ajaran_id })
-    if (result.error) return { error: result.error }
+    // Sanitize ketat sebelum apapun
+    const sanitized = pola_jam.map((p, idx) => ({
+      id: String(p.id ?? `pola_${idx}`),
+      nama: String(p.nama ?? `Pola ${idx + 1}`),
+      hari: Array.isArray(p.hari) ? p.hari.map(Number).filter(h => h >= 1 && h <= 6) : [],
+      slots: Array.isArray(p.slots) ? p.slots.map((s: any) => ({
+        id: Number(s.id ?? 0),
+        nama: String(s.nama ?? ''),
+        mulai: String(s.mulai ?? ''),
+        selesai: String(s.selesai ?? ''),
+      })) : [],
+    }))
+
+    // Serialisasi manual — pastikan tidak ada circular/undefined
+    const jsonStr = JSON.stringify(sanitized)
+
+    const db = await getDB()
+    await db.prepare(
+      'UPDATE tahun_ajaran SET jam_pelajaran = ? WHERE id = ?'
+    ).bind(jsonStr, tahun_ajaran_id).run()
 
     revalidatePath('/dashboard/settings')
     return { success: 'Jam pelajaran berhasil disimpan!' }
   } catch (e: any) {
-    return { error: e?.message ?? 'Terjadi kesalahan saat menyimpan.' }
+    return { error: String(e?.message ?? e ?? 'Terjadi kesalahan tidak diketahui.') }
   }
 }
 
