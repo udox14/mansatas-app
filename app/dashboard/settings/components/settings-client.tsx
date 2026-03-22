@@ -16,9 +16,10 @@ import {
 } from 'lucide-react'
 import {
   tambahTahunAjaran, setAktifTahunAjaran, hapusTahunAjaran,
-  simpanDaftarJurusan, simpanJamPelajaran, DEFAULT_POLA_JAM
+  simpanDaftarJurusan, simpanJamPelajaran
 } from '../actions'
-import type { PolaJam, SlotJam } from '../actions'
+import { DEFAULT_POLA_JAM } from '../types'
+import type { PolaJam, SlotJam } from '../types'
 import { cn } from '@/lib/utils'
 
 type TAProps = {
@@ -117,7 +118,7 @@ function PolaEditor({
 
   // Hari yang sudah dipakai pola LAIN
   const hariTerpakai = new Set(
-    allPola.filter(p => p.id !== pola.id).flatMap(p => p.hari)
+    allPola.filter(p => p.id !== pola.id).flatMap(p => Array.isArray(p.hari) ? p.hari : [])
   )
 
   const toggleHari = (h: number) => {
@@ -298,7 +299,7 @@ function PolaJamEditor({ value, onChange }: { value: PolaJam[]; onChange: (v: Po
 
   // Summary: hari yang belum tercakup
   const allHari = [1, 2, 3, 4, 5, 6]
-  const coveredHari = new Set(value.flatMap(p => p.hari))
+  const coveredHari = new Set(value.flatMap(p => Array.isArray(p.hari) ? p.hari : []))
   const uncoveredHari = allHari.filter(h => !coveredHari.has(h))
 
   return (
