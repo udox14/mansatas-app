@@ -1146,7 +1146,7 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
               {/* Summary cards — klik untuk filter */}
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { key: 'all',       label: 'Total',           count: matchResults.length,  color: 'bg-slate-50 border-slate-200 text-slate-700', active: 'bg-slate-900 text-white border-slate-900' },
+                  { key: 'all',       label: '⚠️ Semua masalah', count: ambigCount + notFoundCount, color: 'bg-slate-50 border-slate-200 text-slate-700', active: 'bg-slate-900 text-white border-slate-900' },
                   { key: 'ambiguous', label: '⚠️ Perlu dipilih', count: ambigCount,           color: 'bg-amber-50 border-amber-200 text-amber-700',  active: 'bg-amber-500 text-white border-amber-500' },
                   { key: 'notfound',  label: '❌ Tidak ditemukan',count: notFoundCount,        color: 'bg-rose-50 border-rose-200 text-rose-700',    active: 'bg-rose-500 text-white border-rose-500' },
                 ].map(({ key, label, count, color, active }) => (
@@ -1178,7 +1178,7 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
               <div className="bg-surface border border-surface rounded-xl overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-2.5 border-b border-surface-2">
                   <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                    {previewFilter === 'all' && `${matchResults.length} total data`}
+                    {previewFilter === 'all' && `${ambigCount + notFoundCount} nama bermasalah (${ambigCount} ambigu + ${notFoundCount} tidak ditemukan)`}
                     {previewFilter === 'ambiguous' && `${ambigCount} nama ambigu — wajib dipilih manual`}
                     {previewFilter === 'notfound' && `${notFoundCount} nama tidak ditemukan — akan dilewati`}
                   </p>
@@ -1189,13 +1189,15 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
                   )}
                 </div>
 
-                <ScrollArea className="max-h-80">
+                <ScrollArea className="max-h-[60vh]">
                   <div className="divide-y divide-surface-2">
                     {matchResults
                       .filter(m =>
-                        previewFilter === 'all' ? true :
-                        previewFilter === 'ambiguous' ? m.status === 'ambiguous' :
-                        m.status === 'notfound'
+                        previewFilter === 'all'
+                          ? m.status === 'ambiguous' || m.status === 'notfound'
+                          : previewFilter === 'ambiguous'
+                          ? m.status === 'ambiguous'
+                          : m.status === 'notfound'
                       )
                       .map((m, i) => {
                         const globalIdx = matchResults.findIndex(x => x === m)
@@ -1272,12 +1274,14 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
                     }
                     {/* Empty state per filter */}
                     {matchResults.filter(m =>
-                      previewFilter === 'all' ? false :
-                      previewFilter === 'ambiguous' ? m.status === 'ambiguous' :
-                      m.status === 'notfound'
-                    ).length === 0 && previewFilter !== 'all' && (
+                      previewFilter === 'all'
+                        ? m.status === 'ambiguous' || m.status === 'notfound'
+                        : previewFilter === 'ambiguous'
+                        ? m.status === 'ambiguous'
+                        : m.status === 'notfound'
+                    ).length === 0 && (
                       <div className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">
-                        {previewFilter === 'ambiguous' ? '🎉 Tidak ada nama yang ambigu!' : '🎉 Semua nama berhasil dicocokkan!'}
+                        {previewFilter === 'ambiguous' ? '🎉 Tidak ada nama yang ambigu!' : previewFilter === 'notfound' ? '🎉 Semua nama berhasil dicocokkan!' : '🎉 Tidak ada masalah! Semua nama cocok.'}
                       </div>
                     )}
                   </div>
