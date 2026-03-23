@@ -18,6 +18,7 @@ import {
   tambahRekamanBK, editRekamanBK, hapusRekamanBK,
   tambahSesiPenanganan, hapusSesiPenanganan,
   tambahTopikBK, editTopikBK, hapusTopikBK,
+  sinkronKelasBinaanDariPenugasan, getKelasBinaanPerGuru,
 } from '../actions'
 import type { BidangBK, TipePenanganan, TindakLanjut, SesiPenanganan } from '../actions'
 import { cn } from '@/lib/utils'
@@ -335,24 +336,28 @@ function RekamanItem({ rekaman, canEdit, topikAll, guruBkId, taId, onChanged, on
       <button
         type="button"
         onClick={() => { if (!isEditing) setExpanded(e => !e) }}
-        className="w-full flex flex-wrap items-center gap-2 px-3 py-2.5 hover:bg-surface-2 transition-colors text-left"
+        className="w-full px-3 py-2.5 hover:bg-surface-2 transition-colors text-left"
       >
-        <Badge label={rekaman.bidang} colorClass={BIDANG_COLORS[rekaman.bidang]} />
-        {rekaman.topik_nama && (
-          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate flex-1 min-w-0">{rekaman.topik_nama}</span>
-        )}
-        <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">
-          {new Date(rekaman.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-        </span>
-        <Badge
-          label={TINDAK_LANJUT_OPTIONS.find(t => t.value === rekaman.tindak_lanjut)?.label ?? rekaman.tindak_lanjut}
-          colorClass={TINDAK_LANJUT_COLORS[rekaman.tindak_lanjut]}
-        />
-        <span className="shrink-0 text-slate-400 dark:text-slate-500">
-          {expanded
-            ? <ChevronUp className="h-3.5 w-3.5" />
-            : <ChevronDown className="h-3.5 w-3.5" />}
-        </span>
+        {/* Baris atas: badge bidang + topik + chevron */}
+        <div className="flex items-center gap-2">
+          <Badge label={rekaman.bidang} colorClass={BIDANG_COLORS[rekaman.bidang]} />
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate flex-1 min-w-0">
+            {rekaman.topik_nama || <span className="text-slate-400 dark:text-slate-500 italic font-normal">Tanpa topik</span>}
+          </span>
+          <span className="shrink-0 text-slate-400 dark:text-slate-500 ml-1">
+            {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </span>
+        </div>
+        {/* Baris bawah: tanggal + tindak lanjut */}
+        <div className="flex items-center gap-2 mt-1.5">
+          <span className="text-[10px] text-slate-400 dark:text-slate-500">
+            {new Date(rekaman.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </span>
+          <Badge
+            label={TINDAK_LANJUT_OPTIONS.find(t => t.value === rekaman.tindak_lanjut)?.label ?? rekaman.tindak_lanjut}
+            colorClass={TINDAK_LANJUT_COLORS[rekaman.tindak_lanjut]}
+          />
+        </div>
       </button>
 
       {/* Body — hanya tampil saat expanded */}
@@ -388,7 +393,6 @@ function RekamanItem({ rekaman, canEdit, topikAll, guruBkId, taId, onChanged, on
             )}
 
             <div className="space-y-1.5">
-              <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Penanganan</p>
               <SesiPenangananPanel
                 rekamanId={rekaman.id}
                 sesiList={sesiList}
@@ -468,24 +472,28 @@ function ModalDetailSiswa({
     <Dialog open onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-2xl rounded-xl max-h-[90vh] flex flex-col p-0 gap-0">
         {/* Header */}
-        <DialogHeader className="px-4 py-3 border-b border-surface-2 shrink-0">
+        <DialogHeader className="px-4 pt-4 pb-3 border-b border-surface-2 shrink-0 space-y-0">
+          {/* Baris 1: info siswa + tombol close (bawaan Dialog) */}
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
+            <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
               {siswa.foto_url
                 ? <img src={siswa.foto_url} alt="" className="h-full w-full object-cover" />
                 : <span className="text-sm font-bold text-slate-500">{siswa.nama_lengkap.charAt(0)}</span>}
             </div>
             <div className="flex-1 min-w-0">
-              <DialogTitle className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{siswa.nama_lengkap}</DialogTitle>
-              <p className="text-[11px] text-slate-400 dark:text-slate-500">{siswa.nisn} · Kelas {siswa.tingkat}-{siswa.nomor_kelas} {siswa.kelas_kelompok}</p>
+              <DialogTitle className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate leading-tight">{siswa.nama_lengkap}</DialogTitle>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">Kelas {siswa.tingkat}-{siswa.nomor_kelas} {siswa.kelas_kelompok}</p>
             </div>
-            {canEdit && (
+          </div>
+          {/* Baris 2: tombol rekaman baru (full width di mobile) */}
+          {canEdit && (
+            <div className="pt-2">
               <Button size="sm" onClick={() => setShowForm(true)}
-                className="h-8 text-xs gap-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg shrink-0">
+                className="w-full sm:w-auto h-8 text-xs gap-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg">
                 <Plus className="h-3.5 w-3.5" /> Rekaman Baru
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </DialogHeader>
 
         {/* Filter bidang */}
@@ -1017,48 +1025,175 @@ function TabTopik({ currentUserId, topikAll: initialTopik }: {
 }
 
 // ── Sub: Tab Kelas Binaan (info only) ─────────────────────────────────
-function TabKelasBinaan({ kelasBinaan, isAdmin }: {
+function TabKelasBinaan({ kelasBinaan, isAdmin, currentUserId, taAktif }: {
   kelasBinaan: KelasInfo[]
   isAdmin: boolean
+  currentUserId: string
+  taAktif: { id: string; nama: string; semester: number } | null
 }) {
+  const [viewMode, setViewMode] = useState<'kelas' | 'guru'>('guru')
+  const [perGuruData, setPerGuruData] = useState<{ guru_id: string; guru_nama: string; kelas_list: any[] }[]>([])
+  const [isLoadingGuru, setIsLoadingGuru] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [expandedGuru, setExpandedGuru] = useState<Set<string>>(new Set())
+
+  // Load data per guru saat tab guru dipilih (lazy)
+  const loadPerGuru = async () => {
+    if (!taAktif) return
+    setIsLoadingGuru(true)
+    const data = await getKelasBinaanPerGuru(taAktif.id)
+    setPerGuruData(data)
+    // Auto-expand semua guru supaya langsung kelihatan
+    setExpandedGuru(new Set(data.map(g => g.guru_id)))
+    setIsLoadingGuru(false)
+  }
+
+  const handleSinkron = async () => {
+    if (!confirm('Sinkronisasi akan mengganti semua data kelas binaan dengan data dari penugasan mengajar semester aktif. Lanjutkan?')) return
+    setIsSyncing(true)
+    const res = await sinkronKelasBinaanDariPenugasan()
+    if (res.error) alert(res.error)
+    else {
+      alert(res.success)
+      // Refresh
+      if (viewMode === 'guru') loadPerGuru()
+    }
+    setIsSyncing(false)
+  }
+
+  const toggleGuru = (id: string) => {
+    setExpandedGuru(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
   return (
     <div className="space-y-3">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        {isAdmin && (
+          <>
+            {/* Toggle view */}
+            <div className="flex rounded-lg border border-surface overflow-hidden shrink-0">
+              <button
+                onClick={() => setViewMode('kelas')}
+                className={cn('px-3 py-1.5 text-xs font-medium transition-colors',
+                  viewMode === 'kelas' ? 'bg-slate-900 text-white' : 'bg-surface text-slate-500 dark:text-slate-400 hover:bg-surface-2')}>
+                Per Kelas
+              </button>
+              <button
+                onClick={() => { setViewMode('guru'); if (perGuruData.length === 0) loadPerGuru() }}
+                className={cn('px-3 py-1.5 text-xs font-medium transition-colors',
+                  viewMode === 'guru' ? 'bg-slate-900 text-white' : 'bg-surface text-slate-500 dark:text-slate-400 hover:bg-surface-2')}>
+                Per Guru BK
+              </button>
+            </div>
+            {/* Tombol sinkronisasi */}
+            <Button size="sm" variant="outline" onClick={handleSinkron} disabled={isSyncing}
+              className="h-8 text-xs gap-1.5 border-blue-200 text-blue-600 hover:bg-blue-50 rounded-lg ml-auto">
+              {isSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookOpen className="h-3.5 w-3.5" />}
+              Sinkron dari Penugasan
+            </Button>
+          </>
+        )}
+      </div>
+
+      {/* Info sinkronisasi */}
       {isAdmin && (
-        <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>Assign kelas binaan guru BK dilakukan di <strong>Manajemen Kelas</strong> oleh Super Admin.</span>
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div>
+            <span>Klik <strong>Sinkron dari Penugasan</strong> untuk otomatis mengisi kelas binaan berdasarkan data mengajar guru BK di semester aktif.</span>
+            {taAktif && (
+              <span className="block mt-1 font-semibold text-blue-600">
+                TA aktif: {taAktif.nama} · Smt {taAktif.semester === 1 ? 'Ganjil' : 'Genap'}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
-      {kelasBinaan.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400 dark:text-slate-500">
-          <Users className="h-8 w-8 text-slate-300 dark:text-slate-600" />
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Belum ada kelas binaan</p>
-          <p className="text-xs">Hubungi Super Admin untuk mengatur kelas binaan Anda</p>
-        </div>
-      ) : (
-        <div className="rounded-xl border border-surface bg-surface overflow-hidden">
-          <div className="divide-y divide-surface-2">
-            {kelasBinaan.map(k => (
-              <div key={k.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-2 transition-colors">
-                <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold shrink-0">
-                  {k.tingkat}
+      {/* VIEW: Per Kelas */}
+      {(!isAdmin || viewMode === 'kelas') && (
+        kelasBinaan.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400 dark:text-slate-500">
+            <Users className="h-8 w-8 text-slate-300 dark:text-slate-600" />
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Belum ada kelas binaan</p>
+            {isAdmin
+              ? <p className="text-xs">Klik "Sinkron dari Penugasan" untuk mengisi otomatis</p>
+              : <p className="text-xs">Hubungi Super Admin untuk mengatur kelas binaan Anda</p>}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-surface bg-surface overflow-hidden">
+            <div className="divide-y divide-surface-2">
+              {kelasBinaan.map(k => (
+                <div key={k.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-2 transition-colors">
+                  <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold shrink-0">
+                    {k.tingkat}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                      Kelas {k.tingkat}-{k.nomor_kelas}
+                      <span className="ml-1.5 text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded">{k.kelompok}</span>
+                    </p>
+                    {k.guru_bk_nama && (
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500">{k.guru_bk_nama}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                    Kelas {k.tingkat}-{k.nomor_kelas}
-                    <span className="ml-1.5 text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded">
-                      {k.kelompok}
-                    </span>
-                  </p>
-                  {isAdmin && k.guru_bk_nama && (
-                    <p className="text-[11px] text-slate-400 dark:text-slate-500">{k.guru_bk_nama}</p>
-                  )}
-                </div>
+              ))}
+            </div>
+          </div>
+        )
+      )}
+
+      {/* VIEW: Per Guru BK */}
+      {isAdmin && viewMode === 'guru' && (
+        isLoadingGuru ? (
+          <div className="flex items-center justify-center py-10 gap-2 text-slate-400 dark:text-slate-500">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">Memuat data...</span>
+          </div>
+        ) : perGuruData.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400 dark:text-slate-500">
+            <Users className="h-6 w-6 text-slate-300 dark:text-slate-600" />
+            <p className="text-sm">Belum ada data kelas binaan</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {perGuruData.map(g => (
+              <div key={g.guru_id} className="rounded-xl border border-surface bg-surface overflow-hidden">
+                {/* Header guru */}
+                <button
+                  onClick={() => toggleGuru(g.guru_id)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-2 transition-colors text-left"
+                >
+                  <div className="h-7 w-7 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 text-xs font-bold shrink-0">
+                    {g.guru_nama.charAt(0)}
+                  </div>
+                  <span className="flex-1 text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{g.guru_nama.split(',')[0]}</span>
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500 shrink-0">{g.kelas_list.length} kelas</span>
+                  {expandedGuru.has(g.guru_id)
+                    ? <ChevronUp className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                    : <ChevronDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />}
+                </button>
+                {/* Kelas binaan */}
+                {expandedGuru.has(g.guru_id) && (
+                  <div className="border-t border-surface-2 px-4 py-2 flex flex-wrap gap-1.5">
+                    {g.kelas_list.map(k => (
+                      <span key={k.id}
+                        className="text-xs font-semibold px-2 py-1 rounded-lg bg-blue-50 border border-blue-100 text-blue-700">
+                        {k.tingkat}-{k.nomor_kelas} <span className="font-normal text-blue-500">{k.kelompok}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
-        </div>
+        )
       )}
     </div>
   )
@@ -1117,7 +1252,7 @@ export function BKClient({
         </TabsContent>
 
         <TabsContent value="kelas" className="m-0">
-          <TabKelasBinaan kelasBinaan={kelasBinaan} isAdmin={isAdmin} />
+          <TabKelasBinaan kelasBinaan={kelasBinaan} isAdmin={isAdmin} currentUserId={currentUserId} taAktif={taAktif} />
         </TabsContent>
       </Tabs>
     </div>

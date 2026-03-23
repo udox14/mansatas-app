@@ -24,14 +24,16 @@ export function AssignBKModal({ kelasList }: { kelasList: KelasData[] }) {
   const [selectedKelasIds, setSelectedKelasIds] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [taAktifId, setTaAktifId] = useState<string>('')
 
   // Lazy load data saat modal dibuka
   useEffect(() => {
     if (!isOpen) return
     setIsLoading(true)
-    getDataAssignBK().then(({ guruBkAll, mappingAll }) => {
+    getDataAssignBK().then(({ guruBkAll, mappingAll, taAktifId }) => {
       setGuruBkAll(guruBkAll)
       setMappingAll(mappingAll)
+      setTaAktifId(taAktifId || '')
       setIsLoading(false)
     })
   }, [isOpen])
@@ -56,8 +58,9 @@ export function AssignBKModal({ kelasList }: { kelasList: KelasData[] }) {
 
   const handleSave = async () => {
     if (!selectedGuru) { alert('Pilih guru BK terlebih dahulu.'); return }
+    if (!taAktifId) { alert('Tahun Ajaran aktif belum diatur.'); return }
     setIsSaving(true)
-    const res = await setKelasBinaanBKFromKelas(selectedGuru, Array.from(selectedKelasIds))
+    const res = await setKelasBinaanBKFromKelas(selectedGuru, Array.from(selectedKelasIds), taAktifId)
     if (res.error) alert(res.error)
     else {
       alert(res.success)
