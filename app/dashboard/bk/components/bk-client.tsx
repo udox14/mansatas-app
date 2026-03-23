@@ -327,31 +327,37 @@ function RekamanItem({ rekaman, canEdit, topikAll, guruBkId, taId, onChanged, on
 }) {
   const [sesiList, setSesiList] = useState<SesiPenanganan[]>(rekaman.penanganan)
   const [isEditing, setIsEditing] = useState(false)
-
-  const TIPE_COLOR: Record<TipePenanganan, string> = {
-    KONSELING:          'bg-blue-50 text-blue-700 border-blue-200',
-    KONSELING_KELOMPOK: 'bg-violet-50 text-violet-700 border-violet-200',
-    HOME_VISIT:         'bg-amber-50 text-amber-700 border-amber-200',
-  }
+  const [expanded, setExpanded] = useState(false)
 
   return (
-    <div key={rekaman.id} className="rounded-xl border border-surface bg-surface overflow-hidden">
-      {/* Header rekaman */}
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 bg-surface-2 border-b border-surface-2">
+    <div className="rounded-xl border border-surface bg-surface overflow-hidden">
+      {/* Header — klik untuk expand/collapse */}
+      <button
+        type="button"
+        onClick={() => { if (!isEditing) setExpanded(e => !e) }}
+        className="w-full flex flex-wrap items-center gap-2 px-3 py-2.5 hover:bg-surface-2 transition-colors text-left"
+      >
         <Badge label={rekaman.bidang} colorClass={BIDANG_COLORS[rekaman.bidang]} />
         {rekaman.topik_nama && (
-          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{rekaman.topik_nama}</span>
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate flex-1 min-w-0">{rekaman.topik_nama}</span>
         )}
-        <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-auto">
-          {new Date(rekaman.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+        <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">
+          {new Date(rekaman.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
         </span>
         <Badge
           label={TINDAK_LANJUT_OPTIONS.find(t => t.value === rekaman.tindak_lanjut)?.label ?? rekaman.tindak_lanjut}
           colorClass={TINDAK_LANJUT_COLORS[rekaman.tindak_lanjut]}
         />
-      </div>
+        <span className="shrink-0 text-slate-400 dark:text-slate-500">
+          {expanded
+            ? <ChevronUp className="h-3.5 w-3.5" />
+            : <ChevronDown className="h-3.5 w-3.5" />}
+        </span>
+      </button>
 
-      <div className="px-3 py-3 space-y-3">
+      {/* Body — hanya tampil saat expanded */}
+      {expanded && (
+      <div className="border-t border-surface-2 px-3 py-3 space-y-3">
         {isEditing ? (
           <FormRekaman
             siswa={{ id: '', nisn: '', nama_lengkap: '', foto_url: null, tingkat: 0, nomor_kelas: '', kelas_kelompok: '' }}
@@ -418,6 +424,7 @@ function RekamanItem({ rekaman, canEdit, topikAll, guruBkId, taId, onChanged, on
           </>
         )}
       </div>
+      )}
     </div>
   )
 }
