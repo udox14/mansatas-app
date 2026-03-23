@@ -788,6 +788,7 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
   const [isImporting, setIsImporting] = useState(false)
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 })
   const [importResult, setImportResult] = useState<{ success: number; error: number; errors: string[] } | null>(null)
+  const [previewFilter, setPreviewFilter] = useState<'all' | 'ambiguous' | 'notfound'>('all')
 
   // ── Parse xlsx via SheetJS CDN (zero npm install) ────────────────────
   const loadSheetJS = (): Promise<any> => new Promise((resolve, reject) => {
@@ -926,6 +927,10 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
       }
       setMatchResults(allResults)
       setIsMatching(false)
+      // Auto-fokus ke tab ambigu jika ada, supaya user langsung tahu
+      const hasAmbig = allResults.some(r => r.status === 'ambiguous')
+      const hasNotFound = allResults.some(r => r.status === 'notfound')
+      setPreviewFilter(hasAmbig ? 'ambiguous' : hasNotFound ? 'notfound' : 'all')
 
     } catch (e: any) {
       alert('Gagal parse Excel: ' + (e as Error).message)
@@ -1116,63 +1121,143 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
           {/* Preview hasil matching */}
           {matchResults.length > 0 && (
             <div className="space-y-3">
-              {/* Summary */}
+              {/* Summary cards — klik untuk filter */}
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
-                  <p className="text-2xl font-black text-emerald-600">{matchedCount}</p>
-                  <p className="text-[11px] font-semibold text-emerald-700 mt-0.5">✅ Matched</p>
-                </div>
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-                  <p className="text-2xl font-black text-amber-600">{ambigCount}</p>
-                  <p className="text-[11px] font-semibold text-amber-700 mt-0.5">⚠️ Ambigu</p>
-                </div>
-                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center">
-                  <p className="text-2xl font-black text-rose-600">{notFoundCount}</p>
-                  <p className="text-[11px] font-semibold text-rose-700 mt-0.5">❌ Tidak ditemukan</p>
-                </div>
+                {[
+                  { key: 'all',       label: 'Total',           count: matchResults.length,  color: 'bg-slate-50 border-slate-200 text-slate-700', active: 'bg-slate-900 text-white border-slate-900' },
+                  { key: 'ambiguous', label: '⚠️ Perlu dipilih', count: ambigCount,           color: 'bg-amber-50 border-amber-200 text-amber-700',  active: 'bg-amber-500 text-white border-amber-500' },
+                  { key: 'notfound',  label: '❌ Tidak ditemukan',count: notFoundCount,        color: 'bg-rose-50 border-rose-200 text-rose-700',    active: 'bg-rose-500 text-white border-rose-500' },
+                ].map(({ key, label, count, color, active }) => (
+                  <button key={key} type="button"
+                    onClick={() => setPreviewFilter(key as any)}
+                    className={cn('rounded-xl p-3 text-center border transition-all',
+                      previewFilter === key ? active : color)}>
+                    <p className="text-2xl font-black leading-tight">{count}</p>
+                    <p className="text-[11px] font-semibold mt-0.5 leading-tight">{label}</p>
+                  </button>
+                ))}
               </div>
 
-              {/* Tabel preview */}
-              <div className="bg-surface border border-surface rounded-xl overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-surface-2 flex items-center justify-between">
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">{matchResults.length} baris data</p>
-                  {ambigCount > 0 && <p className="text-[11px] text-amber-600">⚠️ {ambigCount} perlu pilihan manual</p>}
+              {/* Instruksi kontekstual */}
+              {previewFilter === 'ambiguous' && ambigCount > 0 && (
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>Nama-nama berikut cocok dengan lebih dari satu siswa di database. Pilih siswa yang tepat untuk setiap nama.</span>
                 </div>
-                <ScrollArea className="max-h-64">
+              )}
+              {previewFilter === 'notfound' && notFoundCount > 0 && (
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>Nama-nama berikut tidak ditemukan di database siswa. Kemungkinan perbedaan ejaan atau siswa belum terdaftar. Data ini akan dilewati saat import.</span>
+                </div>
+              )}
+
+              {/* Tabel preview — dinamis sesuai filter */}
+              <div className="bg-surface border border-surface rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-surface-2">
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    {previewFilter === 'all' && `${matchResults.length} total data`}
+                    {previewFilter === 'ambiguous' && `${ambigCount} nama ambigu — wajib dipilih manual`}
+                    {previewFilter === 'notfound' && `${notFoundCount} nama tidak ditemukan — akan dilewati`}
+                  </p>
+                  {previewFilter === 'all' && (
+                    <span className="text-[11px] text-emerald-600 font-medium">
+                      ✓ {matchedCount} siap import
+                    </span>
+                  )}
+                </div>
+
+                <ScrollArea className="max-h-80">
                   <div className="divide-y divide-surface-2">
-                    {matchResults.map((m, i) => (
-                      <div key={i} className="flex items-center gap-3 px-4 py-2 text-xs">
-                        <div className="w-4 shrink-0">
-                          {m.status === 'matched' && <span className="text-emerald-500">✓</span>}
-                          {m.status === 'ambiguous' && <span className="text-amber-500">?</span>}
-                          {m.status === 'notfound' && <span className="text-rose-500">✗</span>}
-                        </div>
-                        <span className="flex-1 font-medium text-slate-700 dark:text-slate-200 truncate">{m.nama}</span>
-                        {m.status === 'matched' && (
-                          <span className="text-[11px] text-slate-400 dark:text-slate-500 truncate max-w-[160px]">
-                            → {m.matched.nama_lengkap} ({m.matched.kelas})
-                          </span>
-                        )}
-                        {m.status === 'ambiguous' && (
-                          <select className="text-xs border border-amber-200 rounded px-1 py-0.5 bg-amber-50 text-amber-700"
-                            onChange={e => {
-                              const chosen = m.candidates.find((c: any) => c.siswa_id === e.target.value)
-                              setMatchResults(prev => prev.map((x, j) => j === i
-                                ? { ...x, status: 'matched', matched: chosen }
-                                : x
-                              ))
-                            }}>
-                            <option value="">-- Pilih --</option>
-                            {m.candidates.map((c: any) => (
-                              <option key={c.siswa_id} value={c.siswa_id}>{c.nama_lengkap} ({c.kelas})</option>
-                            ))}
-                          </select>
-                        )}
-                        {m.status === 'notfound' && (
-                          <span className="text-[11px] text-rose-400 italic">tidak ditemukan di DB</span>
-                        )}
+                    {matchResults
+                      .filter(m =>
+                        previewFilter === 'all' ? true :
+                        previewFilter === 'ambiguous' ? m.status === 'ambiguous' :
+                        m.status === 'notfound'
+                      )
+                      .map((m, i) => {
+                        const globalIdx = matchResults.findIndex(x => x === m)
+                        return (
+                          <div key={i} className={cn('px-4 py-3 space-y-2',
+                            m.status === 'ambiguous' ? 'bg-amber-50/40' :
+                            m.status === 'notfound' ? 'bg-rose-50/30' : '')}>
+                            {/* Baris atas: status + nama di excel */}
+                            <div className="flex items-center gap-2">
+                              <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0',
+                                m.status === 'matched'   ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                m.status === 'ambiguous' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                                'bg-rose-100 text-rose-700 border-rose-200')}>
+                                {m.status === 'matched' ? '✓ MATCHED' : m.status === 'ambiguous' ? '? AMBIGU' : '✗ TIDAK DITEMUKAN'}
+                              </span>
+                              <span className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate flex-1">
+                                {m.nama}
+                              </span>
+                            </div>
+
+                            {/* Matched: tampilkan siswa yang cocok */}
+                            {m.status === 'matched' && m.matched && (
+                              <p className="text-[11px] text-slate-400 dark:text-slate-500 pl-1">
+                                → {m.matched.nama_lengkap}
+                                <span className="ml-1.5 text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                  {m.matched.kelas}
+                                </span>
+                              </p>
+                            )}
+
+                            {/* Ambiguous: dropdown pilih kandidat */}
+                            {m.status === 'ambiguous' && (
+                              <div className="pl-1 space-y-1.5">
+                                <p className="text-[11px] text-amber-700 font-medium">
+                                  Ditemukan {m.candidates.length} kandidat — pilih yang benar:
+                                </p>
+                                <div className="flex flex-col gap-1.5">
+                                  {m.candidates.map((c: any) => (
+                                    <button key={c.siswa_id} type="button"
+                                      onClick={() => setMatchResults(prev => prev.map((x, j) =>
+                                        j === globalIdx ? { ...x, status: 'matched', matched: c } : x
+                                      ))}
+                                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-200 bg-white hover:bg-amber-50 hover:border-amber-400 transition-colors text-left w-full">
+                                      <div className="h-6 w-6 rounded-full bg-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-700 shrink-0">
+                                        {c.nama_lengkap.charAt(0)}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{c.nama_lengkap}</p>
+                                        <p className="text-[10px] text-slate-400 dark:text-slate-500">{c.nisn} · {c.kelas}</p>
+                                      </div>
+                                      <ChevronRight className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                    </button>
+                                  ))}
+                                  <button type="button"
+                                    onClick={() => setMatchResults(prev => prev.map((x, j) =>
+                                      j === globalIdx ? { ...x, status: 'notfound' } : x
+                                    ))}
+                                    className="text-[11px] text-slate-400 dark:text-slate-500 hover:text-rose-500 text-left pl-1 transition-colors">
+                                    Lewati data ini
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Not found: info */}
+                            {m.status === 'notfound' && (
+                              <p className="text-[11px] text-rose-500 pl-1 italic">
+                                Tidak ada siswa dengan nama serupa di database. Data ini akan dilewati.
+                              </p>
+                            )}
+                          </div>
+                        )
+                      })
+                    }
+                    {/* Empty state per filter */}
+                    {matchResults.filter(m =>
+                      previewFilter === 'all' ? false :
+                      previewFilter === 'ambiguous' ? m.status === 'ambiguous' :
+                      m.status === 'notfound'
+                    ).length === 0 && previewFilter !== 'all' && (
+                      <div className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">
+                        {previewFilter === 'ambiguous' ? '🎉 Tidak ada nama yang ambigu!' : '🎉 Semua nama berhasil dicocokkan!'}
                       </div>
-                    ))}
+                    )}
                   </div>
                 </ScrollArea>
               </div>
