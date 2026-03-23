@@ -790,27 +790,47 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
   const [importResult, setImportResult] = useState<{ success: number; error: number; errors: string[] } | null>(null)
   const [previewFilter, setPreviewFilter] = useState<'all' | 'ambiguous' | 'notfound'>('all')
 
-  // ── Parse xlsx via SheetJS CDN (zero npm install) ────────────────────
-  const loadSheetJS = (): Promise<any> => new Promise((resolve, reject) => {
-    // Kalau sudah pernah di-load, langsung pakai dari window
-    if (typeof window !== 'undefined' && (window as any).XLSX) {
-      resolve((window as any).XLSX)
+  // ── SheetJS: preload saat mount, simpan di ref ───────────────────────
+  // Alasan: Server Action binding hilang jika SheetJS di-load lazy di tengah
+  // async flow. Solusi: load di useEffect (sebelum user klik apapun).
+  const xlsxRef = useRef<any>(null)
+  const [xlsxReady, setXlsxReady] = useState(false)
+
+  useEffect(() => {
+    if ((window as any).XLSX) {
+      xlsxRef.current = (window as any).XLSX
+      setXlsxReady(true)
       return
     }
     const script = document.createElement('script')
     script.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'
     script.async = true
-    script.onload = () => resolve((window as any).XLSX)
-    script.onerror = () => reject(new Error('Gagal memuat SheetJS. Periksa koneksi internet.'))
+    script.onload = () => {
+      xlsxRef.current = (window as any).XLSX
+      setXlsxReady(true)
+    }
+    script.onerror = () => console.error('Gagal memuat SheetJS dari CDN')
     document.head.appendChild(script)
-  })
+  }, [])
 
-  const parseXlsxFile = async (file: File): Promise<any[][]> => {
-    const XLSX = await loadSheetJS()
-    const ab = await file.arrayBuffer()
-    const wb = XLSX.read(new Uint8Array(ab), { type: 'array', cellText: false, cellDates: false })
-    const ws = wb.Sheets[wb.SheetNames[0]]
-    return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as any[][]
+  const parseXlsxFile = (file: File): Promise<any[][]> => {
+    return new Promise((resolve, reject) => {
+      if (!xlsxRef.current) { reject(new Error('SheetJS belum siap. Tunggu sebentar lalu coba lagi.')); return }
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target!.result as ArrayBuffer)
+          const wb = xlsxRef.current.read(data, { type: 'array', cellText: false, cellDates: false })
+          const ws = wb.Sheets[wb.SheetNames[0]]
+          const rows = xlsxRef.current.utils.sheet_to_json(ws, { header: 1, defval: '' }) as any[][]
+          resolve(rows)
+        } catch (err) {
+          reject(err)
+        }
+      }
+      reader.onerror = () => reject(new Error('Gagal membaca file'))
+      reader.readAsArrayBuffer(file)
+    })
   }
 
   const parseExcel = async () => {
@@ -1110,10 +1130,12 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
               </div>
             </div>
             <p className="text-[11px] text-slate-400 dark:text-slate-500">Bisa upload satu atau dua file sekaligus. File boleh berisi banyak kelas dalam satu sheet.</p>
-            <Button onClick={parseExcel} disabled={isParsing || isMatching}
+            <Button onClick={parseExcel} disabled={isParsing || isMatching || !xlsxReady}
               className="h-9 bg-violet-600 hover:bg-violet-700 text-white text-sm rounded-lg gap-2">
               {isParsing || isMatching
                 ? <><Loader2 className="h-4 w-4 animate-spin" />{isMatching ? 'Mencocokkan nama...' : 'Membaca file...'}</>
+                : !xlsxReady
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Memuat library...</>
                 : <><Upload className="h-4 w-4" /> Baca & Cocokkan Nama</>}
             </Button>
           </div>
