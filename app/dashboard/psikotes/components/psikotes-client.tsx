@@ -790,6 +790,124 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
   const [importResult, setImportResult] = useState<{ success: number; error: number; errors: string[] } | null>(null)
 
   // ── Parse Excel di client ──────────────────────────────────────────
+  // ── Parse xlsx tanpa library (pure browser native) ──────────────────
+  // xlsx = ZIP file → ambil XML dari dalamnya pakai native browser API
+  const parseXlsxNative = async (file: File): Promise<string[][]> => {
+    // Step 1: Baca sebagai ArrayBuffer
+    const ab = await file.arrayBuffer()
+    const uint8 = new Uint8Array(ab)
+
+    // Step 2: Parse ZIP manual — cari file entry by name
+    const readZipEntry = (name: string): Uint8Array | null => {
+      const enc = new TextEncoder()
+      const nameBytes = enc.encode(name)
+      // Scan local file headers (signature 0x04034b50)
+      for (let i = 0; i < uint8.length - 30; i++) {
+        if (uint8[i] === 0x50 && uint8[i+1] === 0x4b && uint8[i+2] === 0x03 && uint8[i+3] === 0x04) {
+          const compression = uint8[i+8] | (uint8[i+9] << 8)
+          const compSize = uint8[i+18] | (uint8[i+19] << 8) | (uint8[i+20] << 16) | (uint8[i+21] << 24)
+          const fnLen = uint8[i+26] | (uint8[i+27] << 8)
+          const extraLen = uint8[i+28] | (uint8[i+29] << 8)
+          const fnStart = i + 30
+          const dataStart = fnStart + fnLen + extraLen
+
+          if (fnLen === nameBytes.length) {
+            let match = true
+            for (let j = 0; j < fnLen; j++) {
+              if (uint8[fnStart + j] !== nameBytes[j]) { match = false; break }
+            }
+            if (match) {
+              const data = uint8.slice(dataStart, dataStart + compSize)
+              if (compression === 0) return data // stored
+              if (compression === 8) {
+                // deflate — gunakan DecompressionStream (Chrome 80+, Firefox 113+, Safari 16.4+)
+                // Tambah deflate header 0x78 0x9C
+                const withHeader = new Uint8Array(data.length + 2)
+                withHeader[0] = 0x78; withHeader[1] = 0x9c
+                withHeader.set(data, 2)
+                return withHeader // akan di-decompress async
+              }
+            }
+          }
+        }
+      }
+      return null
+    }
+
+    const decompressDeflate = async (data: Uint8Array): Promise<string> => {
+      // xlsx pakai raw deflate (compression method 8 tanpa zlib header)
+      // 'deflate-raw' didukung Chrome 103+, Firefox 113+, Safari 16.4+
+      // Cast ke ArrayBuffer untuk menghindari SharedArrayBuffer type conflict
+      const buf = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
+      const format: CompressionFormat = 'deflate-raw'
+      const ds = new DecompressionStream(format)
+      const writer = ds.writable.getWriter()
+      writer.write(new Uint8Array(buf))
+      writer.close()
+      const chunks: Uint8Array[] = []
+      const reader = ds.readable.getReader()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+      }
+      const total = chunks.reduce((a, c) => a + c.length, 0)
+      const merged = new Uint8Array(total)
+      let offset = 0
+      for (const c of chunks) { merged.set(c, offset); offset += c.length }
+      return new TextDecoder('utf-8').decode(merged)
+    }
+
+    const parseXml = async (entryName: string): Promise<Document | null> => {
+      const raw = readZipEntry(entryName)
+      if (!raw) return null
+      let xmlStr: string
+      if (raw[0] === 0x78) {
+        xmlStr = await decompressDeflate(raw)
+      } else {
+        xmlStr = new TextDecoder('utf-8').decode(raw)
+      }
+      return new DOMParser().parseFromString(xmlStr, 'text/xml')
+    }
+
+    // Shared strings
+    const sharedStrings: string[] = []
+    const ssDoc = await parseXml('xl/sharedStrings.xml')
+    if (ssDoc) {
+      ssDoc.querySelectorAll('si').forEach(si => {
+        // Ambil semua text nodes dalam si, concat
+        const texts: string[] = []
+        si.querySelectorAll('t').forEach(t => texts.push(t.textContent ?? ''))
+        sharedStrings.push(texts.join('') || si.textContent || '')
+      })
+    }
+
+    // Sheet 1
+    const sheetDoc = await parseXml('xl/worksheets/sheet1.xml')
+    if (!sheetDoc) return []
+
+    const rows: string[][] = []
+    sheetDoc.querySelectorAll('row').forEach(rowEl => {
+      const rowIdx = parseInt(rowEl.getAttribute('r') ?? '1') - 1
+      while (rows.length <= rowIdx) rows.push([])
+      const row = rows[rowIdx]
+      rowEl.querySelectorAll('c').forEach(cell => {
+        const addr = cell.getAttribute('r') ?? ''
+        const colStr = addr.replace(/[0-9]/g, '')
+        let colIdx = 0
+        for (let ci = 0; ci < colStr.length; ci++) {
+          colIdx = colIdx * 26 + (colStr.charCodeAt(ci) - 64)
+        }
+        colIdx -= 1
+        while (row.length <= colIdx) row.push('')
+        const t = cell.getAttribute('t')
+        const v = cell.querySelector('v')?.textContent ?? ''
+        row[colIdx] = t === 's' ? (sharedStrings[parseInt(v)] ?? '') : v
+      })
+    })
+    return rows
+  }
+
   const parseExcel = async () => {
     const f1 = fileRef1.current?.files?.[0]
     const f2 = fileRef2.current?.files?.[0]
@@ -800,65 +918,59 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
     setMatchResults([])
 
     try {
-      // Dynamic import SheetJS (sudah ada di dependencies Next.js)
-      const XLSX = await import('xlsx')
-
-      // Map nama → data dari kedua file
       const rekapData = new Map<string, any>()
       const riasecData = new Map<string, any>()
 
-      // Parse File 2 (Rekapitulasi)
       if (f2) {
-        const ab2 = await f2.arrayBuffer()
-        const wb2 = XLSX.read(ab2, { type: 'array' })
-        const ws2 = wb2.Sheets[wb2.SheetNames[0]]
-        const raw2 = XLSX.utils.sheet_to_json(ws2, { header: 1 }) as any[][]
-
+        const raw2 = await parseXlsxNative(f2)
         for (const row of raw2) {
-          // Baris data: kolom 0 = nomor (integer), kolom 1 = nama
-          if (!row[0] || typeof row[0] !== 'number' || !row[1]) continue
-          const nama = String(row[1]).trim().toUpperCase()
+          const col0 = row[0]?.trim()
+          if (!col0 || !/^\d+$/.test(col0) || !row[1]) continue
+          const nama = row[1].trim().toUpperCase()
+          if (!nama) continue
           rekapData.set(nama, {
             nama,
-            jk: row[2] ?? null,
-            usia_thn: row[3] ?? null,
-            usia_bln: row[4] ?? null,
-            iq_score: row[5] ?? null,
-            iq_klasifikasi: row[6] ?? null,
-            bakat_ver: row[7] ?? null, bakat_num: row[8] ?? null,
-            bakat_skl: row[9] ?? null, bakat_abs: row[10] ?? null,
-            bakat_mek: row[11] ?? null, bakat_rr: row[12] ?? null,
-            bakat_kkk: row[13] ?? null,
-            minat_ps: row[14] ?? null, minat_nat: row[15] ?? null,
-            minat_mek: row[16] ?? null, minat_bis: row[17] ?? null,
-            minat_art: row[18] ?? null, minat_si: row[19] ?? null,
-            minat_v: row[20] ?? null, minat_m: row[21] ?? null,
-            minat_k: row[22] ?? null,
-            rekom_raw: row[23] ?? null,
-            mbti: row[24] ?? null,
-            gaya_belajar: row[25] ? String(row[25]).toUpperCase().trim() : null,
+            usia_thn: row[3] ? parseInt(row[3]) : null,
+            usia_bln: row[4] ? parseInt(row[4]) : null,
+            iq_score: row[5] ? parseInt(row[5]) : null,
+            iq_klasifikasi: row[6]?.trim() || null,
+            bakat_ver: row[7] ? parseInt(row[7]) : null,
+            bakat_num: row[8] ? parseInt(row[8]) : null,
+            bakat_skl: row[9] ? parseInt(row[9]) : null,
+            bakat_abs: row[10] ? parseInt(row[10]) : null,
+            bakat_mek: row[11] ? parseInt(row[11]) : null,
+            bakat_rr: row[12] ? parseInt(row[12]) : null,
+            bakat_kkk: row[13] ? parseInt(row[13]) : null,
+            minat_ps: row[14] ? parseInt(row[14]) : null,
+            minat_nat: row[15] ? parseInt(row[15]) : null,
+            minat_mek: row[16] ? parseInt(row[16]) : null,
+            minat_bis: row[17] ? parseInt(row[17]) : null,
+            minat_art: row[18] ? parseInt(row[18]) : null,
+            minat_si: row[19] ? parseInt(row[19]) : null,
+            minat_v: row[20] ? parseInt(row[20]) : null,
+            minat_m: row[21] ? parseInt(row[21]) : null,
+            minat_k: row[22] ? parseInt(row[22]) : null,
+            rekom_raw: row[23]?.trim() || null,
+            mbti: row[24]?.trim() || null,
+            gaya_belajar: row[25]?.trim().toUpperCase() || null,
           })
         }
       }
 
-      // Parse File 1 (RIASEC)
       if (f1) {
-        const ab1 = await f1.arrayBuffer()
-        const wb1 = XLSX.read(ab1, { type: 'array' })
-        const ws1 = wb1.Sheets[wb1.SheetNames[0]]
-        const raw1 = XLSX.utils.sheet_to_json(ws1, { header: 1 }) as any[][]
-
+        const raw1 = await parseXlsxNative(f1)
         for (const row of raw1) {
-          if (!row[0] || typeof row[0] !== 'number' || !row[1]) continue
-          const nama = String(row[1]).trim().toUpperCase()
+          const col0 = row[0]?.trim()
+          if (!col0 || !/^\d+$/.test(col0) || !row[1]) continue
+          const nama = row[1].trim().toUpperCase()
+          if (!nama) continue
           riasecData.set(nama, {
-            mapel_pilihan: row[2] ? String(row[2]).trim() : null,
-            riasec: row[3] ? String(row[3]).trim().toUpperCase() : null,
+            mapel_pilihan: row[2]?.trim() || null,
+            riasec: row[3]?.trim().toUpperCase() || null,
           })
         }
       }
 
-      // Merge kedua file by nama
       const allNama = new Set([...rekapData.keys(), ...riasecData.keys()])
       const merged = Array.from(allNama).map(nama => ({
         nama,
@@ -868,7 +980,6 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
 
       setPreviewData(merged)
 
-      // Fuzzy match per chunk 30 nama
       setIsMatching(true)
       const allNamaList = merged.map(r => r.nama)
       const allResults: any[] = []
@@ -882,7 +993,8 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
       setIsMatching(false)
 
     } catch (e: any) {
-      alert('Gagal parse Excel: ' + e.message)
+      alert('Gagal parse Excel: ' + (e as Error).message)
+      setIsMatching(false)
     }
     setIsParsing(false)
   }
