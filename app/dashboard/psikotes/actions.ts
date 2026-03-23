@@ -174,42 +174,43 @@ export async function getDetailPsikotes(siswa_id: string) {
 // ============================================================
 export async function getAnalitikPsikotes(kelas_id?: string) {
   const db = await getDB()
-  const where = kelas_id ? 'JOIN siswa s ON sp.siswa_id = s.id WHERE s.kelas_id = ?' : ''
+  const join = kelas_id ? 'JOIN siswa s ON sp.siswa_id = s.id' : ''
+  const where = kelas_id ? 'WHERE s.kelas_id = ?' : ''
   const params = kelas_id ? [kelas_id] : []
 
   const [iqDist, gayaDist, rekomDist, riasecDist, mbtiDist, bakatAvg, minatAvg] = await Promise.all([
     // Distribusi IQ
     db.prepare(`
       SELECT iq_klasifikasi, COUNT(*) as n
-      FROM siswa_psikotes sp ${where}
+      FROM siswa_psikotes sp ${join} ${where}
       GROUP BY iq_klasifikasi ORDER BY n DESC
     `).bind(...params).all<any>(),
     // Distribusi Gaya Belajar
     db.prepare(`
       SELECT gaya_belajar, COUNT(*) as n
-      FROM siswa_psikotes sp ${where}
+      FROM siswa_psikotes sp ${join} ${where}
       GROUP BY gaya_belajar ORDER BY n DESC
     `).bind(...params).all<any>(),
     // Distribusi Rekomendasi Jurusan
     db.prepare(`
       SELECT rekom_jurusan, COUNT(*) as n
-      FROM siswa_psikotes sp ${where}
+      FROM siswa_psikotes sp ${join} ${where}
       WHERE rekom_jurusan IS NOT NULL
       GROUP BY rekom_jurusan ORDER BY n DESC
     `).bind(...params).all<any>(),
     // Distribusi RIASEC (ambil tipe pertama)
     db.prepare(`
       SELECT TRIM(SUBSTR(riasec, 1, INSTR(riasec||',', ',')-1)) as tipe, COUNT(*) as n
-      FROM siswa_psikotes sp ${where}
+      FROM siswa_psikotes sp ${join} ${where}
       WHERE riasec IS NOT NULL
       GROUP BY tipe ORDER BY n DESC
     `).bind(...params).all<any>(),
     // Distribusi MBTI (4 dimensi teratas)
     db.prepare(`
       SELECT mbti, COUNT(*) as n
-      FROM siswa_psikotes sp ${where}
+      FROM siswa_psikotes sp ${join} ${where}
       WHERE mbti IS NOT NULL
-      GROUP BY mbti ORDER BY n DESC LIMIT 8
+      GROUP BY mbti ORDER BY n DESC
     `).bind(...params).all<any>(),
     // Rata-rata Bakat
     db.prepare(`
@@ -218,7 +219,7 @@ export async function getAnalitikPsikotes(kelas_id?: string) {
         ROUND(AVG(bakat_skl),1) as skl, ROUND(AVG(bakat_abs),1) as abs,
         ROUND(AVG(bakat_mek),1) as mek, ROUND(AVG(bakat_rr),1) as rr,
         ROUND(AVG(bakat_kkk),1) as kkk
-      FROM siswa_psikotes sp ${where}
+      FROM siswa_psikotes sp ${join} ${where}
     `).bind(...params).first<any>(),
     // Rata-rata Minat
     db.prepare(`
@@ -228,7 +229,7 @@ export async function getAnalitikPsikotes(kelas_id?: string) {
         ROUND(AVG(minat_art),1) as art, ROUND(AVG(minat_si),1) as si,
         ROUND(AVG(minat_v),1) as v, ROUND(AVG(minat_m),1) as m,
         ROUND(AVG(minat_k),1) as k
-      FROM siswa_psikotes sp ${where}
+      FROM siswa_psikotes sp ${join} ${where}
     `).bind(...params).first<any>(),
   ])
 
