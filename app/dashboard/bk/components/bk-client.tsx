@@ -645,33 +645,33 @@ function TabRekaman({ currentUserId, userRole, taAktif, topikAll, isAdmin, kelas
       <div className="bg-surface border border-surface rounded-xl p-3 space-y-2">
         {/* Baris 1: filter */}
         <div className="flex flex-wrap gap-2">
-          <Select value={filterBidang} onValueChange={v => setFilterBidang(v as any)}>
+          <Select value={filterBidang || "all"} onValueChange={v => setFilterBidang(v === "all" ? "" : v as any)}>
             <SelectTrigger className="h-8 w-36 text-xs rounded-lg border-surface">
               <SelectValue placeholder="Semua bidang" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="" className="text-xs">Semua bidang</SelectItem>
+              <SelectItem value="all" className="text-xs">Semua bidang</SelectItem>
               {BIDANG_LIST.map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
             </SelectContent>
           </Select>
 
-          <Select value={filterTindakLanjut} onValueChange={v => setFilterTindakLanjut(v as any)}>
+          <Select value={filterTindakLanjut || "all"} onValueChange={v => setFilterTindakLanjut(v === "all" ? "" : v as any)}>
             <SelectTrigger className="h-8 w-44 text-xs rounded-lg border-surface">
               <SelectValue placeholder="Semua tindak lanjut" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="" className="text-xs">Semua tindak lanjut</SelectItem>
+              <SelectItem value="all" className="text-xs">Semua tindak lanjut</SelectItem>
               {TINDAK_LANJUT_OPTIONS.map(t => <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>)}
             </SelectContent>
           </Select>
 
           {isAdmin && kelasBinaan.length > 0 && (
-            <Select value={filterKelas} onValueChange={setFilterKelas}>
+            <Select value={filterKelas || "all"} onValueChange={v => setFilterKelas(v === "all" ? "" : v)}>
               <SelectTrigger className="h-8 w-36 text-xs rounded-lg border-surface">
                 <SelectValue placeholder="Semua kelas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="" className="text-xs">Semua kelas</SelectItem>
+                <SelectItem value="all" className="text-xs">Semua kelas</SelectItem>
                 {kelasBinaan.map(k => (
                   <SelectItem key={k.id} value={k.id} className="text-xs">
                     {k.tingkat}-{k.nomor_kelas} {k.kelompok}
