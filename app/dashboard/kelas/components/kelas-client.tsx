@@ -7,12 +7,13 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, Trash2, Users, ChevronRight, UserCircle, Library, Pencil, AlertTriangle, Save, Loader2, ChevronDown } from 'lucide-react'
+import { Search, Trash2, Users, ChevronRight, UserCircle, Library, Pencil, AlertTriangle, Save, Loader2, ChevronDown, Printer } from 'lucide-react'
 import { TambahModal } from './tambah-modal'
 import { ImportModal } from './import-modal'
 import { EditModal } from './edit-modal'
 import { hapusKelas, batchUpdateKelas } from '../actions'
 import { AssignBKModal } from './assign-bk-modal'
+import { CetakAbsensiModal } from './cetak-absensi-modal'
 import { cn } from '@/lib/utils'
 
 type KelasData = {
@@ -133,6 +134,17 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
         <div className="flex gap-2 ml-auto">
           {userRole === 'super_admin' && (
             <AssignBKModal kelasList={sortedData.map(k => ({ id: k.id, tingkat: k.tingkat, nomor_kelas: k.nomor_kelas, kelompok: k.kelompok }))} />
+          )}
+          {(userRole === 'admin_tu' || userRole === 'super_admin') && (
+            <CetakAbsensiModal
+              daftarKelas={sortedData.map(k => ({
+                id: k.id,
+                tingkat: k.tingkat,
+                nomor_kelas: k.nomor_kelas,
+                kelompok: k.kelompok,
+                jumlah_siswa: k.jumlah_siswa,
+              }))}
+            />
           )}
           <ImportModal />
           <TambahModal daftarGuru={daftarGuru} daftarJurusan={daftarJurusan} />
