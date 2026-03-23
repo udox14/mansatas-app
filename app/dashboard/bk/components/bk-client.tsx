@@ -14,8 +14,9 @@ import {
   CalendarDays, Clock, FileText, Tag, ChevronDown, ChevronUp
 } from 'lucide-react'
 import {
-  searchSiswaBinaan, getRekamanSiswa, tambahRekamanBK, editRekamanBK,
-  hapusRekamanBK, tambahSesiPenanganan, hapusSesiPenanganan,
+  searchSiswaBinaan, getRekamanSiswa, getListSiswaBerrekaman,
+  tambahRekamanBK, editRekamanBK, hapusRekamanBK,
+  tambahSesiPenanganan, hapusSesiPenanganan,
   tambahTopikBK, editTopikBK, hapusTopikBK,
 } from '../actions'
 import type { BidangBK, TipePenanganan, TindakLanjut, SesiPenanganan } from '../actions'
@@ -314,112 +315,308 @@ function SesiPenangananPanel({ rekamanId, sesiList, canEdit, onChanged }: {
   )
 }
 
-// ── Sub: Card Rekaman ──────────────────────────────────────────────────
-function CardRekaman({ rekaman, canEdit, topikAll, onDeleted, onUpdated }: {
+// ── Sub: RekamanItem (extracted untuk avoid hooks-in-map) ────────────
+function RekamanItem({ rekaman, canEdit, topikAll, guruBkId, taId, onChanged, onDeleted }: {
   rekaman: Rekaman
   canEdit: boolean
   topikAll: Topik[]
-  onDeleted: (id: string) => void
-  onUpdated: (updated: Rekaman) => void
+  guruBkId: string
+  taId: string
+  onChanged: () => void
+  onDeleted: () => void
 }) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
   const [sesiList, setSesiList] = useState<SesiPenanganan[]>(rekaman.penanganan)
+  const [isEditing, setIsEditing] = useState(false)
 
-  const handleDelete = async () => {
-    if (!confirm('Hapus rekaman BK ini beserta semua sesi penanganannya?')) return
-    const res = await hapusRekamanBK(rekaman.id)
-    if (res.error) { alert(res.error); return }
-    onDeleted(rekaman.id)
+  const TIPE_COLOR: Record<TipePenanganan, string> = {
+    KONSELING:          'bg-blue-50 text-blue-700 border-blue-200',
+    KONSELING_KELOMPOK: 'bg-violet-50 text-violet-700 border-violet-200',
+    HOME_VISIT:         'bg-amber-50 text-amber-700 border-amber-200',
   }
 
   return (
-    <div className="rounded-xl border border-surface bg-surface overflow-hidden">
-      {/* Header card */}
-      <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-surface-2 transition-colors"
-        onClick={() => setIsExpanded(e => !e)}>
+    <div key={rekaman.id} className="rounded-xl border border-surface bg-surface overflow-hidden">
+      {/* Header rekaman */}
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 bg-surface-2 border-b border-surface-2">
         <Badge label={rekaman.bidang} colorClass={BIDANG_COLORS[rekaman.bidang]} />
-        <div className="flex-1 min-w-0">
-          {rekaman.topik_nama && (
-            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{rekaman.topik_nama}</p>
-          )}
-          <p className="text-[10px] text-slate-400 dark:text-slate-500">
-            {new Date(rekaman.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-            {' · '}{rekaman.guru_nama?.split(',')[0]}
-          </p>
-        </div>
-        <Badge label={TINDAK_LANJUT_OPTIONS.find(t => t.value === rekaman.tindak_lanjut)?.label ?? rekaman.tindak_lanjut}
-          colorClass={TINDAK_LANJUT_COLORS[rekaman.tindak_lanjut]} />
-        <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">{sesiList.length} sesi</span>
-        {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />}
+        {rekaman.topik_nama && (
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{rekaman.topik_nama}</span>
+        )}
+        <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-auto">
+          {new Date(rekaman.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+        </span>
+        <Badge
+          label={TINDAK_LANJUT_OPTIONS.find(t => t.value === rekaman.tindak_lanjut)?.label ?? rekaman.tindak_lanjut}
+          colorClass={TINDAK_LANJUT_COLORS[rekaman.tindak_lanjut]}
+        />
       </div>
 
-      {/* Body */}
-      {isExpanded && (
-        <div className="border-t border-surface-2 px-3 py-3 space-y-3">
-          {isEditing ? (
-            <FormRekaman
-              siswa={{ id: '', nisn: '', nama_lengkap: '', foto_url: null, tingkat: 0, nomor_kelas: '', kelas_kelompok: '' }}
-              taId=""
-              guruBkId=""
-              topikAll={topikAll}
-              editData={rekaman}
-              onSaved={updated => { onUpdated(updated); setIsEditing(false) }}
-              onClose={() => setIsEditing(false)}
-            />
-          ) : (
-            <>
-              {rekaman.deskripsi && (
-                <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
-                  {rekaman.deskripsi}
-                </p>
-              )}
+      <div className="px-3 py-3 space-y-3">
+        {isEditing ? (
+          <FormRekaman
+            siswa={{ id: '', nisn: '', nama_lengkap: '', foto_url: null, tingkat: 0, nomor_kelas: '', kelas_kelompok: '' }}
+            taId={taId}
+            guruBkId={guruBkId}
+            topikAll={topikAll}
+            editData={rekaman}
+            onSaved={updated => {
+              setIsEditing(false)
+              onChanged()
+            }}
+            onClose={() => setIsEditing(false)}
+          />
+        ) : (
+          <>
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+              <Clock className="h-3 w-3 shrink-0" />
+              Dicatat oleh {rekaman.guru_nama?.split(',')[0]} · Diperbarui {new Date(rekaman.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </div>
+
+            {rekaman.deskripsi ? (
+              <div className="rounded-lg bg-surface-2 px-3 py-2.5">
+                <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Deskripsi</p>
+                <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">{rekaman.deskripsi}</p>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 dark:text-slate-500 italic">Tidak ada deskripsi.</p>
+            )}
+
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Penanganan</p>
               <SesiPenangananPanel
                 rekamanId={rekaman.id}
                 sesiList={sesiList}
                 canEdit={canEdit}
-                onChanged={setSesiList}
+                onChanged={newList => { setSesiList(newList); onChanged() }}
               />
-              {canEdit && (
-                <div className="flex gap-2 pt-1 border-t border-surface-2">
-                  <button onClick={() => setIsEditing(true)}
-                    className="flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 font-medium">
-                    <Pencil className="h-3 w-3" /> Edit
-                  </button>
-                  <button onClick={handleDelete}
-                    className="flex items-center gap-1 text-[11px] text-rose-500 hover:text-rose-700 font-medium ml-auto">
-                    <Trash2 className="h-3 w-3" /> Hapus
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
+            </div>
+
+            <div className="flex items-center gap-2 pt-1 border-t border-surface-2">
+              <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Tindak Lanjut:</p>
+              <Badge
+                label={TINDAK_LANJUT_OPTIONS.find(t => t.value === rekaman.tindak_lanjut)?.label ?? rekaman.tindak_lanjut}
+                colorClass={TINDAK_LANJUT_COLORS[rekaman.tindak_lanjut]}
+              />
+            </div>
+
+            {canEdit && (
+              <div className="flex gap-3 pt-1 border-t border-surface-2">
+                <button onClick={() => setIsEditing(true)}
+                  className="flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 font-medium">
+                  <Pencil className="h-3 w-3" /> Edit
+                </button>
+                <button onClick={async () => {
+                  if (!confirm('Hapus rekaman ini?')) return
+                  const res = await hapusRekamanBK(rekaman.id)
+                  if (res.error) { alert(res.error); return }
+                  onDeleted()
+                }} className="flex items-center gap-1 text-[11px] text-rose-500 hover:text-rose-700 font-medium ml-auto">
+                  <Trash2 className="h-3 w-3" /> Hapus
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }
 
-// ── Sub: Tab Rekaman BK ────────────────────────────────────────────────
-function TabRekaman({ currentUserId, userRole, taAktif, topikAll, isAdmin }: {
+// ── Sub: Modal Detail Rekaman Siswa ──────────────────────────────────
+function ModalDetailSiswa({
+  siswa, taId, guruBkId, userRole, topikAll, onClose, onDataChanged,
+}: {
+  siswa: { id: string; nama_lengkap: string; nisn: string; foto_url: string | null; tingkat: number; nomor_kelas: string; kelas_kelompok: string }
+  taId: string
+  guruBkId: string
+  userRole: string
+  topikAll: Topik[]
+  onClose: () => void
+  onDataChanged: () => void
+}) {
+  const [rekamanList, setRekamanList] = useState<Rekaman[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [bidangFilter, setBidangFilter] = useState<BidangBK | 'Semua'>('Semua')
+  const canEdit = userRole === 'guru_bk' || userRole === 'super_admin'
+
+  useEffect(() => {
+    getRekamanSiswa(siswa.id, taId).then(data => {
+      setRekamanList(data as Rekaman[])
+      setIsLoading(false)
+    })
+  }, [siswa.id, taId])
+
+  const rekamanFiltered = bidangFilter === 'Semua'
+    ? rekamanList
+    : rekamanList.filter(r => r.bidang === bidangFilter)
+
+  const TIPE_COLOR: Record<TipePenanganan, string> = {
+    KONSELING:          'bg-blue-50 text-blue-700 border-blue-200',
+    KONSELING_KELOMPOK: 'bg-violet-50 text-violet-700 border-violet-200',
+    HOME_VISIT:         'bg-amber-50 text-amber-700 border-amber-200',
+  }
+
+  return (
+    <Dialog open onOpenChange={open => !open && onClose()}>
+      <DialogContent className="sm:max-w-2xl rounded-xl max-h-[90vh] flex flex-col p-0 gap-0">
+        {/* Header */}
+        <DialogHeader className="px-4 py-3 border-b border-surface-2 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
+              {siswa.foto_url
+                ? <img src={siswa.foto_url} alt="" className="h-full w-full object-cover" />
+                : <span className="text-sm font-bold text-slate-500">{siswa.nama_lengkap.charAt(0)}</span>}
+            </div>
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{siswa.nama_lengkap}</DialogTitle>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">{siswa.nisn} · Kelas {siswa.tingkat}-{siswa.nomor_kelas} {siswa.kelas_kelompok}</p>
+            </div>
+            {canEdit && (
+              <Button size="sm" onClick={() => setShowForm(true)}
+                className="h-8 text-xs gap-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg shrink-0">
+                <Plus className="h-3.5 w-3.5" /> Rekaman Baru
+              </Button>
+            )}
+          </div>
+        </DialogHeader>
+
+        {/* Filter bidang */}
+        {rekamanList.length > 0 && (
+          <div className="px-4 py-2 border-b border-surface-2 flex gap-1.5 flex-wrap shrink-0">
+            <button onClick={() => setBidangFilter('Semua')}
+              className={cn('px-2.5 py-1 rounded-md text-xs font-semibold border transition-all',
+                bidangFilter === 'Semua' ? 'bg-slate-900 text-white border-slate-900' : 'bg-surface-2 text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-3')}>
+              Semua ({rekamanList.length})
+            </button>
+            {BIDANG_LIST.map(b => {
+              const count = rekamanList.filter(r => r.bidang === b).length
+              if (!count) return null
+              return (
+                <button key={b} onClick={() => setBidangFilter(b)}
+                  className={cn('px-2.5 py-1 rounded-md text-xs font-semibold border transition-all',
+                    bidangFilter === b ? BIDANG_COLORS[b] : 'bg-surface-2 text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-3')}>
+                  {b} ({count})
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Body */}
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="px-4 py-3 space-y-3">
+            {isLoading && (
+              <div className="flex items-center justify-center py-10 gap-2 text-slate-400 dark:text-slate-500">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="text-sm">Memuat riwayat...</span>
+              </div>
+            )}
+
+            {!isLoading && rekamanFiltered.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400 dark:text-slate-500">
+                <FileText className="h-6 w-6 text-slate-300 dark:text-slate-600" />
+                <p className="text-sm">Belum ada rekaman BK untuk siswa ini</p>
+              </div>
+            )}
+
+            {!isLoading && rekamanFiltered.map(r => (
+              <RekamanItem
+                key={r.id}
+                rekaman={r}
+                canEdit={canEdit}
+                topikAll={topikAll}
+                guruBkId={guruBkId}
+                taId={taId}
+                onChanged={() => onDataChanged()}
+                onDeleted={() => {
+                  setRekamanList(prev => prev.filter(x => x.id !== r.id))
+                  onDataChanged()
+                }}
+              />
+            ))}
+          </div>
+        </ScrollArea>
+
+        {/* Form tambah rekaman baru */}
+        {showForm && (
+          <div className="border-t border-surface-2 px-4 py-3 shrink-0 bg-surface">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Rekaman Baru</p>
+              <button onClick={() => setShowForm(false)}
+                className="p-1 rounded text-slate-400 dark:text-slate-500 hover:bg-surface-2">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <FormRekaman
+              siswa={siswa as any}
+              taId={taId}
+              guruBkId={guruBkId}
+              topikAll={topikAll}
+              onSaved={() => {}}
+              onClose={async () => {
+                setShowForm(false)
+                const data = await getRekamanSiswa(siswa.id, taId)
+                setRekamanList(data as Rekaman[])
+                onDataChanged()
+              }}
+            />
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Sub: Tab Rekaman BK (tabel + modal) ───────────────────────────────
+function TabRekaman({ currentUserId, userRole, taAktif, topikAll, isAdmin, kelasBinaan }: {
   currentUserId: string
   userRole: string
   taAktif: { id: string; nama: string; semester: number } | null
   topikAll: Topik[]
   isAdmin: boolean
+  kelasBinaan: KelasInfo[]
 }) {
+  // Filter state
+  const [filterBidang, setFilterBidang] = useState<BidangBK | ''>('')
+  const [filterTindakLanjut, setFilterTindakLanjut] = useState<TindakLanjut | ''>('')
+  const [filterKelas, setFilterKelas] = useState('')
+  const [page, setPage] = useState(1)
+
+  // Data state
+  const [rows, setRows] = useState<any[]>([])
+  const [total, setTotal] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [selectedSiswa, setSelectedSiswa] = useState<any | null>(null)
+
+  // Search tambah siswa baru
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SiswaResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const [selectedSiswa, setSelectedSiswa] = useState<SiswaResult | null>(null)
-  const [rekamanList, setRekamanList] = useState<Rekaman[]>([])
-  const [isLoadingRekaman, setIsLoadingRekaman] = useState(false)
-  const [showForm, setShowForm] = useState(false)
-  const [bidangFilter, setBidangFilter] = useState<BidangBK | 'Semua'>('Semua')
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const PAGE_SIZE = 10
+  const totalPages = Math.ceil(total / PAGE_SIZE)
   const canEdit = userRole === 'guru_bk' || userRole === 'super_admin'
 
-  // Lazy search dengan debounce
+  const loadData = useCallback(async (p: number = 1) => {
+    if (!taAktif) return
+    setIsLoading(true)
+    const res = await getListSiswaBerrekaman(
+      currentUserId, taAktif.id, isAdmin,
+      { bidang: filterBidang, tindak_lanjut: filterTindakLanjut, kelas_id: filterKelas },
+      p, PAGE_SIZE
+    )
+    setRows(res.rows)
+    setTotal(res.total)
+    setPage(p)
+    setIsLoading(false)
+  }, [currentUserId, taAktif, isAdmin, filterBidang, filterTindakLanjut, filterKelas])
+
+  // Auto-load saat mount dan saat filter berubah
+  useEffect(() => { loadData(1) }, [filterBidang, filterTindakLanjut, filterKelas, taAktif])
+
+  // Lazy search siswa baru
   useEffect(() => {
     if (searchQuery.trim().length < 2) { setSearchResults([]); return }
     if (searchTimeout.current) clearTimeout(searchTimeout.current)
@@ -433,199 +630,258 @@ function TabRekaman({ currentUserId, userRole, taAktif, topikAll, isAdmin }: {
     return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current) }
   }, [searchQuery, currentUserId, taAktif])
 
-  const handleSelectSiswa = async (siswa: SiswaResult) => {
-    setSelectedSiswa(siswa)
-    setSearchQuery('')
-    setSearchResults([])
-    if (!taAktif) return
-    setIsLoadingRekaman(true)
-    const data = await getRekamanSiswa(siswa.id, taAktif.id)
-    setRekamanList(data as Rekaman[])
-    setIsLoadingRekaman(false)
-  }
-
-  const rekamanFiltered = bidangFilter === 'Semua'
-    ? rekamanList
-    : rekamanList.filter(r => r.bidang === bidangFilter)
-
   if (!taAktif) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400 dark:text-slate-500">
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
         <AlertCircle className="h-8 w-8 text-amber-400" />
         <p className="text-sm font-medium text-amber-600">Tahun Ajaran aktif belum diatur.</p>
-        <p className="text-xs">Silakan atur di menu Pengaturan terlebih dahulu.</p>
       </div>
     )
   }
 
   return (
     <div className="space-y-3">
-      {/* Search bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
-        {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500 animate-spin" />}
-        <Input
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Cari nama siswa atau NISN..."
-          className="pl-9 h-10 rounded-xl border-surface bg-surface text-sm"
-        />
-        {/* Dropdown hasil search */}
-        {searchResults.length > 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-surface border border-surface rounded-xl shadow-lg z-20 overflow-hidden">
-            {searchResults.map(s => (
-              <div key={s.id} onClick={() => handleSelectSiswa(s)}
-                className="flex items-center gap-3 px-3 py-2.5 hover:bg-surface-2 cursor-pointer transition-colors">
-                <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
-                  {s.foto_url
-                    ? <img src={s.foto_url} alt="" className="h-full w-full object-cover" />
-                    : <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{s.nama_lengkap.charAt(0)}</span>
-                  }
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500">{s.nisn} · {s.tingkat}-{s.nomor_kelas} {s.kelas_kelompok}</p>
-                </div>
-                <ChevronRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600 shrink-0" />
+      {/* TOOLBAR: Filter + Search */}
+      <div className="bg-surface border border-surface rounded-xl p-3 space-y-2">
+        {/* Baris 1: filter */}
+        <div className="flex flex-wrap gap-2">
+          <Select value={filterBidang} onValueChange={v => setFilterBidang(v as any)}>
+            <SelectTrigger className="h-8 w-36 text-xs rounded-lg border-surface">
+              <SelectValue placeholder="Semua bidang" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="" className="text-xs">Semua bidang</SelectItem>
+              {BIDANG_LIST.map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select value={filterTindakLanjut} onValueChange={v => setFilterTindakLanjut(v as any)}>
+            <SelectTrigger className="h-8 w-44 text-xs rounded-lg border-surface">
+              <SelectValue placeholder="Semua tindak lanjut" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="" className="text-xs">Semua tindak lanjut</SelectItem>
+              {TINDAK_LANJUT_OPTIONS.map(t => <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          {isAdmin && kelasBinaan.length > 0 && (
+            <Select value={filterKelas} onValueChange={setFilterKelas}>
+              <SelectTrigger className="h-8 w-36 text-xs rounded-lg border-surface">
+                <SelectValue placeholder="Semua kelas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="" className="text-xs">Semua kelas</SelectItem>
+                {kelasBinaan.map(k => (
+                  <SelectItem key={k.id} value={k.id} className="text-xs">
+                    {k.tingkat}-{k.nomor_kelas} {k.kelompok}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <button onClick={() => { setFilterBidang(''); setFilterTindakLanjut(''); setFilterKelas('') }}
+            className="h-8 px-3 text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 hover:bg-surface-2 rounded-lg border border-surface transition-colors">
+            Reset filter
+          </button>
+        </div>
+
+        {/* Baris 2: search tambah rekaman baru */}
+        {canEdit && (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+            {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500 animate-spin" />}
+            <Input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Cari siswa untuk buat rekaman baru..."
+              className="pl-9 h-9 rounded-lg border-surface bg-surface-2 text-xs"
+            />
+            {searchResults.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-surface border border-surface rounded-xl shadow-lg z-20 overflow-hidden">
+                {searchResults.map(s => (
+                  <div key={s.id} onClick={() => { setSelectedSiswa(s); setSearchQuery(''); setSearchResults([]) }}
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-surface-2 cursor-pointer transition-colors">
+                    <div className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
+                      {s.foto_url
+                        ? <img src={s.foto_url} alt="" className="h-full w-full object-cover" />
+                        : <span className="text-[10px] font-bold text-slate-500">{s.nama_lengkap.charAt(0)}</span>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">{s.nisn} · {s.tingkat}-{s.nomor_kelas}</p>
+                    </div>
+                    <ChevronRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600 shrink-0" />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-        {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-surface border border-surface rounded-xl shadow-lg z-20 px-4 py-3 text-xs text-slate-400 dark:text-slate-500">
-            Siswa tidak ditemukan
+            )}
+            {searchQuery.length >= 2 && !isSearching && searchResults.length === 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-surface border border-surface rounded-xl shadow-lg z-20 px-4 py-3 text-xs text-slate-400 dark:text-slate-500">
+                Siswa tidak ditemukan di kelas binaan
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Area rekaman siswa */}
-      {!selectedSiswa ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-400 dark:text-slate-500">
-          <div className="p-4 rounded-full bg-surface-2 border border-surface">
-            <HeartHandshake className="h-8 w-8 text-slate-300 dark:text-slate-600" />
-          </div>
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Cari siswa untuk melihat riwayat</p>
-          <p className="text-xs">Ketik minimal 2 karakter nama atau NISN</p>
+      {/* TABEL SISWA */}
+      <div className="bg-surface border border-surface rounded-xl overflow-hidden">
+        {/* Header info */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-surface-2">
+          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+            {isLoading ? 'Memuat...' : `${total} siswa terrekam`}
+          </p>
+          <button onClick={() => loadData(page)}
+            className="text-[11px] text-slate-400 dark:text-slate-500 hover:text-slate-600 flex items-center gap-1">
+            <Clock className="h-3 w-3" /> Refresh
+          </button>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {/* Header siswa terpilih */}
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-surface border border-surface">
-            <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
-              {selectedSiswa.foto_url
-                ? <img src={selectedSiswa.foto_url} alt="" className="h-full w-full object-cover" />
-                : <span className="text-sm font-bold text-slate-500 dark:text-slate-400">{selectedSiswa.nama_lengkap.charAt(0)}</span>
-              }
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{selectedSiswa.nama_lengkap}</p>
-              <p className="text-xs text-slate-400 dark:text-slate-500">
-                {selectedSiswa.nisn} · Kelas {selectedSiswa.tingkat}-{selectedSiswa.nomor_kelas} {selectedSiswa.kelas_kelompok}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {canEdit && (
-                <Button size="sm" onClick={() => setShowForm(true)}
-                  className="h-8 text-xs gap-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg">
-                  <Plus className="h-3.5 w-3.5" /> Rekaman Baru
-                </Button>
-              )}
-              <button onClick={() => { setSelectedSiswa(null); setRekamanList([]) }}
-                className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:bg-surface-2 transition-colors">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12 gap-2 text-slate-400 dark:text-slate-500">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">Memuat data...</span>
           </div>
-
-          {/* Filter bidang */}
-          {rekamanList.length > 0 && (
-            <div className="flex gap-1.5 flex-wrap">
-              <button onClick={() => setBidangFilter('Semua')}
-                className={cn('px-2.5 py-1 rounded-md text-xs font-semibold border transition-all',
-                  bidangFilter === 'Semua' ? 'bg-slate-900 text-white border-slate-900' : 'bg-surface-2 text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-3')}>
-                Semua ({rekamanList.length})
-              </button>
-              {BIDANG_LIST.map(b => {
-                const count = rekamanList.filter(r => r.bidang === b).length
-                if (count === 0) return null
-                return (
-                  <button key={b} onClick={() => setBidangFilter(b)}
-                    className={cn('px-2.5 py-1 rounded-md text-xs font-semibold border transition-all',
-                      bidangFilter === b ? BIDANG_COLORS[b] : 'bg-surface-2 text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-3')}>
-                    {b} ({count})
-                  </button>
-                )
-              })}
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400 dark:text-slate-500">
+            <HeartHandshake className="h-8 w-8 text-slate-300 dark:text-slate-600" />
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Belum ada rekaman BK</p>
+            {canEdit && <p className="text-xs">Cari siswa di atas untuk membuat rekaman baru</p>}
+          </div>
+        ) : (
+          <>
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-surface-2 border-b border-surface-2">
+                    <th className="text-left px-4 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Siswa</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Kelas</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Bidang</th>
+                    <th className="text-center px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Rekaman</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Terakhir</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-2">
+                  {rows.map((row: any) => (
+                    <tr key={row.siswa_id}
+                      onClick={() => setSelectedSiswa(row)}
+                      className="hover:bg-surface-2 cursor-pointer transition-colors group">
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
+                            {row.foto_url
+                              ? <img src={row.foto_url} alt="" className="h-full w-full object-cover" />
+                              : <span className="text-[10px] font-bold text-slate-500">{row.nama_lengkap?.charAt(0)}</span>}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-800 dark:text-slate-100 truncate text-xs">{row.nama_lengkap}</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500">{row.nisn}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                        {row.tingkat}-{row.nomor_kelas} <span className="text-slate-400 dark:text-slate-500">{row.kelas_kelompok}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-wrap gap-1">
+                          {(row.bidang_list || '').split(',').filter(Boolean).map((b: string) => (
+                            <Badge key={b} label={b.trim()} colorClass={BIDANG_COLORS[b.trim() as BidangBK] ?? 'bg-surface-3 text-slate-500 border-surface'} />
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <span className="font-bold text-slate-700 dark:text-slate-200">{row.jumlah_rekaman}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                        {new Date(row.rekaman_terakhir).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {row.belum_count > 0 ? (
+                          <Badge label={`${row.belum_count} belum`} colorClass="bg-amber-50 text-amber-700 border-amber-200" />
+                        ) : (
+                          <Badge label="Selesai" colorClass="bg-emerald-50 text-emerald-700 border-emerald-200" />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
 
-          {/* Loading */}
-          {isLoadingRekaman && (
-            <div className="flex items-center justify-center py-8 gap-2 text-slate-400 dark:text-slate-500">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">Memuat riwayat...</span>
-            </div>
-          )}
-
-          {/* Empty rekaman */}
-          {!isLoadingRekaman && rekamanFiltered.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400 dark:text-slate-500">
-              <FileText className="h-6 w-6 text-slate-300 dark:text-slate-600" />
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Belum ada rekaman BK</p>
-              {canEdit && <p className="text-xs">Klik "Rekaman Baru" untuk mulai mencatat</p>}
-            </div>
-          )}
-
-          {/* List rekaman */}
-          {!isLoadingRekaman && rekamanFiltered.length > 0 && (
-            <div className="space-y-2">
-              {rekamanFiltered.map(r => (
-                <CardRekaman
-                  key={r.id}
-                  rekaman={r}
-                  canEdit={canEdit}
-                  topikAll={topikAll}
-                  onDeleted={id => setRekamanList(prev => prev.filter(x => x.id !== id))}
-                  onUpdated={updated => setRekamanList(prev => prev.map(x => x.id === updated.id ? updated : x))}
-                />
+            {/* Mobile cards */}
+            <div className="md:hidden divide-y divide-surface-2">
+              {rows.map((row: any) => (
+                <div key={row.siswa_id}
+                  onClick={() => setSelectedSiswa(row)}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 cursor-pointer transition-colors">
+                  <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden">
+                    {row.foto_url
+                      ? <img src={row.foto_url} alt="" className="h-full w-full object-cover" />
+                      : <span className="text-xs font-bold text-slate-500">{row.nama_lengkap?.charAt(0)}</span>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{row.nama_lengkap}</p>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                      {row.tingkat}-{row.nomor_kelas} · {row.jumlah_rekaman} rekaman
+                    </p>
+                    <div className="flex gap-1 mt-1 flex-wrap">
+                      {(row.bidang_list || '').split(',').filter(Boolean).map((b: string) => (
+                        <Badge key={b} label={b.trim()} colorClass={BIDANG_COLORS[b.trim() as BidangBK] ?? 'bg-surface-3 text-slate-500 border-surface'} />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {row.belum_count > 0
+                      ? <Badge label={`${row.belum_count} belum`} colorClass="bg-amber-50 text-amber-700 border-amber-200" />
+                      : <Badge label="Selesai" colorClass="bg-emerald-50 text-emerald-700 border-emerald-200" />}
+                    <ChevronRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />
+                  </div>
+                </div>
               ))}
             </div>
-          )}
-        </div>
-      )}
 
-      {/* Dialog form tambah rekaman */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="sm:max-w-lg rounded-xl">
-          <DialogHeader className="border-b border-surface-2 pb-3">
-            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
-              <HeartHandshake className="h-4 w-4 text-rose-500" />
-              Rekaman BK Baru — {selectedSiswa?.nama_lengkap.split(' ').slice(0, 2).join(' ')}
-            </DialogTitle>
-          </DialogHeader>
-          <ScrollArea className="max-h-[70vh] pr-1">
-            <div className="py-2 px-1">
-              {selectedSiswa && taAktif && (
-                <FormRekaman
-                  siswa={selectedSiswa}
-                  taId={taAktif.id}
-                  guruBkId={currentUserId}
-                  topikAll={topikAll}
-                  onSaved={() => {}}
-                  onClose={async () => {
-                    setShowForm(false)
-                    // Refresh rekaman
-                    if (taAktif) {
-                      const data = await getRekamanSiswa(selectedSiswa.id, taAktif.id)
-                      setRekamanList(data as Rekaman[])
-                    }
-                  }}
-                />
-              )}
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-2.5 border-t border-surface-2">
+                <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                  Hal. {page} dari {totalPages} ({total} siswa)
+                </span>
+                <div className="flex gap-1.5">
+                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => loadData(page - 1)}
+                    className="h-7 px-3 text-xs rounded-lg">← Prev</Button>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => loadData(page + 1)}
+                    className="h-7 px-3 text-xs rounded-lg">Next →</Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Modal detail siswa */}
+      {selectedSiswa && (
+        <ModalDetailSiswa
+          siswa={{
+            id: selectedSiswa.siswa_id || selectedSiswa.id,
+            nama_lengkap: selectedSiswa.nama_lengkap,
+            nisn: selectedSiswa.nisn,
+            foto_url: selectedSiswa.foto_url,
+            tingkat: selectedSiswa.tingkat,
+            nomor_kelas: selectedSiswa.nomor_kelas,
+            kelas_kelompok: selectedSiswa.kelas_kelompok,
+          }}
+          taId={taAktif.id}
+          guruBkId={currentUserId}
+          userRole={userRole}
+          topikAll={topikAll}
+          onClose={() => setSelectedSiswa(null)}
+          onDataChanged={() => loadData(page)}
+        />
+      )}
     </div>
   )
 }
@@ -845,6 +1101,7 @@ export function BKClient({
             taAktif={taAktif}
             topikAll={topikAll}
             isAdmin={isAdmin}
+            kelasBinaan={kelasBinaan}
           />
         </TabsContent>
 
