@@ -269,6 +269,89 @@ export async function hapusSesiPenanganan(rekaman_id: string, sesi_id: string) {
   return { success: 'Sesi dihapus.' }
 }
 
+
+// ============================================================
+// LIST SISWA YANG SUDAH PUNYA REKAMAN (untuk tabel utama)
+// ============================================================
+export async function getListSiswaBerrekaman(
+  guru_bk_id: string,
+  tahun_ajaran_id: string,
+  is_admin: boolean,
+  filter: {
+    bidang?: BidangBK | ''
+    tindak_lanjut?: TindakLanjut | ''
+    kelas_id?: string
+  },
+  page: number = 1,
+  pageSize: number = 10
+) {
+  const db = await getDB()
+
+  // Bangun WHERE clause
+  const conditions: string[] = ['r.tahun_ajaran_id = ?']
+  const params: any[] = [tahun_ajaran_id]
+
+  if (!is_admin) {
+    // Guru BK: hanya siswa dari kelas binaannya
+    const binaanRes = await db.prepare(
+      'SELECT kelas_id FROM kelas_binaan_bk WHERE guru_bk_id = ?'
+    ).bind(guru_bk_id).all<{ kelas_id: string }>()
+    const kelasIds = (binaanRes.results || []).map(r => r.kelas_id)
+    if (kelasIds.length === 0) return { rows: [], total: 0 }
+    conditions.push(`s.kelas_id IN (${kelasIds.map(() => '?').join(',')})`)
+    params.push(...kelasIds)
+  } else if (filter.kelas_id) {
+    conditions.push('s.kelas_id = ?')
+    params.push(filter.kelas_id)
+  }
+
+  if (filter.bidang) {
+    conditions.push('r.bidang = ?')
+    params.push(filter.bidang)
+  }
+  if (filter.tindak_lanjut) {
+    conditions.push('r.tindak_lanjut = ?')
+    params.push(filter.tindak_lanjut)
+  }
+
+  const where = conditions.join(' AND ')
+
+  // Hitung total siswa unik (untuk pagination)
+  const countRes = await db.prepare(`
+    SELECT COUNT(DISTINCT r.siswa_id) as total
+    FROM bk_rekaman r
+    JOIN siswa s ON r.siswa_id = s.id
+    WHERE ${where}
+  `).bind(...params).first<{ total: number }>()
+  const total = countRes?.total ?? 0
+
+  // Ambil data dengan pagination
+  const offset = (page - 1) * pageSize
+  const rows = await db.prepare(`
+    SELECT
+      s.id as siswa_id,
+      s.nama_lengkap,
+      s.nisn,
+      s.foto_url,
+      k.tingkat,
+      k.nomor_kelas,
+      k.kelompok as kelas_kelompok,
+      COUNT(r.id) as jumlah_rekaman,
+      MAX(r.created_at) as rekaman_terakhir,
+      GROUP_CONCAT(DISTINCT r.bidang) as bidang_list,
+      SUM(CASE WHEN r.tindak_lanjut = 'BELUM' THEN 1 ELSE 0 END) as belum_count
+    FROM bk_rekaman r
+    JOIN siswa s ON r.siswa_id = s.id
+    LEFT JOIN kelas k ON s.kelas_id = k.id
+    WHERE ${where}
+    GROUP BY s.id, s.nama_lengkap, s.nisn, s.foto_url, k.tingkat, k.nomor_kelas, k.kelompok
+    ORDER BY MAX(r.created_at) DESC
+    LIMIT ? OFFSET ?
+  `).bind(...params, pageSize, offset).all<any>()
+
+  return { rows: rows.results || [], total }
+}
+
 // ============================================================
 // 4. DATA UNTUK PAGE (1 batch query)
 // ============================================================
