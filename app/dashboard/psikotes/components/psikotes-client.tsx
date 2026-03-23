@@ -53,6 +53,22 @@ const KAMUS: { kode: string; nama: string; deskripsi: string; kategori: string }
   { kode: 'K', nama: 'Kinestetik', deskripsi: 'Gaya belajar dengan bergerak dan menyentuh: praktik, eksperimen, dan simulasi.', kategori: 'Gaya Belajar' },
   { kode: 'RIASEC', nama: 'Holland Occupational Themes', deskripsi: 'Model kepribadian karir: Realistic (praktis), Investigative (analitis), Artistic (kreatif), Social (sosial), Enterprising (pemimpin), Conventional (teratur).', kategori: 'Karir' },
   { kode: 'MBTI', nama: 'Myers-Briggs Type Indicator', deskripsi: '16 tipe kepribadian berdasarkan 4 dimensi: E/I (Ekstrover/Introver), S/N (Sensing/Intuition), T/F (Thinking/Feeling), J/P (Judging/Perceiving).', kategori: 'Kepribadian' },
+  { kode: 'ISTJ', nama: 'Inspektur', deskripsi: 'Tenang, serius, bertanggung jawab. Menghargai tradisi dan kesetiaan. Cocok: auditor, akuntan, manajer.', kategori: 'MBTI' },
+  { kode: 'ISFJ', nama: 'Pelindung', deskripsi: 'Hangat, teliti, perhatian. Berkomitmen tinggi dan ingin membuat perbedaan. Cocok: perawat, guru, konselor.', kategori: 'MBTI' },
+  { kode: 'INFJ', nama: 'Penasihat', deskripsi: 'Penuh wawasan dan inspiratif. Berprinsip kuat dan visioner. Cocok: psikolog, penulis, dokter.', kategori: 'MBTI' },
+  { kode: 'INTJ', nama: 'Arsitek', deskripsi: 'Strategis, mandiri, analitis. Perfeksionis dengan standar tinggi. Cocok: ilmuwan, insinyur, pengacara.', kategori: 'MBTI' },
+  { kode: 'ISTP', nama: 'Pengrajin', deskripsi: 'Toleran, fleksibel, praktis. Suka menganalisis cara kerja sesuatu. Cocok: mekanik, teknisi, pilot.', kategori: 'MBTI' },
+  { kode: 'ISFP', nama: 'Seniman', deskripsi: 'Tenang, ramah, peka. Menikmati momen sekarang. Cocok: desainer, musisi, fotografer.', kategori: 'MBTI' },
+  { kode: 'INFP', nama: 'Mediator', deskripsi: 'Idealis, setia pada nilai. Ingin memahami dan membantu orang lain. Cocok: penulis, konselor, aktivis.', kategori: 'MBTI' },
+  { kode: 'INTP', nama: 'Pemikir', deskripsi: 'Tenang, analitis, skeptis. Suka teori dan ide abstrak. Cocok: filsuf, arsitek, programmer.', kategori: 'MBTI' },
+  { kode: 'ESTP', nama: 'Pengusaha', deskripsi: 'Spontan, energik, suka memecahkan masalah langsung. Cocok: pengusaha, polisi, paramedis.', kategori: 'MBTI' },
+  { kode: 'ESFP', nama: 'Penghibur', deskripsi: 'Spontan, semangat, suka membuat orang senang. Cocok: aktor, guru, event organizer.', kategori: 'MBTI' },
+  { kode: 'ENFP', nama: 'Penggagas', deskripsi: 'Kreatif, antusias, imajinatif. Melihat potensi di mana-mana. Cocok: jurnalis, konsultan, seniman.', kategori: 'MBTI' },
+  { kode: 'ENTP', nama: 'Pendebat', deskripsi: 'Cepat, cerdas, suka berdebat. Pandai menemukan solusi inovatif. Cocok: pengacara, ilmuwan, entrepreneur.', kategori: 'MBTI' },
+  { kode: 'ESTJ', nama: 'Eksekutif', deskripsi: 'Praktis, realistis, tegas. Suka mengorganisasi orang dan proyek. Cocok: manajer, hakim, kepala sekolah.', kategori: 'MBTI' },
+  { kode: 'ESFJ', nama: 'Konsul', deskripsi: 'Hangat, bertanggung jawab, suka harmoni. Ingin menyenangkan orang lain. Cocok: guru, dokter, perawat.', kategori: 'MBTI' },
+  { kode: 'ENFJ', nama: 'Protagonis', deskripsi: 'Karismatik, empatik, pemimpin alami. Sensitif terhadap kebutuhan orang lain. Cocok: guru, konselor, politisi.', kategori: 'MBTI' },
+  { kode: 'ENTJ', nama: 'Komandan', deskripsi: 'Tegas, berani, imajinatif. Selalu menemukan cara untuk mencapai tujuan. Cocok: CEO, pengacara, direktur.', kategori: 'MBTI' },
 ]
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -133,21 +149,39 @@ function RadarChart({ data, labels, color = '#7c3aed' }: {
 }
 
 // ── Bar Chart SVG ──────────────────────────────────────────────────────
-function BarChart({ data, color = '#7c3aed' }: { data: { label: string; value: number; total: number }[]; color?: string }) {
+function BarChart({ data, colors }: {
+  data: { label: string; value: number; total: number; color?: string }[]
+  colors?: string[]
+}) {
   const maxVal = Math.max(...data.map(d => d.value), 1)
-  const barW = Math.floor(240 / data.length) - 4
+  const n = data.length
+  const svgW = 260
+  const barW = Math.max(24, Math.floor((svgW - 8) / n) - 6)
+  const slotW = (svgW - 8) / n
+  // Tinggi SVG: 20 (angka atas) + 60 (bar) + 12 (label) + 12 (pct) = 104
+  const svgH = 104
+  const barMaxH = 52
+
   return (
-    <svg viewBox={`0 0 240 80`} className="w-full">
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full">
       {data.map((d, i) => {
-        const h = Math.max(2, (d.value / maxVal) * 55)
-        const x = i * (240 / data.length) + 2
+        const h = Math.max(3, (d.value / maxVal) * barMaxH)
+        const cx = 4 + slotW * i + slotW / 2
+        const barX = cx - barW / 2
+        const barTop = 20 + barMaxH - h
         const pct = d.total > 0 ? Math.round(d.value / d.total * 100) : 0
+        const col = d.color ?? (colors?.[i]) ?? '#7c3aed'
         return (
           <g key={i}>
-            <rect x={x} y={60 - h} width={barW} height={h} rx="3" fill={color} fillOpacity="0.85" />
-            <text x={x + barW/2} y={58 - h} textAnchor="middle" fontSize="8" fontWeight="700" fill={color}>{d.value}</text>
-            <text x={x + barW/2} y={70} textAnchor="middle" fontSize="7" fill="#94a3b8">{d.label}</text>
-            <text x={x + barW/2} y={78} textAnchor="middle" fontSize="7" fill="#94a3b8">{pct}%</text>
+            {/* Angka di atas bar — tidak terpotong karena ada ruang 20px */}
+            <text x={cx} y={barTop - 3} textAnchor="middle" fontSize="8" fontWeight="700" fill={col}>
+              {d.value}
+            </text>
+            <rect x={barX} y={barTop} width={barW} height={h} rx="3" fill={col} fillOpacity="0.85" />
+            {/* Label */}
+            <text x={cx} y={20 + barMaxH + 10} textAnchor="middle" fontSize="7" fill="#94a3b8">{d.label}</text>
+            {/* Persen */}
+            <text x={cx} y={20 + barMaxH + 20} textAnchor="middle" fontSize="7" fill="#94a3b8">{pct}%</text>
           </g>
         )
       })}
@@ -236,7 +270,8 @@ function ModalDetail({ siswaId, onClose, isAdmin, onDeleted }: {
                 <span className="text-sm">Memuat data...</span>
               </div>
             ) : data ? (
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-3 pr-8">
+                {/* pr-8 = beri ruang untuk tombol X bawaan Dialog yang absolute */}
                 <div className="h-10 w-10 rounded-full bg-violet-100 flex items-center justify-center shrink-0 overflow-hidden">
                   {data.foto_url
                     ? <img src={data.foto_url} alt="" className="h-full w-full object-cover" />
@@ -248,12 +283,13 @@ function ModalDetail({ siswaId, onClose, isAdmin, onDeleted }: {
                     Kelas {data.tingkat}-{data.nomor_kelas} {data.kelas_kelompok}
                     {data.usia_thn ? ` · Usia ${data.usia_thn} thn ${data.usia_bln ?? 0} bln saat tes` : ''}
                   </p>
+                  {/* Tombol kamus di bawah info siswa — tidak bersinggungan dengan X */}
+                  <button onClick={() => setShowKamus(true)}
+                    className="mt-1.5 flex items-center gap-1 text-[11px] text-violet-500 hover:text-violet-700 font-medium transition-colors"
+                    title="Kamus Istilah">
+                    <HelpCircle className="h-3 w-3" /> Kamus Istilah
+                  </button>
                 </div>
-                <button onClick={() => setShowKamus(true)}
-                  className="shrink-0 h-7 w-7 flex items-center justify-center rounded-lg text-violet-500 hover:bg-violet-50 transition-colors"
-                  title="Kamus Istilah">
-                  <HelpCircle className="h-4 w-4" />
-                </button>
               </div>
             ) : null}
           </DialogHeader>
@@ -408,7 +444,7 @@ function TabDaftar({ kelasList, isAdmin, userRole }: {
   const [selectedSiswa, setSelectedSiswa] = useState<string | null>(null)
   const [showKamus, setShowKamus] = useState(false)
   const searchRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const PAGE_SIZE = 20
+  const PAGE_SIZE = 10
 
   const loadData = useCallback(async (p = 1) => {
     setIsLoading(true)
@@ -516,7 +552,7 @@ function TabDaftar({ kelasList, isAdmin, userRole }: {
           <div className="flex flex-col items-center justify-center py-14 gap-2 text-slate-400 dark:text-slate-500">
             <Brain className="h-8 w-8 text-slate-300 dark:text-slate-600" />
             <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Belum ada data psikotes</p>
-            <p className="text-xs">Import data dari tab Pengaturan & Import</p>
+            <p className="text-xs">Import data dari tab Import</p>
           </div>
         ) : (
           <>
@@ -681,10 +717,10 @@ function TabAnalitik({ kelasList }: { kelasList: KelasItem[] }) {
           {/* IQ Distribusi */}
           <div className="bg-surface border border-surface rounded-xl p-4">
             <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Distribusi Klasifikasi IQ</p>
-            <BarChart color="#7c3aed"
+            <BarChart
               data={data.iqDist.map((d: any) => ({
                 label: d.iq_klasifikasi?.replace('Di atas rata-rata', '↑Avg').replace('Di bawah rata-rata', '↓Avg').replace('Rata-rata', 'Avg') ?? '?',
-                value: d.n, total: totalSiswa
+                value: d.n, total: totalSiswa, color: '#7c3aed',
               }))}
             />
           </div>
@@ -692,58 +728,84 @@ function TabAnalitik({ kelasList }: { kelasList: KelasItem[] }) {
           {/* Gaya Belajar */}
           <div className="bg-surface border border-surface rounded-xl p-4">
             <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Distribusi Gaya Belajar</p>
-            <BarChart color="#0891b2"
-              data={data.gayaDist.map((d: any) => ({ label: d.gaya_belajar?.charAt(0) ?? '?', value: d.n, total: totalSiswa }))}
-            />
-            <div className="flex gap-3 mt-2 justify-center">
-              {data.gayaDist.map((d: any) => (
-                <div key={d.gaya_belajar} className="flex items-center gap-1">
-                  <span className={cn('h-2 w-2 rounded-full', d.gaya_belajar === 'VISUAL' ? 'bg-blue-500' : d.gaya_belajar === 'AUDITORI' ? 'bg-emerald-500' : 'bg-amber-500')} />
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400">{d.gaya_belajar}</span>
-                </div>
-              ))}
-            </div>
+            {(() => {
+              const GAYA_COL: Record<string, string> = {
+                VISUAL: '#3b82f6', AUDITORI: '#10b981', KINESTETIK: '#f59e0b',
+                AUDITORY: '#f59e0b',
+              }
+              return (
+                <>
+                  <BarChart
+                    data={data.gayaDist.map((d: any) => ({
+                      label: d.gaya_belajar ?? '?',
+                      value: d.n,
+                      total: totalSiswa,
+                      color: GAYA_COL[d.gaya_belajar?.toUpperCase()] ?? '#64748b',
+                    }))}
+                  />
+                  <div className="flex flex-wrap gap-2 mt-2 justify-center">
+                    {data.gayaDist.map((d: any) => {
+                      const col = GAYA_COL[d.gaya_belajar?.toUpperCase()] ?? '#64748b'
+                      return (
+                        <div key={d.gaya_belajar} className="flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full shrink-0" style={{ background: col }} />
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">{d.gaya_belajar}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )
+            })()}
           </div>
 
           {/* Rekom Jurusan */}
           <div className="bg-surface border border-surface rounded-xl p-4">
             <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Rekomendasi Jurusan</p>
-            <BarChart color="#059669"
-              data={data.rekomDist.map((d: any) => ({ label: d.rekom_jurusan ?? '?', value: d.n, total: totalSiswa }))}
+            <BarChart
+              data={data.rekomDist.map((d: any) => ({ label: d.rekom_jurusan ?? '?', value: d.n, total: totalSiswa, color: '#059669' }))}
             />
           </div>
 
           {/* RIASEC */}
           <div className="bg-surface border border-surface rounded-xl p-4">
-            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Tipe RIASEC Dominan</p>
-            <div className="space-y-2">
-              {data.riasecDist.slice(0, 6).map((d: any) => (
-                <div key={d.tipe} className="flex items-center gap-2">
-                  <span className="text-[11px] font-bold text-violet-600 w-20 shrink-0">{d.tipe}</span>
-                  <div className="flex-1 h-2 rounded-full bg-surface-3 overflow-hidden">
-                    <div className="h-full rounded-full bg-violet-400"
-                      style={{ width: `${Math.round(d.n / totalSiswa * 100)}%` }} />
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Tipe RIASEC</p>
+            <div className="space-y-2.5">
+              {data.riasecDist.map((d: any) => {
+                const pct = Math.round(d.n / totalSiswa * 100)
+                return (
+                  <div key={d.tipe}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-bold text-violet-600">{d.tipe}</span>
+                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">{d.n} <span className="text-slate-400 dark:text-slate-500 font-normal">({pct}%)</span></span>
+                    </div>
+                    <div className="h-2 rounded-full bg-surface-3 overflow-hidden">
+                      <div className="h-full rounded-full bg-violet-400 transition-all" style={{ width: `${pct}%` }} />
+                    </div>
                   </div>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 w-12 text-right shrink-0">{d.n} ({Math.round(d.n/totalSiswa*100)}%)</span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 
-          {/* MBTI Top */}
+          {/* MBTI */}
           <div className="bg-surface border border-surface rounded-xl p-4">
-            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Top 8 MBTI</p>
-            <div className="space-y-1.5">
-              {data.mbtiDist.map((d: any) => (
-                <div key={d.mbti} className="flex items-center gap-2">
-                  <span className="text-[11px] font-mono font-bold text-blue-600 w-10 shrink-0">{d.mbti}</span>
-                  <div className="flex-1 h-1.5 rounded-full bg-surface-3 overflow-hidden">
-                    <div className="h-full rounded-full bg-blue-400"
-                      style={{ width: `${Math.round(d.n / totalSiswa * 100)}%` }} />
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Distribusi MBTI</p>
+            <div className="space-y-2">
+              {data.mbtiDist.map((d: any) => {
+                const pct = Math.round(d.n / totalSiswa * 100)
+                return (
+                  <div key={d.mbti}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-mono font-bold text-blue-600">{d.mbti}</span>
+                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">{d.n} <span className="text-slate-400 dark:text-slate-500 font-normal">({pct}%)</span></span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-surface-3 overflow-hidden">
+                      <div className="h-full rounded-full bg-blue-400 transition-all" style={{ width: `${pct}%` }} />
+                    </div>
                   </div>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 w-12 text-right shrink-0">{d.n} ({Math.round(d.n/totalSiswa*100)}%)</span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 
@@ -1371,7 +1433,7 @@ export function PsikotesClient({ mappingList, kelasList, stats, userRole, isAdmi
           </TabsTrigger>
           {canImport && (
             <TabsTrigger value="import" className="py-2 rounded-md data-[state=active]:bg-slate-700 data-[state=active]:text-white text-xs font-medium">
-              Pengaturan & Import
+              Import
             </TabsTrigger>
           )}
         </TabsList>
