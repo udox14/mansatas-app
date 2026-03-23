@@ -12,6 +12,7 @@ import {
   LineChart,
   DoorOpen,
   HeartHandshake,
+  Brain,
 } from 'lucide-react'
 
 export type MenuItem = {
@@ -87,6 +88,12 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/bk',
     icon: HeartHandshake,
     roles: ['super_admin', 'kepsek', 'wakamad', 'guru_bk']
+  },
+  {
+    title: 'Psikotes & Minat',
+    href: '/dashboard/psikotes',
+    icon: Brain,
+    roles: ['super_admin', 'kepsek', 'wakamad', 'guru_bk', 'guru']
   },
   {
     title: 'Pengaturan',
