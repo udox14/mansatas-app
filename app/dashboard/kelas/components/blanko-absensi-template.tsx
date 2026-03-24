@@ -73,7 +73,7 @@ export const BlankoAbsensiTemplate = React.forwardRef<HTMLDivElement, Props>(
                 verticalAlign: 'middle',
                 padding: 0,
                 border: 'none',
-                paddingLeft: '0pt',   /* logo mulai dari kiri content */
+                paddingLeft: '100pt',   /* logo mulai dari kiri content */
               }}>
                 <img
                   src="/logokemenaghitam.png"
@@ -95,20 +95,20 @@ export const BlankoAbsensiTemplate = React.forwardRef<HTMLDivElement, Props>(
                 border: 'none',
                 lineHeight: 1.35,
               }}>
-                <div style={{ fontFamily: FONT, fontSize: '10pt', fontWeight: 'normal' }}>
+                <div style={{ fontFamily: FONT, fontSize: '14pt', fontWeight: 700 }}>
                   KEMENTERIAN AGAMA REPUBLIK INDONESIA
                 </div>
-                <div style={{ fontFamily: FONT, fontSize: '10pt', fontWeight: 'normal' }}>
+                <div style={{ fontFamily: FONT, fontSize: '14pt', fontWeight: 700 }}>
                   KANTOR KEMENTERIAN AGAMA KAB. TASIKMALAYA
                 </div>
-                <div style={{ fontFamily: FONT, fontSize: '13pt', fontWeight: 700, margin: '1pt 0' }}>
+                <div style={{ fontFamily: FONT, fontSize: '14pt', fontWeight: 700, margin: '1pt 0' }}>
                   MADRASAH ALIYAH NEGERI 1 TASIKMALAYA
                 </div>
-                <div style={{ fontFamily: FONT, fontSize: '7.5pt', fontWeight: 'normal' }}>
+                <div style={{ fontFamily: FONT, fontSize: '10pt', fontWeight: 'normal' }}>
                   Jalan Pahlawan KH. Zainal Musthafa Desa Sukarapih Kec. Sukarame Kab. Tasikmalaya
                 </div>
-                <div style={{ fontFamily: FONT, fontSize: '7.5pt', fontWeight: 'normal' }}>
-                  website : www.manegeri1tasikmalaya.sch.id &nbsp;&nbsp; email : manegerisukamanah@gmail.com
+                <div style={{ fontFamily: FONT, fontSize: '10pt', fontWeight: 'normal' }}>
+                  website : www.man1tasikmalaya.sch.id &nbsp;&nbsp; email : manegerisukamanah@gmail.com
                 </div>
               </td>
             </tr>
