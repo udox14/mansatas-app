@@ -2,6 +2,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -9,18 +10,28 @@ import { Button } from '@/components/ui/button'
 import { 
   User, GraduationCap, ShieldAlert, DoorOpen, LineChart, 
   MapPin, Phone, Users, CheckCircle2, History, AlertTriangle, 
-  Image as ImageIcon, ChevronDown, ChevronUp, BookOpen, Pencil
+  Image as ImageIcon, ChevronDown, ChevronUp, BookOpen, Pencil,
+  LogOut, RotateCcw
 } from 'lucide-react'
 import { EditSiswaModal } from '../../components/edit-modal'
+import { TandaiKeluarModal, BatalkanKeluarModal } from './tandai-keluar-modal'
 
 export function DetailSiswaClient({ 
-  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, kelasList
+  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, kelasList, currentUser
 }: { 
   siswa: any, riwayatKelas: any[], pelanggaran: any[], izinKeluar: any[], izinKelas: any[]
-  kelasList?: any[]
+  kelasList?: any[],
+  currentUser: any
 }) {
+  const router = useRouter()
+  const [showKeluarModal, setShowKeluarModal] = useState(false)
+  const [showBatalkanModal, setShowBatalkanModal] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   
+  // Define canFullEdit based on currentUser role
+  const userRole = currentUser?.role || 'wali_murid'
+  const canFullEdit = ['super_admin', 'admin_tu'].includes(userRole)
+
   // State untuk Accordion Akademik (Otomatis buka kelas saat ini, atau kelas 10 jika belum ada)
   const [openAccordion, setOpenAccordion] = useState<number | null>(siswa.kelas?.tingkat || 10)
   const toggleAccordion = (val: number) => setOpenAccordion(prev => prev === val ? null : val)
@@ -154,6 +165,15 @@ export function DetailSiswaClient({
     )
   }
 
+  // Refresh handler after success actions
+  const handleSuccess = () => {
+    // Refresh the page to reflect changes (or use router.refresh() if using App Router)
+    router.refresh()
+    // Also close modals
+    setShowKeluarModal(false)
+    setShowBatalkanModal(false)
+  }
+
   return (
     <div className="space-y-6">
       
@@ -193,9 +213,16 @@ export function DetailSiswaClient({
             
             {/* BADGES + TOMBOL EDIT */}
             <div className="flex flex-wrap justify-center md:justify-end gap-2 items-center">
-              <span className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide border ${siswa.status === 'aktif' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : siswa.status === 'lulus' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-rose-100 text-rose-800 border-rose-200'}`}>
-                {siswa.status}
-              </span>
+              <div className="flex flex-col items-center gap-0.5">
+                <span className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide border ${siswa.status === 'aktif' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : siswa.status === 'lulus' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-rose-100 text-rose-800 border-rose-200'}`}>
+                  {siswa.status}
+                </span>
+                {siswa.status === 'keluar' && siswa.tanggal_keluar && (
+                  <span className="text-[10px] text-rose-500 font-medium">
+                    {new Date(siswa.tanggal_keluar).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
               <span className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-surface-3 text-slate-700 dark:text-slate-200 border border-surface shadow-sm flex items-center gap-1.5">
                 <GraduationCap className="h-3.5 w-3.5" /> Kelas {namaKelasSekarang}
               </span>
@@ -212,6 +239,26 @@ export function DetailSiswaClient({
               >
                 <Pencil className="h-3.5 w-3.5" /> Edit Biodata
               </Button>
+              {canFullEdit && siswa.status === 'aktif' && (
+                <Button
+                  onClick={() => setShowKeluarModal(true)}
+                  size="sm"
+                  variant="outline"
+                  className="h-8 px-3 text-xs font-semibold border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 gap-1.5"
+                >
+                  <LogOut className="h-3.5 w-3.5" /> Tandai Keluar
+                </Button>
+              )}
+              {canFullEdit && siswa.status === 'keluar' && (
+                <Button
+                  onClick={() => setShowBatalkanModal(true)}
+                  size="sm"
+                  variant="outline"
+                  className="h-8 px-3 text-xs font-semibold border-amber-200 text-amber-600 hover:bg-amber-50 gap-1.5"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Batalkan Keluar
+                </Button>
+              )}
             </div>
           </div>
           
@@ -434,6 +481,20 @@ export function DetailSiswaClient({
         </TabsContent>
 
       </Tabs>
+
+      {/* Modal Tandai Keluar & Batalkan Keluar */}
+      <TandaiKeluarModal
+        siswaId={siswa.id}
+        namaSiswa={siswa.nama_lengkap}
+        onSuccess={handleSuccess}
+        onClose={() => setShowKeluarModal(false)}
+      />
+      <BatalkanKeluarModal
+        siswaId={siswa.id}
+        namaSiswa={siswa.nama_lengkap}
+        onSuccess={handleSuccess}
+        onClose={() => setShowBatalkanModal(false)}
+      />
     </div>
   )
 }

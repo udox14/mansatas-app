@@ -130,9 +130,69 @@ export async function ubahStatusSiswa(id: string, status: string) {
     { id }
   )
   if (result.error) return { error: result.error }
-
   revalidatePath('/dashboard/siswa')
   return { success: `Status siswa berhasil diubah menjadi ${status}.` }
+}
+
+// Tandai siswa keluar — update status + simpan info keluar + lepas dari kelas
+export async function tandaiSiswaKeluar(payload: {
+  siswa_id: string
+  tanggal_keluar: string
+  alasan_keluar: string
+  keterangan_keluar: string
+}) {
+  const db = await getDB()
+  const result = await dbUpdate(db, 'siswa', {
+    status: 'keluar',
+    kelas_id: null,
+    tanggal_keluar: payload.tanggal_keluar,
+    alasan_keluar: payload.alasan_keluar,
+    keterangan_keluar: payload.keterangan_keluar || null,
+    updated_at: new Date().toISOString(),
+  }, { id: payload.siswa_id })
+  if (result.error) return { error: result.error }
+  revalidatePath('/dashboard/siswa')
+  revalidatePath(`/dashboard/siswa/${payload.siswa_id}`)
+  return { success: 'Siswa berhasil ditandai keluar.' }
+}
+
+// Batalkan status keluar — kembalikan ke aktif (tanpa kelas, admin assign manual)
+export async function batalkanKeluarSiswa(siswa_id: string) {
+  const db = await getDB()
+  const result = await dbUpdate(db, 'siswa', {
+    status: 'aktif',
+    tanggal_keluar: null,
+    alasan_keluar: null,
+    keterangan_keluar: null,
+    updated_at: new Date().toISOString(),
+  }, { id: siswa_id })
+  if (result.error) return { error: result.error }
+  revalidatePath('/dashboard/siswa')
+  revalidatePath(`/dashboard/siswa/${siswa_id}`)
+  return { success: 'Status keluar siswa berhasil dibatalkan.' }
+}
+
+// Ambil daftar siswa keluar — lazy load, dipanggil saat tab Keluar dibuka
+export async function getSiswaKeluar(search?: string) {
+  const db = await getDB()
+  const params: any[] = []
+  let whereExtra = ''
+  if (search && search.trim().length >= 2) {
+    whereExtra = `AND (LOWER(s.nama_lengkap) LIKE LOWER(?) OR s.nisn LIKE ?)`
+    params.push(`%${search}%`, `%${search}%`)
+  }
+
+  const res = await db.prepare(`
+    SELECT
+      s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin, s.foto_url,
+      s.tanggal_keluar, s.alasan_keluar, s.keterangan_keluar,
+      s.updated_at
+    FROM siswa s
+    WHERE s.status = 'keluar' ${whereExtra}
+    ORDER BY s.tanggal_keluar DESC, s.nama_lengkap ASC
+  `).bind(...params).all<any>()
+
+  return res.results || []
 }
 
 // ============================================================
