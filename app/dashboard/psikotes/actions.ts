@@ -192,7 +192,9 @@ export async function getAnalitikPsikotes(kelas_id?: string) {
   const [iqDist, gayaDist, rekomDist, riasecDist, mbtiDist, bakatAvg, minatAvg] = await Promise.all([
     db.prepare(makeQuery('SELECT iq_klasifikasi, COUNT(*) as n') + ' GROUP BY iq_klasifikasi ORDER BY n DESC')
       .bind(...params).all<any>(),
-    db.prepare(makeQuery('SELECT gaya_belajar, COUNT(*) as n') + ' GROUP BY gaya_belajar ORDER BY n DESC')
+    db.prepare(makeQuery(
+      `SELECT CASE WHEN UPPER(gaya_belajar) = 'AUDITORY' THEN 'AUDITORI' ELSE gaya_belajar END as gaya_belajar, COUNT(*) as n`
+    ) + ' GROUP BY 1 ORDER BY n DESC')
       .bind(...params).all<any>(),
     db.prepare(makeQuery('SELECT rekom_jurusan, COUNT(*) as n', 'rekom_jurusan IS NOT NULL') + ' GROUP BY rekom_jurusan ORDER BY n DESC')
       .bind(...params).all<any>(),
@@ -264,7 +266,8 @@ export async function fuzzyMatchNama(namaList: string[]): Promise<{
   if (namaList.length === 0) return []
   const db = await getDB()
 
-  // Ambil semua siswa aktif sekali saja (hemat query)
+  // 1 query untuk SEMUA nama — tidak peduli berapa chunk yang dikirim client
+  // Fungsi ini dirancang untuk menerima semua nama sekaligus
   const allSiswa = await db.prepare(`
     SELECT s.id, s.nama_lengkap, s.nisn, k.tingkat, k.nomor_kelas, k.kelompok
     FROM siswa s
@@ -339,6 +342,14 @@ export async function importPsikotesChunk(rows: {
 
   // Build statements
   const statements = rows.map(row => {
+    const normalizeGaya = (g: string | null | undefined) => {
+      if (!g) return null
+      const up = g.toUpperCase().trim()
+      // Normalisasi typo umum
+      if (up === 'AUDITORY') return 'AUDITORI'
+      if (up === 'KINESTHETIC' || up === 'KINESTETIS') return 'KINESTETIK'
+      return up
+    }
     const rekom_jurusan = row.rekom_raw
       ? (mappingMap.get(row.rekom_raw.toUpperCase().trim()) ?? null)
       : null
@@ -425,4 +436,23 @@ export async function hapusPsikotes(siswa_id: string) {
   if (result.error) return { error: result.error }
   revalidatePath('/dashboard/psikotes')
   return { success: 'Data psikotes berhasil dihapus.' }
+}
+
+// ============================================================
+// NORMALIZE: perbaiki typo gaya_belajar di data yang sudah ada
+// ============================================================
+export async function normalizeGayaBelajar() {
+  const db = await getDB()
+  const res = await db.prepare(`
+    UPDATE siswa_psikotes
+    SET gaya_belajar = CASE
+      WHEN UPPER(gaya_belajar) = 'AUDITORY'   THEN 'AUDITORI'
+      WHEN UPPER(gaya_belajar) = 'KINESTETIS'  THEN 'KINESTETIK'
+      WHEN UPPER(gaya_belajar) = 'KINESTHETIC' THEN 'KINESTETIK'
+      ELSE gaya_belajar
+    END
+    WHERE UPPER(gaya_belajar) IN ('AUDITORY', 'KINESTETIS', 'KINESTHETIC')
+  `).run()
+  revalidatePath('/dashboard/psikotes')
+  return { success: `Normalisasi selesai.` }
 }
