@@ -73,7 +73,7 @@ export const BlankoAbsensiTemplate = React.forwardRef<HTMLDivElement, Props>(
                 verticalAlign: 'middle',
                 padding: 0,
                 border: 'none',
-                paddingLeft: '100pt',   /* logo mulai dari kiri content */
+                paddingLeft: '10pt',   /* logo mulai dari kiri content */
               }}>
                 <img
                   src="/logokemenaghitam.png"
