@@ -1,125 +1,171 @@
 // Lokasi: app/dashboard/kelas/components/blanko-absensi-template.tsx
-// Komponen ini di-render oleh react-to-print. Murni CSS print-safe, NO Tailwind.
+// Pure inline-CSS — NO Tailwind. Print-safe untuk F4 (215mm x 330mm).
+// Font: Book Antiqua → Palatino Linotype → serif (fallback)
 
 import React from 'react'
 import type { BlankAbsensiData } from '../actions-print'
 
-interface BlankoAbsensiTemplateProps {
+interface Props {
   data: BlankAbsensiData
   tanggalCetak: string
+  /** Jika true, halaman ini bukan yang pertama — tambah page-break-before */
+  pageBreak?: boolean
 }
 
-export const BlankoAbsensiTemplate = React.forwardRef<HTMLDivElement, BlankoAbsensiTemplateProps>(
-  ({ data, tanggalCetak }, ref) => {
+// Jumlah baris minimum di tabel (termasuk siswa + baris kosong)
+const MIN_ROWS = 33
+
+export const BlankoAbsensiTemplate = React.forwardRef<HTMLDivElement, Props>(
+  ({ data, tanggalCetak, pageBreak = false }, ref) => {
     const { kelas, tahun_ajaran, siswa, jumlah_l, jumlah_p } = data
     const namaKelas = `${kelas.tingkat}.${kelas.nomor_kelas}`
-    const TALabel = tahun_ajaran ? `${tahun_ajaran.nama}` : '-'
-
-    // F4 = 210mm x 330mm. Padding 10mm kiri-kanan, 8mm atas-bawah
-    // Jam ke 1-10 + S, I, A = 13 kolom
+    const TALabel = tahun_ajaran?.nama ?? '-'
     const jamKe = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
+    // Baris kosong pengisi agar total = MIN_ROWS
+    const emptyRows = Math.max(0, MIN_ROWS - siswa.length)
+
     return (
-      <div ref={ref} style={styles.page}>
-        {/* ===== KEMENTERIAN HEADER ===== */}
-        <div style={styles.headerWrap}>
-          <img
-            src="/logokemenag.png"
-            alt="Logo Kemenag"
-            style={styles.logo}
-          />
-          <div style={styles.headerText}>
-            <div style={styles.h1}>KEMENTERIAN AGAMA REPUBLIK INDONESIA</div>
-            <div style={styles.h1}>KANTOR KEMENTERIAN AGAMA KAB. TASIKMALAYA</div>
-            <div style={styles.h1bold}>MADRASAH ALIYAH NEGERI 1 TASIKMALAYA</div>
-            <div style={styles.h2}>
+      <div
+        ref={ref}
+        style={{
+          ...s.page,
+          ...(pageBreak ? { pageBreakBefore: 'always' } : {}),
+        }}
+      >
+        {/* ══════════════════════════════════════════
+            KOP SURAT
+        ══════════════════════════════════════════ */}
+        <div style={s.kop}>
+          {/* Logo kiri */}
+          <div style={s.logoWrap}>
+            <img src="/logokemenaghitam.png" alt="Logo" style={s.logo} />
+          </div>
+
+          {/* Teks tengah */}
+          <div style={s.kopTeks}>
+            <div style={s.kopBaris1}>KEMENTERIAN AGAMA REPUBLIK INDONESIA</div>
+            <div style={s.kopBaris1}>KANTOR KEMENTERIAN AGAMA KAB. TASIKMALAYA</div>
+            <div style={s.kopBaris2}>MADRASAH ALIYAH NEGERI 1 TASIKMALAYA</div>
+            <div style={s.kopBaris3}>
               Jalan Pahlawan KH. Zainal Musthafa Desa Sukarapih Kec. Sukarame Kab. Tasikmalaya
             </div>
-            <div style={styles.h2}>
-              website : www.manegeri1tasikmalaya.sch.id &nbsp; email : manegerisukamanah@gmail.com
+            <div style={s.kopBaris3}>
+              website : www.manegeri1tasikmalaya.sch.id &nbsp;&nbsp; email : manegerisukamanah@gmail.com
             </div>
           </div>
         </div>
 
-        <div style={styles.headerLine} />
+        {/* Garis bawah kop: tebal di atas, tipis di bawah */}
+        <div style={s.garisKop} />
 
-        {/* ===== JUDUL ===== */}
-        <div style={styles.titleBlock}>
-          <div style={styles.titleMain}>DAFTAR HADIR SISWA KELAS {namaKelas}</div>
-          <div style={styles.titleSub}>TAHUN AJARAN {TALabel}</div>
+        {/* ══════════════════════════════════════════
+            JUDUL
+        ══════════════════════════════════════════ */}
+        <div style={s.judulWrap}>
+          <div style={s.judulUtama}>DAFTAR HADIR SISWA KELAS {namaKelas}</div>
+          <div style={s.judulSub}>TAHUN AJARAN {TALabel}</div>
         </div>
 
-        {/* ===== TABEL ===== */}
-        <table style={styles.table}>
+        {/* ══════════════════════════════════════════
+            TABEL ABSENSI
+        ══════════════════════════════════════════ */}
+        <table style={s.tabel}>
+          <colgroup>
+            {/* Urut */}
+            <col style={{ width: '22pt' }} />
+            {/* NIS */}
+            <col style={{ width: '38pt' }} />
+            {/* NISN */}
+            <col style={{ width: '62pt' }} />
+            {/* Nama — lebar sisanya */}
+            <col style={{ width: 'auto' }} />
+            {/* JK */}
+            <col style={{ width: '20pt' }} />
+            {/* Jam 1-10: masing-masing 14pt */}
+            {jamKe.map(j => <col key={j} style={{ width: '14pt' }} />)}
+            {/* S, I, A: masing-masing 16pt */}
+            <col style={{ width: '16pt' }} />
+            <col style={{ width: '16pt' }} />
+            <col style={{ width: '16pt' }} />
+          </colgroup>
+
           <thead>
-            {/* Baris header atas: Nomor | Nama | JK | Kehadiran Jam Ke | Absensi */}
+            {/* Baris 1: header grup */}
             <tr>
-              <th rowSpan={2} style={{ ...styles.th, ...styles.thNomor, width: 28 }}>Urut</th>
-              <th rowSpan={2} style={{ ...styles.th, ...styles.thNomor, width: 38 }}>NIS</th>
-              <th rowSpan={2} style={{ ...styles.th, ...styles.thNomor, width: 64 }}>NISN</th>
-              <th rowSpan={2} style={{ ...styles.th, width: 'auto', textAlign: 'left', paddingLeft: 6 }}>N a m a</th>
-              <th rowSpan={2} style={{ ...styles.th, ...styles.thNomor, width: 22 }}>JK</th>
-              <th colSpan={10} style={{ ...styles.th, ...styles.thCenter }}>Kehadiran Jam Ke</th>
-              <th colSpan={3} style={{ ...styles.th, ...styles.thCenter }}>Absensi</th>
+              <th rowSpan={2} style={{ ...s.th, ...s.thC, width: '22pt' }}>Urut</th>
+              <th colSpan={2} style={{ ...s.th, ...s.thC }}>Nomor</th>
+              <th rowSpan={2} style={{ ...s.th, textAlign: 'left', paddingLeft: '5pt' }}>N a m a</th>
+              <th rowSpan={2} style={{ ...s.th, ...s.thC }}>JK</th>
+              <th colSpan={10} style={{ ...s.th, ...s.thC }}>Kehadiran Jam Ke</th>
+              <th colSpan={3} style={{ ...s.th, ...s.thC }}>Absensi</th>
             </tr>
+            {/* Baris 2: sub-header */}
             <tr>
-              {jamKe.map(j => (
-                <th key={j} style={{ ...styles.th, ...styles.thJam }}>{j}</th>
-              ))}
-              <th style={{ ...styles.th, ...styles.thJam }}>S</th>
-              <th style={{ ...styles.th, ...styles.thJam }}>I</th>
-              <th style={{ ...styles.th, ...styles.thJam }}>A</th>
+              <th style={{ ...s.th, ...s.thC }}>NIS</th>
+              <th style={{ ...s.th, ...s.thC }}>NISN</th>
+              {jamKe.map(j => <th key={j} style={{ ...s.th, ...s.thC, ...s.thJam }}>{j}</th>)}
+              <th style={{ ...s.th, ...s.thC, ...s.thJam }}>S</th>
+              <th style={{ ...s.th, ...s.thC, ...s.thJam }}>I</th>
+              <th style={{ ...s.th, ...s.thC, ...s.thJam }}>A</th>
             </tr>
           </thead>
+
           <tbody>
-            {siswa.map((s) => (
-              <tr key={s.urut} style={styles.tr}>
-                <td style={{ ...styles.td, ...styles.tdCenter }}>{s.urut}</td>
-                <td style={{ ...styles.td, ...styles.tdCenter }}>{s.nis}</td>
-                <td style={{ ...styles.td, ...styles.tdCenter }}>{s.nisn}</td>
-                <td style={{ ...styles.td, paddingLeft: 6 }}>{s.nama_lengkap}</td>
-                <td style={{ ...styles.td, ...styles.tdCenter }}>{s.jenis_kelamin}</td>
-                {jamKe.map(j => (
-                  <td key={j} style={{ ...styles.td, ...styles.tdCenter }}></td>
-                ))}
-                <td style={{ ...styles.td, ...styles.tdCenter }}></td>
-                <td style={{ ...styles.td, ...styles.tdCenter }}></td>
-                <td style={{ ...styles.td, ...styles.tdCenter }}></td>
+            {/* Baris siswa */}
+            {siswa.map(sw => (
+              <tr key={sw.urut} style={s.tr}>
+                <td style={{ ...s.td, ...s.tdC }}>{sw.urut}</td>
+                <td style={{ ...s.td, ...s.tdC }}>{sw.nis}</td>
+                <td style={{ ...s.td, ...s.tdC }}>{sw.nisn}</td>
+                <td style={{ ...s.td, paddingLeft: '5pt', paddingRight: '3pt' }}>{sw.nama_lengkap}</td>
+                <td style={{ ...s.td, ...s.tdC }}>{sw.jenis_kelamin}</td>
+                {jamKe.map(j => <td key={j} style={{ ...s.td, ...s.tdC }} />)}
+                <td style={{ ...s.td, ...s.tdC }} />
+                <td style={{ ...s.td, ...s.tdC }} />
+                <td style={{ ...s.td, ...s.tdC }} />
               </tr>
             ))}
 
-            {/* Baris kosong pengisi agar total minimal 33 baris (seperti format asli) */}
-            {Array.from({ length: Math.max(0, 33 - siswa.length) }).map((_, i) => (
-              <tr key={`empty-${i}`} style={styles.tr}>
-                <td style={{ ...styles.td, ...styles.tdCenter }}>{siswa.length + i + 1 <= 33 ? siswa.length + i + 1 : ''}</td>
-                <td style={styles.td}></td>
-                <td style={styles.td}></td>
-                <td style={styles.td}></td>
-                <td style={styles.td}></td>
-                {jamKe.map(j => <td key={j} style={styles.td}></td>)}
-                <td style={styles.td}></td>
-                <td style={styles.td}></td>
-                <td style={styles.td}></td>
+            {/* Baris kosong pengisi */}
+            {Array.from({ length: emptyRows }).map((_, i) => (
+              <tr key={`e-${i}`} style={s.tr}>
+                <td style={{ ...s.td, ...s.tdC }}>{siswa.length + i + 1}</td>
+                <td style={s.td} />
+                <td style={s.td} />
+                <td style={s.td} />
+                <td style={s.td} />
+                {jamKe.map(j => <td key={j} style={{ ...s.td }} />)}
+                <td style={s.td} />
+                <td style={s.td} />
+                <td style={s.td} />
               </tr>
             ))}
           </tbody>
         </table>
 
-        {/* ===== REKAPITULASI GENDER ===== */}
-        <div style={styles.rekapRow}>
-          <div style={styles.rekapItem}>L = {jumlah_l}</div>
-          <div style={styles.rekapItem}>P = {jumlah_p}</div>
+        {/* ══════════════════════════════════════════
+            REKAP GENDER
+        ══════════════════════════════════════════ */}
+        <div style={s.rekap}>
+          <span>L = &nbsp;{jumlah_l}</span>
+          <span style={{ marginLeft: '24pt' }}>P = &nbsp;{jumlah_p}</span>
         </div>
 
-        {/* ===== TANDA TANGAN ===== */}
-        <div style={styles.ttdRow}>
-          <div style={styles.ttdKiri}>
-            <div style={styles.ttdLabel}>Dicetak pada: {tanggalCetak}</div>
+        {/* ══════════════════════════════════════════
+            AREA TTD + FOOTER TANGGAL CETAK
+        ══════════════════════════════════════════ */}
+        <div style={s.bottomRow}>
+          {/* Kiri: tanggal cetak */}
+          <div style={s.tanggalCetak}>
+            Dicetak pada: {tanggalCetak}
           </div>
-          <div style={styles.ttdKanan}>
+
+          {/* Kanan: TTD Wali Kelas */}
+          <div style={s.ttd}>
             <div>Tasikmalaya, .................................</div>
-            <div style={{ marginTop: 2 }}>Wali Kelas,</div>
-            <div style={{ marginTop: 52, fontWeight: 700, textDecoration: 'underline' }}>
+            <div style={{ marginTop: '2pt' }}>Wali Kelas,</div>
+            <div style={{ marginTop: '44pt', fontWeight: 700, textDecoration: 'underline' }}>
               {kelas.wali_kelas_nama}
             </div>
           </div>
@@ -131,136 +177,165 @@ export const BlankoAbsensiTemplate = React.forwardRef<HTMLDivElement, BlankoAbse
 
 BlankoAbsensiTemplate.displayName = 'BlankoAbsensiTemplate'
 
-// ─── Inline styles (print-safe, no Tailwind) ─────────────────────────────────
-const styles: Record<string, React.CSSProperties> = {
+// ─── Styles ──────────────────────────────────────────────────────────────────
+// Ukuran F4: 215mm x 330mm. Margin: 10mm kiri-kanan, 8mm atas, 10mm bawah.
+// Font: Book Antiqua / Palatino Linotype / serif
+
+const FONT = '"Book Antiqua", "Palatino Linotype", Palatino, "Times New Roman", serif'
+const BORDER = '0.75pt solid #000'
+
+const s: Record<string, React.CSSProperties> = {
   page: {
-    width: '210mm',
+    width: '215mm',
     minHeight: '330mm',
-    padding: '8mm 10mm 10mm 10mm',
-    fontFamily: 'Times New Roman, serif',
+    padding: '7mm 10mm 8mm 10mm',
+    fontFamily: FONT,
     fontSize: '8.5pt',
     color: '#000',
     backgroundColor: '#fff',
     boxSizing: 'border-box',
+    position: 'relative',
   },
-  headerWrap: {
+
+  // ── KOP ──
+  kop: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: '8pt',
+    marginBottom: '3pt',
+  },
+  logoWrap: {
+    flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 4,
+    justifyContent: 'center',
+    width: '52pt',
+    height: '52pt',
   },
   logo: {
-    width: 56,
-    height: 56,
+    width: '52pt',
+    height: '52pt',
     objectFit: 'contain',
-    flexShrink: 0,
   },
-  headerText: {
+  kopTeks: {
     flex: 1,
     textAlign: 'center',
-    lineHeight: 1.35,
+    lineHeight: 1.3,
   },
-  h1: {
-    fontSize: '9.5pt',
+  kopBaris1: {
+    fontFamily: FONT,
+    fontSize: '9pt',
     fontWeight: 'normal',
   },
-  h1bold: {
-    fontSize: '10.5pt',
+  kopBaris2: {
+    fontFamily: FONT,
+    fontSize: '11pt',
     fontWeight: 700,
+    marginTop: '1pt',
+    marginBottom: '1pt',
   },
-  h2: {
+  kopBaris3: {
+    fontFamily: FONT,
     fontSize: '7.5pt',
     fontWeight: 'normal',
   },
-  headerLine: {
-    borderTop: '2.5px solid #000',
-    borderBottom: '1px solid #000',
-    margin: '4px 0 6px 0',
-    paddingBottom: 1,
+
+  // Garis kop: border-top tebal 2.5pt, border-bottom tipis 0.75pt
+  garisKop: {
+    marginTop: '3pt',
+    marginBottom: '4pt',
+    borderTop: '2.5pt solid #000',
+    borderBottom: '0.75pt solid #000',
+    paddingBottom: '1.5pt',
   },
-  titleBlock: {
+
+  // ── JUDUL ──
+  judulWrap: {
     textAlign: 'center',
-    marginBottom: 6,
+    marginBottom: '5pt',
+    lineHeight: 1.4,
   },
-  titleMain: {
+  judulUtama: {
+    fontFamily: FONT,
     fontSize: '10pt',
     fontWeight: 700,
-    letterSpacing: 0.5,
+    letterSpacing: '0.5pt',
   },
-  titleSub: {
+  judulSub: {
+    fontFamily: FONT,
     fontSize: '9.5pt',
     fontWeight: 700,
   },
-  table: {
+
+  // ── TABEL ──
+  tabel: {
     width: '100%',
     borderCollapse: 'collapse',
     tableLayout: 'fixed',
   },
   th: {
-    border: '0.8px solid #000',
-    padding: '3px 2px',
+    border: BORDER,
+    padding: '2pt 2pt',
+    fontFamily: FONT,
     fontSize: '7.5pt',
     fontWeight: 700,
     verticalAlign: 'middle',
-    backgroundColor: '#fff',
     lineHeight: 1.2,
+    backgroundColor: '#fff',
   },
-  thNomor: {
-    textAlign: 'center',
-  },
-  thCenter: {
+  thC: {
     textAlign: 'center',
   },
   thJam: {
-    textAlign: 'center',
-    width: 16,
-    padding: '2px 1px',
     fontSize: '7pt',
+    padding: '2pt 1pt',
   },
   tr: {
-    height: 18,
+    height: '15pt',
   },
   td: {
-    border: '0.8px solid #000',
-    padding: '1px 2px',
+    border: BORDER,
+    padding: '1pt 2pt',
+    fontFamily: FONT,
     fontSize: '7.5pt',
     verticalAlign: 'middle',
-    lineHeight: 1.2,
+    lineHeight: 1.15,
     overflow: 'hidden',
     whiteSpace: 'nowrap',
   },
-  tdCenter: {
+  tdC: {
     textAlign: 'center',
   },
-  rekapRow: {
-    display: 'flex',
-    gap: 24,
-    marginTop: 6,
-    paddingLeft: 2,
+
+  // ── REKAP ──
+  rekap: {
+    marginTop: '5pt',
+    fontFamily: FONT,
     fontSize: '8pt',
+    paddingLeft: '2pt',
   },
-  rekapItem: {
-    fontWeight: 'normal',
-  },
-  ttdRow: {
+
+  // ── BOTTOM ROW: tanggal cetak kiri, TTD kanan ──
+  bottomRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    marginTop: 10,
+    marginTop: '8pt',
+    fontFamily: FONT,
     fontSize: '8.5pt',
   },
-  ttdKiri: {
-    fontSize: '7.5pt',
+  tanggalCetak: {
+    fontFamily: FONT,
+    fontSize: '7pt',
     color: '#555',
-    alignSelf: 'flex-end',
-    paddingBottom: 2,
-  },
-  ttdLabel: {
     fontStyle: 'italic',
+    alignSelf: 'flex-end',
+    paddingBottom: '2pt',
   },
-  ttdKanan: {
+  ttd: {
     textAlign: 'center',
     lineHeight: 1.5,
-    paddingRight: 20,
+    paddingRight: '10pt',
   },
 }
