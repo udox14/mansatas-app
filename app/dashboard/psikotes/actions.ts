@@ -174,63 +174,36 @@ export async function getDetailPsikotes(siswa_id: string) {
 // ============================================================
 export async function getAnalitikPsikotes(kelas_id?: string) {
   const db = await getDB()
-  const join = kelas_id ? 'JOIN siswa s ON sp.siswa_id = s.id' : ''
-  const where = kelas_id ? 'WHERE s.kelas_id = ?' : ''
+
+  // Semua query dibangun dengan WHERE clause eksplisit
+  // Saat filter kelas: JOIN siswa + WHERE s.kelas_id = ?
+  // Saat semua kelas: tidak ada JOIN/WHERE tambahan
+  const makeQuery = (selectClause: string, extraWhere?: string) => {
+    if (kelas_id) {
+      const w = extraWhere ? `AND ${extraWhere}` : ''
+      return `${selectClause} FROM siswa_psikotes sp JOIN siswa s ON sp.siswa_id = s.id WHERE s.kelas_id = ? ${w}`
+    } else {
+      const w = extraWhere ? `WHERE ${extraWhere}` : ''
+      return `${selectClause} FROM siswa_psikotes sp ${w}`
+    }
+  }
   const params = kelas_id ? [kelas_id] : []
 
   const [iqDist, gayaDist, rekomDist, riasecDist, mbtiDist, bakatAvg, minatAvg] = await Promise.all([
-    // Distribusi IQ
-    db.prepare(`
-      SELECT iq_klasifikasi, COUNT(*) as n
-      FROM siswa_psikotes sp ${join} ${where}
-      GROUP BY iq_klasifikasi ORDER BY n DESC
-    `).bind(...params).all<any>(),
-    // Distribusi Gaya Belajar
-    db.prepare(`
-      SELECT gaya_belajar, COUNT(*) as n
-      FROM siswa_psikotes sp ${join} ${where}
-      GROUP BY gaya_belajar ORDER BY n DESC
-    `).bind(...params).all<any>(),
-    // Distribusi Rekomendasi Jurusan
-    db.prepare(`
-      SELECT rekom_jurusan, COUNT(*) as n
-      FROM siswa_psikotes sp ${join} ${where}
-      WHERE rekom_jurusan IS NOT NULL
-      GROUP BY rekom_jurusan ORDER BY n DESC
-    `).bind(...params).all<any>(),
-    // Distribusi RIASEC (ambil tipe pertama)
-    db.prepare(`
-      SELECT TRIM(SUBSTR(riasec, 1, INSTR(riasec||',', ',')-1)) as tipe, COUNT(*) as n
-      FROM siswa_psikotes sp ${join} ${where}
-      WHERE riasec IS NOT NULL
-      GROUP BY tipe ORDER BY n DESC
-    `).bind(...params).all<any>(),
-    // Distribusi MBTI (4 dimensi teratas)
-    db.prepare(`
-      SELECT mbti, COUNT(*) as n
-      FROM siswa_psikotes sp ${join} ${where}
-      WHERE mbti IS NOT NULL
-      GROUP BY mbti ORDER BY n DESC
-    `).bind(...params).all<any>(),
-    // Rata-rata Bakat
-    db.prepare(`
-      SELECT
-        ROUND(AVG(bakat_ver),1) as ver, ROUND(AVG(bakat_num),1) as num,
-        ROUND(AVG(bakat_skl),1) as skl, ROUND(AVG(bakat_abs),1) as abs,
-        ROUND(AVG(bakat_mek),1) as mek, ROUND(AVG(bakat_rr),1) as rr,
-        ROUND(AVG(bakat_kkk),1) as kkk
-      FROM siswa_psikotes sp ${join} ${where}
-    `).bind(...params).first<any>(),
-    // Rata-rata Minat
-    db.prepare(`
-      SELECT
-        ROUND(AVG(minat_ps),1) as ps, ROUND(AVG(minat_nat),1) as nat,
-        ROUND(AVG(minat_mek),1) as mek, ROUND(AVG(minat_bis),1) as bis,
-        ROUND(AVG(minat_art),1) as art, ROUND(AVG(minat_si),1) as si,
-        ROUND(AVG(minat_v),1) as v, ROUND(AVG(minat_m),1) as m,
-        ROUND(AVG(minat_k),1) as k
-      FROM siswa_psikotes sp ${join} ${where}
-    `).bind(...params).first<any>(),
+    db.prepare(makeQuery('SELECT iq_klasifikasi, COUNT(*) as n') + ' GROUP BY iq_klasifikasi ORDER BY n DESC')
+      .bind(...params).all<any>(),
+    db.prepare(makeQuery('SELECT gaya_belajar, COUNT(*) as n') + ' GROUP BY gaya_belajar ORDER BY n DESC')
+      .bind(...params).all<any>(),
+    db.prepare(makeQuery('SELECT rekom_jurusan, COUNT(*) as n', 'rekom_jurusan IS NOT NULL') + ' GROUP BY rekom_jurusan ORDER BY n DESC')
+      .bind(...params).all<any>(),
+    db.prepare(makeQuery("SELECT TRIM(SUBSTR(riasec, 1, INSTR(riasec||',', ',')-1)) as tipe, COUNT(*) as n", 'riasec IS NOT NULL') + ' GROUP BY tipe ORDER BY n DESC')
+      .bind(...params).all<any>(),
+    db.prepare(makeQuery('SELECT mbti, COUNT(*) as n', 'mbti IS NOT NULL') + ' GROUP BY mbti ORDER BY n DESC')
+      .bind(...params).all<any>(),
+    db.prepare(makeQuery('SELECT ROUND(AVG(bakat_ver),1) as ver, ROUND(AVG(bakat_num),1) as num, ROUND(AVG(bakat_skl),1) as skl, ROUND(AVG(bakat_abs),1) as abs, ROUND(AVG(bakat_mek),1) as mek, ROUND(AVG(bakat_rr),1) as rr, ROUND(AVG(bakat_kkk),1) as kkk'))
+      .bind(...params).first<any>(),
+    db.prepare(makeQuery('SELECT ROUND(AVG(minat_ps),1) as ps, ROUND(AVG(minat_nat),1) as nat, ROUND(AVG(minat_mek),1) as mek, ROUND(AVG(minat_bis),1) as bis, ROUND(AVG(minat_art),1) as art, ROUND(AVG(minat_si),1) as si, ROUND(AVG(minat_v),1) as v, ROUND(AVG(minat_m),1) as m, ROUND(AVG(minat_k),1) as k'))
+      .bind(...params).first<any>(),
   ])
 
   return {

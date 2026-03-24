@@ -262,7 +262,7 @@ function ModalDetail({ siswaId, onClose, isAdmin, onDeleted }: {
   return (
     <>
       <Dialog open onOpenChange={open => !open && onClose()}>
-        <DialogContent className="sm:max-w-2xl rounded-xl max-h-[92vh] flex flex-col p-0 gap-0">
+        <DialogContent className="sm:max-w-2xl rounded-xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
           <DialogHeader className="px-4 pt-4 pb-3 border-b border-surface-2 shrink-0">
             {isLoading ? (
               <div className="flex items-center gap-2 text-slate-400 dark:text-slate-500">
@@ -294,7 +294,7 @@ function ModalDetail({ siswaId, onClose, isAdmin, onDeleted }: {
             ) : null}
           </DialogHeader>
 
-          <ScrollArea className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {!isLoading && data && (
               <div className="px-4 py-4 space-y-5">
                 {/* IQ & Kepribadian */}
@@ -420,7 +420,7 @@ function ModalDetail({ siswaId, onClose, isAdmin, onDeleted }: {
                 )}
               </div>
             )}
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
       <ModalKamus open={showKamus} onClose={() => setShowKamus(false)} />
