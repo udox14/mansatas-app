@@ -16,7 +16,7 @@ import {
 import {
   getListPsikotes, getDetailPsikotes, getAnalitikPsikotes,
   fuzzyMatchNama, importPsikotesChunk,
-  tambahMapping, editMapping, hapusMapping, hapusPsikotes,
+  tambahMapping, editMapping, hapusMapping, normalizeGayaBelajar,
 } from '../actions'
 import type { RekomMapping } from '../actions'
 import { cn } from '@/lib/utils'
@@ -228,8 +228,8 @@ function ModalKamus({ open, onClose }: { open: boolean; onClose: () => void }) {
 }
 
 // ── Modal Detail Siswa ─────────────────────────────────────────────────
-function ModalDetail({ siswaId, onClose, isAdmin, onDeleted }: {
-  siswaId: string; onClose: () => void; isAdmin: boolean; onDeleted: () => void
+function ModalDetail({ siswaId, onClose, isAdmin }: {
+  siswaId: string; onClose: () => void; isAdmin: boolean
 }) {
   const [data, setData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -238,14 +238,6 @@ function ModalDetail({ siswaId, onClose, isAdmin, onDeleted }: {
   useEffect(() => {
     getDetailPsikotes(siswaId).then(d => { setData(d); setIsLoading(false) })
   }, [siswaId])
-
-  const handleDelete = async () => {
-    if (!confirm('Hapus data psikotes siswa ini?')) return
-    const res = await hapusPsikotes(siswaId)
-    if (res.error) { alert(res.error); return }
-    onDeleted()
-    onClose()
-  }
 
   const bakatData = data ? [
     data.bakat_ver, data.bakat_num, data.bakat_skl,
@@ -409,15 +401,7 @@ function ModalDetail({ siswaId, onClose, isAdmin, onDeleted }: {
                   </div>
                 </div>
 
-                {/* Hapus */}
-                {isAdmin && (
-                  <div className="flex justify-end pt-2 border-t border-surface-2">
-                    <button onClick={handleDelete}
-                      className="flex items-center gap-1.5 text-xs text-rose-500 hover:text-rose-700 font-medium">
-                      <Trash2 className="h-3.5 w-3.5" /> Hapus Data Psikotes
-                    </button>
-                  </div>
-                )}
+
               </div>
             )}
           </div>
@@ -665,7 +649,6 @@ function TabDaftar({ kelasList, isAdmin, userRole }: {
           siswaId={selectedSiswa}
           onClose={() => setSelectedSiswa(null)}
           isAdmin={isAdmin}
-          onDeleted={() => { setSelectedSiswa(null); loadData(page) }}
         />
       )}
       <ModalKamus open={showKamus} onClose={() => setShowKamus(false)} />
@@ -997,16 +980,11 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
 
       setPreviewData(merged)
 
-      // Fuzzy match per chunk 30 nama
+      // Kirim semua nama sekaligus — 1 server action call = 1 DB query
+      // Server sudah load semua siswa sekali, matching dilakukan in-memory
       setIsMatching(true)
       const allNamaList = merged.map(r => r.nama)
-      const allResults: any[] = []
-      const CHUNK = 30
-      for (let i = 0; i < allNamaList.length; i += CHUNK) {
-        const chunk = allNamaList.slice(i, i + CHUNK)
-        const res = await fuzzyMatchNama(chunk)
-        allResults.push(...res)
-      }
+      const allResults = await fuzzyMatchNama(allNamaList)
       setMatchResults(allResults)
       setIsMatching(false)
       // Auto-fokus ke tab ambigu jika ada, supaya user langsung tahu
@@ -1192,6 +1170,18 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
               </div>
             </div>
             <p className="text-[11px] text-slate-400 dark:text-slate-500">Bisa upload satu atau dua file sekaligus. File boleh berisi banyak kelas dalam satu sheet.</p>
+            {/* Normalize existing data */}
+            <div className="flex items-center gap-2 pt-1 border-t border-surface-2">
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 flex-1">
+                Ada data AUDITORY di DB? Klik normalize untuk menyamakan ejaan.
+              </p>
+              <Button size="sm" variant="outline" onClick={async () => {
+                const res = await normalizeGayaBelajar()
+                alert(res.success)
+              }} className="h-7 text-[11px] rounded-lg border-blue-200 text-blue-600 hover:bg-blue-50 shrink-0">
+                Normalize Gaya Belajar
+              </Button>
+            </div>
             <Button onClick={parseExcel} disabled={isParsing || isMatching || !xlsxReady}
               className="h-9 bg-violet-600 hover:bg-violet-700 text-white text-sm rounded-lg gap-2">
               {isParsing || isMatching
