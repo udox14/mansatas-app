@@ -109,6 +109,7 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
         izinKeluar={izinKeluar.results || []}
         izinKelas={izinKelas.results || []}
         kelasList={kelasResult.results || []}
+        currentUser={user}
       />
     </div>
   )
