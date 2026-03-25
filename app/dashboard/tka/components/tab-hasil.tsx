@@ -234,7 +234,6 @@ function parseDkhtka(rawText: string): ParsedRow[] {
   if (t3Pos.length === 0) return []
 
   // Kumpulkan record; sertakan 1 baris sebelum T3
-  // (kadang "Pendidikan" muncul 1 baris sebelum T3)
   const records: string[][] = []
   for (let idx = 0; idx < t3Pos.length; idx++) {
     const ti     = t3Pos[idx]
@@ -252,43 +251,62 @@ function parseDkhtka(rawText: string): ParsedRow[] {
     const t3 = rlines[t3Idx]
 
     // Nomor peserta & nomor urut
-    const npMatch      = t3.match(T3_RE)
+    const npMatch       = t3.match(T3_RE)
     const nomor_peserta = npMatch ? npMatch[0] : ''
-    const nomorUrut    = parseInt(nomor_peserta.split('-')[5] ?? '0', 10)
+    const nomorUrut     = parseInt(nomor_peserta.split('-')[5] ?? '0', 10)
 
-    // Nilai wajib dari T3 line (posisi kolom yang konsisten)
+    // ── Nilai dari T3 line — kolom hasil kalibrasi pdf.js (PAGE_W=841.89, COLS=210)
+    // bind=97, mat=110, bing=123, p1=153, p2=183 — toleransi ketat agar tidak overlap
     const nums       = parseNums(t3)
-    const nilai_bind = findNear(nums, 90)
-    const nilai_mat  = findNear(nums, 101)
-    const nilai_bing = findNear(nums, 113)
-    const nilai_p1   = findNear(nums, 144)
-    const nilai_p2   = findNear(nums, 177)
-    const p1_col     = findColNear(nums, 144)
-    const p2_col     = findColNear(nums, 177)
+    const nilai_bind = findNear(nums, 97,  6)
+    const nilai_mat  = findNear(nums, 110, 6)
+    const nilai_bing = findNear(nums, 123, 6)
+    const nilai_p1   = findNear(nums, 153, 14)
+    const nilai_p2   = findNear(nums, 183, 14)
+    const p1_col     = findColNear(nums, 153, 14)
+    const p2_col     = findColNear(nums, 183, 14)
 
-    // Nama: cari baris dengan nomor urut (1-3 digit) di awal
+    // ── Nama: 3 strategi
     let nama_pdf = ''
+
+    // Strategi 1: baris dengan nomor urut di col ~7 (format "       N  NAMA...")
     for (const l of rlines.slice(t3Idx, t3Idx + 4)) {
-      if (/^\s{1,5}\d{1,3}\s+/.test(l)) {
-        // Nama ada di col ~30-82 (setelah nomor urut + NISN placeholder)
-        let raw = l.length > 30 ? l.slice(30, 82) : l.slice(5)
-        // Buang "Kota, DD Bulan YYYY" jika terbawa
-        raw = raw.replace(/[A-ZÀÁÂÃ][a-zàáâã]+,\s+\d+.*$/, '')
-        raw = raw.replace(/^\d+\s*/, '').trim()
+      if (/^\s{5,8}\d{1,3}\s/.test(l)) {
+        let raw = l.slice(37, 80)
+        raw = raw.replace(/[A-Z][a-z]+,\s*\d+.*$/, '').trim()
+        raw = raw.replace(/\s+/g, ' ').trim()
         if (raw.length > 1) { nama_pdf = raw; break }
       }
     }
-    // Fallback: ambil dari T3 line col 22-80
-    if (!nama_pdf) {
-      let seg = t3.slice(22, 80)
-        .replace(/T3-\S+/, '')
+
+    // Strategi 2: nama ada di T3 line setelah nomor peserta (nama 3+ digit nomor urut)
+    if (!nama_pdf && npMatch) {
+      const afterT3 = t3.slice(npMatch.index! + npMatch[0].length, 80)
+      let seg = afterT3
         .replace(/\d+\.\d{2}.*/, '')
-        .replace(/[A-Z][a-z]+,\s+\d+.*/, '')
-        .trim()
+        .replace(/[A-Z][a-z]+,\s*\d+.*/, '')
+        .replace(/\s+/g, ' ').trim()
       if (seg.length > 2) nama_pdf = seg
     }
-    // Bersihkan prefix sisa nomor peserta
-    nama_pdf = nama_pdf.replace(/^\d{1,2}-\d{4}-\d+\s*/, '').trim()
+
+    // Strategi 3: gabung dari T3 line + NISN line (nama 2 baris)
+    if (nama_pdf) {
+      // Cek apakah ada bagian nama di NISN line (baris dengan NISN 10 digit)
+      for (const l of rlines.slice(t3Idx + 1, t3Idx + 4)) {
+        if (/\b\d{10,}\b/.test(l)) {
+          const extra = l.slice(37, 80)
+            .replace(/\d+/g, '')
+            .replace(/[A-Z][a-z]+,.*$/, '')
+            .replace(/\s+/g, ' ').trim()
+          if (extra.length > 1) {
+            nama_pdf = (nama_pdf + ' ' + extra).replace(/\s+/g, ' ').trim()
+          }
+          break
+        }
+      }
+    }
+
+    nama_pdf = nama_pdf.replace(/\s+/g, ' ').trim()
 
     // NISN
     let nisn = ''
@@ -297,18 +315,18 @@ function parseDkhtka(rawText: string): ParsedRow[] {
       if (m) { nisn = m[1]; break }
     }
 
-    // Kategori: scan semua baris record
+    // ── Kategori — kolom terkalibrasi: bind=95, mat=109, bing=121
     let kat_bind: string | null = null, kat_mat:  string | null = null
     let kat_bing: string | null = null, kat_p1:   string | null = null
     let kat_p2:   string | null = null
     for (const l of rlines) {
       const kats = parseKats(l)
       if (!kats.length) continue
-      const kb  = findNear(kats as [string, number][], 90)
-      const km  = findNear(kats as [string, number][], 101)
-      const ki  = findNear(kats as [string, number][], 113)
-      const kp1 = findNear(kats as [string, number][], p1_col)
-      const kp2 = findNear(kats as [string, number][], p2_col)
+      const kb  = findNear(kats as [string, number][], 95,  6)
+      const km  = findNear(kats as [string, number][], 109, 6)
+      const ki  = findNear(kats as [string, number][], 121, 6)
+      const kp1 = findNear(kats as [string, number][], p1_col, 14)
+      const kp2 = findNear(kats as [string, number][], p2_col, 14)
       if (kb  && !kat_bind) kat_bind = kb
       if (km  && !kat_mat)  kat_mat  = km
       if (ki  && !kat_bing) kat_bing = ki
@@ -316,9 +334,7 @@ function parseDkhtka(rawText: string): ParsedRow[] {
       if (kp2 && !kat_p2)  kat_p2   = kp2
     }
 
-    // Mapel: kumpulkan teks berdasarkan rentang kolom
-    // mapel1 = col 118 s/d (p1_col - 1) — teks di kiri nilai_p1
-    // mapel2 = col (p1_col + 5) s/d (p2_col - 1) — teks antara nilai_p1 & nilai_p2
+    // ── Mapel — col 132-152 (mapel1), col 158-182 (mapel2)
     const collectSeg = (cs: number, ce: number): string => {
       const parts: string[] = []
       for (const l of rlines) {
@@ -330,8 +346,8 @@ function parseDkhtka(rawText: string): ParsedRow[] {
       return parts.join(' ')
     }
 
-    const mapel_pilihan1 = matchMapel(collectSeg(118, p1_col - 1))
-    const mapel_pilihan2 = matchMapel(collectSeg(p1_col + 5, p2_col - 1))
+    const mapel_pilihan1 = matchMapel(collectSeg(132, 152))
+    const mapel_pilihan2 = matchMapel(collectSeg(158, 183))
 
     if (!nama_pdf) continue
 
