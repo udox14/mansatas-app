@@ -9,9 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Upload, Loader2, CheckCircle2, AlertCircle, Search, X,
-  ChevronLeft, ChevronRight, FileText, Eye, AlertTriangle
+  ChevronLeft, ChevronRight, FileText, Eye, AlertTriangle, UserCheck, UserX
 } from 'lucide-react'
-import { importHasilTka, getListHasilTka, getAllSiswaKelas12 } from '../actions'
+import { importHasilTka, getListHasilTka, getAllSiswaKelas12, searchSiswaKelas12ForTka } from '../actions'
 import type { KelasItem, TkaHasilRow } from '../actions'
 import { cn } from '@/lib/utils'
 
@@ -266,39 +266,31 @@ function parseDkhtka(rawText: string): ParsedRow[] {
     const p1_col     = findColNear(nums, 153, 14)
     const p2_col     = findColNear(nums, 183, 14)
 
-    // ── Nama: 3 strategi
+    // ── Nama: 3 strategi, col 37-64 (stop sebelum tempat lahir di col 67)
     let nama_pdf = ''
 
-    // Strategi 1: baris dengan nomor urut di col ~7 (format "       N  NAMA...")
+    // Strategi 1: baris nomor urut col ~7, ambil nama di col 37-64
     for (const l of rlines.slice(t3Idx, t3Idx + 4)) {
       if (/^\s{5,8}\d{1,3}\s/.test(l)) {
-        let raw = l.slice(37, 80)
-        raw = raw.replace(/[A-Z][a-z]+,\s*\d+.*$/, '').trim()
-        raw = raw.replace(/\s+/g, ' ').trim()
+        const raw = l.slice(37, 64).replace(/\s+/g, ' ').trim()
         if (raw.length > 1) { nama_pdf = raw; break }
       }
     }
 
-    // Strategi 2: nama ada di T3 line setelah nomor peserta (nama 3+ digit nomor urut)
+    // Strategi 2: nama di T3 line setelah nomor peserta, potong di col 64
     if (!nama_pdf && npMatch) {
-      const afterT3 = t3.slice(npMatch.index! + npMatch[0].length, 80)
-      let seg = afterT3
-        .replace(/\d+\.\d{2}.*/, '')
-        .replace(/[A-Z][a-z]+,\s*\d+.*/, '')
-        .replace(/\s+/g, ' ').trim()
+      const afterT3 = t3.slice(npMatch.index! + npMatch[0].length, 64)
+      const seg = afterT3.replace(/\d+\.\d{2}.*/, '').replace(/\s+/g, ' ').trim()
       if (seg.length > 2) nama_pdf = seg
     }
 
-    // Strategi 3: gabung dari T3 line + NISN line (nama 2 baris)
+    // Strategi 3: tambah suku kata dari NISN line col 37-64 (hanya huruf)
     if (nama_pdf) {
-      // Cek apakah ada bagian nama di NISN line (baris dengan NISN 10 digit)
       for (const l of rlines.slice(t3Idx + 1, t3Idx + 4)) {
         if (/\b\d{10,}\b/.test(l)) {
-          const extra = l.slice(37, 80)
-            .replace(/\d+/g, '')
-            .replace(/[A-Z][a-z]+,.*$/, '')
-            .replace(/\s+/g, ' ').trim()
-          if (extra.length > 1) {
+          const extra = l.slice(37, 64).replace(/\s+/g, ' ').trim()
+          // Hanya append jika isinya huruf saja (bukan tempat lahir/tanggal)
+          if (extra.length > 1 && /^[A-Za-z\s]+$/.test(extra)) {
             nama_pdf = (nama_pdf + ' ' + extra).replace(/\s+/g, ' ').trim()
           }
           break
@@ -425,12 +417,50 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
   const [listTotal, setListTotal]     = useState(0)
   const [listPage, setListPage]       = useState(1)
   const [listLoading, setListLoading] = useState(false)
-  const [filterKelas, setFilterKelas] = useState('')
+  const [filterKelas, setFilterKelas] = useState('__all__')
   const [filterSearch, setFilterSearch] = useState('')
   const [listLoaded, setListLoaded]   = useState(false)
 
   // Detail modal
   const [detail, setDetail] = useState<TkaHasilRow | null>(null)
+
+  // Review manual modal — untuk baris tidak cocok
+  const [reviewTarget, setReviewTarget] = useState<ParsedRow | null>(null)
+  const [reviewSearch, setReviewSearch] = useState('')
+  const [reviewResults, setReviewResults] = useState<{ id: string; nama_lengkap: string; nisn: string }[]>([])
+  const [reviewLoading, setReviewLoading] = useState(false)
+
+  const handleReviewSearch = async () => {
+    const q = reviewSearch.trim()
+    if (!q) return
+    setReviewLoading(true)
+    try {
+      const data = await searchSiswaKelas12ForTka(q, tahunAjaranId)
+      setReviewResults(data.map(d => ({ id: d.siswa_id, nama_lengkap: d.nama_lengkap, nisn: d.nisn })))
+    } finally {
+      setReviewLoading(false)
+    }
+  }
+
+  const handleReviewPick = (siswa: { id: string; nama_lengkap: string; nisn: string }) => {
+    if (!reviewTarget) return
+    setParsed(prev => prev.map(r =>
+      r.nomor === reviewTarget.nomor
+        ? { ...r, siswa_id: siswa.id, nama_matched: siswa.nama_lengkap, nisn_matched: siswa.nisn }
+        : r
+    ))
+    setReviewTarget(null)
+    setReviewSearch('')
+    setReviewResults([])
+  }
+
+  const handleReviewSkip = () => {
+    if (!reviewTarget) return
+    setParsed(prev => prev.map(r =>
+      r.nomor === reviewTarget.nomor ? { ...r, siswa_id: '__skip__', nama_matched: '(dilewati)' } : r
+    ))
+    setReviewTarget(null)
+  }
 
   const PAGE_SIZE = 25
 
@@ -627,15 +657,27 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                 Preview — {parsed.length} peserta ditemukan
               </p>
-              <div className="flex items-center gap-3 mt-1">
+              <div className="flex flex-wrap items-center gap-2 mt-1">
                 <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                   <CheckCircle2 className="h-3 w-3" />
-                  {parsed.filter(r => r.siswa_id).length} cocok dengan data siswa
+                  {parsed.filter(r => r.siswa_id && r.siswa_id !== '__skip__').length} cocok
                 </span>
-                {unmatchedCount > 0 && (
-                  <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                {parsed.filter(r => !r.siswa_id).length > 0 && (
+                  <button
+                    className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1 underline underline-offset-2 hover:text-amber-700"
+                    onClick={() => {
+                      const first = parsed.find(r => !r.siswa_id)
+                      if (first) { setReviewTarget(first); setReviewSearch(first.nama_pdf); setReviewResults([]) }
+                    }}
+                  >
                     <AlertTriangle className="h-3 w-3" />
-                    {unmatchedCount} tidak cocok
+                    {parsed.filter(r => !r.siswa_id).length} belum cocok — klik review
+                  </button>
+                )}
+                {parsed.filter(r => r.siswa_id === '__skip__').length > 0 && (
+                  <span className="text-xs text-slate-400 flex items-center gap-1">
+                    <X className="h-3 w-3" />
+                    {parsed.filter(r => r.siswa_id === '__skip__').length} dilewati
                   </span>
                 )}
               </div>
@@ -647,12 +689,12 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
               <Button
                 size="sm"
                 onClick={handleImport}
-                disabled={saving || parsed.filter(r => r.siswa_id).length === 0}
+                disabled={saving || parsed.filter(r => r.siswa_id && r.siswa_id !== '__skip__').length === 0}
               >
                 {saving
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
                   : <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
-                Import {parsed.filter(r => r.siswa_id).length} Data
+                Import {parsed.filter(r => r.siswa_id && r.siswa_id !== '__skip__').length} Data
               </Button>
             </div>
           </div>
@@ -673,18 +715,25 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
                   {parsed.map(row => (
                     <tr key={row.nomor} className={cn(
                       'border-b border-slate-100 dark:border-slate-800',
-                      row.siswa_id
-                        ? 'hover:bg-slate-50 dark:hover:bg-slate-800/20'
-                        : 'bg-red-50 dark:bg-red-950/20'
+                      row.siswa_id === '__skip__' ? 'bg-slate-50 dark:bg-slate-800/40 opacity-50' :
+                      row.siswa_id ? 'hover:bg-slate-50 dark:hover:bg-slate-800/20' :
+                      'bg-amber-50 dark:bg-amber-950/20'
                     )}>
                       <td className="px-3 py-2 text-slate-400 font-mono">{row.nomor}</td>
                       <td className="px-3 py-2 text-slate-600 dark:text-slate-400 max-w-[150px]">
                         <span className="truncate block">{row.nama_pdf}</span>
                       </td>
-                      <td className="px-3 py-2 min-w-[150px]">
-                        {row.nama_matched
+                      <td className="px-3 py-2 min-w-[160px]">
+                        {row.siswa_id === '__skip__'
+                          ? <span className="text-slate-400 text-xs italic">Dilewati</span>
+                          : row.nama_matched
                           ? <span className="text-emerald-700 dark:text-emerald-400 font-medium">{row.nama_matched}</span>
-                          : <span className="text-red-500 flex items-center gap-1"><AlertTriangle className="h-3 w-3 shrink-0" />Tidak cocok</span>
+                          : <button
+                              className="text-amber-600 dark:text-amber-400 flex items-center gap-1 text-xs hover:underline"
+                              onClick={() => { setReviewTarget(row); setReviewSearch(row.nama_pdf); setReviewResults([]) }}
+                            >
+                              <UserX className="h-3 w-3 shrink-0" />Pilih siswa
+                            </button>
                         }
                       </td>
                       <td className="px-3 py-2 text-center"><NilaiCell nilai={row.nilai_bind} kat={row.kategori_bind} /></td>
@@ -714,12 +763,12 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
         <div className="space-y-4">
           {/* Filter bar */}
           <div className="flex flex-col sm:flex-row gap-2">
-            <Select value={filterKelas} onValueChange={val => { setFilterKelas(val); loadList(1, val, filterSearch) }}>
+            <Select value={filterKelas} onValueChange={val => { setFilterKelas(val); loadList(1, val === '__all__' ? '' : val, filterSearch) }}>
               <SelectTrigger className="sm:w-48 text-sm">
                 <SelectValue placeholder="Semua Kelas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Semua Kelas</SelectItem>
+                <SelectItem value="__all__">Semua Kelas</SelectItem>
                 {kelasList.map(k => (
                   <SelectItem key={k.id} value={k.id}>{kelasLabel(k)}</SelectItem>
                 ))}
@@ -731,13 +780,13 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
               <Input
                 value={filterSearch}
                 onChange={e => setFilterSearch(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && loadList(1, filterKelas, filterSearch)}
+                onKeyDown={e => e.key === 'Enter' && loadList(1, filterKelas === '__all__' ? '' : filterKelas, filterSearch)}
                 placeholder="Cari nama / NISN, tekan Enter..."
                 className="pl-8 text-sm"
               />
               {filterSearch && (
                 <button
-                  onClick={() => { setFilterSearch(''); loadList(1, filterKelas, '') }}
+                  onClick={() => { setFilterSearch(''); loadList(1, filterKelas === '__all__' ? '' : filterKelas, '') }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -832,7 +881,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" className="h-7 w-7 p-0"
                       disabled={listPage <= 1 || listLoading}
-                      onClick={() => loadList(listPage - 1, filterKelas, filterSearch)}>
+                      onClick={() => loadList(listPage - 1, filterKelas === '__all__' ? '' : filterKelas, filterSearch)}>
                       <ChevronLeft className="h-3.5 w-3.5" />
                     </Button>
                     <span className="text-xs text-slate-500 min-w-[80px] text-center">
@@ -840,7 +889,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
                     </span>
                     <Button variant="outline" size="sm" className="h-7 w-7 p-0"
                       disabled={listPage >= totalPages || listLoading}
-                      onClick={() => loadList(listPage + 1, filterKelas, filterSearch)}>
+                      onClick={() => loadList(listPage + 1, filterKelas === '__all__' ? '' : filterKelas, filterSearch)}>
                       <ChevronRight className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -900,6 +949,69 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── REVIEW MANUAL MODAL ── */}
+      <Dialog open={!!reviewTarget} onOpenChange={open => { if (!open) { setReviewTarget(null); setReviewSearch(''); setReviewResults([]) } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold">Review Manual — Pilih Siswa</DialogTitle>
+          </DialogHeader>
+          {reviewTarget && (
+            <div className="space-y-3">
+              <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2">
+                <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold">Nama di PDF:</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5">{reviewTarget.nama_pdf}</p>
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    value={reviewSearch}
+                    onChange={e => setReviewSearch(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleReviewSearch()}
+                    placeholder="Cari nama siswa, Enter..."
+                    className="pl-8 text-sm bg-white dark:bg-slate-900"
+                    autoFocus
+                  />
+                </div>
+                <Button size="sm" variant="outline" onClick={handleReviewSearch} disabled={reviewLoading}>
+                  {reviewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                </Button>
+              </div>
+              <ScrollArea className="h-56 rounded-lg border border-slate-200 dark:border-slate-700">
+                {reviewResults.length === 0
+                  ? <p className="text-xs text-slate-400 text-center py-8">
+                      {reviewLoading ? 'Mencari...' : 'Ketik nama lalu tekan Enter'}
+                    </p>
+                  : <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {reviewResults.map(s => (
+                        <button key={s.id} onClick={() => handleReviewPick(s)}
+                          className="w-full text-left px-3 py-2.5 hover:bg-sky-50 dark:hover:bg-sky-950/30 transition-colors group">
+                          <div className="flex items-center gap-2">
+                            <UserCheck className="h-3.5 w-3.5 text-slate-300 group-hover:text-sky-500 shrink-0 transition-colors" />
+                            <div>
+                              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{s.nama_lengkap}</p>
+                              <p className="text-[10px] text-slate-400 font-mono">{s.nisn}</p>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                }
+              </ScrollArea>
+              <div className="flex justify-between pt-1">
+                <Button size="sm" variant="ghost" className="text-slate-400 text-xs"
+                  onClick={handleReviewSkip}>
+                  Lewati data ini
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => { setReviewTarget(null); setReviewSearch(''); setReviewResults([]) }}>
+                  Tutup
+                </Button>
               </div>
             </div>
           )}
