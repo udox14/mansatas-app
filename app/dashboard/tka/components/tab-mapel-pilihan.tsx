@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search, Save, Loader2, CheckCircle2, AlertCircle, Users, X } from 'lucide-react'
 import {
   getSiswaByKelasForTka, searchSiswaKelas12ForTka,
-  batchSaveMapelPilihan, MAPEL_PILIHAN_OPTIONS
+  batchSaveMapelPilihan
 } from '../actions'
 import type { KelasItem, TkaMapelRow } from '../actions'
+import { MAPEL_PILIHAN_OPTIONS } from '../constants'
 import { cn } from '@/lib/utils'
 
 interface Props {

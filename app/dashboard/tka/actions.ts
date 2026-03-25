@@ -4,33 +4,6 @@
 import { getDB } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
 
-// ============================================================
-// CONSTANTS
-// ============================================================
-export const MAPEL_PILIHAN_OPTIONS = [
-  'Matematika Tingkat Lanjut',
-  'Bahasa Indonesia Tingkat Lanjut',
-  'Bahasa Inggris Tingkat Lanjut',
-  'Fisika',
-  'Kimia',
-  'Biologi',
-  'Pendidikan Pancasila dan Kewarganegaraan',
-  'Ekonomi',
-  'Geografi',
-  'Sosiologi',
-  'Sejarah',
-  'Antropologi',
-  'Bahasa Prancis',
-  'Bahasa Jerman',
-  'Bahasa Jepang',
-  'Bahasa Mandarin',
-  'Bahasa Korea',
-  'Bahasa Arab',
-  'Projek Kreatif dan Kewirausahaan',
-] as const
-
-export type MapelPilihanOption = typeof MAPEL_PILIHAN_OPTIONS[number]
-
 export type KelasItem = {
   id: string
   tingkat: number
