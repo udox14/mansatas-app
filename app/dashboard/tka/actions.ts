@@ -79,7 +79,7 @@ export async function getInitialDataTka(userRole: string, userId: string) {
   }
 
   const allKelas = kelasRes.results || []
-  const kelas12 = allKelas.filter(k => k.tingkat === 3)
+  const kelas12 = allKelas.filter(k => k.tingkat === 12)
 
   const filteredKelas = allowedKelasIds
     ? kelas12.filter(k => allowedKelasIds!.includes(k.id))
@@ -145,6 +145,7 @@ export async function searchSiswaKelas12ForTka(query: string, tahunAjaranId: str
   const db = await getDB()
   const like = `%${query}%`
 
+  // Query: siswa aktif di kelas tingkat 12, dengan fallback riwayat_kelas
   const rows = await db.prepare(`
     SELECT
       s.id as siswa_id,
@@ -154,17 +155,42 @@ export async function searchSiswaKelas12ForTka(query: string, tahunAjaranId: str
       tmp.mapel_pilihan1,
       tmp.mapel_pilihan2
     FROM siswa s
-    LEFT JOIN kelas k ON k.id = s.kelas_id
+    JOIN kelas k ON k.id = s.kelas_id
     LEFT JOIN tka_mapel_pilihan tmp
       ON tmp.siswa_id = s.id AND tmp.tahun_ajaran_id = ?
     WHERE s.status = 'aktif'
-      AND k.tingkat = 3
+      AND k.tingkat = 12
       AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)
     ORDER BY s.nama_lengkap ASC
     LIMIT 50
   `).bind(tahunAjaranId, like, like).all<TkaMapelRow>()
 
-  return rows.results || []
+  if (rows.results && rows.results.length > 0) {
+    return rows.results
+  }
+
+  // Fallback: siswa yang ada di riwayat kelas 12 tahun ajaran ini
+  const fallback = await db.prepare(`
+    SELECT
+      s.id as siswa_id,
+      s.nama_lengkap,
+      s.nisn,
+      s.kelas_id,
+      tmp.mapel_pilihan1,
+      tmp.mapel_pilihan2
+    FROM siswa s
+    JOIN riwayat_kelas rk ON rk.siswa_id = s.id AND rk.tahun_ajaran_id = ?
+    JOIN kelas k ON k.id = rk.kelas_id
+    LEFT JOIN tka_mapel_pilihan tmp
+      ON tmp.siswa_id = s.id AND tmp.tahun_ajaran_id = ?
+    WHERE s.status = 'aktif'
+      AND k.tingkat = 12
+      AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)
+    ORDER BY s.nama_lengkap ASC
+    LIMIT 50
+  `).bind(tahunAjaranId, tahunAjaranId, like, like).all<TkaMapelRow>()
+
+  return fallback.results || []
 }
 
 // ============================================================
@@ -487,7 +513,7 @@ export async function fuzzyMatchNamaTka(namaPdf: string, tahunAjaranId: string) 
     SELECT s.id, s.nama_lengkap, s.nisn
     FROM siswa s
     JOIN kelas k ON k.id = s.kelas_id
-    WHERE k.tingkat = 3 AND s.status = 'aktif'
+    WHERE k.tingkat = 12 AND s.status = 'aktif'
   `).all<{ id: string; nama_lengkap: string; nisn: string }>()
 
   const candidates = rows.results || []
@@ -521,7 +547,7 @@ export async function getAllSiswaKelas12() {
     SELECT s.id, s.nama_lengkap, s.nisn
     FROM siswa s
     JOIN kelas k ON k.id = s.kelas_id
-    WHERE k.tingkat = 3 AND s.status = 'aktif'
+    WHERE k.tingkat = 12 AND s.status = 'aktif'
     ORDER BY s.nama_lengkap ASC
   `).all<{ id: string; nama_lengkap: string; nisn: string }>()
 

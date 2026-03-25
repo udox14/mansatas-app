@@ -532,7 +532,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
   }, [tahunAjaranId])
 
   const totalPages = Math.ceil(listTotal / PAGE_SIZE)
-  const kelasLabel = (k: KelasItem) => `XII ${k.kelompok} ${k.nomor_kelas}`
+  const kelasLabel = (k: KelasItem) => `${k.tingkat}-${k.nomor_kelas} ${k.kelompok}`
 
   // ── RENDER ─────────────────────────────────────────────────────────
   return (
@@ -704,7 +704,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">Semua Kelas</SelectItem>
-                {kelasList.filter(k => k.tingkat === 3).map(k => (
+                {kelasList.map(k => (
                   <SelectItem key={k.id} value={k.id}>{kelasLabel(k)}</SelectItem>
                 ))}
               </SelectContent>
@@ -784,7 +784,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
                             <p className="text-xs text-slate-400 font-mono">{row.nisn}</p>
                           </td>
                           <td className="px-4 py-2.5 text-xs text-slate-500">
-                            {row.tingkat ? `XII ${row.kelas_kelompok} ${row.nomor_kelas}` : '—'}
+                            {row.tingkat ? `${row.tingkat}-${row.nomor_kelas} ${row.kelas_kelompok}` : '—'}
                           </td>
                           <td className="px-3 py-2.5 text-center"><NilaiCell nilai={row.nilai_bind} kat={row.kategori_bind} /></td>
                           <td className="px-3 py-2.5 text-center"><NilaiCell nilai={row.nilai_mat} kat={row.kategori_mat} /></td>
@@ -847,7 +847,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
                 <p className="font-semibold text-slate-800 dark:text-slate-200">{detail.nama_lengkap}</p>
                 <p className="text-xs text-slate-500 font-mono mt-0.5">{detail.nisn}</p>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {detail.tingkat ? `XII ${detail.kelas_kelompok} ${detail.nomor_kelas}` : 'Kelas tidak diketahui'}
+                  {detail.tingkat ? `${detail.tingkat}-${detail.nomor_kelas} ${detail.kelas_kelompok}` : 'Kelas tidak diketahui'}
                 </p>
                 {detail.nomor_peserta && (
                   <p className="text-[10px] text-slate-400 font-mono mt-1">{detail.nomor_peserta}</p>

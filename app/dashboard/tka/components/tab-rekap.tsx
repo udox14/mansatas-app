@@ -168,7 +168,7 @@ export function TabRekap({ tahunAjaranId, isAdmin }: Props) {
                       <td className="py-1.5 pr-2 font-medium text-slate-800 dark:text-slate-200">{row.nama_lengkap}</td>
                       <td className="py-1.5 pr-2 text-xs font-mono text-slate-500">{row.nisn}</td>
                       <td className="py-1.5 text-xs text-slate-500">
-                        {row.tingkat ? `XII ${row.kelompok} ${row.nomor_kelas}` : '-'}
+                        {row.tingkat ? `${row.tingkat}-${row.nomor_kelas} ${row.kelompok}` : '-'}
                       </td>
                     </tr>
                   ))}

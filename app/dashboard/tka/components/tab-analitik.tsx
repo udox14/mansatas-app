@@ -263,7 +263,7 @@ export function TabAnalitik({ tahunAjaranId, hasHasil }: Props) {
                 {data.perKelas.map((k: any, i: number) => (
                   <tr key={i} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/30">
                     <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-200">
-                      {k.tingkat ? `XII ${k.kelompok} ${k.nomor_kelas}` : 'Kelas tidak diketahui'}
+                      {k.tingkat ? `${k.tingkat}-${k.nomor_kelas} ${k.kelompok}` : 'Kelas tidak diketahui'}
                     </td>
                     <td className="px-4 py-2.5 text-center text-sm">{k.jumlah_siswa}</td>
                     <td className="px-4 py-2.5 text-center">
