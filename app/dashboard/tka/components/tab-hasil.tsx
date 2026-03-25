@@ -526,7 +526,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
 
   // ── Import ke DB ───────────────────────────────────────────────────
   const handleImport = async () => {
-    const toImport = parsed.filter(r => r.siswa_id !== null)
+    const toImport = parsed.filter(r => r.siswa_id !== null && r.siswa_id !== '__skip__')
     if (!toImport.length) {
       showToast('error', 'Tidak ada data yang bisa diimpor')
       return
