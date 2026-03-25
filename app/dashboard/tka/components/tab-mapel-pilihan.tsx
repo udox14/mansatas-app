@@ -121,7 +121,7 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
     }
   }
 
-  const kelasLabel = (k: KelasItem) => `XII ${k.kelompok} ${k.nomor_kelas}`
+  const kelasLabel = (k: KelasItem) => `${k.tingkat}-${k.nomor_kelas} ${k.kelompok}`
 
   // ── Render ────────────────────────────────────────────────────────
   return (
@@ -148,7 +148,7 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
         {/* Dropdown kelas */}
         <Select value={selectedKelasId} onValueChange={handleKelasChange}>
           <SelectTrigger className="sm:w-56 text-sm bg-white dark:bg-slate-900">
-            <SelectValue placeholder="Pilih Kelas XII..." />
+            <SelectValue placeholder="Pilih Kelas 12..." />
           </SelectTrigger>
           <SelectContent>
             {kelasList.map(k => (
