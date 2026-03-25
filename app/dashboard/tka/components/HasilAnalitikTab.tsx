@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { toast } from 'sonner'
 import { saveHasilTka, updateHasilMatch } from '../actions'
 import { parseTkaPdf, initPdfJs } from '@/lib/tka/pdf-parser'
 import { matchName, CONFIDENCE_THRESHOLD } from '@/lib/tka/fuzzy'
@@ -196,7 +195,6 @@ export function HasilAnalitikTab({ hasilList, analitik, allSiswa, tahunAjaranId 
       await new Promise(r => setTimeout(r, 500))
       const { rows: pdfRows, errors } = await parseTkaPdf(file)
       if (errors.length) console.warn('PDF parse warnings:', errors)
-
       const matched: MatchRow[] = pdfRows.map((r, idx) => {
         const m = matchName(r.nama, allSiswa)
         return {
@@ -221,7 +219,7 @@ export function HasilAnalitikTab({ hasilList, analitik, allSiswa, tahunAjaranId 
       setMatchRows(matched)
       setShowReview(true)
     } catch (err) {
-      toast.error('Gagal membaca PDF: ' + String(err))
+      alert('Gagal membaca PDF: ' + String(err))
     } finally {
       setUploading(false)
       e.target.value = ''
@@ -253,11 +251,11 @@ export function HasilAnalitikTab({ hasilList, analitik, allSiswa, tahunAjaranId 
       }))
       const res = await saveHasilTka(tahunAjaranId, rows)
       if (res.ok) {
-        toast.success(`${res.saved} data berhasil disimpan`)
+        alert(`${res.saved} data berhasil disimpan.`)
         setShowReview(false)
         setMatchRows([])
       } else {
-        toast.error('Gagal menyimpan: ' + res.error)
+        alert('Gagal menyimpan: ' + res.error)
       }
     })
   }
@@ -420,8 +418,8 @@ export function HasilAnalitikTab({ hasilList, analitik, allSiswa, tahunAjaranId 
                   <Select onValueChange={v => {
                     startTransition(async () => {
                       const res = await updateHasilMatch(detailRow.id, v, tahunAjaranId)
-                      if (res.ok) { toast.success('Berhasil di-link'); setDetailRow(null) }
-                      else toast.error('Gagal: ' + res.error)
+                      if (res.ok) { alert('Berhasil di-link.'); setDetailRow(null) }
+                      else alert('Gagal: ' + res.error)
                     })
                   }}>
                     <SelectTrigger className="h-8 text-xs">

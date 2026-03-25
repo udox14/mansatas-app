@@ -6,7 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { toast } from 'sonner'
 import { upsertMapelPilihan } from '../actions'
 import { MAPEL_TKA } from '@/lib/tka/types'
 
@@ -64,7 +63,7 @@ export function MapelPilihanTab({ siswaList, rekap, tahunAjaranId }: Props) {
       const p2 = pilihan === 2 ? val : cur.p2
       const res = await upsertMapelPilihan(siswaId, tahunAjaranId, p1, p2)
       if (!res.ok) {
-        toast.error('Gagal menyimpan')
+        alert('Gagal menyimpan, coba lagi.')
         // Rollback
         setLocalMapel(prev => ({
           ...prev,
