@@ -98,6 +98,7 @@ export async function getInitialDataTka(userRole: string, userId: string) {
 export async function getSiswaByKelasForTka(kelasId: string, tahunAjaranId: string) {
   const db = await getDB()
 
+  // Query utama: siswa yang punya kelas_id langsung
   const rows = await db.prepare(`
     SELECT
       s.id as siswa_id,
@@ -113,7 +114,28 @@ export async function getSiswaByKelasForTka(kelasId: string, tahunAjaranId: stri
     ORDER BY s.nama_lengkap ASC
   `).bind(tahunAjaranId, kelasId).all<TkaMapelRow>()
 
-  return rows.results || []
+  if (rows.results && rows.results.length > 0) {
+    return rows.results
+  }
+
+  // Fallback: cari lewat riwayat_kelas (sistem multi-tahun ajaran)
+  const fallback = await db.prepare(`
+    SELECT
+      s.id as siswa_id,
+      s.nama_lengkap,
+      s.nisn,
+      s.kelas_id,
+      tmp.mapel_pilihan1,
+      tmp.mapel_pilihan2
+    FROM riwayat_kelas rk
+    JOIN siswa s ON s.id = rk.siswa_id
+    LEFT JOIN tka_mapel_pilihan tmp
+      ON tmp.siswa_id = s.id AND tmp.tahun_ajaran_id = ?
+    WHERE rk.kelas_id = ? AND rk.tahun_ajaran_id = ? AND s.status = 'aktif'
+    ORDER BY s.nama_lengkap ASC
+  `).bind(tahunAjaranId, kelasId, tahunAjaranId).all<TkaMapelRow>()
+
+  return fallback.results || []
 }
 
 // ============================================================
