@@ -13,6 +13,7 @@ import {
   DoorOpen,
   HeartHandshake,
   Brain,
+  ClipboardList,
 } from 'lucide-react'
 
 export type MenuItem = {
@@ -93,6 +94,12 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Psikotes & Minat',
     href: '/dashboard/psikotes',
     icon: Brain,
+    roles: ['super_admin', 'kepsek', 'wakamad', 'guru_bk', 'guru']
+  },
+  {
+    title: 'Tes Kemampuan Akademik',
+    href: '/dashboard/tka',
+    icon: ClipboardList,
     roles: ['super_admin', 'kepsek', 'wakamad', 'guru_bk', 'guru']
   },
   {
