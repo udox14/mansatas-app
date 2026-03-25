@@ -1,8 +1,0 @@
-// components/layout/sidebar.tsx
-// PERUBAHAN: Tambah '/dashboard/tka' di grup Kesiswaan (baris 26)
-// Ganti baris ini:
-//   { label: 'Kesiswaan', hrefs: ['/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes'] },
-// Menjadi:
-//   { label: 'Kesiswaan', hrefs: ['/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes', '/dashboard/tka'] },
-//
-// Tidak ada perubahan lain pada file ini.
