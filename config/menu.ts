@@ -1,5 +1,4 @@
 // Lokasi: config/menu.ts
-// PERUBAHAN: Tambah entry TKA di grup Kesiswaan
 import {
   LayoutDashboard,
   Users,
@@ -14,7 +13,6 @@ import {
   DoorOpen,
   HeartHandshake,
   Brain,
-  ClipboardList,
 } from 'lucide-react'
 
 export type MenuItem = {
@@ -95,13 +93,6 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Psikotes & Minat',
     href: '/dashboard/psikotes',
     icon: Brain,
-    roles: ['super_admin', 'kepsek', 'wakamad', 'guru_bk', 'guru']
-  },
-  // ── TAMBAHAN BARU ──
-  {
-    title: 'TKA',
-    href: '/dashboard/tka',
-    icon: ClipboardList,
     roles: ['super_admin', 'kepsek', 'wakamad', 'guru_bk', 'guru']
   },
   {
