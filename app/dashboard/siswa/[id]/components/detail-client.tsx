@@ -484,12 +484,14 @@ export function DetailSiswaClient({
 
       {/* Modal Tandai Keluar & Batalkan Keluar */}
       <TandaiKeluarModal
+        isOpen={showKeluarModal}
         siswaId={siswa.id}
         namaSiswa={siswa.nama_lengkap}
         onSuccess={handleSuccess}
         onClose={() => setShowKeluarModal(false)}
       />
       <BatalkanKeluarModal
+        isOpen={showBatalkanModal}
         siswaId={siswa.id}
         namaSiswa={siswa.nama_lengkap}
         onSuccess={handleSuccess}

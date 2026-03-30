@@ -19,8 +19,9 @@ const ALASAN_OPTIONS = [
 
 // ── Modal Tandai Keluar ────────────────────────────────────────────────
 export function TandaiKeluarModal({
-  siswaId, namaSiswa, onSuccess, onClose,
+  isOpen, siswaId, namaSiswa, onSuccess, onClose,
 }: {
+  isOpen: boolean
   siswaId: string
   namaSiswa: string
   onSuccess: () => void
@@ -49,7 +50,7 @@ export function TandaiKeluarModal({
   }
 
   return (
-    <Dialog open onOpenChange={open => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-md rounded-xl">
         <DialogHeader className="border-b border-surface-2 pb-3">
           <DialogTitle className="text-sm font-semibold flex items-center gap-2 text-rose-600">
@@ -134,8 +135,9 @@ export function TandaiKeluarModal({
 
 // ── Modal Batalkan Keluar ──────────────────────────────────────────────
 export function BatalkanKeluarModal({
-  siswaId, namaSiswa, onSuccess, onClose,
+  isOpen, siswaId, namaSiswa, onSuccess, onClose,
 }: {
+  isOpen: boolean
   siswaId: string
   namaSiswa: string
   onSuccess: () => void
@@ -153,7 +155,7 @@ export function BatalkanKeluarModal({
   }
 
   return (
-    <Dialog open onOpenChange={open => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-sm rounded-xl">
         <DialogHeader className="border-b border-surface-2 pb-3">
           <DialogTitle className="text-sm font-semibold flex items-center gap-2">
