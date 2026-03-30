@@ -9,7 +9,7 @@ import { revalidatePath } from 'next/cache'
 // ============================================================
 export type BidangBK = 'Pribadi' | 'Karir' | 'Sosial' | 'Akademik'
 export type TipePenanganan = 'KONSELING' | 'KONSELING_KELOMPOK' | 'HOME_VISIT'
-export type TindakLanjut = 'BELUM' | 'SUDAH' | 'KOLABORASI_ORANG_TUA' | 'PEMANGGILAN_ORANG_TUA'
+export type TindakLanjut = string
 
 export type SesiPenanganan = {
   id: string
@@ -123,7 +123,7 @@ export async function searchSiswaBinaan(guru_bk_id: string, query: string, tahun
 export async function getRekamanSiswa(siswa_id: string, tahun_ajaran_id: string) {
   const db = await getDB()
   const res = await db.prepare(`
-    SELECT r.id, r.bidang, r.deskripsi, r.penanganan, r.tindak_lanjut,
+    SELECT r.id, r.bidang, r.deskripsi, r.penanganan, r.tindak_lanjut, r.catatan_tindak_lanjut,
       r.created_at, r.updated_at,
       t.nama as topik_nama,
       u.nama_lengkap as guru_nama
@@ -141,7 +141,8 @@ export async function getRekamanSiswa(siswa_id: string, tahun_ajaran_id: string)
 
 export async function tambahRekamanBK(payload: {
   siswa_id: string; guru_bk_id: string; tahun_ajaran_id: string
-  bidang: BidangBK; topik_id: string | null; deskripsi: string; tindak_lanjut: TindakLanjut
+  bidang: BidangBK; topik_id: string | null; deskripsi: string
+  tindak_lanjut: TindakLanjut; catatan_tindak_lanjut?: string
 }) {
   const db = await getDB()
   // Validasi akses: siswa harus dari kelas binaan guru BK di TA ini
@@ -155,7 +156,8 @@ export async function tambahRekamanBK(payload: {
     siswa_id: payload.siswa_id, guru_bk_id: payload.guru_bk_id,
     tahun_ajaran_id: payload.tahun_ajaran_id, bidang: payload.bidang,
     topik_id: payload.topik_id || null, deskripsi: payload.deskripsi || '',
-    penanganan: '[]', tindak_lanjut: payload.tindak_lanjut,
+    penanganan: '[]', tindak_lanjut: payload.tindak_lanjut || '',
+    catatan_tindak_lanjut: payload.catatan_tindak_lanjut || '',
   })
   if (result.error) return { error: result.error }
   revalidatePath('/dashboard/bk')
@@ -163,7 +165,7 @@ export async function tambahRekamanBK(payload: {
 }
 
 export async function editRekamanBK(id: string, payload: {
-  topik_id?: string | null; deskripsi?: string; tindak_lanjut?: TindakLanjut
+  topik_id?: string | null; deskripsi?: string; tindak_lanjut?: TindakLanjut; catatan_tindak_lanjut?: string
 }) {
   const db = await getDB()
   const result = await dbUpdate(db, 'bk_rekaman', { ...payload, updated_at: new Date().toISOString() }, { id })
