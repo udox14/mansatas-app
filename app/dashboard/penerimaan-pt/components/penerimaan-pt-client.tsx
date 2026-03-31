@@ -16,7 +16,7 @@ import {
   TrendingUp, Award, ChevronLeft, ChevronRight as ChevronRightIcon
 } from 'lucide-react'
 import {
-  getSiswaKelas12,                       // ✅ ditambahkan
+  getSiswaKelas12,
   getSiswaKelas12Paginated,
   getTotalSiswaKelas12Filtered,
   getKelasUnik,
@@ -229,7 +229,6 @@ function FormPenerimaan({
 
   return (
     <div className="space-y-4">
-      {/* Info siswa */}
       <div className="flex items-center gap-3 p-3 rounded-xl bg-indigo-50/60 border border-indigo-100">
         <AvatarSiswa siswa={siswa} />
         <div>
@@ -238,7 +237,6 @@ function FormPenerimaan({
         </div>
       </div>
 
-      {/* Jalur */}
       {!editData && (
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Jalur Seleksi <span className="text-rose-500">*</span></label>
@@ -254,23 +252,18 @@ function FormPenerimaan({
         </div>
       )}
 
-      {/* Kampus Autocomplete */}
       <div className="space-y-1.5">
         <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Perguruan Tinggi <span className="text-rose-500">*</span></label>
         <KampusAutocomplete value={kampus} onChange={setKampus} />
       </div>
 
-      {/* Program Studi */}
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-          Program Studi <span className="text-slate-400 font-normal">(opsional)</span>
-        </label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Program Studi <span className="text-slate-400 font-normal">(opsional)</span></label>
         <Input value={prodi} onChange={e => setProdi(e.target.value)}
           placeholder="Contoh: Teknik Informatika, Pendidikan Matematika..."
           className="h-9 text-sm rounded-xl bg-surface-2 border-surface" />
       </div>
 
-      {/* Status */}
       <div className="space-y-1.5">
         <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Status <span className="text-rose-500">*</span></label>
         <div className="flex flex-wrap gap-2">
@@ -284,11 +277,8 @@ function FormPenerimaan({
         </div>
       </div>
 
-      {/* Catatan */}
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-          Catatan <span className="text-slate-400 font-normal">(opsional)</span>
-        </label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Catatan <span className="text-slate-400 font-normal">(opsional)</span></label>
         <textarea value={catatan} onChange={e => setCatatan(e.target.value)} rows={2}
           className="w-full rounded-xl border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-300 resize-none"
           placeholder="Catatan tambahan..." />
@@ -367,12 +357,10 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
   const [newJalurColor, setNewJalurColor] = useState('bg-gray-100 text-gray-700 border-gray-200')
   const ITEMS_PER_PAGE = 10
 
-  // Ambil daftar kelas unik
   useEffect(() => {
     getKelasUnik(taId).then(setKelasOptions)
   }, [taId])
 
-  // Load data siswa (pagination) dan penerimaan (semua untuk jalur aktif)
   const loadData = useCallback(async () => {
     setIsLoading(true)
     try {
@@ -407,7 +395,6 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
     loadData()
   }, [loadData])
 
-  // Reset halaman ketika filter/search berubah
   useEffect(() => {
     setCurrentPage(1)
   }, [filterKelas, searchQuery])
@@ -443,7 +430,6 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
 
   const jalurInfo = getJalurInfo(activeJalur)
 
-  // Pagination controls
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE)
   const canPrev = currentPage > 1
   const canNext = currentPage < totalPages
@@ -466,7 +452,6 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
 
   return (
     <div className="space-y-3">
-      {/* Pilih jalur + tombol tambah */}
       <div className="flex flex-wrap gap-2 items-center">
         {dynamicJalurList.map(j => (
           <button key={j.value} onClick={() => setActiveJalur(j.value as JalurPT)}
@@ -485,7 +470,6 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
         </Button>
       </div>
 
-      {/* Dialog tambah jalur */}
       <Dialog open={showAddJalurDialog} onOpenChange={setShowAddJalurDialog}>
         <DialogContent className="sm:max-w-md rounded-2xl">
           <DialogHeader>
@@ -529,7 +513,6 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
         </DialogContent>
       </Dialog>
 
-      {/* Toolbar */}
       <div className="bg-surface border border-surface rounded-xl p-3 space-y-2.5">
         <div className="flex items-center gap-2 flex-wrap">
           <div className={cn('flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border shrink-0', jalurInfo.color)}>
@@ -559,7 +542,6 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
         </div>
       </div>
 
-      {/* Tabel siswa */}
       {isLoading ? (
         <div className="flex items-center justify-center py-14 gap-2 text-slate-400">
           <Loader2 className="h-5 w-5 animate-spin" /><span className="text-sm">Memuat data...</span>
@@ -632,7 +614,6 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
         </div>
       )}
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between gap-2 pt-3">
           <Button
@@ -689,7 +670,7 @@ function TabPerSiswa({ taId, dynamicJalurList }: {
   const [editData, setEditData] = useState<PenerimaanRow | undefined>()
 
   useEffect(() => {
-    getSiswaKelas12(taId).then((data: SiswaRow[]) => {   // ✅ tipe ditambahkan
+    getSiswaKelas12(taId).then((data: SiswaRow[]) => {
       setSiswaList(data)
       setIsLoading(false)
     })
@@ -707,7 +688,7 @@ function TabPerSiswa({ taId, dynamicJalurList }: {
     if (!selectedSiswa) return
     const data = await getPenerimaanSiswa(selectedSiswa.id, taId)
     setEntries(data)
-    const updatedList: SiswaRow[] = await getSiswaKelas12(taId)   // ✅ tipe ditambahkan
+    const updatedList: SiswaRow[] = await getSiswaKelas12(taId)
     setSiswaList(updatedList)
   }
 
@@ -719,7 +700,6 @@ function TabPerSiswa({ taId, dynamicJalurList }: {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-5 gap-4 min-h-[500px]">
-      {/* Sidebar siswa */}
       <div className="md:col-span-2 space-y-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
@@ -753,7 +733,6 @@ function TabPerSiswa({ taId, dynamicJalurList }: {
         </div>
       </div>
 
-      {/* Detail siswa */}
       <div className="md:col-span-3">
         {!selectedSiswa ? (
           <div className="h-full flex flex-col items-center justify-center gap-3 text-slate-400 border border-dashed border-surface-2 rounded-xl py-16">
@@ -1136,12 +1115,13 @@ function exportPDF(rows: PenerimaanRow[], taName: string, dynamicJalurList: type
 ${grouped.map(j => `
 <div class="section">
   <div class="section-title" style="background:#ede9fe;color:#5b21b6;border:1px solid #ddd6fe">Jalur ${j.label} — ${j.rows.filter(r => r.status === 'DITERIMA').length} diterima</div>
-   <table>
+  <table>
     <thead>
       <tr><th>No</th><th>Nama Lengkap</th><th>NISN</th><th>Kelas</th><th>Perguruan Tinggi</th><th>Program Studi</th><th>Status</th></tr>
     </thead>
     <tbody>
-      ${j.rows.map((r, i) => `<tr>
+      ${j.rows.map((r, i) => `
+        <tr>
           <td>${i + 1}</td>
           <td><strong>${r.nama_lengkap ?? ''}</strong></td>
           <td>${r.nisn ?? ''}</td>
@@ -1149,9 +1129,10 @@ ${grouped.map(j => `
           <td>${r.kampus_nama}</td>
           <td>${r.program_studi ?? '—'}</td>
           <td><span class="badge ${r.status === 'DITERIMA' ? 'diterima' : r.status === 'TIDAK_DITERIMA' ? 'tidak' : 'mundur'}">${getStatusLabel(r.status)}</span></td>
-        </tr>`).join('')}
+        </tr>
+      `).join('')}
     </tbody>
-   </table>
+  </table>
 </div>`).join('')}
 </body></html>`
 
@@ -1197,10 +1178,9 @@ function ImportExcelModal({
     status: null,
   })
   const [previewRows, setPreviewRows] = useState<any[]>([])
-  const [kampusMapping, setKampusMapping] = useState<Record<number, string>>({}) // baris index -> kampus_id
+  const [kampusMapping, setKampusMapping] = useState<Record<number, string>>({})
   const [step, setStep] = useState<'upload' | 'map' | 'preview'>('upload')
 
-  // Reset state saat modal ditutup
   useEffect(() => {
     if (!open) {
       setFile(null)
@@ -1214,14 +1194,12 @@ function ImportExcelModal({
     }
   }, [open])
 
-  // Handler upload file
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setFile(file)
     setLoading(true)
 
-    // Load SheetJS from CDN (zero npm install)
     const script = document.createElement('script')
     script.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js'
     script.onload = () => {
@@ -1248,12 +1226,10 @@ function ImportExcelModal({
     document.head.appendChild(script)
   }
 
-  // Handle mapping selection
   const handleMappingChange = (field: keyof typeof mapping, colIndex: number) => {
     setMapping(prev => ({ ...prev, [field]: colIndex }))
   }
 
-  // Generate preview setelah mapping selesai
   const generatePreview = () => {
     const required = ['nisn', 'jalur', 'kampus', 'status']
     for (const f of required) {
@@ -1271,15 +1247,13 @@ function ImportExcelModal({
       const prodiRaw = mapping.prodi !== null ? row[mapping.prodi!]?.toString().trim() || '' : ''
       const statusRaw = row[mapping.status!]?.toString().trim() || ''
 
-      // Cari jalur yang cocok
       const jalurMatch = dynamicJalurList.find(j => j.label.toLowerCase() === jalurRaw.toLowerCase() || j.value === jalurRaw)
       const jalurValue = jalurMatch ? jalurMatch.value : jalurRaw
 
-      // Cari status
       const statusMatch = STATUS_LIST.find(s => s.label.toLowerCase() === statusRaw.toLowerCase() || s.value === statusRaw)
       const statusValue = statusMatch ? statusMatch.value : statusRaw
 
-      // Cari kampus (fuzzy)
+      // Fuzzy match di client (opsional, hanya untuk saran)
       let kampusId = ''
       let kampusNama = ''
       if (kampusRaw) {
@@ -1310,7 +1284,6 @@ function ImportExcelModal({
     })
 
     setPreviewRows(preview)
-    // Inisialisasi kampusMapping untuk baris yang belum punya kampusId
     const initialKampusMapping: Record<number, string> = {}
     preview.forEach((row, i) => {
       if (row.kampusId) initialKampusMapping[i] = row.kampusId
@@ -1319,10 +1292,8 @@ function ImportExcelModal({
     setStep('preview')
   }
 
-  // Handle perubahan pilihan kampus di preview
   const handleKampusChange = (rowIndex: number, kampusId: string) => {
     setKampusMapping(prev => ({ ...prev, [rowIndex]: kampusId }))
-    // Update previewRows untuk menampilkan nama kampus yang dipilih
     setPreviewRows(prevRows =>
       prevRows.map(row =>
         row.index === rowIndex
@@ -1336,17 +1307,20 @@ function ImportExcelModal({
     )
   }
 
-  // Kirim data ke server
   const handleImport = async () => {
     const dataToImport = previewRows
       .filter(row => row.valid && kampusMapping[row.index])
-      .map(row => ({
-        nisn: row.nisn,
-        jalur: row.jalurValue as JalurPT,
-        kampus_nama: KAMPUS_LIST.find(k => k.id === kampusMapping[row.index])?.nama || row.kampusRaw,
-        program_studi: row.prodiRaw || undefined,
-        status: row.statusValue as StatusPenerimaan,
-      }))
+      .map(row => {
+        const selectedKampus = KAMPUS_LIST.find(k => k.id === kampusMapping[row.index])
+        return {
+          nisn: row.nisn,
+          jalur: row.jalurValue as JalurPT,
+          kampus_id: kampusMapping[row.index],
+          kampus_nama: selectedKampus?.nama || row.kampusRaw,
+          program_studi: row.prodiRaw || undefined,
+          status: row.statusValue as StatusPenerimaan,
+        }
+      })
 
     if (dataToImport.length === 0) {
       alert('Tidak ada data valid untuk diimport.')
