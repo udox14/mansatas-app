@@ -3,27 +3,12 @@
 
 import { getDB, dbUpdate } from '@/utils/db'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { createAuth } from '@/utils/auth'
-import { headers } from 'next/headers'
+import { createAuth, hashPassword } from '@/utils/auth'
 import { revalidatePath } from 'next/cache'
 
 async function getAuth() {
   const { env } = await getCloudflareContext({ async: true })
   return createAuth(env.DB)
-}
-
-// PBKDF2 — sama persis dengan yang di auth/index.ts
-async function hashPassword(password: string): Promise<string> {
-  const enc = new TextEncoder()
-  const salt = crypto.getRandomValues(new Uint8Array(16))
-  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits'])
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-    keyMaterial, 256
-  )
-  const saltB64 = btoa(String.fromCharCode(...salt))
-  const hashB64 = btoa(String.fromCharCode(...new Uint8Array(bits)))
-  return `pbkdf2:100000:${saltB64}:${hashB64}`
 }
 
 // ============================================================
@@ -118,7 +103,7 @@ export async function hapusPegawai(id: string) {
 }
 
 // ============================================================
-// IMPORT MASSAL — hash PBKDF2 langsung, tanpa Scrypt
+// IMPORT MASSAL
 // ============================================================
 export async function importPegawaiMassal(dataExcel: any[]) {
   const db = await getDB()
@@ -146,7 +131,7 @@ export async function importPegawaiMassal(dataExcel: any[]) {
 
   if (users.length === 0) return { success: null, error: 'Data kosong atau format tidak sesuai.', logs: [] }
 
-  // Hash SEKALI — PBKDF2 jalan di Workers
+  // Hash SEKALI
   const passwordHash = await hashPassword('mansatas2026')
 
   // Cek email existing
@@ -165,7 +150,6 @@ export async function importPegawaiMassal(dataExcel: any[]) {
     return { success: null, error: 'Semua email sudah terdaftar.', logs: errorLogs }
   }
 
-  // Batch insert 20 per chunk
   const chunkSize = 20
   let successCount = 0
 

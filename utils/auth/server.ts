@@ -1,11 +1,11 @@
-// Lokasi: utils/auth/server.ts
+// utils/auth/server.ts
 // Helper untuk mengambil session & user di Server Components / Server Actions
 
 import { headers } from 'next/headers'
 import { createAuth } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 
-// Ambil instance auth dengan D1 binding dari Cloudflare context
+// Ambil instance auth dengan D1 binding
 async function getAuth() {
   const { env } = await getCloudflareContext({ async: true })
   return createAuth(env.DB)
@@ -15,13 +15,11 @@ async function getAuth() {
 export async function getSession() {
   const auth = await getAuth()
   const headersList = await headers()
-  const session = await auth.api.getSession({
-    headers: headersList,
-  })
+  const session = await auth.api.getSession({ headers: headersList })
   return session
 }
 
-// Ambil user aktif - shortcut untuk getSession().user
+// Ambil user aktif
 export async function getCurrentUser() {
   const session = await getSession()
   return session?.user ?? null
