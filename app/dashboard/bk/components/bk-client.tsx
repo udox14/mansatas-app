@@ -1108,10 +1108,10 @@ export function BKClient({ currentUserId, userRole, taAktif, topikAll, kelasBina
       <Tabs defaultValue="bk" className="space-y-3">
         <TabsList className="bg-surface border border-surface p-0.5 grid grid-cols-3 h-auto rounded-lg">
           <TabsTrigger value="bk" className="py-2 rounded-md data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs font-medium flex items-center gap-1.5">
-            <HeartHandshake className="h-3.5 w-3.5" /> Bimbingan Konseling
+            <HeartHandshake className="h-3.5 w-3.5" /> Konseling
           </TabsTrigger>
           <TabsTrigger value="topik" className="py-2 rounded-md data-[state=active]:bg-blue-600 data-[state=active]:text-white text-xs font-medium flex items-center gap-1.5">
-            <Tag className="h-3.5 w-3.5" /> Master Topik
+            <Tag className="h-3.5 w-3.5" /> Topik BK
           </TabsTrigger>
           <TabsTrigger value="kelas" className="py-2 rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-xs font-medium flex items-center gap-1.5">
             <Users className="h-3.5 w-3.5" /> Kelas Binaan
