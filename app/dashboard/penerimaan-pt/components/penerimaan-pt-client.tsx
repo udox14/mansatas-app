@@ -1,4 +1,4 @@
-// Lokasi: app/dashboard/penerimaan-pt/components/penerimaan-pt-client.tsx
+// app/dashboard/penerimaan-pt/components/penerimaan-pt-client.tsx
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
@@ -16,12 +16,18 @@ import {
   TrendingUp, Award, Filter
 } from 'lucide-react'
 import {
-  getSiswaKelas12, getPenerimaanByJalur, getPenerimaanSiswa,
-  getPenerimaanByKampus, getAnalitikPenerimaan, getSemuaPenerimaan,
-  tambahPenerimaan, updatePenerimaan, hapusPenerimaan,
-  JALUR_LIST, STATUS_LIST,
+  getSiswaKelas12,
+  getPenerimaanByJalur,
+  getPenerimaanSiswa,
+  getPenerimaanByKampus,
+  getAnalitikPenerimaan,
+  getSemuaPenerimaan,
+  tambahPenerimaan,
+  updatePenerimaan,
+  hapusPenerimaan,
 } from '../actions'
-import type { JalurPT, StatusPenerimaan, PenerimaanRow } from '../actions'
+import type { JalurPT, StatusPenerimaan, PenerimaanRow } from '../types'
+import { JALUR_LIST, STATUS_LIST } from '../types'
 import kampusData from '@/data/kampus.json'
 import { cn } from '@/lib/utils'
 
@@ -978,20 +984,20 @@ function exportPDF(rows: PenerimaanRow[], taName: string) {
 ${grouped.map(j => `
 <div class="section">
   <div class="section-title" style="background:#ede9fe;color:#5b21b6;border:1px solid #ddd6fe">Jalur ${j.label} — ${j.rows.filter(r => r.status === 'DITERIMA').length} diterima</div>
-  <table>
-    <thead><tr><th>No</th><th>Nama Lengkap</th><th>NISN</th><th>Kelas</th><th>Perguruan Tinggi</th><th>Program Studi</th><th>Status</th></tr></thead>
+   \n
+    <thead>\n<th>No</th><th>Nama Lengkap</th><th>NISN</th><th>Kelas</th><th>Perguruan Tinggi</th><th>Program Studi</th><th>Status</th>\n</thead>
     <tbody>
-      ${j.rows.map((r, i) => `<tr>
-        <td>${i + 1}</td>
-        <td><strong>${r.nama_lengkap ?? ''}</strong></td>
-        <td>${r.nisn ?? ''}</td>
-        <td>${r.tingkat ?? ''}-${r.nomor_kelas ?? ''}</td>
-        <td>${r.kampus_nama}</td>
-        <td>${r.program_studi ?? '—'}</td>
-        <td><span class="badge ${r.status === 'DITERIMA' ? 'diterima' : r.status === 'TIDAK_DITERIMA' ? 'tidak' : 'mundur'}">${getStatusLabel(r.status)}</span></td>
-      </tr>`).join('')}
+      ${j.rows.map((r, i) => `\n
+         <td>${i + 1}</td>
+         <td><strong>${r.nama_lengkap ?? ''}</strong></td>
+         <td>${r.nisn ?? ''}</td>
+         <td>${r.tingkat ?? ''}-${r.nomor_kelas ?? ''}</td>
+         <td>${r.kampus_nama}</td>
+         <td>${r.program_studi ?? '—'}</td>
+         <td><span class="badge ${r.status === 'DITERIMA' ? 'diterima' : r.status === 'TIDAK_DITERIMA' ? 'tidak' : 'mundur'}">${getStatusLabel(r.status)}</span></td>
+       `).join('')}
     </tbody>
-  </table>
+   \n
 </div>`).join('')}
 </body></html>`
 
