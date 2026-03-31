@@ -22,8 +22,8 @@ type AccentKey = typeof ACCENT_COLORS[number]['id']
 
 const MENU_GROUPS = [
   { label: 'Utama',     hrefs: ['/dashboard', '/dashboard/siswa', '/dashboard/kelas', '/dashboard/plotting'] },
-  { label: 'Akademik',  hrefs: ['/dashboard/akademik', '/dashboard/akademik/analitik', '/dashboard/guru', '/dashboard/kehadiran'] },
-  { label: 'Kesiswaan', hrefs: ['/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes', '/dashboard/tka', '/dashboard/penerimaan-pt'] },
+  { label: 'Akademik',  hrefs: ['/dashboard/akademik', '/dashboard/akademik/analitik', '/dashboard/penerimaan-pt', '/dashboard/guru', '/dashboard/kehadiran'] },
+  { label: 'Kesiswaan', hrefs: ['/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes', '/dashboard/tka'] },
   { label: 'Sistem',    hrefs: ['/dashboard/settings'] },
 ]
 
