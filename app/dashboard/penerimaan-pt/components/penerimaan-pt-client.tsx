@@ -11,12 +11,15 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   GraduationCap, Search, Plus, Loader2, X, Trash2, Pencil,
   CalendarDays, AlertCircle, ChevronRight, CheckCircle2,
-  Download, Printer, BarChart3, Users, Building2, BookOpen,
+  BarChart3, Users, Building2, BookOpen,
   ChevronDown, ChevronUp, FileSpreadsheet, FileText as FilePdf,
-  TrendingUp, Award, Filter
+  TrendingUp, Award, ChevronLeft, ChevronRight as ChevronRightIcon
 } from 'lucide-react'
 import {
-  getSiswaKelas12,
+  getSiswaKelas12,                       // ✅ ditambahkan
+  getSiswaKelas12Paginated,
+  getTotalSiswaKelas12Filtered,
+  getKelasUnik,
   getPenerimaanByJalur,
   getPenerimaanSiswa,
   getPenerimaanByKampus,
@@ -37,7 +40,20 @@ type SiswaRow = { id: string; nama_lengkap: string; nisn: string; foto_url: stri
 
 const KAMPUS_LIST = kampusData as Kampus[]
 
-// ── Helpers ────────────────────────────────────────────────────────────
+// ── Helpers dengan dynamic jalur ──────────────────────────────────────
+function getJalurColor(jalur: string, jalurList: typeof JALUR_LIST) {
+  return jalurList.find(j => j.value === jalur)?.color ?? 'bg-slate-100 text-slate-600 border-slate-200'
+}
+function getJalurLabel(jalur: string, jalurList: typeof JALUR_LIST) {
+  return jalurList.find(j => j.value === jalur)?.label ?? jalur
+}
+function getStatusColor(status: string) {
+  return STATUS_LIST.find(s => s.value === status)?.color ?? 'bg-slate-100 text-slate-600 border-slate-200'
+}
+function getStatusLabel(status: string) {
+  return STATUS_LIST.find(s => s.value === status)?.label ?? status
+}
+
 function Badge({ label, colorClass, small }: { label: string; colorClass: string; small?: boolean }) {
   return (
     <span className={cn('font-semibold rounded border', small ? 'text-[9px] px-1 py-0.5' : 'text-[10px] px-1.5 py-0.5', colorClass)}>
@@ -57,20 +73,7 @@ function AvatarSiswa({ siswa, size = 'md' }: { siswa: Pick<SiswaRow, 'foto_url' 
   )
 }
 
-function getJalurColor(jalur: string) {
-  return JALUR_LIST.find(j => j.value === jalur)?.color ?? 'bg-slate-100 text-slate-600 border-slate-200'
-}
-function getJalurLabel(jalur: string) {
-  return JALUR_LIST.find(j => j.value === jalur)?.label ?? jalur
-}
-function getStatusColor(status: string) {
-  return STATUS_LIST.find(s => s.value === status)?.color ?? 'bg-slate-100 text-slate-600 border-slate-200'
-}
-function getStatusLabel(status: string) {
-  return STATUS_LIST.find(s => s.value === status)?.label ?? status
-}
-
-// ── KampusAutocomplete ────────────────────────────────────────────────
+// ── KampusAutocomplete (tidak berubah) ─────────────────────────────────
 function KampusAutocomplete({
   value, onChange, placeholder = 'Ketik nama atau singkatan kampus...'
 }: {
@@ -100,7 +103,6 @@ function KampusAutocomplete({
     setOpen(filtered.length > 0)
   }, [filtered])
 
-  // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false)
@@ -181,9 +183,10 @@ function KampusAutocomplete({
   )
 }
 
-// ── Form Tambah/Edit Penerimaan ────────────────────────────────────────
+// ── Form Tambah/Edit Penerimaan (menggunakan dynamicJalurList) ─────────
 function FormPenerimaan({
   siswa, taId, jalurDefault, editData, onSaved, onClose,
+  dynamicJalurList,
 }: {
   siswa: Pick<SiswaRow, 'id' | 'nama_lengkap' | 'nisn' | 'foto_url' | 'tingkat' | 'nomor_kelas' | 'kelas_kelompok'>
   taId: string
@@ -191,6 +194,7 @@ function FormPenerimaan({
   editData?: PenerimaanRow
   onSaved: () => void
   onClose: () => void
+  dynamicJalurList: typeof JALUR_LIST
 }) {
   const [jalur, setJalur] = useState<JalurPT>(editData?.jalur ?? jalurDefault ?? 'SNBP')
   const [kampus, setKampus] = useState<Kampus | null>(
@@ -239,8 +243,8 @@ function FormPenerimaan({
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Jalur Seleksi <span className="text-rose-500">*</span></label>
           <div className="flex flex-wrap gap-2">
-            {JALUR_LIST.map(j => (
-              <button key={j.value} type="button" onClick={() => setJalur(j.value)}
+            {dynamicJalurList.map(j => (
+              <button key={j.value} type="button" onClick={() => setJalur(j.value as JalurPT)}
                 className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
                   jalur === j.value ? j.color : 'bg-surface-2 text-slate-500 border-surface hover:bg-surface-3')}>
                 {j.label}
@@ -302,13 +306,14 @@ function FormPenerimaan({
 }
 
 // ── Modal Input ─────────────────────────────────────────────────────────
-function ModalInputPenerimaan({ siswa, taId, jalurDefault, editData, onSaved, onClose }: {
+function ModalInputPenerimaan({ siswa, taId, jalurDefault, editData, onSaved, onClose, dynamicJalurList }: {
   siswa: SiswaRow | null
   taId: string
   jalurDefault?: JalurPT
   editData?: PenerimaanRow
   onSaved: () => void
   onClose: () => void
+  dynamicJalurList: typeof JALUR_LIST
 }) {
   if (!siswa) return null
   return (
@@ -322,8 +327,15 @@ function ModalInputPenerimaan({ siswa, taId, jalurDefault, editData, onSaved, on
         </DialogHeader>
         <ScrollArea className="max-h-[80vh]">
           <div className="px-5 py-5">
-            <FormPenerimaan siswa={siswa} taId={taId} jalurDefault={jalurDefault}
-              editData={editData} onSaved={onSaved} onClose={onClose} />
+            <FormPenerimaan
+              siswa={siswa}
+              taId={taId}
+              jalurDefault={jalurDefault}
+              editData={editData}
+              onSaved={onSaved}
+              onClose={onClose}
+              dynamicJalurList={dynamicJalurList}
+            />
           </div>
         </ScrollArea>
       </DialogContent>
@@ -331,8 +343,12 @@ function ModalInputPenerimaan({ siswa, taId, jalurDefault, editData, onSaved, on
   )
 }
 
-// ── Tab 1: Input per Jalur ─────────────────────────────────────────────
-function TabInputJalur({ taId }: { taId: string }) {
+// ── Tab 1: Input per Jalur (dengan pagination) ─────────────────────────
+function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
+  taId: string
+  dynamicJalurList: typeof JALUR_LIST
+  addJalur: (value: string, label: string, color: string) => void
+}) {
   const [activeJalur, setActiveJalur] = useState<JalurPT>('SNBP')
   const [siswaList, setSiswaList] = useState<SiswaRow[]>([])
   const [penerimaanList, setPenerimaanList] = useState<PenerimaanRow[]>([])
@@ -343,39 +359,63 @@ function TabInputJalur({ taId }: { taId: string }) {
   const [editData, setEditData] = useState<PenerimaanRow | undefined>()
   const [showModal, setShowModal] = useState(false)
   const [expandedSiswa, setExpandedSiswa] = useState<Set<string>>(new Set())
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const [kelasOptions, setKelasOptions] = useState<string[]>([])
+  const [showAddJalurDialog, setShowAddJalurDialog] = useState(false)
+  const [newJalurLabel, setNewJalurLabel] = useState('')
+  const [newJalurColor, setNewJalurColor] = useState('bg-gray-100 text-gray-700 border-gray-200')
+  const ITEMS_PER_PAGE = 10
 
+  // Ambil daftar kelas unik
+  useEffect(() => {
+    getKelasUnik(taId).then(setKelasOptions)
+  }, [taId])
+
+  // Load data siswa (pagination) dan penerimaan (semua untuk jalur aktif)
   const loadData = useCallback(async () => {
     setIsLoading(true)
-    const [siswa, penerimaan] = await Promise.all([
-      getSiswaKelas12(taId),
-      getPenerimaanByJalur(activeJalur, taId),
-    ])
-    setSiswaList(siswa)
-    setPenerimaanList(penerimaan)
-    setIsLoading(false)
-  }, [taId, activeJalur])
+    try {
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE
+      const [siswa, total, penerimaan] = await Promise.all([
+        getSiswaKelas12Paginated({
+          tahun_ajaran_id: taId,
+          limit: ITEMS_PER_PAGE,
+          offset,
+          kelas_filter: filterKelas || undefined,
+          search: searchQuery.trim().length >= 2 ? searchQuery : undefined,
+          jalur: activeJalur,
+        }),
+        getTotalSiswaKelas12Filtered({
+          tahun_ajaran_id: taId,
+          kelas_filter: filterKelas || undefined,
+          search: searchQuery.trim().length >= 2 ? searchQuery : undefined,
+        }),
+        getPenerimaanByJalur(activeJalur, taId),
+      ])
+      setSiswaList(siswa)
+      setTotalItems(total)
+      setPenerimaanList(penerimaan)
+    } catch (error) {
+      console.error('Failed to load data:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [taId, activeJalur, currentPage, filterKelas, searchQuery])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
-  // Kelas unik untuk filter
-  const kelasUnik = useMemo(() => {
-    const set = new Set(siswaList.map(s => `${s.tingkat}-${s.nomor_kelas}`))
-    return Array.from(set).sort()
-  }, [siswaList])
+  // Reset halaman ketika filter/search berubah
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filterKelas, searchQuery])
 
-  const siswaFiltered = useMemo(() => {
-    return siswaList.filter(s => {
-      const kelasStr = `${s.tingkat}-${s.nomor_kelas}`
-      if (filterKelas && kelasStr !== filterKelas) return false
-      if (searchQuery.trim().length >= 2) {
-        const q = searchQuery.toLowerCase()
-        if (!s.nama_lengkap.toLowerCase().includes(q) && !s.nisn.includes(q)) return false
-      }
-      return true
-    })
-  }, [siswaList, filterKelas, searchQuery])
+  const getJalurInfo = (jalur: string) => {
+    return dynamicJalurList.find(j => j.value === jalur)!
+  }
 
-  // Group penerimaan by siswa_id
   const penerimaanBySiswa = useMemo(() => {
     const map = new Map<string, PenerimaanRow[]>()
     penerimaanList.forEach(p => {
@@ -401,20 +441,93 @@ function TabInputJalur({ taId }: { taId: string }) {
     })
   }
 
-  const jalurInfo = JALUR_LIST.find(j => j.value === activeJalur)!
+  const jalurInfo = getJalurInfo(activeJalur)
+
+  // Pagination controls
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE)
+  const canPrev = currentPage > 1
+  const canNext = currentPage < totalPages
+
+  const handlePrev = () => canPrev && setCurrentPage(p => p - 1)
+  const handleNext = () => canNext && setCurrentPage(p => p + 1)
+
+  const handleAddJalur = () => {
+    if (!newJalurLabel.trim()) return
+    const newValue = newJalurLabel.toUpperCase().replace(/\s/g, '_')
+    if (dynamicJalurList.some(j => j.value === newValue)) {
+      alert('Jalur sudah ada')
+      return
+    }
+    addJalur(newValue, newJalurLabel, newJalurColor)
+    setShowAddJalurDialog(false)
+    setNewJalurLabel('')
+    setNewJalurColor('bg-gray-100 text-gray-700 border-gray-200')
+  }
 
   return (
     <div className="space-y-3">
-      {/* Pilih jalur */}
-      <div className="flex flex-wrap gap-2">
-        {JALUR_LIST.map(j => (
-          <button key={j.value} onClick={() => setActiveJalur(j.value)}
+      {/* Pilih jalur + tombol tambah */}
+      <div className="flex flex-wrap gap-2 items-center">
+        {dynamicJalurList.map(j => (
+          <button key={j.value} onClick={() => setActiveJalur(j.value as JalurPT)}
             className={cn('px-4 py-2 rounded-xl text-xs font-bold border transition-all shadow-sm',
               activeJalur === j.value ? j.color + ' shadow-md scale-[1.02]' : 'bg-surface text-slate-500 border-surface hover:bg-surface-2')}>
             {j.label}
           </button>
         ))}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowAddJalurDialog(true)}
+          className="h-8 text-xs gap-1 border-dashed border-indigo-300 text-indigo-600"
+        >
+          <Plus className="h-3 w-3" /> Tambah Jalur
+        </Button>
       </div>
+
+      {/* Dialog tambah jalur */}
+      <Dialog open={showAddJalurDialog} onOpenChange={setShowAddJalurDialog}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-bold">Tambah Jalur Baru</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-xs font-semibold text-slate-600">Nama Jalur</label>
+              <Input
+                value={newJalurLabel}
+                onChange={e => setNewJalurLabel(e.target.value)}
+                placeholder="Contoh: BEASISWA"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-600">Warna (opsional)</label>
+              <div className="flex gap-2 mt-1 flex-wrap">
+                {['bg-emerald-50 text-emerald-700 border-emerald-200',
+                  'bg-blue-50 text-blue-700 border-blue-200',
+                  'bg-violet-50 text-violet-700 border-violet-200',
+                  'bg-amber-50 text-amber-700 border-amber-200',
+                  'bg-rose-50 text-rose-700 border-rose-200',
+                  'bg-slate-100 text-slate-600 border-slate-200'].map(color => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setNewJalurColor(color)}
+                    className={cn('px-3 py-1 rounded-lg text-xs font-semibold border', color, newJalurColor === color && 'ring-2 ring-indigo-400')}
+                  >
+                    Contoh
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowAddJalurDialog(false)} className="flex-1">Batal</Button>
+              <Button onClick={handleAddJalur} className="flex-1 bg-indigo-600">Tambah</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Toolbar */}
       <div className="bg-surface border border-surface rounded-xl p-3 space-y-2.5">
@@ -432,14 +545,14 @@ function TabInputJalur({ taId }: { taId: string }) {
             <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
               placeholder="Cari nama atau NISN..." className="pl-9 h-9 text-xs rounded-xl border-surface bg-surface-2" />
           </div>
-          {kelasUnik.length > 1 && (
+          {kelasOptions.length > 1 && (
             <Select value={filterKelas || 'all'} onValueChange={v => setFilterKelas(v === 'all' ? '' : v)}>
               <SelectTrigger className="h-9 w-32 text-xs rounded-xl border-surface">
                 <SelectValue placeholder="Semua kelas" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-xs">Semua kelas</SelectItem>
-                {kelasUnik.map(k => <SelectItem key={k} value={k} className="text-xs">Kelas {k}</SelectItem>)}
+                {kelasOptions.map(k => <SelectItem key={k} value={k} className="text-xs">Kelas {k}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
@@ -451,21 +564,20 @@ function TabInputJalur({ taId }: { taId: string }) {
         <div className="flex items-center justify-center py-14 gap-2 text-slate-400">
           <Loader2 className="h-5 w-5 animate-spin" /><span className="text-sm">Memuat data...</span>
         </div>
-      ) : siswaFiltered.length === 0 ? (
+      ) : siswaList.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-14 gap-2 text-slate-400">
           <Users className="h-10 w-10 text-slate-200" />
-          <p className="text-sm font-medium">Belum ada siswa kelas 12 aktif</p>
+          <p className="text-sm font-medium">Tidak ada siswa yang cocok</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {siswaFiltered.map(siswa => {
+          {siswaList.map(siswa => {
             const entries = penerimaanBySiswa.get(siswa.id) ?? []
             const isExpanded = expandedSiswa.has(siswa.id)
             const diterima = entries.filter(e => e.status === 'DITERIMA')
 
             return (
               <div key={siswa.id} className="rounded-xl border border-surface bg-surface overflow-hidden">
-                {/* Header row */}
                 <div className="flex items-center gap-3 px-4 py-3">
                   <button onClick={() => toggleExpand(siswa.id)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
                     <AvatarSiswa siswa={siswa} size="sm" />
@@ -486,7 +598,6 @@ function TabInputJalur({ taId }: { taId: string }) {
                   </button>
                 </div>
 
-                {/* Expanded entries */}
                 {isExpanded && (
                   <div className="border-t border-surface-2 bg-slate-50/50 dark:bg-slate-900/10 px-4 py-3 space-y-2">
                     {entries.length === 0 ? (
@@ -521,18 +632,53 @@ function TabInputJalur({ taId }: { taId: string }) {
         </div>
       )}
 
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between gap-2 pt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrev}
+            disabled={!canPrev}
+            className="h-8 w-8 p-0 rounded-lg"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-xs text-slate-500">
+            Halaman {currentPage} dari {totalPages} ({totalItems} siswa)
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleNext}
+            disabled={!canNext}
+            className="h-8 w-8 p-0 rounded-lg"
+          >
+            <ChevronRightIcon className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       {showModal && selectedSiswa && (
-        <ModalInputPenerimaan siswa={selectedSiswa} taId={taId} jalurDefault={activeJalur}
+        <ModalInputPenerimaan
+          siswa={selectedSiswa}
+          taId={taId}
+          jalurDefault={activeJalur}
           editData={editData}
           onSaved={async () => { setShowModal(false); await loadData() }}
-          onClose={() => setShowModal(false)} />
+          onClose={() => setShowModal(false)}
+          dynamicJalurList={dynamicJalurList}
+        />
       )}
     </div>
   )
 }
 
-// ── Tab 2: Per Siswa ───────────────────────────────────────────────────
-function TabPerSiswa({ taId }: { taId: string }) {
+// ── Tab 2: Per Siswa (menggunakan dynamicJalurList) ───────────────────
+function TabPerSiswa({ taId, dynamicJalurList }: {
+  taId: string
+  dynamicJalurList: typeof JALUR_LIST
+}) {
   const [siswaList, setSiswaList] = useState<SiswaRow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -543,7 +689,10 @@ function TabPerSiswa({ taId }: { taId: string }) {
   const [editData, setEditData] = useState<PenerimaanRow | undefined>()
 
   useEffect(() => {
-    getSiswaKelas12(taId).then(data => { setSiswaList(data); setIsLoading(false) })
+    getSiswaKelas12(taId).then((data: SiswaRow[]) => {   // ✅ tipe ditambahkan
+      setSiswaList(data)
+      setIsLoading(false)
+    })
   }, [taId])
 
   const handleSelectSiswa = async (siswa: SiswaRow) => {
@@ -558,7 +707,7 @@ function TabPerSiswa({ taId }: { taId: string }) {
     if (!selectedSiswa) return
     const data = await getPenerimaanSiswa(selectedSiswa.id, taId)
     setEntries(data)
-    const updatedList = await getSiswaKelas12(taId)
+    const updatedList: SiswaRow[] = await getSiswaKelas12(taId)   // ✅ tipe ditambahkan
     setSiswaList(updatedList)
   }
 
@@ -613,7 +762,6 @@ function TabPerSiswa({ taId }: { taId: string }) {
           </div>
         ) : (
           <div className="space-y-3">
-            {/* Header */}
             <div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-indigo-50 to-white dark:from-indigo-900/20 dark:to-transparent border border-indigo-100">
               <AvatarSiswa siswa={selectedSiswa} />
               <div className="flex-1 min-w-0">
@@ -639,7 +787,7 @@ function TabPerSiswa({ taId }: { taId: string }) {
               </div>
             ) : (
               <div className="space-y-2">
-                {JALUR_LIST.map(j => {
+                {dynamicJalurList.map(j => {
                   const jalurEntries = entries.filter(e => e.jalur === j.value)
                   if (jalurEntries.length === 0) return null
                   return (
@@ -682,16 +830,24 @@ function TabPerSiswa({ taId }: { taId: string }) {
       </div>
 
       {showModal && selectedSiswa && (
-        <ModalInputPenerimaan siswa={selectedSiswa} taId={taId} editData={editData}
+        <ModalInputPenerimaan
+          siswa={selectedSiswa}
+          taId={taId}
+          editData={editData}
           onSaved={async () => { setShowModal(false); await reload() }}
-          onClose={() => setShowModal(false)} />
+          onClose={() => setShowModal(false)}
+          dynamicJalurList={dynamicJalurList}
+        />
       )}
     </div>
   )
 }
 
-// ── Tab 3: Per Kampus ──────────────────────────────────────────────────
-function TabPerKampus({ taId }: { taId: string }) {
+// ── Tab 3: Per Kampus (menggunakan dynamicJalurList) ──────────────────
+function TabPerKampus({ taId, dynamicJalurList }: {
+  taId: string
+  dynamicJalurList: typeof JALUR_LIST
+}) {
   const [selectedKampus, setSelectedKampus] = useState<Kampus | null>(null)
   const [entries, setEntries] = useState<PenerimaanRow[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -716,7 +872,6 @@ function TabPerKampus({ taId }: { taId: string }) {
 
       {selectedKampus && (
         <>
-          {/* Header kampus */}
           <div className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-r from-indigo-50 to-white dark:from-indigo-900/20 dark:to-transparent border border-indigo-100">
             <div className="h-12 w-12 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0">
               <Building2 className="h-6 w-6 text-indigo-600" />
@@ -731,7 +886,6 @@ function TabPerKampus({ taId }: { taId: string }) {
             </div>
           </div>
 
-          {/* Filter jalur */}
           {entries.length > 0 && (
             <div className="flex gap-1.5 flex-wrap">
               <button onClick={() => setFilterJalur('')}
@@ -739,11 +893,11 @@ function TabPerKampus({ taId }: { taId: string }) {
                   filterJalur === '' ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900' : 'bg-surface-2 text-slate-500 border-surface hover:bg-surface-3')}>
                 Semua ({entries.length})
               </button>
-              {JALUR_LIST.map(j => {
+              {dynamicJalurList.map(j => {
                 const count = entries.filter(e => e.jalur === j.value).length
                 if (!count) return null
                 return (
-                  <button key={j.value} onClick={() => setFilterJalur(j.value)}
+                  <button key={j.value} onClick={() => setFilterJalur(j.value as JalurPT)}
                     className={cn('px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all',
                       filterJalur === j.value ? j.color : 'bg-surface-2 text-slate-500 border-surface hover:bg-surface-3')}>
                     {j.label} ({count})
@@ -785,7 +939,7 @@ function TabPerKampus({ taId }: { taId: string }) {
                       {entry.tingkat}-{entry.nomor_kelas}
                     </div>
                     <div className="md:col-span-2 hidden md:block">
-                      <Badge label={getJalurLabel(entry.jalur)} colorClass={getJalurColor(entry.jalur)} />
+                      <Badge label={getJalurLabel(entry.jalur, dynamicJalurList)} colorClass={getJalurColor(entry.jalur, dynamicJalurList)} />
                     </div>
                     <div className="md:col-span-3 text-xs text-slate-500 dark:text-slate-400 hidden md:block truncate">
                       {entry.program_studi || '—'}
@@ -804,8 +958,11 @@ function TabPerKampus({ taId }: { taId: string }) {
   )
 }
 
-// ── Tab 4: Analitik ────────────────────────────────────────────────────
-function TabAnalitik({ taId }: { taId: string }) {
+// ── Tab 4: Analitik (menggunakan dynamicJalurList) ────────────────────
+function TabAnalitik({ taId, dynamicJalurList }: {
+  taId: string
+  dynamicJalurList: typeof JALUR_LIST
+}) {
   const [data, setData] = useState<Awaited<ReturnType<typeof getAnalitikPenerimaan>> | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -820,8 +977,7 @@ function TabAnalitik({ taId }: { taId: string }) {
 
   const pct = data.totalSiswa > 0 ? Math.round((data.sudahData / data.totalSiswa) * 100) : 0
 
-  // Ringkasan per jalur
-  const jalurSummary = JALUR_LIST.map(j => {
+  const jalurSummary = dynamicJalurList.map(j => {
     const entries = data.perJalur.filter(p => p.jalur === j.value)
     const diterima = entries.find(e => e.status === 'DITERIMA')?.total ?? 0
     const tidakDiterima = entries.find(e => e.status === 'TIDAK_DITERIMA')?.total ?? 0
@@ -832,7 +988,6 @@ function TabAnalitik({ taId }: { taId: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Overview cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'Siswa Kelas 12', value: data.totalSiswa, icon: Users, color: 'text-slate-600', bg: 'bg-slate-50 border-slate-200' },
@@ -848,7 +1003,6 @@ function TabAnalitik({ taId }: { taId: string }) {
         ))}
       </div>
 
-      {/* Progress bar */}
       <div className="bg-surface border border-surface rounded-xl p-4 space-y-2">
         <div className="flex justify-between items-center">
           <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Kelengkapan Data</p>
@@ -861,7 +1015,6 @@ function TabAnalitik({ taId }: { taId: string }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Distribusi per jalur */}
         <div className="bg-surface border border-surface rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-surface-2 flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-indigo-500" />
@@ -890,7 +1043,6 @@ function TabAnalitik({ taId }: { taId: string }) {
           </div>
         </div>
 
-        {/* Top Kampus */}
         <div className="bg-surface border border-surface rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-surface-2 flex items-center gap-2">
             <Award className="h-4 w-4 text-amber-500" />
@@ -930,13 +1082,13 @@ function TabAnalitik({ taId }: { taId: string }) {
 }
 
 // ── Export Utilities ────────────────────────────────────────────────────
-function exportCSV(rows: PenerimaanRow[], taName: string) {
+function exportCSV(rows: PenerimaanRow[], taName: string, dynamicJalurList: typeof JALUR_LIST) {
   const headers = ['Nama Lengkap', 'NISN', 'Kelas', 'Jalur', 'Perguruan Tinggi', 'Program Studi', 'Status', 'Catatan']
   const csvRows = rows.map(r => [
     r.nama_lengkap ?? '',
     r.nisn ?? '',
     `${r.tingkat ?? ''}-${r.nomor_kelas ?? ''} ${r.kelas_kelompok ?? ''}`.trim(),
-    getJalurLabel(r.jalur),
+    getJalurLabel(r.jalur, dynamicJalurList),
     r.kampus_nama,
     r.program_studi ?? '',
     getStatusLabel(r.status),
@@ -952,8 +1104,8 @@ function exportCSV(rows: PenerimaanRow[], taName: string) {
   URL.revokeObjectURL(a.href)
 }
 
-function exportPDF(rows: PenerimaanRow[], taName: string) {
-  const grouped = JALUR_LIST.map(j => ({
+function exportPDF(rows: PenerimaanRow[], taName: string, dynamicJalurList: typeof JALUR_LIST) {
+  const grouped = dynamicJalurList.map(j => ({
     ...j, rows: rows.filter(r => r.jalur === j.value)
   })).filter(j => j.rows.length > 0)
 
@@ -984,20 +1136,22 @@ function exportPDF(rows: PenerimaanRow[], taName: string) {
 ${grouped.map(j => `
 <div class="section">
   <div class="section-title" style="background:#ede9fe;color:#5b21b6;border:1px solid #ddd6fe">Jalur ${j.label} — ${j.rows.filter(r => r.status === 'DITERIMA').length} diterima</div>
-   \n
-    <thead>\n<th>No</th><th>Nama Lengkap</th><th>NISN</th><th>Kelas</th><th>Perguruan Tinggi</th><th>Program Studi</th><th>Status</th>\n</thead>
+   <table>
+    <thead>
+      <tr><th>No</th><th>Nama Lengkap</th><th>NISN</th><th>Kelas</th><th>Perguruan Tinggi</th><th>Program Studi</th><th>Status</th></tr>
+    </thead>
     <tbody>
-      ${j.rows.map((r, i) => `\n
-         <td>${i + 1}</td>
-         <td><strong>${r.nama_lengkap ?? ''}</strong></td>
-         <td>${r.nisn ?? ''}</td>
-         <td>${r.tingkat ?? ''}-${r.nomor_kelas ?? ''}</td>
-         <td>${r.kampus_nama}</td>
-         <td>${r.program_studi ?? '—'}</td>
-         <td><span class="badge ${r.status === 'DITERIMA' ? 'diterima' : r.status === 'TIDAK_DITERIMA' ? 'tidak' : 'mundur'}">${getStatusLabel(r.status)}</span></td>
-       `).join('')}
+      ${j.rows.map((r, i) => `<tr>
+          <td>${i + 1}</td>
+          <td><strong>${r.nama_lengkap ?? ''}</strong></td>
+          <td>${r.nisn ?? ''}</td>
+          <td>${r.tingkat ?? ''}-${r.nomor_kelas ?? ''}</td>
+          <td>${r.kampus_nama}</td>
+          <td>${r.program_studi ?? '—'}</td>
+          <td><span class="badge ${r.status === 'DITERIMA' ? 'diterima' : r.status === 'TIDAK_DITERIMA' ? 'tidak' : 'mundur'}">${getStatusLabel(r.status)}</span></td>
+        </tr>`).join('')}
     </tbody>
-   \n
+   </table>
 </div>`).join('')}
 </body></html>`
 
@@ -1009,6 +1163,362 @@ ${grouped.map(j => `
   setTimeout(() => { win.print() }, 400)
 }
 
+// ── Modal Import Excel ─────────────────────────────────────────────────
+function ImportExcelModal({
+  open,
+  onOpenChange,
+  taId,
+  dynamicJalurList,
+  onImportSuccess,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  taId: string
+  dynamicJalurList: typeof JALUR_LIST
+  onImportSuccess: () => void
+}) {
+  const [file, setFile] = useState<File | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [parsedData, setParsedData] = useState<any[]>([])
+  const [headers, setHeaders] = useState<string[]>([])
+  const [mapping, setMapping] = useState<{
+    nisn: number | null
+    nama: number | null
+    jalur: number | null
+    kampus: number | null
+    prodi: number | null
+    status: number | null
+  }>({
+    nisn: null,
+    nama: null,
+    jalur: null,
+    kampus: null,
+    prodi: null,
+    status: null,
+  })
+  const [previewRows, setPreviewRows] = useState<any[]>([])
+  const [kampusMapping, setKampusMapping] = useState<Record<number, string>>({}) // baris index -> kampus_id
+  const [step, setStep] = useState<'upload' | 'map' | 'preview'>('upload')
+
+  // Reset state saat modal ditutup
+  useEffect(() => {
+    if (!open) {
+      setFile(null)
+      setParsedData([])
+      setHeaders([])
+      setMapping({ nisn: null, nama: null, jalur: null, kampus: null, prodi: null, status: null })
+      setPreviewRows([])
+      setKampusMapping({})
+      setStep('upload')
+      setLoading(false)
+    }
+  }, [open])
+
+  // Handler upload file
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFile(file)
+    setLoading(true)
+
+    // Load SheetJS from CDN (zero npm install)
+    const script = document.createElement('script')
+    script.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js'
+    script.onload = () => {
+      const reader = new FileReader()
+      reader.onload = (evt) => {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer)
+        const workbook = (window as any).XLSX.read(data, { type: 'array' })
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+        const rows = (window as any).XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' })
+        if (rows.length < 2) {
+          alert('File kosong atau tidak memiliki data.')
+          setLoading(false)
+          return
+        }
+        const headerRow = rows[0] as string[]
+        const dataRows = rows.slice(1) as any[][]
+        setHeaders(headerRow)
+        setParsedData(dataRows)
+        setStep('map')
+        setLoading(false)
+      }
+      reader.readAsArrayBuffer(file)
+    }
+    document.head.appendChild(script)
+  }
+
+  // Handle mapping selection
+  const handleMappingChange = (field: keyof typeof mapping, colIndex: number) => {
+    setMapping(prev => ({ ...prev, [field]: colIndex }))
+  }
+
+  // Generate preview setelah mapping selesai
+  const generatePreview = () => {
+    const required = ['nisn', 'jalur', 'kampus', 'status']
+    for (const f of required) {
+      if (mapping[f as keyof typeof mapping] === null) {
+        alert(`Kolom ${f.toUpperCase()} harus dipilih.`)
+        return
+      }
+    }
+
+    const preview = parsedData.map((row, idx) => {
+      const nisn = row[mapping.nisn!]?.toString().trim() || ''
+      const nama = mapping.nama !== null ? row[mapping.nama!]?.toString().trim() || '' : ''
+      const jalurRaw = row[mapping.jalur!]?.toString().trim() || ''
+      const kampusRaw = row[mapping.kampus!]?.toString().trim() || ''
+      const prodiRaw = mapping.prodi !== null ? row[mapping.prodi!]?.toString().trim() || '' : ''
+      const statusRaw = row[mapping.status!]?.toString().trim() || ''
+
+      // Cari jalur yang cocok
+      const jalurMatch = dynamicJalurList.find(j => j.label.toLowerCase() === jalurRaw.toLowerCase() || j.value === jalurRaw)
+      const jalurValue = jalurMatch ? jalurMatch.value : jalurRaw
+
+      // Cari status
+      const statusMatch = STATUS_LIST.find(s => s.label.toLowerCase() === statusRaw.toLowerCase() || s.value === statusRaw)
+      const statusValue = statusMatch ? statusMatch.value : statusRaw
+
+      // Cari kampus (fuzzy)
+      let kampusId = ''
+      let kampusNama = ''
+      if (kampusRaw) {
+        const found = KAMPUS_LIST.find(k => 
+          k.nama.toLowerCase().includes(kampusRaw.toLowerCase()) ||
+          kampusRaw.toLowerCase().includes(k.nama.toLowerCase())
+        )
+        if (found) {
+          kampusId = found.id
+          kampusNama = found.nama
+        }
+      }
+
+      return {
+        index: idx,
+        nisn,
+        nama,
+        jalurRaw,
+        jalurValue,
+        kampusRaw,
+        kampusId,
+        kampusNama,
+        prodiRaw,
+        statusRaw,
+        statusValue,
+        valid: !!nisn && !!kampusRaw && !!jalurValue && !!statusValue,
+      }
+    })
+
+    setPreviewRows(preview)
+    // Inisialisasi kampusMapping untuk baris yang belum punya kampusId
+    const initialKampusMapping: Record<number, string> = {}
+    preview.forEach((row, i) => {
+      if (row.kampusId) initialKampusMapping[i] = row.kampusId
+    })
+    setKampusMapping(initialKampusMapping)
+    setStep('preview')
+  }
+
+  // Handle perubahan pilihan kampus di preview
+  const handleKampusChange = (rowIndex: number, kampusId: string) => {
+    setKampusMapping(prev => ({ ...prev, [rowIndex]: kampusId }))
+    // Update previewRows untuk menampilkan nama kampus yang dipilih
+    setPreviewRows(prevRows =>
+      prevRows.map(row =>
+        row.index === rowIndex
+          ? {
+              ...row,
+              kampusId,
+              kampusNama: KAMPUS_LIST.find(k => k.id === kampusId)?.nama || '',
+            }
+          : row
+      )
+    )
+  }
+
+  // Kirim data ke server
+  const handleImport = async () => {
+    const dataToImport = previewRows
+      .filter(row => row.valid && kampusMapping[row.index])
+      .map(row => ({
+        nisn: row.nisn,
+        jalur: row.jalurValue as JalurPT,
+        kampus_nama: KAMPUS_LIST.find(k => k.id === kampusMapping[row.index])?.nama || row.kampusRaw,
+        program_studi: row.prodiRaw || undefined,
+        status: row.statusValue as StatusPenerimaan,
+      }))
+
+    if (dataToImport.length === 0) {
+      alert('Tidak ada data valid untuk diimport.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch('/api/import-penerimaan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: dataToImport, taId }),
+      })
+      const result = await res.json()
+      if (result.success !== undefined) {
+        alert(`Import berhasil: ${result.success} data, gagal: ${result.failed}\n${result.errors.join('\n')}`)
+        onImportSuccess()
+        onOpenChange(false)
+      } else {
+        alert(`Import gagal: ${result.error}`)
+      }
+    } catch (err) {
+      alert('Terjadi kesalahan saat import.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl p-0 gap-0">
+        <DialogHeader className="px-5 pt-5 pb-4 border-b border-surface-2">
+          <DialogTitle className="text-sm font-bold flex items-center gap-2">
+            <FileSpreadsheet className="h-4 w-4 text-indigo-600" />
+            Import Data Penerimaan PT
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="p-5">
+          {step === 'upload' && (
+            <div className="space-y-4">
+              <div className="border-2 border-dashed border-surface-2 rounded-xl p-8 text-center">
+                <input
+                  type="file"
+                  accept=".xlsx, .xls, .csv"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  id="excel-upload"
+                />
+                <label
+                  htmlFor="excel-upload"
+                  className="cursor-pointer flex flex-col items-center gap-2 text-slate-500 hover:text-indigo-600"
+                >
+                  <FileSpreadsheet className="h-12 w-12" />
+                  <span className="text-sm font-medium">Klik untuk upload file Excel atau CSV</span>
+                  <span className="text-xs">Format harus memiliki baris header</span>
+                </label>
+              </div>
+              <p className="text-xs text-slate-400">
+                Template yang diharapkan: kolom NISN, Nama (opsional), Jalur, Kampus, Program Studi (opsional), Status.
+                Status: DITERIMA / TIDAK_DITERIMA / MENGUNDURKAN_DIRI.
+              </p>
+            </div>
+          )}
+
+          {step === 'map' && headers.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">Pemetaan Kolom</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {Object.entries(mapping).map(([field, value]) => (
+                  <div key={field}>
+                    <label className="text-xs font-medium text-slate-600 capitalize">{field}</label>
+                    <select
+                      className="mt-1 w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm"
+                      value={value ?? ''}
+                      onChange={(e) => handleMappingChange(field as keyof typeof mapping, parseInt(e.target.value))}
+                    >
+                      <option value="">-- Pilih kolom --</option>
+                      {headers.map((h, idx) => (
+                        <option key={idx} value={idx}>
+                          {h} (kolom {idx + 1})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setStep('upload')}>
+                  Kembali
+                </Button>
+                <Button onClick={generatePreview} className="bg-indigo-600">
+                  Lanjut ke Preview
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {step === 'preview' && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">Preview Data (5 baris pertama)</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs border border-surface">
+                  <thead className="bg-surface-2">
+                    <tr>
+                      <th className="p-2 border">NISN</th>
+                      <th className="p-2 border">Nama</th>
+                      <th className="p-2 border">Jalur</th>
+                      <th className="p-2 border">Kampus (pilih)</th>
+                      <th className="p-2 border">Program Studi</th>
+                      <th className="p-2 border">Status</th>
+                      <th className="p-2 border">Valid</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewRows.slice(0, 5).map((row, idx) => (
+                      <tr key={idx} className={row.valid ? '' : 'bg-red-50'}>
+                        <td className="p-2 border">{row.nisn}</td>
+                        <td className="p-2 border">{row.nama}</td>
+                        <td className="p-2 border">
+                          {row.jalurRaw}
+                          {!dynamicJalurList.find(j => j.value === row.jalurValue) && (
+                            <span className="ml-1 text-rose-500">(tidak dikenal)</span>
+                          )}
+                        </td>
+                        <td className="p-2 border">
+                          <select
+                            value={kampusMapping[row.index] || ''}
+                            onChange={(e) => handleKampusChange(row.index, e.target.value)}
+                            className="w-full rounded border bg-surface-2 p-1 text-xs"
+                          >
+                            <option value="">Pilih kampus</option>
+                            {KAMPUS_LIST.map(k => (
+                              <option key={k.id} value={k.id}>{k.nama}</option>
+                            ))}
+                          </select>
+                          {row.kampusRaw && (
+                            <div className="text-[10px] text-slate-400 mt-1">Asli: {row.kampusRaw}</div>
+                          )}
+                        </td>
+                        <td className="p-2 border">{row.prodiRaw}</td>
+                        <td className="p-2 border">
+                          {row.statusRaw}
+                          {!STATUS_LIST.find(s => s.value === row.statusValue) && (
+                            <span className="ml-1 text-rose-500">(tidak dikenal)</span>
+                          )}
+                        </td>
+                        <td className="p-2 border text-center">
+                          {row.valid && kampusMapping[row.index] ? '✓' : '✗'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setStep('map')}>
+                  Kembali ke Pemetaan
+                </Button>
+                <Button onClick={handleImport} disabled={loading} className="bg-indigo-600">
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Import {previewRows.filter(r => r.valid && kampusMapping[r.index]).length} Data
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Main Client ────────────────────────────────────────────────────────
 export function PenerimaanPTClient({
   taAktif, userRole,
@@ -1016,13 +1526,19 @@ export function PenerimaanPTClient({
   taAktif: { id: string; nama: string; semester: number } | null
   userRole: string
 }) {
+  const [dynamicJalurList, setDynamicJalurList] = useState(JALUR_LIST)
   const [isExporting, setIsExporting] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+
+  const addJalur = (value: string, label: string, color: string) => {
+    setDynamicJalurList(prev => [...prev, { value: value as JalurPT, label, color }])
+  }
 
   const handleExportCSV = async () => {
     if (!taAktif) return
     setIsExporting(true)
     const rows = await getSemuaPenerimaan(taAktif.id)
-    exportCSV(rows, taAktif.nama)
+    exportCSV(rows, taAktif.nama, dynamicJalurList)
     setIsExporting(false)
   }
 
@@ -1030,7 +1546,7 @@ export function PenerimaanPTClient({
     if (!taAktif) return
     setIsExporting(true)
     const rows = await getSemuaPenerimaan(taAktif.id)
-    exportPDF(rows, taAktif.nama)
+    exportPDF(rows, taAktif.nama, dynamicJalurList)
     setIsExporting(false)
   }
 
@@ -1045,13 +1561,17 @@ export function PenerimaanPTClient({
 
   return (
     <div className="space-y-3">
-      {/* TA strip + export */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface border border-surface text-xs text-slate-500 flex-1">
           <CalendarDays className="h-3.5 w-3.5 shrink-0" />
           <span>TA {taAktif.nama} · Semester {taAktif.semester === 1 ? 'Ganjil' : 'Genap'}</span>
         </div>
         <div className="flex gap-1.5">
+          <Button variant="outline" size="sm" onClick={() => setShowImportModal(true)}
+            className="h-8 text-xs gap-1.5 border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-lg">
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Import Excel</span>
+          </Button>
           <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={isExporting}
             className="h-8 text-xs gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-lg">
             {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
@@ -1090,18 +1610,26 @@ export function PenerimaanPTClient({
         </TabsList>
 
         <TabsContent value="input" className="m-0">
-          <TabInputJalur taId={taAktif.id} />
+          <TabInputJalur taId={taAktif.id} dynamicJalurList={dynamicJalurList} addJalur={addJalur} />
         </TabsContent>
         <TabsContent value="siswa" className="m-0">
-          <TabPerSiswa taId={taAktif.id} />
+          <TabPerSiswa taId={taAktif.id} dynamicJalurList={dynamicJalurList} />
         </TabsContent>
         <TabsContent value="kampus" className="m-0">
-          <TabPerKampus taId={taAktif.id} />
+          <TabPerKampus taId={taAktif.id} dynamicJalurList={dynamicJalurList} />
         </TabsContent>
         <TabsContent value="analitik" className="m-0">
-          <TabAnalitik taId={taAktif.id} />
+          <TabAnalitik taId={taAktif.id} dynamicJalurList={dynamicJalurList} />
         </TabsContent>
       </Tabs>
+
+      <ImportExcelModal
+        open={showImportModal}
+        onOpenChange={setShowImportModal}
+        taId={taAktif.id}
+        dynamicJalurList={dynamicJalurList}
+        onImportSuccess={() => window.location.reload()}
+      />
     </div>
   )
 }

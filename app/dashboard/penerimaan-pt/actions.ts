@@ -4,7 +4,28 @@
 import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
 import type { JalurPT, StatusPenerimaan, PenerimaanRow } from './types'
-import { JALUR_LIST, STATUS_LIST } from './types' // opsional jika diperlukan di fungsi (misalnya untuk validasi)
+import kampusData from '@/data/kampus.json'
+
+const KAMPUS_LIST = kampusData as Array<{ id: string; nama: string; singkatan: string; kota: string; provinsi: string; jenis: string }>
+
+// ── Helper fuzzy match kampus ─────────────────────────────────────────
+function findClosestKampus(kampusNama: string): { id: string; nama: string } | null {
+  const normalized = kampusNama.toLowerCase().trim()
+  // Cari persis
+  const exact = KAMPUS_LIST.find(k => k.nama.toLowerCase() === normalized)
+  if (exact) return { id: exact.id, nama: exact.nama }
+
+  // Cari mengandung
+  const contains = KAMPUS_LIST.find(k => k.nama.toLowerCase().includes(normalized) || normalized.includes(k.nama.toLowerCase()))
+  if (contains) return { id: contains.id, nama: contains.nama }
+
+  // Cari dengan menghapus spasi dan tanda baca
+  const clean = normalized.replace(/[^a-z0-9]/g, '')
+  const similar = KAMPUS_LIST.find(k => k.nama.toLowerCase().replace(/[^a-z0-9]/g, '') === clean)
+  if (similar) return { id: similar.id, nama: similar.nama }
+
+  return null
+}
 
 // ── Initial Data (1 batch query) ───────────────────────────────────────
 export async function getInitialDataPenerimaanPT() {
@@ -15,7 +36,7 @@ export async function getInitialDataPenerimaanPT() {
   return { taAktif }
 }
 
-// ── Siswa Kelas 12 (lazy, dipanggil client) ────────────────────────────
+// ── Siswa Kelas 12 (original, tanpa pagination) ────────────────────────
 export async function getSiswaKelas12(tahun_ajaran_id: string) {
   const db = await getDB()
   const res = await db.prepare(`
@@ -34,6 +55,81 @@ export async function getSiswaKelas12(tahun_ajaran_id: string) {
     ORDER BY k.nomor_kelas ASC, s.nama_lengkap ASC
   `).bind(tahun_ajaran_id).all<any>()
   return res.results || []
+}
+
+// ── Pagination & filter untuk siswa kelas 12 ───────────────────────────
+export async function getSiswaKelas12Paginated(params: {
+  tahun_ajaran_id: string
+  limit: number
+  offset: number
+  kelas_filter?: string
+  search?: string
+  jalur?: JalurPT
+}) {
+  const db = await getDB()
+  let query = `
+    SELECT
+      s.id, s.nama_lengkap, s.nisn, s.foto_url,
+      k.tingkat, k.nomor_kelas, k.kelompok as kelas_kelompok,
+      COUNT(CASE WHEN p.status = 'DITERIMA' AND p.jalur = ? THEN 1 END) as jumlah_diterima
+    FROM siswa s
+    LEFT JOIN kelas k ON s.kelas_id = k.id
+    LEFT JOIN penerimaan_pt p ON p.siswa_id = s.id AND p.tahun_ajaran_id = ?
+    WHERE k.tingkat = 12 AND s.status = 'aktif'
+  `
+  const binds: any[] = [params.jalur || '', params.tahun_ajaran_id]
+
+  if (params.kelas_filter) {
+    query += ` AND k.nomor_kelas = ?`
+    binds.push(params.kelas_filter)
+  }
+  if (params.search && params.search.trim().length >= 2) {
+    query += ` AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)`
+    binds.push(`%${params.search}%`, `%${params.search}%`)
+  }
+
+  query += ` GROUP BY s.id ORDER BY k.nomor_kelas ASC, s.nama_lengkap ASC LIMIT ? OFFSET ?`
+  binds.push(params.limit, params.offset)
+
+  const res = await db.prepare(query).bind(...binds).all<any>()
+  return res.results || []
+}
+
+export async function getTotalSiswaKelas12Filtered(params: {
+  tahun_ajaran_id: string
+  kelas_filter?: string
+  search?: string
+}) {
+  const db = await getDB()
+  let query = `
+    SELECT COUNT(*) as total
+    FROM siswa s
+    LEFT JOIN kelas k ON s.kelas_id = k.id
+    WHERE k.tingkat = 12 AND s.status = 'aktif'
+  `
+  const binds: any[] = []
+  if (params.kelas_filter) {
+    query += ` AND k.nomor_kelas = ?`
+    binds.push(params.kelas_filter)
+  }
+  if (params.search && params.search.trim().length >= 2) {
+    query += ` AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)`
+    binds.push(`%${params.search}%`, `%${params.search}%`)
+  }
+  const res = await db.prepare(query).bind(...binds).first<{ total: number }>()
+  return res?.total || 0
+}
+
+export async function getKelasUnik(tahun_ajaran_id: string) {
+  const db = await getDB()
+  const res = await db.prepare(`
+    SELECT DISTINCT k.nomor_kelas
+    FROM siswa s
+    JOIN kelas k ON s.kelas_id = k.id
+    WHERE k.tingkat = 12 AND s.status = 'aktif'
+    ORDER BY k.nomor_kelas ASC
+  `).all<{ nomor_kelas: string }>()
+  return res.results?.map(r => r.nomor_kelas) || []
 }
 
 // ── Penerimaan by Jalur (hemat query, 1 call) ──────────────────────────
@@ -183,4 +279,98 @@ export async function hapusPenerimaan(id: string) {
   if (result.error) return { error: result.error }
   revalidatePath('/dashboard/penerimaan-pt')
   return { success: 'Data berhasil dihapus.' }
+}
+
+// ── Import data dari Excel (melalui API) ───────────────────────────────
+export async function importPenerimaanFromData(
+  data: Array<{
+    nisn: string
+    jalur: JalurPT
+    kampus_nama: string
+    program_studi?: string
+    status: StatusPenerimaan
+  }>,
+  tahun_ajaran_id: string
+) {
+  const db = await getDB()
+  const results = {
+    success: 0,
+    failed: 0,
+    errors: [] as string[],
+    skipped: 0,
+  }
+
+  // Ambil semua siswa kelas 12 aktif berdasarkan NISN (untuk validasi)
+  const siswaMap = new Map<string, { id: string; nama_lengkap: string }>()
+  const siswaRows = await db
+    .prepare(`
+      SELECT s.id, s.nama_lengkap, s.nisn
+      FROM siswa s
+      JOIN kelas k ON s.kelas_id = k.id
+      WHERE k.tingkat = 12 AND s.status = 'aktif'
+    `)
+    .all<{ id: string; nama_lengkap: string; nisn: string }>()
+  for (const s of siswaRows.results || []) {
+    siswaMap.set(s.nisn, { id: s.id, nama_lengkap: s.nama_lengkap })
+  }
+
+  // Loop data
+  for (const item of data) {
+    const siswa = siswaMap.get(item.nisn)
+    if (!siswa) {
+      results.failed++
+      results.errors.push(`NISN ${item.nisn} tidak ditemukan atau bukan siswa kelas 12 aktif.`)
+      continue
+    }
+
+    // Cari kampus_id
+    const kampus = findClosestKampus(item.kampus_nama)
+    if (!kampus) {
+      results.failed++
+      results.errors.push(`Kampus "${item.kampus_nama}" tidak dikenali. Silakan perbaiki di preview.`)
+      continue
+    }
+
+    // Cek apakah data sudah ada (siswa_id, tahun_ajaran_id, jalur, kampus_id)
+    const existing = await db
+      .prepare(`
+        SELECT id FROM penerimaan_pt
+        WHERE siswa_id = ? AND tahun_ajaran_id = ? AND jalur = ? AND kampus_id = ?
+      `)
+      .bind(siswa.id, tahun_ajaran_id, item.jalur, kampus.id)
+      .first<{ id: string }>()
+
+    if (existing) {
+      // Update
+      await dbUpdate(db, 'penerimaan_pt', {
+        kampus_nama: kampus.nama,
+        program_studi: item.program_studi || null,
+        status: item.status,
+        catatan: null,
+        updated_at: new Date().toISOString(),
+      }, { id: existing.id })
+      results.success++
+    } else {
+      // Insert
+      const insertResult = await dbInsert(db, 'penerimaan_pt', {
+        siswa_id: siswa.id,
+        tahun_ajaran_id,
+        jalur: item.jalur,
+        kampus_id: kampus.id,
+        kampus_nama: kampus.nama,
+        program_studi: item.program_studi || null,
+        status: item.status,
+        catatan: null,
+      })
+      if (insertResult.error) {
+        results.failed++
+        results.errors.push(`Gagal menyimpan untuk ${siswa.nama_lengkap} (${item.jalur}): ${insertResult.error}`)
+      } else {
+        results.success++
+      }
+    }
+  }
+
+  revalidatePath('/dashboard/penerimaan-pt')
+  return results
 }
