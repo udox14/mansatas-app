@@ -1,4 +1,4 @@
-// Lokasi: config/menu.ts
+// config/menu.ts
 import {
   LayoutDashboard,
   Users,
@@ -58,6 +58,12 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Analitik Kelulusan',
     href: '/dashboard/akademik/analitik',
     icon: LineChart,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk']
+  },
+  {
+    title: 'Penerimaan PT',            // <-- tambahan
+    href: '/dashboard/penerimaan-pt',  // <-- route halaman
+    icon: GraduationCap,               // <-- ikon (bisa diganti)
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk']
   },
   {
