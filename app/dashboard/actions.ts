@@ -1,30 +1,30 @@
-// Lokasi: app/dashboard/actions.ts
+// app/dashboard/actions.ts
 'use server'
 
 import { cookies } from 'next/headers'
 import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
+import { COOKIE_NAME } from '@/utils/auth'
 
 export async function logout() {
   const cookieStore = await cookies()
   
-  // Coba dua nama cookie yang mungkin dipakai Better Auth
+  // Support both new and old cookie names
   const sessionCookie = 
+    cookieStore.get(COOKIE_NAME) ||
     cookieStore.get('better-auth.session_token') ||
     cookieStore.get('__Secure-better-auth.session_token')
   
   if (sessionCookie?.value) {
     try {
       const db = await getDB()
-      // Token format Better Auth: "token.hash" — ambil bagian pertama
       const token = sessionCookie.value.split('.')[0]
       await db.prepare('DELETE FROM session WHERE token = ?').bind(token).run()
-    } catch (_) {
-      // Tetap lanjut logout meski hapus session gagal
-    }
+    } catch (_) {}
   }
 
-  // Hapus semua kemungkinan nama cookie session
+  // Hapus semua cookie session
+  cookieStore.delete(COOKIE_NAME)
   cookieStore.delete('better-auth.session_token')
   cookieStore.delete('__Secure-better-auth.session_token')
   

@@ -1,4 +1,4 @@
-// Lokasi: app/dashboard/settings/profile/actions.ts
+// app/dashboard/settings/profile/actions.ts
 'use server'
 
 import { getDB, dbUpdate } from '@/utils/db'
@@ -6,7 +6,6 @@ import { uploadAvatar, validateImageFile } from '@/utils/r2'
 import { createAuth } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getCurrentUser } from '@/utils/auth/server'
-import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 
 async function getAuth() {
@@ -55,10 +54,7 @@ export async function updatePassword(prevState: any, formData: FormData) {
   const auth = await getAuth()
 
   try {
-    await (auth.api as any).setUserData({
-      body: { userId: user.id, password },
-      headers: await headers(),
-    })
+    await auth.api.changePassword({ userId: user.id, newPassword: password })
   } catch (e: any) {
     return { error: 'Gagal merubah password: ' + (e?.message || ''), success: null }
   }
@@ -68,7 +64,6 @@ export async function updatePassword(prevState: any, formData: FormData) {
 
 // ============================================================
 // UPLOAD AVATAR KE R2
-// Avatar pakai nama tetap per user → otomatis overwrite, tidak ada file orphan
 // ============================================================
 export async function uploadAvatarAction(formData: FormData) {
   const user = await getCurrentUser()
@@ -77,7 +72,6 @@ export async function uploadAvatarAction(formData: FormData) {
   const file = formData.get('avatar') as File
   if (!file || file.size === 0) return { error: 'Tidak ada file yang dipilih' }
 
-  // Validasi ukuran dan format sebelum upload ke R2
   const validationError = validateImageFile(file)
   if (validationError) return { error: validationError }
 
