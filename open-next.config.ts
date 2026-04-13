@@ -15,8 +15,8 @@ config.edgeExternals = [
   "next/dist/compiled/@vercel/og/yoga.wasm",
 ];
 
-// AKTIFKAN minifikasi OpenNext — wajib biar muat di Cloudflare Free (3 MB)
-// Kalau ternyata bikin runtime error setelah deploy, ganti ke false
-config.default.minify = true;
+// Matikan minifikasi OpenNext — bikin instrumentation hook Next.js error runtime
+// Bundle size dikecilkan via externals + serverExternalPackages di next.config.ts
+config.default.minify = false;
 
 export default config;
