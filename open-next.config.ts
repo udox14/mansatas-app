@@ -5,9 +5,18 @@ const config = defineCloudflareConfig({
   incrementalCache: kvIncrementalCache,
 });
 
-config.edgeExternals = ["@vercel/og", "node:crypto"];
+// Exclude paket besar yang gak perlu di-bundle ke worker
+config.edgeExternals = [
+  "@vercel/og",
+  "node:crypto",
+  "next/dist/compiled/@vercel/og",
+  "next/dist/compiled/@vercel/og/index.edge.js",
+  "next/dist/compiled/@vercel/og/resvg.wasm",
+  "next/dist/compiled/@vercel/og/yoga.wasm",
+];
 
-// Matikan minifikasi OpenNext karena merusak runtime
-config.default.minify = false;
+// AKTIFKAN minifikasi OpenNext — wajib biar muat di Cloudflare Free (3 MB)
+// Kalau ternyata bikin runtime error setelah deploy, ganti ke false
+config.default.minify = true;
 
 export default config;
