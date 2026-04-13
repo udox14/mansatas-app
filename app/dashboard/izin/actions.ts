@@ -4,6 +4,7 @@
 import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
+import { nowWIBISO, todayWIB } from '@/lib/time'
 
 // ============================================================
 // SEARCH SISWA (lazy — dipanggil saat user mengetik, LIMIT 20)
@@ -65,9 +66,9 @@ export async function tandaiSudahKembali(id: string) {
     db,
     'izin_keluar_komplek',
     {
-      waktu_kembali: new Date().toISOString(),
+      waktu_kembali: nowWIBISO(),
       status: 'SUDAH KEMBALI',
-      updated_at: new Date().toISOString(),
+      updated_at: nowWIBISO(),
     },
     { id }
   )
@@ -103,7 +104,7 @@ export async function tambahIzinTidakMasuk(prevState: any, formData: FormData) {
 
   const result = await dbInsert(db, 'izin_tidak_masuk_kelas', {
     siswa_id,
-    tanggal: tanggal || new Date().toISOString().split('T')[0],
+    tanggal: tanggal || todayWIB(),
     jam_pelajaran: jam_pelajaran || null,
     alasan,
     keterangan: keterangan || null,

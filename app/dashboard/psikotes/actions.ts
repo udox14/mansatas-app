@@ -3,6 +3,7 @@
 
 import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
+import { formatNamaKelas } from '@/lib/utils'
 
 // ============================================================
 // TYPES
@@ -280,7 +281,7 @@ export async function fuzzyMatchNama(namaList: string[]): Promise<{
     nama_lengkap: s.nama_lengkap,
     nama_normalized: s.nama_lengkap.toUpperCase().trim().replace(/\s+/g, ' '),
     nisn: s.nisn,
-    kelas: s.tingkat ? `${s.tingkat}-${s.nomor_kelas} ${s.kelompok}` : '-',
+    kelas: s.tingkat ? formatNamaKelas(s.tingkat, s.nomor_kelas || '', s.kelompok || '') : '-',
   }))
 
   return namaList.map(nama => {

@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Loader2, AlertCircle, CheckCircle2, UserCog, MapPin, Users } from 'lucide-react'
 import { editSiswaLengkap } from '../actions'
+import { formatNamaKelas } from '@/lib/utils'
 
 const initialState = { error: null as string | null, success: null as string | null }
 
@@ -145,7 +146,7 @@ export function EditSiswaModal({ isOpen, onClose, siswa, kelasList }: {
                         <SelectItem value="none" className="text-xs text-slate-400">Tanpa Kelas</SelectItem>
                         {kelasList.map(k => (
                           <SelectItem key={k.id} value={k.id} className="text-xs">
-                            {k.tingkat}-{k.nomor_kelas} {k.kelompok}
+                            {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -180,6 +181,17 @@ export function EditSiswaModal({ isOpen, onClose, siswa, kelasList }: {
                       <SelectItem value="Pesantren Al-Ma'mur" className="text-xs">Pesantren Al-Ma'mur</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                {/* Asrama & Kamar — relevan untuk santri pesantren */}
+                <div className="grid grid-cols-2 gap-3 p-3 bg-orange-50/60 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 rounded-lg">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-orange-700 dark:text-orange-400">Asrama</Label>
+                    <Input name="asrama" defaultValue={siswa.asrama} placeholder="cth: Al-Falah" className="h-8 text-sm rounded-md bg-surface" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-orange-700 dark:text-orange-400">Kamar</Label>
+                    <Input name="kamar" defaultValue={siswa.kamar} placeholder="cth: 12B" className="h-8 text-sm rounded-md bg-surface" />
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Alamat Lengkap</Label>

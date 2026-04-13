@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB, parseJsonCol } from '@/utils/db'
 import { redirect } from 'next/navigation'
+import { checkFeatureAccess, getPrimaryRole } from '@/lib/features'
 import { AkademikClient } from './akademik-client'
 import { BookOpen } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
@@ -30,8 +31,8 @@ async function AkademikDataFetcher({ userRole }: { userRole: string }) {
 
   const [taAktif, mapelResult, guruResult] = await Promise.all([
     db.prepare('SELECT id, nama, semester, daftar_jurusan, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1').first<any>(),
-    db.prepare('SELECT id, nama_mapel, kode_mapel, kelompok, tingkat, kategori FROM mata_pelajaran ORDER BY nama_mapel ASC').all<any>(),
-    db.prepare(`SELECT id, nama_lengkap FROM "user" WHERE role IN ('guru','guru_bk','wakamad','kepsek','guru_piket') AND nama_lengkap IS NOT NULL ORDER BY nama_lengkap ASC`).all<any>(),
+    db.prepare('SELECT id, nama_mapel, kode_mapel, kode_asc, kelompok, tingkat, kategori FROM mata_pelajaran ORDER BY nama_mapel ASC').all<any>(),
+    db.prepare(`SELECT id, nama_lengkap FROM "user" WHERE nama_lengkap IS NOT NULL ORDER BY nama_lengkap ASC`).all<any>(),
   ])
 
   let penugasanData: any[] = []
@@ -60,8 +61,8 @@ async function AkademikDataFetcher({ userRole }: { userRole: string }) {
     : { results: [] }
 
   const daftarJurusan = taAktif?.daftar_jurusan
-    ? parseJsonCol<string[]>(taAktif.daftar_jurusan, []) || ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
-    : ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
+    ? parseJsonCol<string[]>(taAktif.daftar_jurusan, []) || ['MIPA-F', 'MIPA-M', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
+    : ['MIPA-F', 'MIPA-M', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
 
   const polaDaftar = normalizePolaJam(taAktif?.jam_pelajaran ?? null)
 
@@ -82,11 +83,16 @@ async function AkademikDataFetcher({ userRole }: { userRole: string }) {
 export default async function AkademikPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
-  const userRole = (user as any).role ?? 'guru'
+
+  const db = await getDB()
+  const allowed = await checkFeatureAccess(db, user.id, 'akademik')
+  if (!allowed) redirect('/dashboard')
+
+  const userRole = await getPrimaryRole(db, user.id)
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
-      <PageHeader title="Pusat Akademik" description="Kelola mata pelajaran, penugasan mengajar, dan jadwal." icon={BookOpen} iconColor="text-emerald-500" />
+      <PageHeader title="Pusat Akademik" description="Kelola mata pelajaran, penugasan mengajar, dan jadwal." />
       <Suspense fallback={<PageLoading text="Memuat pusat akademik..." />}>
         <AkademikDataFetcher userRole={userRole} />
       </Suspense>

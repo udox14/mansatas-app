@@ -46,7 +46,7 @@ function ensurePolaArray(raw: any): PolaJam[] {
 }
 
 const initialState = { error: null as string | null, success: null as string | null }
-const defaultJurusan = ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
+const defaultJurusan = ['MIPA-F', 'MIPA-M', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
 const HARI_LABELS = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
 const HARI_COLORS = [
   '', 'bg-blue-100 text-blue-700 border-blue-200',
@@ -341,7 +341,7 @@ function PolaJamEditor({ value, onChange }: { value: PolaJam[]; onChange: (v: Po
           <Button type="button" variant="outline" size="sm"
             onClick={() => onChange(DEFAULT_POLA_JAM)}
             className="h-7 text-xs gap-1.5 rounded-md border-dashed text-blue-600 border-blue-200 hover:bg-blue-50">
-            <Copy className="h-3 w-3" /> Pakai Template MAN 1 Tasikmalaya
+            <Copy className="h-3 w-3" /> Pakai Template MAN 1 Tasik
           </Button>
         )}
       </div>

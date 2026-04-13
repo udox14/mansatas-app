@@ -4,174 +4,232 @@
 import { getDB } from '@/utils/db'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
+import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
+import { formatNamaKelas } from '@/lib/utils'
+import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 
 // ============================================================
-// 1. AMBIL SISWA PER KELAS
+// TYPES
 // ============================================================
-export async function getSiswaByKelas(kelas_id: string) {
-  const db = await getDB()
-  const result = await db
-    .prepare(
-      `SELECT id, nama_lengkap, nisn FROM siswa
-       WHERE kelas_id = ? AND status = 'aktif'
-       ORDER BY nama_lengkap ASC`
-    )
-    .bind(kelas_id)
-    .all<any>()
+export type BlokMengajar = {
+  penugasan_id: string
+  mapel_nama: string
+  kelas_id: string
+  kelas_label: string
+  jam_ke_mulai: number
+  jam_ke_selesai: number
+  jumlah_jam: number
+  slot_mulai: string
+  slot_selesai: string
+  sudah_absen: boolean
+  total_siswa: number
+  tidak_hadir: number
+}
 
-  if (result.error) return { error: String(result.error), data: null }
-  return { error: null, data: result.results }
+export type SiswaAbsensi = {
+  siswa_id: string
+  nama_lengkap: string
+  nisn: string
+  status: 'HADIR' | 'SAKIT' | 'ALFA' | 'IZIN'
+  catatan: string
+  ada_izin: boolean
+  alasan_izin: string
 }
 
 // ============================================================
-// 2. REKAP BULANAN (Admin/TU)
+// HELPER
 // ============================================================
-export async function getRekapBulanan(kelas_id: string, bulan: number, ta_id: string) {
-  const db = await getDB()
-  const result = await db
-    .prepare(
-      `SELECT siswa_id, sakit, izin, alpa FROM rekap_kehadiran_bulanan
-       WHERE kelas_id = ? AND bulan = ? AND tahun_ajaran_id = ?`
-    )
-    .bind(kelas_id, bulan, ta_id)
-    .all<any>()
-
-  if (result.error) return { error: String(result.error), data: null }
-  return { error: null, data: result.results }
+function getSlotsHari(raw: string, hari: number): SlotJam[] {
+  try {
+    const list: PolaJam[] = JSON.parse(raw)
+    return list.find(p => p.hari.includes(hari))?.slots ?? []
+  } catch { return [] }
 }
 
-// FIX: Ganti pola DELETE-then-INSERT dengan INSERT OR REPLACE
-// Sebelumnya: 1 DELETE + N INSERT = (N+1) writes per save
-// Sekarang: N INSERT OR REPLACE = N writes, tanpa DELETE terpisah
-// Catatan: schema sudah punya UNIQUE(siswa_id, bulan, tahun_ajaran_id)
-export async function simpanRekapBulanan(
-  kelas_id: string,
-  bulan: number,
-  ta_id: string,
-  rekapData: any[]
-) {
+function hariNum(d: Date): number { const day = d.getDay(); return day === 0 ? 7 : day }
+
+// ============================================================
+// 1. AMBIL BLOK MENGAJAR GURU HARI INI
+//    Menerima optional guruId untuk fitur Act As
+//    dan dateOverride untuk admin memilih tanggal
+// ============================================================
+export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverride?: string): Promise<{
+  error: string | null
+  blocks: BlokMengajar[]
+  tanggal: string
+  hari: number
+  hariNama: string
+}> {
+  const HARI = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized', blocks: [], tanggal: '', hari: 0, hariNama: '' }
+
+  // Gunakan guruIdOverride jika tersedia (dari Act As), atau cek cookie act-as, fallback ke user.id
+  let guruId = guruIdOverride || user.id
+  if (!guruIdOverride) {
+    const effective = await getEffectiveUser()
+    if (effective?.isActingAs) {
+      guruId = effective.effectiveUserId
+    }
+  }
+
   const db = await getDB()
+
+  // Gunakan dateOverride jika tersedia (admin memilih tanggal)
+  // Jika tidak ada explicit override, baca dari cookie act-as-date
+  let tanggal: string
+  let hari: number
+  const resolvedDateOverride = dateOverride || (await getActAsDate()) || null
+  if (resolvedDateOverride && /^\d{4}-\d{2}-\d{2}$/.test(resolvedDateOverride)) {
+    tanggal = resolvedDateOverride
+    // Hitung hari dari tanggal override: 1=Senin...7=Minggu
+    const d = new Date(resolvedDateOverride + 'T00:00:00')
+    const day = d.getDay()
+    hari = day === 0 ? 7 : day
+  } else {
+    const now = new Date()
+    tanggal = now.toISOString().split('T')[0]
+    hari = hariNum(now)
+  }
+
+  if (hari === 7) return { error: null, blocks: [], tanggal, hari, hariNama: 'Minggu' }
+
+  const ta = await db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
+  if (!ta) return { error: 'Tahun ajaran aktif belum diatur', blocks: [], tanggal, hari, hariNama: HARI[hari] }
+
+  const slots = getSlotsHari(ta.jam_pelajaran || '[]', hari)
+  if (!slots.length) return { error: null, blocks: [], tanggal, hari, hariNama: HARI[hari] }
+
+  const rows = (await db.prepare(`
+    SELECT jm.penugasan_id, jm.jam_ke,
+      mp.nama_mapel, k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok
+    FROM jadwal_mengajar jm
+    JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
+    JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
+    JOIN kelas k ON pm.kelas_id = k.id
+    WHERE jm.tahun_ajaran_id = ? AND jm.hari = ? AND pm.guru_id = ?
+    ORDER BY jm.jam_ke
+  `).bind(ta.id, hari, guruId).all<any>()).results || []
+
+  if (!rows.length) return { error: null, blocks: [], tanggal, hari, hariNama: HARI[hari] }
+
+  // Ambil absensi + total siswa per kelas (batch efisien)
+  const kelasIds = [...new Set(rows.map((r: any) => r.kelas_id))]
+  const penugasanIds = [...new Set(rows.map((r: any) => r.penugasan_id))]
+
+  const [siswaCountRes, absenCountRes] = await Promise.all([
+    db.prepare(
+      `SELECT kelas_id, COUNT(*) as cnt FROM siswa WHERE status = 'aktif' AND kelas_id IN (${kelasIds.map(() => '?').join(',')}) GROUP BY kelas_id`
+    ).bind(...kelasIds).all<any>(),
+    db.prepare(
+      `SELECT penugasan_id, COUNT(*) as cnt FROM absensi_siswa WHERE tanggal = ? AND penugasan_id IN (${penugasanIds.map(() => '?').join(',')}) GROUP BY penugasan_id`
+    ).bind(tanggal, ...penugasanIds).all<any>(),
+  ])
+
+  const siswaCountMap = new Map((siswaCountRes.results || []).map((r: any) => [r.kelas_id, r.cnt]))
+  const absenCountMap = new Map((absenCountRes.results || []).map((r: any) => [r.penugasan_id, r.cnt]))
+
+  // Group per penugasan
+  const grouped = new Map<string, any[]>()
+  for (const r of rows) {
+    if (!grouped.has(r.penugasan_id)) grouped.set(r.penugasan_id, [])
+    grouped.get(r.penugasan_id)!.push(r)
+  }
+
+  const blocks: BlokMengajar[] = []
+  for (const [pid, pRows] of grouped) {
+    const jamList = pRows.map((r: any) => r.jam_ke).sort((a: number, b: number) => a - b)
+    const f = pRows[0]
+    const jM = jamList[0], jS = jamList[jamList.length - 1]
+    const sM = slots.find(s => s.id === jM), sS = slots.find(s => s.id === jS)
+    const totalSiswa = siswaCountMap.get(f.kelas_id) || 0
+    const tidakHadir = absenCountMap.get(pid) || 0
+
+    blocks.push({
+      penugasan_id: pid, mapel_nama: f.nama_mapel,
+      kelas_id: f.kelas_id, kelas_label: formatNamaKelas(f.tingkat, f.nomor_kelas, f.kelompok),
+      jam_ke_mulai: jM, jam_ke_selesai: jS, jumlah_jam: jamList.length,
+      slot_mulai: sM?.mulai ?? '-', slot_selesai: sS?.selesai ?? '-',
+      sudah_absen: tidakHadir > 0, total_siswa: totalSiswa, tidak_hadir: tidakHadir,
+    })
+  }
+  blocks.sort((a, b) => a.jam_ke_mulai - b.jam_ke_mulai)
+  return { error: null, blocks, tanggal, hari, hariNama: HARI[hari] }
+}
+
+// ============================================================
+// 2. LOAD SISWA + ABSENSI EXISTING + IZIN AKTIF
+// ============================================================
+export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tanggal: string): Promise<{
+  error: string | null; siswa: SiswaAbsensi[]
+}> {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized', siswa: [] }
+  const db = await getDB()
+
+  const [siswaRes, absensiRes, izinRes] = await Promise.all([
+    db.prepare(`SELECT id, nama_lengkap, nisn FROM siswa WHERE kelas_id = ? AND status = 'aktif' ORDER BY nama_lengkap`).bind(kelasId).all<any>(),
+    db.prepare(`SELECT siswa_id, status, catatan FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?`).bind(penugasanId, tanggal).all<any>(),
+    db.prepare(`SELECT siswa_id, alasan FROM izin_tidak_masuk_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(tanggal, kelasId).all<any>(),
+  ])
+
+  const absenMap = new Map<string, { status: string; catatan: string }>()
+  for (const a of absensiRes.results || []) absenMap.set(a.siswa_id, { status: a.status, catatan: a.catatan || '' })
+  const izinMap = new Map<string, string>()
+  for (const i of izinRes.results || []) izinMap.set(i.siswa_id, i.alasan || 'Izin')
+
+  return {
+    error: null,
+    siswa: (siswaRes.results || []).map((s: any) => {
+      const ab = absenMap.get(s.id)
+      const adaIzin = izinMap.has(s.id)
+      return {
+        siswa_id: s.id, nama_lengkap: s.nama_lengkap, nisn: s.nisn,
+        status: ab ? ab.status as any : (adaIzin ? 'IZIN' : 'HADIR'),
+        catatan: ab?.catatan || '', ada_izin: adaIzin, alasan_izin: izinMap.get(s.id) || '',
+      }
+    }),
+  }
+}
+
+// ============================================================
+// 3. SIMPAN ABSENSI BATCH (sparse: hanya non-HADIR)
+//    Mendukung Act As: diinput_oleh = real admin user ID
+// ============================================================
+export async function simpanAbsensi(
+  penugasanId: string, tanggal: string,
+  jamKeMulai: number, jamKeSelesai: number, jumlahJam: number,
+  dataAbsen: Array<{ siswa_id: string; status: string; catatan: string }>
+): Promise<{ error?: string; success?: string }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
-  if (rekapData.length === 0) return { success: 'Tidak ada data untuk disimpan.' }
+  // Cek act-as: gunakan real user ID untuk audit trail
+  const effective = await getEffectiveUser()
+  const diinputOleh = effective?.realUserId || user.id
 
-  const now = new Date().toISOString()
-
-  const stmts = rekapData.map((item) =>
-    db
-      .prepare(
-        `INSERT INTO rekap_kehadiran_bulanan
-           (siswa_id, kelas_id, tahun_ajaran_id, bulan, sakit, izin, alpa, diinput_oleh, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(siswa_id, bulan, tahun_ajaran_id)
-         DO UPDATE SET
-           sakit = excluded.sakit,
-           izin = excluded.izin,
-           alpa = excluded.alpa,
-           diinput_oleh = excluded.diinput_oleh,
-           updated_at = excluded.updated_at`
-      )
-      .bind(
-        item.siswa_id,
-        kelas_id,
-        ta_id,
-        bulan,
-        item.sakit || 0,
-        item.izin || 0,
-        item.alpa || 0,
-        user.id,
-        now
-      )
-  )
-
-  try {
-    // Chunk per 100 agar tidak melebihi limit D1 batch
-    const chunkSize = 100
-    for (let i = 0; i < stmts.length; i += chunkSize) {
-      await db.batch(stmts.slice(i, i + chunkSize))
-    }
-  } catch (e: any) {
-    return { error: e.message }
-  }
-
-  revalidatePath('/dashboard/kehadiran')
-  return { success: 'Rekap kehadiran bulanan berhasil disimpan!' }
-}
-
-// ============================================================
-// 3. JURNAL HARIAN GURU (Sparse Data)
-// FIX: Sama — ganti DELETE+INSERT dengan INSERT OR REPLACE
-// ============================================================
-export async function simpanJurnalHarian(
-  penugasan_id: string,
-  tanggal: string,
-  jurnalData: any[]
-) {
   const db = await getDB()
 
-  // Hanya simpan yang absen atau punya catatan (sparse storage)
-  const toInsert = jurnalData.filter(
-    (item) => item.status !== 'Aman' || (item.catatan && item.catatan.trim() !== '')
-  )
+  const toSave = dataAbsen.filter(d => d.status !== 'HADIR')
+  const delStmt = db.prepare('DELETE FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?').bind(penugasanId, tanggal)
 
-  // Hapus entri tanggal itu saja (tetap perlu delete untuk jurnal karena tidak ada unique key per siswa+penugasan+tanggal yang bisa di-upsert langsung)
-  // Tapi kita batasi: hanya siswa yang ada di jurnalData yang dihapus (bukan DELETE semua)
-  if (toInsert.length === 0) {
-    // Tidak ada yang absen hari ini — hapus catatan sebelumnya saja
-    try {
-      await db
-        .prepare('DELETE FROM jurnal_guru_harian WHERE penugasan_id = ? AND tanggal = ?')
-        .bind(penugasan_id, tanggal)
-        .run()
-    } catch (e: any) {
-      return { error: e.message }
-    }
+  if (toSave.length === 0) {
+    try { await delStmt.run() } catch (e: any) { return { error: e.message } }
     revalidatePath('/dashboard/kehadiran')
-    return { success: 'Jurnal kelas berhasil disimpan! Semua siswa tercatat Hadir/Aman.' }
+    return { success: 'Absensi disimpan! Semua siswa HADIR.' }
   }
 
-  const deleteStmt = db
-    .prepare('DELETE FROM jurnal_guru_harian WHERE penugasan_id = ? AND tanggal = ?')
-    .bind(penugasan_id, tanggal)
-
-  const insertStmts = toInsert.map((item) =>
-    db
-      .prepare(
-        `INSERT INTO jurnal_guru_harian (penugasan_id, siswa_id, tanggal, status_kehadiran, catatan)
-         VALUES (?, ?, ?, ?, ?)`
-      )
-      .bind(
-        penugasan_id,
-        item.siswa_id,
-        tanggal,
-        item.status === 'Aman' ? null : item.status,
-        item.catatan || null
-      )
+  const insStmts = toSave.map(d =>
+    db.prepare(
+      `INSERT INTO absensi_siswa (penugasan_id,siswa_id,tanggal,jam_ke_mulai,jam_ke_selesai,jumlah_jam,status,catatan,diinput_oleh) VALUES (?,?,?,?,?,?,?,?,?)`
+    ).bind(penugasanId, d.siswa_id, tanggal, jamKeMulai, jamKeSelesai, jumlahJam, d.status, d.catatan || null, diinputOleh)
   )
 
   try {
-    await db.batch([deleteStmt, ...insertStmts])
-  } catch (e: any) {
-    return { error: e.message }
-  }
+    const all = [delStmt, ...insStmts]
+    for (let i = 0; i < all.length; i += 100) await db.batch(all.slice(i, i + 100))
+  } catch (e: any) { return { error: e.message } }
 
   revalidatePath('/dashboard/kehadiran')
-  return { success: 'Jurnal kelas berhasil disimpan! Siswa lainnya otomatis tercatat Hadir/Aman.' }
-}
-
-// ============================================================
-// 4. AMBIL JURNAL HARIAN (untuk tampil di form)
-// ============================================================
-export async function getJurnalHarian(penugasan_id: string, tanggal: string) {
-  const db = await getDB()
-  const result = await db
-    .prepare(
-      `SELECT siswa_id, status_kehadiran, catatan FROM jurnal_guru_harian
-       WHERE penugasan_id = ? AND tanggal = ?`
-    )
-    .bind(penugasan_id, tanggal)
-    .all<any>()
-
-  return result.results ?? []
+  return { success: `Absensi disimpan! ${toSave.length} siswa tidak hadir.` }
 }

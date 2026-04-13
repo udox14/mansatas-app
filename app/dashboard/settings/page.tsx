@@ -2,6 +2,7 @@
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
+import { checkFeatureAccess } from '@/lib/features'
 import { Settings } from 'lucide-react'
 import { SettingsClient } from './components/settings-client'
 import { PageHeader } from '@/components/layout/page-header'
@@ -32,14 +33,15 @@ function normalizeJamPelajaran(raw: string | null): any[] {
   }
 }
 
+export const dynamic = 'force-dynamic'
 export default async function SettingsPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
-  const role = (user as any).role ?? ''
-  if (!['super_admin', 'kepsek', 'admin_tu'].includes(role)) redirect('/dashboard')
-
   const db = await getDB()
+  const allowed = await checkFeatureAccess(db, user.id, 'settings')
+  if (!allowed) redirect('/dashboard')
+
   const taResult = await db.prepare(
     'SELECT id, nama, semester, is_active, daftar_jurusan, jam_pelajaran FROM tahun_ajaran ORDER BY nama DESC, semester DESC'
   ).all<any>()
@@ -48,7 +50,7 @@ export default async function SettingsPage() {
     ...ta,
     daftar_jurusan: (() => {
       try { return JSON.parse(ta.daftar_jurusan || '[]') }
-      catch { return ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM'] }
+      catch { return ['MIPA-F', 'MIPA-M', 'SOSHUM', 'KEAGAMAAN', 'UMUM'] }
     })(),
     jam_pelajaran: normalizeJamPelajaran(ta.jam_pelajaran),
   }))
@@ -58,8 +60,6 @@ export default async function SettingsPage() {
       <PageHeader
         title="Pengaturan Sistem"
         description="Kelola kalender akademik, jurusan, dan jam pelajaran."
-        icon={Settings}
-        iconColor="text-slate-500 dark:text-slate-400"
       />
       <SettingsClient taData={taData} />
     </div>

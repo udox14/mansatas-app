@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { HeartHandshake, Loader2, CheckCircle2, AlertCircle, Users } from 'lucide-react'
 import { getDataAssignBK, setKelasBinaanBKFromKelas } from '../actions'
-import { cn } from '@/lib/utils'
+import { cn, formatNamaKelas } from '@/lib/utils'
 
 type KelasData = {
   id: string; tingkat: number; nomor_kelas: string; kelompok: string
@@ -160,8 +160,7 @@ export function AssignBKModal({ kelasList }: { kelasList: KelasData[] }) {
                                   )}>
                                     {checked && <CheckCircle2 className="h-2.5 w-2.5 text-white" />}
                                   </div>
-                                  {k.tingkat}-{k.nomor_kelas}
-                                  <span className="text-[10px] opacity-70">{k.kelompok}</span>
+                                  {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}
                                 </button>
                               )
                             })}

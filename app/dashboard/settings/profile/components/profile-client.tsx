@@ -7,8 +7,9 @@ import { useFormStatus } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Camera, Loader2, Save, KeyRound, User, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Camera, Loader2, Save, KeyRound, User, CheckCircle2, AlertCircle, BellRing } from 'lucide-react'
 import { updateProfileInfo, updatePassword, uploadAvatarAction } from '../actions'
+import { PushNotificationManager } from '@/components/shared/PushNotificationManager'
 
 const initialState = { error: null as string | null, success: null as string | null }
 
@@ -182,6 +183,22 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
             </div>
             <SubmitPasswordBtn />
           </form>
+        </div>
+
+        {/* Form Notifikasi */}
+        <div className="rounded-xl border border-surface bg-surface p-5 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="h-10 w-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <BellRing className="h-5 w-5" />
+            </div>
+            <div className="flex-1 space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Push Notifications</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Terima pemberitahuan saat ada tugas baru, jadwal mengajar, atau undangan rapat langsung di perangkat ini.</p>
+              </div>
+              <PushNotificationManager />
+            </div>
+          </div>
         </div>
 
       </div>

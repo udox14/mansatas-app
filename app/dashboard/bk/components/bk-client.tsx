@@ -22,7 +22,8 @@ import {
   sinkronKelasBinaanDariPenugasan, getKelasBinaanPerGuru,
 } from '../actions'
 import type { BidangBK, TipePenanganan, SesiPenanganan } from '../actions'
-import { cn } from '@/lib/utils'
+import { cn, formatNamaKelas } from '@/lib/utils'
+import { todayWIB } from '@/lib/time'
 
 // ── Types ──────────────────────────────────────────────────────────────
 type Topik = { id: string; bidang: BidangBK; nama: string }
@@ -73,7 +74,7 @@ function AvatarSiswa({ siswa, size = 'md' }: { siswa: Pick<SiswaResult, 'foto_ur
 function SesiLokalPanel({ sesiList, onChange }: { sesiList: SesiLokal[]; onChange: (list: SesiLokal[]) => void }) {
   const [isAdding, setIsAdding] = useState(false)
   const [tipe, setTipe] = useState<TipePenanganan>('KONSELING')
-  const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0])
+  const [tanggal, setTanggal] = useState(todayWIB())
   const [catatan, setCatatan] = useState('')
 
   const handleTambah = () => {
@@ -161,7 +162,7 @@ function SesiPenangananPanel({ rekamanId, sesiList, canEdit, onChanged }: {
 }) {
   const [isAdding, setIsAdding] = useState(false)
   const [tipe, setTipe] = useState<TipePenanganan>('KONSELING')
-  const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0])
+  const [tanggal, setTanggal] = useState(todayWIB())
   const [catatan, setCatatan] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -493,7 +494,7 @@ function ModalCariSiswa({ isOpen, taId, currentUserId, onSelect, onClose }: {
                     <AvatarSiswa siswa={s} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
-                      <p className="text-[11px] text-slate-400">{s.nisn} · Kelas {s.tingkat}-{s.nomor_kelas} {s.kelas_kelompok}</p>
+                      <p className="text-[11px] text-slate-400">{s.nisn} · Kelas {formatNamaKelas(s.tingkat, s.nomor_kelas, s.kelas_kelompok)}</p>
                     </div>
                     <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-rose-400 transition-colors shrink-0" />
                   </button>
@@ -558,7 +559,7 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, topikAll, onClose, 
             </div>
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-base font-bold text-slate-800 dark:text-slate-100 truncate leading-tight">{siswa.nama_lengkap}</DialogTitle>
-              <p className="text-[11px] text-slate-400 mt-0.5">NISN {siswa.nisn} · Kelas {siswa.tingkat}-{siswa.nomor_kelas} {siswa.kelas_kelompok}</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">NISN {siswa.nisn} · Kelas {formatNamaKelas(siswa.tingkat, siswa.nomor_kelas, siswa.kelas_kelompok)}</p>
             </div>
             {!isLoading && rekamanList.length > 0 && (
               <div className="shrink-0 text-center bg-rose-50 border border-rose-100 rounded-xl px-3 py-1.5">
@@ -758,7 +759,7 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
               <SelectTrigger className="h-9 w-36 text-xs rounded-xl border-surface"><SelectValue placeholder="Semua kelas" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-xs">Semua kelas</SelectItem>
-                {kelasBinaan.map(k => <SelectItem key={k.id} value={k.id} className="text-xs">{k.tingkat}-{k.nomor_kelas} {k.kelompok}</SelectItem>)}
+                {kelasBinaan.map(k => <SelectItem key={k.id} value={k.id} className="text-xs">{formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
@@ -833,7 +834,7 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300 whitespace-nowrap">{row.tingkat}-{row.nomor_kelas} <span className="text-slate-400">{row.kelas_kelompok}</span></td>
+                      <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300 whitespace-nowrap">{formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelas_kelompok)}</td>
                       <td className="px-3 py-2.5"><div className="flex flex-wrap gap-1">{(row.bidang_list || '').split(',').filter(Boolean).map((b: string) => <Badge key={b} label={b.trim()} colorClass={BIDANG_COLORS[b.trim() as BidangBK] ?? 'bg-surface-3 text-slate-500 border-surface'} />)}</div></td>
                       <td className="px-3 py-2.5 text-center"><span className="font-bold text-slate-700 dark:text-slate-200">{row.jumlah_rekaman}</span></td>
                       <td className="px-3 py-2.5 text-slate-400 whitespace-nowrap">{new Date(row.rekaman_terakhir).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
@@ -856,7 +857,7 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
                   <AvatarSiswa siswa={{ nama_lengkap: row.nama_lengkap, foto_url: row.foto_url }} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{row.nama_lengkap}</p>
-                    <p className="text-[11px] text-slate-400">{row.tingkat}-{row.nomor_kelas} · {row.jumlah_rekaman} rekaman</p>
+                    <p className="text-[11px] text-slate-400">{formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelas_kelompok)} · {row.jumlah_rekaman} rekaman</p>
                     <div className="flex gap-1 mt-1 flex-wrap">{(row.bidang_list || '').split(',').filter(Boolean).map((b: string) => <Badge key={b} label={b.trim()} colorClass={BIDANG_COLORS[b.trim() as BidangBK] ?? 'bg-surface-3 text-slate-500 border-surface'} />)}</div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
@@ -1047,7 +1048,7 @@ function TabKelasBinaan({ kelasBinaan, isAdmin, currentUserId, taAktif }: {
                 <div key={k.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-2 transition-colors">
                   <div className="h-8 w-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold shrink-0">{k.tingkat}</div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Kelas {k.tingkat}-{k.nomor_kelas} <span className="ml-1.5 text-[10px] font-semibold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded">{k.kelompok}</span></p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Kelas {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}</p>
                     {k.guru_bk_nama && <p className="text-[11px] text-slate-400">{k.guru_bk_nama}</p>}
                   </div>
                 </div>
@@ -1077,7 +1078,7 @@ function TabKelasBinaan({ kelasBinaan, isAdmin, currentUserId, taAktif }: {
                   <div className="border-t border-surface-2 px-4 py-2 flex flex-wrap gap-1.5">
                     {g.kelas_list.map(k => (
                       <span key={k.id} className="text-xs font-semibold px-2 py-1 rounded-lg bg-blue-50 border border-blue-100 text-blue-700">
-                        {k.tingkat}-{k.nomor_kelas} <span className="font-normal text-blue-500">{k.kelompok}</span>
+                        {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}
                       </span>
                     ))}
                   </div>

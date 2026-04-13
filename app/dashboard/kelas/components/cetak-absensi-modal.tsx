@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { getDataBlankAbsensi, getDataBlankAbsensiByTingkat, type BlankAbsensiData } from '../actions-print'
 import { BlankoAbsensiTemplate } from './blanko-absensi-template'
+import { formatNamaKelas } from '@/lib/utils'
 
 type KelasOption = {
   id: string
@@ -98,7 +99,7 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: previewDataList.length === 1
-      ? `Blanko Absensi Kelas ${previewDataList[0].kelas.tingkat}.${previewDataList[0].kelas.nomor_kelas}`
+      ? `Blanko Absensi Kelas ${formatNamaKelas(previewDataList[0].kelas.tingkat, previewDataList[0].kelas.nomor_kelas, previewDataList[0].kelas.kelompok || 'UMUM')}`
       : `Blanko Absensi`,
     pageStyle: `
       @page { size: 215mm 330mm; margin: 0; }
@@ -113,7 +114,7 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
     if (previewDataList.length === 0) return null
     if (previewDataList.length === 1) {
       const k = previewDataList[0].kelas
-      return `Kelas ${k.tingkat}.${k.nomor_kelas}`
+      return `Kelas ${formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok || 'UMUM')}`
     }
     return `${previewDataList.length} kelas`
   })()
@@ -320,7 +321,7 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
                         {previewDataList.length > 1 && (
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded">
-                              Halaman {idx + 1} — Kelas {data.kelas.tingkat}.{data.kelas.nomor_kelas}
+                              Halaman {idx + 1} — Kelas {formatNamaKelas(data.kelas.tingkat, data.kelas.nomor_kelas, data.kelas.kelompok || 'UMUM')}
                             </span>
                           </div>
                         )}

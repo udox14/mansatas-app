@@ -7,36 +7,73 @@ import { GuruClient } from './components/guru-client'
 import { GraduationCap } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
+import { checkFeatureAccess } from '@/lib/features'
 
 export const metadata = { title: 'Data Guru & Pegawai - MANSATAS App' }
 
 async function GuruDataFetcher() {
   const db = await getDB()
 
-  const result = await db.prepare(`
-    SELECT id, email, name, role, nama_lengkap
-    FROM "user"
-    WHERE role != 'wali_murid'
-    ORDER BY nama_lengkap ASC
-  `).all<any>()
+  const [usersResult, jabatanResult, userRolesResult, masterRolesResult] = await Promise.all([
+    db.prepare(`
+      SELECT u.id, u.email, u.name, u.role, u.nama_lengkap, u.avatar_url,
+             u.jabatan_struktural_id, u.domisili_pegawai,
+             j.nama as jabatan_struktural_nama
+      FROM "user" u
+      LEFT JOIN master_jabatan_struktural j ON u.jabatan_struktural_id = j.id
+      ORDER BY u.nama_lengkap ASC
+    `).all<any>(),
+    db.prepare(`
+      SELECT id, nama, urutan FROM master_jabatan_struktural ORDER BY urutan ASC
+    `).all<any>(),
+    db.prepare(`
+      SELECT user_id, role FROM user_roles ORDER BY user_id
+    `).all<{ user_id: string; role: string }>(),
+    db.prepare(`
+      SELECT value, label, is_custom FROM master_roles ORDER BY is_custom ASC, label ASC
+    `).all<{ value: string; label: string; is_custom: number }>(),
+  ])
 
-  const mergedData = (result.results || []).map((u: any) => ({
+  // Build user_roles map
+  const userRolesMap: Record<string, string[]> = {}
+  for (const row of userRolesResult.results || []) {
+    if (!userRolesMap[row.user_id]) userRolesMap[row.user_id] = []
+    userRolesMap[row.user_id].push(row.role)
+  }
+
+  const mergedData = (usersResult.results || []).map((u: any) => ({
     id: u.id,
     nama_lengkap: u.nama_lengkap || u.name || '',
     role: u.role || '',
-    email: u.email || 'Email tidak ditemukan'
+    avatar_url: u.avatar_url || null,
+    roles: userRolesMap[u.id] || (u.role ? [u.role] : []),
+    email: u.email || 'Email tidak ditemukan',
+    jabatan_struktural_id: u.jabatan_struktural_id || null,
+    jabatan_struktural_nama: u.jabatan_struktural_nama || null,
+    domisili_pegawai: u.domisili_pegawai || null,
   }))
 
-  return <GuruClient initialData={mergedData} />
+  return (
+    <GuruClient
+      initialData={mergedData}
+      masterJabatan={jabatanResult.results || []}
+      masterRoles={masterRolesResult.results || []}
+    />
+  )
 }
 
+export const dynamic = 'force-dynamic'
 export default async function GuruPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
+  const db = await getDB()
+  const allowed = await checkFeatureAccess(db, user.id, 'guru')
+  if (!allowed) redirect('/dashboard')
+
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
-      <PageHeader title="Guru & Pegawai" description="Kelola data pendidik, hak akses, dan reset password." icon={GraduationCap} iconColor="text-indigo-500" />
+      <PageHeader title="Guru & Pegawai" description="Kelola data pendidik, hak akses, jabatan struktural, dan domisili." />
       <Suspense fallback={
 <PageLoading text="Memuat data kepegawaian..." />
       }>

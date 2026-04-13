@@ -3,16 +3,18 @@ import { Suspense } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB, parseJsonCol } from '@/utils/db'
 import { redirect } from 'next/navigation'
+import { checkFeatureAccess, getPrimaryRole } from '@/lib/features'
 import { IzinClient } from './components/izin-client'
 import { DoorOpen } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
+import { todayWIB } from '@/lib/time'
 
 export const metadata = { title: 'Perizinan Siswa - MANSATAS App' }
 
 async function IzinDataFetcher({ currentUserRole }: { currentUserRole: string }) {
   const db = await getDB()
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayWIB()
 
   const [keluarResult, kelasResult] = await Promise.all([
     db.prepare(`
@@ -51,15 +53,20 @@ async function IzinDataFetcher({ currentUserRole }: { currentUserRole: string })
   return <IzinClient izinKeluarList={filteredKeluar} izinKelasList={formattedIzinKelas} currentUserRole={currentUserRole} />
 }
 
+export const dynamic = 'force-dynamic'
 export default async function IzinPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
-  const role = (user as any).role ?? ''
+  const db = await getDB()
+  const allowed = await checkFeatureAccess(db, user.id, 'izin')
+  if (!allowed) redirect('/dashboard')
+
+  const role = await getPrimaryRole(db, user.id)
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
-      <PageHeader title="Perizinan Siswa Harian" description="Posko pencatatan siswa keluar komplek dan izin meninggalkan jam pelajaran." icon={DoorOpen} iconColor="text-indigo-500" />
+      <PageHeader title="Perizinan Siswa Harian" description="Posko pencatatan siswa keluar komplek dan izin meninggalkan jam pelajaran." />
       <Suspense fallback={
 <PageLoading text="Memuat data perizinan..." />
       }>

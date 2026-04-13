@@ -1,7 +1,7 @@
 // Lokasi: components/layout/header.tsx
 'use client'
 
-import { Menu, LogOut, User, Settings } from 'lucide-react'
+import { Menu, LogOut, User, Settings, RotateCw } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -12,9 +12,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { getRoleLabel } from '@/config/menu'
 
 interface HeaderProps {
-  userRole: string
+  userRoles: string[]
+  primaryRole: string
   userName: string
   userEmail: string
   avatarUrl: string | null
@@ -43,7 +45,20 @@ function LiveDate() {
   )
 }
 
-export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps) {
+const ROLE_COLORS: Record<string, string> = {
+  super_admin: 'bg-rose-100 text-rose-700 border-rose-200',
+  admin_tu: 'bg-violet-100 text-violet-700 border-violet-200',
+  kepsek: 'bg-amber-100 text-amber-700 border-amber-200',
+  wakamad: 'bg-blue-100 text-blue-700 border-blue-200',
+  guru: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  guru_bk: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+  guru_piket: 'bg-teal-100 text-teal-700 border-teal-200',
+  wali_kelas: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  resepsionis: 'bg-pink-100 text-pink-700 border-pink-200',
+  guru_ppl: 'bg-lime-100 text-lime-700 border-lime-200',
+}
+
+export function Header({ userRoles, primaryRole, userName, userEmail, avatarUrl }: HeaderProps) {
   const handleLogout = async () => {
     await fetch('/api/auth/sign-out', {
       method: 'POST',
@@ -74,6 +89,15 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
         <LiveDate />
       </div>
 
+      {/* Refresh button */}
+      <button
+        onClick={() => window.location.reload()}
+        className="flex items-center justify-center h-8 w-8 rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+        aria-label="Refresh halaman"
+      >
+        <RotateCw style={{ width: '16px', height: '16px' }} />
+      </button>
+
       {/* User menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -89,13 +113,23 @@ export function Header({ userRole, userName, userEmail, avatarUrl }: HeaderProps
             </span>
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-52 text-[13px]">
+        <DropdownMenuContent align="end" className="w-56 text-[13px]">
           <div className="px-3 py-2">
             <p className="font-semibold text-slate-900 dark:text-slate-100 truncate text-[13px]">{userName}</p>
             <p className="text-slate-400 dark:text-slate-500 text-[11px] truncate">{userEmail}</p>
-            <span className="mt-1.5 inline-block text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
-              {userRole.replace(/_/g, ' ')}
-            </span>
+            {/* Multi-role badges */}
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {userRoles.map(role => (
+                <span
+                  key={role}
+                  className={`text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${
+                    ROLE_COLORS[role] || 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-200'
+                  } ${role === primaryRole ? 'ring-1 ring-offset-1 ring-slate-400' : ''}`}
+                >
+                  {getRoleLabel(role)}
+                </span>
+              ))}
+            </div>
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild className="cursor-pointer text-[13px]">

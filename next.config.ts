@@ -4,12 +4,17 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  // Exclude heavy packages from server bundle
   serverExternalPackages: [],
-  // Optimize bundle
+  productionBrowserSourceMaps: false,
   experimental: {
-    optimizePackageImports: ['lucide-react'],
+    serverMinification: true,
+    optimizePackageImports: ["lucide-react", "framer-motion", "@radix-ui/react-avatar", "@radix-ui/react-checkbox", "@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-label", "@radix-ui/react-scroll-area", "@radix-ui/react-select", "@radix-ui/react-slot", "@radix-ui/react-tabs"],
+    serverActions: {
+      bodySizeLimit: '5mb',
+    },
   },
+
+
 };
 
 export default nextConfig;
