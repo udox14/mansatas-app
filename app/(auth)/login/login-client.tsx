@@ -33,10 +33,10 @@ export default function LoginClient() {
           {/* Logo + nama */}
           <div className="flex items-center gap-3 mb-5 pb-4 border-b border-slate-100">
             <div className="relative h-9 w-9 shrink-0">
-              <Image src="/logokemenag.png" alt="Logo" fill className="object-contain" priority />
+              <Image src="/logokemenag.png" alt="MAN 1 Tasikmalaya" fill className="object-contain" priority />
             </div>
             <div>
-              <h1 className="text-sm font-bold text-slate-900 leading-tight">MANSATAS App</h1>
+              <h1 className="text-sm font-bold text-slate-900 leading-tight">MANSATAS</h1>
               <p className="text-[10px] text-slate-400 tracking-wide uppercase mt-0.5">MAN 1 Tasikmalaya</p>
             </div>
           </div>

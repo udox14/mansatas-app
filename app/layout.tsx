@@ -4,9 +4,13 @@ import "./globals.css"
 import { GlobalAlertProvider } from '@/components/ui/global-alert'
 
 export const metadata: Metadata = {
-  title: "MANSATAS ERP",
-  description: "Sistem Informasi Manajemen Terpadu MAN 1 Tasikmalaya",
+  title: "MANSATAS App",
+  description: "MANSATAS App - MAN 1 Tasikmalaya Management Application",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/logokemenag.png",
+    apple: "/apple-touch-icon.png"
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

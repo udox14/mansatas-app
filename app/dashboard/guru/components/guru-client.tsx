@@ -11,22 +11,83 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Search, UserPlus, Trash2, ShieldAlert, Loader2, Mail, FileSpreadsheet, Download, KeyRound, Pencil, AlertCircle, Users, CheckCircle2 } from 'lucide-react'
-import { tambahPegawai, ubahRolePegawai, hapusPegawai, importPegawaiMassal, editPegawai, resetPasswordPegawai } from '../actions'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Search, UserPlus, Trash2, ShieldAlert, Loader2, Mail, FileSpreadsheet,
+  Download, KeyRound, Pencil, AlertCircle, Users, CheckCircle2,
+  Building2, MapPin, PlusCircle, X, Shield, SlidersHorizontal, Check, Camera, LayoutGrid, List
+} from 'lucide-react'
+import {
+  tambahPegawai, hapusPegawai, importPegawaiMassal,
+  editPegawai, resetPasswordPegawai, setUserRoles,
+  assignJabatanStruktural, setDomisiliPegawai,
+  tambahJabatanStruktural, hapusJabatanStruktural, editJabatanStruktural, uploadFotoPegawaiAction
+} from '../actions'
+import {
+  getUserFeatureOverridesAction, setUserFeatureOverride
+} from '@/app/dashboard/settings/fitur/actions'
+import { MENU_ITEMS, getRoleLabel } from '@/config/menu'
 import { cn } from '@/lib/utils'
 
-type ProfilType = { id: string, nama_lengkap: string, role: string, email: string }
+type JabatanType = { id: string, nama: string, urutan: number }
+type MasterRoleType = { value: string; label: string; is_custom: number }
+type ProfilType = {
+  id: string, nama_lengkap: string, role: string, roles: string[], email: string,
+  jabatan_struktural_id: string | null, jabatan_struktural_nama: string | null,
+  domisili_pegawai: string | null, avatar_url: string | null
+}
 
-const ROLES = [
-  { value: 'guru', label: 'Guru Mata Pelajaran' },
-  { value: 'guru_bk', label: 'Guru BK' },
-  { value: 'guru_piket', label: 'Guru Piket' },
-  { value: 'wakamad', label: 'Wakil Kepala Madrasah' },
-  { value: 'kepsek', label: 'Kepala Madrasah' },
-  { value: 'admin_tu', label: 'Admin Tata Usaha' },
-  { value: 'satpam', label: 'Satpam / Keamanan' },
-  { value: 'pramubakti', label: 'Pramubakti / Kebersihan' },
+const compressImage = async (file: File): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = (event) => {
+      const img = new Image()
+      img.src = event.target?.result as string
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const MAX_SIZE = 800
+        let width = img.width, height = img.height
+        if (width > height && width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE }
+        else if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE }
+        canvas.width = width; canvas.height = height
+        canvas.getContext('2d')?.drawImage(img, 0, 0, width, height)
+        canvas.toBlob(blob => {
+          if (blob) resolve(new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', { type: 'image/jpeg' }))
+          else resolve(file)
+        }, 'image/jpeg', 0.8)
+      }
+      img.onerror = reject
+    }
+    reader.onerror = reject
+  })
+}
+
+const DEFAULT_ROLES: MasterRoleType[] = [
+  { value: 'super_admin', label: 'Super Admin', is_custom: 0 },
+  { value: 'admin_tu', label: 'Admin TU', is_custom: 0 },
+  { value: 'kepsek', label: 'Kepala Madrasah', is_custom: 0 },
+  { value: 'wakamad', label: 'Wakamad', is_custom: 0 },
+  { value: 'guru', label: 'Guru', is_custom: 0 },
+  { value: 'guru_bk', label: 'Guru BK', is_custom: 0 },
+  { value: 'guru_piket', label: 'Guru Piket', is_custom: 0 },
+  { value: 'wali_kelas', label: 'Wali Kelas', is_custom: 0 },
+  { value: 'resepsionis', label: 'Resepsionis', is_custom: 0 },
+  { value: 'guru_ppl', label: 'Guru PPL', is_custom: 0 },
 ]
+
+const ROLE_COLORS: Record<string, string> = {
+  super_admin: 'bg-rose-100 text-rose-700 border-rose-200',
+  admin_tu: 'bg-violet-100 text-violet-700 border-violet-200',
+  kepsek: 'bg-amber-100 text-amber-700 border-amber-200',
+  wakamad: 'bg-blue-100 text-blue-700 border-blue-200',
+  guru: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  guru_bk: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+  guru_piket: 'bg-teal-100 text-teal-700 border-teal-200',
+  wali_kelas: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  resepsionis: 'bg-pink-100 text-pink-700 border-pink-200',
+  guru_ppl: 'bg-lime-100 text-lime-700 border-lime-200',
+}
 
 const initialState: any = { error: null, success: null }
 
@@ -51,10 +112,13 @@ const getAvatarColor = (name: string) => {
   return colors[(name.charCodeAt(0) || 0) % colors.length]
 }
 
-export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
+export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_ROLES }: {
+  initialData: ProfilType[], masterJabatan: JabatanType[], masterRoles?: MasterRoleType[]
+}) {
   const [isPending, setIsPending] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterRole, setFilterRole] = useState('ALL')
+  const [filterJabatan, setFilterJabatan] = useState('ALL')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(20)
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -62,28 +126,43 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
   const [state, formAction] = useActionState(tambahPegawai, initialState)
   const [isImporting, setIsImporting] = useState(false)
   const [importLogs, setImportLogs] = useState<string[]>([])
+  // Jabatan management
+  const [isJabatanOpen, setIsJabatanOpen] = useState(false)
+  const [newJabatan, setNewJabatan] = useState('')
+  const [editingJabatan, setEditingJabatan] = useState<JabatanType | null>(null)
+  const [editJabatanNama, setEditJabatanNama] = useState('')
+  const [activeTab, setActiveTab] = useState('pegawai')
+  const [viewMode, setViewMode] = useState<'table' | 'gallery'>('table')
+  const [uploadingId, setUploadingId] = useState<string | null>(null)
+  
+  // Multi-role modal
+  const [roleModalUser, setRoleModalUser] = useState<ProfilType | null>(null)
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([])
+  const [selectedPrimary, setSelectedPrimary] = useState('')
+  // Override modal
+  const [overrideModalUser, setOverrideModalUser] = useState<ProfilType | null>(null)
+  const [overrides, setOverrides] = useState<{ grants: string[]; revokes: string[] }>({ grants: [], revokes: [] })
+  const [overrideLoading, setOverrideLoading] = useState(false)
 
-  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterRole, itemsPerPage])
+  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterRole, filterJabatan, itemsPerPage])
   useEffect(() => {
     if (state?.success) { const t = setTimeout(() => setIsAddOpen(false), 2000); return () => clearTimeout(t) }
   }, [state?.success])
 
   const filteredData = initialData.filter(p => {
     const matchSearch = p.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) || p.email.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchRole = filterRole === 'ALL' || p.role === filterRole
-    return matchSearch && matchRole
+    const matchRole = filterRole === 'ALL' || p.roles.includes(filterRole) || p.role === filterRole
+    const matchJabatan = filterJabatan === 'ALL'
+      ? true
+      : filterJabatan === 'NONE'
+        ? !p.jabatan_struktural_id
+        : p.jabatan_struktural_id === filterJabatan
+    return matchSearch && matchRole && matchJabatan
   })
 
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage)
-  const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-
-  const handleUbahRole = async (id: string, newRole: string) => {
-    if (!confirm('Yakin ubah hak akses pegawai ini?')) return
-    setIsPending(true)
-    const res = await ubahRolePegawai(id, newRole)
-    if (res?.error) alert(res.error)
-    setIsPending(false)
-  }
+  const dynamicItemsPerPage = viewMode === 'gallery' ? 24 : itemsPerPage
+  const totalPages = Math.ceil(filteredData.length / dynamicItemsPerPage)
+  const paginatedData = filteredData.slice((currentPage - 1) * dynamicItemsPerPage, currentPage * dynamicItemsPerPage)
 
   const handleHapus = async (id: string, nama: string) => {
     if (!confirm(`PERMANEN!\nYakin hapus semua data dan akses login ${nama}?`)) return
@@ -112,12 +191,128 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
     setIsPending(false)
   }
 
+  const handleUploadFoto = async (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingId(id)
+    try {
+      const compressedFile = await compressImage(file)
+      const fd = new FormData()
+      fd.append('foto', compressedFile)
+      const res = await uploadFotoPegawaiAction(id, fd)
+      if (res.error) alert(res.error)
+    } catch { alert('Gagal memproses gambar.') }
+    finally { setUploadingId(null); e.target.value = '' }
+  }
+
+  // Multi-role handlers
+  const openRoleModal = (p: ProfilType) => {
+    setRoleModalUser(p)
+    setSelectedRoles([...p.roles])
+    setSelectedPrimary(p.role)
+  }
+
+  const handleSaveRoles = async () => {
+    if (!roleModalUser) return
+    if (selectedRoles.length === 0) return alert('Pilih minimal 1 role.')
+    setIsPending(true)
+    const primary = selectedRoles.includes(selectedPrimary) ? selectedPrimary : selectedRoles[0]
+    const res = await setUserRoles(roleModalUser.id, selectedRoles, primary)
+    if (res?.error) alert(res.error)
+    else { setRoleModalUser(null) }
+    setIsPending(false)
+  }
+
+  const toggleRole = (role: string) => {
+    setSelectedRoles(prev =>
+      prev.includes(role)
+        ? prev.filter(r => r !== role)
+        : [...prev, role]
+    )
+  }
+
+  // Override handlers
+  const openOverrideModal = async (p: ProfilType) => {
+    setOverrideModalUser(p)
+    setOverrideLoading(true)
+    try {
+      const result = await getUserFeatureOverridesAction(p.id)
+      setOverrides(result)
+    } catch {
+      setOverrides({ grants: [], revokes: [] })
+    }
+    setOverrideLoading(false)
+  }
+
+  const handleToggleOverride = async (featureId: string) => {
+    if (!overrideModalUser) return
+    // Cycle: none → grant → revoke → none
+    const isGrant = overrides.grants.includes(featureId)
+    const isRevoke = overrides.revokes.includes(featureId)
+
+    let action: 'grant' | 'revoke' | 'remove'
+    if (!isGrant && !isRevoke) action = 'grant'
+    else if (isGrant) action = 'revoke'
+    else action = 'remove'
+
+    setOverrideLoading(true)
+    const res = await setUserFeatureOverride(overrideModalUser.id, featureId, action)
+    if (res?.error) alert(res.error)
+
+    // Refresh
+    const result = await getUserFeatureOverridesAction(overrideModalUser.id)
+    setOverrides(result)
+    setOverrideLoading(false)
+  }
+
+  const handleAssignJabatan = async (userId: string, jabatanId: string) => {
+    setIsPending(true)
+    const val = jabatanId === 'NONE' ? null : jabatanId
+    const res = await assignJabatanStruktural(userId, val)
+    if (res?.error) alert(res.error)
+    setIsPending(false)
+  }
+
+  const handleSetDomisili = async (userId: string, domisili: string) => {
+    setIsPending(true)
+    const val = domisili === 'NONE' ? null : domisili
+    const res = await setDomisiliPegawai(userId, val)
+    if (res?.error) alert(res.error)
+    setIsPending(false)
+  }
+
+  const handleTambahJabatan = async () => {
+    if (!newJabatan.trim()) return
+    setIsPending(true)
+    const res = await tambahJabatanStruktural(newJabatan)
+    if (res?.error) alert(res.error)
+    else setNewJabatan('')
+    setIsPending(false)
+  }
+
+  const handleHapusJabatan = async (id: string, nama: string) => {
+    if (!confirm(`Hapus jabatan "${nama}"? Pegawai yang menjabat akan di-unset.`)) return
+    setIsPending(true)
+    const res = await hapusJabatanStruktural(id)
+    if (res?.error) alert(res.error)
+    setIsPending(false)
+  }
+
+  const handleEditJabatan = async () => {
+    if (!editingJabatan || !editJabatanNama.trim()) return
+    setIsPending(true)
+    const res = await editJabatanStruktural(editingJabatan.id, editJabatanNama)
+    if (res?.error) alert(res.error)
+    else setEditingJabatan(null)
+    setIsPending(false)
+  }
+
   const handleDownloadTemplate = () => {
     const XLSX = (window as any).XLSX
     if (!XLSX) return alert('Library belum siap.')
     const ws = XLSX.utils.json_to_sheet([
-      { NAMA_LENGKAP: 'Budi Santoso, S.Pd', EMAIL: 'budi@mansatas.sch.id', JABATAN: 'guru' },
-      { NAMA_LENGKAP: 'Siti Aminah, M.Pd', EMAIL: 'siti@mansatas.sch.id', JABATAN: 'wakamad' },
+      { NAMA_LENGKAP: 'Budi Santoso, S.Pd', EMAIL: 'budi@man1tasikmalaya.sch.id', JABATAN: 'guru' },
+      { NAMA_LENGKAP: 'Siti Aminah, M.Pd', EMAIL: 'siti@man1tasikmalaya.sch.id', JABATAN: 'wakamad' },
     ])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Data_Pegawai')
@@ -144,22 +339,41 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
     reader.readAsBinaryString(file)
   }
 
+  // Count pegawai punya jabatan struktural
+  const pegawaiStruktural = initialData.filter(p => p.jabatan_struktural_id)
+
+  // ─── Role Badges Component ──────────────
+  const RoleBadges = ({ roles, primaryRole }: { roles: string[]; primaryRole: string }) => (
+    <div className="flex flex-wrap gap-1">
+      {roles.map(role => (
+        <span key={role} className={cn(
+          'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold border',
+          ROLE_COLORS[role] || 'bg-slate-100 text-slate-600 border-slate-200',
+          role === primaryRole && 'ring-1 ring-offset-0.5 ring-slate-400'
+        )}>
+          {role === primaryRole && <span className="text-[7px]">★</span>}
+          {getRoleLabel(role)}
+        </span>
+      ))}
+    </div>
+  )
+
   return (
     <>
       <Script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" strategy="lazyOnload" />
 
-      {/* MODAL EDIT */}
+      {/* MODAL EDIT PROFIL */}
       <Dialog open={!!editingPegawai} onOpenChange={open => !open && setEditingPegawai(null)}>
         <DialogContent className="sm:max-w-md rounded-xl">
           <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Edit Profil Pegawai</DialogTitle></DialogHeader>
           <form onSubmit={handleEditSubmit} className="space-y-3 pt-1">
             <input type="hidden" name="id" value={editingPegawai?.id} />
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Nama Lengkap</Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Nama Lengkap</Label>
               <Input name="nama_lengkap" defaultValue={editingPegawai?.nama_lengkap} required className="h-9 text-sm rounded-lg" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Email (Login)</Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Email (Login)</Label>
               <Input type="email" name="email" defaultValue={editingPegawai?.email} required className="h-9 text-sm rounded-lg" />
             </div>
             <Button type="submit" disabled={isPending} className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">
@@ -169,215 +383,619 @@ export function GuruClient({ initialData }: { initialData: ProfilType[] }) {
         </DialogContent>
       </Dialog>
 
-      <div className="space-y-3">
-        {/* TOOLBAR */}
-        <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
-          <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-            <Input placeholder="Cari nama atau email..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+      {/* MODAL MULTI-ROLE */}
+      <Dialog open={!!roleModalUser} onOpenChange={open => !open && setRoleModalUser(null)}>
+        <DialogContent className="sm:max-w-md rounded-xl">
+          <DialogHeader className="border-b pb-3">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <Shield className="h-4 w-4 text-violet-500" /> Atur Role — {roleModalUser?.nama_lengkap}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <p className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 border border-surface">
+              Centang role yang berlaku. User bisa memiliki banyak role sekaligus. Role dengan ★ adalah role utama yang ditampilkan di profil.
+            </p>
+            <div className="space-y-1.5">
+              {masterRoles.map((r: MasterRoleType) => {
+                const isSelected = selectedRoles.includes(r.value)
+                const isPrimary = selectedPrimary === r.value
+                return (
+                  <div key={r.value} className={cn(
+                    'flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all',
+                    isSelected ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-surface border-surface hover:bg-surface-2'
+                  )}>
+                    <button
+                      type="button"
+                      onClick={() => toggleRole(r.value)}
+                      className={cn(
+                        'h-4 w-4 rounded shrink-0 flex items-center justify-center transition-colors',
+                        isSelected ? 'bg-emerald-500 text-white' : 'border-2 border-slate-300 dark:border-slate-600'
+                      )}
+                    >
+                      {isSelected && <Check className="h-2.5 w-2.5" />}
+                    </button>
+                    <span className={cn('text-xs font-medium flex-1', isSelected ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400')}>
+                      {r.label}
+                    </span>
+                    {isSelected && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPrimary(r.value)}
+                        className={cn(
+                          'text-[9px] font-bold px-1.5 py-0.5 rounded transition-colors',
+                          isPrimary
+                            ? 'bg-amber-100 text-amber-700 border border-amber-300'
+                            : 'bg-slate-100 dark:bg-slate-700 text-slate-400 hover:bg-amber-50 hover:text-amber-600'
+                        )}
+                        title="Set sebagai role utama"
+                      >
+                        {isPrimary ? '★ Utama' : 'Set utama'}
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <Button
+              onClick={handleSaveRoles}
+              disabled={isPending || selectedRoles.length === 0}
+              className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
+            >
+              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : `Simpan ${selectedRoles.length} Role`}
+            </Button>
           </div>
-          <Select value={filterRole} onValueChange={setFilterRole}>
-            <SelectTrigger className="h-8 w-36 sm:w-44 text-xs rounded-md shrink-0"><SelectValue placeholder="Semua Jabatan" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Semua Jabatan</SelectItem>
-              {ROLES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <div className="flex gap-2 ml-auto">
-            {/* Import Dialog */}
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 text-xs rounded-md">
-                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Import
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-lg rounded-xl">
-                <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Import Akun Pegawai Massal</DialogTitle></DialogHeader>
-                <div className="space-y-3 pt-2">
-                  <div className="flex justify-between items-center p-2.5 bg-surface-2 border border-surface rounded-lg">
-                    <p className="text-xs text-slate-600 dark:text-slate-300 dark:text-slate-600 font-medium">Download format template:</p>
-                    <Button size="sm" variant="outline" onClick={handleDownloadTemplate} className="h-7 text-xs gap-1"><Download className="h-3 w-3" />Template</Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL OVERRIDE FITUR */}
+      <Dialog open={!!overrideModalUser} onOpenChange={open => !open && setOverrideModalUser(null)}>
+        <DialogContent className="sm:max-w-lg rounded-xl max-h-[80vh]">
+          <DialogHeader className="border-b pb-3">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4 text-violet-500" /> Override Fitur — {overrideModalUser?.nama_lengkap}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 pt-1">
+            <p className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 border border-surface">
+              Klik berulang untuk mengubah status: <span className="font-semibold text-emerald-600">✓ Grant</span> (tambah akses) → <span className="font-semibold text-rose-600">✗ Revoke</span> (cabut akses) → <span className="text-slate-400">Normal</span> (ikut role).
+            </p>
+            <ScrollArea className="h-[50vh]">
+              <div className="space-y-1 pr-3">
+                {overrideLoading ? (
+                  <div className="flex items-center justify-center py-8 text-slate-400">
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" /> Memuat...
                   </div>
-                  <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg text-xs text-emerald-800 space-y-1">
-                    <p className="flex items-center gap-1.5 font-medium"><KeyRound className="h-3.5 w-3.5 text-emerald-600" />Password otomatis: <strong className="font-mono bg-surface px-1.5 py-0.5 rounded border border-emerald-200">mansatas2026</strong></p>
-                    <p>Kolom: <strong>NAMA_LENGKAP</strong>, <strong>EMAIL</strong>, <strong>JABATAN</strong></p>
-                  </div>
-                  <Input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} disabled={isImporting} className="h-9 text-xs rounded-lg cursor-pointer" />
-                  {isImporting && <div className="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 p-2.5 rounded-lg animate-pulse"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Sedang membuat akun...</div>}
-                  {importLogs.length > 0 && (
-                    <div className="border border-rose-200 rounded-lg overflow-hidden">
-                      <div className="bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5" />Log Gagal:</div>
-                      <ScrollArea className="h-28 bg-surface p-3 text-xs font-mono text-rose-600">
-                        {importLogs.map((log, i) => <div key={i} className="mb-0.5">{log}</div>)}
-                      </ScrollArea>
-                    </div>
+                ) : MENU_ITEMS.map(feature => {
+                  const Icon = feature.icon
+                  const isGrant = overrides.grants.includes(feature.id)
+                  const isRevoke = overrides.revokes.includes(feature.id)
+                  return (
+                    <button
+                      key={feature.id}
+                      onClick={() => handleToggleOverride(feature.id)}
+                      disabled={overrideLoading}
+                      className={cn(
+                        'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all text-left',
+                        isGrant ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800'
+                          : isRevoke ? 'bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:border-rose-800'
+                            : 'bg-surface border-surface hover:bg-surface-2'
+                      )}
+                    >
+                      <div className={cn(
+                        'p-1 rounded shrink-0',
+                        isGrant ? 'bg-emerald-100' : isRevoke ? 'bg-rose-100' : 'bg-slate-100 dark:bg-slate-800'
+                      )}>
+                        <Icon className={cn(
+                          'h-3 w-3',
+                          isGrant ? 'text-emerald-600' : isRevoke ? 'text-rose-500' : 'text-slate-400'
+                        )} />
+                      </div>
+                      <span className={cn(
+                        'text-xs font-medium flex-1 truncate',
+                        isGrant ? 'text-emerald-700' : isRevoke ? 'text-rose-600 line-through' : 'text-slate-600 dark:text-slate-300'
+                      )}>
+                        {feature.title}
+                      </span>
+                      {isGrant && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">
+                          + Grant
+                        </span>
+                      )}
+                      {isRevoke && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 border border-rose-200">
+                          − Revoke
+                        </span>
+                      )}
+                      {!isGrant && !isRevoke && (
+                        <span className="text-[9px] text-slate-400 px-1.5 py-0.5">
+                          Normal
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL KELOLA JABATAN STRUKTURAL */}
+      <Dialog open={isJabatanOpen} onOpenChange={setIsJabatanOpen}>
+        <DialogContent className="sm:max-w-md rounded-xl">
+          <DialogHeader className="border-b pb-3">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-violet-500" /> Kelola Master Jabatan Struktural
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <div className="flex gap-2">
+              <Input
+                placeholder="Nama jabatan baru..."
+                value={newJabatan}
+                onChange={e => setNewJabatan(e.target.value)}
+                className="h-8 text-sm rounded-md flex-1"
+                onKeyDown={e => e.key === 'Enter' && handleTambahJabatan()}
+              />
+              <Button size="sm" onClick={handleTambahJabatan} disabled={isPending || !newJabatan.trim()} className="h-8 text-xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white">
+                <PlusCircle className="h-3.5 w-3.5 mr-1" /> Tambah
+              </Button>
+            </div>
+            <div className="space-y-1.5">
+              {masterJabatan.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-4">Belum ada jabatan struktural.</p>
+              ) : masterJabatan.map(j => (
+                <div key={j.id} className="flex items-center gap-2 bg-surface-2 border border-surface rounded-lg px-3 py-2">
+                  {editingJabatan?.id === j.id ? (
+                    <>
+                      <Input
+                        value={editJabatanNama}
+                        onChange={e => setEditJabatanNama(e.target.value)}
+                        className="h-7 text-xs flex-1 rounded-md"
+                        onKeyDown={e => e.key === 'Enter' && handleEditJabatan()}
+                      />
+                      <Button size="sm" onClick={handleEditJabatan} disabled={isPending} className="h-7 text-xs px-2 bg-emerald-600 text-white rounded-md">OK</Button>
+                      <button onClick={() => setEditingJabatan(null)} className="p-1 text-slate-400 hover:text-slate-600"><X className="h-3.5 w-3.5" /></button>
+                    </>
+                  ) : (
+                    <>
+                      <Building2 className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200 flex-1">{j.nama}</span>
+                      <span className="text-[10px] text-slate-400 bg-surface px-1.5 py-0.5 rounded border border-surface">
+                        {initialData.filter(p => p.jabatan_struktural_id === j.id).length} orang
+                      </span>
+                      <button onClick={() => { setEditingJabatan(j); setEditJabatanNama(j.nama) }} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" title="Edit">
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button onClick={() => handleHapusJabatan(j.id, j.nama)} className="p-1 text-rose-500 hover:bg-rose-50 rounded" title="Hapus">
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </>
                   )}
                 </div>
-              </DialogContent>
-            </Dialog>
-
-            {/* Tambah Manual */}
-            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="h-8 text-xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <UserPlus className="h-3.5 w-3.5 mr-1" /> Tambah
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md rounded-xl">
-                <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Buat Akun Pegawai Baru</DialogTitle></DialogHeader>
-                <form action={formAction} className="space-y-3 pt-2">
-                  {state?.error && <div className="p-2.5 text-xs text-rose-600 bg-rose-50 rounded-lg border border-rose-200 flex gap-1.5"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{state.error}</div>}
-                  {state?.success && <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200 flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{state.success}</div>}
-                  <div className="bg-emerald-50 border border-emerald-100 p-2.5 rounded-lg flex gap-2 text-xs text-emerald-800">
-                    <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-emerald-600 mt-0.5" />
-                    Password default: <strong className="font-mono bg-surface px-1 py-0.5 rounded border border-emerald-200">mansatas2026</strong>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Nama Lengkap <span className="text-rose-500">*</span></Label>
-                    <Input name="nama_lengkap" required className="h-9 text-sm rounded-lg" placeholder="Contoh: Budi Santoso, S.Pd" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Email Resmi <span className="text-rose-500">*</span></Label>
-                    <div className="relative">
-                      <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                      <Input name="email" type="email" required className="pl-8 h-9 text-sm rounded-lg" placeholder="guru@mansatas.sch.id" />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Jabatan <span className="text-rose-500">*</span></Label>
-                    <Select name="role" defaultValue="guru">
-                      <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
-                      <SelectContent>{ROLES.map(r => <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <SubmitButton />
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-
-        {/* MOBILE CARDS */}
-        <div className="block md:hidden space-y-2">
-          {paginatedData.length === 0 ? (
-            <div className="bg-surface py-10 rounded-lg border border-surface text-center">
-              <Users className="h-7 w-7 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-              <p className="text-sm text-slate-400 dark:text-slate-500">Tidak ada data pegawai.</p>
-            </div>
-          ) : paginatedData.map(p => (
-            <div key={p.id} className="bg-surface border border-surface rounded-lg p-3">
-              <div className="flex items-center gap-3 mb-2.5">
-                <div className={cn("h-9 w-9 rounded-full bg-gradient-to-br shrink-0 flex items-center justify-center text-sm font-bold", getAvatarColor(p.nama_lengkap))}>
-                  {p.nama_lengkap.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">{p.nama_lengkap}</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
-                </div>
-              </div>
-              <Select value={p.role} onValueChange={val => handleUbahRole(p.id, val)} disabled={isPending}>
-                <SelectTrigger className="h-7 text-xs rounded border-surface bg-surface-2 font-medium w-full mb-2"><SelectValue /></SelectTrigger>
-                <SelectContent>{ROLES.map(r => <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>)}</SelectContent>
-              </Select>
-              <div className="flex gap-1.5 justify-end">
-                <button onClick={() => handleResetPassword(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-amber-600 hover:bg-amber-50" title="Reset Password">
-                  <KeyRound className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={() => setEditingPegawai(p)} disabled={isPending} className="p-1.5 rounded text-emerald-600 hover:bg-emerald-50" title="Edit">
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={() => handleHapus(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-rose-500 hover:bg-rose-50" title="Hapus">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* DESKTOP TABLE */}
-        <div className="hidden md:block bg-surface rounded-lg border border-surface overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-surface-2 hover:bg-surface-2">
-                <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">Profil Pegawai</TableHead>
-                <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 w-52">Jabatan / Hak Akses</TableHead>
-                <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 text-right px-4 w-28">Kelola</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedData.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={3} className="h-24 text-center">
-                    <div className="flex flex-col items-center gap-2 text-slate-400 dark:text-slate-500">
-                      <Users className="h-7 w-7 text-slate-300 dark:text-slate-600" />
-                      <p className="text-sm">Tidak ada data pegawai.</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : paginatedData.map(p => (
-                <TableRow key={p.id} className="hover:bg-emerald-50/20 border-surface-2 group">
-                  <TableCell className="px-4 py-2.5">
-                    <div className="flex items-center gap-3">
-                      <div className={cn("h-8 w-8 rounded-full bg-gradient-to-br shrink-0 flex items-center justify-center text-sm font-bold", getAvatarColor(p.nama_lengkap))}>
-                        {p.nama_lengkap.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 group-hover:text-emerald-700 transition-colors leading-tight">{p.nama_lengkap}</p>
-                        <p className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="py-2.5">
-                    <Select value={p.role} onValueChange={val => handleUbahRole(p.id, val)} disabled={isPending}>
-                      <SelectTrigger className="h-7 w-48 text-xs rounded border-surface bg-surface-2 font-medium"><SelectValue /></SelectTrigger>
-                      <SelectContent>{ROLES.map(r => <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell className="py-2.5 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => handleResetPassword(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-amber-600 hover:bg-amber-50" title="Reset Password">
-                        <KeyRound className="h-3.5 w-3.5" />
-                      </button>
-                      <button onClick={() => setEditingPegawai(p)} disabled={isPending} className="p-1.5 rounded text-emerald-600 hover:bg-emerald-50" title="Edit">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button onClick={() => handleHapus(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-rose-500 hover:bg-rose-50" title="Hapus">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </TableCell>
-                </TableRow>
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
-          {/* PAGINATION */}
-          <div className="flex items-center justify-between px-4 py-2 border-t border-surface-2 bg-slate-50/50">
-            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">
-              <span>Tampilkan</span>
-              <Select value={itemsPerPage.toString()} onValueChange={v => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
-                <SelectTrigger className="h-7 w-16 text-xs rounded border-surface"><SelectValue /></SelectTrigger>
-                <SelectContent>{[10, 20, 50].map(n => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}</SelectContent>
+      <div className="space-y-3">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="bg-surface border border-surface">
+            <TabsTrigger value="pegawai" className="text-xs gap-1.5 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700">
+              <Users className="h-3.5 w-3.5" /> Semua Pegawai ({initialData.length})
+            </TabsTrigger>
+            <TabsTrigger value="struktural" className="text-xs gap-1.5 data-[state=active]:bg-violet-50 data-[state=active]:text-violet-700">
+              <Building2 className="h-3.5 w-3.5" /> Pejabat Struktural ({pegawaiStruktural.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="struktural" className="mt-3 space-y-3">
+            <div className="flex items-center justify-between bg-surface border border-surface rounded-lg p-3">
+              <p className="text-xs text-slate-500">Pegawai dengan jabatan struktural wajib presensi harian via resepsionis.</p>
+              <Button size="sm" variant="outline" onClick={() => setIsJabatanOpen(true)} className="h-7 text-xs gap-1 rounded-md">
+                <Building2 className="h-3 w-3" /> Kelola Jabatan
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {pegawaiStruktural.length === 0 ? (
+                <div className="col-span-full bg-surface py-10 rounded-lg border border-surface text-center">
+                  <Building2 className="h-7 w-7 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400">Belum ada pegawai dengan jabatan struktural.</p>
+                  <p className="text-xs text-slate-400 mt-1">Assign jabatan di tab &quot;Semua Pegawai&quot;.</p>
+                </div>
+              ) : pegawaiStruktural.map(p => (
+                <div key={p.id} className="bg-surface border border-surface rounded-lg p-3">
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className={cn("h-9 w-9 rounded-full shrink-0 flex items-center justify-center text-sm font-bold overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700", getAvatarColor(p.nama_lengkap))}>
+                      {p.avatar_url ? (
+                        <img src={p.avatar_url} alt={p.nama_lengkap} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br flex items-center justify-center text-white/90">
+                          {p.nama_lengkap.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">{p.nama_lengkap}</p>
+                      <p className="text-[10px] text-slate-400 truncate">{p.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700 border border-violet-200">
+                      <Building2 className="h-2.5 w-2.5" />{p.jabatan_struktural_nama}
+                    </span>
+                    <RoleBadges roles={p.roles} primaryRole={p.role} />
+                    {p.domisili_pegawai && (
+                      <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border",
+                        p.domisili_pegawai === 'dalam' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-amber-100 text-amber-700 border-amber-200'
+                      )}>
+                        <MapPin className="h-2.5 w-2.5" />{p.domisili_pegawai === 'dalam' ? 'Dalam' : 'Luar'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="pegawai" className="mt-3 space-y-3">
+            {/* TOOLBAR */}
+            <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
+              <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                <Input placeholder="Cari nama atau email..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }} />
+              </div>
+              
+              {/* View toggle pill */}
+              <div className="flex bg-surface-2 border border-surface p-0.5 rounded-lg shrink-0">
+                <button
+                  onClick={() => { setViewMode('table'); setCurrentPage(1) }}
+                  className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
+                    viewMode === 'table'
+                      ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm'
+                      : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 dark:text-slate-600'
+                  }`}
+                >
+                  <List className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Tabel</span>
+                </button>
+                <button
+                  onClick={() => { setViewMode('gallery'); setCurrentPage(1) }}
+                  className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
+                    viewMode === 'gallery'
+                      ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm'
+                      : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 dark:text-slate-600'
+                  }`}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Foto</span>
+                </button>
+              </div>
+
+              <Select value={filterRole} onValueChange={val => { setFilterRole(val); setCurrentPage(1) }}>
+                <SelectTrigger className="h-8 w-36 sm:w-40 text-xs rounded-md shrink-0"><SelectValue placeholder="Semua Role" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Semua Role</SelectItem>
+                  {masterRoles.map((r: MasterRoleType) => <SelectItem key={r.value} value={r.value}>{r.label}{r.is_custom ? ' ★' : ''}</SelectItem>)}
+                </SelectContent>
               </Select>
-              <span><strong className="text-slate-700 dark:text-slate-200">{filteredData.length}</strong> pegawai</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 px-2.5 text-xs rounded">←</Button>
-              <span className="text-xs font-medium px-2">{currentPage}/{totalPages || 1}</span>
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="h-7 px-2.5 text-xs rounded">→</Button>
-            </div>
-          </div>
-        </div>
+              <Select value={filterJabatan} onValueChange={val => { setFilterJabatan(val); setCurrentPage(1) }}>
+                <SelectTrigger className="h-8 w-36 sm:w-44 text-xs rounded-md shrink-0"><SelectValue placeholder="Semua Jabatan" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Semua Jabatan</SelectItem>
+                  <SelectItem value="NONE">Tanpa Jabatan Struktural</SelectItem>
+                  {masterJabatan.map(j => <SelectItem key={j.id} value={j.id}>{j.nama}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2 ml-auto">
+                <Button variant="outline" size="sm" onClick={() => setIsJabatanOpen(true)} className="h-8 text-xs rounded-md gap-1">
+                  <Building2 className="h-3.5 w-3.5" /> Jabatan
+                </Button>
+                {/* Import Dialog */}
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 text-xs rounded-md">
+                      <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Import
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-lg rounded-xl">
+                    <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Import Akun Pegawai Massal</DialogTitle></DialogHeader>
+                    <div className="space-y-3 pt-2">
+                      <div className="flex justify-between items-center p-2.5 bg-surface-2 border border-surface rounded-lg">
+                        <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">Download format template:</p>
+                        <Button size="sm" variant="outline" onClick={handleDownloadTemplate} className="h-7 text-xs gap-1"><Download className="h-3 w-3" />Template</Button>
+                      </div>
+                      <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg text-xs text-emerald-800 space-y-1">
+                        <p className="flex items-center gap-1.5 font-medium"><KeyRound className="h-3.5 w-3.5 text-emerald-600" />Password otomatis: <strong className="font-mono bg-surface px-1.5 py-0.5 rounded border border-emerald-200">mansatas2026</strong></p>
+                        <p>Kolom: <strong>NAMA_LENGKAP</strong>, <strong>EMAIL</strong>, <strong>JABATAN</strong></p>
+                      </div>
+                      <Input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} disabled={isImporting} className="h-9 text-xs rounded-lg cursor-pointer" />
+                      {isImporting && <div className="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 p-2.5 rounded-lg animate-pulse"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Sedang membuat akun...</div>}
+                      {importLogs.length > 0 && (
+                        <div className="border border-rose-200 rounded-lg overflow-hidden">
+                          <div className="bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5" />Log Gagal:</div>
+                          <ScrollArea className="h-28 bg-surface p-3 text-xs font-mono text-rose-600">
+                            {importLogs.map((log, i) => <div key={i} className="mb-0.5">{log}</div>)}
+                          </ScrollArea>
+                        </div>
+                      )}
+                    </div>
+                  </DialogContent>
+                </Dialog>
 
-        {/* Mobile pagination */}
-        <div className="flex items-center justify-between md:hidden bg-surface border border-surface rounded-lg px-3 py-2">
-          <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500"><strong>{filteredData.length}</strong> pegawai</span>
-          <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 px-2.5 text-xs rounded">←</Button>
-            <span className="text-xs font-medium px-2">{currentPage}/{totalPages || 1}</span>
-            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="h-7 px-2.5 text-xs rounded">→</Button>
-          </div>
-        </div>
+                {/* Tambah Manual */}
+                <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="h-8 text-xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white">
+                      <UserPlus className="h-3.5 w-3.5 mr-1" /> Tambah
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md rounded-xl">
+                    <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Buat Akun Pegawai Baru</DialogTitle></DialogHeader>
+                    <form action={formAction} className="space-y-3 pt-2">
+                      {state?.error && <div className="p-2.5 text-xs text-rose-600 bg-rose-50 rounded-lg border border-rose-200 flex gap-1.5"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{state.error}</div>}
+                      {state?.success && <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200 flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{state.success}</div>}
+                      <div className="bg-emerald-50 border border-emerald-100 p-2.5 rounded-lg flex gap-2 text-xs text-emerald-800">
+                        <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-emerald-600 mt-0.5" />
+                        Password default: <strong className="font-mono bg-surface px-1 py-0.5 rounded border border-emerald-200">mansatas2026</strong>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Nama Lengkap <span className="text-rose-500">*</span></Label>
+                        <Input name="nama_lengkap" required className="h-9 text-sm rounded-lg" placeholder="Contoh: Budi Santoso, S.Pd" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Email Resmi <span className="text-rose-500">*</span></Label>
+                        <div className="relative">
+                          <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                          <Input name="email" type="email" required className="pl-8 h-9 text-sm rounded-lg" placeholder="guru@man1tasikmalaya.sch.id" />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Jabatan <span className="text-rose-500">*</span></Label>
+                        <Select name="role" defaultValue="guru">
+                          <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
+                          <SelectContent>{masterRoles.map((r: MasterRoleType) => <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <SubmitButton />
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
+
+            {viewMode === 'gallery' ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                {paginatedData.length === 0 ? (
+                  <div className="col-span-full py-12 text-center text-sm text-slate-400 dark:text-slate-500 bg-surface rounded-lg border border-surface">
+                    Tidak ada pegawai ditemukan.
+                  </div>
+                ) : paginatedData.map(p => (
+                  <div key={p.id} className="bg-surface rounded-lg border border-surface overflow-hidden group flex flex-col">
+                    <div className="relative aspect-[3/4] bg-surface-3">
+                      {uploadingId === p.id ? (
+                        <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-10">
+                          <Loader2 className="h-5 w-5 text-emerald-600 animate-spin" />
+                        </div>
+                      ) : p.avatar_url ? (
+                        <img src={p.avatar_url} alt={p.nama_lengkap} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className={cn("w-full h-full bg-gradient-to-br flex items-center justify-center text-3xl font-black text-white/60", getAvatarColor(p.nama_lengkap))}>
+                          {p.nama_lengkap.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <label className="absolute bottom-1 right-1 bg-white/90 text-slate-700 dark:text-slate-200 p-1 rounded shadow cursor-pointer z-10 hover:bg-surface transition-colors">
+                        <Camera className="w-3 h-3" />
+                        <input type="file" className="hidden" accept="image/*" capture="environment" onChange={e => handleUploadFoto(p.id, e)} />
+                      </label>
+                    </div>
+                    <div className="p-1.5 text-center flex-1">
+                      <p className="text-[10px] font-semibold text-slate-800 dark:text-slate-100 leading-tight line-clamp-2">{p.nama_lengkap}</p>
+                      <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">{getRoleLabel(p.role)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                {/* MOBILE CARDS */}
+                <div className="block md:hidden space-y-2">
+              {paginatedData.length === 0 ? (
+                <div className="bg-surface py-10 rounded-lg border border-surface text-center">
+                  <Users className="h-7 w-7 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                  <p className="text-sm text-slate-400 dark:text-slate-500">Tidak ada data pegawai.</p>
+                </div>
+              ) : paginatedData.map(p => (
+                <div key={p.id} className="bg-surface border border-surface rounded-lg p-3">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={cn("h-9 w-9 rounded-full shrink-0 flex items-center justify-center text-sm font-bold overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700", getAvatarColor(p.nama_lengkap))}>
+                      {p.avatar_url ? (
+                        <img src={p.avatar_url} alt={p.nama_lengkap} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br flex items-center justify-center text-white/90">
+                          {p.nama_lengkap.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">{p.nama_lengkap}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
+                    </div>
+                  </div>
+                  {/* Role badges */}
+                  <div className="mb-2">
+                    <RoleBadges roles={p.roles} primaryRole={p.role} />
+                  </div>
+                  {/* Jabatan + Domisili */}
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <Select value={p.jabatan_struktural_id || 'NONE'} onValueChange={val => handleAssignJabatan(p.id, val)} disabled={isPending}>
+                      <SelectTrigger className="h-7 text-[10px] rounded border-surface bg-surface-2"><SelectValue placeholder="Jabatan Struktural" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NONE" className="text-xs">— Tidak ada —</SelectItem>
+                        {masterJabatan.map(j => <SelectItem key={j.id} value={j.id} className="text-xs">{j.nama}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={p.domisili_pegawai || 'NONE'} onValueChange={val => handleSetDomisili(p.id, val)} disabled={isPending}>
+                      <SelectTrigger className="h-7 text-[10px] rounded border-surface bg-surface-2"><SelectValue placeholder="Domisili" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NONE" className="text-xs">— Belum diset —</SelectItem>
+                        <SelectItem value="dalam" className="text-xs">Dalam</SelectItem>
+                        <SelectItem value="luar" className="text-xs">Luar</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex gap-1.5 justify-end">
+                    <button onClick={() => openRoleModal(p)} disabled={isPending} className="p-1.5 rounded text-violet-600 hover:bg-violet-50" title="Atur Role">
+                      <Shield className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => openOverrideModal(p)} disabled={isPending} className="p-1.5 rounded text-blue-600 hover:bg-blue-50" title="Override Fitur">
+                      <SlidersHorizontal className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => handleResetPassword(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-amber-600 hover:bg-amber-50" title="Reset Password">
+                      <KeyRound className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => setEditingPegawai(p)} disabled={isPending} className="p-1.5 rounded text-emerald-600 hover:bg-emerald-50" title="Edit">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => handleHapus(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-rose-500 hover:bg-rose-50" title="Hapus">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* DESKTOP TABLE */}
+            <div className="hidden md:block bg-surface rounded-lg border border-surface overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-surface-2 hover:bg-surface-2">
+                    <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">Profil Pegawai</TableHead>
+                    <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 w-52">Role</TableHead>
+                    <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 w-40">Jabatan Struktural</TableHead>
+                    <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 w-24">Domisili</TableHead>
+                    <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 text-right px-4 w-36">Kelola</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedData.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center">
+                        <div className="flex flex-col items-center gap-2 text-slate-400 dark:text-slate-500">
+                          <Users className="h-7 w-7 text-slate-300 dark:text-slate-600" />
+                          <p className="text-sm">Tidak ada data pegawai.</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : paginatedData.map(p => (
+                    <TableRow key={p.id} className="hover:bg-emerald-50/20 border-surface-2 group">
+                      <TableCell className="px-4 py-2.5">
+                        <div className="flex items-center gap-3">
+                          <div className={cn("h-8 w-8 rounded-full shrink-0 flex items-center justify-center text-sm font-bold overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700", getAvatarColor(p.nama_lengkap))}>
+                            {p.avatar_url ? (
+                              <img src={p.avatar_url} alt={p.nama_lengkap} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-br flex items-center justify-center text-white/90">
+                                {p.nama_lengkap.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 group-hover:text-emerald-700 transition-colors leading-tight">{p.nama_lengkap}</p>
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex-1 min-w-0">
+                            <RoleBadges roles={p.roles} primaryRole={p.role} />
+                          </div>
+                          <button onClick={() => openRoleModal(p)} className="p-1 rounded text-violet-500 hover:bg-violet-50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" title="Atur Role">
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <Select value={p.jabatan_struktural_id || 'NONE'} onValueChange={val => handleAssignJabatan(p.id, val)} disabled={isPending}>
+                          <SelectTrigger className={cn("h-7 w-36 text-xs rounded border-surface font-medium",
+                            p.jabatan_struktural_id ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-surface-2'
+                          )}><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NONE" className="text-xs">— Tidak ada —</SelectItem>
+                            {masterJabatan.map(j => <SelectItem key={j.id} value={j.id} className="text-xs">{j.nama}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <Select value={p.domisili_pegawai || 'NONE'} onValueChange={val => handleSetDomisili(p.id, val)} disabled={isPending}>
+                          <SelectTrigger className={cn("h-7 w-24 text-xs rounded border-surface font-medium",
+                            p.domisili_pegawai === 'dalam' ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : p.domisili_pegawai === 'luar' ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-surface-2'
+                          )}><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="NONE" className="text-xs">— Belum —</SelectItem>
+                            <SelectItem value="dalam" className="text-xs">Dalam</SelectItem>
+                            <SelectItem value="luar" className="text-xs">Luar</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="py-2.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => openOverrideModal(p)} disabled={isPending} className="p-1.5 rounded text-blue-600 hover:bg-blue-50" title="Override Fitur">
+                            <SlidersHorizontal className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={() => handleResetPassword(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-amber-600 hover:bg-amber-50" title="Reset Password">
+                            <KeyRound className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={() => setEditingPegawai(p)} disabled={isPending} className="p-1.5 rounded text-emerald-600 hover:bg-emerald-50" title="Edit">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={() => handleHapus(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-rose-500 hover:bg-rose-50" title="Hapus">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              {/* PAGINATION */}
+              <div className="flex items-center justify-between px-4 py-2 border-t border-surface-2 bg-slate-50/50">
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="hidden sm:inline">Tampilkan</span>
+                  {viewMode === 'table' && (
+                    <Select value={itemsPerPage.toString()} onValueChange={v => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
+                      <SelectTrigger className="h-7 w-16 text-xs rounded border-surface"><SelectValue /></SelectTrigger>
+                      <SelectContent>{[10, 20, 50].map(n => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}</SelectContent>
+                    </Select>
+                  )}
+                  <span><strong className="text-slate-700 dark:text-slate-200">{filteredData.length}</strong> pegawai</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 px-2.5 text-xs rounded">&#8592;</Button>
+                  <span className="text-xs font-medium px-2">{currentPage}/{totalPages || 1}</span>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="h-7 px-2.5 text-xs rounded">&#8594;</Button>
+                </div>
+              </div>
+            </div>
+            </>
+          )}
+
+          {/* Mobile pagination */}
+            <div className="flex items-center justify-between md:hidden bg-surface border border-surface rounded-lg px-3 py-2">
+              <span className="text-xs text-slate-500 dark:text-slate-400"><strong>{filteredData.length}</strong> pegawai</span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 px-2.5 text-xs rounded">&#8592;</Button>
+                <span className="text-xs font-medium px-2">{currentPage}/{totalPages || 1}</span>
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="h-7 px-2.5 text-xs rounded">&#8594;</Button>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </>
   )

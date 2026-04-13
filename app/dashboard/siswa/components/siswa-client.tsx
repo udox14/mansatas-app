@@ -13,6 +13,7 @@ import { TambahModal } from './tambah-modal'
 import { ImportModalSiswa } from './import-modal'
 import { hapusSiswa, uploadFotoSiswaAction, getDetailSiswaLengkap } from '../actions'
 import { EditSiswaModal } from './edit-modal'
+import { formatNamaKelas, cn } from '@/lib/utils'
 
 const compressImage = async (file: File): Promise<File> => {
   return new Promise((resolve, reject) => {
@@ -71,8 +72,20 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
   const [keluarSearch, setKeluarSearch] = useState('')
   const [keluarSearchDebounce, setKeluarSearchDebounce] = useState('')
 
-  const userRole = currentUser?.role || 'wali_murid'
-  const canFullEdit = ['super_admin', 'admin_tu'].includes(userRole)
+  const roles = currentUser?.roles || []
+  const isAdminTu = roles.some((r: string) => ['super_admin', 'admin_tu'].includes(r))
+  const isKepsekWakamad = roles.some((r: string) => ['kepsek', 'wakamad'].includes(r))
+  
+  // Who can perform Edit/Delete/Upload actions? ONLY super_admin & admin_tu.
+  const canFullEdit = isAdminTu
+
+  // Function to determine if a specific student row is allowed to be opened to its detail page
+  const hasDetailAccess = (s: any) => {
+    if (isAdminTu || isKepsekWakamad) return true
+    if (roles.includes('wali_kelas') && s.kelas?.wali_kelas_id === currentUser?.id) return true
+    if (roles.includes('guru_bk')) return true // They might be BP for this class. Server will do strict cross-check.
+    return false
+  }
 
   const filteredData = initialData.filter(s => {
     const matchSearch = s.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) || s.nisn.includes(searchTerm)
@@ -220,7 +233,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                   <SelectItem value="null">Tanpa Kelas</SelectItem>
                   {kelasList.map(k => (
                     <SelectItem key={k.id} value={k.id}>
-                      {k.tingkat}-{k.nomor_kelas} {k.kelompok !== 'UMUM' ? k.kelompok : ''}
+                      {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -265,9 +278,15 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                       <input type="file" className="hidden" accept="image/*" capture="environment" onChange={e => handleUploadFoto(s.id, e)} />
                     </label>
                   </div>
-                  <div className="p-1.5 text-center cursor-pointer hover:bg-surface-2 flex-1" onClick={() => navigateToDetail(s.id)}>
+                  <div 
+                    className={cn(
+                      "p-1.5 text-center flex-1", 
+                      hasDetailAccess(s) ? "cursor-pointer hover:bg-surface-2" : "cursor-default"
+                    )} 
+                    onClick={() => { if (hasDetailAccess(s)) navigateToDetail(s.id) }}
+                  >
                     <p className="text-[10px] font-semibold text-slate-800 dark:text-slate-100 leading-tight line-clamp-2">{s.nama_lengkap}</p>
-                    <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">{s.kelas ? `${s.kelas.tingkat}-${s.kelas.nomor_kelas}` : '-'}</p>
+                    <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">{s.kelas ? formatNamaKelas(s.kelas.tingkat, s.kelas.nomor_kelas, s.kelas.kelompok) : '-'}</p>
                   </div>
                 </div>
               ))}
@@ -283,12 +302,16 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                   </div>
                 ) : paginatedData.map(s => {
                   const isWaliKelas = s.kelas?.wali_kelas_id === currentUser?.id
-                  const canEditThis = canFullEdit || isWaliKelas
+                  const canEditThis = canFullEdit // Deprecated "isWaliKelas" from editing
+                  const isClickable = hasDetailAccess(s)
                   return (
                     <div
                       key={s.id}
-                      onClick={() => navigateToDetail(s.id)}
-                      className="bg-surface border border-surface rounded-xl p-3 flex items-center gap-3 cursor-pointer active:bg-surface-2 transition-colors"
+                      onClick={() => { if (isClickable) navigateToDetail(s.id) }}
+                      className={cn(
+                        "bg-surface border border-surface rounded-xl p-3 flex items-center gap-3 transition-colors",
+                        isClickable ? "cursor-pointer active:bg-surface-2" : ""
+                      )}
                     >
                       {/* Avatar */}
                       <div className="h-11 w-11 shrink-0 rounded-xl overflow-hidden bg-surface-3">
@@ -308,8 +331,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border uppercase ${getStatusBadge(s.status)}`}>{s.status}</span>
                           {s.kelas && (
                             <span className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-semibold">
-                              {s.kelas.tingkat}-{s.kelas.nomor_kelas}
-                              {s.kelas.kelompok !== 'UMUM' ? ` ${s.kelas.kelompok}` : ''}
+                              {formatNamaKelas(s.kelas.tingkat, s.kelas.nomor_kelas, s.kelas.kelompok)}
                             </span>
                           )}
                         </div>
@@ -338,7 +360,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         )}
-                        <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600 ml-0.5" />
+                        {isClickable && <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600 ml-0.5" />}
                       </div>
                     </div>
                   )
@@ -366,9 +388,14 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                       </TableRow>
                     ) : paginatedData.map(s => {
                       const isWaliKelas = s.kelas?.wali_kelas_id === currentUser?.id
-                      const canEditThis = canFullEdit || isWaliKelas
+                      const canEditThis = canFullEdit
+                      const isClickable = hasDetailAccess(s)
                       return (
-                        <TableRow key={s.id} className="hover:bg-surface-2/60 border-surface-2 group cursor-pointer" onClick={() => navigateToDetail(s.id)}>
+                        <TableRow 
+                          key={s.id} 
+                          className={cn("border-surface-2", isClickable ? "hover:bg-surface-2/60 group cursor-pointer" : "")} 
+                          onClick={() => { if (isClickable) navigateToDetail(s.id) }}
+                        >
                           <TableCell className="px-4 py-2.5">
                             <div className="flex items-center gap-3">
                               <div className="h-8 w-8 shrink-0 rounded-md overflow-hidden bg-surface-3">
@@ -388,7 +415,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                           <TableCell className="py-2.5">
                             {s.kelas ? (
                               <span className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-500 bg-surface-3 px-2 py-0.5 rounded border border-surface">
-                                {s.kelas.tingkat}-{s.kelas.nomor_kelas} {s.kelas.kelompok !== 'UMUM' ? s.kelas.kelompok : ''}
+                                {formatNamaKelas(s.kelas.tingkat, s.kelas.nomor_kelas, s.kelas.kelompok)}
                               </span>
                             ) : (
                               <span className="text-xs text-slate-400 dark:text-slate-500 italic">Belum diploting</span>

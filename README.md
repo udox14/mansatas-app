@@ -1,36 +1,30 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MANSATAS — ERP MAN 1 Tasikmalaya
 
-## Getting Started
+Sistem Informasi Manajemen Terpadu untuk MAN 1 Tasikmalaya.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Frontend:** Next.js 16 + Tailwind CSS
+- **Backend:** Cloudflare Workers (via OpenNext)
+- **Database:** Cloudflare D1 (SQLite)
+- **Storage:** Cloudflare R2
+- **Auth:** Custom JWT (PBKDF2 + session token)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Install dependencies: `npm install`
+2. Init DB lokal: `npm run db:init`
+3. Init DB remote: `npm run db:init:remote`
+4. Dev: `npm run dev`
+5. Deploy: `npm run deploy`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Cloudflare Resources
 
-## Learn More
+- Worker: `mansatas-app`
+- D1: `mansatas-db`
+- R2: `mansatas-storage`
+- KV: `NEXT_INC_CACHE_KV`
 
-To learn more about Next.js, take a look at the following resources:
+## Default Login
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Password default pegawai: `mansatas2026`

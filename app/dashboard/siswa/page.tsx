@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
+import { getUserRoles, checkFeatureAccess } from '@/lib/features'
 import { SiswaClient } from './components/siswa-client'
 import { Users } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
@@ -11,8 +12,8 @@ import { PageHeader } from '@/components/layout/page-header'
 export const metadata = { title: 'Data Siswa - MANSATAS App' }
 export const dynamic = 'force-dynamic'
 
-async function SiswaDataFetcher({ userId, isAdmin, allowedKelasIds }: {
-  userId: string, isAdmin: boolean, allowedKelasIds: Set<string>
+async function SiswaDataFetcher({ userId, userRoles, isFullListAccess, allowedKelasIds }: {
+  userId: string, userRoles: string[], isFullListAccess: boolean, allowedKelasIds: Set<string>
 }) {
   const db = await getDB()
 
@@ -25,7 +26,7 @@ async function SiswaDataFetcher({ userId, isAdmin, allowedKelasIds }: {
   let siswaQuery: string
   let siswaParams: any[] = []
 
-  if (isAdmin) {
+  if (isFullListAccess) {
     // FIX: Tidak filter status di sini — filter dilakukan di client
     // Tapi batasi kolom yang diambil (tidak perlu semua field biodata)
     siswaQuery = `
@@ -47,7 +48,7 @@ async function SiswaDataFetcher({ userId, isAdmin, allowedKelasIds }: {
     `
     siswaParams = Array.from(allowedKelasIds)
   } else {
-    return <SiswaClient initialData={[]} kelasList={[]} currentUser={{ id: userId, role: 'guru' }} />
+    return <SiswaClient initialData={[]} kelasList={[]} currentUser={{ id: userId, roles: userRoles }} />
   }
 
   const siswaResult = await db.prepare(siswaQuery).bind(...siswaParams).all<any>()
@@ -62,13 +63,13 @@ async function SiswaDataFetcher({ userId, isAdmin, allowedKelasIds }: {
     } : null
   }))
 
-  const dropdownKelasData = isAdmin ? kelasData : kelasData.filter((k: any) => allowedKelasIds.has(k.id))
+  const dropdownKelasData = isFullListAccess ? kelasData : kelasData.filter((k: any) => allowedKelasIds.has(k.id))
 
   return (
     <SiswaClient
       initialData={formattedSiswaData}
       kelasList={dropdownKelasData}
-      currentUser={{ id: userId, role: isAdmin ? 'admin_tu' : 'guru' }}
+      currentUser={{ id: userId, roles: userRoles }}
     />
   )
 }
@@ -77,30 +78,41 @@ export default async function SiswaPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
-  const role = (user as any).role ?? 'guru'
-  const isAdmin = ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role)
+  const db = await getDB()
+  const allowed = await checkFeatureAccess(db, user.id, 'siswa')
+  if (!allowed) redirect('/dashboard')
+
+  const userRoles = await getUserRoles(db, user.id)
+  
+  const isAdminOrTu = userRoles.some(r => ['super_admin', 'admin_tu'].includes(r))
+  const isKepsekWakamad = userRoles.some(r => ['kepsek', 'wakamad'].includes(r))
+  const isResepsionis = userRoles.includes('resepsionis')
+  const isGuruPiket = userRoles.includes('guru_piket')
+  const isGuruPPL = userRoles.includes('guru_ppl')
+  
+  const isFullListAccess = isAdminOrTu || isKepsekWakamad || isResepsionis || isGuruPiket || isGuruPPL
+
   let allowedKelasIds = new Set<string>()
 
-  if (!isAdmin) {
-    const db = await getDB()
-    const [penugasan, wali] = await Promise.all([
+  if (!isFullListAccess) {
+    const [penugasan, wali, waliBk] = await Promise.all([
       db.prepare('SELECT DISTINCT kelas_id FROM penugasan_mengajar WHERE guru_id = ?').bind(user.id).all<{ kelas_id: string }>(),
-      db.prepare('SELECT id FROM kelas WHERE wali_kelas_id = ?').bind(user.id).all<{ id: string }>()
+      db.prepare('SELECT id FROM kelas WHERE wali_kelas_id = ?').bind(user.id).all<{ id: string }>(),
+      db.prepare('SELECT DISTINCT kelas_id FROM kelas_binaan_bk WHERE guru_bk_id = ?').bind(user.id).all<{ kelas_id: string }>()
     ])
     penugasan.results?.forEach((p) => allowedKelasIds.add(p.kelas_id))
     wali.results?.forEach((w) => allowedKelasIds.add(w.id))
+    waliBk.results?.forEach((b) => allowedKelasIds.add(b.kelas_id))
   }
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
       <PageHeader
         title="Data Siswa"
-        description={isAdmin ? 'Kelola data profil dan status siswa secara massal.' : 'Daftar siswa di kelas yang Anda ajar.'}
-        icon={Users}
-        iconColor="text-blue-500"
+        description={isFullListAccess ? 'Area manajemen atau pemantauan direktori siswa.' : 'Daftar siswa di kelas yang terhubung dengan Anda.'}
       />
       <Suspense fallback={<PageLoading text="Menyiapkan data siswa..." />}>
-        <SiswaDataFetcher userId={user.id} isAdmin={isAdmin} allowedKelasIds={allowedKelasIds} />
+        <SiswaDataFetcher userId={user.id} userRoles={userRoles} isFullListAccess={isFullListAccess} allowedKelasIds={allowedKelasIds} />
       </Suspense>
     </div>
   )

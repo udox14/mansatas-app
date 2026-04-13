@@ -74,9 +74,9 @@ export function EditModal({ isOpen, onClose, kelasData, daftarGuru = [], daftarJ
               <Select name="tingkat" defaultValue={kelasData.tingkat.toString()} required>
                 <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="10" className="text-xs">Kelas 10</SelectItem>
-                  <SelectItem value="11" className="text-xs">Kelas 11</SelectItem>
-                  <SelectItem value="12" className="text-xs">Kelas 12</SelectItem>
+                  <SelectItem value="7" className="text-xs">Kelas 7</SelectItem>
+                  <SelectItem value="8" className="text-xs">Kelas 8</SelectItem>
+                  <SelectItem value="9" className="text-xs">Kelas 9</SelectItem>
                 </SelectContent>
               </Select>
             </div>

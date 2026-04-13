@@ -13,7 +13,7 @@ import {
   importJadwalASC, getJadwalByKelas, getJadwalByGuru,
   hapusSlotJadwal, resetJadwalKelas
 } from '../actions'
-import { cn } from '@/lib/utils'
+import { cn, formatNamaKelas } from '@/lib/utils'
 
 // ── Types ──────────────────────────────────────────────────────────────
 type SlotJam = { id: number; nama: string; mulai: string; selesai: string }
@@ -75,7 +75,7 @@ function JadwalCell({
       <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
         {mode === 'kelas'
           ? byKelas.guru_nama.split(',')[0]
-          : `${byGuru.tingkat}-${byGuru.nomor_kelas} ${byGuru.kelas_kelompok}`}
+          : formatNamaKelas(byGuru.tingkat, byGuru.nomor_kelas, byGuru.kelas_kelompok)}
       </p>
       {hover && (
         <button
@@ -199,7 +199,7 @@ function ImportXMLPanel({ onDone }: { onDone: () => void }) {
   const [isLoading, setIsLoading] = useState(false)
   const [result, setResult] = useState<{
     success: string | null; error: string | null
-    logs: string[]; stats: { penugasan: number; jadwal: number }
+    logs: string[]; stats: { mapel: number; penugasan: number; jadwal: number }
   } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -217,7 +217,7 @@ function ImportXMLPanel({ onDone }: { onDone: () => void }) {
       setResult(res)
       if (res.success) onDone()
     } catch (e: any) {
-      setResult({ success: null, error: e.message, logs: [], stats: { penugasan: 0, jadwal: 0 } })
+      setResult({ success: null, error: e.message, logs: [], stats: { mapel: 0, penugasan: 0, jadwal: 0 } })
     }
     setIsLoading(false)
   }
@@ -240,8 +240,9 @@ function ImportXMLPanel({ onDone }: { onDone: () => void }) {
             <div className="flex gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <div className="text-[11px] leading-relaxed space-y-1">
-                <p className="font-semibold">Perhatian!</p>
-                <p>Import akan <strong>menghapus semua penugasan & jadwal</strong> semester aktif dan menggantinya dengan data dari file XML.</p>
+                <p className="font-semibold">Import All-in-One</p>
+                <p>Cukup upload file XML, maka <strong>master mapel</strong> (+ kode ASC), <strong>penugasan/beban mengajar</strong>, dan <strong>jadwal</strong> akan terisi sekaligus.</p>
+                <p className="text-amber-700">Penugasan & jadwal semester aktif yang lama akan <strong>dihapus</strong> dan diganti.</p>
               </div>
             </div>
 
@@ -265,7 +266,8 @@ function ImportXMLPanel({ onDone }: { onDone: () => void }) {
                   {result.success || result.error}
                 </div>
                 {result.success && (
-                  <div className="flex gap-3 text-[11px]">
+                  <div className="flex gap-3 text-[11px] flex-wrap">
+                    <span>📚 {result.stats.mapel} mapel</span>
                     <span>✅ {result.stats.penugasan} penugasan</span>
                     <span>📅 {result.stats.jadwal} slot jadwal</span>
                   </div>
@@ -362,7 +364,7 @@ export function JadwalTab({
   const handleHapusJadwalKelas = async () => {
     if (!selectedKelas || !taAktif) return
     const kelas = kelasList.find(k => k.id === selectedKelas)
-    if (!confirm(`Reset semua jadwal kelas ${kelas?.tingkat}-${kelas?.nomor_kelas}?`)) return
+    if (!confirm(`Reset semua jadwal kelas ${kelas ? formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok) : ''}?`)) return
     const res = await resetJadwalKelas(selectedKelas, taAktif.id)
     if (res.error) { alert(res.error); return }
     setJadwalKelas([])
@@ -377,13 +379,21 @@ export function JadwalTab({
     setSelectedGuru('')
   }
 
-  // Kelompokkan kelas per tingkat
+  // Kelompokkan kelas per tingkat, sort nomor kelas secara numerik
   const kelasByTingkat = kelasList.reduce((acc, k) => {
     const t = String(k.tingkat)
     if (!acc[t]) acc[t] = []
     acc[t].push(k)
     return acc
   }, {} as Record<string, KelasItem[]>)
+  // Natural sort: 1, 2, 3, ... 10, 11 (bukan 1, 10, 11, 2, ...)
+  for (const t of Object.keys(kelasByTingkat)) {
+    kelasByTingkat[t].sort((a, b) => {
+      const na = parseInt(a.nomor_kelas) || 0
+      const nb = parseInt(b.nomor_kelas) || 0
+      return na - nb
+    })
+  }
 
   const activeJadwal = viewMode === 'kelas' ? jadwalKelas : jadwalGuru
 
@@ -450,7 +460,7 @@ export function JadwalTab({
                 <SelectValue placeholder="Pilih kelas..." />
               </SelectTrigger>
               <SelectContent className="max-h-64">
-                {[10, 11, 12].map(t => {
+                {[7, 8, 9].map(t => {
                   const items = kelasByTingkat[String(t)] || []
                   if (!items.length) return null
                   return (
@@ -458,8 +468,7 @@ export function JadwalTab({
                       <div className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Kelas {t}</div>
                       {items.map(k => (
                         <SelectItem key={k.id} value={k.id} className="text-xs">
-                          {k.tingkat}-{k.nomor_kelas}
-                          <span className="text-slate-400 dark:text-slate-500 ml-1">{k.kelompok}</span>
+                          {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}
                         </SelectItem>
                       ))}
                     </div>

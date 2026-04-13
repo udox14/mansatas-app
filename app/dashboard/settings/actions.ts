@@ -12,7 +12,7 @@ export async function tambahTahunAjaran(prevState: any, formData: FormData) {
   const db = await getDB()
 
   const rawJurusan = formData.get('daftar_jurusan') as string
-  let daftar_jurusan = ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
+  let daftar_jurusan = ['MIPA-F', 'MIPA-M', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
   if (rawJurusan) {
     try { daftar_jurusan = JSON.parse(rawJurusan) } catch {}
   }
@@ -129,5 +129,3 @@ export async function getPolaJamByTA(tahun_ajaran_id: string): Promise<PolaJam[]
   if (!row?.jam_pelajaran) return []
   try { return JSON.parse(row.jam_pelajaran) } catch { return [] }
 }
-
-

@@ -112,41 +112,54 @@ export async function resetPenugasanSemesterIni(tahun_ajaran_id: string) {
 }
 
 // ============================================================
-// 3. IMPORT XML ASC → PENUGASAN + JADWAL SEKALIGUS
-//    Satu fungsi, satu transaksi, hemat reads
+// 3. IMPORT XML ASC → MASTER MAPEL + PENUGASAN + JADWAL SEKALIGUS
+//    Satu fungsi, satu upload, semua terisi
 // ============================================================
+
+// Daftar mapel khusus yang bisa bentrok & bergilir guru
+const MAPEL_BERGILIR_KEYWORDS = [
+  'RISET', 'KSM', 'MUHADATSAH', 'SPEAKING', 'THEATER BAHASA',
+]
+
+// Mapping guru palsu di ASC → nama asli di DB
+// Pattern: "NAMA N" (uppercase + spasi + angka) → nama asli
+const GURU_ALIAS_MAP: Record<string, string> = {
+  'ARI': 'Ari Anugrah, S.Pd',
+  'INTAN': 'Intan Purnamasari, S.Pd',
+  'RICKY': 'Ricky Habibi, S.Pd',
+  'YUDA': 'Diyaz Najib, S.Pd',
+}
+
+function resolveGuruAlias(xmlName: string): string {
+  // Cek apakah nama ini pattern "ALIAS N" (misal "ARI 1", "RICKY 3")
+  const match = xmlName.match(/^([A-Z]+)\s+\d+$/)
+  if (match) {
+    const alias = match[1]
+    if (GURU_ALIAS_MAP[alias]) return GURU_ALIAS_MAP[alias]
+  }
+  return xmlName
+}
+
+function isMapelBergilir(namaMapel: string): boolean {
+  const upper = namaMapel.toUpperCase().trim()
+  return MAPEL_BERGILIR_KEYWORDS.some(kw => upper.startsWith(kw))
+}
+
 export async function importJadwalASC(xmlText: string): Promise<{
   success: string | null
   error: string | null
   logs: string[]
-  stats: { penugasan: number; jadwal: number }
+  stats: { mapel: number; penugasan: number; jadwal: number }
 }> {
   const db = await getDB()
+  const emptyStats = { mapel: 0, penugasan: 0, jadwal: 0 }
 
-  // Ambil TA aktif + lookup data dalam 1 batch
-  const [taRow, guruAll, mapelAll, kelasAll] = await Promise.all([
-    db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>(),
-    db.prepare('SELECT id, LOWER(TRIM(nama_lengkap)) as nama FROM "user" WHERE nama_lengkap IS NOT NULL').all<any>(),
-    db.prepare('SELECT id, LOWER(TRIM(nama_mapel)) as nama FROM mata_pelajaran').all<any>(),
-    db.prepare('SELECT id, CAST(tingkat AS INTEGER) as tingkat, TRIM(nomor_kelas) as nomor FROM kelas').all<any>(),
-  ])
-
-  if (!taRow) return { success: null, error: 'Tahun Ajaran aktif belum diatur.', logs: [], stats: { penugasan: 0, jadwal: 0 } }
+  // Ambil TA aktif
+  const taRow = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
+  if (!taRow) return { success: null, error: 'Tahun Ajaran aktif belum diatur.', logs: [], stats: emptyStats }
   const taId = taRow.id
 
-  // Build lookup maps
-  const guruMap = new Map<string, string>()
-  for (const g of guruAll.results || []) guruMap.set(g.nama, g.id)
-
-  const mapelMap = new Map<string, string>()
-  for (const m of mapelAll.results || []) mapelMap.set(m.nama, m.id)
-
-  // kelas: key = "tingkat-nomor" → id (asumsi unique per tingkat+nomor)
-  const kelasMap = new Map<string, string>()
-  for (const k of kelasAll.results || []) kelasMap.set(`${k.tingkat}-${String(k.nomor).trim()}`, k.id)
-
   // ── Parse XML ──────────────────────────────────────────────────────────
-  // Pakai DOMParser / regex ringan karena tidak ada xml lib di edge runtime
   const parseAttrs = (tag: string): Map<string, string> => {
     const map = new Map<string, string>()
     const re = /(\w+)="([^"]*)"/g
@@ -155,18 +168,128 @@ export async function importJadwalASC(xmlText: string): Promise<{
     return map
   }
 
+  const extractTags = (xml: string, tagName: string): string[] => {
+    const re = new RegExp(`<${tagName}\\s[^>]*/?>`, 'g')
+    return xml.match(re) || []
+  }
+
+  const logs: string[] = []
+
+  // Parse subjects: id → { name, short }
+  const xmlSubjects = new Map<string, { name: string; short: string }>()
+  for (const tag of extractTags(xmlText, 'subject')) {
+    const a = parseAttrs(tag)
+    if (a.get('id') && a.get('name')) {
+      xmlSubjects.set(a.get('id')!, { name: a.get('name')!.trim(), short: (a.get('short') || '').trim() })
+    }
+  }
+
+  // Parse teachers: id → name
+  const xmlTeachers = new Map<string, string>()
+  for (const tag of extractTags(xmlText, 'teacher')) {
+    const a = parseAttrs(tag)
+    if (a.get('id') && a.get('name')) xmlTeachers.set(a.get('id')!, a.get('name')!.trim())
+  }
+
+  // Parse classes: id → name
+  const xmlClasses = new Map<string, string>()
+  for (const tag of extractTags(xmlText, 'class')) {
+    const a = parseAttrs(tag)
+    if (a.get('id') && a.get('name')) xmlClasses.set(a.get('id')!, a.get('name')!.trim())
+  }
+
+  // Parse lessons: id → { classId, subjectId, teacherId }
+  type LessonInfo = { classId: string; subjectId: string; teacherId: string }
+  const xmlLessons = new Map<string, LessonInfo>()
+  for (const tag of extractTags(xmlText, 'lesson')) {
+    const a = parseAttrs(tag)
+    const id = a.get('id')
+    const classids = a.get('classids') || ''
+    const subjectid = a.get('subjectid') || ''
+    const teacherids = a.get('teacherids') || ''
+    if (id && classids && subjectid && teacherids) {
+      xmlLessons.set(id, { classId: classids, subjectId: subjectid, teacherId: teacherids })
+    }
+  }
+
+  // ── STEP 1: Auto-create/update Master Mapel dari XML ──────────────────
+  const mapelAllBefore = await db.prepare('SELECT id, LOWER(TRIM(nama_mapel)) as nama, kode_asc FROM mata_pelajaran').all<any>()
+  const mapelMap = new Map<string, string>() // lowercase name → id
+  for (const m of (mapelAllBefore.results || [])) mapelMap.set(m.nama, m.id)
+
+  let mapelCreated = 0
+  let mapelUpdated = 0
+  for (const [, subj] of xmlSubjects) {
+    const namaLower = subj.name.toLowerCase().trim()
+    const existingId = mapelMap.get(namaLower)
+
+    if (existingId) {
+      // Update kode_asc jika berbeda
+      if (subj.short) {
+        try {
+          await db.prepare('UPDATE mata_pelajaran SET kode_asc = ? WHERE id = ?').bind(subj.short, existingId).run()
+          mapelUpdated++
+        } catch { /* ignore */ }
+      }
+    } else {
+      // Create new mapel
+      const newId = crypto.randomUUID().replace(/-/g, '')
+      // Tentukan tingkat dari nama mapel (misal "RISET 7" → "7", "MATEMATIKA" → "Semua")
+      const tingkatMatch = subj.name.match(/\b([789])\b/)
+      const tingkat = tingkatMatch ? tingkatMatch[1] : 'Semua'
+      const kategori = isMapelBergilir(subj.name) ? 'Kelompok Mata Pelajaran Pilihan' : 'Kelompok Mata Pelajaran Umum'
+
+      try {
+        await db.prepare(
+          `INSERT INTO mata_pelajaran (id, nama_mapel, kode_asc, kelompok, tingkat, kategori, created_at) VALUES (?, ?, ?, 'UMUM', ?, ?, datetime('now'))`
+        ).bind(newId, subj.name, subj.short || null, tingkat, kategori).run()
+        mapelMap.set(namaLower, newId)
+        mapelCreated++
+      } catch (e: any) {
+        // Mungkin UNIQUE conflict, coba ulang lookup
+        if (e.message?.includes('UNIQUE')) {
+          const retry = await db.prepare('SELECT id FROM mata_pelajaran WHERE LOWER(TRIM(nama_mapel)) = ?').bind(namaLower).first<any>()
+          if (retry) mapelMap.set(namaLower, retry.id)
+        } else {
+          logs.push(`Gagal insert mapel "${subj.name}": ${e.message}`)
+        }
+      }
+    }
+  }
+  logs.push(`Master Mapel: ${mapelCreated} baru, ${mapelUpdated} diupdate kode ASC.`)
+
+  // ── STEP 2: Build lookup maps ─────────────────────────────────────────
+  const guruAll = await db.prepare('SELECT id, LOWER(TRIM(nama_lengkap)) as nama FROM "user" WHERE nama_lengkap IS NOT NULL').all<any>()
+  const guruMap = new Map<string, string>()
+  for (const g of (guruAll.results || [])) guruMap.set(g.nama, g.id)
+
+  const kelasAll = await db.prepare('SELECT id, CAST(tingkat AS INTEGER) as tingkat, TRIM(nomor_kelas) as nomor FROM kelas').all<any>()
+  const kelasMap = new Map<string, string>()
+  for (const k of (kelasAll.results || [])) kelasMap.set(`${k.tingkat}-${String(k.nomor).trim()}`, k.id)
+
   // Helper: konversi nama kelas ASC → tingkat + nomor
-  // X-1→10-1, XI-5→11-5, XII-16→12-16
+  // Format MAN: X-01→10-1, XI-05→11-5, XII-03→12-3
+  // Juga handle format short: "X-01" dari atribut short
   const parseKelasName = (name: string): { tingkat: number; nomor: string } | null => {
     const upper = name.toUpperCase().trim()
     let tingkat = 0
     let rest = ''
+
+    // Format MAN: X, XI, XII
     if (upper.startsWith('XII-')) { tingkat = 12; rest = upper.slice(4) }
     else if (upper.startsWith('XI-')) { tingkat = 11; rest = upper.slice(3) }
     else if (upper.startsWith('X-')) { tingkat = 10; rest = upper.slice(2) }
+    // Format MTs legacy fallback: VII, VIII, IX
+    else if (upper.startsWith('IX-')) { tingkat = 9; rest = upper.slice(3) }
+    else if (upper.startsWith('VIII-')) { tingkat = 8; rest = upper.slice(5) }
+    else if (upper.startsWith('VII-')) { tingkat = 7; rest = upper.slice(4) }
     else return null
-    const nomor = rest.trim()
-    if (!nomor) return null
+
+    // Ambil nomor kelas, strip leading zero dan info dalam kurung
+    // "01 (XI-MIPA-F)" → "1"
+    const nomorRaw = rest.split('(')[0].trim()
+    const nomor = String(parseInt(nomorRaw, 10))
+    if (!nomor || nomor === 'NaN') return null
     return { tingkat, nomor }
   }
 
@@ -181,49 +304,19 @@ export async function importJadwalASC(xmlText: string): Promise<{
     return 0
   }
 
-  // Extract semua tag dari XML
-  const extractTags = (xml: string, tagName: string): string[] => {
-    const re = new RegExp(`<${tagName}\\s[^>]*/?>`, 'g')
-    return xml.match(re) || []
-  }
-
-  const logs: string[] = []
-
-  // Parse subjects, teachers, classes
-  const xmlSubjects = new Map<string, string>() // id → name
-  for (const tag of extractTags(xmlText, 'subject')) {
-    const a = parseAttrs(tag)
-    if (a.get('id') && a.get('name')) xmlSubjects.set(a.get('id')!, a.get('name')!)
-  }
-
-  const xmlTeachers = new Map<string, string>() // id → name
-  for (const tag of extractTags(xmlText, 'teacher')) {
-    const a = parseAttrs(tag)
-    if (a.get('id') && a.get('name')) xmlTeachers.set(a.get('id')!, a.get('name')!)
-  }
-
-  const xmlClasses = new Map<string, string>() // id → name
-  for (const tag of extractTags(xmlText, 'class')) {
-    const a = parseAttrs(tag)
-    if (a.get('id') && a.get('name')) xmlClasses.set(a.get('id')!, a.get('name')!)
-  }
-
-  // Parse lessons
-  type LessonInfo = { classId: string; subjectId: string; teacherId: string }
-  const xmlLessons = new Map<string, LessonInfo>()
-  for (const tag of extractTags(xmlText, 'lesson')) {
-    const a = parseAttrs(tag)
-    const id = a.get('id')
-    const classids = a.get('classids') || ''
-    const subjectid = a.get('subjectid') || ''
-    const teacherids = a.get('teacherids') || ''
-    if (id && classids && subjectid && teacherids) {
-      xmlLessons.set(id, { classId: classids, subjectId: subjectid, teacherId: teacherids })
+  // Resolve guru by name (exact → fuzzy)
+  const findGuru = (name: string): string | undefined => {
+    const lower = name.toLowerCase().trim()
+    let id = guruMap.get(lower)
+    if (id) return id
+    for (const [nama, gid] of guruMap) {
+      if (lower.includes(nama) || nama.includes(lower)) return gid
     }
+    return undefined
   }
 
-  // Parse cards → flatten ke rows
-  type JadwalRow = { guruId: string; mapelId: string; kelasId: string; hari: number; jamKe: number }
+  // ── STEP 3: Parse cards → jadwal rows ─────────────────────────────────
+  type JadwalRow = { guruId: string; mapelId: string; kelasId: string; hari: number; jamKe: number; isBergilir: boolean; guruNamaAsli: string }
   const jadwalRows: JadwalRow[] = []
   const skipped = { noLesson: 0, noGuru: 0, noMapel: 0, noKelas: 0, noHari: 0 }
 
@@ -241,28 +334,30 @@ export async function importJadwalASC(xmlText: string): Promise<{
     const hari = daysToHari(days)
     if (!hari) { skipped.noHari++; continue }
 
-    // Resolve guru
+    // Resolve guru — handle alias (ARI 1 → Ari Anugrah, S.Pd)
     const guruNamaXml = xmlTeachers.get(lesson.teacherId) || ''
-    let guruId = guruMap.get(guruNamaXml.toLowerCase().trim())
+    const guruNamaResolved = resolveGuruAlias(guruNamaXml)
+    const guruId = findGuru(guruNamaResolved)
     if (!guruId) {
-      // Fuzzy: cari yang include
-      for (const [nama, id] of guruMap) {
-        const a = guruNamaXml.toLowerCase()
-        if (a.includes(nama) || nama.includes(a)) { guruId = id; break }
+      skipped.noGuru++
+      // Hanya log kalau bukan alias yang sudah kita handle
+      if (guruNamaXml === guruNamaResolved) {
+        logs.push(`Guru tidak ditemukan: "${guruNamaXml}"`)
+      } else {
+        logs.push(`Guru tidak ditemukan: "${guruNamaXml}" → alias "${guruNamaResolved}"`)
       }
+      continue
     }
-    if (!guruId) { skipped.noGuru++; logs.push(`Guru tidak ditemukan: "${guruNamaXml}"`); continue }
 
     // Resolve mapel
-    const mapelNamaXml = xmlSubjects.get(lesson.subjectId) || ''
-    let mapelId = mapelMap.get(mapelNamaXml.toLowerCase().trim())
+    const subjInfo = xmlSubjects.get(lesson.subjectId)
+    const mapelNamaXml = subjInfo?.name || ''
+    const mapelId = mapelMap.get(mapelNamaXml.toLowerCase().trim())
     if (!mapelId) {
-      for (const [nama, id] of mapelMap) {
-        const a = mapelNamaXml.toLowerCase()
-        if (a.includes(nama) || nama.includes(a)) { mapelId = id; break }
-      }
+      skipped.noMapel++
+      logs.push(`Mapel tidak ditemukan: "${mapelNamaXml}"`)
+      continue
     }
-    if (!mapelId) { skipped.noMapel++; logs.push(`Mapel tidak ditemukan: "${mapelNamaXml}"`); continue }
 
     // Resolve kelas
     const kelasNamaXml = xmlClasses.get(lesson.classId) || ''
@@ -271,49 +366,76 @@ export async function importJadwalASC(xmlText: string): Promise<{
     const kelasId = kelasMap.get(`${parsed.tingkat}-${parsed.nomor}`)
     if (!kelasId) { skipped.noKelas++; logs.push(`Kelas tidak ditemukan di DB: "${kelasNamaXml}" (${parsed.tingkat}-${parsed.nomor})`); continue }
 
-    jadwalRows.push({ guruId, mapelId, kelasId, hari, jamKe: period })
+    const isBergilir = isMapelBergilir(mapelNamaXml)
+    jadwalRows.push({ guruId, mapelId, kelasId, hari, jamKe: period, isBergilir, guruNamaAsli: guruNamaResolved })
   }
 
   if (jadwalRows.length === 0) {
-    return { success: null, error: 'Tidak ada data jadwal yang berhasil diproses.', logs, stats: { penugasan: 0, jadwal: 0 } }
+    return { success: null, error: 'Tidak ada data jadwal yang berhasil diproses.', logs, stats: emptyStats }
   }
 
-  // ── Hapus data lama TA aktif (penugasan CASCADE ke jadwal) ─────────────
+  // ── STEP 4: Hapus data lama TA aktif ──────────────────────────────────
+  // Hapus guru piket dulu (FK ke penugasan)
+  try {
+    await db.prepare(`DELETE FROM penugasan_guru_piket WHERE penugasan_id IN (SELECT id FROM penugasan_mengajar WHERE tahun_ajaran_id = ?)`).bind(taId).run()
+  } catch { /* tabel mungkin belum ada */ }
   await db.prepare('DELETE FROM penugasan_mengajar WHERE tahun_ajaran_id = ?').bind(taId).run()
 
-  // ── Build penugasan unik ───────────────────────────────────────────────
-  // key = "guruId|mapelId|kelasId" (pakai | supaya tidak bentrok dengan hex ID)
+  // ── STEP 5: Build penugasan unik ──────────────────────────────────────
+  // Untuk pelajaran bergilir, kunci penugasan = mapelId|kelasId (tanpa guru, karena guru bergilir)
+  // Untuk pelajaran biasa, kunci = guruId|mapelId|kelasId
   const penugasanKeyToId = new Map<string, string>()
+  const penugasanKeyToGuru = new Map<string, string>() // untuk simpan guru utama
+  const penugasanKeyIsBergilir = new Map<string, boolean>()
+  // Track semua guru bergilir per penugasan
+  const bergilirGuruMap = new Map<string, Set<string>>() // key → set of guruId
+
   for (const row of jadwalRows) {
-    const key = `${row.guruId}|${row.mapelId}|${row.kelasId}`
+    let key: string
+    if (row.isBergilir) {
+      key = `BERGILIR|${row.mapelId}|${row.kelasId}`
+      if (!bergilirGuruMap.has(key)) bergilirGuruMap.set(key, new Set())
+      bergilirGuruMap.get(key)!.add(row.guruId)
+    } else {
+      key = `${row.guruId}|${row.mapelId}|${row.kelasId}`
+    }
+
     if (!penugasanKeyToId.has(key)) {
       penugasanKeyToId.set(key, crypto.randomUUID().replace(/-/g, ''))
+      penugasanKeyToGuru.set(key, row.guruId)
+      penugasanKeyIsBergilir.set(key, row.isBergilir)
     }
   }
 
-  // ── Batch insert penugasan ─────────────────────────────────────────────
-  // D1 limit: 100 SQL variables per statement
-  // penugasan: 5 kolom per row → max 15 rows per chunk (15×5=75, aman)
-  const CHUNK_P = 15
-  const penugasanEntries = Array.from(penugasanKeyToId.entries())
-
-  // Simpan mapping key → {pid, guruId, mapelId, kelasId} supaya split aman
-  type PenugasanEntry = { pid: string; guruId: string; mapelId: string; kelasId: string }
+  // ── STEP 6: Batch insert penugasan ────────────────────────────────────
+  const CHUNK_P = 10 // 10 × 7 cols = 70 bindings, safely under D1 limit
+  type PenugasanEntry = { pid: string; guruId: string; mapelId: string; kelasId: string; isBergilir: boolean }
   const penugasanList: PenugasanEntry[] = []
-  for (const [key, pid] of penugasanEntries) {
-    // key format: "guruId|mapelId|kelasId" — pakai | bukan - supaya tidak bentrok dengan hex ID
-    const parts = key.split('|')
-    penugasanList.push({ pid, guruId: parts[0], mapelId: parts[1], kelasId: parts[2] })
+  for (const [key, pid] of penugasanKeyToId) {
+    const isBergilir = penugasanKeyIsBergilir.get(key) || false
+    let guruId: string, mapelId: string, kelasId: string
+
+    if (key.startsWith('BERGILIR|')) {
+      const parts = key.split('|')
+      mapelId = parts[1]; kelasId = parts[2]
+      // Guru utama = guru pertama yang ketemu
+      guruId = penugasanKeyToGuru.get(key)!
+    } else {
+      const parts = key.split('|')
+      guruId = parts[0]; mapelId = parts[1]; kelasId = parts[2]
+    }
+
+    penugasanList.push({ pid, guruId, mapelId, kelasId, isBergilir })
   }
 
   let penugasanCount = 0
   for (let i = 0; i < penugasanList.length; i += CHUNK_P) {
     const chunk = penugasanList.slice(i, i + CHUNK_P)
-    const values = chunk.flatMap(r => [r.pid, r.guruId, r.mapelId, r.kelasId, taId])
-    const placeholders = chunk.map(() => `(?, ?, ?, ?, ?, datetime('now'))`).join(', ')
+    const values = chunk.flatMap(r => [r.pid, r.guruId, r.mapelId, r.kelasId, taId, r.isBergilir ? 1 : 0])
+    const placeholders = chunk.map(() => `(?, ?, ?, ?, ?, ?, datetime('now'))`).join(', ')
     try {
       await db.prepare(
-        `INSERT OR IGNORE INTO penugasan_mengajar (id, guru_id, mapel_id, kelas_id, tahun_ajaran_id, created_at) VALUES ${placeholders}`
+        `INSERT OR IGNORE INTO penugasan_mengajar (id, guru_id, mapel_id, kelas_id, tahun_ajaran_id, is_piket_bergilir, created_at) VALUES ${placeholders}`
       ).bind(...values).run()
       penugasanCount += chunk.length
     } catch (e: any) {
@@ -321,14 +443,51 @@ export async function importJadwalASC(xmlText: string): Promise<{
     }
   }
 
-  // ── Batch insert jadwal ────────────────────────────────────────────────
-  // jadwal: 5 kolom per row → max 15 rows per chunk (15×5=75, aman)
+  // ── STEP 7: Insert guru bergilir (penugasan_guru_piket) ───────────────
+  const CHUNK_GP = 10
+  type GuruPiketEntry = { penugasanId: string; guruId: string; urutan: number }
+  const guruPiketList: GuruPiketEntry[] = []
+
+  for (const [key, guruSet] of bergilirGuruMap) {
+    const pid = penugasanKeyToId.get(key)
+    if (!pid) continue
+    let urutan = 1
+    for (const gid of guruSet) {
+      guruPiketList.push({ penugasanId: pid, guruId: gid, urutan })
+      urutan++
+    }
+  }
+
+  let piketCount = 0
+  for (let i = 0; i < guruPiketList.length; i += CHUNK_GP) {
+    const chunk = guruPiketList.slice(i, i + CHUNK_GP)
+    const values = chunk.flatMap(r => [crypto.randomUUID().replace(/-/g, ''), r.penugasanId, r.guruId, r.urutan])
+    const placeholders = chunk.map(() => `(?, ?, ?, ?, 0, datetime('now'))`).join(', ')
+    try {
+      await db.prepare(
+        `INSERT OR IGNORE INTO penugasan_guru_piket (id, penugasan_id, guru_id, urutan, is_aktif_minggu_ini, created_at) VALUES ${placeholders}`
+      ).bind(...values).run()
+      piketCount += chunk.length
+    } catch (e: any) {
+      logs.push(`Error insert guru piket chunk: ${e.message}`)
+    }
+  }
+  if (piketCount > 0) {
+    logs.push(`${piketCount} guru bergilir (piket) berhasil dimasukkan.`)
+  }
+
+  // ── STEP 8: Batch insert jadwal ───────────────────────────────────────
   const CHUNK_J = 15
   const jadwalSeen = new Set<string>()
   const jadwalToInsert: Array<{ pid: string; hari: number; jamKe: number }> = []
 
   for (const row of jadwalRows) {
-    const key = `${row.guruId}|${row.mapelId}|${row.kelasId}`
+    let key: string
+    if (row.isBergilir) {
+      key = `BERGILIR|${row.mapelId}|${row.kelasId}`
+    } else {
+      key = `${row.guruId}|${row.mapelId}|${row.kelasId}`
+    }
     const pid = penugasanKeyToId.get(key)
     if (!pid) continue
     const uniqKey = `${pid}|${row.hari}|${row.jamKe}`
@@ -354,11 +513,12 @@ export async function importJadwalASC(xmlText: string): Promise<{
 
   revalidatePath('/dashboard/akademik')
 
+  const totalMapel = mapelCreated + mapelUpdated
   return {
-    success: `Import selesai: ${penugasanCount} penugasan & ${jadwalCount} slot jadwal berhasil disimpan.`,
+    success: `Import selesai: ${totalMapel} mapel (${mapelCreated} baru), ${penugasanCount} penugasan, ${jadwalCount} slot jadwal.`,
     error: null,
     logs,
-    stats: { penugasan: penugasanCount, jadwal: jadwalCount },
+    stats: { mapel: totalMapel, penugasan: penugasanCount, jadwal: jadwalCount },
   }
 }
 
@@ -513,10 +673,22 @@ export async function importPenugasanASC(dataExcel: any[]) {
 
     const upper = namaKelas.toUpperCase()
     let tingkat = 0, nomor = ''
+    // Format MAN: X, XI, XII
     if (upper.startsWith('XII-')) { tingkat = 12; nomor = upper.slice(4) }
     else if (upper.startsWith('XI-')) { tingkat = 11; nomor = upper.slice(3) }
     else if (upper.startsWith('X-')) { tingkat = 10; nomor = upper.slice(2) }
-    else { errorLogs.push(`Baris ${i + 2}: Format kelas "${namaKelas}" tidak valid.`); continue }
+    // Format MTs legacy fallback: VII, VIII, IX
+    else if (upper.startsWith('IX-')) { tingkat = 9; nomor = upper.slice(3) }
+    else if (upper.startsWith('VIII-')) { tingkat = 8; nomor = upper.slice(5) }
+    else if (upper.startsWith('VII-')) { tingkat = 7; nomor = upper.slice(4) }
+    // Format langsung: "7-1", "8-3"
+    else {
+      const directMatch = upper.match(/^(\d+)-(.+)$/)
+      if (directMatch) { tingkat = parseInt(directMatch[1]); nomor = directMatch[2] }
+      else { errorLogs.push(`Baris ${i + 2}: Format kelas "${namaKelas}" tidak valid.`); continue }
+    }
+    // Strip leading zero: "01" → "1"
+    nomor = String(parseInt(nomor.trim(), 10) || nomor.trim())
 
     const kelasId = kelasMap.get(`${tingkat}-${nomor.trim()}`)
     if (!kelasId) { errorLogs.push(`Baris ${i + 2}: Kelas "${namaKelas}" tidak ditemukan.`); continue }
@@ -551,4 +723,103 @@ export async function importPenugasanASC(dataExcel: any[]) {
     error: successCount === 0 ? 'Tidak ada data yang berhasil diimport.' : null,
     logs: errorLogs,
   }
+}
+
+// ============================================================
+// 6. PELAJARAN BERGILIR (PIKET) ACTIONS
+// ============================================================
+
+// Ambil semua penugasan bergilir + daftar guru piketnya
+export async function getPenugasanBergilir(tahun_ajaran_id: string) {
+  const db = await getDB()
+  const penugasan = await db.prepare(`
+    SELECT pm.id, pm.guru_id,
+      mp.nama_mapel, mp.id as mapel_id,
+      k.tingkat, k.nomor_kelas, k.kelompok as kelas_kelompok, k.id as kelas_id,
+      u.nama_lengkap as guru_utama_nama
+    FROM penugasan_mengajar pm
+    JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
+    JOIN kelas k ON pm.kelas_id = k.id
+    JOIN "user" u ON pm.guru_id = u.id
+    WHERE pm.tahun_ajaran_id = ? AND pm.is_piket_bergilir = 1
+    ORDER BY mp.nama_mapel, k.tingkat, k.nomor_kelas
+  `).bind(tahun_ajaran_id).all<any>()
+
+  const piketAll = await db.prepare(`
+    SELECT pgp.id, pgp.penugasan_id, pgp.guru_id, pgp.urutan, pgp.is_aktif_minggu_ini,
+      u.nama_lengkap as guru_nama
+    FROM penugasan_guru_piket pgp
+    JOIN "user" u ON pgp.guru_id = u.id
+    JOIN penugasan_mengajar pm ON pgp.penugasan_id = pm.id
+    WHERE pm.tahun_ajaran_id = ?
+    ORDER BY pgp.urutan ASC
+  `).bind(tahun_ajaran_id).all<any>()
+
+  // Group piket by penugasan_id
+  const piketMap = new Map<string, any[]>()
+  for (const p of (piketAll.results || [])) {
+    if (!piketMap.has(p.penugasan_id)) piketMap.set(p.penugasan_id, [])
+    piketMap.get(p.penugasan_id)!.push(p)
+  }
+
+  return (penugasan.results || []).map((p: any) => ({
+    ...p,
+    guru_piket: piketMap.get(p.id) || [],
+  }))
+}
+
+// Set guru aktif minggu ini untuk satu penugasan
+export async function setGuruAktifMingguIni(penugasan_id: string, guru_piket_id: string) {
+  const db = await getDB()
+  try {
+    // Reset semua guru di penugasan ini
+    await db.prepare('UPDATE penugasan_guru_piket SET is_aktif_minggu_ini = 0 WHERE penugasan_id = ?').bind(penugasan_id).run()
+    // Set yang dipilih jadi aktif
+    await db.prepare('UPDATE penugasan_guru_piket SET is_aktif_minggu_ini = 1 WHERE id = ?').bind(guru_piket_id).run()
+    revalidatePath('/dashboard/akademik')
+    return { success: 'Guru aktif minggu ini berhasil diubah.' }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+// Batch set guru aktif minggu ini — untuk banyak penugasan sekaligus
+export async function batchSetGuruAktif(assignments: Array<{ penugasan_id: string; guru_piket_id: string }>) {
+  const db = await getDB()
+  try {
+    // Reset semua dulu
+    const penugasanIds = [...new Set(assignments.map(a => a.penugasan_id))]
+    for (const pid of penugasanIds) {
+      await db.prepare('UPDATE penugasan_guru_piket SET is_aktif_minggu_ini = 0 WHERE penugasan_id = ?').bind(pid).run()
+    }
+    // Set aktif
+    for (const a of assignments) {
+      await db.prepare('UPDATE penugasan_guru_piket SET is_aktif_minggu_ini = 1 WHERE id = ?').bind(a.guru_piket_id).run()
+    }
+    revalidatePath('/dashboard/akademik')
+    return { success: `${assignments.length} guru aktif berhasil diatur.` }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
+
+// Tambah guru ke daftar piket
+export async function tambahGuruPiket(penugasan_id: string, guru_id: string) {
+  const db = await getDB()
+  // Cari urutan tertinggi
+  const max = await db.prepare('SELECT MAX(urutan) as mx FROM penugasan_guru_piket WHERE penugasan_id = ?').bind(penugasan_id).first<any>()
+  const urutan = (max?.mx || 0) + 1
+  const result = await dbInsert(db, 'penugasan_guru_piket', { penugasan_id, guru_id, urutan, is_aktif_minggu_ini: 0 })
+  if (result.error) return { error: result.error.includes('UNIQUE') ? 'Guru ini sudah ada di daftar piket.' : result.error }
+  revalidatePath('/dashboard/akademik')
+  return { success: 'Guru berhasil ditambahkan ke daftar piket.' }
+}
+
+// Hapus guru dari daftar piket
+export async function hapusGuruPiket(id: string) {
+  const db = await getDB()
+  const result = await dbDelete(db, 'penugasan_guru_piket', { id })
+  if (result.error) return { error: result.error }
+  revalidatePath('/dashboard/akademik')
+  return { success: 'Guru berhasil dihapus dari daftar piket.' }
 }

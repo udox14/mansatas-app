@@ -3,6 +3,7 @@
 
 import { getDB, dbInsert, dbUpdate, dbDelete, dbSelect, dbBatchInsert } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
+import { formatNamaKelas } from '@/lib/utils'
 
 // ============================================================
 // 1. CRUD KELAS
@@ -171,7 +172,7 @@ export async function getKelasTujuanMutasi(tingkat: number, currentKelasId: stri
 
   return rows.results.map((k: any) => ({
     id: k.id,
-    nama: `${k.tingkat}-${k.nomor_kelas} ${k.kelompok !== 'UMUM' ? k.kelompok : ''}`.trim(),
+    nama: formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok),
     kapasitas: k.kapasitas,
     jumlah_siswa: k.jumlah_siswa || 0,
   }))

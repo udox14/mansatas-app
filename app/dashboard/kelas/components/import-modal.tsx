@@ -17,10 +17,10 @@ export function ImportModal() {
     const XLSX = (window as any).XLSX
     if (!XLSX) return alert('Library Excel sedang dimuat, coba lagi sebentar.')
     const templateData = [
-      { TINGKAT: 10, KELOMPOK: 'MIPA', NOMOR_KELAS: '1', KAPASITAS: 36, WALI_KELAS: 'Budi Santoso, S.Pd' },
-      { TINGKAT: 10, KELOMPOK: 'MIPA', NOMOR_KELAS: '2', KAPASITAS: 36, WALI_KELAS: '' },
+      { TINGKAT: 10, KELOMPOK: 'UMUM', NOMOR_KELAS: '1', KAPASITAS: 36, WALI_KELAS: 'Budi Santoso, S.Pd' },
+      { TINGKAT: 11, KELOMPOK: 'MIPA-F', NOMOR_KELAS: '1', KAPASITAS: 36, WALI_KELAS: '' },
       { TINGKAT: 11, KELOMPOK: 'SOSHUM', NOMOR_KELAS: '1', KAPASITAS: 36, WALI_KELAS: '' },
-      { TINGKAT: 12, KELOMPOK: 'KEAGAMAAN', NOMOR_KELAS: 'A', KAPASITAS: 36, WALI_KELAS: '' }
+      { TINGKAT: 12, KELOMPOK: 'KEAGAMAAN', NOMOR_KELAS: '1', KAPASITAS: 36, WALI_KELAS: '' }
     ]
     const ws = XLSX.utils.json_to_sheet(templateData)
     const wb = XLSX.utils.book_new()
@@ -87,7 +87,7 @@ export function ImportModal() {
               <p className="font-semibold text-blue-700 mb-1">Format Kolom Excel:</p>
               {[
                 ['TINGKAT', '10, 11, atau 12'],
-                ['KELOMPOK', 'MIPA / SOSHUM / KEAGAMAAN / UMUM'],
+                ['KELOMPOK', 'MIPA-F / MIPA-M / SOSHUM / KEAGAMAAN / UMUM'],
                 ['NOMOR_KELAS', 'Contoh: 1, 2, atau A'],
                 ['WALI_KELAS', 'Nama guru (opsional)'],
               ].map(([col, desc]) => (

@@ -114,7 +114,7 @@ function mapUser(row: any): AuthUser {
     id: row.id,
     name: row.name,
     email: row.email,
-    role: row.role || 'wali_murid',
+    role: row.role || 'guru',
     nama_lengkap: row.nama_lengkap || null,
     avatar_url: row.avatar_url || null,
     image: row.image || null,

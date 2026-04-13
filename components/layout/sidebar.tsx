@@ -20,11 +20,23 @@ const ACCENT_COLORS = [
 
 type AccentKey = typeof ACCENT_COLORS[number]['id']
 
+const getAccentHex = (id: AccentKey) => {
+  const map: Record<string, string> = {
+    emerald: '#10b981', blue: '#3b82f6', violet: '#8b5cf6',
+    rose: '#f43f5e', amber: '#f59e0b', cyan: '#06b6d4'
+  }
+  return map[id as string] || '#cbd5e1'
+}
+
 const MENU_GROUPS = [
-  { label: 'Utama',     hrefs: ['/dashboard', '/dashboard/siswa', '/dashboard/kelas', '/dashboard/plotting'] },
-  { label: 'Akademik',  hrefs: ['/dashboard/akademik', '/dashboard/akademik/analitik', '/dashboard/penerimaan-pt', '/dashboard/guru', '/dashboard/kehadiran'] },
-  { label: 'Kesiswaan', hrefs: ['/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes', '/dashboard/tka'] },
-  { label: 'Sistem',    hrefs: ['/dashboard/settings'] },
+  { label: 'Utama', hrefs: ['/dashboard'] },
+  { label: 'Data Master', hrefs: ['/dashboard/siswa', '/dashboard/guru', '/dashboard/kelas', '/dashboard/plotting'] },
+  { label: 'Tugas Harian Guru', hrefs: ['/dashboard/agenda', '/dashboard/kehadiran', '/dashboard/nilai-harian', '/dashboard/penugasan'] },
+  { label: 'Monitoring Akademik', hrefs: ['/dashboard/akademik', '/dashboard/akademik/nilai', '/dashboard/monitoring-agenda', '/dashboard/monitoring-penugasan'] },
+  { label: 'Program Khusus', hrefs: ['/dashboard/tahfidz', '/dashboard/program-unggulan', '/dashboard/program-unggulan/kelola'] },
+  { label: 'Kesiswaan & BK', hrefs: ['/dashboard/rekap-absensi', '/dashboard/jadwal-piket', '/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes'] },
+  { label: 'Administrasi & HR', hrefs: ['/dashboard/presensi', '/dashboard/monitoring-presensi', '/dashboard/surat', '/dashboard/rapat', '/dashboard/sarpras', '/dashboard/kelola-ppl', '/dashboard/buku-tamu'] },
+  { label: 'Sistem', hrefs: ['/dashboard/settings', '/dashboard/settings/notifications', '/dashboard/settings/jadwal-notif', '/dashboard/settings/fitur'] },
 ]
 
 function getActiveMenu(pathname: string, menuItems: typeof MENU_ITEMS) {
@@ -39,7 +51,19 @@ function getActiveMenu(pathname: string, menuItems: typeof MENU_ITEMS) {
   return null
 }
 
-export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole?: string; userName?: string }) {
+interface SidebarProps {
+  userRoles?: string[]
+  primaryRole?: string
+  userName?: string
+  allowedFeatures?: string[]
+}
+
+export function Sidebar({
+  userRoles = ['guru'],
+  primaryRole = 'guru',
+  userName = 'Pengguna',
+  allowedFeatures = [],
+}: SidebarProps) {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -65,7 +89,10 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
 
   const accent = ACCENT_COLORS.find(c => c.id === accentId) ?? ACCENT_COLORS[0]
   const activeHref = getActiveMenu(pathname, MENU_ITEMS)
-  const allowedMenus = MENU_ITEMS.filter(item => item.roles.includes(userRole))
+
+  // Filter menu berdasarkan allowedFeatures dari DB
+  const allowedSet = new Set(allowedFeatures)
+  const allowedMenus = MENU_ITEMS.filter(item => allowedSet.has(item.id))
 
   const changeAccent = (id: AccentKey) => { setAccentId(id); localStorage.setItem('mansatas_accent', id) }
 
@@ -98,7 +125,11 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
 
   if (!mounted) return null
 
-  const NavContent = ({ mobile = false }: { mobile?: boolean }) => {
+  // Format role display
+  const roleDisplay = primaryRole.replace(/_/g, ' ')
+  const extraRoleCount = userRoles.length > 1 ? userRoles.length - 1 : 0
+
+  const renderNavContent = (mobile = false) => {
     const collapsed = !mobile && isCollapsed
     return (
       <div className="flex flex-col h-full">
@@ -110,7 +141,7 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
         )}>
           <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0 flex-1">
             <div className="relative w-6 h-6 shrink-0">
-              <Image src="/logokemenag.png" alt="MANSATAS" fill className="object-contain" />
+              <Image src="/logokemenag.png" alt="MAN 1 Tasikmalaya" fill className="object-contain" />
             </div>
             {!collapsed && (
               <div className="min-w-0">
@@ -127,7 +158,13 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
         </div>
 
         {/* ── NAV ── */}
-        <nav className="flex-1 overflow-y-auto py-2 px-2">
+        <nav className="flex-1 overflow-y-auto py-3 px-3 custom-scrollbar">
+          <style>{`
+            .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+            .custom-scrollbar::-webkit-scrollbar-thumb { background-color: ${getAccentHex(accentId)}80; border-radius: 10px; }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: ${getAccentHex(accentId)}; }
+          `}</style>
           {MENU_GROUPS.map((group, gi) => {
             const groupItems = group.hrefs
               .map(href => allowedMenus.find(m => m.href === href))
@@ -135,18 +172,18 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
             if (groupItems.length === 0) return null
 
             return (
-              <div key={group.label} className={cn(gi > 0 && 'mt-1')}>
+              <div key={group.label} className={cn(gi > 0 && 'mt-4')}>
                 {/* Section label */}
                 {!collapsed && (
-                  <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-600 select-none">
+                  <p className="px-3 pt-1 pb-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400/80 dark:text-slate-500 select-none">
                     {group.label}
                   </p>
                 )}
                 {/* Divider tipis antar grup saat collapsed */}
                 {collapsed && gi > 0 && (
-                  <div className="h-px bg-slate-100 dark:bg-slate-700/60 mx-2 my-1.5" />
+                  <div className="h-px bg-slate-100 dark:bg-slate-700/60 mx-2 my-2.5" />
                 )}
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {groupItems.map(item => {
                     const isActive = activeHref === item.href
                     const Icon = item.icon
@@ -156,14 +193,14 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
                         href={item.href}
                         title={collapsed ? item.title : undefined}
                         className={cn(
-                          'flex items-center rounded-lg text-[13px] transition-all duration-150',
-                          collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-3 py-[7px]',
+                          'group flex items-center rounded-xl text-[13px] transition-all duration-200',
+                          collapsed ? 'justify-center p-2.5 mx-auto w-10 h-10' : 'gap-3 px-3 py-[9px]',
                           isActive
-                            ? cn(accent.bg, accent.text, 'font-semibold')
-                            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-100'
+                            ? cn(accent.bg, accent.text, 'font-semibold shadow-sm ring-1 ring-black/5 dark:ring-white/5')
+                            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-slate-100 hover:translate-x-0.5'
                         )}
                       >
-                        <Icon className={cn('h-[15px] w-[15px] shrink-0', !isActive && 'opacity-70')} />
+                        <Icon className={cn('h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:scale-110', !isActive && 'opacity-70')} />
                         {!collapsed && <span className="truncate leading-snug">{item.title}</span>}
                       </Link>
                     )
@@ -175,7 +212,7 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
         </nav>
 
         {/* ── FOOTER ── */}
-        <div className="border-t border-slate-100 dark:border-slate-700/60 shrink-0 p-2 space-y-0.5">
+        <div className={cn('border-t border-slate-100 dark:border-slate-700/60 shrink-0 p-2 space-y-0.5', mobile && 'pb-20')}>
 
           {/* Tema + dark toggle */}
           {!collapsed && (
@@ -226,7 +263,14 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
             {!collapsed && (
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-semibold text-slate-800 dark:text-slate-200 truncate leading-tight">{userName}</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate leading-tight capitalize">{userRole.replace(/_/g, ' ')}</p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate leading-tight capitalize">{roleDisplay}</span>
+                  {extraRoleCount > 0 && (
+                    <span className="text-[9px] font-semibold bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1 py-px rounded leading-tight">
+                      +{extraRoleCount}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </Link>
@@ -257,7 +301,7 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
         'hidden lg:flex flex-col h-[100dvh] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700/60 shrink-0 sticky top-0 transition-all duration-300 relative',
         isCollapsed ? 'w-[52px]' : 'w-52'
       )}>
-        <NavContent />
+        {renderNavContent()}
         <button onClick={toggleCollapse}
           className="absolute -right-3 top-[24px] z-10 h-5 w-5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 shadow-sm flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
         >
@@ -270,7 +314,7 @@ export function Sidebar({ userRole = 'guru', userName = 'Pengguna' }: { userRole
         'fixed top-0 left-0 z-50 h-[100dvh] w-56 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700/60 flex flex-col lg:hidden transition-transform duration-300 ease-in-out shadow-xl',
         isOpen ? 'translate-x-0' : '-translate-x-full'
       )}>
-        <NavContent mobile />
+        {renderNavContent(true)}
       </aside>
 
       <button id="mobile-sidebar-trigger" onClick={() => setIsOpen(true)} className="hidden" aria-label="Buka menu" />

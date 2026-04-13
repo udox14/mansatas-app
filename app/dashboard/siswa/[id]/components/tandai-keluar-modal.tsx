@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertTriangle, Loader2, LogOut } from 'lucide-react'
 import { tandaiSiswaKeluar, batalkanKeluarSiswa } from '../../actions'
+import { todayWIB } from '@/lib/time'
 
 const ALASAN_OPTIONS = [
   'Pindah Sekolah',
@@ -27,7 +28,7 @@ export function TandaiKeluarModal({
   onSuccess: () => void
   onClose: () => void
 }) {
-  const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0])
+  const [tanggal, setTanggal] = useState(todayWIB())
   const [alasan, setAlasan] = useState('')
   const [keterangan, setKeterangan] = useState('')
   const [isSaving, setIsSaving] = useState(false)

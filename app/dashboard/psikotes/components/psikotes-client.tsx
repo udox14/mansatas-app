@@ -19,7 +19,7 @@ import {
   tambahMapping, editMapping, hapusMapping, normalizeGayaBelajar,
 } from '../actions'
 import type { RekomMapping } from '../actions'
-import { cn } from '@/lib/utils'
+import { cn, formatNamaKelas } from '@/lib/utils'
 
 // ── Types ──────────────────────────────────────────────────────────────
 type KelasItem = { id: string; tingkat: number; nomor_kelas: string; kelompok: string }
@@ -272,7 +272,7 @@ function ModalDetail({ siswaId, onClose, isAdmin }: {
                 <div className="flex-1 min-w-0">
                   <DialogTitle className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate leading-tight">{data.nama_lengkap}</DialogTitle>
                   <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                    Kelas {data.tingkat}-{data.nomor_kelas} {data.kelas_kelompok}
+                    Kelas {formatNamaKelas(data.tingkat, data.nomor_kelas, data.kelas_kelompok)}
                     {data.usia_thn ? ` · Usia ${data.usia_thn} thn ${data.usia_bln ?? 0} bln saat tes` : ''}
                   </p>
                   {/* Tombol kamus di bawah info siswa — tidak bersinggungan dengan X */}
@@ -464,12 +464,12 @@ function TabDaftar({ kelasList, isAdmin, userRole }: {
             <SelectTrigger className="h-8 w-36 text-xs rounded-lg border-surface"><SelectValue placeholder="Semua kelas" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all" className="text-xs">Semua kelas</SelectItem>
-              {[10,11,12].map(t => {
+              {[7,8,9].map(t => {
                 const items = kelasList.filter(k => k.tingkat === t)
                 if (!items.length) return null
                 return <div key={t}>
                   <div className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Kelas {t}</div>
-                  {items.map(k => <SelectItem key={k.id} value={k.id} className="text-xs">{k.tingkat}-{k.nomor_kelas} {k.kelompok}</SelectItem>)}
+                  {items.map(k => <SelectItem key={k.id} value={k.id} className="text-xs">{formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}</SelectItem>)}
                 </div>
               })}
             </SelectContent>
@@ -568,8 +568,7 @@ function TabDaftar({ kelasList, isAdmin, userRole }: {
                         </div>
                       </td>
                       <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                        {row.tingkat ? `${row.tingkat}-${row.nomor_kelas}` : '—'}
-                        <span className="text-slate-400 dark:text-slate-500 ml-1 text-[10px]">{row.kelas_kelompok}</span>
+                        {row.tingkat ? formatNamaKelas(row.tingkat, row.nomor_kelas || '', row.kelas_kelompok || '') : '—'}
                       </td>
                       <td className="px-3 py-2.5 text-center">
                         <div className="flex flex-col items-center gap-0.5">
@@ -614,7 +613,7 @@ function TabDaftar({ kelasList, isAdmin, userRole }: {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{row.nama_lengkap}</p>
                     <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                      {row.tingkat ? `${row.tingkat}-${row.nomor_kelas}` : '—'}
+                      {row.tingkat ? formatNamaKelas(row.tingkat, row.nomor_kelas || '', row.kelas_kelompok || '') : '—'}
                       {row.iq_score ? ` · IQ ${row.iq_score}` : ''}
                     </p>
                     <div className="flex gap-1 mt-1 flex-wrap">
@@ -679,7 +678,7 @@ function TabAnalitik({ kelasList }: { kelasList: KelasItem[] }) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all" className="text-xs">Semua kelas</SelectItem>
-            {kelasList.map(k => <SelectItem key={k.id} value={k.id} className="text-xs">{k.tingkat}-{k.nomor_kelas} {k.kelompok}</SelectItem>)}
+            {kelasList.map(k => <SelectItem key={k.id} value={k.id} className="text-xs">{formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}</SelectItem>)}
           </SelectContent>
         </Select>
         <span className="text-xs text-slate-400 dark:text-slate-500">{isLoading ? '...' : `${totalSiswa} siswa`}</span>

@@ -4,6 +4,7 @@
 import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { uploadBuktiFoto, deleteFromR2, validateImageFile } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
+// import { formatNamaKelas } from '@/lib/utils'
 import { revalidatePath } from 'next/cache'
 
 // ============================================================
@@ -33,7 +34,7 @@ export async function searchSiswa(query: string) {
     nama_lengkap: s.nama_lengkap,
     nisn: s.nisn,
     kelas: s.tingkat
-      ? `${s.tingkat}-${s.nomor_kelas} ${s.kelompok !== 'UMUM' ? s.kelompok : ''}`.trim()
+      ? `${s.tingkat}-${s.nomor_kelas}`
       : 'Tanpa Kelas',
   }))
 }
@@ -246,4 +247,161 @@ export async function loadMoreKasus(taAktifId: string, offset: number) {
     master_pelanggaran: { nama_pelanggaran: p.nama_pelanggaran, poin: p.poin },
     pelapor: { nama_lengkap: p.pelapor_nama },
   }))
+}
+
+// ============================================================
+// 5. AMBIL DATA ANALITIK KEDISIPLINAN
+// ============================================================
+export async function getAnalitikKedisiplinan(taAktifId: string) {
+  const db = await getDB()
+
+  const [
+    totalKasusRes, perKategoriRes, perBulanRes, topPelanggaranRes,
+    siswaRisikoRes, perKelasRes, configRes,
+  ] = await Promise.all([
+    db.prepare(`
+      SELECT COUNT(*) as total_kasus, SUM(mp.poin) as total_poin
+      FROM siswa_pelanggaran sp
+      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
+      WHERE sp.tahun_ajaran_id = ?
+    `).bind(taAktifId).first<any>(),
+
+    db.prepare(`
+      SELECT mp.kategori, COUNT(*) as jumlah, SUM(mp.poin) as total_poin
+      FROM siswa_pelanggaran sp
+      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
+      WHERE sp.tahun_ajaran_id = ?
+      GROUP BY mp.kategori ORDER BY total_poin DESC
+    `).bind(taAktifId).all<any>(),
+
+    db.prepare(`
+      SELECT strftime('%Y-%m', sp.tanggal) as bulan, COUNT(*) as jumlah, SUM(mp.poin) as total_poin
+      FROM siswa_pelanggaran sp
+      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
+      WHERE sp.tahun_ajaran_id = ?
+      GROUP BY bulan ORDER BY bulan ASC
+    `).bind(taAktifId).all<any>(),
+
+    db.prepare(`
+      SELECT mp.nama_pelanggaran, mp.kategori, mp.poin, COUNT(*) as frekuensi, COUNT(*)*mp.poin as total_beban
+      FROM siswa_pelanggaran sp
+      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
+      WHERE sp.tahun_ajaran_id = ?
+      GROUP BY sp.master_pelanggaran_id ORDER BY frekuensi DESC LIMIT 10
+    `).bind(taAktifId).all<any>(),
+
+    db.prepare(`
+      SELECT s.id, s.nama_lengkap, k.tingkat, k.nomor_kelas, k.kelompok,
+        COUNT(sp.id) as jumlah_kasus, SUM(mp.poin) as total_poin
+      FROM siswa_pelanggaran sp
+      JOIN siswa s ON sp.siswa_id = s.id
+      LEFT JOIN kelas k ON s.kelas_id = k.id
+      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
+      WHERE sp.tahun_ajaran_id = ?
+      GROUP BY sp.siswa_id ORDER BY total_poin DESC LIMIT 20
+    `).bind(taAktifId).all<any>(),
+
+    db.prepare(`
+      SELECT k.tingkat, k.nomor_kelas, k.kelompok,
+        COUNT(DISTINCT sp.siswa_id) as siswa_terlibat,
+        COUNT(sp.id) as total_kasus,
+        SUM(mp.poin) as total_poin
+      FROM siswa_pelanggaran sp
+      JOIN siswa s ON sp.siswa_id = s.id
+      LEFT JOIN kelas k ON s.kelas_id = k.id
+      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
+      WHERE sp.tahun_ajaran_id = ?
+      GROUP BY s.kelas_id ORDER BY total_poin DESC
+    `).bind(taAktifId).all<any>(),
+
+    db.prepare(`SELECT key, value FROM kedisiplinan_config`).all<any>().catch(() => ({ results: [] })),
+  ])
+
+  const configMap: Record<string, number> = {}
+  for (const row of (configRes.results ?? [])) configMap[row.key] = parseInt(row.value) || 0
+
+  const thresholds = {
+    perhatian:  configMap.threshold_perhatian  ?? 25,
+    peringatan: configMap.threshold_peringatan ?? 50,
+    kritis:     configMap.threshold_kritis     ?? 75,
+    creditAwal: configMap.credit_score_awal    ?? 100,
+  }
+
+  return {
+    ringkasan: {
+      total_kasus: totalKasusRes?.total_kasus ?? 0,
+      total_poin: totalKasusRes?.total_poin ?? 0,
+    },
+    perKategori: perKategoriRes.results ?? [],
+    perBulan: perBulanRes.results ?? [],
+    topPelanggaran: topPelanggaranRes.results ?? [],
+    siswaBerisiko: (siswaRisikoRes.results ?? []).map((s: any) => ({
+      ...s,
+      credit_score: Math.max(0, thresholds.creditAwal - (s.total_poin ?? 0)),
+      level: (s.total_poin ?? 0) >= thresholds.kritis ? 'kritis'
+        : (s.total_poin ?? 0) >= thresholds.peringatan ? 'peringatan'
+        : (s.total_poin ?? 0) >= thresholds.perhatian ? 'perhatian'
+        : 'aman',
+    })),
+    perKelas: perKelasRes.results ?? [],
+    thresholds,
+  }
+}
+
+// ============================================================
+// 6. SIMPAN KONFIGURASI KEDISIPLINAN
+// ============================================================
+export async function simpanKedisiplinanConfig(prevState: any, formData: FormData) {
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Tidak terautentikasi', success: null }
+
+  const keys = ['threshold_perhatian', 'threshold_peringatan', 'threshold_kritis', 'credit_score_awal']
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS kedisiplinan_config (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        key TEXT NOT NULL UNIQUE, value TEXT NOT NULL,
+        label TEXT, keterangan TEXT,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `).run()
+
+    for (const key of keys) {
+      const val = formData.get(key) as string
+      if (val === null || val === '') continue
+      const num = parseInt(val)
+      if (isNaN(num) || num < 0) return { error: `Nilai untuk ${key} tidak valid.`, success: null }
+      await db.prepare(`
+        INSERT INTO kedisiplinan_config (key, value, updated_at)
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+      `).bind(key, String(num)).run()
+    }
+
+    revalidatePath('/dashboard/kedisiplinan')
+    return { error: null, success: 'Konfigurasi berhasil disimpan.' }
+  } catch (e: any) {
+    return { error: 'Gagal menyimpan: ' + (e?.message || ''), success: null }
+  }
+}
+
+// ============================================================
+// 7. AMBIL KONFIGURASI THRESHOLD (untuk detail siswa)
+// ============================================================
+export async function getKedisiplinanConfig() {
+  const db = await getDB()
+  try {
+    const res = await db.prepare(`SELECT key, value FROM kedisiplinan_config`).all<any>()
+    const map: Record<string, number> = {}
+    for (const row of (res.results ?? [])) map[row.key] = parseInt(row.value) || 0
+    return {
+      threshold_perhatian:  map.threshold_perhatian  ?? 25,
+      threshold_peringatan: map.threshold_peringatan ?? 50,
+      threshold_kritis:     map.threshold_kritis     ?? 75,
+      credit_score_awal:    map.credit_score_awal    ?? 100,
+    }
+  } catch {
+    return { threshold_perhatian: 25, threshold_peringatan: 50, threshold_kritis: 75, credit_score_awal: 100 }
+  }
 }

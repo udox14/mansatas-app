@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/layout/page-header'
 
 export const metadata = { title: 'Profil Saya - MANSATAS App' }
 
+export const dynamic = 'force-dynamic'
 export default async function ProfilePage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
@@ -27,7 +28,7 @@ export default async function ProfilePage() {
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
-      <PageHeader title="Profil Saya" description="Kelola informasi pribadi, foto profil, dan kata sandi." icon={UserCircle} iconColor="text-emerald-500" />
+      <PageHeader title="Profil Saya" description="Kelola informasi pribadi, foto profil, dan kata sandi." />
       <ProfileClient profile={profile} email={user.email ?? ''} />
     </div>
   )

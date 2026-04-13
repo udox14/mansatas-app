@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, Camera, AlertCircle, CheckCircle2, Search } from 'lucide-react'
 import { simpanPelanggaran, searchSiswa } from '../actions'
+import { todayWIB } from '@/lib/time'
 
 const initialState = { error: null as string | null, success: null as string | null }
 
@@ -53,7 +54,7 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
   masterList: { id: string; nama_pelanggaran: string; poin: number }[]
 }) {
   const [state, formAction] = useActionState(simpanPelanggaran, initialState)
-  const today = new Date().toISOString().split('T')[0]
+  const today = todayWIB()
 
   const [searchSiswaQuery, setSearchSiswaQuery] = useState('')
   const [selectedSiswaId, setSelectedSiswaId] = useState('')
@@ -86,9 +87,22 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
     }
   }, [isOpen, editData])
 
+  // Jika sukses DAN ini mode edit → tutup modal. Jika sukses mode tambah baru → JANGAN tutup, biarkan lapor lagi
   useEffect(() => {
-    if (state?.success) { const t = setTimeout(() => onClose(), 1500); return () => clearTimeout(t) }
-  }, [state?.success, onClose])
+    if (state?.success && editData) {
+      const t = setTimeout(() => onClose(), 1200)
+      return () => clearTimeout(t)
+    }
+    // Mode tambah baru: reset field setelah sukses agar bisa lapor lagi tanpa refresh
+    if (state?.success && !editData) {
+      const t = setTimeout(() => {
+        setSelectedSiswaId(''); setSearchSiswaQuery(''); setSiswaResults([])
+        setSelectedMasterId(''); setSearchMaster('')
+      }, 1500)
+      return () => clearTimeout(t)
+    }
+  }, [state?.success, editData, onClose])
+
 
   const clientAction = async (formData: FormData) => {
     const file = formData.get('foto') as File

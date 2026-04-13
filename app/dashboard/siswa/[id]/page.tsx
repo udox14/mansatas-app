@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { DetailSiswaClient } from './components/detail-client'
+import { getKedisiplinanConfig } from '../../kedisiplinan/actions'
+import { getUserRoles } from '@/lib/features'
 
 export const metadata = { title: 'Buku Induk Siswa - MANSATAS' }
 export const dynamic = 'force-dynamic'
@@ -15,6 +17,11 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
   if (!user) redirect('/login')
 
   const db = await getDB()
+
+  // STRICT RBAC CHECK FOR DETAIL VIEW
+  const userRoles = await getUserRoles(db, user.id)
+  const isAdminTu = userRoles.some(r => ['super_admin', 'admin_tu'].includes(r))
+  const isKepsekWakamad = userRoles.some(r => ['kepsek', 'wakamad'].includes(r))
 
   // FIX: Ganti SELECT s.* → kolom eksplisit (s.* ambil 40+ kolom tiap query)
   const siswa = await db.prepare(`
@@ -41,7 +48,30 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
     </div>
   )
 
-  const [riwayatKelas, pelanggaran, izinKeluar, izinKelas, rekapNilai, kelasResult] = await Promise.all([
+  // Verify access for Wali Kelas / Guru BK / Other roles
+  let isAuthorized = false;
+  if (isAdminTu || isKepsekWakamad) {
+    isAuthorized = true;
+  } else if (siswa.kelas_id) {
+    // Check if user is the assigned Wali Kelas for THIS student's class
+    if (userRoles.includes('wali_kelas')) {
+      const isWali = await db.prepare('SELECT id FROM kelas WHERE id = ? AND wali_kelas_id = ?').bind(siswa.kelas_id, user.id).first()
+      if (isWali) isAuthorized = true
+    }
+    
+    // Check if user is the assigned Guru BK for THIS student's class
+    if (!isAuthorized && userRoles.includes('guru_bk')) {
+      const isBP = await db.prepare('SELECT id FROM kelas_binaan_bk WHERE kelas_id = ? AND guru_bk_id = ?').bind(siswa.kelas_id, user.id).first()
+      if (isBP) isAuthorized = true
+    }
+  }
+
+  // Final Strict Block
+  if (!isAuthorized) {
+    redirect('/dashboard/siswa')
+  }
+
+  const [riwayatKelas, pelanggaran, izinKeluar, izinKelas, rekapNilai, kelasResult, kedisiplinanConfig] = await Promise.all([
     db.prepare(`
       SELECT rk.id, rk.created_at, k.tingkat, k.kelompok, k.nomor_kelas, ta.nama, ta.semester
       FROM riwayat_kelas rk
@@ -78,7 +108,7 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
 
     // FIX: Ganti SELECT * → kolom spesifik
     db.prepare(`
-      SELECT siswa_id, nilai_smt1, nilai_smt2, nilai_smt3, nilai_smt4, nilai_smt5, nilai_um
+      SELECT siswa_id, nilai_smt1, nilai_smt2, nilai_smt3, nilai_smt4, nilai_smt5, nilai_smt6
       FROM rekap_nilai_akademik WHERE siswa_id = ?
     `).bind(id).all<any>(),
 
@@ -86,6 +116,8 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
       SELECT id, tingkat, nomor_kelas, kelompok
       FROM kelas ORDER BY tingkat ASC, kelompok ASC, nomor_kelas ASC
     `).all<any>(),
+
+    getKedisiplinanConfig(),
   ])
 
   const siswaWithNilai = {
@@ -109,7 +141,8 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
         izinKeluar={izinKeluar.results || []}
         izinKelas={izinKelas.results || []}
         kelasList={kelasResult.results || []}
-        currentUser={user}
+        currentUser={{...user, roles: userRoles}}
+        kedisiplinanConfig={kedisiplinanConfig}
       />
     </div>
   )

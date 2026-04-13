@@ -177,3 +177,15 @@ html, body {
   height: 100%;
   overflow: hidden; /* Mencegah scroll ganda di body utama */
 }
+
+/* Print styles for Surat (F4 / Folio paper) */
+@media print {
+  @page {
+    size: 215mm 330mm;
+    margin: 0;
+  }
+  body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}

@@ -11,51 +11,61 @@ import {
   User, GraduationCap, ShieldAlert, DoorOpen, LineChart, 
   MapPin, Phone, Users, CheckCircle2, History, AlertTriangle, 
   Image as ImageIcon, ChevronDown, ChevronUp, BookOpen, Pencil,
-  LogOut, RotateCcw
+  LogOut, RotateCcw, CalendarSearch, ShieldCheck, ShieldX, ShieldOff, Bell
 } from 'lucide-react'
 import { EditSiswaModal } from '../../components/edit-modal'
 import { TandaiKeluarModal, BatalkanKeluarModal } from './tandai-keluar-modal'
+import { RekapAbsensiTab } from './rekap-absensi-tab'
+import { formatNamaKelas } from '@/lib/utils'
 
 export function DetailSiswaClient({ 
-  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, kelasList, currentUser
+  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, kelasList, currentUser, kedisiplinanConfig
 }: { 
   siswa: any, riwayatKelas: any[], pelanggaran: any[], izinKeluar: any[], izinKelas: any[]
   kelasList?: any[],
   currentUser: any
+  kedisiplinanConfig?: { threshold_perhatian: number; threshold_peringatan: number; threshold_kritis: number; credit_score_awal: number }
 }) {
   const router = useRouter()
   const [showKeluarModal, setShowKeluarModal] = useState(false)
   const [showBatalkanModal, setShowBatalkanModal] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   
-  // Define canFullEdit based on currentUser role
-  const userRole = currentUser?.role || 'wali_murid'
-  const canFullEdit = ['super_admin', 'admin_tu'].includes(userRole)
+  // Define canFullEdit based on currentUser roles
+  const roles = currentUser?.roles || []
+  const canFullEdit = roles.some((r: string) => ['super_admin', 'admin_tu'].includes(r))
 
   // State untuk Accordion Akademik (Otomatis buka kelas saat ini, atau kelas 10 jika belum ada)
   const [openAccordion, setOpenAccordion] = useState<number | null>(siswa.kelas?.tingkat || 10)
   const toggleAccordion = (val: number) => setOpenAccordion(prev => prev === val ? null : val)
 
-  // 1. Kalkulasi Total Poin Pelanggaran
+  // 1. Kalkulasi Total Poin Pelanggaran & Credit Score
   const totalPoin = useMemo(() => {
-    return pelanggaran.reduce((acc, curr) => acc + (curr.master_pelanggaran?.poin || 0), 0)
+    return pelanggaran.reduce((acc, curr) => acc + (curr.poin || curr.master_pelanggaran?.poin || 0), 0)
   }, [pelanggaran])
+
+  const cfg = kedisiplinanConfig ?? { threshold_perhatian: 25, threshold_peringatan: 50, threshold_kritis: 75, credit_score_awal: 100 }
+  const creditScore = Math.max(0, cfg.credit_score_awal - totalPoin)
+  const disciplineLevel = totalPoin >= cfg.threshold_kritis ? 'kritis'
+    : totalPoin >= cfg.threshold_peringatan ? 'peringatan'
+    : totalPoin >= cfg.threshold_perhatian ? 'perhatian'
+    : 'aman'
 
   // 2. Format Kelas Saat Ini
   const namaKelasSekarang = siswa.kelas 
-    ? `${siswa.kelas.tingkat}-${siswa.kelas.nomor_kelas} ${siswa.kelas.kelompok !== 'UMUM' ? siswa.kelas.kelompok : ''}`.trim() 
+    ? formatNamaKelas(siswa.kelas.tingkat, siswa.kelas.nomor_kelas, siswa.kelas.kelompok)
     : 'Belum Ada Kelas'
 
   // 3. Helper untuk mendapatkan riwayat kelas berdasarkan tingkat
   const getClassStr = (tingkat: number) => {
     // Prioritaskan kelas saat ini jika tingkatnya cocok
     if (siswa.kelas && siswa.kelas.tingkat === tingkat) {
-      return `${siswa.kelas.tingkat}-${siswa.kelas.nomor_kelas} ${siswa.kelas.kelompok !== 'UMUM' ? siswa.kelas.kelompok : ''}`.trim()
+      return formatNamaKelas(siswa.kelas.tingkat, siswa.kelas.nomor_kelas, siswa.kelas.kelompok)
     }
     // Cari di riwayat jika tidak cocok
     const riwayat = riwayatKelas.find(r => r.kelas?.tingkat === tingkat)
     if (riwayat) {
-      return `${riwayat.kelas.tingkat}-${riwayat.kelas.nomor_kelas} ${riwayat.kelas.kelompok !== 'UMUM' ? riwayat.kelas.kelompok : ''}`.trim()
+      return formatNamaKelas(riwayat.kelas.tingkat, riwayat.kelas.nomor_kelas, riwayat.kelas.kelompok)
     }
     return `Belum ada data historis`
   }
@@ -69,7 +79,7 @@ export function DetailSiswaClient({
   const rna = siswa.rekap_nilai_akademik || {}
   const mapels10 = Array.from(new Set([...Object.keys(rna.nilai_smt1 || {}), ...Object.keys(rna.nilai_smt2 || {})])).sort()
   const mapels11 = Array.from(new Set([...Object.keys(rna.nilai_smt3 || {}), ...Object.keys(rna.nilai_smt4 || {})])).sort()
-  const mapels12 = Array.from(new Set([...Object.keys(rna.nilai_smt5 || {}), ...Object.keys(rna.nilai_um || {})])).sort()
+  const mapels12 = Array.from(new Set([...Object.keys(rna.nilai_smt5 || {}), ...Object.keys(rna.nilai_smt6 || {})])).sort()
 
   // Helper untuk warna inisial (fallback foto)
   const getAvatarColor = (name: string) => {
@@ -196,8 +206,8 @@ export function DetailSiswaClient({
           <div className={`h-20 w-20 rounded-full bg-gradient-to-br ${getAvatarColor(siswa.nama_lengkap)} shadow-lg flex items-center justify-center text-2xl font-black text-white border-4 border-white`}>
             {siswa.nama_lengkap.charAt(0).toUpperCase()}
           </div>
-          {totalPoin >= 50 && (
-            <div className="absolute -bottom-2 -right-2 bg-rose-500 text-white p-2 rounded-full shadow-lg border-2 border-white animate-bounce" title="Siswa dalam pengawasan khusus (SP)">
+          {totalPoin >= cfg.threshold_kritis && (
+            <div className="absolute -bottom-2 -right-2 bg-rose-500 text-white p-2 rounded-full shadow-lg border-2 border-white animate-bounce" title="Siswa dalam pengawasan khusus">
               <AlertTriangle className="h-5 w-5" />
             </div>
           )}
@@ -228,7 +238,7 @@ export function DetailSiswaClient({
               </span>
               {siswa.tempat_tinggal !== 'Non-Pesantren' && (
                  <span className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-orange-100 text-orange-800 border border-orange-200 shadow-sm flex items-center gap-1.5">
-                   <MapPin className="h-3.5 w-3.5" /> Anak Pesantren
+                   <MapPin className="h-3.5 w-3.5" /> {siswa.asrama ? `${siswa.asrama}${siswa.kamar ? ` · ${siswa.kamar}` : ''}` : 'Anak Pesantren'}
                  </span>
               )}
               <Button
@@ -282,6 +292,7 @@ export function DetailSiswaClient({
               {totalPoin > 0 && <span className="absolute top-1 right-2 h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>}
             </TabsTrigger>
             <TabsTrigger value="izin" className="py-2 px-3 rounded-md data-[state=active]:bg-orange-500 data-[state=active]:text-white text-xs font-medium flex-1 gap-1.5"><DoorOpen className="h-4 w-4"/> Perizinan</TabsTrigger>
+            <TabsTrigger value="absensi" className="py-2 px-3 rounded-md data-[state=active]:bg-cyan-600 data-[state=active]:text-white text-xs font-medium flex-1 gap-1.5"><CalendarSearch className="h-4 w-4"/> Rekap Absensi</TabsTrigger>
           </TabsList>
         </div>
 
@@ -306,6 +317,12 @@ export function DetailSiswaClient({
             <div className="bg-surface p-4 rounded-lg shadow-sm border border-surface">
               <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 border-b border-surface-2 pb-4 mb-4 flex items-center gap-2"><MapPin className="text-blue-600 h-5 w-5"/> Domisili & Alamat</h3>
               <DataItem label="Status Domisili / Pesantren" value={siswa.tempat_tinggal} className="bg-blue-50/50 p-3 rounded-xl border border-blue-100" />
+              {siswa.tempat_tinggal !== 'Non-Pesantren' && (
+                <div className="grid grid-cols-2 gap-4 bg-orange-50/60 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 p-3 rounded-xl mb-3">
+                  <DataItem label="Asrama" value={siswa.asrama} />
+                  <DataItem label="Kamar" value={siswa.kamar} />
+                </div>
+              )}
               <DataItem label="Alamat Lengkap (Jalan/Kp)" value={siswa.alamat_lengkap} />
               <div className="grid grid-cols-2 gap-4">
                 <DataItem label="RT" value={siswa.rt} />
@@ -359,9 +376,9 @@ export function DetailSiswaClient({
             </div>
 
             {/* RENDER ACCORDION UNTUK KELAS 10, 11, 12 */}
-            {renderAccordionItem(10, 'Fase E (Umum)', 'Semester 1', 'nilai_smt1', 'Semester 2', 'nilai_smt2', mapels10)}
-            {renderAccordionItem(11, 'Fase F (Penjurusan)', 'Semester 3', 'nilai_smt3', 'Semester 4', 'nilai_smt4', mapels11)}
-            {renderAccordionItem(12, 'Fase F (Akhir)', 'Semester 5', 'nilai_smt5', 'Ujian Madrasah (UM)', 'nilai_um', mapels12)}
+            {renderAccordionItem(10, 'Kelas 10', 'Semester 1', 'nilai_smt1', 'Semester 2', 'nilai_smt2', mapels10)}
+            {renderAccordionItem(11, 'Kelas 11', 'Semester 3', 'nilai_smt3', 'Semester 4', 'nilai_smt4', mapels11)}
+            {renderAccordionItem(12, 'Kelas 12', 'Semester 5', 'nilai_smt5', 'Semester 6', 'nilai_smt6', mapels12)}
 
           </div>
         </TabsContent>
@@ -369,11 +386,53 @@ export function DetailSiswaClient({
         {/* ======================= TAB 3: KEDISIPLINAN ======================= */}
         <TabsContent value="disiplin" className="mt-4 space-y-6 animate-in fade-in">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className={`p-4 rounded-lg border md:col-span-1 flex flex-col items-center justify-center text-center ${totalPoin >= 50 ? 'bg-rose-50 border-rose-200' : totalPoin >= 20 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
-              <p className="text-sm font-bold uppercase tracking-wider mb-2 text-slate-500 dark:text-slate-400 dark:text-slate-500">Total Credit Point</p>
-              <h2 className={`text-5xl font-black ${totalPoin >= 50 ? 'text-rose-600 animate-pulse' : totalPoin >= 20 ? 'text-amber-600' : 'text-emerald-600'}`}>{totalPoin}</h2>
-              {totalPoin >= 50 && <p className="mt-2 text-xs font-medium text-white bg-rose-600 px-3 py-1.5 rounded-lg shadow-md">PERINGATAN: Memenuhi Syarat SP / Panggilan Orang Tua</p>}
-              {totalPoin === 0 && <p className="mt-4 text-sm font-bold text-emerald-700"><CheckCircle2 className="inline h-5 w-5 mb-1"/> Bersih dari pelanggaran</p>}
+
+            {/* Credit Score */}
+            <div className={`p-4 rounded-xl border md:col-span-1 flex flex-col items-center justify-center text-center gap-3
+              ${disciplineLevel === 'kritis' ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
+                : disciplineLevel === 'peringatan' ? 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800'
+                : disciplineLevel === 'perhatian' ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800'
+                : 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'}`}>
+
+              {/* SVG ring */}
+              <div className="relative">
+                {(() => {
+                  const pct = Math.min(100, Math.max(0, (creditScore / cfg.credit_score_awal) * 100))
+                  const color = disciplineLevel === 'kritis' ? '#ef4444' : disciplineLevel === 'peringatan' ? '#f97316' : disciplineLevel === 'perhatian' ? '#f59e0b' : '#10b981'
+                  const r = 38, circ = 2 * Math.PI * r, dash = (pct / 100) * circ
+                  return (
+                    <svg width="96" height="96" viewBox="0 0 96 96" className="rotate-[-90deg]">
+                      <circle cx="48" cy="48" r={r} fill="none" stroke="#e2e8f0" strokeWidth="9" />
+                      <circle cx="48" cy="48" r={r} fill="none" stroke={color} strokeWidth="9"
+                        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
+                    </svg>
+                  )
+                })()}
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className={`text-2xl font-black ${disciplineLevel === 'kritis' ? 'text-red-600' : disciplineLevel === 'peringatan' ? 'text-orange-600' : disciplineLevel === 'perhatian' ? 'text-amber-600' : 'text-emerald-600'}`}>{creditScore}</span>
+                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">/{cfg.credit_score_awal}</span>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Credit Score</p>
+                <p className={`text-sm font-black mt-1 px-3 py-1 rounded-full ${
+                  disciplineLevel === 'kritis' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
+                  : disciplineLevel === 'peringatan' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
+                  : disciplineLevel === 'perhatian' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                  : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'}`}>
+                  {disciplineLevel === 'kritis'
+                    ? <><ShieldX className="inline h-3.5 w-3.5 mr-1" />Level Kritis</>
+                    : disciplineLevel === 'peringatan'
+                    ? <><Bell className="inline h-3.5 w-3.5 mr-1" />Peringatan Keras</>
+                    : disciplineLevel === 'perhatian'
+                    ? <><ShieldOff className="inline h-3.5 w-3.5 mr-1" />Perlu Perhatian</>
+                    : <><ShieldCheck className="inline h-3.5 w-3.5 mr-1" />Baik</>}
+                </p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+                  Akumulasi <span className="font-bold text-rose-500">{totalPoin} poin</span> dari {pelanggaran.length} kasus
+                </p>
+              </div>
             </div>
 
             <div className="bg-surface rounded-lg border border-surface md:col-span-2 overflow-hidden flex flex-col h-80">
@@ -478,6 +537,11 @@ export function DetailSiswaClient({
             </div>
 
           </div>
+        </TabsContent>
+
+        {/* ======================= TAB 5: REKAP ABSENSI ======================= */}
+        <TabsContent value="absensi" className="mt-4 animate-in fade-in">
+          <RekapAbsensiTab siswaId={siswa.id} siswa={siswa} />
         </TabsContent>
 
       </Tabs>

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Search, Loader2, DoorOpen, UserX, AlertCircle, CheckCircle2, Trash2, LogIn, Clock } from 'lucide-react'
 import { tambahIzinKeluar, tandaiSudahKembali, tambahIzinKelas, hapusIzinKeluar, hapusIzinKelas, searchSiswaIzin } from '../actions'
-import { cn } from '@/lib/utils'
+import { cn, formatNamaKelas } from '@/lib/utils'
 
 const initialFormState = { error: null as string | null, success: null as string | null }
 
@@ -119,7 +119,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
               className="px-3 py-2 hover:bg-surface-2 cursor-pointer border-b border-surface-2 flex justify-between items-center last:border-0"
             >
               <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{s.nama_lengkap}</span>
-              <span className="text-[10px] bg-surface-3 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-400 dark:text-slate-500">{s.kelas?.tingkat}-{s.kelas?.nomor_kelas}</span>
+              <span className="text-[10px] bg-surface-3 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-400 dark:text-slate-500">{s.kelas ? formatNamaKelas(s.kelas.tingkat, s.kelas.nomor_kelas, s.kelas.kelompok) : ''}</span>
             </div>
           ))}
         </div>
@@ -258,7 +258,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">{k.siswa?.nama_lengkap}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-surface-3 px-1.5 py-0.5 rounded border border-surface">
-                        {k.siswa?.kelas?.tingkat}-{k.siswa?.kelas?.nomor_kelas}
+                        {k.siswa?.kelas ? formatNamaKelas(k.siswa.kelas.tingkat, k.siswa.kelas.nomor_kelas, k.siswa.kelas.kelompok) : ''}
                       </span>
                       <span className="text-[10px] font-mono text-slate-600 dark:text-slate-300 dark:text-slate-600">{formatTime(k.waktu_keluar)}</span>
                     </div>
@@ -301,7 +301,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                   <TableRow key={k.id} className={cn("border-surface-2 group", k.status === 'BELUM KEMBALI' ? 'bg-amber-50/20 hover:bg-amber-50/40' : 'hover:bg-surface-2/60')}>
                     <TableCell className="px-4 py-2.5">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">{k.siswa?.nama_lengkap}</p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Kelas {k.siswa?.kelas?.tingkat}-{k.siswa?.kelas?.nomor_kelas} · {k.pelapor?.nama_lengkap}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Kelas {k.siswa?.kelas ? formatNamaKelas(k.siswa.kelas.tingkat, k.siswa.kelas.nomor_kelas, k.siswa.kelas.kelompok) : ''} · {k.pelapor?.nama_lengkap}</p>
                     </TableCell>
                     <TableCell className="py-2.5 text-xs font-mono text-slate-600 dark:text-slate-300 dark:text-slate-600">{formatTime(k.waktu_keluar)}</TableCell>
                     <TableCell className="py-2.5 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{k.keterangan || '-'}</TableCell>
@@ -370,7 +370,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                 <div className="flex items-start justify-between pr-6 mb-1.5">
                   <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight truncate">{k.siswa?.nama_lengkap}</p>
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-surface-3 px-1.5 py-0.5 rounded border border-surface shrink-0 ml-2">
-                    {k.siswa?.kelas?.tingkat}-{k.siswa?.kelas?.nomor_kelas}
+                    {k.siswa?.kelas ? formatNamaKelas(k.siswa.kelas.tingkat, k.siswa.kelas.nomor_kelas, k.siswa.kelas.kelompok) : ''}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-1 mb-1.5">
@@ -407,7 +407,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                     <TableRow key={k.id} className="hover:bg-surface-2/60 border-surface-2 group">
                       <TableCell className="px-4 py-2.5">
                         <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">{k.siswa?.nama_lengkap}</p>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Kelas {k.siswa?.kelas?.tingkat}-{k.siswa?.kelas?.nomor_kelas}</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Kelas {k.siswa?.kelas ? formatNamaKelas(k.siswa.kelas.tingkat, k.siswa.kelas.nomor_kelas, k.siswa.kelas.kelompok) : ''}</p>
                       </TableCell>
                       <TableCell className="py-2.5 text-center">
                         <div className="flex flex-wrap justify-center gap-1">
