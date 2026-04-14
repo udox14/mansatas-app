@@ -32,9 +32,9 @@ const MENU_GROUPS = [
   { label: 'Utama', hrefs: ['/dashboard'] },
   { label: 'Data Master', hrefs: ['/dashboard/siswa', '/dashboard/guru', '/dashboard/kelas', '/dashboard/plotting'] },
   { label: 'Tugas Harian Guru', hrefs: ['/dashboard/agenda', '/dashboard/kehadiran', '/dashboard/nilai-harian', '/dashboard/penugasan'] },
-  { label: 'Monitoring Akademik', hrefs: ['/dashboard/akademik', '/dashboard/akademik/nilai', '/dashboard/monitoring-agenda', '/dashboard/monitoring-penugasan'] },
+  { label: 'Monitoring Akademik', hrefs: ['/dashboard/akademik', '/dashboard/akademik/nilai', '/dashboard/monitoring-agenda', '/dashboard/monitoring-penugasan', '/dashboard/analitik'] },
   { label: 'Program Khusus', hrefs: ['/dashboard/tahfidz', '/dashboard/program-unggulan', '/dashboard/program-unggulan/kelola'] },
-  { label: 'Kesiswaan & BK', hrefs: ['/dashboard/rekap-absensi', '/dashboard/jadwal-piket', '/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes'] },
+  { label: 'Kesiswaan & BK', hrefs: ['/dashboard/rekap-absensi', '/dashboard/jadwal-piket', '/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes', '/dashboard/tka', '/dashboard/penerimaan-pt'] },
   { label: 'Administrasi & HR', hrefs: ['/dashboard/presensi', '/dashboard/monitoring-presensi', '/dashboard/surat', '/dashboard/rapat', '/dashboard/sarpras', '/dashboard/kelola-ppl', '/dashboard/buku-tamu'] },
   { label: 'Sistem', hrefs: ['/dashboard/settings', '/dashboard/settings/notifications', '/dashboard/settings/jadwal-notif', '/dashboard/settings/fitur'] },
 ]
