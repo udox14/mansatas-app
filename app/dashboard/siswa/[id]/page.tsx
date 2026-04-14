@@ -110,7 +110,7 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
     db.prepare(`
       SELECT siswa_id, nilai_smt1, nilai_smt2, nilai_smt3, nilai_smt4, nilai_smt5, nilai_smt6
       FROM rekap_nilai_akademik WHERE siswa_id = ?
-    `).bind(id).all<any>(),
+    `).bind(id).first<any>(),
 
     db.prepare(`
       SELECT id, tingkat, nomor_kelas, kelompok
@@ -120,13 +120,23 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
     getKedisiplinanConfig(),
   ])
 
+  const rawRna = rekapNilai || {}
+  const parseStr = (val: any) => { try { return val ? JSON.parse(val) : {} } catch { return {} } }
+
   const siswaWithNilai = {
     ...siswa,
     kelas: siswa.tingkat ? {
       id: siswa.kelas_id, tingkat: siswa.tingkat,
       kelompok: siswa.kelompok, nomor_kelas: siswa.nomor_kelas
     } : null,
-    rekap_nilai_akademik: rekapNilai.results || []
+    rekap_nilai_akademik: {
+      nilai_smt1: parseStr(rawRna.nilai_smt1),
+      nilai_smt2: parseStr(rawRna.nilai_smt2),
+      nilai_smt3: parseStr(rawRna.nilai_smt3),
+      nilai_smt4: parseStr(rawRna.nilai_smt4),
+      nilai_smt5: parseStr(rawRna.nilai_smt5),
+      nilai_smt6: parseStr(rawRna.nilai_smt6),
+    }
   }
 
   return (
