@@ -361,7 +361,7 @@ export function DetailSiswaClient({
 
         {/* ======================= TAB 2: AKADEMIK & NILAI (GABUNGAN BARU) ======================= */}
         <TabsContent value="akademik_nilai" className="mt-4 animate-in fade-in">
-          <div className="max-w-4xl mx-auto space-y-2">
+          <div className="w-full space-y-2">
             
             <div className="flex flex-col sm:flex-row justify-between sm:items-end mb-6 gap-2">
               <div>
