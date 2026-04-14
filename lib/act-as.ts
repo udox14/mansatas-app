@@ -1,6 +1,6 @@
 // lib/act-as.ts
 // Helper untuk fitur "Act As" — super admin bertindak atas nama guru lain
-// Dipakai di kehadiran, agenda, program-unggulan
+// Dipakai di kehadiran, agenda
 
 import { cookies } from 'next/headers'
 import { getCurrentUser } from '@/utils/auth/server'

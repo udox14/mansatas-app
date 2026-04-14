@@ -13,10 +13,6 @@ import {
   HeartHandshake,
   Brain,
   FileSpreadsheet,
-  ClipboardCheck,
-  BarChart3,
-  Star,
-  Crown,
   ClipboardPen,
   Activity,
   ClipboardList,
@@ -85,20 +81,7 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: FileSpreadsheet,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad']
   },
-  {
-    id: 'program-unggulan',
-    title: 'Program Unggulan',
-    href: '/dashboard/program-unggulan',
-    icon: Star,
-    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas']
-  },
-  {
-    id: 'program-unggulan-kelola',
-    title: 'Kelola Unggulan',
-    href: '/dashboard/program-unggulan/kelola',
-    icon: Crown,
-    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad']
-  },
+
   {
     id: 'tahfidz',
     title: 'Tahfidz Qur\'an',
@@ -232,20 +215,7 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: GraduationCap,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk']
   },
-  {
-    id: 'presensi',
-    title: 'Presensi Pegawai',
-    href: '/dashboard/presensi',
-    icon: ClipboardCheck,
-    roles: ['super_admin', 'admin_tu', 'resepsionis']
-  },
-  {
-    id: 'monitoring-presensi',
-    title: 'Monitoring Presensi',
-    href: '/dashboard/monitoring-presensi',
-    icon: BarChart3,
-    roles: ['super_admin', 'admin_tu', 'kepsek']
-  },
+
   {
     id: 'surat',
     title: 'Surat Keluar',
