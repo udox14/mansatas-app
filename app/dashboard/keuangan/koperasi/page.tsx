@@ -26,7 +26,7 @@ export default async function KoperasiPage() {
 
   // Ambil tahun ajaran aktif untuk generate tagihan bulk
   const tahunAjaran = await db.prepare(
-    "SELECT id FROM tahun_ajaran WHERE is_aktif = 1 LIMIT 1"
+    "SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1"
   ).first<{ id: string }>()
 
   return (
