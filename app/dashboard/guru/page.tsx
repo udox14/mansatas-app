@@ -4,7 +4,6 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { GuruClient } from './components/guru-client'
-import { GraduationCap } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
 import { checkFeatureAccess } from '@/lib/features'
@@ -16,7 +15,7 @@ async function GuruDataFetcher() {
 
   const [usersResult, userRolesResult, masterRolesResult] = await Promise.all([
     db.prepare(`
-      SELECT u.id, u.email, u.name, u.role, u.nama_lengkap, u.avatar_url,
+      SELECT u.id, u.email, u.name, u.role, u.nama_lengkap, u.avatar_url
       FROM "user" u
       ORDER BY u.nama_lengkap ASC
     `).all<any>(),
@@ -28,7 +27,6 @@ async function GuruDataFetcher() {
     `).all<{ value: string; label: string; is_custom: number }>(),
   ])
 
-  // Build user_roles map
   const userRolesMap: Record<string, string[]> = {}
   for (const row of userRolesResult.results || []) {
     if (!userRolesMap[row.user_id]) userRolesMap[row.user_id] = []
@@ -42,7 +40,6 @@ async function GuruDataFetcher() {
     avatar_url: u.avatar_url || null,
     roles: userRolesMap[u.id] || (u.role ? [u.role] : []),
     email: u.email || 'Email tidak ditemukan',
-    domisili_pegawai: u.domisili_pegawai || null,
   }))
 
   return (
@@ -65,9 +62,7 @@ export default async function GuruPage() {
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader title="Guru & Pegawai" description="Kelola data pendidik, hak akses, dan role pengguna." />
-      <Suspense fallback={
-<PageLoading text="Memuat data kepegawaian..." />
-      }>
+      <Suspense fallback={<PageLoading text="Memuat data kepegawaian..." />}>
         <GuruDataFetcher />
       </Suspense>
     </div>
