@@ -34,12 +34,12 @@ export async function getDsptList(filters?: { status?: string; angkatan?: string
   let query = `
     SELECT
       d.id, d.siswa_id, d.nominal_target, d.total_dibayar, d.total_diskon, d.status, d.catatan,
-      s.nama_lengkap, s.nisn, s.tahun_masuk,
+      s.nama_lengkap, s.nisn,
+      CAST(strftime('%Y', s.created_at) AS INTEGER) as tahun_masuk,
       k.tingkat, k.nomor_kelas, k.kelompok
     FROM fin_dspt d
     JOIN siswa s ON s.id = d.siswa_id
-    LEFT JOIN riwayat_kelas rk ON rk.siswa_id = s.id AND rk.is_aktif = 1
-    LEFT JOIN kelas k ON k.id = rk.kelas_id
+    LEFT JOIN kelas k ON k.id = s.kelas_id
     WHERE 1=1
   `
   const params: any[] = []
@@ -47,7 +47,7 @@ export async function getDsptList(filters?: { status?: string; angkatan?: string
     query += ' AND d.status = ?'; params.push(filters.status)
   }
   if (filters?.angkatan && filters.angkatan !== 'semua') {
-    query += ' AND s.tahun_masuk = ?'; params.push(parseInt(filters.angkatan))
+    query += ` AND CAST(strftime('%Y', s.created_at) AS INTEGER) = ?`; params.push(parseInt(filters.angkatan))
   }
   query += ' ORDER BY s.nama_lengkap ASC'
   const result = await db.prepare(query).bind(...params).all<any>()
@@ -100,12 +100,12 @@ export async function getSppTagihanList(filters?: { bulan?: number; tahun?: numb
     SELECT
       t.id, t.siswa_id, t.bulan, t.tahun, t.nominal,
       t.total_dibayar, t.total_diskon, t.status,
-      s.nama_lengkap, s.nisn, s.tahun_masuk,
+      s.nama_lengkap, s.nisn,
+      CAST(strftime('%Y', s.created_at) AS INTEGER) as tahun_masuk,
       k.tingkat, k.nomor_kelas, k.kelompok
     FROM fin_spp_tagihan t
     JOIN siswa s ON s.id = t.siswa_id
-    LEFT JOIN riwayat_kelas rk ON rk.siswa_id = s.id AND rk.is_aktif = 1
-    LEFT JOIN kelas k ON k.id = rk.kelas_id
+    LEFT JOIN kelas k ON k.id = s.kelas_id
     WHERE 1=1
   `
   const params: any[] = []
@@ -128,10 +128,10 @@ export async function generateSppBulanan(tahun: number, bulan: number) {
   for (const s of settings.results) {
     // Ambil siswa di tingkat ini
     const siswaList = await db.prepare(`
-      SELECT DISTINCT rk.siswa_id
-      FROM riwayat_kelas rk
-      JOIN kelas k ON k.id = rk.kelas_id
-      WHERE k.tingkat = ? AND rk.is_aktif = 1
+      SELECT DISTINCT s.id as siswa_id
+      FROM siswa s
+      JOIN kelas k ON k.id = s.kelas_id
+      WHERE k.tingkat = ?
     `).bind(s.tingkat).all<any>()
 
     for (const row of siswaList.results ?? []) {
@@ -182,19 +182,19 @@ export async function getKoperasiTagihanList(filters?: { status?: string; angkat
     SELECT
       t.id, t.siswa_id, t.tahun_ajaran_id, t.total_nominal,
       t.total_dibayar, t.total_diskon, t.status,
-      s.nama_lengkap, s.nisn, s.tahun_masuk,
+      s.nama_lengkap, s.nisn,
+      CAST(strftime('%Y', s.created_at) AS INTEGER) as tahun_masuk,
       k.tingkat, k.nomor_kelas, k.kelompok,
       ta.nama AS nama_tahun_ajaran
     FROM fin_koperasi_tagihan t
     JOIN siswa s ON s.id = t.siswa_id
-    LEFT JOIN riwayat_kelas rk ON rk.siswa_id = s.id AND rk.is_aktif = 1
-    LEFT JOIN kelas k ON k.id = rk.kelas_id
+    LEFT JOIN kelas k ON k.id = s.kelas_id
     LEFT JOIN tahun_ajaran ta ON ta.id = t.tahun_ajaran_id
     WHERE 1=1
   `
   const params: any[] = []
   if (filters?.status && filters.status !== 'semua') { query += ' AND t.status = ?'; params.push(filters.status) }
-  if (filters?.angkatan && filters.angkatan !== 'semua') { query += ' AND s.tahun_masuk = ?'; params.push(parseInt(filters.angkatan)) }
+  if (filters?.angkatan && filters.angkatan !== 'semua') { query += ` AND CAST(strftime('%Y', s.created_at) AS INTEGER) = ?`; params.push(parseInt(filters.angkatan)) }
   query += ' ORDER BY s.nama_lengkap ASC'
   const result = await db.prepare(query).bind(...params).all<any>()
   return { data: result.results ?? [], error: null }
@@ -253,8 +253,7 @@ export async function generateKoperasiTagihanBulk(tahunAjaranId: string) {
   const siswaList = await db.prepare(`
     SELECT DISTINCT s.id
     FROM siswa s
-    JOIN riwayat_kelas rk ON rk.siswa_id = s.id AND rk.is_aktif = 1
-    JOIN kelas k ON k.id = rk.kelas_id
+    JOIN kelas k ON k.id = s.kelas_id
     WHERE k.tingkat = 10
     AND s.id NOT IN (
       SELECT siswa_id FROM fin_koperasi_tagihan WHERE tahun_ajaran_id = ?
@@ -535,10 +534,10 @@ export async function getBukuBesarSiswa(siswaId: string) {
 
   const [siswa, dspt, sppTagihan, kopTagihan, transaksi, janjiList] = await Promise.all([
     db.prepare(`
-      SELECT s.*, k.tingkat, k.nomor_kelas, k.kelompok
+      SELECT s.*, k.tingkat, k.nomor_kelas, k.kelompok,
+             CAST(strftime('%Y', s.created_at) AS INTEGER) as tahun_masuk
       FROM siswa s
-      LEFT JOIN riwayat_kelas rk ON rk.siswa_id = s.id AND rk.is_aktif = 1
-      LEFT JOIN kelas k ON k.id = rk.kelas_id
+      LEFT JOIN kelas k ON k.id = s.kelas_id
       WHERE s.id = ?
     `).bind(siswaId).first<any>(),
     db.prepare('SELECT * FROM fin_dspt WHERE siswa_id = ?').bind(siswaId).first<any>(),
@@ -613,7 +612,7 @@ export async function getRekapAngkatan() {
   const { db } = await requireAuth('keuangan-laporan')
   const result = await db.prepare(`
     SELECT
-      s.tahun_masuk,
+      CAST(strftime('%Y', s.created_at) AS INTEGER) as tahun_masuk,
       COUNT(DISTINCT s.id) as total_siswa,
       COUNT(DISTINCT CASE WHEN d.status='lunas' THEN d.id END) as dspt_lunas,
       COUNT(DISTINCT CASE WHEN d.status='nyicil' THEN d.id END) as dspt_nyicil,
@@ -622,8 +621,8 @@ export async function getRekapAngkatan() {
       COALESCE(SUM(d.total_dibayar),0) as dspt_dibayar
     FROM siswa s
     LEFT JOIN fin_dspt d ON d.siswa_id = s.id
-    GROUP BY s.tahun_masuk
-    ORDER BY s.tahun_masuk DESC
+    GROUP BY CAST(strftime('%Y', s.created_at) AS INTEGER)
+    ORDER BY tahun_masuk DESC
   `).all<any>()
   return { data: result.results ?? [], error: null }
 }

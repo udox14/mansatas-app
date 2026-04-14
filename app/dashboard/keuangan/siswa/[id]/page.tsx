@@ -22,7 +22,7 @@ export default async function BukuBesarPage({ params }: { params: { id: string }
   const [data, { data: masterItem }, tahunAjaran] = await Promise.all([
     getBukuBesarSiswa(params.id),
     getMasterItemKoperasi(),
-    db.prepare("SELECT id FROM tahun_ajaran WHERE is_aktif = 1 LIMIT 1").first<{ id: string }>(),
+    db.prepare("SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1").first<{ id: string }>(),
   ])
 
   if (!data.siswa) notFound()
