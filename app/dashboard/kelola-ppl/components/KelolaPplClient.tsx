@@ -68,7 +68,7 @@ export function KelolaPplClient({
                         <div className="flex flex-wrap gap-1.5">
                           {sub.kbm > 0 && <span className="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">{sub.kbm} KBM</span>}
                           {sub.piket > 0 && <span className="text-[10px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium">{sub.piket} Piket</span>}
-                          {sub.pu > 0 && <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded font-medium">{sub.pu} PU</span>}
+
                         </div>
                       </div>
                     ))}
@@ -245,7 +245,7 @@ function UtamaScheduleEditor({
   const [isLoading, setIsLoading] = useState(true)
   const [isPending, startTransition] = useTransition()
   
-  const [jadwal, setJadwal] = useState<JadwalGuruUtama>({ kbm: [], piket: [], pu: [] })
+  const [jadwal, setJadwal] = useState<JadwalGuruUtama>({ kbm: [], piket: [] })
   const [selKbm, setSelKbm] = useState<Set<string>>(new Set())
   const [selPiket, setSelPiket] = useState<Set<string>>(new Set())
 
@@ -300,7 +300,6 @@ function UtamaScheduleEditor({
     if (!confirm('Hapus Guru Utama ini dari tanggungan PPL ini? (Belum tersimpan ke server sebelum klik Simpan)')) return
     setSelKbm(new Set())
     setSelPiket(new Set())
-    setSelPu(new Set())
     onRemove() // Just remove from tab list visually, the real delete requires save or explicitly calling api.
     
     // Auto trigger save to clear DB
@@ -326,7 +325,7 @@ function UtamaScheduleEditor({
         <div>
           <h3 className="font-bold text-lg text-slate-800 dark:text-slate-200">Jadwal {guruUtamaNama}</h3>
           <p className="text-sm text-slate-500 mt-1">
-            <span className="font-semibold text-indigo-600 dark:text-indigo-400">{selCount}</span> Sesi Dipilih
+            <span className="font-semibold text-indigo-600 dark:text-indigo-400">{selKbm.size + selPiket.size}</span> Sesi Dipilih
           </p>
         </div>
         <div className="flex gap-2">
@@ -405,23 +404,6 @@ function UtamaScheduleEditor({
             )}
           </div>
 
-          {/* PU */}
-          <div className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/60">
-            <h4 className="text-sm font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-              Prog. Unggulan ({jadwal.pu.length})
-            </h4>
-            {jadwal.pu.length === 0 ? (
-              <p className="text-sm text-slate-400 italic">Tidak ada prg. unggulan.</p>
-            ) : (
-              <div className="space-y-2">
-                {jadwal.pu.map(pu => (
-                  <label key={pu.id} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-emerald-300 cursor-pointer shadow-sm">
-                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{pu.label}</p>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>
