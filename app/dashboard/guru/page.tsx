@@ -14,13 +14,12 @@ export const metadata = { title: 'Data Guru & Pegawai - MANSATAS App' }
 async function GuruDataFetcher() {
   const db = await getDB()
 
-  const [usersResult, jabatanResult, userRolesResult, masterRolesResult] = await Promise.all([
+  const [usersResult, userRolesResult, masterRolesResult] = await Promise.all([
     db.prepare(`
       SELECT u.id, u.email, u.name, u.role, u.nama_lengkap, u.avatar_url,
       FROM "user" u
       ORDER BY u.nama_lengkap ASC
     `).all<any>(),
-    db.prepare(`    `).all<any>(),
     db.prepare(`
       SELECT user_id, role FROM user_roles ORDER BY user_id
     `).all<{ user_id: string; role: string }>(),
@@ -49,7 +48,6 @@ async function GuruDataFetcher() {
   return (
     <GuruClient
       initialData={mergedData}
-      masterJabatan={jabatanResult.results || []}
       masterRoles={masterRolesResult.results || []}
     />
   )
@@ -66,7 +64,7 @@ export default async function GuruPage() {
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
-      <PageHeader title="Guru & Pegawai" description="Kelola data pendidik, hak akses, jabatan struktural, dan domisili." />
+      <PageHeader title="Guru & Pegawai" description="Kelola data pendidik, hak akses, dan role pengguna." />
       <Suspense fallback={
 <PageLoading text="Memuat data kepegawaian..." />
       }>

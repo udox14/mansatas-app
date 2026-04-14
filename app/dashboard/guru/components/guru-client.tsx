@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Search, UserPlus, Trash2, ShieldAlert, Loader2, Mail, FileSpreadsheet,
   Download, KeyRound, Pencil, AlertCircle, Users, CheckCircle2,
-  Building2, MapPin, PlusCircle, X, Shield, SlidersHorizontal, Check, Camera, LayoutGrid, List
+  PlusCircle, X, Shield, SlidersHorizontal, Check, Camera, LayoutGrid, List
 } from 'lucide-react'
 import {
   tambahPegawai, hapusPegawai, importPegawaiMassal,
@@ -27,10 +27,10 @@ import {
 import { MENU_ITEMS, getRoleLabel } from '@/config/menu'
 import { cn } from '@/lib/utils'
 
-type JabatanType = { id: string, nama: string, urutan: number }
 type MasterRoleType = { value: string; label: string; is_custom: number }
 type ProfilType = {
   id: string, nama_lengkap: string, role: string, roles: string[], email: string,
+  avatar_url?: string | null,
 }
 
 const compressImage = async (file: File): Promise<File> => {
@@ -82,7 +82,8 @@ const ROLE_COLORS: Record<string, string> = {
   guru_piket: 'bg-teal-100 text-teal-700 border-teal-200',
   wali_kelas: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   resepsionis: 'bg-pink-100 text-pink-700 border-pink-200',
-  guru_ppl: 'bg-lime-100 text-lime-700 border-lime-200'}
+  guru_ppl: 'bg-lime-100 text-lime-700 border-lime-200',
+}
 
 const initialState: any = { error: null, success: null }
 
@@ -107,13 +108,12 @@ const getAvatarColor = (name: string) => {
   return colors[(name.charCodeAt(0) || 0) % colors.length]
 }
 
-export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_ROLES }: {
-  initialData: ProfilType[], masterJabatan: JabatanType[], masterRoles?: MasterRoleType[]
+export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
+  initialData: ProfilType[], masterRoles?: MasterRoleType[]
 }) {
   const [isPending, setIsPending] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterRole, setFilterRole] = useState('ALL')
-  const [filterJabatan, setFilterJabatan] = useState('ALL')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(20)
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -121,15 +121,9 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
   const [state, formAction] = useActionState(tambahPegawai, initialState)
   const [isImporting, setIsImporting] = useState(false)
   const [importLogs, setImportLogs] = useState<string[]>([])
-  // Jabatan management
-  const [isJabatanOpen, setIsJabatanOpen] = useState(false)
-  const [newJabatan, setNewJabatan] = useState('')
-  const [editingJabatan, setEditingJabatan] = useState<JabatanType | null>(null)
-  const [editJabatanNama, setEditJabatanNama] = useState('')
-  const [activeTab, setActiveTab] = useState('pegawai')
   const [viewMode, setViewMode] = useState<'table' | 'gallery'>('table')
   const [uploadingId, setUploadingId] = useState<string | null>(null)
-  
+
   // Multi-role modal
   const [roleModalUser, setRoleModalUser] = useState<ProfilType | null>(null)
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
@@ -139,7 +133,7 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
   const [overrides, setOverrides] = useState<{ grants: string[]; revokes: string[] }>({ grants: [], revokes: [] })
   const [overrideLoading, setOverrideLoading] = useState(false)
 
-  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterRole, filterJabatan, itemsPerPage])
+  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterRole, itemsPerPage])
   useEffect(() => {
     if (state?.success) { const t = setTimeout(() => setIsAddOpen(false), 2000); return () => clearTimeout(t) }
   }, [state?.success])
@@ -147,10 +141,7 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
   const filteredData = initialData.filter(p => {
     const matchSearch = p.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) || p.email.toLowerCase().includes(searchTerm.toLowerCase())
     const matchRole = filterRole === 'ALL' || p.roles.includes(filterRole) || p.role === filterRole
-    const matchJabatan = filterJabatan === 'ALL'
-      ? true
-      : filterJabatan === 'NONE'
-    return matchSearch && matchRole && matchJabatan
+    return matchSearch && matchRole
   })
 
   const dynamicItemsPerPage = viewMode === 'gallery' ? 24 : itemsPerPage
@@ -218,9 +209,7 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
 
   const toggleRole = (role: string) => {
     setSelectedRoles(prev =>
-      prev.includes(role)
-        ? prev.filter(r => r !== role)
-        : [...prev, role]
+      prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
     )
   }
 
@@ -239,65 +228,18 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
 
   const handleToggleOverride = async (featureId: string) => {
     if (!overrideModalUser) return
-    // Cycle: none → grant → revoke → none
     const isGrant = overrides.grants.includes(featureId)
     const isRevoke = overrides.revokes.includes(featureId)
-
     let action: 'grant' | 'revoke' | 'remove'
     if (!isGrant && !isRevoke) action = 'grant'
     else if (isGrant) action = 'revoke'
     else action = 'remove'
-
     setOverrideLoading(true)
     const res = await setUserFeatureOverride(overrideModalUser.id, featureId, action)
     if (res?.error) alert(res.error)
-
-    // Refresh
     const result = await getUserFeatureOverridesAction(overrideModalUser.id)
     setOverrides(result)
     setOverrideLoading(false)
-  }
-
-  const handleAssignJabatan = async (userId: string, jabatanId: string) => {
-    setIsPending(true)
-    const val = jabatanId === 'NONE' ? null : jabatanId
-    const res = await,(userId, val)
-    if (res?.error) alert(res.error)
-    setIsPending(false)
-  }
-
-  const handleSetDomisili = async (userId: string, domisili: string) => {
-    setIsPending(true)
-    const val = domisili === 'NONE' ? null : domisili
-    const res = await,(userId, val)
-    if (res?.error) alert(res.error)
-    setIsPending(false)
-  }
-
-  const handleTambahJabatan = async () => {
-    if (!newJabatan.trim()) return
-    setIsPending(true)
-    const res = await,(newJabatan)
-    if (res?.error) alert(res.error)
-    else setNewJabatan('')
-    setIsPending(false)
-  }
-
-  const handleHapusJabatan = async (id: string, nama: string) => {
-    if (!confirm(`Hapus jabatan "${nama}"? Pegawai yang menjabat akan di-unset.`)) return
-    setIsPending(true)
-    const res = await,(id)
-    if (res?.error) alert(res.error)
-    setIsPending(false)
-  }
-
-  const handleEditJabatan = async () => {
-    if (!editingJabatan || !editJabatanNama.trim()) return
-    setIsPending(true)
-    const res = await,(editingJabatan.id, editJabatanNama)
-    if (res?.error) alert(res.error)
-    else setEditingJabatan(null)
-    setIsPending(false)
   }
 
   const handleDownloadTemplate = () => {
@@ -331,8 +273,6 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
     }
     reader.readAsBinaryString(file)
   }
-
-  // Count pegawai punya jabatan struktural
 
   // ─── Role Badges Component ──────────────
   const RoleBadges = ({ roles, primaryRole }: { roles: string[]; primaryRole: string }) => (
@@ -385,7 +325,7 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
           </DialogHeader>
           <div className="space-y-3 pt-1">
             <p className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 border border-surface">
-              Centang role yang berlaku. User bisa memiliki banyak role sekaligus. Role dengan ★ adalah role utama yang ditampilkan di profil.
+              Centang role yang berlaku. User bisa memiliki banyak role sekaligus. Role dengan ★ adalah role utama.
             </p>
             <div className="space-y-1.5">
               {masterRoles.map((r: MasterRoleType) => {
@@ -396,31 +336,20 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
                     'flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all',
                     isSelected ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-surface border-surface hover:bg-surface-2'
                   )}>
-                    <button
-                      type="button"
-                      onClick={() => toggleRole(r.value)}
-                      className={cn(
-                        'h-4 w-4 rounded shrink-0 flex items-center justify-center transition-colors',
-                        isSelected ? 'bg-emerald-500 text-white' : 'border-2 border-slate-300 dark:border-slate-600'
-                      )}
-                    >
+                    <button type="button" onClick={() => toggleRole(r.value)} className={cn(
+                      'h-4 w-4 rounded shrink-0 flex items-center justify-center transition-colors',
+                      isSelected ? 'bg-emerald-500 text-white' : 'border-2 border-slate-300 dark:border-slate-600'
+                    )}>
                       {isSelected && <Check className="h-2.5 w-2.5" />}
                     </button>
                     <span className={cn('text-xs font-medium flex-1', isSelected ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400')}>
                       {r.label}
                     </span>
                     {isSelected && (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPrimary(r.value)}
-                        className={cn(
-                          'text-[9px] font-bold px-1.5 py-0.5 rounded transition-colors',
-                          isPrimary
-                            ? 'bg-amber-100 text-amber-700 border border-amber-300'
-                            : 'bg-slate-100 dark:bg-slate-700 text-slate-400 hover:bg-amber-50 hover:text-amber-600'
-                        )}
-                        title="Set sebagai role utama"
-                      >
+                      <button type="button" onClick={() => setSelectedPrimary(r.value)} className={cn(
+                        'text-[9px] font-bold px-1.5 py-0.5 rounded transition-colors',
+                        isPrimary ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 hover:bg-amber-50 hover:text-amber-600'
+                      )} title="Set sebagai role utama">
                         {isPrimary ? '★ Utama' : 'Set utama'}
                       </button>
                     )}
@@ -428,11 +357,7 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
                 )
               })}
             </div>
-            <Button
-              onClick={handleSaveRoles}
-              disabled={isPending || selectedRoles.length === 0}
-              className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
-            >
+            <Button onClick={handleSaveRoles} disabled={isPending || selectedRoles.length === 0} className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : `Simpan ${selectedRoles.length} Role`}
             </Button>
           </div>
@@ -449,7 +374,7 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
           </DialogHeader>
           <div className="space-y-2 pt-1">
             <p className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 border border-surface">
-              Klik berulang untuk mengubah status: <span className="font-semibold text-emerald-600">✓ Grant</span> (tambah akses) → <span className="font-semibold text-rose-600">✗ Revoke</span> (cabut akses) → <span className="text-slate-400">Normal</span> (ikut role).
+              Klik berulang untuk mengubah status: <span className="font-semibold text-emerald-600">✓ Grant</span> → <span className="font-semibold text-rose-600">✗ Revoke</span> → <span className="text-slate-400">Normal</span>.
             </p>
             <ScrollArea className="h-[50vh]">
               <div className="space-y-1 pr-3">
@@ -462,47 +387,21 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
                   const isGrant = overrides.grants.includes(feature.id)
                   const isRevoke = overrides.revokes.includes(feature.id)
                   return (
-                    <button
-                      key={feature.id}
-                      onClick={() => handleToggleOverride(feature.id)}
-                      disabled={overrideLoading}
-                      className={cn(
-                        'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all text-left',
-                        isGrant ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800'
-                          : isRevoke ? 'bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:border-rose-800'
-                            : 'bg-surface border-surface hover:bg-surface-2'
-                      )}
-                    >
-                      <div className={cn(
-                        'p-1 rounded shrink-0',
-                        isGrant ? 'bg-emerald-100' : isRevoke ? 'bg-rose-100' : 'bg-slate-100 dark:bg-slate-800'
-                      )}>
-                        <Icon className={cn(
-                          'h-3 w-3',
-                          isGrant ? 'text-emerald-600' : isRevoke ? 'text-rose-500' : 'text-slate-400'
-                        )} />
+                    <button key={feature.id} onClick={() => handleToggleOverride(feature.id)} disabled={overrideLoading} className={cn(
+                      'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all text-left',
+                      isGrant ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800'
+                        : isRevoke ? 'bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:border-rose-800'
+                          : 'bg-surface border-surface hover:bg-surface-2'
+                    )}>
+                      <div className={cn('p-1 rounded shrink-0', isGrant ? 'bg-emerald-100' : isRevoke ? 'bg-rose-100' : 'bg-slate-100 dark:bg-slate-800')}>
+                        <Icon className={cn('h-3 w-3', isGrant ? 'text-emerald-600' : isRevoke ? 'text-rose-500' : 'text-slate-400')} />
                       </div>
-                      <span className={cn(
-                        'text-xs font-medium flex-1 truncate',
-                        isGrant ? 'text-emerald-700' : isRevoke ? 'text-rose-600 line-through' : 'text-slate-600 dark:text-slate-300'
-                      )}>
+                      <span className={cn('text-xs font-medium flex-1 truncate', isGrant ? 'text-emerald-700' : isRevoke ? 'text-rose-600 line-through' : 'text-slate-600 dark:text-slate-300')}>
                         {feature.title}
                       </span>
-                      {isGrant && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">
-                          + Grant
-                        </span>
-                      )}
-                      {isRevoke && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 border border-rose-200">
-                          − Revoke
-                        </span>
-                      )}
-                      {!isGrant && !isRevoke && (
-                        <span className="text-[9px] text-slate-400 px-1.5 py-0.5">
-                          Normal
-                        </span>
-                      )}
+                      {isGrant && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">+ Grant</span>}
+                      {isRevoke && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 border border-rose-200">− Revoke</span>}
+                      {!isGrant && !isRevoke && <span className="text-[9px] text-slate-400 px-1.5 py-0.5">Normal</span>}
                     </button>
                   )
                 })}
@@ -512,285 +411,146 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
         </DialogContent>
       </Dialog>
 
-      {/* MODAL KELOLA JABATAN STRUKTURAL */}
-      <Dialog open={isJabatanOpen} onOpenChange={setIsJabatanOpen}>
-        <DialogContent className="sm:max-w-md rounded-xl">
-          <DialogHeader className="border-b pb-3">
-            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-violet-500" /> Kelola Master Jabatan Struktural
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 pt-1">
-            <div className="flex gap-2">
-              <Input
-                placeholder="Nama jabatan baru..."
-                value={newJabatan}
-                onChange={e => setNewJabatan(e.target.value)}
-                className="h-8 text-sm rounded-md flex-1"
-                onKeyDown={e => e.key === 'Enter' && handleTambahJabatan()}
-              />
-              <Button size="sm" onClick={handleTambahJabatan} disabled={isPending || !newJabatan.trim()} className="h-8 text-xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white">
-                <PlusCircle className="h-3.5 w-3.5 mr-1" /> Tambah
-              </Button>
-            </div>
-            <div className="space-y-1.5">
-              {masterJabatan.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-4">Belum ada jabatan struktural.</p>
-              ) : masterJabatan.map(j => (
-                <div key={j.id} className="flex items-center gap-2 bg-surface-2 border border-surface rounded-lg px-3 py-2">
-                  {editingJabatan?.id === j.id ? (
-                    <>
-                      <Input
-                        value={editJabatanNama}
-                        onChange={e => setEditJabatanNama(e.target.value)}
-                        className="h-7 text-xs flex-1 rounded-md"
-                        onKeyDown={e => e.key === 'Enter' && handleEditJabatan()}
-                      />
-                      <Button size="sm" onClick={handleEditJabatan} disabled={isPending} className="h-7 text-xs px-2 bg-emerald-600 text-white rounded-md">OK</Button>
-                      <button onClick={() => setEditingJabatan(null)} className="p-1 text-slate-400 hover:text-slate-600"><X className="h-3.5 w-3.5" /></button>
-                    </>
-                  ) : (
-                    <>
-                      <Building2 className="h-3.5 w-3.5 text-violet-500 shrink-0" />
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200 flex-1">{j.nama}</span>
-                      <span className="text-[10px] text-slate-400 bg-surface px-1.5 py-0.5 rounded border border-surface">
-                      </span>
-                      <button onClick={() => { setEditingJabatan(j); setEditJabatanNama(j.nama) }} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" title="Edit">
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                      <button onClick={() => handleHapusJabatan(j.id, j.nama)} className="p-1 text-rose-500 hover:bg-rose-50 rounded" title="Hapus">
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </>
+      <div className="space-y-3">
+        {/* TOOLBAR */}
+        <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
+          <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+            <Input placeholder="Cari nama atau email..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }} />
+          </div>
+
+          {/* View toggle */}
+          <div className="flex bg-surface-2 border border-surface p-0.5 rounded-lg shrink-0">
+            <button onClick={() => { setViewMode('table'); setCurrentPage(1) }} className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${viewMode === 'table' ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+              <List className="h-3.5 w-3.5" /><span className="hidden sm:inline">Tabel</span>
+            </button>
+            <button onClick={() => { setViewMode('gallery'); setCurrentPage(1) }} className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${viewMode === 'gallery' ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+              <LayoutGrid className="h-3.5 w-3.5" /><span className="hidden sm:inline">Foto</span>
+            </button>
+          </div>
+
+          <Select value={filterRole} onValueChange={val => { setFilterRole(val); setCurrentPage(1) }}>
+            <SelectTrigger className="h-8 w-36 sm:w-40 text-xs rounded-md shrink-0"><SelectValue placeholder="Semua Role" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Semua Role</SelectItem>
+              {masterRoles.map((r: MasterRoleType) => <SelectItem key={r.value} value={r.value}>{r.label}{r.is_custom ? ' ★' : ''}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <div className="flex gap-2 ml-auto">
+            {/* Import Dialog */}
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-xs rounded-md">
+                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Import
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg rounded-xl">
+                <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Import Akun Pegawai Massal</DialogTitle></DialogHeader>
+                <div className="space-y-3 pt-2">
+                  <div className="flex justify-between items-center p-2.5 bg-surface-2 border border-surface rounded-lg">
+                    <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">Download format template:</p>
+                    <Button size="sm" variant="outline" onClick={handleDownloadTemplate} className="h-7 text-xs gap-1"><Download className="h-3 w-3" />Template</Button>
+                  </div>
+                  <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg text-xs text-emerald-800 space-y-1">
+                    <p className="flex items-center gap-1.5 font-medium"><KeyRound className="h-3.5 w-3.5 text-emerald-600" />Password otomatis: <strong className="font-mono bg-surface px-1.5 py-0.5 rounded border border-emerald-200">mansatas2026</strong></p>
+                    <p>Kolom: <strong>NAMA_LENGKAP</strong>, <strong>EMAIL</strong>, <strong>JABATAN</strong></p>
+                  </div>
+                  <Input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} disabled={isImporting} className="h-9 text-xs rounded-lg cursor-pointer" />
+                  {isImporting && <div className="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 p-2.5 rounded-lg animate-pulse"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Sedang membuat akun...</div>}
+                  {importLogs.length > 0 && (
+                    <div className="border border-rose-200 rounded-lg overflow-hidden">
+                      <div className="bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5" />Log Gagal:</div>
+                      <ScrollArea className="h-28 bg-surface p-3 text-xs font-mono text-rose-600">
+                        {importLogs.map((log, i) => <div key={i} className="mb-0.5">{log}</div>)}
+                      </ScrollArea>
+                    </div>
                   )}
                 </div>
-              ))}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+              </DialogContent>
+            </Dialog>
 
-      <div className="space-y-3">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-surface border border-surface">
-            <TabsTrigger value="pegawai" className="text-xs gap-1.5 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700">
-              <Users className="h-3.5 w-3.5" /> Semua Pegawai ({initialData.length})
-            </TabsTrigger>
-            <TabsTrigger value="struktural" className="text-xs gap-1.5 data-[state=active]:bg-violet-50 data-[state=active]:text-violet-700">
-              <Building2 className="h-3.5 w-3.5" /> Pejabat Struktural ({pegawaiStruktural.length})
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="struktural" className="mt-3 space-y-3">
-            <div className="flex items-center justify-between bg-surface border border-surface rounded-lg p-3">
-              <Button size="sm" variant="outline" onClick={() => setIsJabatanOpen(true)} className="h-7 text-xs gap-1 rounded-md">
-                <Building2 className="h-3 w-3" /> Kelola Jabatan
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {pegawaiStruktural.length === 0 ? (
-                <div className="col-span-full bg-surface py-10 rounded-lg border border-surface text-center">
-                  <Building2 className="h-7 w-7 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400">Belum ada pegawai dengan jabatan struktural.</p>
-                  <p className="text-xs text-slate-400 mt-1">Assign jabatan di tab &quot;Semua Pegawai&quot;.</p>
-                </div>
-              ) : pegawaiStruktural.map(p => (
-                <div key={p.id} className="bg-surface border border-surface rounded-lg p-3">
-                  <div className="flex items-center gap-2.5 mb-2">
-                    <div className={cn("h-9 w-9 rounded-full shrink-0 flex items-center justify-center text-sm font-bold overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700", getAvatarColor(p.nama_lengkap))}>
-                      {p.avatar_url ? (
-                        <img src={p.avatar_url} alt={p.nama_lengkap} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br flex items-center justify-center text-white/90">
-                          {p.nama_lengkap.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">{p.nama_lengkap}</p>
-                      <p className="text-[10px] text-slate-400 truncate">{p.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700 border border-violet-200">
-                    </span>
-                    <RoleBadges roles={p.roles} primaryRole={p.role} />
-                      <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border",
-                      )}>
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="pegawai" className="mt-3 space-y-3">
-            {/* TOOLBAR */}
-            <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
-              <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                <Input placeholder="Cari nama atau email..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }} />
-              </div>
-              
-              {/* View toggle pill */}
-              <div className="flex bg-surface-2 border border-surface p-0.5 rounded-lg shrink-0">
-                <button
-                  onClick={() => { setViewMode('table'); setCurrentPage(1) }}
-                  className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
-                    viewMode === 'table'
-                      ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm'
-                      : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 dark:text-slate-600'
-                  }`}
-                >
-                  <List className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Tabel</span>
-                </button>
-                <button
-                  onClick={() => { setViewMode('gallery'); setCurrentPage(1) }}
-                  className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
-                    viewMode === 'gallery'
-                      ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm'
-                      : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 dark:text-slate-600'
-                  }`}
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Foto</span>
-                </button>
-              </div>
-
-              <Select value={filterRole} onValueChange={val => { setFilterRole(val); setCurrentPage(1) }}>
-                <SelectTrigger className="h-8 w-36 sm:w-40 text-xs rounded-md shrink-0"><SelectValue placeholder="Semua Role" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Semua Role</SelectItem>
-                  {masterRoles.map((r: MasterRoleType) => <SelectItem key={r.value} value={r.value}>{r.label}{r.is_custom ? ' ★' : ''}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={filterJabatan} onValueChange={val => { setFilterJabatan(val); setCurrentPage(1) }}>
-                <SelectTrigger className="h-8 w-36 sm:w-44 text-xs rounded-md shrink-0"><SelectValue placeholder="Semua Jabatan" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Semua Jabatan</SelectItem>
-                  <SelectItem value="NONE">Tanpa Jabatan Struktural</SelectItem>
-                  {masterJabatan.map(j => <SelectItem key={j.id} value={j.id}>{j.nama}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2 ml-auto">
-                <Button variant="outline" size="sm" onClick={() => setIsJabatanOpen(true)} className="h-8 text-xs rounded-md gap-1">
-                  <Building2 className="h-3.5 w-3.5" /> Jabatan
+            {/* Tambah Manual */}
+            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="h-8 text-xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <UserPlus className="h-3.5 w-3.5 mr-1" /> Tambah
                 </Button>
-                {/* Import Dialog */}
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 text-xs rounded-md">
-                      <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Import
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-lg rounded-xl">
-                    <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Import Akun Pegawai Massal</DialogTitle></DialogHeader>
-                    <div className="space-y-3 pt-2">
-                      <div className="flex justify-between items-center p-2.5 bg-surface-2 border border-surface rounded-lg">
-                        <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">Download format template:</p>
-                        <Button size="sm" variant="outline" onClick={handleDownloadTemplate} className="h-7 text-xs gap-1"><Download className="h-3 w-3" />Template</Button>
-                      </div>
-                      <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg text-xs text-emerald-800 space-y-1">
-                        <p className="flex items-center gap-1.5 font-medium"><KeyRound className="h-3.5 w-3.5 text-emerald-600" />Password otomatis: <strong className="font-mono bg-surface px-1.5 py-0.5 rounded border border-emerald-200">mansatas2026</strong></p>
-                        <p>Kolom: <strong>NAMA_LENGKAP</strong>, <strong>EMAIL</strong>, <strong>JABATAN</strong></p>
-                      </div>
-                      <Input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} disabled={isImporting} className="h-9 text-xs rounded-lg cursor-pointer" />
-                      {isImporting && <div className="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 p-2.5 rounded-lg animate-pulse"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Sedang membuat akun...</div>}
-                      {importLogs.length > 0 && (
-                        <div className="border border-rose-200 rounded-lg overflow-hidden">
-                          <div className="bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5" />Log Gagal:</div>
-                          <ScrollArea className="h-28 bg-surface p-3 text-xs font-mono text-rose-600">
-                            {importLogs.map((log, i) => <div key={i} className="mb-0.5">{log}</div>)}
-                          </ScrollArea>
-                        </div>
-                      )}
-                    </div>
-                  </DialogContent>
-                </Dialog>
-
-                {/* Tambah Manual */}
-                <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" className="h-8 text-xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white">
-                      <UserPlus className="h-3.5 w-3.5 mr-1" /> Tambah
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-md rounded-xl">
-                    <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Buat Akun Pegawai Baru</DialogTitle></DialogHeader>
-                    <form action={formAction} className="space-y-3 pt-2">
-                      {state?.error && <div className="p-2.5 text-xs text-rose-600 bg-rose-50 rounded-lg border border-rose-200 flex gap-1.5"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{state.error}</div>}
-                      {state?.success && <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200 flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{state.success}</div>}
-                      <div className="bg-emerald-50 border border-emerald-100 p-2.5 rounded-lg flex gap-2 text-xs text-emerald-800">
-                        <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-emerald-600 mt-0.5" />
-                        Password default: <strong className="font-mono bg-surface px-1 py-0.5 rounded border border-emerald-200">mansatas2026</strong>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Nama Lengkap <span className="text-rose-500">*</span></Label>
-                        <Input name="nama_lengkap" required className="h-9 text-sm rounded-lg" placeholder="Contoh: Budi Santoso, S.Pd" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Email Resmi <span className="text-rose-500">*</span></Label>
-                        <div className="relative">
-                          <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                          <Input name="email" type="email" required className="pl-8 h-9 text-sm rounded-lg" placeholder="guru@man1tasikmalaya.sch.id" />
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Jabatan <span className="text-rose-500">*</span></Label>
-                        <Select name="role" defaultValue="guru">
-                          <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
-                          <SelectContent>{masterRoles.map((r: MasterRoleType) => <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>)}</SelectContent>
-                        </Select>
-                      </div>
-                      <SubmitButton />
-                    </form>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </div>
-
-            {viewMode === 'gallery' ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-                {paginatedData.length === 0 ? (
-                  <div className="col-span-full py-12 text-center text-sm text-slate-400 dark:text-slate-500 bg-surface rounded-lg border border-surface">
-                    Tidak ada pegawai ditemukan.
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md rounded-xl">
+                <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Buat Akun Pegawai Baru</DialogTitle></DialogHeader>
+                <form action={formAction} className="space-y-3 pt-2">
+                  {state?.error && <div className="p-2.5 text-xs text-rose-600 bg-rose-50 rounded-lg border border-rose-200 flex gap-1.5"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{state.error}</div>}
+                  {state?.success && <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200 flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{state.success}</div>}
+                  <div className="bg-emerald-50 border border-emerald-100 p-2.5 rounded-lg flex gap-2 text-xs text-emerald-800">
+                    <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-emerald-600 mt-0.5" />
+                    Password default: <strong className="font-mono bg-surface px-1 py-0.5 rounded border border-emerald-200">mansatas2026</strong>
                   </div>
-                ) : paginatedData.map(p => (
-                  <div key={p.id} className="bg-surface rounded-lg border border-surface overflow-hidden group flex flex-col">
-                    <div className="relative aspect-[3/4] bg-surface-3">
-                      {uploadingId === p.id ? (
-                        <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-10">
-                          <Loader2 className="h-5 w-5 text-emerald-600 animate-spin" />
-                        </div>
-                      ) : p.avatar_url ? (
-                        <img src={p.avatar_url} alt={p.nama_lengkap} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className={cn("w-full h-full bg-gradient-to-br flex items-center justify-center text-3xl font-black text-white/60", getAvatarColor(p.nama_lengkap))}>
-                          {p.nama_lengkap.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <label className="absolute bottom-1 right-1 bg-white/90 text-slate-700 dark:text-slate-200 p-1 rounded shadow cursor-pointer z-10 hover:bg-surface transition-colors">
-                        <Camera className="w-3 h-3" />
-                        <input type="file" className="hidden" accept="image/*" capture="environment" onChange={e => handleUploadFoto(p.id, e)} />
-                      </label>
-                    </div>
-                    <div className="p-1.5 text-center flex-1">
-                      <p className="text-[10px] font-semibold text-slate-800 dark:text-slate-100 leading-tight line-clamp-2">{p.nama_lengkap}</p>
-                      <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">{getRoleLabel(p.role)}</p>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Nama Lengkap <span className="text-rose-500">*</span></Label>
+                    <Input name="nama_lengkap" required className="h-9 text-sm rounded-lg" placeholder="Contoh: Budi Santoso, S.Pd" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Email Resmi <span className="text-rose-500">*</span></Label>
+                    <div className="relative">
+                      <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                      <Input name="email" type="email" required className="pl-8 h-9 text-sm rounded-lg" placeholder="guru@man1tasikmalaya.sch.id" />
                     </div>
                   </div>
-                ))}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Jabatan <span className="text-rose-500">*</span></Label>
+                    <Select name="role" defaultValue="guru">
+                      <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
+                      <SelectContent>{masterRoles.map((r: MasterRoleType) => <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <SubmitButton />
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        {viewMode === 'gallery' ? (
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+            {paginatedData.length === 0 ? (
+              <div className="col-span-full py-12 text-center text-sm text-slate-400 bg-surface rounded-lg border border-surface">
+                Tidak ada pegawai ditemukan.
               </div>
-            ) : (
-              <>
-                {/* MOBILE CARDS */}
-                <div className="block md:hidden space-y-2">
+            ) : paginatedData.map(p => (
+              <div key={p.id} className="bg-surface rounded-lg border border-surface overflow-hidden group flex flex-col">
+                <div className="relative aspect-[3/4] bg-surface-3">
+                  {uploadingId === p.id ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-10">
+                      <Loader2 className="h-5 w-5 text-emerald-600 animate-spin" />
+                    </div>
+                  ) : p.avatar_url ? (
+                    <img src={p.avatar_url} alt={p.nama_lengkap} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className={cn("w-full h-full bg-gradient-to-br flex items-center justify-center text-3xl font-black text-white/60", getAvatarColor(p.nama_lengkap))}>
+                      {p.nama_lengkap.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <label className="absolute bottom-1 right-1 bg-white/90 text-slate-700 p-1 rounded shadow cursor-pointer z-10 hover:bg-surface transition-colors">
+                    <Camera className="w-3 h-3" />
+                    <input type="file" className="hidden" accept="image/*" capture="environment" onChange={e => handleUploadFoto(p.id, e)} />
+                  </label>
+                </div>
+                <div className="p-1.5 text-center flex-1">
+                  <p className="text-[10px] font-semibold text-slate-800 dark:text-slate-100 leading-tight line-clamp-2">{p.nama_lengkap}</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5">{getRoleLabel(p.role)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <>
+            {/* MOBILE CARDS */}
+            <div className="block md:hidden space-y-2">
               {paginatedData.length === 0 ? (
                 <div className="bg-surface py-10 rounded-lg border border-surface text-center">
                   <Users className="h-7 w-7 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                  <p className="text-sm text-slate-400 dark:text-slate-500">Tidak ada data pegawai.</p>
+                  <p className="text-sm text-slate-400">Tidak ada data pegawai.</p>
                 </div>
               ) : paginatedData.map(p => (
                 <div key={p.id} className="bg-surface border border-surface rounded-lg p-3">
@@ -806,28 +566,11 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">{p.nama_lengkap}</p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
+                      <p className="text-[10px] text-slate-400 truncate flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
                     </div>
                   </div>
-                  {/* Role badges */}
                   <div className="mb-2">
                     <RoleBadges roles={p.roles} primaryRole={p.role} />
-                  </div>
-                  {/* Jabatan + Domisili */}
-                  <div className="grid grid-cols-2 gap-2 mb-2">
-                      <SelectTrigger className="h-7 text-[10px] rounded border-surface bg-surface-2"><SelectValue placeholder="Jabatan Struktural" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="NONE" className="text-xs">— Tidak ada —</SelectItem>
-                        {masterJabatan.map(j => <SelectItem key={j.id} value={j.id} className="text-xs">{j.nama}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                      <SelectTrigger className="h-7 text-[10px] rounded border-surface bg-surface-2"><SelectValue placeholder="Domisili" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="NONE" className="text-xs">— Belum diset —</SelectItem>
-                        <SelectItem value="dalam" className="text-xs">Dalam</SelectItem>
-                        <SelectItem value="luar" className="text-xs">Luar</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
                   <div className="flex gap-1.5 justify-end">
                     <button onClick={() => openRoleModal(p)} disabled={isPending} className="p-1.5 rounded text-violet-600 hover:bg-violet-50" title="Atur Role">
@@ -857,16 +600,14 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
                   <TableRow className="bg-surface-2 hover:bg-surface-2">
                     <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">Profil Pegawai</TableHead>
                     <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 w-52">Role</TableHead>
-                    <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 w-40">Jabatan Struktural</TableHead>
-                    <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 w-24">Domisili</TableHead>
                     <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 text-right px-4 w-36">Kelola</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedData.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center">
-                        <div className="flex flex-col items-center gap-2 text-slate-400 dark:text-slate-500">
+                      <TableCell colSpan={3} className="h-24 text-center">
+                        <div className="flex flex-col items-center gap-2 text-slate-400">
                           <Users className="h-7 w-7 text-slate-300 dark:text-slate-600" />
                           <p className="text-sm">Tidak ada data pegawai.</p>
                         </div>
@@ -887,7 +628,7 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 group-hover:text-emerald-700 transition-colors leading-tight">{p.nama_lengkap}</p>
-                            <p className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
+                            <p className="text-[11px] text-slate-400 flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
                           </div>
                         </div>
                       </TableCell>
@@ -900,15 +641,6 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
                             <Pencil className="h-3 w-3" />
                           </button>
                         </div>
-                      </TableCell>
-                      <TableCell className="py-2.5">
-                          <SelectTrigger className={cn("h-7 w-36 text-xs rounded border-surface font-medium",
-                          )}><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="NONE" className="text-xs">— Tidak ada —</SelectItem>
-                            {masterJabatan.map(j => <SelectItem key={j.id} value={j.id} className="text-xs">{j.nama}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
                       </TableCell>
                       <TableCell className="py-2.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -933,14 +665,12 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
 
               {/* PAGINATION */}
               <div className="flex items-center justify-between px-4 py-2 border-t border-surface-2 bg-slate-50/50">
-                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <div className="flex items-center gap-2 text-xs text-slate-500">
                   <span className="hidden sm:inline">Tampilkan</span>
-                  {viewMode === 'table' && (
-                    <Select value={itemsPerPage.toString()} onValueChange={v => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
-                      <SelectTrigger className="h-7 w-16 text-xs rounded border-surface"><SelectValue /></SelectTrigger>
-                      <SelectContent>{[10, 20, 50].map(n => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}</SelectContent>
-                    </Select>
-                  )}
+                  <Select value={itemsPerPage.toString()} onValueChange={v => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
+                    <SelectTrigger className="h-7 w-16 text-xs rounded border-surface"><SelectValue /></SelectTrigger>
+                    <SelectContent>{[10, 20, 50].map(n => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}</SelectContent>
+                  </Select>
                   <span><strong className="text-slate-700 dark:text-slate-200">{filteredData.length}</strong> pegawai</span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -950,20 +680,18 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
                 </div>
               </div>
             </div>
-            </>
-          )}
+          </>
+        )}
 
-          {/* Mobile pagination */}
-            <div className="flex items-center justify-between md:hidden bg-surface border border-surface rounded-lg px-3 py-2">
-              <span className="text-xs text-slate-500 dark:text-slate-400"><strong>{filteredData.length}</strong> pegawai</span>
-              <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 px-2.5 text-xs rounded">&#8592;</Button>
-                <span className="text-xs font-medium px-2">{currentPage}/{totalPages || 1}</span>
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="h-7 px-2.5 text-xs rounded">&#8594;</Button>
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+        {/* Mobile pagination */}
+        <div className="flex items-center justify-between md:hidden bg-surface border border-surface rounded-lg px-3 py-2">
+          <span className="text-xs text-slate-500"><strong>{filteredData.length}</strong> pegawai</span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 px-2.5 text-xs rounded">&#8592;</Button>
+            <span className="text-xs font-medium px-2">{currentPage}/{totalPages || 1}</span>
+            <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="h-7 px-2.5 text-xs rounded">&#8594;</Button>
+          </div>
+        </div>
       </div>
     </>
   )

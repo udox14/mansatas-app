@@ -44,14 +44,12 @@ export type PplSummaryItem = {
   guruUtamaNama: string
   kbm: number
   piket: number
-  pu: number
 }
 
 export type PplWithSummary = GuruInfo & {
   substitutions: PplSummaryItem[]
   totalKbm: number
   totalPiket: number
-  totalPu: number
 }
 
 // ============================================================
@@ -79,7 +77,7 @@ export async function getDaftarGuruPPLWithSummary(): Promise<PplWithSummary[]> {
       m.guru_utama_id,
       u.nama_lengkap as guru_utama_nama,
       SUM(CASE WHEN m.jadwal_mengajar_id IS NOT NULL THEN 1 ELSE 0 END) as kbm,
-      SUM(CASE WHEN m.jadwal_piket_id IS NOT NULL THEN 1 ELSE 0 END) as piket,
+      SUM(CASE WHEN m.jadwal_piket_id IS NOT NULL THEN 1 ELSE 0 END) as piket
     FROM guru_ppl_mapping m
     JOIN "user" u ON u.id = m.guru_utama_id
     GROUP BY m.guru_ppl_id, m.guru_utama_id
@@ -96,7 +94,6 @@ export async function getDaftarGuruPPLWithSummary(): Promise<PplWithSummary[]> {
         guruUtamaNama: s.guru_utama_nama,
         kbm: Number(s.kbm),
         piket: Number(s.piket),
-        pu: Number(s.pu),
       }))
 
     return {
@@ -104,7 +101,6 @@ export async function getDaftarGuruPPLWithSummary(): Promise<PplWithSummary[]> {
       substitutions: subs,
       totalKbm: subs.reduce((a, b) => a + b.kbm, 0),
       totalPiket: subs.reduce((a, b) => a + b.piket, 0),
-      totalPu: subs.reduce((a, b) => a + b.pu, 0),
     }
   })
 }
@@ -134,7 +130,7 @@ export async function getDaftarGuruUtama(): Promise<GuruInfo[]> {
 export async function getJadwalGuruUtama(guruUtamaId: string): Promise<JadwalGuruUtama> {
   const db = await getDB()
   const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
-  if (!ta) return { kbm: [], piket: [], pu: [] }
+  if (!ta) return { kbm: [], piket: [] }
 
   // Jadwal KBM (jadwal_mengajar)
   const kbmRes = await db.prepare(`
@@ -170,9 +166,8 @@ export async function getJadwalGuruUtama(guruUtamaId: string): Promise<JadwalGur
     shift_nama: r.nama_shift
   }))
 
-  const pu: any[] = []
 
-  return { kbm, piket, pu }
+  return { kbm, piket }
 }
 
 // ============================================================
@@ -181,7 +176,7 @@ export async function getJadwalGuruUtama(guruUtamaId: string): Promise<JadwalGur
 export async function getMappingPPL(guruPplId: string, guruUtamaId: string): Promise<MappingPPL[]> {
   const db = await getDB()
   const { results } = await db.prepare(`
-    SELECT jadwal_mengajar_id, jadwal_piket_idFROM guru_ppl_mapping
+    SELECT jadwal_mengajar_id, jadwal_piket_id FROM guru_ppl_mapping
     WHERE guru_ppl_id = ? AND guru_utama_id = ?
   `).bind(guruPplId, guruUtamaId).all<any>()
   
@@ -214,12 +209,11 @@ export async function simpanMappingPPL(
     const stmts = data.map(m => 
       db.prepare(`
         INSERT INTO guru_ppl_mapping (id, guru_ppl_id, guru_utama_id, jadwal_mengajar_id, jadwal_piket_id)
-        VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?)
+        VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?)
       `).bind(
         guruPplId, guruUtamaId, 
         m.jadwal_mengajar_id || null, 
-        m.jadwal_piket_id || null, 
-        m.|| null
+        m.jadwal_piket_id || null
       )
     )
 
