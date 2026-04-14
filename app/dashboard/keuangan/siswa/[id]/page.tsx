@@ -19,9 +19,10 @@ export default async function BukuBesarPage({ params }: { params: { id: string }
     || await checkFeatureAccess(db, session.user.id, 'keuangan-koperasi')
   if (!allowed) redirect('/dashboard')
 
-  const [data, { data: masterItem }] = await Promise.all([
+  const [data, { data: masterItem }, tahunAjaran] = await Promise.all([
     getBukuBesarSiswa(params.id),
     getMasterItemKoperasi(),
+    db.prepare("SELECT id FROM tahun_ajaran WHERE is_aktif = 1 LIMIT 1").first<{ id: string }>(),
   ])
 
   if (!data.siswa) notFound()
@@ -37,7 +38,7 @@ export default async function BukuBesarPage({ params }: { params: { id: string }
         title={data.siswa.nama_lengkap}
         description={`NISN: ${data.siswa.nisn ?? '-'} · ${data.siswa.tingkat ? `Kelas ${data.siswa.tingkat}-${data.siswa.nomor_kelas}${data.siswa.kelompok ?? ''}` : '-'} · Angkatan ${data.siswa.tahun_masuk ?? '-'}`}
       />
-      <BukuBesarClient data={data} masterItem={masterItem} />
+      <BukuBesarClient data={data} masterItem={masterItem} tahunAjaranId={tahunAjaran?.id} />
     </div>
   )
 }

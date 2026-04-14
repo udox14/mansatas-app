@@ -24,13 +24,23 @@ export default async function KoperasiPage() {
     getMasterItemKoperasi(),
   ])
 
+  // Ambil tahun ajaran aktif untuk generate tagihan bulk
+  const tahunAjaran = await db.prepare(
+    "SELECT id FROM tahun_ajaran WHERE is_aktif = 1 LIMIT 1"
+  ).first<{ id: string }>()
+
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
       <PageHeader
         title="Koperasi"
         description="Tagihan seragam, buku, dan perlengkapan siswa baru"
       />
-      <KoperasiClient initialTagihan={tagihan} masterItem={masterItem} isBendahara={isBendahara} />
+      <KoperasiClient
+        initialTagihan={tagihan}
+        masterItem={masterItem}
+        isBendahara={isBendahara}
+        tahunAjaranId={tahunAjaran?.id}
+      />
     </div>
   )
 }

@@ -208,6 +208,86 @@ export async function getKoperasiTagihanDetail(tagihanId: string) {
   return { data: items.results ?? [], error: null }
 }
 
+export async function createKoperasiTagihan(siswaId: string, tahunAjaranId: string, items: Array<{ masterItemId?: string; namaItem: string; nominal: number }>) {
+  const { db } = await requireAuth('keuangan-koperasi')
+
+  const existing = await db.prepare(
+    'SELECT id FROM fin_koperasi_tagihan WHERE siswa_id = ? AND tahun_ajaran_id = ?'
+  ).bind(siswaId, tahunAjaranId).first()
+  if (existing) return { error: 'Tagihan koperasi sudah ada untuk siswa ini di tahun ajaran ini', success: null }
+
+  if (!items.length) return { error: 'Minimal 1 item diperlukan', success: null }
+
+  const totalNominal = items.reduce((s, i) => s + i.nominal, 0)
+  const tagihanId = generateId()
+
+  const stmts: D1PreparedStatement[] = [
+    db.prepare(`
+      INSERT INTO fin_koperasi_tagihan (id, siswa_id, tahun_ajaran_id, total_nominal)
+      VALUES (?, ?, ?, ?)
+    `).bind(tagihanId, siswaId, tahunAjaranId, totalNominal),
+    ...items.map(item =>
+      db.prepare(`
+        INSERT INTO fin_koperasi_tagihan_item (id, tagihan_id, master_item_id, nama_item, nominal)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(generateId(), tagihanId, item.masterItemId ?? null, item.namaItem, item.nominal)
+    ),
+  ]
+
+  await db.batch(stmts)
+  revalidatePath('/dashboard/keuangan/koperasi')
+  revalidatePath(`/dashboard/keuangan/siswa/${siswaId}`)
+  return { error: null, success: 'Tagihan koperasi berhasil dibuat' }
+}
+
+export async function generateKoperasiTagihanBulk(tahunAjaranId: string) {
+  const { db } = await requireAuth('keuangan-koperasi')
+
+  // Ambil master item yang aktif
+  const masterItems = await db.prepare(
+    'SELECT * FROM fin_koperasi_master_item WHERE aktif = 1 ORDER BY urutan ASC'
+  ).all<any>()
+  if (!masterItems.results?.length) return { error: 'Tidak ada master item koperasi yang aktif', success: null }
+
+  // Ambil semua siswa kelas 10 aktif yang belum memiliki tagihan koperasi di tahun ajaran ini
+  const siswaList = await db.prepare(`
+    SELECT DISTINCT s.id
+    FROM siswa s
+    JOIN riwayat_kelas rk ON rk.siswa_id = s.id AND rk.is_aktif = 1
+    JOIN kelas k ON k.id = rk.kelas_id
+    WHERE k.tingkat = 10
+    AND s.id NOT IN (
+      SELECT siswa_id FROM fin_koperasi_tagihan WHERE tahun_ajaran_id = ?
+    )
+  `).bind(tahunAjaranId).all<any>()
+
+  if (!siswaList.results?.length) return { error: 'Semua siswa kelas 10 sudah memiliki tagihan koperasi', success: null }
+
+  const totalNominal = masterItems.results.reduce((s: number, i: any) => s + i.nominal_default, 0)
+  let generated = 0
+
+  for (const siswa of siswaList.results) {
+    const tagihanId = generateId()
+    const stmts: D1PreparedStatement[] = [
+      db.prepare(`
+        INSERT INTO fin_koperasi_tagihan (id, siswa_id, tahun_ajaran_id, total_nominal)
+        VALUES (?, ?, ?, ?)
+      `).bind(tagihanId, siswa.id, tahunAjaranId, totalNominal),
+      ...masterItems.results.map((item: any) =>
+        db.prepare(`
+          INSERT INTO fin_koperasi_tagihan_item (id, tagihan_id, master_item_id, nama_item, nominal)
+          VALUES (?, ?, ?, ?, ?)
+        `).bind(generateId(), tagihanId, item.id, item.nama_item, item.nominal_default)
+      ),
+    ]
+    await db.batch(stmts)
+    generated++
+  }
+
+  revalidatePath('/dashboard/keuangan/koperasi')
+  return { error: null, success: `${generated} tagihan koperasi berhasil digenerate` }
+}
+
 // ─── Transaksi ──────────────────────────────────────────────────────────────
 
 export async function catatTransaksi(payload: {

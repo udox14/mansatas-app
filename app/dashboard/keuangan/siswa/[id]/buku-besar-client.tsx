@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/table'
 import { CheckCircle2, Clock, XCircle, Plus, Printer, AlertTriangle, Ban, Calendar } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar } from '../../actions'
+import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar, createKoperasiTagihan } from '../../actions'
 import { KuitansiModal, type KuitansiData } from '../../components/kuitansi-print'
 
 const STATUS_MAP = {
@@ -28,7 +28,7 @@ const STATUS_MAP = {
 
 const BULAN_LABEL = ['', 'Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
-export function BukuBesarClient({ data, masterItem }: { data: any; masterItem: any[] }) {
+export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any; masterItem: any[]; tahunAjaranId?: string }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
@@ -38,6 +38,8 @@ export function BukuBesarClient({ data, masterItem }: { data: any; masterItem: a
   const [janjiModal, setJanjiModal] = useState<{ type: string; targetId: string } | null>(null)
   const [kuitansiData, setKuitansiData] = useState<KuitansiData | null>(null)
   const [kuitansiOpen, setKuitansiOpen] = useState(false)
+  const [buatKopModal, setBuatKopModal] = useState(false)
+  const [kopItemForm, setKopItemForm] = useState<Array<{ masterItemId: string; namaItem: string; nominal: string; checked: boolean }>>([])
 
   // Bayar form state
   const [bayarForm, setBayarForm] = useState({ jumlah: '', metode: 'tunai', selectedItems: [] as string[] })
@@ -49,6 +51,32 @@ export function BukuBesarClient({ data, masterItem }: { data: any; masterItem: a
 
   function getJanji(type: string, id: string) {
     return janjiList.find((j: any) => j.target_type === type && j.target_id === id)
+  }
+
+  function openBuatKoperasi() {
+    setKopItemForm(masterItem.map(m => ({
+      masterItemId: m.id,
+      namaItem: m.nama_item,
+      nominal: String(m.nominal_default),
+      checked: true,
+    })))
+    setBuatKopModal(true)
+  }
+
+  async function handleBuatKoperasi(e: React.FormEvent) {
+    e.preventDefault()
+    if (!tahunAjaranId) { setMsg('Tahun ajaran aktif tidak ditemukan'); return }
+    const items = kopItemForm.filter(i => i.checked && i.namaItem.trim()).map(i => ({
+      masterItemId: i.masterItemId,
+      namaItem: i.namaItem,
+      nominal: parseInt(i.nominal) || 0,
+    }))
+    if (!items.length) { setMsg('Pilih minimal 1 item'); return }
+    startTransition(async () => {
+      const res = await createKoperasiTagihan(siswa.id, tahunAjaranId, items)
+      setMsg(res.error ?? res.success ?? '')
+      if (!res.error) { setBuatKopModal(false); router.refresh() }
+    })
   }
 
   function buildKuitansiData(
@@ -398,8 +426,13 @@ export function BukuBesarClient({ data, masterItem }: { data: any; masterItem: a
         {/* ── TAB KOPERASI ── */}
         <TabsContent value="koperasi" className="space-y-3 mt-0">
           {!kopTagihan ? (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-8 text-center">
-              <p className="text-sm text-slate-400">Belum ada tagihan koperasi</p>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-8 text-center space-y-3">
+              <p className="text-sm text-slate-400">Belum ada tagihan koperasi untuk siswa ini</p>
+              {masterItem.length > 0 && (
+                <Button size="sm" className="text-xs gap-1.5 h-8" onClick={openBuatKoperasi}>
+                  <Plus className="h-3.5 w-3.5" /> Buat Tagihan Koperasi
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -742,6 +775,49 @@ export function BukuBesarClient({ data, masterItem }: { data: any; masterItem: a
               <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setJanjiModal(null)}>Batal</Button>
               <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending || !janjiForm.tanggal}>
                 {isPending ? 'Menyimpan...' : 'Simpan'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal Buat Tagihan Koperasi ── */}
+      <Dialog open={buatKopModal} onOpenChange={v => { if (!v) setBuatKopModal(false) }}>
+        <DialogContent className="sm:max-w-md rounded-xl p-0 overflow-hidden">
+          <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
+            <DialogTitle className="text-sm font-semibold">Buat Tagihan Koperasi</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleBuatKoperasi} className="p-5 space-y-4">
+            <p className="text-xs text-slate-500">Centang item yang dikenakan untuk siswa ini. Nominal bisa disesuaikan.</p>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {kopItemForm.map((item, idx) => (
+                <div key={item.masterItemId} className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                  item.checked ? 'border-blue-300 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700' : 'border-slate-200 dark:border-slate-700'
+                }`}>
+                  <input type="checkbox" checked={item.checked}
+                    onChange={() => setKopItemForm(f => f.map((r, i) => i === idx ? { ...r, checked: !r.checked } : r))}
+                    className="rounded flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{item.namaItem}</p>
+                  </div>
+                  <Input
+                    type="number"
+                    value={item.nominal}
+                    onChange={e => setKopItemForm(f => f.map((r, i) => i === idx ? { ...r, nominal: e.target.value } : r))}
+                    className="w-32 h-7 text-xs text-right"
+                    disabled={!item.checked}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-sm">
+              Total: <strong>{formatRupiah(kopItemForm.filter(i => i.checked).reduce((s, i) => s + (parseInt(i.nominal) || 0), 0))}</strong>
+            </div>
+            {msg && <p className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-md">{msg}</p>}
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setBuatKopModal(false)}>Batal</Button>
+              <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}>
+                {isPending ? 'Menyimpan...' : 'Buat Tagihan'}
               </Button>
             </div>
           </form>
