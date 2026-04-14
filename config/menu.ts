@@ -220,14 +220,14 @@ export const MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'tka',
-    title: 'TKA (Tes Kompetensi Akademik)',
+    title: 'TKA',
     href: '/dashboard/tka',
     icon: ClipboardList,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk']
   },
   {
     id: 'penerimaan-pt',
-    title: 'Penerimaan PT (SNBP/SNBT)',
+    title: 'Penerimaan PT',
     href: '/dashboard/penerimaan-pt',
     icon: GraduationCap,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk']

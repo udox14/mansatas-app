@@ -14,9 +14,7 @@ import { importNilaiDariExcel, resetNilaiKolom } from '../actions'
 import { SEMESTER_MAP, SEMESTER_KEYS } from '../constants'
 import { useRouter } from 'next/navigation'
 
-type RingkasanType = Record<string, number>
-
-export function NilaiClient({ ringkasan }: { ringkasan: RingkasanType | null }) {
+export function NilaiClient() {
   const router = useRouter()
   const [isImporting, setIsImporting] = useState(false)
   const [targetImport, setTargetImport] = useState('nilai_smt1')
@@ -130,57 +128,74 @@ export function NilaiClient({ ringkasan }: { ringkasan: RingkasanType | null }) 
           allLogs.push(`[${file.name}] Error: ${result.error}`)
         } else {
           totalSuccess++
-          if (result.success) allLogs.push(`[${file.name}] ${result.success}`)
-          if (result.logs) allLogs.push(...result.logs.map(l => `[${file.name}] ${l}`))
+          if (result.logs && result.logs.length > 0) {
+            const enrichedLogs = result.logs.map(log => {
+              const match = log.match(/NISN:\s*(\d+)/i) || log.match(/NISN\s+(\d+)/i) || log.match(/NISN\s*(\d+)/i)
+              if (match && match[1]) {
+                const targetNisn = match[1]
+                const rowData = jsonData.find(r => {
+                  const k = Object.keys(r).find(key => key.toUpperCase().trim() === 'NISN')
+                  return k && String(r[k]).trim() === targetNisn
+                })
+                if (rowData) {
+                  const nameKey = Object.keys(rowData).find(key => {
+                    const up = key.toUpperCase().trim()
+                    return up === 'NAMA' || up === 'NAMA LENGKAP' || up === 'NAMA_LENGKAP'
+                  })
+                  const studentName = nameKey ? rowData[nameKey] : 'Nama Tidak Diketahui'
+                  if (!log.toUpperCase().includes(studentName.toUpperCase())) {
+                    return `[${file.name}] ${log.replace(targetNisn, `${targetNisn} - A.n: ${studentName}`)}`
+                  }
+                }
+              }
+              return `[${file.name}] ${log}`
+            })
+            allLogs = [...allLogs, ...enrichedLogs]
+          }
         }
       } catch (err: any) {
         allLogs.push(`[${file.name}] Gagal memproses: ${err.message}`)
       }
     }
 
-    setImportLogs(allLogs)
-    if (totalSuccess > 0) {
-      setSuccessMessage(`${totalSuccess} dari ${files.length} file berhasil diimport.`)
-      router.refresh()
-    }
     setIsImporting(false)
     setImportProgress(null)
-
+    
     // Reset input agar bisa upload file yang sama lagi
     e.target.value = ''
-  }
 
+    if (totalSuccess > 0) {
+      alert(`Berhasil memproses ${totalSuccess} file Excel dari RDM.`)
+      setSuccessMessage(`${totalSuccess} dari ${files.length} file berhasil diimport.`)
+      router.refresh()
+    } else {
+      alert(`Semua file gagal diproses. Silakan cek laporan tidak terekam (log import).`)
+    }
+    
+    if (allLogs.length > 0) setImportLogs(allLogs)
+  }
   // ---------- RESET HANDLER ----------
   const handleReset = async () => {
     if (!resetTarget) return
     const label = SEMESTER_MAP[resetTarget as keyof typeof SEMESTER_MAP]
-    if (!confirm(`PERINGATAN: Semua nilai ${label} akan dihapus. Lanjutkan?`)) return
+    if (!confirm(`TINDAKAN BERBAHAYA!\n\nApakah Anda yakin ingin MENGHAPUS SEMUA NILAI ${label} yang ada di database dari seluruh kelas?\n\nKetik "HAPUS" untuk melanjutkan:`)) return
+    
+    // Fallback prompt safety
+    const check = prompt('Ketik "HAPUS" untuk mengonfirmasi reset:')
+    if (check !== 'HAPUS') {
+      alert('Konfirmasi dibatalkan.')
+      return
+    }
+
     const res = await resetNilaiKolom(resetTarget)
     if (res.error) alert(res.error)
     else { alert(res.success); router.refresh() }
     setResetTarget('')
   }
 
-  const smtKeys = ['smt1', 'smt2', 'smt3', 'smt4', 'smt5', 'smt6']
-
   return (
     <>
       <Script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" strategy="afterInteractive" />
-
-      {/* Ringkasan Status */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        {smtKeys.map((key, i) => {
-          const count = ringkasan?.[key] ?? 0
-          const label = SEMESTER_MAP[`nilai_${key}`]
-          return (
-            <div key={key} className="rounded-lg border border-surface bg-surface p-3 text-center">
-              <p className="text-lg font-bold text-slate-800 dark:text-slate-100">{count}</p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">{label}</p>
-              <p className="text-[9px] text-slate-400 dark:text-slate-500">siswa terisi</p>
-            </div>
-          )
-        })}
-      </div>
 
       {/* Upload Panel */}
       <div className="rounded-lg border border-surface bg-surface p-5 space-y-4">
@@ -214,7 +229,7 @@ export function NilaiClient({ ringkasan }: { ringkasan: RingkasanType | null }) 
             <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">File Excel (.xlsx / .xls)</Label>
             <Input
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.csv"
               multiple
               onChange={handleFileUpload}
               disabled={isImporting}
@@ -263,8 +278,8 @@ export function NilaiClient({ ringkasan }: { ringkasan: RingkasanType | null }) 
           <div className="flex items-center gap-2 flex-1">
             <Trash2 className="h-4 w-4 text-rose-500" />
             <div>
-              <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">Reset Nilai Semester</p>
-              <p className="text-[10px] text-rose-500 dark:text-rose-400">Hapus semua nilai untuk satu kolom semester. Tidak bisa dibatalkan.</p>
+              <p className="text-xs font-bold text-rose-700 dark:text-rose-300">Kosongkan Nilai Seluruh Siswa Lintas Angkatan</p>
+              <p className="text-[10px] sm:text-xs text-rose-600 dark:text-rose-400 font-medium leading-snug">Berbahaya! Tindakan ini akan mengosongkan satu kolom semester secara total di kolom database untuk <strong className="font-bold underline">seluruh kelas dan lintas angkatan</strong>. Gunakan HANYA jika Anda ingin mengimpor ulang dari awal jika terjadi kesalahan format sebelumnya. Data yang dihapus tidak bisa dikembalikan.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
