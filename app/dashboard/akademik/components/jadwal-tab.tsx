@@ -460,12 +460,12 @@ export function JadwalTab({
                 <SelectValue placeholder="Pilih kelas..." />
               </SelectTrigger>
               <SelectContent className="max-h-64">
-                {[7, 8, 9].map(t => {
-                  const items = kelasByTingkat[String(t)] || []
+                {Object.keys(kelasByTingkat).sort((a, b) => parseInt(a) - parseInt(b)).map(tStr => {
+                  const items = kelasByTingkat[tStr] || []
                   if (!items.length) return null
                   return (
-                    <div key={t}>
-                      <div className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Kelas {t}</div>
+                    <div key={tStr}>
+                      <div className="px-2 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Kelas {tStr}</div>
                       {items.map(k => (
                         <SelectItem key={k.id} value={k.id} className="text-xs">
                           {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}
