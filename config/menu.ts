@@ -28,6 +28,12 @@ import {
   ClipboardEdit,
   BookHeart,
   BookUser,
+  Wallet,
+  HandCoins,
+  CalendarDays,
+  ShoppingBag,
+  TrendingDown,
+  BarChart3,
 } from 'lucide-react'
 
 export type MenuItem = {
@@ -237,6 +243,50 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: BookUser,
     roles: ['resepsionis', 'super_admin', 'admin_tu', 'kepsek', 'wakamad']
   },
+  // ── KEUANGAN ──────────────────────────────────────────────────────
+  {
+    id: 'keuangan-dashboard',
+    title: 'Dashboard Keuangan',
+    href: '/dashboard/keuangan',
+    icon: Wallet,
+    roles: ['super_admin', 'bendahara_komite'],
+  },
+  {
+    id: 'keuangan-dspt',
+    title: 'DSPT',
+    href: '/dashboard/keuangan/dspt',
+    icon: HandCoins,
+    roles: ['super_admin', 'bendahara_komite'],
+  },
+  {
+    id: 'keuangan-spp',
+    title: 'SPP',
+    href: '/dashboard/keuangan/spp',
+    icon: CalendarDays,
+    roles: ['super_admin', 'bendahara_komite'],
+  },
+  {
+    id: 'keuangan-koperasi',
+    title: 'Koperasi',
+    href: '/dashboard/keuangan/koperasi',
+    icon: ShoppingBag,
+    roles: ['super_admin', 'bendahara_komite', 'pengurus_koperasi'],
+  },
+  {
+    id: 'keuangan-kas-keluar',
+    title: 'Kas Keluar',
+    href: '/dashboard/keuangan/kas-keluar',
+    icon: TrendingDown,
+    roles: ['super_admin', 'bendahara_komite'],
+  },
+  {
+    id: 'keuangan-laporan',
+    title: 'Laporan Keuangan',
+    href: '/dashboard/keuangan/laporan',
+    icon: BarChart3,
+    roles: ['super_admin', 'bendahara_komite'],
+  },
+  // ──────────────────────────────────────────────────────────────────
   {
     id: 'settings',
     title: 'Pengaturan Aplikasi',
@@ -284,6 +334,7 @@ export const ALL_ROLES = [
   { value: 'pramubakti', label: 'Pramubakti' },
   { value: 'operator', label: 'Operator EMIS' },
   { value: 'bendahara_komite', label: 'Bendahara Komite' },
+  { value: 'pengurus_koperasi', label: 'Pengurus Koperasi' },
 ] as const
 
 export type RoleValue = typeof ALL_ROLES[number]['value']
