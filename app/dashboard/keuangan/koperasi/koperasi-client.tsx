@@ -15,9 +15,9 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Search, ChevronRight, CheckCircle2, Clock, XCircle, Plus, Settings2 } from 'lucide-react'
+import { Search, ChevronRight, CheckCircle2, Clock, XCircle, Plus, Settings2, RefreshCw } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { saveMasterItem } from '../actions'
+import { saveMasterItem, generateKoperasiTagihanBulk } from '../actions'
 
 interface TagihanRow {
   id: string; siswa_id: string; nama_lengkap: string; nisn: string
@@ -33,10 +33,11 @@ const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   belum_bayar: { label: 'Belum Bayar', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' },
 }
 
-export function KoperasiClient({ initialTagihan, masterItem, isBendahara }: {
+export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunAjaranId }: {
   initialTagihan: TagihanRow[]
   masterItem: MasterItem[]
   isBendahara: boolean
+  tahunAjaranId?: string
 }) {
   const router = useRouter()
   const [search, setSearch] = useState('')
@@ -44,6 +45,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara }: {
   const [items, setItems] = useState<MasterItem[]>(masterItem)
   const [isPending, startTransition] = useTransition()
   const [editItem, setEditItem] = useState<MasterItem | null>(null)
+  const [showItemModal, setShowItemModal] = useState(false)
   const [itemForm, setItemForm] = useState({ nama_item: '', nominal_default: '', urutan: '' })
   const [msg, setMsg] = useState('')
 
@@ -59,6 +61,17 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara }: {
     setItemForm(item
       ? { nama_item: item.nama_item, nominal_default: String(item.nominal_default), urutan: String(item.urutan) }
       : { nama_item: '', nominal_default: '', urutan: '' })
+    setShowItemModal(true)
+  }
+
+  function handleGenerate() {
+    if (!tahunAjaranId) { setMsg('Tahun ajaran aktif tidak ditemukan'); return }
+    if (!confirm('Generate tagihan koperasi untuk semua siswa kelas 10 yang belum memiliki tagihan?')) return
+    startTransition(async () => {
+      const res = await generateKoperasiTagihanBulk(tahunAjaranId)
+      setMsg(res.error ?? res.success ?? '')
+      if (!res.error) router.refresh()
+    })
   }
 
   async function handleSaveItem(e: React.FormEvent) {
@@ -71,7 +84,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara }: {
         urutan: parseInt(itemForm.urutan) || 0,
       })
       setMsg(res.error ?? res.success ?? '')
-      if (!res.error) { setEditItem(null); router.refresh() }
+      if (!res.error) { setEditItem(null); setShowItemModal(false); router.refresh() }
     })
   }
 
@@ -91,7 +104,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara }: {
 
       {/* Tab Tagihan */}
       <TabsContent value="tagihan" className="space-y-3 mt-0">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 flex flex-wrap gap-2">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 flex flex-wrap gap-2 items-center justify-between">
           <div className="relative flex-1 min-w-[180px]">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             <Input placeholder="Cari nama siswa..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-8 text-sm rounded-md" />
@@ -105,6 +118,11 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara }: {
               <SelectItem value="belum_bayar">Belum Bayar</SelectItem>
             </SelectContent>
           </Select>
+          {isBendahara && (
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 ml-auto" onClick={handleGenerate} disabled={isPending}>
+              <RefreshCw className="h-3 w-3" /> Generate Tagihan
+            </Button>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-2">
@@ -209,10 +227,10 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara }: {
           </div>
 
           {/* Edit/Tambah Modal */}
-          <Dialog open={editItem !== null || (editItem === null && itemForm.nama_item !== '')} onOpenChange={v => { if (!v) { setEditItem(null); setItemForm({ nama_item: '', nominal_default: '', urutan: '' }) }}}>
+          <Dialog open={showItemModal} onOpenChange={v => { if (!v) { setShowItemModal(false); setEditItem(null); setItemForm({ nama_item: '', nominal_default: '', urutan: '' }) }}}>
             <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
               <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
-                <DialogTitle className="text-sm font-semibold">{editItem?.id ? 'Edit Item' : 'Tambah Item'}</DialogTitle>
+                <DialogTitle className="text-sm font-semibold">{editItem ? 'Edit Item' : 'Tambah Item'}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSaveItem} className="p-5 space-y-4">
                 <div className="space-y-1.5">
@@ -229,7 +247,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara }: {
                 </div>
                 <div className="flex gap-2 pt-1">
                   <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm"
-                    onClick={() => { setEditItem(null); setItemForm({ nama_item: '', nominal_default: '', urutan: '' }) }}>
+                    onClick={() => { setShowItemModal(false); setEditItem(null); setItemForm({ nama_item: '', nominal_default: '', urutan: '' }) }}>
                     Batal
                   </Button>
                   <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}>
