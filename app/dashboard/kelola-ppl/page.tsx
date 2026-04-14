@@ -25,7 +25,7 @@ export default async function KelolaPPLPage() {
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
         title="Manajemen Spesifik Guru PPL"
-        description="Atur pendelegasian komponen tugas secara spesifik (jadwal, piket, atau program unggulan) dari guru kepada PPL."
+        description="Atur pendelegasian komponen tugas secara spesifik (jadwal atau piket) dari guru kepada PPL."
       />
       <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-sm mb-4 flex items-start gap-2">
         <Users className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />

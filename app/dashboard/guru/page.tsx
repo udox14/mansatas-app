@@ -17,15 +17,10 @@ async function GuruDataFetcher() {
   const [usersResult, jabatanResult, userRolesResult, masterRolesResult] = await Promise.all([
     db.prepare(`
       SELECT u.id, u.email, u.name, u.role, u.nama_lengkap, u.avatar_url,
-             u.jabatan_struktural_id, u.domisili_pegawai,
-             j.nama as jabatan_struktural_nama
       FROM "user" u
-      LEFT JOIN master_jabatan_struktural j ON u.jabatan_struktural_id = j.id
       ORDER BY u.nama_lengkap ASC
     `).all<any>(),
-    db.prepare(`
-      SELECT id, nama, urutan FROM master_jabatan_struktural ORDER BY urutan ASC
-    `).all<any>(),
+    db.prepare(`    `).all<any>(),
     db.prepare(`
       SELECT user_id, role FROM user_roles ORDER BY user_id
     `).all<{ user_id: string; role: string }>(),
@@ -48,8 +43,6 @@ async function GuruDataFetcher() {
     avatar_url: u.avatar_url || null,
     roles: userRolesMap[u.id] || (u.role ? [u.role] : []),
     email: u.email || 'Email tidak ditemukan',
-    jabatan_struktural_id: u.jabatan_struktural_id || null,
-    jabatan_struktural_nama: u.jabatan_struktural_nama || null,
     domisili_pegawai: u.domisili_pegawai || null,
   }))
 

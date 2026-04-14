@@ -28,21 +28,15 @@ export type JadwalPiket = {
   shift_nama: string
 }
 
-export type ProgramUnggulan = {
-  id: string
-  label: string
-}
 
 export type JadwalGuruUtama = {
   kbm: JadwalKBM[]
   piket: JadwalPiket[]
-  pu: ProgramUnggulan[]
 }
 
 export type MappingPPL = {
   jadwal_mengajar_id: string | null
   jadwal_piket_id: string | null
-  pu_kelas_id: string | null
 }
 
 export type PplSummaryItem = {
@@ -86,7 +80,6 @@ export async function getDaftarGuruPPLWithSummary(): Promise<PplWithSummary[]> {
       u.nama_lengkap as guru_utama_nama,
       SUM(CASE WHEN m.jadwal_mengajar_id IS NOT NULL THEN 1 ELSE 0 END) as kbm,
       SUM(CASE WHEN m.jadwal_piket_id IS NOT NULL THEN 1 ELSE 0 END) as piket,
-      SUM(CASE WHEN m.pu_kelas_id IS NOT NULL THEN 1 ELSE 0 END) as pu
     FROM guru_ppl_mapping m
     JOIN "user" u ON u.id = m.guru_utama_id
     GROUP BY m.guru_ppl_id, m.guru_utama_id
@@ -177,20 +170,7 @@ export async function getJadwalGuruUtama(guruUtamaId: string): Promise<JadwalGur
     shift_nama: r.nama_shift
   }))
 
-  // Program Unggulan — guru terhubung lewat pu_guru_kelas
-  const puRes = await db.prepare(`
-    SELECT pk.id, k.tingkat, k.nomor_kelas, k.kelompok
-    FROM pu_guru_kelas pgk
-    JOIN pu_kelas_unggulan pk ON pk.id = pgk.pu_kelas_id
-    JOIN kelas k ON k.id = pk.kelas_id
-    WHERE pgk.guru_id = ? AND pk.tahun_ajaran_id = ?
-    ORDER BY k.tingkat ASC, k.kelompok ASC, k.nomor_kelas ASC
-  `).bind(guruUtamaId, ta.id).all<any>()
-
-  const pu: ProgramUnggulan[] = (puRes.results || []).map(r => ({
-    id: r.id,
-    label: `Kelas ${r.tingkat}${r.kelompok ?? ''}-${r.nomor_kelas} (Unggulan)`
-  }))
+  const pu: any[] = []
 
   return { kbm, piket, pu }
 }
@@ -201,8 +181,7 @@ export async function getJadwalGuruUtama(guruUtamaId: string): Promise<JadwalGur
 export async function getMappingPPL(guruPplId: string, guruUtamaId: string): Promise<MappingPPL[]> {
   const db = await getDB()
   const { results } = await db.prepare(`
-    SELECT jadwal_mengajar_id, jadwal_piket_id, pu_kelas_id
-    FROM guru_ppl_mapping
+    SELECT jadwal_mengajar_id, jadwal_piket_idFROM guru_ppl_mapping
     WHERE guru_ppl_id = ? AND guru_utama_id = ?
   `).bind(guruPplId, guruUtamaId).all<any>()
   
@@ -234,13 +213,13 @@ export async function simpanMappingPPL(
     // Insert new mappings
     const stmts = data.map(m => 
       db.prepare(`
-        INSERT INTO guru_ppl_mapping (id, guru_ppl_id, guru_utama_id, jadwal_mengajar_id, jadwal_piket_id, pu_kelas_id)
+        INSERT INTO guru_ppl_mapping (id, guru_ppl_id, guru_utama_id, jadwal_mengajar_id, jadwal_piket_id)
         VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?)
       `).bind(
         guruPplId, guruUtamaId, 
         m.jadwal_mengajar_id || null, 
         m.jadwal_piket_id || null, 
-        m.pu_kelas_id || null
+        m.|| null
       )
     )
 

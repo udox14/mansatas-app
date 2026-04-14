@@ -197,7 +197,7 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
     sub: s.tingkat ? `Kelas ${formatNamaKelas(s.tingkat, s.nomor_kelas, s.kelompok)}` : 'Belum ada kelas',
   })), [masterData.siswa])
   const guruOptions = useMemo(() => masterData.guru.map((g: any) => ({
-    value: g.id, label: g.nama_lengkap, sub: g.jabatan_struktural || g.role || '',
+    value: g.id, label: g.nama_lengkap, sub: g.role || '',
   })), [masterData.guru])
 
   const openWizard = (type: JenisSurat) => {
@@ -222,12 +222,12 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
     if (selectedSiswa) base.siswa = selectedSiswa
     if (wizardType === 'sppd' && formData.guru_id) {
       const g = masterData.guru.find((g: any) => g.id === formData.guru_id)
-      if (g) { base.nama_pegawai = g.nama_lengkap; base.jabatan_pegawai = g.jabatan_struktural || g.role || '-' }
+      if (g) { base.nama_pegawai = g.nama_lengkap; base.jabatan_pegawai = g.role || '-' }
     }
     if (wizardType === 'surat_tugas') {
       base.daftar_guru = (formData.guru_ids || []).map((id: string) => {
         const g = masterData.guru.find((g: any) => g.id === id)
-        return g ? { nama: g.nama_lengkap, jabatan: g.jabatan_struktural || g.role || '-' } : null
+        return g ? { nama: g.nama_lengkap, jabatan: g.role || '-' } : null
       }).filter(Boolean)
     }
     if (wizardType === 'izin_pesantren') {

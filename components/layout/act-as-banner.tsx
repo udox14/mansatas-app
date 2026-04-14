@@ -18,7 +18,7 @@ interface ActAsBannerProps {
   adminName: string
   /** Tanggal override saat ini (YYYY-MM-DD) atau null */
   actAsDate?: string | null
-  /** Tampilkan date picker (true untuk kehadiran & agenda, false untuk program-unggulan) */
+  /** Tampilkan date picker (true untuk kehadiran & agenda, false untuk fitur lain) */
   showDatePicker?: boolean
 }
 

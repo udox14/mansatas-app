@@ -15,7 +15,7 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
   
   // Ambil data mapping substitusi
   const { results: rawMappings } = await db.prepare(`
-    SELECT m.jadwal_mengajar_id, m.jadwal_piket_id, m.pu_kelas_id, 
+    SELECT m.jadwal_mengajar_id, m.jadwal_piket_id, 
            u.nama_lengkap as guru_utama
     FROM guru_ppl_mapping m
     JOIN "user" u ON m.guru_utama_id = u.id
@@ -25,7 +25,6 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
   const mappings = rawMappings || []
   const tkbm = mappings.filter(m => m.jadwal_mengajar_id !== null).length
   const tpiket = mappings.filter(m => m.jadwal_piket_id !== null).length
-  const tpu = mappings.filter(m => m.pu_kelas_id !== null).length
 
   // Ambil list guru utama yang digantikan (unik)
   const guruDigantikan = Array.from(new Set(mappings.map(m => m.guru_utama)))
@@ -67,10 +66,6 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
               <p className="text-xl font-bold text-slate-800 dark:text-slate-200">{tpiket}</p>
               <p className="text-[10px] text-slate-500">Sesi Piket</p>
             </div>
-            <div className="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-2 text-center">
-              <p className="text-xl font-bold text-slate-800 dark:text-slate-200">{tpu}</p>
-              <p className="text-[10px] text-slate-500">Sesi PU</p>
-            </div>
           </div>
         </div>
 
@@ -102,7 +97,6 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
             <PlayCircle className="h-4 w-4 text-slate-300 group-hover:text-rose-500 transition-colors" />
           </Link>
           
-          <Link href="/dashboard/program-unggulan" className="group flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-300 dark:hover:border-amber-700 transition-colors shadow-sm">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/30">
                 <Star className="h-5 w-5 text-amber-500" />

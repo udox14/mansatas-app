@@ -248,7 +248,6 @@ function UtamaScheduleEditor({
   const [jadwal, setJadwal] = useState<JadwalGuruUtama>({ kbm: [], piket: [], pu: [] })
   const [selKbm, setSelKbm] = useState<Set<string>>(new Set())
   const [selPiket, setSelPiket] = useState<Set<string>>(new Set())
-  const [selPu, setSelPu] = useState<Set<string>>(new Set())
 
   // Load data immediately on mount
   useEffect(() => {
@@ -265,15 +264,12 @@ function UtamaScheduleEditor({
       
       const msKbm = new Set<string>()
       const msPiket = new Set<string>()
-      const msPu = new Set<string>()
       for (const m of mData) {
         if (m.jadwal_mengajar_id) msKbm.add(m.jadwal_mengajar_id)
         if (m.jadwal_piket_id) msPiket.add(m.jadwal_piket_id)
-        if (m.pu_kelas_id) msPu.add(m.pu_kelas_id)
       }
       setSelKbm(msKbm)
       setSelPiket(msPiket)
-      setSelPu(msPu)
       setIsLoading(false)
     }
     load()
@@ -284,13 +280,10 @@ function UtamaScheduleEditor({
 
   const toggleKbm = (id: string) => { const s = new Set(selKbm); s.has(id) ? s.delete(id) : s.add(id); setSelKbm(s) }
   const togglePiket = (id: string) => { const s = new Set(selPiket); s.has(id) ? s.delete(id) : s.add(id); setSelPiket(s) }
-  const togglePu = (id: string) => { const s = new Set(selPu); s.has(id) ? s.delete(id) : s.add(id); setSelPu(s) }
 
   const handleSave = () => {
     const mappings: MappingPPL[] = []
-    Array.from(selKbm).forEach(id => mappings.push({ jadwal_mengajar_id: id, jadwal_piket_id: null, pu_kelas_id: null }))
-    Array.from(selPiket).forEach(id => mappings.push({ jadwal_mengajar_id: null, jadwal_piket_id: id, pu_kelas_id: null }))
-    Array.from(selPu).forEach(id => mappings.push({ jadwal_mengajar_id: null, jadwal_piket_id: null, pu_kelas_id: id }))
+    Array.from(selPiket).forEach(id => mappings.push({ jadwal_mengajar_id: null, jadwal_piket_id: id }))
     
     startTransition(async () => {
       const res = await simpanMappingPPL(guruPplId, guruUtamaId, mappings)
@@ -325,7 +318,6 @@ function UtamaScheduleEditor({
     )
   }
 
-  const selCount = selKbm.size + selPiket.size + selPu.size
 
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300">
@@ -424,7 +416,6 @@ function UtamaScheduleEditor({
               <div className="space-y-2">
                 {jadwal.pu.map(pu => (
                   <label key={pu.id} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-emerald-300 cursor-pointer shadow-sm">
-                    <Checkbox checked={selPu.has(pu.id)} onCheckedChange={() => togglePu(pu.id)} className="data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500" />
                     <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{pu.label}</p>
                   </label>
                 ))}

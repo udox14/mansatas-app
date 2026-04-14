@@ -1,16 +1,12 @@
 // components/dashboard/shared/KehadiranPribadiCard.tsx
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
-import { UserCheck, Clock, BookOpen } from 'lucide-react'
-import { ReactNode } from 'react'
+import { UserCheck, BookOpen } from 'lucide-react'
+import { Clock } from 'lucide-react'
 
 type Props = { userId: string }
 
-function BaseCard({ 
-  title, subtitle, 
-  hadir, sakit, izin, alfa, total, telat, 
-  icon: Icon, iconBg, iconColor, telatMsg 
-}: any) {
+function BaseCard({ title, subtitle, hadir, sakit, izin, alfa, total, telat, icon: Icon, iconBg, iconColor, telatMsg }: any) {
   const pct = total > 0 ? Math.round((hadir / total) * 100) : null
   const pctColor = pct === null ? 'text-slate-400' : pct >= 90 ? 'text-emerald-600' : pct >= 75 ? 'text-amber-600' : 'text-rose-600'
 
@@ -64,15 +60,15 @@ function BaseCard({
 export async function KehadiranPribadiCard({ userId }: Props) {
   const db = await getDB()
   const today = todayWIB()
-  const yearMonth = today.substring(0, 7) // 'YYYY-MM'
-  
+  const yearMonth = today.substring(0, 7)
+
   const monthLabel = new Date(yearMonth + '-01').toLocaleDateString('id-ID', {
     month: 'long', year: 'numeric',
   })
 
-  // Cek Roles & Jabatan
+  // Cek role user
   const user = await db.prepare(`
-    SELECT role, jabatan_struktural_id, 
+    SELECT role,
     (SELECT GROUP_CONCAT(role) FROM user_roles WHERE user_id = u.id) as secondary_roles
     FROM "user" u WHERE id = ?
   `).bind(userId).first<any>() || {}
@@ -80,26 +76,8 @@ export async function KehadiranPribadiCard({ userId }: Props) {
   const secRoles = user.secondary_roles ? user.secondary_roles.split(',') : []
   const allRoles = [user.role, ...secRoles].filter(Boolean)
   const isGuru = allRoles.includes('guru')
-  
-  const isPureTeacherVariant = allRoles.every((r: string) => ['guru', 'wali_kelas', 'guru_bk', 'guru_tahfidz', 'guru_piket'].includes(r))
 
-  // 1. Data Presensi Pegawai
-  const dataPegawai = await db.prepare(`
-    SELECT
-      COUNT(CASE WHEN status = 'hadir' THEN 1 END) as hadir,
-      COUNT(CASE WHEN status = 'sakit' THEN 1 END) as sakit,
-      COUNT(CASE WHEN status = 'izin'  THEN 1 END) as izin,
-      COUNT(CASE WHEN status = 'alfa'  THEN 1 END) as alfa,
-      COUNT(*) as total,
-      COUNT(CASE WHEN is_telat = 1 AND status = 'hadir' THEN 1 END) as telat
-    FROM presensi_pegawai
-    WHERE user_id = ? AND strftime('%Y-%m', tanggal) = ?
-  `).bind(userId, yearMonth).first<any>()
-
-  const pgTotal = dataPegawai?.total ?? 0
-  const isPegawai = !isPureTeacherVariant || !!user.jabatan_struktural_id || pgTotal > 0
-
-  // 2. Data Agenda Mengajar (Khusus Guru)
+  // Data Agenda Mengajar (Khusus Guru)
   let dataGuru: any = null
   if (isGuru) {
     dataGuru = await db.prepare(`
@@ -115,40 +93,24 @@ export async function KehadiranPribadiCard({ userId }: Props) {
     `).bind(userId, yearMonth).first<any>()
   }
 
+  if (!isGuru) return null
+
   return (
     <div className="flex flex-col gap-4">
-      {isPegawai && (
-        <BaseCard 
-          title="Kehadiran Struktural/Pegawai"
-          subtitle={monthLabel}
-          hadir={dataPegawai?.hadir ?? 0}
-          sakit={dataPegawai?.sakit ?? 0}
-          izin={dataPegawai?.izin ?? 0}
-          alfa={dataPegawai?.alfa ?? 0}
-          total={pgTotal}
-          telat={dataPegawai?.telat ?? 0}
-          icon={UserCheck}
-          iconBg="bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800"
-          iconColor="text-blue-600 dark:text-blue-400"
-        />
-      )}
-
-      {isGuru && (
-        <BaseCard 
-          title="Kehadiran Mengajar (Agenda)"
-          subtitle={`${monthLabel} (berdasarkan blok sesi)`}
-          hadir={dataGuru?.hadir ?? 0}
-          sakit={dataGuru?.sakit ?? 0}
-          izin={dataGuru?.izin ?? 0}
-          alfa={dataGuru?.alfa ?? 0}
-          total={dataGuru?.total ?? 0}
-          telat={dataGuru?.telat ?? 0}
-          icon={BookOpen}
-          iconBg="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800"
-          iconColor="text-emerald-600 dark:text-emerald-400"
-          telatMsg="sesi mengajar bulan ini"
-        />
-      )}
+      <BaseCard
+        title="Kehadiran Mengajar (Agenda)"
+        subtitle={`${monthLabel} (berdasarkan blok sesi)`}
+        hadir={dataGuru?.hadir ?? 0}
+        sakit={dataGuru?.sakit ?? 0}
+        izin={dataGuru?.izin ?? 0}
+        alfa={dataGuru?.alfa ?? 0}
+        total={dataGuru?.total ?? 0}
+        telat={dataGuru?.telat ?? 0}
+        icon={BookOpen}
+        iconBg="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800"
+        iconColor="text-emerald-600 dark:text-emerald-400"
+        telatMsg="sesi mengajar bulan ini"
+      />
     </div>
   )
 }

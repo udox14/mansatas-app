@@ -27,9 +27,7 @@ export async function getDataForSurat() {
 
     db.prepare(`
       SELECT u.id, u.nama_lengkap, u.role,
-        mj.nama as jabatan_struktural
       FROM "user" u
-      LEFT JOIN master_jabatan_struktural mj ON u.jabatan_struktural_id = mj.id
       WHERE u.banned = 0
       ORDER BY mj.urutan ASC NULLS LAST, u.nama_lengkap ASC
     `).all<any>(),
@@ -40,8 +38,6 @@ export async function getDataForSurat() {
 
     db.prepare(`
       SELECT mj.id, mj.nama, mj.urutan, u.id as user_id, u.nama_lengkap
-      FROM master_jabatan_struktural mj
-      LEFT JOIN "user" u ON u.jabatan_struktural_id = mj.id
       ORDER BY mj.urutan ASC
     `).all<any>(),
   ])
