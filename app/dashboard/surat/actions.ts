@@ -8,12 +8,12 @@ import type { JenisSurat } from './constants'
 const BULAN_ROMAWI = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 
 // ============================================================
-// GET DATA FOR SURAT (siswa, guru, pejabat, kelas)
+// GET DATA FOR SURAT (siswa, guru, kelas)
 // ============================================================
 export async function getDataForSurat() {
   const db = await getDB()
 
-  const [siswaRes, guruRes, kelasRes, jabatanRes] = await Promise.all([
+  const [siswaRes, guruRes, kelasRes] = await Promise.all([
     db.prepare(`
       SELECT s.id, s.nisn, s.nis_lokal, s.nama_lengkap, s.jenis_kelamin, s.tempat_lahir, s.tanggal_lahir,
         s.nik, s.alamat_lengkap, s.rt, s.rw, s.desa_kelurahan, s.kecamatan, s.kabupaten_kota, s.provinsi, s.kode_pos,
@@ -26,19 +26,14 @@ export async function getDataForSurat() {
     `).all<any>(),
 
     db.prepare(`
-      SELECT u.id, u.nama_lengkap, u.role,
+      SELECT u.id, u.nama_lengkap, u.role
       FROM "user" u
       WHERE u.banned = 0
-      ORDER BY mj.urutan ASC NULLS LAST, u.nama_lengkap ASC
+      ORDER BY u.nama_lengkap ASC
     `).all<any>(),
 
     db.prepare(`
       SELECT id, tingkat, nomor_kelas, kelompok FROM kelas ORDER BY tingkat, nomor_kelas
-    `).all<any>(),
-
-    db.prepare(`
-      SELECT mj.id, mj.nama, mj.urutan, u.id as user_id, u.nama_lengkap
-      ORDER BY mj.urutan ASC
     `).all<any>(),
   ])
 
@@ -46,11 +41,9 @@ export async function getDataForSurat() {
     siswa: siswaRes.results || [],
     guru: guruRes.results || [],
     kelas: kelasRes.results || [],
-    pejabat: jabatanRes.results || [],
+    pejabat: [],
   }
 }
-
-// Get max is removed since we do it manually. Kalo butuh referensi angka terakhir, bisa ditambah nanti.
 
 // ============================================================
 // FORMAT NOMOR SURAT
@@ -80,7 +73,7 @@ export async function simpanSuratKeluar(data: {
   const d = data.data_surat?.tanggal_surat_raw ? new Date(data.data_surat.tanggal_surat_raw) : new Date()
   const tahun = d.getFullYear()
   const bulan = d.getMonth() + 1
-  
+
   let nomorUrut = parseInt(data.nomor_urut_manual.replace(/[^0-9]/g, '')) || 0
   const nomorSurat = formatNomorSurat(data.nomor_urut_manual, bulan, tahun)
 
