@@ -31,20 +31,26 @@ function recalcStatus(totalDibayar: number, totalDiskon: number, nominal: number
 
 export async function getDsptList(filters?: { status?: string; angkatan?: string }) {
   const { db } = await requireAuth('keuangan-dspt')
+  // LEFT JOIN dari siswa → semua siswa tampil, termasuk yang belum punya tagihan DSPT
   let query = `
     SELECT
-      d.id, d.siswa_id, d.nominal_target, d.total_dibayar, d.total_diskon, d.status, d.catatan,
-      s.nama_lengkap, s.nisn,
+      d.id, d.siswa_id AS dspt_siswa_id, d.nominal_target, d.total_dibayar, d.total_diskon,
+      COALESCE(d.status, 'tidak_ada') as status, d.catatan,
+      s.id as siswa_id, s.nama_lengkap, s.nisn,
       CAST(strftime('%Y', s.created_at) AS INTEGER) as tahun_masuk,
       k.tingkat, k.nomor_kelas, k.kelompok
-    FROM fin_dspt d
-    JOIN siswa s ON s.id = d.siswa_id
+    FROM siswa s
+    LEFT JOIN fin_dspt d ON d.siswa_id = s.id
     LEFT JOIN kelas k ON k.id = s.kelas_id
     WHERE 1=1
   `
   const params: any[] = []
   if (filters?.status && filters.status !== 'semua') {
-    query += ' AND d.status = ?'; params.push(filters.status)
+    if (filters.status === 'tidak_ada') {
+      query += ' AND d.id IS NULL'
+    } else {
+      query += ' AND d.status = ?'; params.push(filters.status)
+    }
   }
   if (filters?.angkatan && filters.angkatan !== 'semua') {
     query += ` AND CAST(strftime('%Y', s.created_at) AS INTEGER) = ?`; params.push(parseInt(filters.angkatan))
@@ -55,7 +61,7 @@ export async function getDsptList(filters?: { status?: string; angkatan?: string
 }
 
 export async function createDspt(siswaId: string, nominalTarget: number, catatan?: string) {
-  const { db, userId } = await requireAuth('keuangan-dspt')
+  const { db } = await requireAuth('keuangan-dspt')
   const existing = await db.prepare('SELECT id FROM fin_dspt WHERE siswa_id = ?').bind(siswaId).first()
   if (existing) return { error: 'Siswa ini sudah memiliki tagihan DSPT', success: null }
   await db.prepare(`
@@ -64,6 +70,23 @@ export async function createDspt(siswaId: string, nominalTarget: number, catatan
   `).bind(generateId(), siswaId, nominalTarget, catatan ?? null).run()
   revalidatePath('/dashboard/keuangan/dspt')
   return { error: null, success: 'Tagihan DSPT berhasil dibuat' }
+}
+
+export async function searchSiswa(q: string) {
+  const { db } = await requireAuth('keuangan-dspt')
+  if (!q || q.trim().length < 2) return { data: [] }
+  const term = `%${q.trim()}%`
+  const result = await db.prepare(`
+    SELECT s.id, s.nama_lengkap, s.nisn,
+           k.tingkat, k.nomor_kelas, k.kelompok,
+           CAST(strftime('%Y', s.created_at) AS INTEGER) as tahun_masuk
+    FROM siswa s
+    LEFT JOIN kelas k ON k.id = s.kelas_id
+    WHERE s.nama_lengkap LIKE ? OR s.nisn LIKE ?
+    ORDER BY s.nama_lengkap ASC
+    LIMIT 20
+  `).bind(term, term).all<any>()
+  return { data: result.results ?? [] }
 }
 
 export async function updateDsptTarget(dsptId: string, nominalTarget: number, catatan?: string) {
