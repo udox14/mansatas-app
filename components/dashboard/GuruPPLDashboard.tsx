@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { WelcomeStrip } from './shared/WelcomeStrip'
 import { FeatureShortcuts } from './shared/FeatureShortcuts'
-import { Calendar, PlayCircle, Star, Info, ClipboardList } from 'lucide-react'
+import { Calendar, PlayCircle, Info, ClipboardList } from 'lucide-react'
 
 type Props = {
   userId: string; nama: string; namaDepan: string; avatarUrl: string | null
@@ -95,18 +95,6 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
               </div>
             </div>
             <PlayCircle className="h-4 w-4 text-slate-300 group-hover:text-rose-500 transition-colors" />
-          </Link>
-          
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/30">
-                <Star className="h-5 w-5 text-amber-500" />
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 group-hover:text-amber-500 transition-colors">Program Unggulan</h4>
-                <p className="text-[11px] text-slate-500">Beri nilai PU di sini</p>
-              </div>
-            </div>
-            <PlayCircle className="h-4 w-4 text-slate-300 group-hover:text-amber-500 transition-colors" />
           </Link>
         </div>
       </div>
