@@ -1,5 +1,5 @@
 // app/dashboard/tahfidz/data/juz-data.ts
-import { SURAH_LIST, Surah } from '@/app/dashboard/program-unggulan/kelola/quran-data'
+import { SURAH_LIST, Surah } from '@/app/dashboard/tahfidz/data/quran-data'
 
 export type JuzData = {
   juz: number;

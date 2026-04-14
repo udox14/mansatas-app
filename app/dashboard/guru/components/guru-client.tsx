@@ -19,9 +19,7 @@ import {
 } from 'lucide-react'
 import {
   tambahPegawai, hapusPegawai, importPegawaiMassal,
-  editPegawai, resetPasswordPegawai, setUserRoles,
-  assignJabatanStruktural, setDomisiliPegawai,
-  tambahJabatanStruktural, hapusJabatanStruktural, editJabatanStruktural, uploadFotoPegawaiAction
+  editPegawai, resetPasswordPegawai, setUserRoles, uploadFotoPegawaiAction
 } from '../actions'
 import {
   getUserFeatureOverridesAction, setUserFeatureOverride
@@ -33,8 +31,6 @@ type JabatanType = { id: string, nama: string, urutan: number }
 type MasterRoleType = { value: string; label: string; is_custom: number }
 type ProfilType = {
   id: string, nama_lengkap: string, role: string, roles: string[], email: string,
-  jabatan_struktural_id: string | null, jabatan_struktural_nama: string | null,
-  domisili_pegawai: string | null, avatar_url: string | null
 }
 
 const compressImage = async (file: File): Promise<File> => {
@@ -86,8 +82,7 @@ const ROLE_COLORS: Record<string, string> = {
   guru_piket: 'bg-teal-100 text-teal-700 border-teal-200',
   wali_kelas: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   resepsionis: 'bg-pink-100 text-pink-700 border-pink-200',
-  guru_ppl: 'bg-lime-100 text-lime-700 border-lime-200',
-}
+  guru_ppl: 'bg-lime-100 text-lime-700 border-lime-200'}
 
 const initialState: any = { error: null, success: null }
 
@@ -155,8 +150,6 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
     const matchJabatan = filterJabatan === 'ALL'
       ? true
       : filterJabatan === 'NONE'
-        ? !p.jabatan_struktural_id
-        : p.jabatan_struktural_id === filterJabatan
     return matchSearch && matchRole && matchJabatan
   })
 
@@ -268,7 +261,7 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
   const handleAssignJabatan = async (userId: string, jabatanId: string) => {
     setIsPending(true)
     const val = jabatanId === 'NONE' ? null : jabatanId
-    const res = await assignJabatanStruktural(userId, val)
+    const res = await,(userId, val)
     if (res?.error) alert(res.error)
     setIsPending(false)
   }
@@ -276,7 +269,7 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
   const handleSetDomisili = async (userId: string, domisili: string) => {
     setIsPending(true)
     const val = domisili === 'NONE' ? null : domisili
-    const res = await setDomisiliPegawai(userId, val)
+    const res = await,(userId, val)
     if (res?.error) alert(res.error)
     setIsPending(false)
   }
@@ -284,7 +277,7 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
   const handleTambahJabatan = async () => {
     if (!newJabatan.trim()) return
     setIsPending(true)
-    const res = await tambahJabatanStruktural(newJabatan)
+    const res = await,(newJabatan)
     if (res?.error) alert(res.error)
     else setNewJabatan('')
     setIsPending(false)
@@ -293,7 +286,7 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
   const handleHapusJabatan = async (id: string, nama: string) => {
     if (!confirm(`Hapus jabatan "${nama}"? Pegawai yang menjabat akan di-unset.`)) return
     setIsPending(true)
-    const res = await hapusJabatanStruktural(id)
+    const res = await,(id)
     if (res?.error) alert(res.error)
     setIsPending(false)
   }
@@ -301,7 +294,7 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
   const handleEditJabatan = async () => {
     if (!editingJabatan || !editJabatanNama.trim()) return
     setIsPending(true)
-    const res = await editJabatanStruktural(editingJabatan.id, editJabatanNama)
+    const res = await,(editingJabatan.id, editJabatanNama)
     if (res?.error) alert(res.error)
     else setEditingJabatan(null)
     setIsPending(false)
@@ -340,7 +333,6 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
   }
 
   // Count pegawai punya jabatan struktural
-  const pegawaiStruktural = initialData.filter(p => p.jabatan_struktural_id)
 
   // ─── Role Badges Component ──────────────
   const RoleBadges = ({ roles, primaryRole }: { roles: string[]; primaryRole: string }) => (
@@ -562,7 +554,6 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
                       <Building2 className="h-3.5 w-3.5 text-violet-500 shrink-0" />
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-200 flex-1">{j.nama}</span>
                       <span className="text-[10px] text-slate-400 bg-surface px-1.5 py-0.5 rounded border border-surface">
-                        {initialData.filter(p => p.jabatan_struktural_id === j.id).length} orang
                       </span>
                       <button onClick={() => { setEditingJabatan(j); setEditJabatanNama(j.nama) }} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" title="Edit">
                         <Pencil className="h-3 w-3" />
@@ -592,7 +583,6 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
 
           <TabsContent value="struktural" className="mt-3 space-y-3">
             <div className="flex items-center justify-between bg-surface border border-surface rounded-lg p-3">
-              <p className="text-xs text-slate-500">Pegawai dengan jabatan struktural wajib presensi harian via resepsionis.</p>
               <Button size="sm" variant="outline" onClick={() => setIsJabatanOpen(true)} className="h-7 text-xs gap-1 rounded-md">
                 <Building2 className="h-3 w-3" /> Kelola Jabatan
               </Button>
@@ -623,14 +613,10 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700 border border-violet-200">
-                      <Building2 className="h-2.5 w-2.5" />{p.jabatan_struktural_nama}
                     </span>
                     <RoleBadges roles={p.roles} primaryRole={p.role} />
-                    {p.domisili_pegawai && (
                       <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border",
-                        p.domisili_pegawai === 'dalam' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-amber-100 text-amber-700 border-amber-200'
                       )}>
-                        <MapPin className="h-2.5 w-2.5" />{p.domisili_pegawai === 'dalam' ? 'Dalam' : 'Luar'}
                       </span>
                     )}
                   </div>
@@ -829,14 +815,12 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
                   </div>
                   {/* Jabatan + Domisili */}
                   <div className="grid grid-cols-2 gap-2 mb-2">
-                    <Select value={p.jabatan_struktural_id || 'NONE'} onValueChange={val => handleAssignJabatan(p.id, val)} disabled={isPending}>
                       <SelectTrigger className="h-7 text-[10px] rounded border-surface bg-surface-2"><SelectValue placeholder="Jabatan Struktural" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="NONE" className="text-xs">— Tidak ada —</SelectItem>
                         {masterJabatan.map(j => <SelectItem key={j.id} value={j.id} className="text-xs">{j.nama}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <Select value={p.domisili_pegawai || 'NONE'} onValueChange={val => handleSetDomisili(p.id, val)} disabled={isPending}>
                       <SelectTrigger className="h-7 text-[10px] rounded border-surface bg-surface-2"><SelectValue placeholder="Domisili" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="NONE" className="text-xs">— Belum diset —</SelectItem>
@@ -918,27 +902,11 @@ export function GuruClient({ initialData, masterJabatan, masterRoles = DEFAULT_R
                         </div>
                       </TableCell>
                       <TableCell className="py-2.5">
-                        <Select value={p.jabatan_struktural_id || 'NONE'} onValueChange={val => handleAssignJabatan(p.id, val)} disabled={isPending}>
                           <SelectTrigger className={cn("h-7 w-36 text-xs rounded border-surface font-medium",
-                            p.jabatan_struktural_id ? 'bg-violet-50 text-violet-700 border-violet-200' : 'bg-surface-2'
                           )}><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="NONE" className="text-xs">— Tidak ada —</SelectItem>
                             {masterJabatan.map(j => <SelectItem key={j.id} value={j.id} className="text-xs">{j.nama}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell className="py-2.5">
-                        <Select value={p.domisili_pegawai || 'NONE'} onValueChange={val => handleSetDomisili(p.id, val)} disabled={isPending}>
-                          <SelectTrigger className={cn("h-7 w-24 text-xs rounded border-surface font-medium",
-                            p.domisili_pegawai === 'dalam' ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : p.domisili_pegawai === 'luar' ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                : 'bg-surface-2'
-                          )}><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="NONE" className="text-xs">— Belum —</SelectItem>
-                            <SelectItem value="dalam" className="text-xs">Dalam</SelectItem>
-                            <SelectItem value="luar" className="text-xs">Luar</SelectItem>
                           </SelectContent>
                         </Select>
                       </TableCell>
