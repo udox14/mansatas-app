@@ -43,6 +43,8 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('semua')
+  const [filterAngkatan, setFilterAngkatan] = useState('semua')
+  const [filterKelas, setFilterKelas] = useState('semua')
   const [items, setItems] = useState<MasterItem[]>(masterItem)
   const [isPending, startTransition] = useTransition()
   const [editItem, setEditItem] = useState<MasterItem | null>(null)
@@ -52,15 +54,28 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
   const [msg, setMsg] = useState('')
   const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(10)
 
+  const angkatanList = useMemo(() => {
+    const years = [...new Set(initialTagihan.map(d => d.tahun_masuk).filter(Boolean))].sort((a, b) => b - a)
+    return years
+  }, [initialTagihan])
+
+  const kelasList = useMemo(() => {
+    const set = new Set<string>()
+    initialTagihan.forEach(d => { if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ?? ''}`) })
+    return [...set].sort()
+  }, [initialTagihan])
+
   const filtered = useMemo(() => {
     reset()
     return initialTagihan.filter(r => {
       const matchS = !search || r.nama_lengkap.toLowerCase().includes(search.toLowerCase())
       const matchSt = filterStatus === 'semua' || r.status === filterStatus
-      return matchS && matchSt
+      const matchAngkatan = filterAngkatan === 'semua' || String(r.tahun_masuk) === filterAngkatan
+      const matchKelas = filterKelas === 'semua' || `${r.tingkat}-${r.nomor_kelas}${r.kelompok ?? ''}` === filterKelas
+      return matchS && matchSt && matchAngkatan && matchKelas
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialTagihan, search, filterStatus])
+  }, [initialTagihan, search, filterStatus, filterAngkatan, filterKelas])
 
   const paginated = paginate(filtered)
 
@@ -134,6 +149,24 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
               <SelectItem value="lunas">Lunas</SelectItem>
               <SelectItem value="nyicil">Sebagian</SelectItem>
               <SelectItem value="belum_bayar">Belum Bayar</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterAngkatan} onValueChange={setFilterAngkatan}>
+            <SelectTrigger className="h-8 w-32 text-xs rounded-md"><SelectValue placeholder="Angkatan" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua Angkatan</SelectItem>
+              {angkatanList.map(y => (
+                <SelectItem key={y} value={String(y)}>Angkatan {y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterKelas} onValueChange={setFilterKelas}>
+            <SelectTrigger className="h-8 w-28 text-xs rounded-md"><SelectValue placeholder="Kelas" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua Kelas</SelectItem>
+              {kelasList.map(k => (
+                <SelectItem key={k} value={k}>Kelas {k}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           {isBendahara && (
