@@ -1,9 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { TrendingUp, TrendingDown, AlertCircle, CheckCircle2, Wallet, Users } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { TrendingUp, TrendingDown, AlertCircle, CheckCircle2, Wallet, Users, Trash2 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
+import { devResetDataKeuangan } from '../actions'
 
 const BULAN = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des']
 
@@ -19,6 +23,18 @@ interface Props {
 
 export function KeuanganDashboardClient({ stats }: Props) {
   const { dspt, spp, kasKeluar, cashflowMasuk, cashflowKeluar } = stats
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [showResetDialog, setShowResetDialog] = useState(false)
+  const [resetMsg, setResetMsg] = useState('')
+
+  function handleReset() {
+    startTransition(async () => {
+      const res = await devResetDataKeuangan()
+      setResetMsg(res.error ?? res.success ?? '')
+      if (!res.error) { setShowResetDialog(false); router.refresh() }
+    })
+  }
 
   const totalMasuk = cashflowMasuk.reduce((s, r) => s + (r.total ?? 0), 0)
   const totalKeluar = cashflowKeluar.reduce((s, r) => s + (r.total ?? 0), 0)
@@ -172,6 +188,50 @@ export function KeuanganDashboardClient({ stats }: Props) {
           sub="belum ada pembayaran"
         />
       </div>
+
+      {/* [DEV] Reset data — hapus sebelum production */}
+      <div className="flex justify-end pt-2">
+        <Button
+          size="sm" variant="outline"
+          className="h-8 text-xs gap-1.5 border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:border-rose-800 dark:text-rose-400"
+          onClick={() => { setResetMsg(''); setShowResetDialog(true) }}
+        >
+          <Trash2 className="h-3.5 w-3.5" /> [DEV] Hapus Semua Data Keuangan
+        </Button>
+      </div>
+
+      {/* Dialog konfirmasi */}
+      <Dialog open={showResetDialog} onOpenChange={v => { if (!v) setShowResetDialog(false) }}>
+        <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
+          <DialogHeader className="px-5 py-4 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-800">
+            <DialogTitle className="text-sm font-semibold text-rose-700 dark:text-rose-400">
+              Hapus Semua Data Keuangan?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Semua data berikut akan dihapus permanen:
+            </p>
+            <ul className="text-xs text-slate-500 space-y-1 list-disc pl-4">
+              <li>Semua tagihan DSPT, SPP, Koperasi</li>
+              <li>Semua transaksi & detail transaksi</li>
+              <li>Semua diskon & janji bayar</li>
+              <li>Semua kas keluar</li>
+              <li>Nomor kuitansi direset ke 0</li>
+            </ul>
+            <p className="text-xs font-semibold text-rose-600">Tindakan ini tidak dapat dibatalkan!</p>
+            {resetMsg && <p className="text-xs text-rose-500 bg-rose-50 dark:bg-rose-900/20 px-3 py-2 rounded-md">{resetMsg}</p>}
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setShowResetDialog(false)}>
+                Batal
+              </Button>
+              <Button variant="destructive" size="sm" className="flex-1 h-9 text-sm" disabled={isPending} onClick={handleReset}>
+                {isPending ? 'Menghapus...' : 'Ya, Hapus Semua'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -497,6 +497,25 @@ export async function hapusKasKeluar(id: string) {
   return { error: null, success: 'Data pengeluaran dihapus' }
 }
 
+// ── [DEV] Reset semua data keuangan ─────────────────────────────────────────
+export async function devResetDataKeuangan() {
+  const { db } = await requireAuth('keuangan-dashboard')
+  await db.batch([
+    db.prepare('DELETE FROM fin_transaksi_detail'),
+    db.prepare('DELETE FROM fin_transaksi'),
+    db.prepare('DELETE FROM fin_diskon'),
+    db.prepare('DELETE FROM fin_janji_bayar'),
+    db.prepare('DELETE FROM fin_dspt'),
+    db.prepare('DELETE FROM fin_spp_tagihan'),
+    db.prepare('DELETE FROM fin_koperasi_tagihan_item'),
+    db.prepare('DELETE FROM fin_koperasi_tagihan'),
+    db.prepare('DELETE FROM fin_kas_keluar'),
+    db.prepare("UPDATE fin_nomor_kuitansi_seq SET counter = 0 WHERE id = 'singleton'"),
+  ])
+  revalidatePath('/dashboard/keuangan')
+  return { error: null, success: 'Semua data keuangan berhasil dihapus' }
+}
+
 // ─── Dashboard Stats ────────────────────────────────────────────────────────
 
 export async function getDashboardStats(tahunAjaran?: string) {
