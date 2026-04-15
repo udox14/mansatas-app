@@ -15,9 +15,9 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Search, ChevronRight, CheckCircle2, Clock, XCircle, Plus, Settings2, RefreshCw } from 'lucide-react'
+import { Search, ChevronRight, CheckCircle2, Clock, XCircle, Plus, Settings2, RefreshCw, Trash2 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { saveMasterItem, generateKoperasiTagihanBulk } from '../actions'
+import { saveMasterItem, generateKoperasiTagihanBulk, hapusMasterItem } from '../actions'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 
 interface TagihanRow {
@@ -47,6 +47,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
   const [isPending, startTransition] = useTransition()
   const [editItem, setEditItem] = useState<MasterItem | null>(null)
   const [showItemModal, setShowItemModal] = useState(false)
+  const [deleteItemConfirm, setDeleteItemConfirm] = useState<MasterItem | null>(null)
   const [itemForm, setItemForm] = useState({ nama_item: '', nominal_default: '', urutan: '' })
   const [msg, setMsg] = useState('')
   const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(10)
@@ -81,6 +82,15 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
     })
   }
 
+  async function handleHapusItem(item: MasterItem) {
+    startTransition(async () => {
+      const res = await hapusMasterItem(item.id)
+      setMsg(res.error ?? res.success ?? '')
+      setDeleteItemConfirm(null)
+      if (!res.error) router.refresh()
+    })
+  }
+
   async function handleSaveItem(e: React.FormEvent) {
     e.preventDefault()
     startTransition(async () => {
@@ -96,6 +106,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
   }
 
   return (
+    <>
     <Tabs defaultValue="tagihan" className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <TabsList className="h-8 text-xs">
@@ -167,7 +178,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
                 const s = STATUS_MAP[row.status] ?? STATUS_MAP.belum_bayar
                 return (
                   <TableRow key={row.id} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                    onClick={() => router.push(`/dashboard/keuangan/siswa/${row.siswa_id}`)}>
+                    onClick={() => router.push(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=koperasi`)}>
                     <TableCell>
                       <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
                       <p className="text-[11px] text-slate-400">{row.nisn}</p>
@@ -227,7 +238,12 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => openEdit(item)}>Edit</Button>
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => openEdit(item)}>Edit</Button>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-rose-400 hover:text-rose-600 hover:bg-rose-50" onClick={() => setDeleteItemConfirm(item)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -272,5 +288,26 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
         </TabsContent>
       )}
     </Tabs>
+
+    {/* Konfirmasi Hapus Item */}
+    <Dialog open={!!deleteItemConfirm} onOpenChange={v => { if (!v) setDeleteItemConfirm(null) }}>
+      <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
+        <DialogHeader className="px-5 py-4 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-800">
+          <DialogTitle className="text-sm font-semibold text-rose-700 dark:text-rose-400">Hapus Item Koperasi?</DialogTitle>
+        </DialogHeader>
+        <div className="p-5">
+          <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">Item <strong>{deleteItemConfirm?.nama_item}</strong> akan dihapus permanen.</p>
+          <p className="text-xs text-slate-400 mb-4">Item yang sudah dipakai di tagihan tidak bisa dihapus.</p>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setDeleteItemConfirm(null)}>Batal</Button>
+            <Button variant="destructive" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}
+              onClick={() => deleteItemConfirm && handleHapusItem(deleteItemConfirm)}>
+              {isPending ? 'Menghapus...' : 'Ya, Hapus'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

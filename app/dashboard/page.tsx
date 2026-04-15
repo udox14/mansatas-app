@@ -12,6 +12,7 @@ import { GuruBKDashboard }     from '@/components/dashboard/GuruBKDashboard'
 import { GuruPiketDashboard }  from '@/components/dashboard/GuruPiketDashboard'
 import { ResepsionisDashboard } from '@/components/dashboard/ResepsionisDashboard'
 import { GuruPPLDashboard } from '@/components/dashboard/GuruPPLDashboard'
+import { BendaharaDashboard } from '@/components/dashboard/BendaharaDashboard'
 
 export const metadata = { title: 'Dashboard - MANSATAS App' }
 export const dynamic  = 'force-dynamic'
@@ -29,6 +30,8 @@ const ROLE_COLOR: Record<string, string> = {
   guru_piket:  'orange',
   resepsionis: 'sky',
   guru_tahfidz:'amber',
+  bendahara_komite:   'emerald',
+  pengurus_koperasi:  'amber',
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -43,6 +46,8 @@ const ROLE_LABEL: Record<string, string> = {
   resepsionis: 'Resepsionis',
   guru_ppl:    'Guru PPL',
   guru_tahfidz:'Guru Tahfidz',
+  bendahara_komite:   'Bendahara Komite',
+  pengurus_koperasi:  'Pengurus Koperasi',
 }
 
 export default async function DashboardPage() {
@@ -106,6 +111,10 @@ export default async function DashboardPage() {
 
     case 'guru_ppl':
       return <GuruPPLDashboard {...commonProps} />
+
+    case 'bendahara_komite':
+    case 'pengurus_koperasi':
+      return <BendaharaDashboard {...commonProps} />
 
     case 'guru':
     case 'guru_tahfidz':

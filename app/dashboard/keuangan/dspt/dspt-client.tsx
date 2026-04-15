@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -43,10 +43,11 @@ const STATUS_MAP = {
 
 export function DsptClient({ initialData }: { initialData: DsptRow[] }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('semua')
-  const [filterAngkatan, setFilterAngkatan] = useState('semua')
+  const [filterAngkatan, setFilterAngkatan] = useState(searchParams.get('angkatan') ?? 'semua')
 
   // Modal input DSPT baru
   const [modalSiswa, setModalSiswa] = useState<DsptRow | null>(null)
@@ -202,7 +203,7 @@ export function DsptClient({ initialData }: { initialData: DsptRow[] }) {
                 <TableRow
                   key={row.siswa_id}
                   className={`transition-colors ${belumInput ? 'opacity-60' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
-                  onClick={() => belumInput ? openSetDspt(row) : router.push(`/dashboard/keuangan/siswa/${row.siswa_id}`)}
+                  onClick={() => belumInput ? openSetDspt(row) : router.push(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=dspt`)}
                 >
                   <TableCell>
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>

@@ -138,7 +138,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
               )}
               {paginated.map(row => (
                 <TableRow key={row.id} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                  onClick={() => router.push(`/dashboard/keuangan/siswa/${row.siswa_id}`)}>
+                  onClick={() => router.push(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=spp`)}>
                   <TableCell>
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
                     <p className="text-[11px] text-slate-400">{row.nisn}</p>

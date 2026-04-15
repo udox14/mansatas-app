@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +30,10 @@ const BULAN_LABEL = ['', 'Januari','Februari','Maret','April','Mei','Juni','Juli
 
 export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any; masterItem: any[]; tahunAjaranId?: string }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const defaultTab = (['dspt', 'spp', 'koperasi', 'riwayat'].includes(searchParams.get('tab') ?? ''))
+    ? (searchParams.get('tab') as string)
+    : 'dspt'
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
   const [bayarModal, setBayarModal] = useState<{ type: 'dspt' | 'spp' | 'koperasi'; target?: any } | null>(null)
@@ -269,7 +273,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
         </p>
       )}
 
-      <Tabs defaultValue="dspt" className="space-y-3">
+      <Tabs defaultValue={defaultTab} className="space-y-3">
         <TabsList className="h-8 text-xs">
           <TabsTrigger value="dspt" className="text-xs h-7 px-3">DSPT</TabsTrigger>
           <TabsTrigger value="spp" className="text-xs h-7 px-3">SPP</TabsTrigger>

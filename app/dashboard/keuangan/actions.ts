@@ -199,6 +199,20 @@ export async function saveMasterItem(data: { id?: string; nama_item: string; nom
   return { error: null, success: 'Item berhasil disimpan' }
 }
 
+export async function hapusMasterItem(id: string) {
+  const { db } = await requireAuth('keuangan-koperasi')
+  // Cek apakah item ini sudah dipakai di tagihan
+  const used = await db.prepare(
+    'SELECT COUNT(*) as c FROM fin_koperasi_tagihan_item WHERE master_item_id = ?'
+  ).bind(id).first<{ c: number }>()
+  if (used && used.c > 0) {
+    return { error: `Item tidak bisa dihapus karena sudah dipakai di ${used.c} tagihan`, success: null }
+  }
+  await db.prepare('DELETE FROM fin_koperasi_master_item WHERE id = ?').bind(id).run()
+  revalidatePath('/dashboard/keuangan/koperasi')
+  return { error: null, success: 'Item berhasil dihapus' }
+}
+
 export async function getKoperasiTagihanList(filters?: { status?: string; angkatan?: string }) {
   const { db } = await requireAuth('keuangan-koperasi')
   let query = `
