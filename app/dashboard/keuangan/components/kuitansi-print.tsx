@@ -270,13 +270,15 @@ function BlokTtd({
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt' }}>
       <tbody>
         <tr>
-          <td style={{ width: '50%', textAlign: 'center', padding: '0 10mm' }}>
+          <td style={{ width: '50%', textAlign: 'center', padding: '0 10mm', verticalAlign: 'bottom' }}>
+            {/* Spacer setinggi 2 baris teks kanan agar garis TTD sejajar */}
+            <p style={{ margin: '0 0 3px 0', visibility: 'hidden' }}>placeholder</p>
             <p style={{ margin: '0 0 28mm 0' }}>Penyetor / Siswa</p>
             <div style={{ borderBottom: '1px solid #1a1a1a', marginBottom: '5px' }} />
             <p style={{ margin: 0, fontWeight: 'bold' }}>( {namaSiswa} )</p>
           </td>
-          <td style={{ width: '50%', textAlign: 'center', padding: '0 10mm' }}>
-            <p style={{ margin: '0 0 3px 0' }}>Lahat, {tanggalFmt}</p>
+          <td style={{ width: '50%', textAlign: 'center', padding: '0 10mm', verticalAlign: 'bottom' }}>
+            <p style={{ margin: '0 0 3px 0' }}>Tasikmalaya, {tanggalFmt}</p>
             <p style={{ margin: '0 0 28mm 0' }}>{jabatanPenerima}</p>
             <div style={{ borderBottom: '1px solid #1a1a1a', marginBottom: '5px' }} />
             <p style={{ margin: 0, fontWeight: 'bold' }}>( {namaPerugas} )</p>

@@ -48,6 +48,7 @@ export function DsptClient({ initialData }: { initialData: DsptRow[] }) {
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('semua')
   const [filterAngkatan, setFilterAngkatan] = useState(searchParams.get('angkatan') ?? 'semua')
+  const [filterKelas, setFilterKelas] = useState('semua')
 
   // Modal input DSPT baru
   const [modalSiswa, setModalSiswa] = useState<DsptRow | null>(null)
@@ -71,16 +72,25 @@ export function DsptClient({ initialData }: { initialData: DsptRow[] }) {
     return years
   }, [initialData])
 
+  const kelasList = useMemo(() => {
+    const set = new Set<string>()
+    initialData.forEach(d => {
+      if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ?? ''}`)
+    })
+    return [...set].sort()
+  }, [initialData])
+
   const filtered = useMemo(() => {
     reset()
     return initialData.filter(row => {
       const matchSearch = !search || row.nama_lengkap.toLowerCase().includes(search.toLowerCase()) || row.nisn?.includes(search)
       const matchStatus = filterStatus === 'semua' || row.status === filterStatus
       const matchAngkatan = filterAngkatan === 'semua' || String(row.tahun_masuk) === filterAngkatan
-      return matchSearch && matchStatus && matchAngkatan
+      const matchKelas = filterKelas === 'semua' || `${row.tingkat}-${row.nomor_kelas}${row.kelompok ?? ''}` === filterKelas
+      return matchSearch && matchStatus && matchAngkatan && matchKelas
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialData, search, filterStatus, filterAngkatan])
+  }, [initialData, search, filterStatus, filterAngkatan, filterKelas])
 
   const paginated = paginate(filtered)
 
@@ -150,6 +160,15 @@ export function DsptClient({ initialData }: { initialData: DsptRow[] }) {
             <SelectItem value="semua">Semua Angkatan</SelectItem>
             {angkatanList.map(y => (
               <SelectItem key={y} value={String(y)}>Angkatan {y}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterKelas} onValueChange={setFilterKelas}>
+          <SelectTrigger className="h-8 w-28 text-xs rounded-md"><SelectValue placeholder="Kelas" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="semua">Semua Kelas</SelectItem>
+            {kelasList.map(k => (
+              <SelectItem key={k} value={k}>Kelas {k}</SelectItem>
             ))}
           </SelectContent>
         </Select>

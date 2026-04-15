@@ -22,7 +22,7 @@ interface SppRow {
   id: string; siswa_id: string; nama_lengkap: string; nisn: string
   bulan: number; tahun: number; nominal: number
   total_dibayar: number; total_diskon: number; status: string
-  tingkat: number; nomor_kelas: number; kelompok: string
+  tingkat: number; nomor_kelas: number; kelompok: string; tahun_masuk: number
 }
 
 const BULAN_LABEL = ['', 'Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
@@ -39,18 +39,33 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
   const [tagihan] = useState<SppRow[]>(initialTagihan)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('semua')
+  const [filterAngkatan, setFilterAngkatan] = useState('semua')
+  const [filterKelas, setFilterKelas] = useState('semua')
   const [msg, setMsg] = useState('')
   const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(10)
+
+  const angkatanList = useMemo(() => {
+    const years = [...new Set(tagihan.map(d => d.tahun_masuk).filter(Boolean))].sort((a, b) => b - a)
+    return years
+  }, [tagihan])
+
+  const kelasList = useMemo(() => {
+    const set = new Set<string>()
+    tagihan.forEach(d => { if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ?? ''}`) })
+    return [...set].sort()
+  }, [tagihan])
 
   const filtered = useMemo(() => {
     reset()
     return tagihan.filter(r => {
       const matchS = !search || r.nama_lengkap.toLowerCase().includes(search.toLowerCase())
       const matchSt = filterStatus === 'semua' || r.status === filterStatus
-      return matchS && matchSt
+      const matchAngkatan = filterAngkatan === 'semua' || String(r.tahun_masuk) === filterAngkatan
+      const matchKelas = filterKelas === 'semua' || `${r.tingkat}-${r.nomor_kelas}${r.kelompok ?? ''}` === filterKelas
+      return matchS && matchSt && matchAngkatan && matchKelas
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tagihan, search, filterStatus])
+  }, [tagihan, search, filterStatus, filterAngkatan, filterKelas])
 
   const paginated = paginate(filtered)
 
@@ -96,6 +111,24 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
               <SelectItem value="semua">Semua Status</SelectItem>
               <SelectItem value="lunas">Lunas</SelectItem>
               <SelectItem value="belum_bayar">Belum Bayar</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterAngkatan} onValueChange={setFilterAngkatan}>
+            <SelectTrigger className="h-8 w-32 text-xs rounded-md"><SelectValue placeholder="Angkatan" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua Angkatan</SelectItem>
+              {angkatanList.map(y => (
+                <SelectItem key={y} value={String(y)}>Angkatan {y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterKelas} onValueChange={setFilterKelas}>
+            <SelectTrigger className="h-8 w-28 text-xs rounded-md"><SelectValue placeholder="Kelas" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua Kelas</SelectItem>
+              {kelasList.map(k => (
+                <SelectItem key={k} value={k}>Kelas {k}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button size="sm" className="h-8 text-xs gap-1.5 ml-auto" onClick={handleGenerate} disabled={isPending}>
