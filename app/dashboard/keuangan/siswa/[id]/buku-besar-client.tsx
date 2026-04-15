@@ -108,7 +108,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
     }
 
     const kelas = siswa.tingkat
-      ? `Kelas ${siswa.tingkat}-${siswa.nomor_kelas}${siswa.kelompok ?? ''}`
+      ? `Kelas ${siswa.tingkat}-${siswa.nomor_kelas}${siswa.kelompok ? ' ' + siswa.kelompok : ''}`
       : '-'
 
     return {
@@ -130,7 +130,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
 
   function openKuitansiFromTrx(trx: any) {
     const kelas = siswa.tingkat
-      ? `Kelas ${siswa.tingkat}-${siswa.nomor_kelas}${siswa.kelompok ?? ''}`
+      ? `Kelas ${siswa.tingkat}-${siswa.nomor_kelas}${siswa.kelompok ? ' ' + siswa.kelompok : ''}`
       : '-'
     const kategoriLabel = trx.kategori === 'dspt' ? 'DSPT' : trx.kategori === 'spp' ? 'SPP' : 'Koperasi'
     setKuitansiData({

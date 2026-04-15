@@ -34,6 +34,7 @@ import {
   ShoppingBag,
   TrendingDown,
   BarChart3,
+  ClipboardCheck,
 } from 'lucide-react'
 
 export type MenuItem = {
@@ -250,6 +251,13 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keuangan',
     icon: Wallet,
     roles: ['super_admin', 'bendahara_komite'],
+  },
+  {
+    id: 'keuangan-daftar-ulang',
+    title: 'Kasir Daftar Ulang',
+    href: '/dashboard/keuangan/daftar-ulang',
+    icon: ClipboardCheck,
+    roles: ['super_admin', 'bendahara_komite', 'pengurus_koperasi'],
   },
   {
     id: 'keuangan-dspt',

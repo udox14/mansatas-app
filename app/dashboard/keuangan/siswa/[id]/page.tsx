@@ -28,7 +28,7 @@ async function BukuBesarDataFetcher({ id }: { id: string }) {
     <>
       <PageHeader
         title={data.siswa.nama_lengkap}
-        description={`NISN: ${data.siswa.nisn ?? '-'} · ${data.siswa.tingkat ? `Kelas ${data.siswa.tingkat}-${data.siswa.nomor_kelas}${data.siswa.kelompok ?? ''}` : '-'} · Angkatan ${data.siswa.tahun_masuk ?? '-'}`}
+        description={`NISN: ${data.siswa.nisn ?? '-'} · ${data.siswa.tingkat ? `Kelas ${data.siswa.tingkat}-${data.siswa.nomor_kelas}${data.siswa.kelompok ? ' ' + data.siswa.kelompok : ''}` : '-'} · Angkatan ${data.siswa.tahun_masuk ?? '-'}`}
       />
       <BukuBesarClient data={data} masterItem={masterItem} tahunAjaranId={tahunAjaran?.id} />
     </>
