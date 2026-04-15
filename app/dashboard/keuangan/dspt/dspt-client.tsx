@@ -17,6 +17,7 @@ import {
 import { Search, ChevronRight, CheckCircle2, Clock, XCircle, Minus, Plus } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
 import { createDspt, searchSiswa } from '../actions'
+import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 
 interface DsptRow {
   id: string | null
@@ -62,19 +63,25 @@ export function DsptClient({ initialData }: { initialData: DsptRow[] }) {
   const [addSelected, setAddSelected] = useState<any | null>(null)
   const [addMsg, setAddMsg] = useState('')
 
+  const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(10)
+
   const angkatanList = useMemo(() => {
     const years = [...new Set(initialData.map(d => d.tahun_masuk).filter(Boolean))].sort((a, b) => b - a)
     return years
   }, [initialData])
 
   const filtered = useMemo(() => {
+    reset()
     return initialData.filter(row => {
       const matchSearch = !search || row.nama_lengkap.toLowerCase().includes(search.toLowerCase()) || row.nisn?.includes(search)
       const matchStatus = filterStatus === 'semua' || row.status === filterStatus
       const matchAngkatan = filterAngkatan === 'semua' || String(row.tahun_masuk) === filterAngkatan
       return matchSearch && matchStatus && matchAngkatan
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialData, search, filterStatus, filterAngkatan])
+
+  const paginated = paginate(filtered)
 
   const withDspt = filtered.filter(r => r.status !== 'tidak_ada')
   const totalTarget  = withDspt.reduce((s, r) => s + (r.nominal_target ?? 0), 0)
@@ -181,12 +188,12 @@ export function DsptClient({ initialData }: { initialData: DsptRow[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 && (
+            {paginated.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-10 text-slate-400 text-sm">Tidak ada data</TableCell>
               </TableRow>
             )}
-            {filtered.map(row => {
+            {paginated.map(row => {
               const sisa = (row.nominal_target ?? 0) - (row.total_dibayar ?? 0) - (row.total_diskon ?? 0)
               const s = STATUS_MAP[row.status] ?? STATUS_MAP.tidak_ada
               const Icon = s.icon
@@ -226,8 +233,16 @@ export function DsptClient({ initialData }: { initialData: DsptRow[] }) {
             })}
           </TableBody>
         </Table>
-        <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
-          {filtered.length} siswa · {withDspt.length} sudah diinput DSPT
+        <DataPagination
+          total={filtered.length}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          entityLabel="siswa"
+        />
+        <div className="px-4 py-1.5 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
+          {withDspt.length} dari {filtered.length} sudah diinput DSPT
         </div>
       </div>
 

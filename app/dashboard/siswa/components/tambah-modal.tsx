@@ -77,6 +77,10 @@ export function TambahModal() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
+              <Label htmlFor="tahun_masuk" className="text-xs font-semibold text-slate-600 dark:text-slate-300">Tahun Masuk (Angkatan) <span className="text-rose-500">*</span></Label>
+              <Input id="tahun_masuk" name="tahun_masuk" type="number" min={2000} max={2099} required placeholder={String(new Date().getFullYear())} className="h-8 text-sm rounded-md bg-slate-50" />
+            </div>
+            <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Jenis Kelamin</Label>
               <Select name="jenis_kelamin" defaultValue="L">
                 <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50">
@@ -88,9 +92,10 @@ export function TambahModal() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Domisili</Label>
-              <Select name="tempat_tinggal" defaultValue="Non-Pesantren">
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Domisili</Label>
+            <Select name="tempat_tinggal" defaultValue="Non-Pesantren">
                 <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50">
                   <SelectValue />
                 </SelectTrigger>
@@ -101,8 +106,7 @@ export function TambahModal() {
                   <SelectItem value="Pesantren Sukaguru" className="text-xs">Pesantren Sukaguru</SelectItem>
                   <SelectItem value="Pesantren Al-Ma'mur" className="text-xs">Pesantren Al-Ma'mur</SelectItem>
                 </SelectContent>
-              </Select>
-            </div>
+            </Select>
           </div>
 
           <div className="pt-1">

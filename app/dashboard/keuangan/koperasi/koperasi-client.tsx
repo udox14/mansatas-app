@@ -18,6 +18,7 @@ import {
 import { Search, ChevronRight, CheckCircle2, Clock, XCircle, Plus, Settings2, RefreshCw } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
 import { saveMasterItem, generateKoperasiTagihanBulk } from '../actions'
+import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 
 interface TagihanRow {
   id: string; siswa_id: string; nama_lengkap: string; nisn: string
@@ -48,13 +49,19 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
   const [showItemModal, setShowItemModal] = useState(false)
   const [itemForm, setItemForm] = useState({ nama_item: '', nominal_default: '', urutan: '' })
   const [msg, setMsg] = useState('')
+  const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(10)
 
-  const filtered = useMemo(() =>
-    initialTagihan.filter(r => {
+  const filtered = useMemo(() => {
+    reset()
+    return initialTagihan.filter(r => {
       const matchS = !search || r.nama_lengkap.toLowerCase().includes(search.toLowerCase())
       const matchSt = filterStatus === 'semua' || r.status === filterStatus
       return matchS && matchSt
-    }), [initialTagihan, search, filterStatus])
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTagihan, search, filterStatus])
+
+  const paginated = paginate(filtered)
 
   function openEdit(item: MasterItem | null) {
     setEditItem(item)
@@ -152,10 +159,10 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 && (
+              {paginated.length === 0 && (
                 <TableRow><TableCell colSpan={7} className="text-center py-10 text-sm text-slate-400">Tidak ada data</TableCell></TableRow>
               )}
-              {filtered.map(row => {
+              {paginated.map(row => {
                 const sisa = row.total_nominal - row.total_dibayar - row.total_diskon
                 const s = STATUS_MAP[row.status] ?? STATUS_MAP.belum_bayar
                 return (
@@ -178,9 +185,14 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
               })}
             </TableBody>
           </Table>
-          <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
-            {filtered.length} siswa ditampilkan
-          </div>
+          <DataPagination
+            total={filtered.length}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            entityLabel="siswa"
+          />
         </div>
       </TabsContent>
 

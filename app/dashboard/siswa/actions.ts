@@ -24,12 +24,14 @@ async function verifyAdminAccess() {
 export async function tambahSiswa(prevState: any, formData: FormData) {
   if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.', success: null }
   const db = await getDB()
+  const tahunMasukRaw = formData.get('tahun_masuk') as string
   const payload = {
     nisn: formData.get('nisn') as string,
     nis_lokal: (formData.get('nis_lokal') as string) || null,
     nama_lengkap: formData.get('nama_lengkap') as string,
     jenis_kelamin: formData.get('jenis_kelamin') as string,
     tempat_tinggal: formData.get('tempat_tinggal') as string,
+    tahun_masuk: tahunMasukRaw ? parseInt(tahunMasukRaw) : null,
   }
 
   if (!payload.nisn || !payload.nama_lengkap) {
@@ -665,6 +667,7 @@ export async function editSiswaLengkap(prevState: any, formData: FormData) {
   // Konversi field numerik
   if (payload.anak_ke !== null) payload.anak_ke = payload.anak_ke ? parseInt(payload.anak_ke) : null
   if (payload.jumlah_saudara !== null) payload.jumlah_saudara = payload.jumlah_saudara ? parseInt(payload.jumlah_saudara) : null
+  if (payload.tahun_masuk !== null) payload.tahun_masuk = payload.tahun_masuk ? parseInt(payload.tahun_masuk) : null
 
   payload.updated_at = new Date().toISOString()
 
@@ -683,6 +686,26 @@ export async function editSiswaLengkap(prevState: any, formData: FormData) {
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${id}`)
   return { error: null, success: 'Biodata lengkap berhasil diperbarui!' }
+}
+
+// bulkSetTahunMasuk — update tahun_masuk massal berdasarkan filter kelas
+// Dipakai oleh Admin TU untuk memperbaiki data angkatan yang di-backfill salah
+export async function bulkSetTahunMasuk(kelasId: string, tahunMasuk: number) {
+  if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.', success: null }
+  if (!tahunMasuk || tahunMasuk < 2000 || tahunMasuk > 2099) return { error: 'Tahun masuk tidak valid', success: null }
+  const db = await getDB()
+  let result
+  if (kelasId === 'semua') {
+    result = await db.prepare(
+      "UPDATE siswa SET tahun_masuk = ?, updated_at = datetime('now')"
+    ).bind(tahunMasuk).run()
+  } else {
+    result = await db.prepare(
+      "UPDATE siswa SET tahun_masuk = ?, updated_at = datetime('now') WHERE kelas_id = ?"
+    ).bind(tahunMasuk, kelasId).run()
+  }
+  revalidatePath('/dashboard/siswa')
+  return { error: null, success: `${result.meta.changes} data siswa berhasil diperbarui angkatannya` }
 }
 
 // getDetailSiswaLengkap — dipakai oleh siswa-client.tsx (lazy load detail)

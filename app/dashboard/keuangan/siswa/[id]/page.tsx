@@ -11,16 +11,18 @@ import { ChevronLeft } from 'lucide-react'
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Buku Besar Siswa | Keuangan MANSATAS' }
 
-export default async function BukuBesarPage({ params }: { params: { id: string } }) {
+export default async function BukuBesarPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getSession()
   if (!session?.user) redirect('/login')
   const db = await getDB()
   const allowed = await checkFeatureAccess(db, session.user.id, 'keuangan-dspt')
+    || await checkFeatureAccess(db, session.user.id, 'keuangan-spp')
     || await checkFeatureAccess(db, session.user.id, 'keuangan-koperasi')
   if (!allowed) redirect('/dashboard')
 
   const [data, { data: masterItem }, tahunAjaran] = await Promise.all([
-    getBukuBesarSiswa(params.id),
+    getBukuBesarSiswa(id),
     getMasterItemKoperasi(),
     db.prepare("SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1").first<{ id: string }>(),
   ])
