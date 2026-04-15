@@ -6,13 +6,14 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, Users, Trash2, MapPin, Loader2, Pencil, LayoutGrid, List, Camera, ChevronRight, LogOut, CalendarX2 } from 'lucide-react'
+import { Search, Users, Trash2, MapPin, Loader2, Pencil, LayoutGrid, List, Camera, ChevronRight, LogOut, CalendarX2, GraduationCap } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getSiswaKeluar } from '../actions'
 import { TambahModal } from './tambah-modal'
 import { ImportModalSiswa } from './import-modal'
-import { hapusSiswa, uploadFotoSiswaAction, getDetailSiswaLengkap } from '../actions'
+import { hapusSiswa, uploadFotoSiswaAction, getDetailSiswaLengkap, bulkSetTahunMasuk } from '../actions'
 import { EditSiswaModal } from './edit-modal'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatNamaKelas, cn } from '@/lib/utils'
 
 const compressImage = async (file: File): Promise<File> => {
@@ -64,6 +65,12 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
   const [itemsPerPage, setItemsPerPage] = useState(20)
   const [editingSiswa, setEditingSiswa] = useState<any | null>(null)
   const [isFetchingDetail, setIsFetchingDetail] = useState<string | null>(null)
+  const [filterAngkatan, setFilterAngkatan] = useState('Semua')
+  const [showBulkAngkatan, setShowBulkAngkatan] = useState(false)
+  const [bulkKelasId, setBulkKelasId] = useState('semua')
+  const [bulkTahun, setBulkTahun] = useState(String(new Date().getFullYear()))
+  const [bulkMsg, setBulkMsg] = useState('')
+  const [isBulkPending, setIsBulkPending] = useState(false)
 
   // Tab Keluar — lazy load
   const [keluarLoaded, setKeluarLoaded] = useState(false)
@@ -87,11 +94,14 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
     return false
   }
 
+  const angkatanList = Array.from(new Set(initialData.map(s => s.tahun_masuk).filter(Boolean))).sort((a, b) => b - a)
+
   const filteredData = initialData.filter(s => {
     const matchSearch = s.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) || s.nisn.includes(searchTerm)
     const matchKelas = filterKelas === 'Semua' || s.kelas?.id === filterKelas
     const matchStatus = filterStatus === 'Semua' || s.status === filterStatus
-    return matchSearch && matchKelas && matchStatus
+    const matchAngkatan = filterAngkatan === 'Semua' || String(s.tahun_masuk) === filterAngkatan
+    return matchSearch && matchKelas && matchStatus && matchAngkatan
   })
 
   const dynamicItemsPerPage = viewMode === 'gallery' ? 24 : itemsPerPage
@@ -118,6 +128,15 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
       setKeluarSearchDebounce(val)
       loadSiswaKeluar(val)
     }, 400)
+  }
+
+  const handleBulkAngkatan = async () => {
+    if (!bulkTahun || isNaN(parseInt(bulkTahun))) { setBulkMsg('Tahun masuk tidak valid'); return }
+    if (!confirm(`Yakin update tahun masuk ke ${bulkTahun} untuk ${bulkKelasId === 'semua' ? 'SEMUA siswa' : 'siswa kelas ini'}?`)) return
+    setIsBulkPending(true)
+    const res = await bulkSetTahunMasuk(bulkKelasId, parseInt(bulkTahun))
+    setBulkMsg(res.error ?? res.success ?? '')
+    setIsBulkPending(false)
   }
 
   const handleHapus = async (id: string, nama: string) => {
@@ -154,6 +173,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
   }
 
   return (
+    <>
     <Tabs defaultValue="aktif" onValueChange={v => { if (v === 'keluar') handleTabKeluar() }}>
       {/* Tab Switch */}
       <div className="flex items-center gap-2 mb-1">
@@ -222,10 +242,10 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
               )}
             </div>
 
-            {/* Baris 2: Filter kelas + status */}
-            <div className="flex items-center gap-2">
+            {/* Baris 2: Filter kelas + angkatan + status */}
+            <div className="flex items-center gap-2 flex-wrap">
               <Select value={filterKelas} onValueChange={v => { setFilterKelas(v); setCurrentPage(1) }}>
-                <SelectTrigger className="h-8 flex-1 text-xs rounded-lg">
+                <SelectTrigger className="h-8 flex-1 min-w-[140px] text-xs rounded-lg">
                   <SelectValue placeholder="Semua Kelas" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
@@ -235,6 +255,17 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                     <SelectItem key={k.id} value={k.id}>
                       {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}
                     </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterAngkatan} onValueChange={v => { setFilterAngkatan(v); setCurrentPage(1) }}>
+                <SelectTrigger className="h-8 w-32 text-xs rounded-lg shrink-0">
+                  <SelectValue placeholder="Angkatan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Semua">Semua Angkatan</SelectItem>
+                  {angkatanList.map(a => (
+                    <SelectItem key={a} value={String(a)}>Angkatan {a}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -249,6 +280,11 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                   <SelectItem value="keluar">Keluar</SelectItem>
                 </SelectContent>
               </Select>
+              {canFullEdit && (
+                <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 shrink-0" onClick={() => { setBulkMsg(''); setShowBulkAngkatan(true) }}>
+                  <GraduationCap className="h-3.5 w-3.5" /> Atur Angkatan
+                </Button>
+              )}
             </div>
           </div>
 
@@ -334,6 +370,9 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                               {formatNamaKelas(s.kelas.tingkat, s.kelas.nomor_kelas, s.kelas.kelompok)}
                             </span>
                           )}
+                          {s.tahun_masuk && (
+                            <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-medium">'{String(s.tahun_masuk).slice(2)}</span>
+                          )}
                         </div>
                       </div>
 
@@ -374,6 +413,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                     <TableRow className="bg-surface-2 hover:bg-surface-2">
                       <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 w-72">Siswa</TableHead>
                       <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">Kelas</TableHead>
+                      <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 hidden xl:table-cell text-center">Angkatan</TableHead>
                       <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 hidden lg:table-cell">Domisili</TableHead>
                       <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center">Status</TableHead>
                       <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 text-right px-4">Aksi</TableHead>
@@ -382,7 +422,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                   <TableBody>
                     {paginatedData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="h-32 text-center text-sm text-slate-400 dark:text-slate-500">
+                        <TableCell colSpan={6} className="h-32 text-center text-sm text-slate-400 dark:text-slate-500">
                           Tidak ada data siswa ditemukan.
                         </TableCell>
                       </TableRow>
@@ -420,6 +460,12 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                             ) : (
                               <span className="text-xs text-slate-400 dark:text-slate-500 italic">Belum diploting</span>
                             )}
+                          </TableCell>
+                          <TableCell className="py-2.5 hidden xl:table-cell text-center">
+                            {s.tahun_masuk
+                              ? <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 px-2 py-0.5 rounded-full">{s.tahun_masuk}</span>
+                              : <span className="text-xs text-slate-300 dark:text-slate-600">—</span>
+                            }
                           </TableCell>
                           <TableCell className="py-2.5 hidden lg:table-cell">
                             <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 flex items-center gap-1">
@@ -616,5 +662,55 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
         </div>
       </TabsContent>
     </Tabs>
+
+    {/* Modal Bulk Update Angkatan */}
+    <Dialog open={showBulkAngkatan} onOpenChange={v => { if (!v) setShowBulkAngkatan(false) }}>
+      <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
+        <DialogHeader className="px-5 py-4 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-200 dark:border-indigo-800">
+          <DialogTitle className="text-sm font-semibold flex items-center gap-2 text-indigo-800 dark:text-indigo-200">
+            <GraduationCap className="h-4 w-4" /> Atur Tahun Masuk (Angkatan)
+          </DialogTitle>
+        </DialogHeader>
+        <div className="p-5 space-y-4">
+          <p className="text-xs text-slate-500">Update tahun masuk siswa secara massal. Berguna untuk memperbaiki data angkatan yang belum diisi dengan benar.</p>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Filter Kelas</label>
+            <Select value={bulkKelasId} onValueChange={setBulkKelasId}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent className="max-h-72">
+                <SelectItem value="semua">Semua Siswa</SelectItem>
+                {kelasList.map(k => (
+                  <SelectItem key={k.id} value={k.id}>
+                    {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Tahun Masuk</label>
+            <input
+              type="number"
+              min={2000}
+              max={2099}
+              value={bulkTahun}
+              onChange={e => setBulkTahun(e.target.value)}
+              placeholder="cth: 2024"
+              className="w-full h-9 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          {bulkMsg && (
+            <p className={`text-xs px-3 py-2 rounded-md ${bulkMsg.includes('berhasil') ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>{bulkMsg}</p>
+          )}
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setShowBulkAngkatan(false)}>Batal</Button>
+            <Button size="sm" className="flex-1 h-9 text-sm bg-indigo-600 hover:bg-indigo-700 text-white" disabled={isBulkPending} onClick={handleBulkAngkatan}>
+              {isBulkPending ? 'Menyimpan...' : 'Update Angkatan'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

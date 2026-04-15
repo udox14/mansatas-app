@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ChevronRight, CheckCircle2, AlertCircle, Send, Search } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
+import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 
 interface RekapAngkatan {
   tahun_masuk: number
@@ -24,10 +25,15 @@ interface RekapAngkatan {
 export function LaporanClient({ rekapAngkatan }: { rekapAngkatan: RekapAngkatan[] }) {
   const router = useRouter()
   const [search, setSearch] = useState('')
+  const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(10)
 
-  const filtered = rekapAngkatan.filter(r =>
-    !search || String(r.tahun_masuk).includes(search)
-  )
+  const filtered = useMemo(() => {
+    reset()
+    return rekapAngkatan.filter(r => !search || String(r.tahun_masuk).includes(search))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rekapAngkatan, search])
+
+  const paginated = paginate(filtered)
 
   return (
     <Tabs defaultValue="angkatan" className="space-y-3">
@@ -63,10 +69,10 @@ export function LaporanClient({ rekapAngkatan }: { rekapAngkatan: RekapAngkatan[
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 && (
+              {paginated.length === 0 && (
                 <TableRow><TableCell colSpan={9} className="text-center py-10 text-sm text-slate-400">Tidak ada data</TableCell></TableRow>
               )}
-              {filtered.map(row => {
+              {paginated.map(row => {
                 const persen = row.total_siswa > 0 ? Math.round((row.dspt_lunas / row.total_siswa) * 100) : 0
                 return (
                   <TableRow key={row.tahun_masuk} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50">
@@ -107,9 +113,14 @@ export function LaporanClient({ rekapAngkatan }: { rekapAngkatan: RekapAngkatan[
               })}
             </TableBody>
           </Table>
-          <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
-            {filtered.length} angkatan
-          </div>
+          <DataPagination
+            total={filtered.length}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            entityLabel="angkatan"
+          />
         </div>
       </TabsContent>
 

@@ -17,6 +17,7 @@ import {
 import { Plus, Trash2, TrendingDown } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
 import { catatKasKeluar, hapusKasKeluar } from '../actions'
+import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 
 interface KasRow {
   id: string; jumlah: number; keterangan: string; kategori: string
@@ -39,8 +40,10 @@ export function KasKeluarClient({ initialData, defaultTahun, defaultBulan }: {
   const [form, setForm] = useState({
     jumlah: '', keterangan: '', kategori: 'Operasional', metode: 'tunai', tanggal: new Date().toISOString().slice(0, 10),
   })
+  const { page, pageSize, setPage, setPageSize, paginate } = usePagination(10)
 
   const total = initialData.reduce((s, r) => s + r.jumlah, 0)
+  const paginated = paginate(initialData)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -102,10 +105,10 @@ export function KasKeluarClient({ initialData, defaultTahun, defaultBulan }: {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {initialData.length === 0 && (
+            {paginated.length === 0 && (
               <TableRow><TableCell colSpan={7} className="text-center py-10 text-sm text-slate-400">Tidak ada data pengeluaran</TableCell></TableRow>
             )}
-            {initialData.map(row => (
+            {paginated.map(row => (
               <TableRow key={row.id}>
                 <TableCell className="text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
                   {new Date(row.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -141,9 +144,14 @@ export function KasKeluarClient({ initialData, defaultTahun, defaultBulan }: {
             ))}
           </TableBody>
         </Table>
-        <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
-          {BULAN_LABEL[defaultBulan]} {defaultTahun} · {initialData.length} transaksi
-        </div>
+        <DataPagination
+          total={initialData.length}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          entityLabel="transaksi"
+        />
       </div>
 
       {/* Form Modal */}

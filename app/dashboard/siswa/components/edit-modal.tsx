@@ -165,6 +165,10 @@ export function EditSiswaModal({ isOpen, onClose, siswa, kelasList }: {
                     </Select>
                   </div>
                 </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Tahun Masuk (Angkatan)</Label>
+                  <Input type="number" name="tahun_masuk" defaultValue={siswa.tahun_masuk ?? ''} min={2000} max={2099} placeholder="cth: 2024" className="h-8 text-sm rounded-md bg-surface-2" />
+                </div>
               </TabsContent>
 
               {/* TAB ALAMAT */}

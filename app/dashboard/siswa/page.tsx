@@ -31,7 +31,7 @@ async function SiswaDataFetcher({ userId, userRoles, isFullListAccess, allowedKe
     // Tapi batasi kolom yang diambil (tidak perlu semua field biodata)
     siswaQuery = `
       SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin, s.status, s.foto_url,
-        s.tempat_tinggal, s.kelas_id,
+        s.tempat_tinggal, s.kelas_id, s.tahun_masuk,
         k.id as k_id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
       FROM siswa s LEFT JOIN kelas k ON s.kelas_id = k.id
       ORDER BY s.nama_lengkap ASC
@@ -40,7 +40,7 @@ async function SiswaDataFetcher({ userId, userRoles, isFullListAccess, allowedKe
     const placeholders = Array.from(allowedKelasIds).map(() => '?').join(',')
     siswaQuery = `
       SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin, s.status, s.foto_url,
-        s.tempat_tinggal, s.kelas_id,
+        s.tempat_tinggal, s.kelas_id, s.tahun_masuk,
         k.id as k_id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
       FROM siswa s LEFT JOIN kelas k ON s.kelas_id = k.id
       WHERE s.kelas_id IN (${placeholders})
@@ -56,7 +56,7 @@ async function SiswaDataFetcher({ userId, userRoles, isFullListAccess, allowedKe
   const formattedSiswaData = (siswaResult.results || []).map((s: any) => ({
     id: s.id, nisn: s.nisn, nama_lengkap: s.nama_lengkap,
     jenis_kelamin: s.jenis_kelamin, status: s.status, foto_url: s.foto_url,
-    tempat_tinggal: s.tempat_tinggal, kelas_id: s.kelas_id,
+    tempat_tinggal: s.tempat_tinggal, kelas_id: s.kelas_id, tahun_masuk: s.tahun_masuk,
     kelas: s.k_id ? {
       id: s.k_id, tingkat: s.tingkat, nomor_kelas: s.nomor_kelas,
       kelompok: s.kelompok, wali_kelas_id: s.wali_kelas_id

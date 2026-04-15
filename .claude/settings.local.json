@@ -3,7 +3,10 @@
     "allow": [
       "mcp__Claude_Preview__preview_start",
       "Bash(xargs wc:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(grep -l \"DataPagination\\\\|usePagination\" \"C:/DATA/mansatas-app/app/dashboard/keuangan/\"**/*.tsx)",
+      "Bash(grep -n \"CREATE TABLE.*siswa\" /c/DATA/mansatas-app/migrations/*.sql)",
+      "Bash(npx wrangler:*)"
     ]
   }
 }

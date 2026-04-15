@@ -15,6 +15,7 @@ import {
 import { Search, ChevronRight, CheckCircle2, XCircle, Zap, Settings2 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
 import { updateSppSetting, generateSppBulanan, getSppTagihanList } from '../actions'
+import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 
 interface SppSetting { id: string; tingkat: number; nominal: number; aktif: number }
 interface SppRow {
@@ -39,13 +40,19 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('semua')
   const [msg, setMsg] = useState('')
+  const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(10)
 
-  const filtered = useMemo(() =>
-    tagihan.filter(r => {
+  const filtered = useMemo(() => {
+    reset()
+    return tagihan.filter(r => {
       const matchS = !search || r.nama_lengkap.toLowerCase().includes(search.toLowerCase())
       const matchSt = filterStatus === 'semua' || r.status === filterStatus
       return matchS && matchSt
-    }), [tagihan, search, filterStatus])
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tagihan, search, filterStatus])
+
+  const paginated = paginate(filtered)
 
   async function handleSaveSetting(tingkat: number) {
     const s = settings.find(x => x.tingkat === tingkat)
@@ -126,10 +133,10 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 && (
+              {paginated.length === 0 && (
                 <TableRow><TableCell colSpan={7} className="text-center py-10 text-sm text-slate-400">Tidak ada data</TableCell></TableRow>
               )}
-              {filtered.map(row => (
+              {paginated.map(row => (
                 <TableRow key={row.id} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50"
                   onClick={() => router.push(`/dashboard/keuangan/siswa/${row.siswa_id}`)}>
                   <TableCell>
@@ -157,9 +164,14 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
               ))}
             </TableBody>
           </Table>
-          <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
-            {filtered.length} tagihan ditampilkan
-          </div>
+          <DataPagination
+            total={filtered.length}
+            page={page}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            entityLabel="tagihan"
+          />
         </div>
       </TabsContent>
 
