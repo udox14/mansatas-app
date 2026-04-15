@@ -6,7 +6,11 @@
       "Bash(npx tsc:*)",
       "Bash(grep -l \"DataPagination\\\\|usePagination\" \"C:/DATA/mansatas-app/app/dashboard/keuangan/\"**/*.tsx)",
       "Bash(grep -n \"CREATE TABLE.*siswa\" /c/DATA/mansatas-app/migrations/*.sql)",
-      "Bash(npx wrangler:*)"
+      "Bash(npx wrangler:*)",
+      "Bash(grep -n \"defaultValue\\\\|defaultTab\\\\|tab\" C:/DATA/mansatas-app/app/dashboard/keuangan/siswa/[id]/buku-besar-client.tsx)",
+      "Bash(sed -i 's|router.push\\(`/dashboard/keuangan/siswa/${row.siswa_id}`\\)|router.push\\(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=dspt`\\)|g' \"C:/DATA/mansatas-app/app/dashboard/keuangan/dspt/dspt-client.tsx\")",
+      "Bash(sed -i 's|router.push\\(`/dashboard/keuangan/siswa/${row.siswa_id}`\\)|router.push\\(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=spp`\\)|g' \"C:/DATA/mansatas-app/app/dashboard/keuangan/spp/spp-client.tsx\")",
+      "Bash(sed -i 's|router.push\\(`/dashboard/keuangan/siswa/${row.siswa_id}`\\)|router.push\\(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=koperasi`\\)|g' \"C:/DATA/mansatas-app/app/dashboard/keuangan/koperasi/koperasi-client.tsx\")"
     ]
   }
 }

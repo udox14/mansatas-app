@@ -75,7 +75,8 @@ export function LaporanClient({ rekapAngkatan }: { rekapAngkatan: RekapAngkatan[
               {paginated.map(row => {
                 const persen = row.total_siswa > 0 ? Math.round((row.dspt_lunas / row.total_siswa) * 100) : 0
                 return (
-                  <TableRow key={row.tahun_masuk} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                  <TableRow key={row.tahun_masuk} className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                    onClick={() => router.push(`/dashboard/keuangan/dspt?angkatan=${row.tahun_masuk}`)}>
                     <TableCell className="text-sm font-semibold text-slate-900 dark:text-slate-50">
                       Angkatan {row.tahun_masuk}
                     </TableCell>
