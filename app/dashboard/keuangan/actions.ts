@@ -117,59 +117,95 @@ export async function updateSppSetting(tingkat: number, nominal: number, aktif: 
   return { error: null, success: 'Pengaturan SPP berhasil disimpan' }
 }
 
-export async function getSppTagihanList(filters?: { bulan?: number; tahun?: number; status?: string; tingkat?: number }) {
+export async function getSppTagihanList(filters: { bulan: number; tahun: number; status?: string }) {
   const { db } = await requireAuth('keuangan-spp')
+  // LEFT JOIN dari siswa → semua siswa muncul, termasuk yang belum punya tagihan bulan ini
   let query = `
     SELECT
-      t.id, t.siswa_id, t.bulan, t.tahun, t.nominal,
-      t.total_dibayar, t.total_diskon, t.status,
-      s.nama_lengkap, s.nisn,
-      s.tahun_masuk,
+      t.id,
+      s.id AS siswa_id, s.nama_lengkap, s.nisn, s.tahun_masuk,
+      COALESCE(t.bulan, ?) AS bulan,
+      COALESCE(t.tahun, ?) AS tahun,
+      COALESCE(t.nominal, 0) AS nominal,
+      COALESCE(t.total_dibayar, 0) AS total_dibayar,
+      COALESCE(t.total_diskon, 0) AS total_diskon,
+      COALESCE(t.status, 'tidak_ada') AS status,
       k.tingkat, k.nomor_kelas, k.kelompok
-    FROM fin_spp_tagihan t
-    JOIN siswa s ON s.id = t.siswa_id
+    FROM siswa s
+    LEFT JOIN fin_spp_tagihan t ON t.siswa_id = s.id AND t.bulan = ? AND t.tahun = ?
     LEFT JOIN kelas k ON k.id = s.kelas_id
     WHERE 1=1
   `
-  const params: any[] = []
-  if (filters?.bulan) { query += ' AND t.bulan = ?'; params.push(filters.bulan) }
-  if (filters?.tahun) { query += ' AND t.tahun = ?'; params.push(filters.tahun) }
-  if (filters?.status && filters.status !== 'semua') { query += ' AND t.status = ?'; params.push(filters.status) }
-  if (filters?.tingkat) { query += ' AND k.tingkat = ?'; params.push(filters.tingkat) }
-  query += ' ORDER BY t.tahun DESC, t.bulan DESC, s.nama_lengkap ASC'
+  const params: any[] = [filters.bulan, filters.tahun, filters.bulan, filters.tahun]
+  if (filters.status && filters.status !== 'semua') {
+    if (filters.status === 'tidak_ada') {
+      query += ' AND t.id IS NULL'
+    } else {
+      query += ' AND t.status = ?'; params.push(filters.status)
+    }
+  }
+  query += ' ORDER BY s.nama_lengkap ASC'
   const result = await db.prepare(query).bind(...params).all<any>()
   return { data: result.results ?? [], error: null }
 }
 
-export async function generateSppBulanan(tahun: number, bulan: number) {
+export async function buatSppTagihanSiswa(siswaId: string, bulan: number, tahun: number, nominal: number) {
   const { db } = await requireAuth('keuangan-spp')
-  // Ambil setting yang aktif
-  const settings = await db.prepare('SELECT * FROM fin_spp_setting WHERE aktif = 1').all<any>()
-  if (!settings.results?.length) return { error: 'Tidak ada tingkat kelas yang aktif untuk SPP', success: null }
+  const exists = await db.prepare(
+    'SELECT id FROM fin_spp_tagihan WHERE siswa_id = ? AND bulan = ? AND tahun = ?'
+  ).bind(siswaId, bulan, tahun).first()
+  if (exists) return { error: 'Tagihan sudah ada untuk periode ini', success: null }
+  await db.prepare(
+    'INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal) VALUES (?, ?, ?, ?, ?)'
+  ).bind(generateId(), siswaId, bulan, tahun, nominal).run()
+  revalidatePath('/dashboard/keuangan/spp')
+  return { error: null, success: 'Tagihan SPP berhasil dibuat' }
+}
 
+export async function generateSppBulanan(tahun: number, bulan: number, tahunMasuk?: number) {
+  const { db } = await requireAuth('keuangan-spp')
+
+  // Ambil semua setting nominal per tingkat (aktif maupun tidak — nominal tetap dipakai)
+  const settings = await db.prepare('SELECT * FROM fin_spp_setting').all<any>()
+  const nominalByTingkat: Record<number, number> = {}
+  for (const s of settings.results ?? []) nominalByTingkat[s.tingkat] = s.nominal
+
+  // Ambil siswa target: filter by angkatan jika dipilih
+  let siswaQuery = `
+    SELECT s.id AS siswa_id, k.tingkat
+    FROM siswa s
+    LEFT JOIN kelas k ON k.id = s.kelas_id
+    WHERE 1=1
+  `
+  const siswaParams: any[] = []
+  if (tahunMasuk) { siswaQuery += ' AND s.tahun_masuk = ?'; siswaParams.push(tahunMasuk) }
+
+  const siswaList = await db.prepare(siswaQuery).bind(...siswaParams).all<any>()
+  if (!siswaList.results?.length) return { error: 'Tidak ada siswa ditemukan', success: null }
+
+  const stmts: D1PreparedStatement[] = []
   let totalGenerated = 0
-  for (const s of settings.results) {
-    // Ambil siswa di tingkat ini
-    const siswaList = await db.prepare(`
-      SELECT DISTINCT s.id as siswa_id
-      FROM siswa s
-      JOIN kelas k ON k.id = s.kelas_id
-      WHERE k.tingkat = ?
-    `).bind(s.tingkat).all<any>()
 
-    for (const row of siswaList.results ?? []) {
-      const exists = await db.prepare(
-        'SELECT id FROM fin_spp_tagihan WHERE siswa_id = ? AND bulan = ? AND tahun = ?'
-      ).bind(row.siswa_id, bulan, tahun).first()
-      if (!exists) {
-        await db.prepare(`
-          INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal)
-          VALUES (?, ?, ?, ?, ?)
-        `).bind(generateId(), row.siswa_id, bulan, tahun, s.nominal).run()
-        totalGenerated++
-      }
+  for (const row of siswaList.results) {
+    const exists = await db.prepare(
+      'SELECT id FROM fin_spp_tagihan WHERE siswa_id = ? AND bulan = ? AND tahun = ?'
+    ).bind(row.siswa_id, bulan, tahun).first()
+    if (!exists) {
+      const nominal = nominalByTingkat[row.tingkat] ?? 0
+      stmts.push(db.prepare(
+        'INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal) VALUES (?, ?, ?, ?, ?)'
+      ).bind(generateId(), row.siswa_id, bulan, tahun, nominal))
+      totalGenerated++
     }
   }
+
+  if (stmts.length > 0) {
+    // D1 batch max ~100 — proses per chunk
+    for (let i = 0; i < stmts.length; i += 100) {
+      await db.batch(stmts.slice(i, i + 100))
+    }
+  }
+
   revalidatePath('/dashboard/keuangan/spp')
   return { error: null, success: `${totalGenerated} tagihan SPP berhasil digenerate` }
 }

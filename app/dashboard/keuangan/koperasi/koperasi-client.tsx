@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -46,6 +46,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
   const [filterAngkatan, setFilterAngkatan] = useState('semua')
   const [filterKelas, setFilterKelas] = useState('semua')
   const [items, setItems] = useState<MasterItem[]>(masterItem)
+  const [tagihan, setTagihan] = useState<TagihanRow[]>(initialTagihan)
   const [isPending, startTransition] = useTransition()
   const [editItem, setEditItem] = useState<MasterItem | null>(null)
   const [showItemModal, setShowItemModal] = useState(false)
@@ -54,20 +55,24 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
   const [msg, setMsg] = useState('')
   const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(10)
 
+  // Sync state saat server kirim data baru via router.refresh()
+  useEffect(() => { setTagihan(initialTagihan) }, [initialTagihan])
+  useEffect(() => { setItems(masterItem) }, [masterItem])
+
   const angkatanList = useMemo(() => {
-    const years = [...new Set(initialTagihan.map(d => d.tahun_masuk).filter(Boolean))].sort((a, b) => b - a)
+    const years = [...new Set(tagihan.map(d => d.tahun_masuk).filter(Boolean))].sort((a, b) => b - a)
     return years
-  }, [initialTagihan])
+  }, [tagihan])
 
   const kelasList = useMemo(() => {
     const set = new Set<string>()
-    initialTagihan.forEach(d => { if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ? ' ' + d.kelompok : ''}`) })
+    tagihan.forEach(d => { if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ? ' ' + d.kelompok : ''}`) })
     return [...set].sort()
-  }, [initialTagihan])
+  }, [tagihan])
 
   const filtered = useMemo(() => {
     reset()
-    return initialTagihan.filter(r => {
+    return tagihan.filter(r => {
       const matchS = !search || r.nama_lengkap.toLowerCase().includes(search.toLowerCase())
       const matchSt = filterStatus === 'semua' || r.status === filterStatus
       const matchAngkatan = filterAngkatan === 'semua' || String(r.tahun_masuk) === filterAngkatan
@@ -75,7 +80,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
       return matchS && matchSt && matchAngkatan && matchKelas
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialTagihan, search, filterStatus, filterAngkatan, filterKelas])
+  }, [tagihan, search, filterStatus, filterAngkatan, filterKelas])
 
   const paginated = paginate(filtered)
 
