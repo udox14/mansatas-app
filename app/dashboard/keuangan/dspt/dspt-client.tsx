@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -67,22 +67,26 @@ export function DsptClient({ initialData }: { initialData: DsptRow[] }) {
 
   const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(10)
 
+  // Sync state saat server kirim data baru via router.refresh()
+  const [data, setData] = useState<DsptRow[]>(initialData)
+  useEffect(() => { setData(initialData) }, [initialData])
+
   const angkatanList = useMemo(() => {
-    const years = [...new Set(initialData.map(d => d.tahun_masuk).filter(Boolean))].sort((a, b) => b - a)
+    const years = [...new Set(data.map(d => d.tahun_masuk).filter(Boolean))].sort((a, b) => b - a)
     return years
-  }, [initialData])
+  }, [data])
 
   const kelasList = useMemo(() => {
     const set = new Set<string>()
-    initialData.forEach(d => {
+    data.forEach(d => {
       if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ? ' ' + d.kelompok : ''}`)
     })
     return [...set].sort()
-  }, [initialData])
+  }, [data])
 
   const filtered = useMemo(() => {
     reset()
-    return initialData.filter(row => {
+    return data.filter(row => {
       const matchSearch = !search || row.nama_lengkap.toLowerCase().includes(search.toLowerCase()) || row.nisn?.includes(search)
       const matchStatus = filterStatus === 'semua' || row.status === filterStatus
       const matchAngkatan = filterAngkatan === 'semua' || String(row.tahun_masuk) === filterAngkatan
@@ -90,7 +94,7 @@ export function DsptClient({ initialData }: { initialData: DsptRow[] }) {
       return matchSearch && matchStatus && matchAngkatan && matchKelas
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialData, search, filterStatus, filterAngkatan, filterKelas])
+  }, [data, search, filterStatus, filterAngkatan, filterKelas])
 
   const paginated = paginate(filtered)
 

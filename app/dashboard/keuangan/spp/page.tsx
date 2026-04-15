@@ -15,9 +15,12 @@ async function SppDataFetcher() {
   const tahun = new Date().getFullYear()
   const bulan = new Date().getMonth() + 1
 
-  const [{ data: settings }, { data: tagihan }] = await Promise.all([
+  const db = await (await import('@/utils/db')).getDB()
+
+  const [{ data: settings }, { data: tagihan }, angkatanRes] = await Promise.all([
     getSppSettings(),
     getSppTagihanList({ tahun, bulan }),
+    db.prepare('SELECT DISTINCT tahun_masuk FROM siswa WHERE tahun_masuk IS NOT NULL ORDER BY tahun_masuk DESC').all<{ tahun_masuk: number }>(),
   ])
 
   return (
@@ -26,6 +29,7 @@ async function SppDataFetcher() {
       initialTagihan={tagihan}
       defaultTahun={tahun}
       defaultBulan={bulan}
+      angkatanList={(angkatanRes.results ?? []).map(r => r.tahun_masuk)}
     />
   )
 }

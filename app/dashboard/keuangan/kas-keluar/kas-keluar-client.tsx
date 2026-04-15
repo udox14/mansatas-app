@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -42,8 +42,12 @@ export function KasKeluarClient({ initialData, defaultTahun, defaultBulan }: {
   })
   const { page, pageSize, setPage, setPageSize, paginate } = usePagination(10)
 
-  const total = initialData.reduce((s, r) => s + r.jumlah, 0)
-  const paginated = paginate(initialData)
+  // Sync state saat server kirim data baru via router.refresh()
+  const [data, setData] = useState<KasRow[]>(initialData)
+  useEffect(() => { setData(initialData) }, [initialData])
+
+  const total = data.reduce((s, r) => s + r.jumlah, 0)
+  const paginated = paginate(data)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -145,7 +149,7 @@ export function KasKeluarClient({ initialData, defaultTahun, defaultBulan }: {
           </TableBody>
         </Table>
         <DataPagination
-          total={initialData.length}
+          total={data.length}
           page={page}
           pageSize={pageSize}
           onPageChange={setPage}
