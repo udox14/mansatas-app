@@ -502,7 +502,19 @@ export function DaftarUlangClient({
               <div className="p-4 space-y-3">
                 {/* Item checklist */}
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Pilih item yang dibeli / dibayar</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Pilih item yang dibeli / dibayar</Label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allChecked = kopItems.every(i => i.checked)
+                        setKopItems(prev => prev.map(i => ({ ...i, checked: !allChecked })))
+                      }}
+                      className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+                    >
+                      {kopItems.every(i => i.checked) ? 'Batal semua' : 'Ceklis semua'}
+                    </button>
+                  </div>
                   <div className="space-y-1 mt-1">
                     {kopItems.map((item, idx) => (
                       <div key={item.masterItemId}
