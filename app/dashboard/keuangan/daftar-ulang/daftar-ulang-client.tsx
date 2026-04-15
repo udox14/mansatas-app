@@ -422,7 +422,8 @@ export function DaftarUlangClient({
                   label="Bayar Sekarang (Rp)"
                   value={dspt.bayarSekarang}
                   onChange={v => setDspt(p => ({ ...p, bayarSekarang: v }))}
-                  placeholder="0 = belum bayar / hanya set target"
+                  placeholder="Isi 0 jika hanya mencatat target tanpa bayar"
+                  hint={parseNum(dspt.bayarSekarang) === 0 ? '⚠️ Kosong/0 = tidak ada kuitansi DSPT' : undefined}
                 />
                 <div className="space-y-1">
                   <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Metode Pembayaran</Label>
