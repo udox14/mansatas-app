@@ -36,7 +36,7 @@ const MENU_GROUPS = [
   { label: 'Program Khusus', hrefs: ['/dashboard/tahfidz'] },
   { label: 'Kesiswaan & BK', hrefs: ['/dashboard/rekap-absensi', '/dashboard/jadwal-piket', '/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes', '/dashboard/tka', '/dashboard/penerimaan-pt'] },
   { label: 'Administrasi & HR', hrefs: ['/dashboard/surat', '/dashboard/rapat', '/dashboard/sarpras', '/dashboard/kelola-ppl', '/dashboard/buku-tamu'] },
-  { label: 'Keuangan', hrefs: ['/dashboard/keuangan', '/dashboard/keuangan/dspt', '/dashboard/keuangan/spp', '/dashboard/keuangan/koperasi', '/dashboard/keuangan/kas-keluar', '/dashboard/keuangan/laporan'] },
+  { label: 'Keuangan', hrefs: ['/dashboard/keuangan', '/dashboard/keuangan/daftar-ulang', '/dashboard/keuangan/dspt', '/dashboard/keuangan/spp', '/dashboard/keuangan/koperasi', '/dashboard/keuangan/kas-keluar', '/dashboard/keuangan/laporan'] },
   { label: 'Sistem', hrefs: ['/dashboard/settings', '/dashboard/settings/notifications', '/dashboard/settings/jadwal-notif', '/dashboard/settings/fitur'] },
 ]
 

@@ -75,7 +75,7 @@ export function DsptClient({ initialData }: { initialData: DsptRow[] }) {
   const kelasList = useMemo(() => {
     const set = new Set<string>()
     initialData.forEach(d => {
-      if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ?? ''}`)
+      if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ? ' ' + d.kelompok : ''}`)
     })
     return [...set].sort()
   }, [initialData])
@@ -86,7 +86,7 @@ export function DsptClient({ initialData }: { initialData: DsptRow[] }) {
       const matchSearch = !search || row.nama_lengkap.toLowerCase().includes(search.toLowerCase()) || row.nisn?.includes(search)
       const matchStatus = filterStatus === 'semua' || row.status === filterStatus
       const matchAngkatan = filterAngkatan === 'semua' || String(row.tahun_masuk) === filterAngkatan
-      const matchKelas = filterKelas === 'semua' || `${row.tingkat}-${row.nomor_kelas}${row.kelompok ?? ''}` === filterKelas
+      const matchKelas = filterKelas === 'semua' || `${row.tingkat}-${row.nomor_kelas}${row.kelompok ? ' ' + row.kelompok : ''}` === filterKelas
       return matchSearch && matchStatus && matchAngkatan && matchKelas
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -230,7 +230,7 @@ export function DsptClient({ initialData }: { initialData: DsptRow[] }) {
                   </TableCell>
                   <TableCell className="text-sm text-slate-600 dark:text-slate-300">{row.tahun_masuk}</TableCell>
                   <TableCell className="text-sm text-slate-600 dark:text-slate-300">
-                    {row.tingkat ? `${row.tingkat}-${row.nomor_kelas}${row.kelompok ?? ''}` : '-'}
+                    {row.tingkat ? `${row.tingkat}-${row.nomor_kelas}${row.kelompok ? ' ' + row.kelompok : ''}` : '-'}
                   </TableCell>
                   <TableCell className="text-sm text-right font-medium">{belumInput ? '-' : formatRupiah(row.nominal_target ?? 0)}</TableCell>
                   <TableCell className="text-sm text-right text-emerald-600 font-medium">{belumInput ? '-' : formatRupiah(row.total_dibayar ?? 0)}</TableCell>

@@ -61,7 +61,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
 
   const kelasList = useMemo(() => {
     const set = new Set<string>()
-    initialTagihan.forEach(d => { if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ?? ''}`) })
+    initialTagihan.forEach(d => { if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ? ' ' + d.kelompok : ''}`) })
     return [...set].sort()
   }, [initialTagihan])
 
@@ -71,7 +71,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
       const matchS = !search || r.nama_lengkap.toLowerCase().includes(search.toLowerCase())
       const matchSt = filterStatus === 'semua' || r.status === filterStatus
       const matchAngkatan = filterAngkatan === 'semua' || String(r.tahun_masuk) === filterAngkatan
-      const matchKelas = filterKelas === 'semua' || `${r.tingkat}-${r.nomor_kelas}${r.kelompok ?? ''}` === filterKelas
+      const matchKelas = filterKelas === 'semua' || `${r.tingkat}-${r.nomor_kelas}${r.kelompok ? ' ' + r.kelompok : ''}` === filterKelas
       return matchS && matchSt && matchAngkatan && matchKelas
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps

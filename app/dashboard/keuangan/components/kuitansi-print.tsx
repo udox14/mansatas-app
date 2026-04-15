@@ -600,6 +600,100 @@ export function NamaPerugasSettingModal() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+//  KuitansiGandaModal  — 2 kuitansi dalam 1 dokumen (untuk Daftar Ulang PMB)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface KuitansiGandaModalProps {
+  dspt: KuitansiData | null
+  koperasi: KuitansiData | null
+  open: boolean
+  onClose: () => void
+  namaKomite?: string
+  namaKoperasi?: string
+}
+
+export function KuitansiGandaModal({
+  dspt, koperasi, open, onClose, namaKomite, namaKoperasi,
+}: KuitansiGandaModalProps) {
+  const printRef = useRef<HTMLDivElement>(null)
+  const { namaKomite: storedKomite, namaKoperasi: storedKoperasi } = useNamaPerugas()
+
+  const resolvedKomite   = namaKomite   ?? storedKomite
+  const resolvedKoperasi = namaKoperasi ?? storedKoperasi
+
+  const dsptData      = dspt      ? { ...dspt,      namaPerugas: resolvedKomite   } : null
+  const koperasiData  = koperasi  ? { ...koperasi,  namaPerugas: resolvedKoperasi } : null
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Kuitansi-DaftarUlang-${dspt?.nomorKuitansi ?? koperasi?.nomorKuitansi ?? ''}`,
+    pageStyle: `
+      @page { size: A4 portrait; margin: 0; }
+      @media print {
+        body { margin: 0; padding: 0; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .page-break { page-break-after: always; break-after: page; }
+      }
+    `,
+  })
+
+  const hasData = dsptData || koperasiData
+  if (!hasData) return null
+
+  const titleParts = [dsptData && 'DSPT', koperasiData && 'Koperasi'].filter(Boolean).join(' + ')
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
+      <DialogContent className="max-w-4xl h-[92vh] p-0 rounded-xl overflow-hidden flex flex-col">
+        <DialogHeader className="px-5 py-3 border-b flex-shrink-0 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <DialogTitle className="text-sm font-semibold text-indigo-800 dark:text-indigo-300">
+                Kuitansi Daftar Ulang — {titleParts}
+              </DialogTitle>
+              <span className="text-[11px] bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-300 px-2 py-0.5 rounded-full font-medium">
+                {[dsptData, koperasiData].filter(Boolean).length} halaman
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <NamaPerugasSettingModal />
+              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onClose}>
+                Tutup
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700"
+                onClick={() => handlePrint()}
+              >
+                <Printer className="h-3.5 w-3.5" /> Cetak {[dsptData, koperasiData].filter(Boolean).length} Halaman
+              </Button>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <ScrollArea className="flex-1">
+          <div className="p-5 bg-slate-200 dark:bg-slate-900 min-h-full flex flex-col items-center gap-5">
+            {/* Print content — semua dalam satu div */}
+            <div ref={printRef} style={{ width: '100%' }}>
+              {dsptData && (
+                <div className={koperasiData ? 'page-break' : ''}>
+                  <KuitansiContent data={dsptData} />
+                </div>
+              )}
+              {koperasiData && (
+                <div>
+                  <KuitansiContent data={koperasiData} />
+                </div>
+              )}
+            </div>
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 //  KuitansiModal  (preview + cetak)
 // ═══════════════════════════════════════════════════════════════════════════════
 

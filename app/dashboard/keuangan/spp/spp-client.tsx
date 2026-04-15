@@ -51,7 +51,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
 
   const kelasList = useMemo(() => {
     const set = new Set<string>()
-    tagihan.forEach(d => { if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ?? ''}`) })
+    tagihan.forEach(d => { if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ? ' ' + d.kelompok : ''}`) })
     return [...set].sort()
   }, [tagihan])
 
@@ -61,7 +61,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
       const matchS = !search || r.nama_lengkap.toLowerCase().includes(search.toLowerCase())
       const matchSt = filterStatus === 'semua' || r.status === filterStatus
       const matchAngkatan = filterAngkatan === 'semua' || String(r.tahun_masuk) === filterAngkatan
-      const matchKelas = filterKelas === 'semua' || `${r.tingkat}-${r.nomor_kelas}${r.kelompok ?? ''}` === filterKelas
+      const matchKelas = filterKelas === 'semua' || `${r.tingkat}-${r.nomor_kelas}${r.kelompok ? ' ' + r.kelompok : ''}` === filterKelas
       return matchS && matchSt && matchAngkatan && matchKelas
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -177,7 +177,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                     <p className="text-[11px] text-slate-400">{row.nisn}</p>
                   </TableCell>
                   <TableCell className="text-sm text-slate-600 dark:text-slate-300">
-                    {row.tingkat ? `${row.tingkat}-${row.nomor_kelas}${row.kelompok ?? ''}` : '-'}
+                    {row.tingkat ? `${row.tingkat}-${row.nomor_kelas}${row.kelompok ? ' ' + row.kelompok : ''}` : '-'}
                   </TableCell>
                   <TableCell className="text-sm">{BULAN_LABEL[row.bulan]} {row.tahun}</TableCell>
                   <TableCell className="text-sm text-right font-medium">{formatRupiah(row.nominal)}</TableCell>
