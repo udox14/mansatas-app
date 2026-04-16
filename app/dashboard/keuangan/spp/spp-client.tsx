@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -15,9 +15,9 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Search, ChevronRight, CheckCircle2, XCircle, Zap, Settings2, Plus, AlertCircle } from 'lucide-react'
+import { Search, CheckCircle2, XCircle, Zap, Settings2, Plus, AlertCircle, Upload, Check, Pencil } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { updateSppSetting, generateSppBulanan, getSppTagihanList, buatSppTagihanSiswa } from '../actions'
+import { updateSppSetting, generateSppBulanan, getSppTagihanList, buatSppTagihanSiswa, tandaiSppLunas, updateSppTagihanNominal, importSppBulk, getSiswaTemplate } from '../actions'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 
 interface SppSetting { id: string; tingkat: number; nominal: number; aktif: number }
@@ -31,6 +31,27 @@ interface SppRow {
 
 const BULAN_LABEL = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 const BULAN_SHORT = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des']
+
+async function downloadSppTemplate(bulan: number, tahun: number, angkatan?: number) {
+  const XLSX = await import('xlsx')
+  const { data } = await getSiswaTemplate(angkatan)
+  const rows = data.map((s: any) => ({
+    'NISN': s.nisn ?? '',
+    'Nama Siswa': s.nama_lengkap,
+    'Angkatan': s.tahun_masuk ?? '',
+    'Kelas': s.tingkat ? `${s.tingkat}-${s.nomor_kelas}${s.kelompok ? ' ' + s.kelompok : ''}` : '',
+    'Bulan': bulan,
+    'Tahun': tahun,
+    'Nominal': '',
+    'Total Dibayar': '',
+  }))
+  const ws = XLSX.utils.json_to_sheet(rows)
+  ws['!cols'] = [{ wch: 16 }, { wch: 32 }, { wch: 10 }, { wch: 12 }, { wch: 8 }, { wch: 8 }, { wch: 14 }, { wch: 14 }]
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'SPP')
+  const suffix = angkatan ? `_angkatan_${angkatan}` : '_semua'
+  XLSX.writeFile(wb, `template_spp_${bulan}_${tahun}${suffix}.xlsx`)
+}
 
 export function SppClient({ initialSettings, initialTagihan, defaultTahun, defaultBulan, angkatanList }: {
   initialSettings: SppSetting[]
@@ -61,6 +82,21 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
   // Modal buat tagihan individual
   const [buatModal, setBuatModal] = useState<SppRow | null>(null)
   const [buatNominal, setBuatNominal] = useState('')
+
+  // Modal edit tagihan (nominal + dibayar)
+  const [editModal, setEditModal] = useState<SppRow | null>(null)
+  const [editNominal, setEditNominal] = useState('')
+  const [editDibayar, setEditDibayar] = useState('')
+  const [editMsg, setEditMsg] = useState('')
+
+  // Modal import Excel
+  const [importModal, setImportModal] = useState(false)
+  const [importRows, setImportRows] = useState<any[]>([])
+  const [importMsg, setImportMsg] = useState('')
+  const [importLoading, setImportLoading] = useState(false)
+  const [templateLoading, setTemplateLoading] = useState(false)
+  const [templateAngkatan, setTemplateAngkatan] = useState('semua')
+  const fileRef = useRef<HTMLInputElement>(null)
 
   // ── Load data saat periode berubah ────────────────────────────────────────
   async function loadData(b: number, t: number) {
@@ -156,6 +192,79 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
     })
   }
 
+  async function handleLunasSpp(row: SppRow, e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!row.id) return
+    startTransition(async () => {
+      const res = await tandaiSppLunas(row.id!)
+      setMsg(res.error ?? res.success ?? '')
+      if (!res.error) {
+        const fresh = await getSppTagihanList({ bulan, tahun })
+        setTagihan(fresh.data as SppRow[])
+      }
+    })
+  }
+
+  function openEditModal(row: SppRow) {
+    setEditModal(row)
+    setEditNominal(String(row.nominal))
+    setEditDibayar(String(row.total_dibayar))
+    setEditMsg('')
+  }
+
+  async function handleEditSave() {
+    if (!editModal?.id) return
+    startTransition(async () => {
+      const res = await updateSppTagihanNominal(editModal.id!, parseInt(editNominal) || 0, parseInt(editDibayar) || 0)
+      setEditMsg(res.error ?? '')
+      if (!res.error) {
+        setEditModal(null)
+        setMsg(res.success ?? '')
+        const fresh = await getSppTagihanList({ bulan, tahun })
+        setTagihan(fresh.data as SppRow[])
+      }
+    })
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImportLoading(true); setImportMsg('')
+    try {
+      const XLSX = await import('xlsx')
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      setImportRows(XLSX.utils.sheet_to_json(ws, { defval: '' }))
+    } catch {
+      setImportMsg('Gagal membaca file. Pastikan format .xlsx/.xls')
+    } finally {
+      setImportLoading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  async function handleImportSubmit() {
+    if (!importRows.length) return
+    setImportLoading(true); setImportMsg('')
+    const mapped = importRows.map(r => ({
+      nisn: String(r['NISN'] ?? r['nisn'] ?? '').trim() || undefined,
+      nama: String(r['Nama'] ?? r['NAMA'] ?? r['Nama Siswa'] ?? r['nama_lengkap'] ?? '').trim() || undefined,
+      bulan: parseInt(String(r['Bulan'] ?? r['bulan'] ?? bulan)) || bulan,
+      tahun: parseInt(String(r['Tahun'] ?? r['tahun'] ?? tahun)) || tahun,
+      nominal: parseInt(String(r['Nominal'] ?? r['nominal'] ?? 0)) || 0,
+      total_dibayar: parseInt(String(r['Total Dibayar'] ?? r['Dibayar'] ?? r['total_dibayar'] ?? 0)) || 0,
+    })).filter(r => r.nisn || r.nama)
+    const res = await importSppBulk(mapped)
+    setImportMsg((res.error ? res.error + ' — ' : '') + res.success)
+    if (!res.error || res.sukses > 0) {
+      const fresh = await getSppTagihanList({ bulan, tahun })
+      setTagihan(fresh.data as SppRow[])
+      setImportRows([])
+    }
+    setImportLoading(false)
+  }
+
   // ── Tahun options: 3 tahun ke belakang sampai 2 tahun ke depan ────────────
   const tahunOptions = Array.from({ length: 6 }, (_, i) => defaultTahun - 3 + i)
 
@@ -212,6 +321,10 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
           <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleGenerate} disabled={isPending}>
             <Zap className="h-3.5 w-3.5" />
             Generate {BULAN_SHORT[bulan]} {tahun}
+          </Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
+            onClick={() => { setImportModal(true); setImportRows([]); setImportMsg('') }}>
+            <Upload className="h-3.5 w-3.5" /> Import Excel
           </Button>
         </div>
 
@@ -275,7 +388,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                 <TableHead className="text-xs font-semibold text-right">Nominal</TableHead>
                 <TableHead className="text-xs font-semibold text-right">Dibayar</TableHead>
                 <TableHead className="text-xs font-semibold">Status</TableHead>
-                <TableHead className="w-8" />
+                <TableHead className="w-32 text-xs font-semibold text-center">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -338,7 +451,23 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                       )}
                     </TableCell>
                     <TableCell>
-                      {!noTagihan && <ChevronRight className="h-4 w-4 text-slate-400" />}
+                      <div className="flex items-center justify-center gap-1">
+                        {!noTagihan && (
+                          <>
+                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
+                              onClick={e => { e.stopPropagation(); openEditModal(row) }} title="Edit">
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            {row.status !== 'lunas' && (
+                              <Button size="sm" variant="ghost"
+                                className="h-6 text-[11px] px-2 gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                onClick={e => handleLunasSpp(row, e)} disabled={isPending}>
+                                <Check className="h-3 w-3" /> Lunas
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
@@ -434,6 +563,132 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
             </Button>
             <Button size="sm" className="flex-1 h-9 text-sm" disabled={isPending} onClick={handleBuatTagihan}>
               {isPending ? 'Menyimpan...' : 'Buat Tagihan'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* ── Modal Edit Tagihan SPP ──────────────────────────────────────────── */}
+    <Dialog open={!!editModal} onOpenChange={v => { if (!v) setEditModal(null) }}>
+      <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
+        <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
+          <DialogTitle className="text-sm font-semibold">Edit Tagihan SPP</DialogTitle>
+        </DialogHeader>
+        <div className="p-5 space-y-4">
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-sm">
+            <p className="font-medium text-slate-800 dark:text-slate-100">{editModal?.nama_lengkap}</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {BULAN_LABEL[bulan]} {tahun}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Nominal (Rp)</Label>
+              <Input type="number" min={0} value={editNominal} onChange={e => setEditNominal(e.target.value)} className="h-9 text-sm" autoFocus />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Total Dibayar (Rp)</Label>
+              <Input type="number" min={0} value={editDibayar} onChange={e => setEditDibayar(e.target.value)} className="h-9 text-sm" />
+            </div>
+          </div>
+          {editModal && (
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-[11px] text-slate-500">
+              Sisa: {formatRupiah(Math.max(0, (parseInt(editNominal) || 0) - (parseInt(editDibayar) || 0) - (editModal.total_diskon ?? 0)))}
+            </div>
+          )}
+          {editMsg && <p className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-md">{editMsg}</p>}
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setEditModal(null)}>Batal</Button>
+            <Button size="sm" className="flex-1 h-9 text-sm" disabled={isPending} onClick={handleEditSave}>
+              {isPending ? 'Menyimpan...' : 'Simpan'}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* ── Modal Import Excel SPP ──────────────────────────────────────────── */}
+    <Dialog open={importModal} onOpenChange={v => { if (!v) { setImportModal(false); setImportRows([]) } }}>
+      <DialogContent className="sm:max-w-2xl rounded-xl p-0 overflow-hidden">
+        <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
+          <DialogTitle className="text-sm font-semibold">Import Data SPP dari Excel</DialogTitle>
+        </DialogHeader>
+        <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+          {/* Download Template */}
+          <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 space-y-2.5">
+            <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Download Template Excel</p>
+            <p className="text-xs text-emerald-700 dark:text-emerald-400">
+              Template sudah terisi nama & NISN semua siswa, plus kolom Bulan ({bulan}) dan Tahun ({tahun}). Tinggal isi Nominal & Total Dibayar.
+            </p>
+            <div className="flex gap-2 items-center">
+              <Select value={templateAngkatan} onValueChange={setTemplateAngkatan}>
+                <SelectTrigger className="h-8 text-xs flex-1 bg-white dark:bg-slate-900"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="semua">Semua Angkatan</SelectItem>
+                  {angkatanList.map(y => <SelectItem key={y} value={String(y)}>Angkatan {y}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 whitespace-nowrap"
+                disabled={templateLoading}
+                onClick={async () => {
+                  setTemplateLoading(true)
+                  await downloadSppTemplate(bulan, tahun, templateAngkatan !== 'semua' ? parseInt(templateAngkatan) : undefined)
+                  setTemplateLoading(false)
+                }}>
+                <Upload className="h-3.5 w-3.5 rotate-180" />
+                {templateLoading ? 'Menyiapkan...' : 'Download Template'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Upload File yang Sudah Diisi</p>
+            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-xs text-slate-500 mb-3">
+              Kolom: <strong>NISN</strong>, <strong>Nama Siswa</strong>, <strong>Bulan</strong>, <strong>Tahun</strong>, <strong>Nominal</strong>, <strong>Total Dibayar</strong>
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs font-medium mb-1.5 block">Pilih File (.xlsx / .xls)</Label>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFileChange}
+              className="block w-full text-xs text-slate-600 file:mr-3 file:text-xs file:font-medium file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:rounded-md hover:file:bg-slate-200 cursor-pointer" />
+          </div>
+          {importLoading && <p className="text-xs text-slate-400 animate-pulse">Membaca file...</p>}
+          {importRows.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-slate-600 mb-2">{importRows.length} baris terdeteksi — preview 5 baris pertama:</p>
+              <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden overflow-x-auto">
+                <table className="text-[11px] w-full">
+                  <thead className="bg-slate-50 dark:bg-slate-800">
+                    <tr>
+                      {Object.keys(importRows[0]).map(k => (
+                        <th key={k} className="px-2 py-1.5 text-left font-medium text-slate-600 whitespace-nowrap border-b border-slate-200 dark:border-slate-700">{k}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importRows.slice(0, 5).map((r, i) => (
+                      <tr key={i} className="border-b border-slate-100 dark:border-slate-800">
+                        {Object.values(r).map((v: any, j) => (
+                          <td key={j} className="px-2 py-1.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">{String(v)}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {importMsg && (
+            <p className={`text-xs px-3 py-2 rounded-md ${importMsg.includes('berhasil') && !importMsg.startsWith('0') ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>
+              {importMsg}
+            </p>
+          )}
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => { setImportModal(false); setImportRows([]) }}>Tutup</Button>
+            <Button size="sm" className="flex-1 h-9 text-sm gap-1.5" disabled={!importRows.length || importLoading || isPending} onClick={handleImportSubmit}>
+              <Upload className="h-3.5 w-3.5" />
+              {importLoading ? 'Mengimport...' : `Import ${importRows.length} Baris`}
             </Button>
           </div>
         </div>
