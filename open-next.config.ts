@@ -13,8 +13,6 @@ config.edgeExternals = [
   "next/dist/compiled/@vercel/og/index.edge.js",
   "next/dist/compiled/@vercel/og/resvg.wasm",
   "next/dist/compiled/@vercel/og/yoga.wasm",
-  // xlsx hanya dipakai client-side (dynamic import) — jangan masuk worker
-  "xlsx",
 ];
 
 // Matikan minifikasi OpenNext — bikin instrumentation hook Next.js error runtime
