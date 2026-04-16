@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   // Cegah paket-paket besar masuk ke server bundle (Worker Cloudflare)
-  serverExternalPackages: ["@vercel/og", "xlsx"],
+  serverExternalPackages: ["@vercel/og"],
   productionBrowserSourceMaps: false,
   experimental: {
     serverMinification: true,
