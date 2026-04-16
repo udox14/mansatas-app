@@ -5,7 +5,7 @@ const config = defineCloudflareConfig({
   incrementalCache: kvIncrementalCache,
 });
 
-// Exclude paket besar yang gak perlu di-bundle ke worker
+// Exclude paket besar yang tidak perlu di-bundle ke worker
 config.edgeExternals = [
   "@vercel/og",
   "node:crypto",
@@ -13,6 +13,8 @@ config.edgeExternals = [
   "next/dist/compiled/@vercel/og/index.edge.js",
   "next/dist/compiled/@vercel/og/resvg.wasm",
   "next/dist/compiled/@vercel/og/yoga.wasm",
+  // xlsx hanya dipakai client-side (dynamic import) — jangan masuk worker
+  "xlsx",
 ];
 
 // Matikan minifikasi OpenNext — bikin instrumentation hook Next.js error runtime

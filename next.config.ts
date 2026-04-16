@@ -4,17 +4,23 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  serverExternalPackages: ["@vercel/og"],
+  // Cegah paket-paket besar masuk ke server bundle (Worker Cloudflare)
+  serverExternalPackages: ["@vercel/og", "xlsx"],
   productionBrowserSourceMaps: false,
   experimental: {
     serverMinification: true,
-    optimizePackageImports: ["lucide-react", "framer-motion", "@radix-ui/react-avatar", "@radix-ui/react-checkbox", "@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-label", "@radix-ui/react-scroll-area", "@radix-ui/react-select", "@radix-ui/react-slot", "@radix-ui/react-tabs", "recharts", "date-fns"],
+    optimizePackageImports: [
+      "lucide-react", "framer-motion",
+      "@radix-ui/react-avatar", "@radix-ui/react-checkbox",
+      "@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu",
+      "@radix-ui/react-label", "@radix-ui/react-scroll-area",
+      "@radix-ui/react-select", "@radix-ui/react-slot",
+      "@radix-ui/react-tabs", "recharts", "date-fns",
+    ],
     serverActions: {
       bodySizeLimit: '5mb',
     },
   },
-
-
 };
 
 export default nextConfig;
