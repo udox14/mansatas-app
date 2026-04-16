@@ -183,14 +183,17 @@ export async function generateSppBulanan(tahun: number, bulan: number, tahunMasu
   const siswaList = await db.prepare(siswaQuery).bind(...siswaParams).all<any>()
   if (!siswaList.results?.length) return { error: 'Tidak ada siswa ditemukan', success: null }
 
+  // Ambil semua tagihan yang sudah ada untuk bulan+tahun ini dalam SATU query (hindari N+1)
+  const existingRes = await db.prepare(
+    'SELECT siswa_id FROM fin_spp_tagihan WHERE bulan = ? AND tahun = ?'
+  ).bind(bulan, tahun).all<{ siswa_id: string }>()
+  const existingSet = new Set((existingRes.results ?? []).map(r => r.siswa_id))
+
   const stmts: D1PreparedStatement[] = []
   let totalGenerated = 0
 
   for (const row of siswaList.results) {
-    const exists = await db.prepare(
-      'SELECT id FROM fin_spp_tagihan WHERE siswa_id = ? AND bulan = ? AND tahun = ?'
-    ).bind(row.siswa_id, bulan, tahun).first()
-    if (!exists) {
+    if (!existingSet.has(row.siswa_id)) {
       const nominal = nominalByTingkat[row.tingkat] ?? 0
       stmts.push(db.prepare(
         'INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal) VALUES (?, ?, ?, ?, ?)'
