@@ -3,12 +3,6 @@ main = "worker-entry.ts"
 minify = true
 account_id = "89389959c60ad166fb81698c4289aab0"
 
-# Stub @vercel/og — tidak dipakai di app ini, tapi Next.js meng-include-nya
-# Mengganti index.edge.js dengan stub kosong agar resvg.wasm (1.3 MB)
-# dan yoga.wasm (70 KB) tidak ikut masuk ke worker bundle
-[alias]
-"next/dist/compiled/@vercel/og/index.edge.js" = "./stubs/og-stub.js"
-
 compatibility_date = "2025-05-05"
 compatibility_flags = ["nodejs_compat"]
 
@@ -40,3 +34,9 @@ CRON_SECRET = "mansatas-cron-xB2kLp9QrT"
 
 [triggers]
 crons = ["* * * * *"] # Setiap menit — handler cek jadwal_notifikasi di DB
+
+# Stub @vercel/og — tidak dipakai di app ini, tapi Next.js meng-include-nya.
+# Mengganti index.edge.js dengan stub kosong agar resvg.wasm (1.3 MB)
+# dan yoga.wasm (70 KB) tidak ikut masuk ke worker bundle.
+[alias]
+"next/dist/compiled/@vercel/og/index.edge.js" = "./stubs/og-stub.js"
