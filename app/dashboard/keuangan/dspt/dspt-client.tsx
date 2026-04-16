@@ -373,7 +373,11 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
               const Icon = s.icon
               const belumInput = row.status === 'tidak_ada'
               return (
-                <TableRow key={row.siswa_id} className="transition-colors">
+                <TableRow
+                  key={row.siswa_id}
+                  className={`transition-colors ${!belumInput ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50' : ''}`}
+                  onClick={() => !belumInput && router.push(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=dspt`)}
+                >
                   <TableCell>
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
                     <p className="text-[11px] text-slate-400">{row.nisn ?? '-'}</p>

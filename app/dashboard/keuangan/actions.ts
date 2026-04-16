@@ -172,24 +172,56 @@ export async function setNominalDsptMassal(angkatan: number, nominal: number) {
 
 export async function importDsptBulk(rows: { nisn?: string; nama?: string; nominal_target: number; total_dibayar: number; catatan?: string }[]) {
   const { db } = await requireAuth('keuangan-dspt')
+  if (!rows.length) return { error: null, success: '0 data diimport', sukses: 0, gagal: [] }
+
+  // 1 subrequest: load semua siswa by NISN sekaligus
+  const nisnList = rows.map(r => r.nisn).filter(Boolean) as string[]
+  const namaList = rows.map(r => r.nama).filter(Boolean) as string[]
+  const siswaNisnMap = new Map<string, string>()  // nisn → siswa_id
+  const siswaNamaMap = new Map<string, string>()  // nama_lower → siswa_id
+
+  if (nisnList.length) {
+    const ph = nisnList.map(() => '?').join(',')
+    const res = await db.prepare(`SELECT id, nisn FROM siswa WHERE nisn IN (${ph})`).bind(...nisnList).all<any>()
+    for (const s of res.results ?? []) siswaNisnMap.set(s.nisn, s.id)
+  }
+  if (namaList.length) {
+    const ph = namaList.map(() => '?').join(',')
+    const res = await db.prepare(`SELECT id, LOWER(nama_lengkap) as nama_l FROM siswa WHERE LOWER(nama_lengkap) IN (${ph.replace(/\?/g, 'LOWER(?)')})`).bind(...namaList).all<any>()
+    for (const s of res.results ?? []) siswaNamaMap.set(s.nama_l, s.id)
+  }
+
+  // 1 subrequest: load semua fin_dspt yang sudah ada untuk siswa ini
+  const allSiswaIds = [...new Set([...siswaNisnMap.values(), ...siswaNamaMap.values()])]
+  const existingMap = new Map<string, any>()  // siswa_id → fin_dspt row
+  if (allSiswaIds.length) {
+    const ph = allSiswaIds.map(() => '?').join(',')
+    const res = await db.prepare(`SELECT id, siswa_id, total_diskon, catatan FROM fin_dspt WHERE siswa_id IN (${ph})`).bind(...allSiswaIds).all<any>()
+    for (const r of res.results ?? []) existingMap.set(r.siswa_id, r)
+  }
+
+  const stmts: D1PreparedStatement[] = []
   let sukses = 0; const gagal: string[] = []
+
   for (const row of rows) {
-    // Cari siswa by NISN dulu, fallback ke nama
-    let siswa: any = null
-    if (row.nisn) siswa = await db.prepare('SELECT id FROM siswa WHERE nisn = ?').bind(row.nisn).first()
-    if (!siswa && row.nama) siswa = await db.prepare('SELECT id FROM siswa WHERE LOWER(nama_lengkap) = LOWER(?)').bind(row.nama).first()
-    if (!siswa) { gagal.push(row.nisn ?? row.nama ?? '?'); continue }
-    const existing = await db.prepare('SELECT id, total_diskon FROM fin_dspt WHERE siswa_id = ?').bind(siswa.id).first<any>()
+    const siswaId = (row.nisn ? siswaNisnMap.get(row.nisn) : undefined)
+      ?? (row.nama ? siswaNamaMap.get(row.nama.toLowerCase()) : undefined)
+    if (!siswaId) { gagal.push(row.nisn ?? row.nama ?? '?'); continue }
+
+    const existing = existingMap.get(siswaId)
     const status = recalcStatus(row.total_dibayar, existing?.total_diskon ?? 0, row.nominal_target)
     if (existing) {
-      await db.prepare(`UPDATE fin_dspt SET nominal_target=?, total_dibayar=?, status=?, catatan=?, updated_at=datetime('now') WHERE id=?`)
-        .bind(row.nominal_target, row.total_dibayar, status, row.catatan ?? existing.catatan ?? null, existing.id).run()
+      stmts.push(db.prepare(`UPDATE fin_dspt SET nominal_target=?, total_dibayar=?, status=?, catatan=?, updated_at=datetime('now') WHERE id=?`)
+        .bind(row.nominal_target, row.total_dibayar, status, row.catatan ?? existing.catatan ?? null, existing.id))
     } else {
-      await db.prepare(`INSERT INTO fin_dspt (id, siswa_id, nominal_target, total_dibayar, status, catatan) VALUES (?,?,?,?,?,?)`)
-        .bind(generateId(), siswa.id, row.nominal_target, row.total_dibayar, status, row.catatan ?? null).run()
+      stmts.push(db.prepare(`INSERT INTO fin_dspt (id, siswa_id, nominal_target, total_dibayar, status, catatan) VALUES (?,?,?,?,?,?)`)
+        .bind(generateId(), siswaId, row.nominal_target, row.total_dibayar, status, row.catatan ?? null))
     }
     sukses++
   }
+
+  // 1 subrequest: batch semua insert/update
+  for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
   revalidatePath('/dashboard/keuangan/dspt')
   return { error: gagal.length ? `${gagal.length} baris gagal (siswa tidak ditemukan): ${gagal.slice(0, 5).join(', ')}` : null, success: `${sukses} data DSPT berhasil diimport`, sukses, gagal }
 }
@@ -333,24 +365,62 @@ export async function updateSppTagihanNominal(tagihanId: string, nominal: number
 
 export async function importSppBulk(rows: { nisn?: string; nama?: string; bulan: number; tahun: number; nominal: number; total_dibayar: number }[]) {
   const { db } = await requireAuth('keuangan-spp')
+  if (!rows.length) return { error: null, success: '0 data diimport', sukses: 0, gagal: [] }
+
+  // 1 subrequest: load semua siswa sekaligus
+  const nisnList = rows.map(r => r.nisn).filter(Boolean) as string[]
+  const namaList = rows.map(r => r.nama).filter(Boolean) as string[]
+  const siswaNisnMap = new Map<string, string>()
+  const siswaNamaMap = new Map<string, string>()
+
+  if (nisnList.length) {
+    const ph = nisnList.map(() => '?').join(',')
+    const res = await db.prepare(`SELECT id, nisn FROM siswa WHERE nisn IN (${ph})`).bind(...nisnList).all<any>()
+    for (const s of res.results ?? []) siswaNisnMap.set(s.nisn, s.id)
+  }
+  if (namaList.length) {
+    const ph = namaList.map(() => '?').join(',')
+    const res = await db.prepare(`SELECT id, LOWER(nama_lengkap) as nama_l FROM siswa WHERE LOWER(nama_lengkap) IN (${ph.replace(/\?/g, 'LOWER(?)')})`).bind(...namaList).all<any>()
+    for (const s of res.results ?? []) siswaNamaMap.set(s.nama_l, s.id)
+  }
+
+  // Tentukan periode unik yang ada di rows agar bisa pre-load tagihan
+  const allSiswaIds = [...new Set([...siswaNisnMap.values(), ...siswaNamaMap.values()])]
+  const periodeSet = new Set(rows.map(r => `${r.bulan}-${r.tahun}`))
+  const existingMap = new Map<string, any>()  // `${siswa_id}-${bulan}-${tahun}` → tagihan row
+
+  // 1 subrequest per periode unik (biasanya cuma 1 periode saat import)
+  for (const periode of periodeSet) {
+    const [bulan, tahun] = periode.split('-').map(Number)
+    if (!allSiswaIds.length) break
+    const ph = allSiswaIds.map(() => '?').join(',')
+    const res = await db.prepare(`SELECT id, siswa_id, total_diskon FROM fin_spp_tagihan WHERE bulan=? AND tahun=? AND siswa_id IN (${ph})`)
+      .bind(bulan, tahun, ...allSiswaIds).all<any>()
+    for (const r of res.results ?? []) existingMap.set(`${r.siswa_id}-${bulan}-${tahun}`, r)
+  }
+
+  const stmts: D1PreparedStatement[] = []
   let sukses = 0; const gagal: string[] = []
+
   for (const row of rows) {
-    let siswa: any = null
-    if (row.nisn) siswa = await db.prepare('SELECT id FROM siswa WHERE nisn = ?').bind(row.nisn).first()
-    if (!siswa && row.nama) siswa = await db.prepare('SELECT id FROM siswa WHERE LOWER(nama_lengkap) = LOWER(?)').bind(row.nama).first()
-    if (!siswa) { gagal.push(row.nisn ?? row.nama ?? '?'); continue }
-    const existing = await db.prepare('SELECT id, total_diskon FROM fin_spp_tagihan WHERE siswa_id=? AND bulan=? AND tahun=?')
-      .bind(siswa.id, row.bulan, row.tahun).first<any>()
+    const siswaId = (row.nisn ? siswaNisnMap.get(row.nisn) : undefined)
+      ?? (row.nama ? siswaNamaMap.get(row.nama.toLowerCase()) : undefined)
+    if (!siswaId) { gagal.push(row.nisn ?? row.nama ?? '?'); continue }
+
+    const key = `${siswaId}-${row.bulan}-${row.tahun}`
+    const existing = existingMap.get(key)
     const status = recalcStatus(row.total_dibayar, existing?.total_diskon ?? 0, row.nominal)
     if (existing) {
-      await db.prepare(`UPDATE fin_spp_tagihan SET nominal=?, total_dibayar=?, status=?, updated_at=datetime('now') WHERE id=?`)
-        .bind(row.nominal, row.total_dibayar, status, existing.id).run()
+      stmts.push(db.prepare(`UPDATE fin_spp_tagihan SET nominal=?, total_dibayar=?, status=?, updated_at=datetime('now') WHERE id=?`)
+        .bind(row.nominal, row.total_dibayar, status, existing.id))
     } else {
-      await db.prepare(`INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal, total_dibayar, status) VALUES (?,?,?,?,?,?,?)`)
-        .bind(generateId(), siswa.id, row.bulan, row.tahun, row.nominal, row.total_dibayar, status).run()
+      stmts.push(db.prepare(`INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal, total_dibayar, status) VALUES (?,?,?,?,?,?,?)`)
+        .bind(generateId(), siswaId, row.bulan, row.tahun, row.nominal, row.total_dibayar, status))
     }
     sukses++
   }
+
+  for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
   revalidatePath('/dashboard/keuangan/spp')
   return { error: gagal.length ? `${gagal.length} baris gagal: ${gagal.slice(0, 5).join(', ')}` : null, success: `${sukses} tagihan SPP berhasil diimport`, sukses, gagal }
 }
@@ -874,34 +944,69 @@ function refTypeToTable(refType: string): string | null {
   }
 }
 
+// recalcTagihanStatus — O(5 subrequests) regardless of item count
+// Sebelumnya O(n*5): tiap item = SELECT+UPDATE+SELECT tagihan_id+SELECT agg+UPDATE header
+// → Mentok Cloudflare free-tier limit 50 subrequests/invocation untuk koperasi banyak item
 async function recalcTagihanStatus(db: D1Database, details: Array<{ refType: string; refId: string; jumlah: number }>) {
-  for (const d of details) {
-    const tabel = refTypeToTable(d.refType)
-    if (!tabel) continue
-    const row = await db.prepare(
-      `SELECT total_dibayar, total_diskon, ${d.refType === 'dspt' ? 'nominal_target AS nominal' : 'nominal'} FROM ${tabel} WHERE id = ?`
-    ).bind(d.refId).first<any>()
-    if (!row) continue
-    const status = recalcStatus(row.total_dibayar, row.total_diskon, row.nominal)
-    await db.prepare(`UPDATE ${tabel} SET status = ?, updated_at = datetime('now') WHERE id = ?`).bind(status, d.refId).run()
+  if (!details.length) return
 
-    // Jika koperasi_item, recalc juga header tagihan koperasi
-    if (d.refType === 'koperasi_item') {
-      const item = await db.prepare('SELECT tagihan_id FROM fin_koperasi_tagihan_item WHERE id = ?').bind(d.refId).first<any>()
-      if (item) {
-        const agg = await db.prepare(`
-          SELECT SUM(total_dibayar) as td, SUM(total_diskon) as tdk, SUM(nominal) as nom
-          FROM fin_koperasi_tagihan_item WHERE tagihan_id = ?
-        `).bind(item.tagihan_id).first<any>()
-        if (agg) {
-          const hStatus = recalcStatus(agg.td ?? 0, agg.tdk ?? 0, agg.nom ?? 0)
-          await db.prepare(`
-            UPDATE fin_koperasi_tagihan
-            SET total_dibayar=?, total_diskon=?, status=?, updated_at=datetime('now')
-            WHERE id=?
-          `).bind(agg.td ?? 0, agg.tdk ?? 0, hStatus, item.tagihan_id).run()
-        }
-      }
+  // Kelompokkan id per tipe agar bisa IN query sekaligus
+  const byType = new Map<string, string[]>()
+  for (const d of details) {
+    const ids = byType.get(d.refType) ?? []
+    ids.push(d.refId)
+    byType.set(d.refType, ids)
+  }
+
+  const updateStmts: D1PreparedStatement[] = []
+  const kopItemIds: string[] = byType.get('koperasi_item') ?? []
+
+  // 1 subrequest per tipe (max 3 tipe: dspt, spp_tagihan, koperasi_item)
+  for (const [refType, ids] of byType) {
+    const tabel = refTypeToTable(refType)
+    if (!tabel) continue
+    const ph = ids.map(() => '?').join(',')
+    const nomField = refType === 'dspt' ? 'nominal_target AS nominal' : 'nominal'
+    const res = await db.prepare(
+      `SELECT id, total_dibayar, total_diskon, ${nomField} FROM ${tabel} WHERE id IN (${ph})`
+    ).bind(...ids).all<any>()
+    for (const row of res.results ?? []) {
+      updateStmts.push(db.prepare(
+        `UPDATE ${tabel} SET status=?, updated_at=datetime('now') WHERE id=?`
+      ).bind(recalcStatus(row.total_dibayar, row.total_diskon, row.nominal), row.id))
     }
   }
+
+  // 1 subrequest: batch semua status update sekaligus
+  if (updateStmts.length) await db.batch(updateStmts)
+
+  // Recalc header koperasi (jika ada koperasi_item)
+  if (kopItemIds.length) {
+    const ph = kopItemIds.map(() => '?').join(',')
+    // 1 subrequest: ambil tagihan_ids
+    const itemsRes = await db.prepare(
+      `SELECT DISTINCT tagihan_id FROM fin_koperasi_tagihan_item WHERE id IN (${ph})`
+    ).bind(...kopItemIds).all<{ tagihan_id: string }>()
+    const tagIds = (itemsRes.results ?? []).map(r => r.tagihan_id)
+    if (tagIds.length) {
+      // 1 subrequest: aggregate semua header sekaligus
+      const ph2 = tagIds.map(() => '?').join(',')
+      const aggRes = await db.prepare(`
+        SELECT tagihan_id,
+          SUM(total_dibayar) as td, SUM(total_diskon) as tdk, SUM(nominal) as nom
+        FROM fin_koperasi_tagihan_item WHERE tagihan_id IN (${ph2})
+        GROUP BY tagihan_id
+      `).bind(...tagIds).all<any>()
+      const headerStmts = (aggRes.results ?? []).map((agg: any) =>
+        db.prepare(`
+          UPDATE fin_koperasi_tagihan
+          SET total_dibayar=?, total_diskon=?, status=?, updated_at=datetime('now')
+          WHERE id=?
+        `).bind(agg.td ?? 0, agg.tdk ?? 0, recalcStatus(agg.td ?? 0, agg.tdk ?? 0, agg.nom ?? 0), agg.tagihan_id)
+      )
+      // 1 subrequest: batch semua header update
+      if (headerStmts.length) await db.batch(headerStmts)
+    }
+  }
+  // Total: max 7 subrequests, vs sebelumnya O(n*5)
 }
