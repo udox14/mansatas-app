@@ -128,6 +128,79 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
     }
   }
 
+  function openKuitansiRekap(
+    kategori: 'dspt' | 'spp' | 'koperasi',
+    target?: any,  // untuk SPP: baris tagihan
+  ) {
+    const kelas = siswa.tingkat
+      ? `Kelas ${siswa.tingkat}-${siswa.nomor_kelas}${siswa.kelompok ? ' ' + siswa.kelompok : ''}`
+      : '-'
+
+    if (kategori === 'dspt' && dspt) {
+      const sisa = dspt.nominal_target - dspt.total_dibayar - dspt.total_diskon
+      setKuitansiData({
+        nomorKuitansi: `REKAP-DSPT`,
+        tanggal: new Date().toISOString(),
+        kategori: 'DSPT',
+        namaSiswa: siswa.nama_lengkap,
+        nisn: siswa.nisn ?? '-',
+        kelas,
+        namaPerugas: 'Bendahara Komite',
+        metodeBayar: 'Tunai',
+        jumlahDiserahkan: dspt.total_dibayar,
+        jumlahTagihan: dspt.nominal_target,
+        rincianBayar: [
+          { label: 'Target DSPT', nominal: dspt.nominal_target },
+          { label: 'Sudah Dibayar', nominal: -dspt.total_dibayar },
+          ...(dspt.total_diskon > 0 ? [{ label: 'Keringanan', nominal: -dspt.total_diskon }] : []),
+        ],
+        sisaTunggakan: sisa > 0 ? [{ label: 'DSPT', sisa }] : [],
+        isLunas: dspt.status === 'lunas',
+      })
+      setKuitansiOpen(true)
+    } else if (kategori === 'spp' && target) {
+      const sisa = target.nominal - target.total_dibayar - target.total_diskon
+      setKuitansiData({
+        nomorKuitansi: `REKAP-SPP-${target.bulan}-${target.tahun}`,
+        tanggal: new Date().toISOString(),
+        kategori: 'SPP',
+        namaSiswa: siswa.nama_lengkap,
+        nisn: siswa.nisn ?? '-',
+        kelas,
+        namaPerugas: 'Bendahara Komite',
+        metodeBayar: 'Tunai',
+        jumlahDiserahkan: target.total_dibayar,
+        jumlahTagihan: target.nominal,
+        rincianBayar: [
+          { label: `SPP ${BULAN_LABEL[target.bulan]} ${target.tahun}`, nominal: target.nominal },
+        ],
+        sisaTunggakan: sisa > 0 ? [{ label: `SPP ${BULAN_LABEL[target.bulan]} ${target.tahun}`, sisa }] : [],
+        isLunas: target.status === 'lunas',
+      })
+      setKuitansiOpen(true)
+    } else if (kategori === 'koperasi' && kopTagihan) {
+      const sisa = kopTagihan.total_nominal - kopTagihan.total_dibayar - kopTagihan.total_diskon
+      setKuitansiData({
+        nomorKuitansi: `REKAP-KOP`,
+        tanggal: new Date().toISOString(),
+        kategori: 'Koperasi',
+        namaSiswa: siswa.nama_lengkap,
+        nisn: siswa.nisn ?? '-',
+        kelas,
+        namaPerugas: 'Bendahara Komite',
+        metodeBayar: 'Tunai',
+        jumlahDiserahkan: kopTagihan.total_dibayar,
+        jumlahTagihan: kopTagihan.total_nominal,
+        rincianBayar: kopItems.map((item: any) => ({ label: item.nama_item, nominal: item.nominal })),
+        sisaTunggakan: kopItems
+          .filter((i: any) => i.status !== 'lunas')
+          .map((i: any) => ({ label: i.nama_item, sisa: i.nominal - i.total_dibayar - i.total_diskon })),
+        isLunas: kopTagihan.status === 'lunas',
+      })
+      setKuitansiOpen(true)
+    }
+  }
+
   function openKuitansiFromTrx(trx: any) {
     const kelas = siswa.tingkat
       ? `Kelas ${siswa.tingkat}-${siswa.nomor_kelas}${siswa.kelompok ? ' ' + siswa.kelompok : ''}`
@@ -304,7 +377,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                       )
                     })()}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     {dsptSisa > 0 && (
                       <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => setBayarModal({ type: 'dspt' })}>
                         <Plus className="h-3.5 w-3.5" /> Catat Bayar
@@ -313,6 +386,10 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                     <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
                       onClick={() => setDiskonModal({ type: 'dspt', targetId: dspt.id, label: 'DSPT' })}>
                       Keringanan
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
+                      onClick={() => openKuitansiRekap('dspt')}>
+                      <Printer className="h-3.5 w-3.5" /> Cetak Kuitansi
                     </Button>
                   </div>
                 </div>
@@ -391,7 +468,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                     <TableHead className="text-xs font-semibold text-right">Dibayar</TableHead>
                     <TableHead className="text-xs font-semibold text-right">Sisa</TableHead>
                     <TableHead className="text-xs font-semibold">Status</TableHead>
-                    <TableHead className="w-24" />
+                    <TableHead className="w-28" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -411,12 +488,19 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                           </span>
                         </TableCell>
                         <TableCell>
-                          {sisa > 0 && (
-                            <Button size="sm" variant="outline" className="h-6 text-[11px] px-2"
-                              onClick={() => setBayarModal({ type: 'spp', target: row })}>
-                              Bayar
+                          <div className="flex gap-1">
+                            {sisa > 0 && (
+                              <Button size="sm" variant="outline" className="h-6 text-[11px] px-2"
+                                onClick={() => setBayarModal({ type: 'spp', target: row })}>
+                                Bayar
+                              </Button>
+                            )}
+                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
+                              title="Cetak Kuitansi"
+                              onClick={() => openKuitansiRekap('spp', row)}>
+                              <Printer className="h-3 w-3" />
                             </Button>
-                          )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     )
@@ -454,12 +538,18 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                       )
                     })()}
                   </div>
-                  {kopTagihan.status !== 'lunas' && (
-                    <Button size="sm" className="h-8 text-xs gap-1.5"
-                      onClick={() => { setBayarForm(f => ({ ...f, selectedItems: [] })); setBayarModal({ type: 'koperasi' }) }}>
-                      <Plus className="h-3.5 w-3.5" /> Bayar Item
+                  <div className="flex gap-2">
+                    {kopTagihan.status !== 'lunas' && (
+                      <Button size="sm" className="h-8 text-xs gap-1.5"
+                        onClick={() => { setBayarForm(f => ({ ...f, selectedItems: [] })); setBayarModal({ type: 'koperasi' }) }}>
+                        <Plus className="h-3.5 w-3.5" /> Bayar Item
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
+                      onClick={() => openKuitansiRekap('koperasi')}>
+                      <Printer className="h-3.5 w-3.5" /> Cetak Kuitansi
                     </Button>
-                  )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3 text-sm">
                   <div><p className="text-[11px] text-slate-500">Total Tagihan</p><p className="font-semibold">{formatRupiah(kopTagihan.total_nominal)}</p></div>
