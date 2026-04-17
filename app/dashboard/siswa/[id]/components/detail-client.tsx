@@ -11,7 +11,7 @@ import {
   User, GraduationCap, ShieldAlert, DoorOpen, LineChart, 
   MapPin, Phone, Users, CheckCircle2, History, AlertTriangle, 
   Image as ImageIcon, ChevronDown, ChevronUp, BookOpen, Pencil,
-  LogOut, RotateCcw, CalendarSearch, ShieldCheck, ShieldX, ShieldOff, Bell
+  LogOut, RotateCcw, CalendarSearch, ShieldCheck, ShieldAlert
 } from 'lucide-react'
 import { EditSiswaModal } from '../../components/edit-modal'
 import { TandaiKeluarModal, BatalkanKeluarModal } from './tandai-keluar-modal'
@@ -45,12 +45,16 @@ export function DetailSiswaClient({
     return pelanggaran.reduce((acc, curr) => acc + (curr.poin || curr.master_pelanggaran?.poin || 0), 0)
   }, [pelanggaran])
 
-  const cfg = kedisiplinanConfig ?? { threshold_perhatian: 25, threshold_peringatan: 50, threshold_kritis: 75, credit_score_awal: 100 }
-  const creditScore = Math.max(0, cfg.credit_score_awal - totalPoin)
-  const disciplineLevel = totalPoin >= cfg.threshold_kritis ? 'kritis'
-    : totalPoin >= cfg.threshold_peringatan ? 'peringatan'
-    : totalPoin >= cfg.threshold_perhatian ? 'perhatian'
-    : 'aman'
+  const activeSanksi = useMemo(() => {
+    if (!sanksiList || sanksiList.length === 0) return null
+    return [...sanksiList].sort((a, b) => b.poin_minimal - a.poin_minimal).find(s => totalPoin >= s.poin_minimal) ?? null
+  }, [totalPoin, sanksiList])
+
+  const nextSanksi = useMemo(() => {
+    if (!sanksiList || sanksiList.length === 0) return null
+    const sorted = [...sanksiList].sort((a, b) => a.poin_minimal - b.poin_minimal)
+    return sorted.find(s => s.poin_minimal > totalPoin) ?? null
+  }, [totalPoin, sanksiList])
 
   // 2. Format Kelas Saat Ini
   const namaKelasSekarang = siswa.kelas 
@@ -207,7 +211,7 @@ export function DetailSiswaClient({
           <div className={`h-20 w-20 rounded-full bg-gradient-to-br ${getAvatarColor(siswa.nama_lengkap)} shadow-lg flex items-center justify-center text-2xl font-black text-white border-4 border-white`}>
             {siswa.nama_lengkap.charAt(0).toUpperCase()}
           </div>
-          {totalPoin >= cfg.threshold_kritis && (
+          {activeSanksi && activeSanksi.urutan >= 3 && (
             <div className="absolute -bottom-2 -right-2 bg-rose-500 text-white p-2 rounded-full shadow-lg border-2 border-white animate-bounce" title="Siswa dalam pengawasan khusus">
               <AlertTriangle className="h-5 w-5" />
             </div>
@@ -388,50 +392,49 @@ export function DetailSiswaClient({
         <TabsContent value="disiplin" className="mt-4 space-y-6 animate-in fade-in">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-            {/* Credit Score */}
+            {/* Sanksi Status */}
             <div className={`p-4 rounded-xl border md:col-span-1 flex flex-col items-center justify-center text-center gap-3
-              ${disciplineLevel === 'kritis' ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
-                : disciplineLevel === 'peringatan' ? 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800'
-                : disciplineLevel === 'perhatian' ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800'
+              ${activeSanksi
+                ? activeSanksi.urutan >= 3 ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
+                  : activeSanksi.urutan === 2 ? 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800'
+                  : 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800'
                 : 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'}`}>
 
-              {/* SVG ring */}
-              <div className="relative">
-                {(() => {
-                  const pct = Math.min(100, Math.max(0, (creditScore / cfg.credit_score_awal) * 100))
-                  const color = disciplineLevel === 'kritis' ? '#ef4444' : disciplineLevel === 'peringatan' ? '#f97316' : disciplineLevel === 'perhatian' ? '#f59e0b' : '#10b981'
-                  const r = 38, circ = 2 * Math.PI * r, dash = (pct / 100) * circ
-                  return (
-                    <svg width="96" height="96" viewBox="0 0 96 96" className="rotate-[-90deg]">
-                      <circle cx="48" cy="48" r={r} fill="none" stroke="#e2e8f0" strokeWidth="9" />
-                      <circle cx="48" cy="48" r={r} fill="none" stroke={color} strokeWidth="9"
-                        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
-                    </svg>
-                  )
-                })()}
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className={`text-2xl font-black ${disciplineLevel === 'kritis' ? 'text-red-600' : disciplineLevel === 'peringatan' ? 'text-orange-600' : disciplineLevel === 'perhatian' ? 'text-amber-600' : 'text-emerald-600'}`}>{creditScore}</span>
-                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase">/{cfg.credit_score_awal}</span>
-                </div>
+              {/* Poin counter */}
+              <div className="flex flex-col items-center justify-center h-24 w-24 rounded-full border-4
+                border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30">
+                <span className="text-3xl font-black text-rose-600 dark:text-rose-400 leading-none">{totalPoin}</span>
+                <span className="text-[9px] text-rose-400 dark:text-rose-600 font-bold uppercase tracking-wide mt-0.5">poin</span>
               </div>
 
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Credit Score</p>
-                <p className={`text-sm font-black mt-1 px-3 py-1 rounded-full ${
-                  disciplineLevel === 'kritis' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
-                  : disciplineLevel === 'peringatan' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
-                  : disciplineLevel === 'perhatian' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
-                  : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'}`}>
-                  {disciplineLevel === 'kritis'
-                    ? <><ShieldX className="inline h-3.5 w-3.5 mr-1" />Level Kritis</>
-                    : disciplineLevel === 'peringatan'
-                    ? <><Bell className="inline h-3.5 w-3.5 mr-1" />Peringatan Keras</>
-                    : disciplineLevel === 'perhatian'
-                    ? <><ShieldOff className="inline h-3.5 w-3.5 mr-1" />Perlu Perhatian</>
-                    : <><ShieldCheck className="inline h-3.5 w-3.5 mr-1" />Baik</>}
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Status Kedisiplinan</p>
+                <p className={`text-sm font-black mt-1 px-3 py-1 rounded-full inline-flex items-center gap-1
+                  ${activeSanksi
+                    ? activeSanksi.urutan >= 3 ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
+                      : activeSanksi.urutan === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
+                      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'}`}>
+                  {activeSanksi
+                    ? <><ShieldAlert className="h-3.5 w-3.5" />{activeSanksi.nama}</>
+                    : <><ShieldCheck className="h-3.5 w-3.5" />Baik</>}
                 </p>
+                {activeSanksi?.deskripsi && (
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 italic">{activeSanksi.deskripsi}</p>
+                )}
+                {nextSanksi && (
+                  <div className="mt-2 w-full">
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-1">
+                      Menuju <strong>{nextSanksi.nama}</strong> @ {nextSanksi.poin_minimal} poin
+                    </p>
+                    <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                      <div className="h-full rounded-full bg-rose-400 transition-all"
+                        style={{ width: `${Math.min(100, (totalPoin / nextSanksi.poin_minimal) * 100)}%` }} />
+                    </div>
+                  </div>
+                )}
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                  Akumulasi <span className="font-bold text-rose-500">{totalPoin} poin</span> dari {pelanggaran.length} kasus
+                  {pelanggaran.length} kasus tercatat
                 </p>
               </div>
             </div>
