@@ -12,7 +12,7 @@ import { Loader2, Camera, AlertCircle, CheckCircle2, Search, ShieldAlert } from 
 import { simpanPelanggaran, searchSiswa } from '../actions'
 import { todayWIB } from '@/lib/time'
 
-const initialState = { error: null as string | null, success: null as string | null, naik_sanksi: null as { nama: string; deskripsi?: string; total_poin: number } | null }
+const initialState = null as any
 
 const compressImage = async (file: File): Promise<File> => {
   return new Promise((resolve, reject) => {
