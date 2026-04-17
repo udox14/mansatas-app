@@ -102,8 +102,35 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
     if (result.error) return { error: 'Gagal merekam data: ' + result.error, success: null }
   }
 
+  // Cek apakah siswa naik level sanksi (hanya saat tambah baru, bukan edit)
+  let naik_sanksi: { nama: string; deskripsi: string | null; total_poin: number } | null = null
+  if (!id) {
+    const totalRes = await db.prepare(`
+      SELECT SUM(mp.poin) as total FROM siswa_pelanggaran sp
+      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
+      WHERE sp.siswa_id = ?
+    `).bind(siswa_id).first<{ total: number }>()
+
+    const masterData = await db.prepare(`SELECT poin FROM master_pelanggaran WHERE id = ?`)
+      .bind(master_pelanggaran_id).first<{ poin: number }>()
+
+    const poinSesudah = totalRes?.total || 0
+    const poinSebelum = poinSesudah - (masterData?.poin || 0)
+
+    const sanksiList = await getSanksiList()
+    const getForPoin = (p: number) =>
+      [...sanksiList].sort((a, b) => b.poin_minimal - a.poin_minimal).find(s => p >= s.poin_minimal) || null
+
+    const sanksiSebelum = getForPoin(poinSebelum)
+    const sanksiSesudah = getForPoin(poinSesudah)
+
+    if (sanksiSesudah && sanksiSesudah.id !== sanksiSebelum?.id) {
+      naik_sanksi = { nama: sanksiSesudah.nama, deskripsi: sanksiSesudah.deskripsi, total_poin: poinSesudah }
+    }
+  }
+
   revalidatePath('/dashboard/kedisiplinan')
-  return { error: null, success: 'Data pelanggaran berhasil disimpan!' }
+  return { error: null, success: 'Data pelanggaran berhasil disimpan!', naik_sanksi }
 }
 
 // ============================================================
@@ -257,7 +284,7 @@ export async function getAnalitikKedisiplinan(taAktifId: string) {
 
   const [
     totalKasusRes, perKategoriRes, perBulanRes, topPelanggaranRes,
-    siswaRisikoRes, perKelasRes, configRes,
+    siswaRisikoRes, perKelasRes, sanksiListRes,
   ] = await Promise.all([
     db.prepare(`
       SELECT COUNT(*) as total_kasus, SUM(mp.poin) as total_poin
@@ -290,6 +317,7 @@ export async function getAnalitikKedisiplinan(taAktifId: string) {
       GROUP BY sp.master_pelanggaran_id ORDER BY frekuensi DESC LIMIT 10
     `).bind(taAktifId).all<any>(),
 
+    // Poin seumur hidup siswa (tidak difilter per TA)
     db.prepare(`
       SELECT s.id, s.nama_lengkap, k.tingkat, k.nomor_kelas, k.kelompok,
         COUNT(sp.id) as jumlah_kasus, SUM(mp.poin) as total_poin
@@ -297,9 +325,8 @@ export async function getAnalitikKedisiplinan(taAktifId: string) {
       JOIN siswa s ON sp.siswa_id = s.id
       LEFT JOIN kelas k ON s.kelas_id = k.id
       JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
-      WHERE sp.tahun_ajaran_id = ?
       GROUP BY sp.siswa_id ORDER BY total_poin DESC LIMIT 20
-    `).bind(taAktifId).all<any>(),
+    `).all<any>(),
 
     db.prepare(`
       SELECT k.tingkat, k.nomor_kelas, k.kelompok,
@@ -314,18 +341,13 @@ export async function getAnalitikKedisiplinan(taAktifId: string) {
       GROUP BY s.kelas_id ORDER BY total_poin DESC
     `).bind(taAktifId).all<any>(),
 
-    db.prepare(`SELECT key, value FROM kedisiplinan_config`).all<any>().catch(() => ({ results: [] })),
+    getSanksiList(),
   ])
 
-  const configMap: Record<string, number> = {}
-  for (const row of (configRes.results ?? [])) configMap[row.key] = parseInt(row.value) || 0
+  const sanksiList: SanksiConfig[] = sanksiListRes
 
-  const thresholds = {
-    perhatian:  configMap.threshold_perhatian  ?? 25,
-    peringatan: configMap.threshold_peringatan ?? 50,
-    kritis:     configMap.threshold_kritis     ?? 75,
-    creditAwal: configMap.credit_score_awal    ?? 100,
-  }
+  const getForPoin = (p: number) =>
+    [...sanksiList].sort((a, b) => b.poin_minimal - a.poin_minimal).find(s => p >= s.poin_minimal) || null
 
   return {
     ringkasan: {
@@ -337,19 +359,119 @@ export async function getAnalitikKedisiplinan(taAktifId: string) {
     topPelanggaran: topPelanggaranRes.results ?? [],
     siswaBerisiko: (siswaRisikoRes.results ?? []).map((s: any) => ({
       ...s,
-      credit_score: Math.max(0, thresholds.creditAwal - (s.total_poin ?? 0)),
-      level: (s.total_poin ?? 0) >= thresholds.kritis ? 'kritis'
-        : (s.total_poin ?? 0) >= thresholds.peringatan ? 'peringatan'
-        : (s.total_poin ?? 0) >= thresholds.perhatian ? 'perhatian'
-        : 'aman',
+      sanksi: getForPoin(s.total_poin ?? 0),
     })),
     perKelas: perKelasRes.results ?? [],
-    thresholds,
+    sanksiList,
   }
 }
 
 // ============================================================
-// 6. SIMPAN KONFIGURASI KEDISIPLINAN
+// 6. SANKSI CONFIG (CRUD)
+// ============================================================
+export type SanksiConfig = {
+  id: string
+  nama: string
+  deskripsi: string | null
+  poin_minimal: number
+  urutan: number
+}
+
+async function ensureSanksiTable(db: any) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS sanksi_config (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      nama TEXT NOT NULL,
+      deskripsi TEXT,
+      poin_minimal INTEGER NOT NULL DEFAULT 0,
+      urutan INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `).run()
+}
+
+async function reorderSanksi(db: any) {
+  const all = await db.prepare(`SELECT id FROM sanksi_config ORDER BY poin_minimal ASC`).all<{ id: string }>()
+  for (let i = 0; i < (all.results?.length || 0); i++) {
+    await db.prepare(`UPDATE sanksi_config SET urutan = ? WHERE id = ?`).bind(i + 1, all.results![i].id).run()
+  }
+}
+
+export async function getSanksiList(): Promise<SanksiConfig[]> {
+  const db = await getDB()
+  try {
+    await ensureSanksiTable(db)
+    const res = await db.prepare(`SELECT * FROM sanksi_config ORDER BY poin_minimal ASC`).all<any>()
+    let list: SanksiConfig[] = res.results || []
+
+    if (list.length === 0) {
+      const defaults = [
+        { nama: 'SP1', deskripsi: 'Surat Peringatan 1', poin_minimal: 100, urutan: 1 },
+        { nama: 'SP2', deskripsi: 'Surat Peringatan 2', poin_minimal: 150, urutan: 2 },
+        { nama: 'SP3', deskripsi: 'Surat Peringatan 3', poin_minimal: 200, urutan: 3 },
+      ]
+      for (const d of defaults) {
+        await db.prepare(`INSERT INTO sanksi_config (nama, deskripsi, poin_minimal, urutan) VALUES (?, ?, ?, ?)`)
+          .bind(d.nama, d.deskripsi, d.poin_minimal, d.urutan).run()
+      }
+      const res2 = await db.prepare(`SELECT * FROM sanksi_config ORDER BY poin_minimal ASC`).all<any>()
+      list = res2.results || []
+    }
+    return list
+  } catch {
+    return [
+      { id: 'default-1', nama: 'SP1', deskripsi: 'Surat Peringatan 1', poin_minimal: 100, urutan: 1 },
+      { id: 'default-2', nama: 'SP2', deskripsi: 'Surat Peringatan 2', poin_minimal: 150, urutan: 2 },
+      { id: 'default-3', nama: 'SP3', deskripsi: 'Surat Peringatan 3', poin_minimal: 200, urutan: 3 },
+    ]
+  }
+}
+
+export async function simpanSanksiItem(prevState: any, formData: FormData) {
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Tidak terautentikasi', success: null }
+
+  try {
+    await ensureSanksiTable(db)
+    const id = formData.get('id') as string | null
+    const nama = (formData.get('nama') as string)?.trim()
+    const deskripsi = (formData.get('deskripsi') as string)?.trim() || null
+    const poin_minimal = parseInt(formData.get('poin_minimal') as string)
+
+    if (!nama) return { error: 'Nama sanksi wajib diisi.', success: null }
+    if (isNaN(poin_minimal) || poin_minimal < 1) return { error: 'Poin minimal harus angka positif.', success: null }
+
+    if (id) {
+      await db.prepare(`UPDATE sanksi_config SET nama=?, deskripsi=?, poin_minimal=?, updated_at=datetime('now') WHERE id=?`)
+        .bind(nama, deskripsi, poin_minimal, id).run()
+    } else {
+      await db.prepare(`INSERT INTO sanksi_config (nama, deskripsi, poin_minimal, urutan) VALUES (?, ?, ?, 0)`)
+        .bind(nama, deskripsi, poin_minimal).run()
+    }
+    await reorderSanksi(db)
+    revalidatePath('/dashboard/kedisiplinan')
+    return { error: null, success: 'Sanksi berhasil disimpan.' }
+  } catch (e: any) {
+    return { error: 'Gagal: ' + (e?.message || ''), success: null }
+  }
+}
+
+export async function hapusSanksiItem(id: string) {
+  const db = await getDB()
+  try {
+    await db.prepare(`DELETE FROM sanksi_config WHERE id = ?`).bind(id).run()
+    await reorderSanksi(db)
+    revalidatePath('/dashboard/kedisiplinan')
+    return { success: 'Sanksi berhasil dihapus.' }
+  } catch (e: any) {
+    return { error: 'Gagal menghapus: ' + (e?.message || '') }
+  }
+}
+
+// ============================================================
+// 7. SIMPAN KONFIGURASI KEDISIPLINAN (LAMA — kept for compat)
 // ============================================================
 export async function simpanKedisiplinanConfig(prevState: any, formData: FormData) {
   const db = await getDB()
@@ -387,21 +509,14 @@ export async function simpanKedisiplinanConfig(prevState: any, formData: FormDat
 }
 
 // ============================================================
-// 7. AMBIL KONFIGURASI THRESHOLD (untuk detail siswa)
+// 8. AMBIL KONFIGURASI (kept for backward compat — sekarang delegate ke sanksi)
 // ============================================================
 export async function getKedisiplinanConfig() {
-  const db = await getDB()
-  try {
-    const res = await db.prepare(`SELECT key, value FROM kedisiplinan_config`).all<any>()
-    const map: Record<string, number> = {}
-    for (const row of (res.results ?? [])) map[row.key] = parseInt(row.value) || 0
-    return {
-      threshold_perhatian:  map.threshold_perhatian  ?? 25,
-      threshold_peringatan: map.threshold_peringatan ?? 50,
-      threshold_kritis:     map.threshold_kritis     ?? 75,
-      credit_score_awal:    map.credit_score_awal    ?? 100,
-    }
-  } catch {
-    return { threshold_perhatian: 25, threshold_peringatan: 50, threshold_kritis: 75, credit_score_awal: 100 }
+  const sanksiList = await getSanksiList()
+  return {
+    threshold_perhatian:  sanksiList[0]?.poin_minimal ?? 25,
+    threshold_peringatan: sanksiList[1]?.poin_minimal ?? 50,
+    threshold_kritis:     sanksiList[2]?.poin_minimal ?? 75,
+    credit_score_awal:    100,
   }
 }

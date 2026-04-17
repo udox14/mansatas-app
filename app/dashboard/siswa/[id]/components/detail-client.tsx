@@ -17,14 +17,15 @@ import { EditSiswaModal } from '../../components/edit-modal'
 import { TandaiKeluarModal, BatalkanKeluarModal } from './tandai-keluar-modal'
 import { RekapAbsensiTab } from './rekap-absensi-tab'
 import { formatNamaKelas } from '@/lib/utils'
+import type { SanksiConfig } from '../../../kedisiplinan/actions'
 
-export function DetailSiswaClient({ 
-  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, kelasList, currentUser, kedisiplinanConfig
-}: { 
+export function DetailSiswaClient({
+  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, kelasList, currentUser, sanksiList
+}: {
   siswa: any, riwayatKelas: any[], pelanggaran: any[], izinKeluar: any[], izinKelas: any[]
   kelasList?: any[],
   currentUser: any
-  kedisiplinanConfig?: { threshold_perhatian: number; threshold_peringatan: number; threshold_kritis: number; credit_score_awal: number }
+  sanksiList?: SanksiConfig[]
 }) {
   const router = useRouter()
   const [showKeluarModal, setShowKeluarModal] = useState(false)

@@ -1,26 +1,16 @@
 // Lokasi: app/dashboard/kedisiplinan/components/analitik-client.tsx
 'use client'
 
-import { useState, useActionState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import {
   TrendingUp, Users, AlertTriangle, ShieldAlert,
-  ShieldCheck, Flame, BarChart3, Settings2, CheckCircle2,
-  ChevronRight, Info, X
+  ShieldCheck, Flame, BarChart3, Settings2, ChevronRight
 } from 'lucide-react'
-import { simpanKedisiplinanConfig } from '../actions'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-
-// ─── Warna level ─────────────────────────────────────────────
-const LEVEL_MAP = {
-  kritis:     { label: 'Kritis',      bg: 'bg-red-100 dark:bg-red-900/30',    text: 'text-red-700 dark:text-red-400',    border: 'border-red-200 dark:border-red-800',    dot: 'bg-red-500' },
-  peringatan: { label: 'Peringatan',  bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-400', border: 'border-orange-200 dark:border-orange-800', dot: 'bg-orange-500' },
-  perhatian:  { label: 'Perhatian',   bg: 'bg-amber-100 dark:bg-amber-900/30',  text: 'text-amber-700 dark:text-amber-400',  border: 'border-amber-200 dark:border-amber-800',  dot: 'bg-amber-400' },
-  aman:       { label: 'Aman',        bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-800', dot: 'bg-emerald-500' },
-}
+import { cn } from '@/lib/utils'
+import { SanksiConfigModal } from './sanksi-config-modal'
+import type { SanksiConfig } from '../actions'
 
 const KATEGORI_COLORS: Record<string, string> = {
   'Ringan':  'bg-yellow-400',
@@ -29,6 +19,15 @@ const KATEGORI_COLORS: Record<string, string> = {
   'Sangat Berat': 'bg-purple-700',
 }
 
+function getSanksiStyle(urutan: number) {
+  if (urutan === 1) return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800'
+  if (urutan === 2) return 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800'
+  if (urutan === 3) return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800'
+  return 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800'
+}
+
+const AMAN_STYLE = 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
+
 type AnalitikData = {
   ringkasan: { total_kasus: number; total_poin: number }
   perKategori: any[]
@@ -36,54 +35,24 @@ type AnalitikData = {
   topPelanggaran: any[]
   siswaBerisiko: any[]
   perKelas: any[]
-  thresholds: { perhatian: number; peringatan: number; kritis: number; creditAwal: number }
+  sanksiList: SanksiConfig[]
 }
 
-// ─── Sparkline Chart (Bar sederhana) ─────────────────────────
-function SimpleBarChart({ data, maxVal, colorClass = 'bg-indigo-500' }: { data: number[]; maxVal: number; colorClass?: string }) {
-  return (
-    <div className="flex items-end gap-0.5 h-12">
-      {data.map((v, i) => (
-        <div key={i} className={`flex-1 rounded-t ${colorClass} opacity-80`}
-          style={{ height: maxVal > 0 ? `${Math.max(4, (v / maxVal) * 100)}%` : '4%' }}
-          title={String(v)} />
-      ))}
-    </div>
-  )
-}
-
-// ─── Credit Score Ring ────────────────────────────────────────
-function CreditScoreRing({ score, max = 100 }: { score: number; max?: number }) {
-  const pct = Math.min(100, Math.max(0, (score / max) * 100))
-  const color = pct >= 70 ? '#10b981' : pct >= 40 ? '#f59e0b' : '#ef4444'
-  const r = 28, circ = 2 * Math.PI * r
-  const dash = (pct / 100) * circ
-  return (
-    <svg width="72" height="72" viewBox="0 0 72 72" className="rotate-[-90deg]">
-      <circle cx="36" cy="36" r={r} fill="none" stroke="#e2e8f0" strokeWidth="7" />
-      <circle cx="36" cy="36" r={r} fill="none" stroke={color} strokeWidth="7"
-        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
-        style={{ transition: 'stroke-dasharray 0.6s ease' }} />
-    </svg>
-  )
-}
-
-// ─── Main Component ───────────────────────────────────────────
 export function AnalitikKedisiplinanClient({
   data, isAdmin
 }: { data: AnalitikData; isAdmin: boolean }) {
-  const [showConfig, setShowConfig] = useState(false)
   const [filterLevel, setFilterLevel] = useState<string>('all')
+  const [showSanksiConfig, setShowSanksiConfig] = useState(false)
 
-  const [configState, configAction, isConfigPending] = useActionState(simpanKedisiplinanConfig, null)
+  const { ringkasan, perKategori, perBulan, topPelanggaran, siswaBerisiko, perKelas, sanksiList } = data
 
-  const { ringkasan, perKategori, perBulan, topPelanggaran, siswaBerisiko, perKelas, thresholds } = data
-
-  // Hitung statistik level
-  const countByLevel = siswaBerisiko.reduce((acc: Record<string, number>, s) => {
-    acc[s.level] = (acc[s.level] || 0) + 1
+  // Count by sanksi id (null → 'baik')
+  const countBySanksi = siswaBerisiko.reduce((acc: Record<string, number>, s) => {
+    const key = s.sanksi?.id ?? 'baik'
+    acc[key] = (acc[key] || 0) + 1
     return acc
   }, {})
+  const countWithAnySanksi = siswaBerisiko.filter(s => s.sanksi).length
 
   const maxKasus = Math.max(...perBulan.map((b: any) => b.jumlah), 1)
   const bulanLabels = perBulan.map((b: any) => {
@@ -91,7 +60,11 @@ export function AnalitikKedisiplinanClient({
     return ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][parseInt(m) - 1] || m
   })
 
-  const filteredSiswa = filterLevel === 'all' ? siswaBerisiko : siswaBerisiko.filter((s: any) => s.level === filterLevel)
+  const filteredSiswa = filterLevel === 'all'
+    ? siswaBerisiko
+    : filterLevel === 'baik'
+      ? siswaBerisiko.filter(s => !s.sanksi)
+      : siswaBerisiko.filter(s => s.sanksi?.id === filterLevel)
 
   return (
     <div className="space-y-6">
@@ -101,8 +74,8 @@ export function AnalitikKedisiplinanClient({
         {[
           { label: 'Total Kasus', value: ringkasan.total_kasus, icon: BarChart3, color: 'text-slate-600', bg: 'bg-slate-100 dark:bg-slate-800' },
           { label: 'Total Poin Beban', value: ringkasan.total_poin, icon: Flame, color: 'text-rose-600', bg: 'bg-rose-50 dark:bg-rose-950/30' },
-          { label: 'Siswa Perlu Perhatian', value: (countByLevel.perhatian || 0) + (countByLevel.peringatan || 0) + (countByLevel.kritis || 0), icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950/30' },
-          { label: 'Siswa Kritis', value: countByLevel.kritis || 0, icon: ShieldAlert, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-950/30' },
+          { label: 'Siswa Bersanksi', value: countWithAnySanksi, icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-950/30' },
+          { label: 'Jenis Sanksi', value: sanksiList.length, icon: ShieldAlert, color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-950/30' },
         ].map((card) => (
           <div key={card.label} className={`rounded-xl p-4 border border-slate-200 dark:border-slate-700 ${card.bg} flex flex-col gap-2`}>
             <div className="flex items-center justify-between">
@@ -209,7 +182,6 @@ export function AnalitikKedisiplinanClient({
             {perKelas.length === 0 ? (
               <p className="text-center text-sm text-slate-400 dark:text-slate-500 py-4">Belum ada data.</p>
             ) : perKelas.slice(0, 8).map((k: any, i: number) => {
-              // Tampilkan hanya tingkat-nomor_kelas (mis. "9-3"), tanpa kelompok/jurusan
               const namaKelas = k.tingkat ? `${k.tingkat}-${k.nomor_kelas}` : 'N/A'
               const maxPoin = Math.max(...perKelas.map((x: any) => x.total_poin), 1)
               return (
@@ -227,18 +199,23 @@ export function AnalitikKedisiplinanClient({
         </div>
       </div>
 
-      {/* ── SISWA BERISIKO ── */}
+      {/* ── RADAR SISWA ── */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex-wrap gap-2">
           <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-rose-500" /> Radar Siswa Perlu Tindakan
           </h3>
           <div className="flex items-center gap-1.5 flex-wrap">
-            {(['all', 'kritis', 'peringatan', 'perhatian'] as const).map(lv => (
-              <button key={lv} onClick={() => setFilterLevel(lv)}
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all ${filterLevel === lv ? 'bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
-                {lv === 'all' ? 'Semua' : LEVEL_MAP[lv].label}
-                {lv !== 'all' && ` (${countByLevel[lv] || 0})`}
+            <button onClick={() => setFilterLevel('all')}
+              className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full transition-all',
+                filterLevel === 'all' ? 'bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700')}>
+              Semua
+            </button>
+            {sanksiList.map(s => (
+              <button key={s.id} onClick={() => setFilterLevel(s.id)}
+                className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full transition-all',
+                  filterLevel === s.id ? 'bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700')}>
+                {s.nama} ({countBySanksi[s.id] || 0})
               </button>
             ))}
           </div>
@@ -252,26 +229,28 @@ export function AnalitikKedisiplinanClient({
         ) : (
           <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {filteredSiswa.map((s: any) => {
-              const lv = LEVEL_MAP[s.level as keyof typeof LEVEL_MAP] || LEVEL_MAP.aman
+              const sanksi: SanksiConfig | null = s.sanksi
+              const badgeStyle = sanksi ? getSanksiStyle(sanksi.urutan) : AMAN_STYLE
               const kelas = s.tingkat ? `${s.tingkat}-${s.nomor_kelas}` : 'N/A'
               return (
                 <div key={s.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
-                  {/* Credit Score Ring */}
-                  <div className="relative shrink-0">
-                    <CreditScoreRing score={s.credit_score} max={thresholds.creditAwal} />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">{s.credit_score}</span>
-                    </div>
+                  {/* Poin bubble */}
+                  <div className="shrink-0 h-14 w-14 rounded-full bg-rose-50 dark:bg-rose-950/30 border-2 border-rose-200 dark:border-rose-800 flex flex-col items-center justify-center">
+                    <span className="text-base font-black text-rose-600 dark:text-rose-400 leading-none">{s.total_poin}</span>
+                    <span className="text-[8px] text-rose-400 dark:text-rose-600 font-semibold uppercase tracking-wide">poin</span>
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
-                      <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full border ${lv.bg} ${lv.text} ${lv.border}`}>
-                        {lv.label}
+                      <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full border', badgeStyle)}>
+                        {sanksi?.nama || 'Baik'}
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400 dark:text-slate-500">Kelas {kelas} · {s.jumlah_kasus} kasus · {s.total_poin} poin akumulasi</p>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500">Kelas {kelas} · {s.jumlah_kasus} kasus</p>
+                    {sanksi?.deskripsi && (
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 italic">{sanksi.deskripsi}</p>
+                    )}
                   </div>
 
                   <Link href={`/dashboard/siswa/${s.id}`}
@@ -285,73 +264,25 @@ export function AnalitikKedisiplinanClient({
         )}
       </div>
 
-      {/* ── KONFIGURASI THRESHOLD — Modal (Admin Only) ── */}
+      {/* ── KELOLA SANKSI (Admin Only) ── */}
       {isAdmin && (
         <>
           <div className="flex justify-end">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowConfig(true)}
+              onClick={() => setShowSanksiConfig(true)}
               className="h-8 text-xs gap-1.5 border-slate-200 dark:border-slate-700"
             >
               <Settings2 className="h-3.5 w-3.5" />
-              Konfigurasi Aturan Peringatan
+              Kelola Tingkat Sanksi
             </Button>
           </div>
-
-          <Dialog open={showConfig} onOpenChange={setShowConfig}>
-            <DialogContent className="sm:max-w-md rounded-xl">
-              <DialogHeader className="border-b pb-3">
-                <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                  <Settings2 className="h-4 w-4 text-slate-500" />
-                  Konfigurasi Aturan Peringatan
-                </DialogTitle>
-              </DialogHeader>
-
-              <div className="py-3 space-y-4">
-                <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900 flex gap-2 text-xs text-blue-700 dark:text-blue-400">
-                  <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                  <p>Atur batas poin akumulasi untuk setiap level peringatan. Credit Score siswa dihitung dari: <strong>Credit Score Awal − Total Poin Pelanggaran</strong>.</p>
-                </div>
-
-                <form action={configAction} className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { key: 'threshold_perhatian',  label: 'Batas Perhatian',  desc: 'Siswa perlu dipantau',         current: thresholds.perhatian  },
-                      { key: 'threshold_peringatan', label: 'Batas Peringatan', desc: 'Peringatan keras / SP',        current: thresholds.peringatan },
-                      { key: 'threshold_kritis',     label: 'Batas Kritis',     desc: 'Tindakan khusus',             current: thresholds.kritis     },
-                      { key: 'credit_score_awal',    label: 'Credit Score Awal',desc: 'Nilai awal tiap TA',          current: thresholds.creditAwal  },
-                    ].map(field => (
-                      <div key={field.key} className="space-y-1">
-                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-200">{field.label}</Label>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500">{field.desc}</p>
-                        <Input name={field.key} type="number" min="1" defaultValue={field.current}
-                          className="h-8 text-sm" />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <div>
-                      {configState?.success && (
-                        <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                          <CheckCircle2 className="h-3.5 w-3.5" />{configState.success}
-                        </p>
-                      )}
-                      {configState?.error && (
-                        <p className="text-xs text-red-500">{configState.error}</p>
-                      )}
-                    </div>
-                    <Button type="submit" disabled={isConfigPending} size="sm"
-                      className="bg-slate-800 hover:bg-slate-900 dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 text-white text-xs">
-                      {isConfigPending ? 'Menyimpan...' : 'Simpan'}
-                    </Button>
-                  </div>
-                </form>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <SanksiConfigModal
+            isOpen={showSanksiConfig}
+            onClose={() => setShowSanksiConfig(false)}
+            sanksiList={sanksiList}
+          />
         </>
       )}
     </div>

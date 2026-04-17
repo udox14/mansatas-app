@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { DetailSiswaClient } from './components/detail-client'
-import { getKedisiplinanConfig } from '../../kedisiplinan/actions'
+import { getSanksiList } from '../../kedisiplinan/actions'
 import { getUserRoles } from '@/lib/features'
 
 export const metadata = { title: 'Buku Induk Siswa - MANSATAS' }
@@ -71,7 +71,7 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
     redirect('/dashboard/siswa')
   }
 
-  const [riwayatKelas, pelanggaran, izinKeluar, izinKelas, rekapNilai, kelasResult, kedisiplinanConfig] = await Promise.all([
+  const [riwayatKelas, pelanggaran, izinKeluar, izinKelas, rekapNilai, kelasResult, sanksiList] = await Promise.all([
     db.prepare(`
       SELECT rk.id, rk.created_at, k.tingkat, k.kelompok, k.nomor_kelas, ta.nama, ta.semester
       FROM riwayat_kelas rk
@@ -117,7 +117,7 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
       FROM kelas ORDER BY tingkat ASC, kelompok ASC, nomor_kelas ASC
     `).all<any>(),
 
-    getKedisiplinanConfig(),
+    getSanksiList(),
   ])
 
   const rawRna = rekapNilai || {}
@@ -152,7 +152,7 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
         izinKelas={izinKelas.results || []}
         kelasList={kelasResult.results || []}
         currentUser={{...user, roles: userRoles}}
-        kedisiplinanConfig={kedisiplinanConfig}
+        sanksiList={sanksiList}
       />
     </div>
   )
