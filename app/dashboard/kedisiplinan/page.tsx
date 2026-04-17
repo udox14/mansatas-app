@@ -9,15 +9,16 @@ import { PageLoading } from '@/components/layout/page-loading'
 import { KedisiplinanClient } from './components/kedisiplinan-client'
 import { AnalitikKedisiplinanClient } from './components/analitik-client'
 import { PageHeader } from '@/components/layout/page-header'
-import { getAnalitikKedisiplinan } from './actions'
+import { getAnalitikKedisiplinan, getSanksiList, type SanksiConfig } from './actions'
 import * as TabsPrimitive from '@radix-ui/react-tabs'
 
 export const metadata = { title: 'Kedisiplinan & Tata Tertib - MANSATAS App' }
 
-async function KedisiplinanDataFetcher({ currentUser, taAktifId, thresholds }: {
+async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lifetimePoin }: {
   currentUser: any
   taAktifId: string
-  thresholds: { perhatian: number; peringatan: number; kritis: number; creditAwal: number }
+  sanksiList: SanksiConfig[]
+  lifetimePoin: Record<string, number>
 }) {
   const db = await getDB()
 
@@ -46,7 +47,7 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, thresholds }: {
     pelapor: { nama_lengkap: p.pelapor_nama }
   }))
 
-  return <KedisiplinanClient currentUser={currentUser} kasusList={formattedKasus} masterList={masterResult.results || []} taAktifId={taAktifId} thresholds={thresholds} />
+  return <KedisiplinanClient currentUser={currentUser} kasusList={formattedKasus} masterList={masterResult.results || []} taAktifId={taAktifId} sanksiList={sanksiList} lifetimePoin={lifetimePoin} />
 }
 
 async function AnalitikFetcher({ taAktifId, isAdmin }: { taAktifId: string; isAdmin: boolean }) {
@@ -55,15 +56,19 @@ async function AnalitikFetcher({ taAktifId, isAdmin }: { taAktifId: string; isAd
 }
 
 async function KedisiplinanFetcher({ currentUser, taAktifId }: { currentUser: any; taAktifId: string }) {
-  const { getKedisiplinanConfig: getConfig } = await import('./actions')
-  const config = await getConfig()
-  const thresholds = {
-    perhatian: config.threshold_perhatian,
-    peringatan: config.threshold_peringatan,
-    kritis: config.threshold_kritis,
-    creditAwal: config.credit_score_awal,
-  }
-  return <KedisiplinanDataFetcher currentUser={currentUser} taAktifId={taAktifId} thresholds={thresholds} />
+  const db = await getDB()
+  const [sanksiList, lifetimePoinRes] = await Promise.all([
+    getSanksiList(),
+    db.prepare(`
+      SELECT sp.siswa_id, SUM(mp.poin) as total_poin
+      FROM siswa_pelanggaran sp
+      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
+      GROUP BY sp.siswa_id
+    `).all<any>(),
+  ])
+  const lifetimePoin: Record<string, number> = {}
+  for (const r of (lifetimePoinRes.results || [])) lifetimePoin[r.siswa_id] = r.total_poin
+  return <KedisiplinanDataFetcher currentUser={currentUser} taAktifId={taAktifId} sanksiList={sanksiList} lifetimePoin={lifetimePoin} />
 }
 
 export const dynamic = 'force-dynamic'

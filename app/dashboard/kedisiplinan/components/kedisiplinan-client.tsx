@@ -15,31 +15,31 @@ import {
 } from 'lucide-react'
 import { FormModal } from './form-modal'
 import { MasterModal } from './master-modal'
-import { hapusPelanggaran, hapusMasterPelanggaran, importMasterPelanggaranMassal } from '../actions'
+import { hapusPelanggaran, hapusMasterPelanggaran, importMasterPelanggaranMassal, type SanksiConfig } from '../actions'
 import { cn } from '@/lib/utils'
 
-const LEVEL_STYLE = {
-  kritis:     'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800',
-  peringatan: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800',
-  perhatian:  'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800',
-  aman:       'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800',
+// ── Sanksi helpers ──────────────────────────────────────────
+function getSanksiForPoin(poin: number, sanksiList: SanksiConfig[]): SanksiConfig | null {
+  return [...sanksiList].sort((a, b) => b.poin_minimal - a.poin_minimal).find(s => poin >= s.poin_minimal) || null
 }
-const LEVEL_LABEL = { kritis: 'Kritis', peringatan: 'Peringatan', perhatian: 'Perhatian', aman: 'Aman' }
 
-function getLevelFromPoin(p: number, t = { perhatian: 25, peringatan: 50, kritis: 75 }) {
-  if (p >= t.kritis) return 'kritis'
-  if (p >= t.peringatan) return 'peringatan'
-  if (p >= t.perhatian) return 'perhatian'
-  return 'aman'
+function getSanksiStyle(urutan: number) {
+  if (urutan === 1) return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800'
+  if (urutan === 2) return 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800'
+  if (urutan === 3) return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800'
+  return 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800'
 }
+
+const AMAN_STYLE = 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
 
 // ─── Modal Detail Kasus per Siswa ──────────────────────────────
 function DetailKasusModal({
-  group, creditAwal, isSuperAdmin, currentUser, isPending,
+  group, lifetimePoin, sanksiList, isSuperAdmin, currentUser, isPending,
   onEdit, onHapus, onClose
 }: {
-  group: { siswa: any; kasus: any[]; totalPoin: number } | null
-  creditAwal: number
+  group: { siswa: any; kasus: any[]; totalPoin: number; siswaId: string } | null
+  lifetimePoin: Record<string, number>
+  sanksiList: SanksiConfig[]
   isSuperAdmin: boolean
   currentUser: any
   isPending: boolean
@@ -48,8 +48,9 @@ function DetailKasusModal({
   onClose: () => void
 }) {
   if (!group) return null
-  const level = getLevelFromPoin(group.totalPoin) as keyof typeof LEVEL_STYLE
-  const creditScore = Math.max(0, creditAwal - group.totalPoin)
+  const totalPoinLifetime = lifetimePoin[group.siswaId] ?? group.totalPoin
+  const sanksi = getSanksiForPoin(totalPoinLifetime, sanksiList)
+  const badgeStyle = sanksi ? getSanksiStyle(sanksi.urutan) : AMAN_STYLE
   const kelas = group.siswa.kelas
     ? `${group.siswa.kelas.tingkat}-${group.siswa.kelas.nomor_kelas}`
     : '-'
@@ -81,17 +82,17 @@ function DetailKasusModal({
           {/* Stats */}
           <div className="grid grid-cols-3 gap-2 mt-3">
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-2.5 text-center">
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Kasus</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Kasus (TA ini)</p>
               <p className="text-xl font-black text-slate-700 dark:text-slate-200">{group.kasus.length}</p>
             </div>
             <div className="bg-rose-50 dark:bg-rose-900/20 rounded-lg p-2.5 text-center">
-              <p className="text-[10px] text-rose-500 font-medium uppercase tracking-wide">Akum. Poin</p>
-              <p className="text-xl font-black text-rose-600">{group.totalPoin}</p>
+              <p className="text-[10px] text-rose-500 font-medium uppercase tracking-wide">Poin Seumur</p>
+              <p className="text-xl font-black text-rose-600">{totalPoinLifetime}</p>
             </div>
-            <div className={cn('rounded-lg p-2.5 text-center', LEVEL_STYLE[level])}>
-              <p className="text-[10px] font-medium uppercase tracking-wide opacity-70">Credit Score</p>
-              <p className="text-xl font-black">{creditScore}</p>
-              <p className="text-[9px] font-bold mt-0.5">{LEVEL_LABEL[level]}</p>
+            <div className={cn('rounded-lg p-2.5 text-center border', badgeStyle)}>
+              <p className="text-[10px] font-medium uppercase tracking-wide opacity-70">Sanksi</p>
+              <p className="text-base font-black">{sanksi?.nama || 'Baik'}</p>
+              {sanksi?.deskripsi && <p className="text-[9px] font-medium mt-0.5 opacity-70 truncate">{sanksi.deskripsi}</p>}
             </div>
           </div>
         </DialogHeader>
@@ -164,14 +165,14 @@ function DetailKasusModal({
 
 // ─── Main Component ──────────────────────────────────────────
 export function KedisiplinanClient({
-  currentUser, kasusList, masterList, taAktifId,
-  thresholds = { perhatian: 25, peringatan: 50, kritis: 75, creditAwal: 100 }
+  currentUser, kasusList, masterList, taAktifId, sanksiList = [], lifetimePoin = {}
 }: {
   currentUser: { id: string, role: string, nama: string }
   kasusList: any[]
   masterList: any[]
   taAktifId?: string
-  thresholds?: { perhatian: number; perigatan?: number; peringatan: number; kritis: number; creditAwal: number }
+  sanksiList?: SanksiConfig[]
+  lifetimePoin?: Record<string, number>
 }) {
   const isSuperAdmin = currentUser.role === 'super_admin'
   const canInput = ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'guru'].includes(currentUser.role)
@@ -190,7 +191,7 @@ export function KedisiplinanClient({
   // Modal states
   const [isFormModalOpen, setIsFormModalOpen] = useState(false)
   const [editKasusData, setEditKasusData] = useState<any>(null)
-  const [detailGroup, setDetailGroup] = useState<{ siswa: any; kasus: any[]; totalPoin: number } | null>(null)
+  const [detailGroup, setDetailGroup] = useState<{ siswa: any; kasus: any[]; totalPoin: number; siswaId: string } | null>(null)
 
   // Master
   const [searchMaster, setSearchMaster] = useState('')
@@ -200,9 +201,9 @@ export function KedisiplinanClient({
 
   // ── Group kasus per siswa ─────────────────────────────────
   const grouped = useMemo(() => {
-    const map = new Map<string, { siswa: any; kasus: any[]; totalPoin: number }>()
+    const map = new Map<string, { siswa: any; kasus: any[]; totalPoin: number; siswaId: string }>()
     for (const k of allKasus) {
-      if (!map.has(k.siswa_id)) map.set(k.siswa_id, { siswa: k.siswa, kasus: [], totalPoin: 0 })
+      if (!map.has(k.siswa_id)) map.set(k.siswa_id, { siswa: k.siswa, kasus: [], totalPoin: 0, siswaId: k.siswa_id })
       const entry = map.get(k.siswa_id)!
       entry.kasus.push(k)
       entry.totalPoin += k.master_pelanggaran?.poin || 0
@@ -220,10 +221,17 @@ export function KedisiplinanClient({
       )
     }
     if (filterTingkat !== 'ALL') result = result.filter(g => g.siswa.kelas?.tingkat?.toString() === filterTingkat)
-    if (filterLevel !== 'ALL') result = result.filter(g => getLevelFromPoin(g.totalPoin, thresholds) === filterLevel)
+    if (filterLevel !== 'ALL') {
+      result = result.filter(g => {
+        const lt = lifetimePoin[g.siswaId] ?? g.totalPoin
+        const sanksi = getSanksiForPoin(lt, sanksiList)
+        if (filterLevel === 'baik') return !sanksi
+        return sanksi?.id === filterLevel
+      })
+    }
     result.sort((a, b) => b.totalPoin - a.totalPoin)
     return result
-  }, [grouped, search, filterTingkat, filterLevel, thresholds])
+  }, [grouped, search, filterTingkat, filterLevel, sanksiList, lifetimePoin])
 
   const totalPages = Math.max(1, Math.ceil(filteredGrouped.length / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -245,7 +253,7 @@ export function KedisiplinanClient({
         if (newKasus.length === 0) setDetailGroup(null)
         else {
           const removedPoin = detailGroup.kasus.find(k => k.id === id)?.master_pelanggaran?.poin || 0
-          setDetailGroup({ ...detailGroup, kasus: newKasus, totalPoin: detailGroup.totalPoin - removedPoin })
+          setDetailGroup({ ...detailGroup, kasus: newKasus, totalPoin: detailGroup.totalPoin - removedPoin, siswaId: detailGroup.siswaId })
         }
       }
     }
@@ -357,13 +365,13 @@ export function KedisiplinanClient({
                   </SelectContent>
                 </Select>
                 <Select value={filterLevel} onValueChange={v => { setFilterLevel(v); resetPage() }}>
-                  <SelectTrigger className="h-7 text-xs rounded flex-1 min-w-[90px]"><SelectValue placeholder="Level" /></SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs rounded flex-1 min-w-[90px]"><SelectValue placeholder="Sanksi" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">Semua Level</SelectItem>
-                    <SelectItem value="kritis">Kritis</SelectItem>
-                    <SelectItem value="peringatan">Peringatan</SelectItem>
-                    <SelectItem value="perhatian">Perhatian</SelectItem>
-                    <SelectItem value="aman">Aman</SelectItem>
+                    <SelectItem value="baik">Belum Ada Sanksi</SelectItem>
+                    {sanksiList.map(s => (
+                      <SelectItem key={s.id} value={s.id}>{s.nama}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); resetPage() }}>
@@ -388,15 +396,16 @@ export function KedisiplinanClient({
               <>
                 <div className="space-y-2">
                   {pagedGroups.map(group => {
-                    const level = getLevelFromPoin(group.totalPoin, thresholds) as keyof typeof LEVEL_STYLE
-                    const creditScore = Math.max(0, (thresholds.creditAwal ?? 100) - group.totalPoin)
+                    const lt = lifetimePoin[group.siswaId] ?? group.totalPoin
+                    const sanksi = getSanksiForPoin(lt, sanksiList)
+                    const badgeStyle = sanksi ? getSanksiStyle(sanksi.urutan) : AMAN_STYLE
                     const kelas = group.siswa.kelas
                       ? `${group.siswa.kelas.tingkat}-${group.siswa.kelas.nomor_kelas}`
                       : '-'
 
                     return (
                       <button
-                        key={group.siswa.nama_lengkap + group.totalPoin}
+                        key={group.siswaId}
                         type="button"
                         onClick={() => setDetailGroup(group)}
                         className="w-full bg-surface border border-surface rounded-xl px-4 py-3 flex items-center gap-3 hover:border-rose-200 dark:hover:border-rose-800 hover:bg-rose-50/20 dark:hover:bg-rose-900/10 transition-all text-left group"
@@ -412,8 +421,8 @@ export function KedisiplinanClient({
                             <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-rose-700 dark:group-hover:text-rose-400 transition-colors">
                               {group.siswa.nama_lengkap}
                             </p>
-                            <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full border', LEVEL_STYLE[level])}>
-                              {LEVEL_LABEL[level]}
+                            <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full border', badgeStyle)}>
+                              {sanksi?.nama || 'Baik'}
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-400 dark:text-slate-500">
@@ -421,20 +430,16 @@ export function KedisiplinanClient({
                           </p>
                         </div>
 
-                        {/* Poin */}
+                        {/* Poin TA ini */}
                         <div className="text-right shrink-0 hidden sm:block">
-                          <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-medium">Poin</p>
+                          <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-medium">Poin (TA)</p>
                           <p className="text-base font-black text-rose-600">{group.totalPoin}</p>
                         </div>
 
-                        {/* Credit Score */}
+                        {/* Poin Lifetime */}
                         <div className="text-right shrink-0">
-                          <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-medium">Credit</p>
-                          <p className={cn('text-base font-black',
-                            level === 'kritis' ? 'text-red-600' :
-                            level === 'peringatan' ? 'text-orange-600' :
-                            level === 'perhatian' ? 'text-amber-600' : 'text-emerald-600'
-                          )}>{creditScore}</p>
+                          <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-medium">Seumur</p>
+                          <p className="text-base font-black text-rose-700">{lt}</p>
                         </div>
 
                         <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-rose-400 dark:group-hover:text-rose-500 transition-colors shrink-0" />
@@ -587,7 +592,8 @@ export function KedisiplinanClient({
         {/* Modal: Detail kasus per siswa */}
         <DetailKasusModal
           group={detailGroup}
-          creditAwal={thresholds.creditAwal ?? 100}
+          lifetimePoin={lifetimePoin}
+          sanksiList={sanksiList}
           isSuperAdmin={isSuperAdmin}
           currentUser={currentUser}
           isPending={isPending}

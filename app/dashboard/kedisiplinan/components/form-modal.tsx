@@ -8,11 +8,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Loader2, Camera, AlertCircle, CheckCircle2, Search } from 'lucide-react'
+import { Loader2, Camera, AlertCircle, CheckCircle2, Search, ShieldAlert } from 'lucide-react'
 import { simpanPelanggaran, searchSiswa } from '../actions'
 import { todayWIB } from '@/lib/time'
 
-const initialState = { error: null as string | null, success: null as string | null }
+const initialState = { error: null as string | null, success: null as string | null, naik_sanksi: null as { nama: string; deskripsi?: string; total_poin: number } | null }
 
 const compressImage = async (file: File): Promise<File> => {
   return new Promise((resolve, reject) => {
@@ -54,6 +54,7 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
   masterList: { id: string; nama_pelanggaran: string; poin: number }[]
 }) {
   const [state, formAction] = useActionState(simpanPelanggaran, initialState)
+  const [sanksiNotif, setSanksiNotif] = useState<{ nama: string; deskripsi?: string; total_poin: number } | null>(null)
   const today = todayWIB()
 
   const [searchSiswaQuery, setSearchSiswaQuery] = useState('')
@@ -87,6 +88,11 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
     }
   }, [isOpen, editData])
 
+  // Naik sanksi notification
+  useEffect(() => {
+    if (state?.naik_sanksi) setSanksiNotif(state.naik_sanksi)
+  }, [state?.naik_sanksi])
+
   // Jika sukses DAN ini mode edit → tutup modal. Jika sukses mode tambah baru → JANGAN tutup, biarkan lapor lagi
   useEffect(() => {
     if (state?.success && editData) {
@@ -115,6 +121,27 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
   const filteredMaster = masterList.filter(m => m.nama_pelanggaran.toLowerCase().includes(searchMaster.toLowerCase())).slice(0, 20)
 
   return (
+    <>
+    {/* Sanksi naik notification */}
+    <Dialog open={!!sanksiNotif} onOpenChange={open => !open && setSanksiNotif(null)}>
+      <DialogContent className="sm:max-w-sm rounded-2xl text-center p-0 gap-0 overflow-hidden">
+        <div className="bg-gradient-to-br from-rose-500 to-orange-500 px-6 pt-8 pb-6">
+          <div className="mx-auto mb-3 h-14 w-14 rounded-full bg-white/20 flex items-center justify-center">
+            <ShieldAlert className="h-7 w-7 text-white" />
+          </div>
+          <DialogTitle className="text-white text-lg font-black">Sanksi Baru!</DialogTitle>
+          <p className="text-white/80 text-sm mt-1">Siswa ini telah mencapai sanksi</p>
+        </div>
+        <div className="px-6 py-5 space-y-3">
+          <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{sanksiNotif?.nama}</p>
+          {sanksiNotif?.deskripsi && <p className="text-sm text-slate-500 dark:text-slate-400">{sanksiNotif.deskripsi}</p>}
+          <p className="text-xs text-slate-400 dark:text-slate-500">Total akumulasi poin: <strong className="text-rose-600">{sanksiNotif?.total_poin} poin</strong></p>
+          <Button onClick={() => setSanksiNotif(null)} className="w-full bg-rose-600 hover:bg-rose-700 text-white text-sm rounded-xl">
+            Mengerti
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
     <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-lg rounded-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="border-b pb-3">
@@ -208,5 +235,6 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
         </form>
       </DialogContent>
     </Dialog>
+    </>
   )
 }

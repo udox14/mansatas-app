@@ -7,11 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { JUZ_DATA, getTotalAyatInJuz } from '../data/juz-data'
-import { Search, Loader2, BookOpen, ChevronRight, ChevronUp, History, Check } from 'lucide-react'
-import { getSiswaTahfidz, getProgressSiswa, simpanSetoranHafalan, getRiwayatSetoran, getNilaiJuz, simpanNilaiJuz } from '../actions'
+import { Search, Loader2, BookOpen, ChevronRight, ChevronUp, History, Check, Printer, ChevronDown } from 'lucide-react'
+import { getSiswaTahfidz, getProgressSiswa, simpanSetoranHafalan, getRiwayatSetoran, getNilaiJuz, simpanNilaiJuz, simpanHafalanJuzPenuh } from '../actions'
 import { AyatGrid } from './AyatGrid'
 import { RiwayatModal } from './RiwayatModal'
 import { TambahSiswaModal } from './TambahSiswaModal'
+import { CetakLaporanModal, type CetakType } from './CetakLaporanModal'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
 function useToast() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -23,6 +25,13 @@ function useToast() {
 }
 
 export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
+  const [cetakModalOpen, setCetakModalOpen] = useState(false)
+  const [cetakType, setCetakType] = useState<CetakType>('siswa')
+
+  const openCetak = (type: CetakType) => {
+    setCetakType(type)
+    setCetakModalOpen(true)
+  }
   const [kelasId, setKelasId] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [siswaList, setSiswaList] = useState<any[]>([])
@@ -115,6 +124,28 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
       toast({ title: 'Berhasil', description: `Nilai Juz ${juz} disimpan.` })
       const n = await getNilaiJuz(selectedSiswa.id)
       setNilai(n)
+    }
+    setIsSaving(false)
+  }
+
+  const handleHafalSemuaJuz = async () => {
+    if (!selectedSiswa || !selectedJuz) return
+    const juzObj = JUZ_DATA.find(j => j.juz === selectedJuz)
+    if (!juzObj) return
+    setIsSaving(true)
+    const surahList = juzObj.surahList.map(s => ({ nomor: s.nomor, jumlahAyat: s.jumlahAyat }))
+    const res = await simpanHafalanJuzPenuh(selectedSiswa.id, selectedJuz, surahList)
+    if (res.error) {
+      toast({ title: 'Gagal', description: res.error, variant: 'destructive' })
+    } else {
+      toast({ title: 'Berhasil', description: res.success || 'Tersimpan' })
+      const newProgress = { ...progress }
+      juzObj.surahList.forEach(s => {
+        newProgress[s.nomor] = Array.from({ length: s.jumlahAyat }, (_, i) => i + 1)
+      })
+      setProgress(newProgress)
+      const riw = await getRiwayatSetoran(selectedSiswa.id)
+      setRiwayat(riw)
     }
     setIsSaving(false)
   }
@@ -270,15 +301,41 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
 
             {/* List Juz */}
             <div>
-              <div className="flex items-center gap-4 mb-3">
-                <h3 className="text-sm font-semibold text-slate-500 uppercase">Pilih Juz Target</h3>
-                {msg && (
-                  <span className={`text-xs px-2 py-1 rounded font-medium ${msg.ok ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                    {msg.text}
-                  </span>
-                )}
+              <div className="flex items-center justify-between gap-4 mb-3">
+                <div className="flex items-center gap-4">
+                  <h3 className="text-sm font-semibold text-slate-500 uppercase">Pilih Juz Target</h3>
+                  {msg && (
+                    <span className={`text-xs px-2 py-1 rounded font-medium ${msg.ok ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                      {msg.text}
+                    </span>
+                  )}
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5 text-slate-600">
+                      <Printer className="h-4 w-4" /> Cetak Laporan <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      disabled={!selectedSiswa}
+                      onClick={() => openCetak('siswa')}
+                    >
+                      <Printer className="h-4 w-4 mr-2" />
+                      Laporan Siswa Ini
+                      {!selectedSiswa && <span className="ml-2 text-xs text-slate-400">(pilih siswa dulu)</span>}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => openCetak('kelas')}>
+                      Laporan Per Kelas
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openCetak('semua')}>
+                      Laporan Seluruh Siswa
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-10 gap-3">
                 {JUZ_DATA.map(j => (
                   <div key={j.juz}>{renderJuzProgress(j.juz)}</div>
                 ))}
@@ -288,13 +345,22 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
             {/* List Surah dalam Juz terpilih */}
             {selectedJuz && (
               <div className="bg-white rounded-xl border shadow-sm p-4 animate-in slide-in-from-top-4 duration-300">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                   <h3 className="text-lg font-bold text-emerald-800">Juz {selectedJuz} · Detail Surah</h3>
-                  {/* Quick Form Nilai */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isSaving}
+                      onClick={handleHafalSemuaJuz}
+                      className="gap-1.5 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                    >
+                      <Check className="h-4 w-4" />
+                      Hafal Semua Juz
+                    </Button>
                     <span className="text-sm font-medium text-slate-600">Nilai Juz ini:</span>
-                    <Input 
-                      type="number" 
+                    <Input
+                      type="number"
                       min={0} max={100}
                       className="w-20 h-8 text-center"
                       defaultValue={nilai.find(n => n.juz === selectedJuz)?.nilai || ''}
@@ -352,11 +418,20 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
         )}
       </div>
 
-      <RiwayatModal 
-        isOpen={isRiwayatOpen} 
-        onClose={() => setIsRiwayatOpen(false)} 
+      <RiwayatModal
+        isOpen={isRiwayatOpen}
+        onClose={() => setIsRiwayatOpen(false)}
         riwayat={riwayat}
         siswaNama={selectedSiswa?.nama_lengkap || ''}
+      />
+
+      <CetakLaporanModal
+        isOpen={cetakModalOpen}
+        onClose={() => setCetakModalOpen(false)}
+        type={cetakType}
+        siswaId={selectedSiswa?.id}
+        siswaNama={selectedSiswa?.nama_lengkap}
+        kelasList={kelasList}
       />
     </div>
   )
