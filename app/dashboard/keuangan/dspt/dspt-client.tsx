@@ -375,8 +375,8 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
               return (
                 <TableRow
                   key={row.siswa_id}
-                  className={`transition-colors ${!belumInput ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50' : ''}`}
-                  onClick={() => !belumInput && router.push(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=dspt`)}
+                  className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  onClick={() => router.push(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=dspt`)}
                 >
                   <TableCell>
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
