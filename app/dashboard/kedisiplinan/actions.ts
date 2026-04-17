@@ -392,7 +392,7 @@ async function ensureSanksiTable(db: any) {
 }
 
 async function reorderSanksi(db: any) {
-  const all = await db.prepare(`SELECT id FROM sanksi_config ORDER BY poin_minimal ASC`).all<{ id: string }>()
+  const all = await db.prepare(`SELECT id FROM sanksi_config ORDER BY poin_minimal ASC`).all()
   for (let i = 0; i < (all.results?.length || 0); i++) {
     await db.prepare(`UPDATE sanksi_config SET urutan = ? WHERE id = ?`).bind(i + 1, all.results![i].id).run()
   }
