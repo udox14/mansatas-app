@@ -252,11 +252,11 @@ export async function updateSppSetting(tingkat: number, nominal: number, aktif: 
     WHERE k.tingkat = ?
   `
   if (nominal === 0) {
-    // Nominal 0 = tidak ada tagihan → hapus tagihan yang belum lunas
-    // (akan muncul sebagai 'tidak_ada' di list via LEFT JOIN)
+    // Nominal 0 = tidak ada tagihan → hapus semua tagihan yang belum ada bayar nyata
+    // (termasuk yang status='lunas' palsu akibat nominal=0 sebelumnya)
     await db.prepare(`
       DELETE FROM fin_spp_tagihan
-      WHERE status != 'lunas'
+      WHERE total_dibayar = 0
         AND siswa_id IN (${siswaSubquery})
     `).bind(tingkat).run()
   } else {
