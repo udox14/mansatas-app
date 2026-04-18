@@ -236,13 +236,36 @@ export async function getSppSettings() {
 
 export async function updateSppSetting(tingkat: number, nominal: number, aktif: number) {
   const { db, userId } = await requireAuth('keuangan-spp')
+
+  // 1. Update setting
   await db.prepare(`
     UPDATE fin_spp_setting
     SET nominal = ?, aktif = ?, updated_by = ?, updated_at = datetime('now')
     WHERE tingkat = ?
   `).bind(nominal, aktif, userId, tingkat).run()
+
+  // 2. Timpa nominal semua tagihan yang belum lunas di tingkat ini
+  //    (yang sudah lunas tidak diubah agar histori bayar tetap akurat)
+  await db.prepare(`
+    UPDATE fin_spp_tagihan
+    SET nominal    = ?,
+        updated_at = datetime('now'),
+        -- recalc status: lunas jika total_dibayar+diskon >= nominal baru, nyicil jika ada bayar, else belum_bayar
+        status = CASE
+          WHEN (total_dibayar + total_diskon) >= ? THEN 'lunas'
+          WHEN total_dibayar > 0                   THEN 'nyicil'
+          ELSE 'belum_bayar'
+        END
+    WHERE status != 'lunas'
+      AND siswa_id IN (
+        SELECT s.id FROM siswa s
+        LEFT JOIN kelas k ON k.id = s.kelas_id
+        WHERE k.tingkat = ?
+      )
+  `).bind(nominal, nominal, tingkat).run()
+
   revalidatePath('/dashboard/keuangan/spp')
-  return { error: null, success: 'Pengaturan SPP berhasil disimpan' }
+  return { error: null, success: 'Pengaturan SPP disimpan & nominal tagihan diperbarui' }
 }
 
 export async function getSppTagihanList(filters: { bulan: number; tahun: number; status?: string }) {
