@@ -246,23 +246,34 @@ export async function updateSppSetting(tingkat: number, nominal: number, aktif: 
 
   // 2. Timpa nominal semua tagihan yang belum lunas di tingkat ini
   //    (yang sudah lunas tidak diubah agar histori bayar tetap akurat)
-  await db.prepare(`
-    UPDATE fin_spp_tagihan
-    SET nominal    = ?,
-        updated_at = datetime('now'),
-        -- recalc status: lunas jika total_dibayar+diskon >= nominal baru, nyicil jika ada bayar, else belum_bayar
-        status = CASE
-          WHEN (total_dibayar + total_diskon) >= ? THEN 'lunas'
-          WHEN total_dibayar > 0                   THEN 'nyicil'
-          ELSE 'belum_bayar'
-        END
-    WHERE status != 'lunas'
-      AND siswa_id IN (
-        SELECT s.id FROM siswa s
-        LEFT JOIN kelas k ON k.id = s.kelas_id
-        WHERE k.tingkat = ?
-      )
-  `).bind(nominal, nominal, tingkat).run()
+  const siswaSubquery = `
+    SELECT s.id FROM siswa s
+    LEFT JOIN kelas k ON k.id = s.kelas_id
+    WHERE k.tingkat = ?
+  `
+  if (nominal === 0) {
+    // Nominal 0 = tidak ada tagihan → hapus tagihan yang belum lunas
+    // (akan muncul sebagai 'tidak_ada' di list via LEFT JOIN)
+    await db.prepare(`
+      DELETE FROM fin_spp_tagihan
+      WHERE status != 'lunas'
+        AND siswa_id IN (${siswaSubquery})
+    `).bind(tingkat).run()
+  } else {
+    // Nominal > 0 → update nominal + recalc status
+    await db.prepare(`
+      UPDATE fin_spp_tagihan
+      SET nominal    = ?,
+          updated_at = datetime('now'),
+          status = CASE
+            WHEN (total_dibayar + total_diskon) >= ? THEN 'lunas'
+            WHEN total_dibayar > 0                   THEN 'nyicil'
+            ELSE 'belum_bayar'
+          END
+      WHERE status != 'lunas'
+        AND siswa_id IN (${siswaSubquery})
+    `).bind(nominal, nominal, tingkat).run()
+  }
 
   revalidatePath('/dashboard/keuangan/spp')
   return { error: null, success: 'Pengaturan SPP disimpan & nominal tagihan diperbarui' }
