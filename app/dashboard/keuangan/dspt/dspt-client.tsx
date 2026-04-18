@@ -400,7 +400,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
                     <div className="flex items-center justify-center gap-1">
                       {belumInput ? (
                         <Button size="sm" variant="outline" className="h-6 text-[11px] px-2"
-                          onClick={() => openSetDspt(row)}>Input</Button>
+                          onClick={e => { e.stopPropagation(); openSetDspt(row) }}>Input</Button>
                       ) : (
                         <>
                           <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
