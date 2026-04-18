@@ -147,7 +147,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
     data.forEach(d => {
       if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ? ' ' + d.kelompok : ''}`)
     })
-    return [...set].sort()
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
   }, [data])
 
   const filtered = useMemo(() => {
