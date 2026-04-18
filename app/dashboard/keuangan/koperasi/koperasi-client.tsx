@@ -67,7 +67,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
   const kelasList = useMemo(() => {
     const set = new Set<string>()
     tagihan.forEach(d => { if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ? ' ' + d.kelompok : ''}`) })
-    return [...set].sort()
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
   }, [tagihan])
 
   const filtered = useMemo(() => {

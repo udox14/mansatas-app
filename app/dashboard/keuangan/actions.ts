@@ -261,6 +261,8 @@ export async function updateSppSetting(tingkat: number, nominal: number, aktif: 
     `).bind(tingkat).run()
   } else {
     // Nominal > 0 → update nominal + recalc status
+    // Guard: hanya ubah tagihan yang belum ada bayaran nyata (total_dibayar=0)
+    // agar histori siswa yang sudah bayar tidak terganggu
     await db.prepare(`
       UPDATE fin_spp_tagihan
       SET nominal    = ?,
@@ -270,7 +272,7 @@ export async function updateSppSetting(tingkat: number, nominal: number, aktif: 
             WHEN total_dibayar > 0                   THEN 'nyicil'
             ELSE 'belum_bayar'
           END
-      WHERE status != 'lunas'
+      WHERE total_dibayar = 0
         AND siswa_id IN (${siswaSubquery})
     `).bind(nominal, nominal, tingkat).run()
   }
