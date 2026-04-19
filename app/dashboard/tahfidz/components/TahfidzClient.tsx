@@ -169,7 +169,11 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
     return (
       <Card 
         className={`cursor-pointer h-full transition-all hover:border-emerald-500 dark:hover:border-emerald-500 hover:shadow-sm ${selectedJuz === juzNum ? 'border-emerald-500 dark:border-emerald-500 ring-1 ring-emerald-500' : ''}`}
-        onClick={() => { setSelectedJuz(juzNum); setSelectedSurah(null) }}
+        onClick={() => { 
+          setSelectedJuz(juzNum); 
+          setSelectedSurah(null);
+          setTimeout(() => document.getElementById('surah-selection-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
+        }}
       >
         <CardContent className="p-4 h-full flex flex-col justify-between">
           <div className="flex justify-between items-start mb-3">
@@ -344,7 +348,7 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
 
             {/* List Surah dalam Juz terpilih */}
             {selectedJuz && (
-              <div className="bg-white dark:bg-slate-900 rounded-xl border shadow-sm p-4 animate-in slide-in-from-top-4 duration-300">
+              <div id="surah-selection-area" className="bg-white dark:bg-slate-900 rounded-xl border shadow-sm p-4 animate-in slide-in-from-top-4 duration-300 scroll-mt-20">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                   <h3 className="text-lg font-bold text-emerald-800 dark:text-emerald-400">Juz {selectedJuz} · Detail Surah</h3>
                   <div className="flex flex-wrap items-center gap-2">
@@ -379,7 +383,10 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
                     return (
                       <button
                         key={s.nomor}
-                        onClick={() => setSelectedSurah(s.nomor)}
+                        onClick={() => {
+                          setSelectedSurah(s.nomor)
+                          setTimeout(() => document.getElementById('ayat-grid-area')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
+                        }}
                         className={`p-3 text-left border rounded-lg transition-all ${
                           selectedSurah === s.nomor ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 dark:border-emerald-500 ring-1 ring-emerald-500' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                         }`}
@@ -396,7 +403,7 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
 
                 {/* Ayat Grid */}
                 {selectedSurah && (
-                  <div className="pt-4 border-t animate-in fade-in duration-300">
+                  <div id="ayat-grid-area" className="pt-4 border-t animate-in fade-in duration-300 scroll-mt-20">
                     {(() => {
                       const surahObj = JUZ_DATA.find(j => j.juz === selectedJuz)?.surahList.find(s => s.nomor === selectedSurah)
                       if (!surahObj) return null
@@ -417,6 +424,17 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
           </>
         )}
       </div>
+
+      {/* Floating Action Button for Mobile: Scroll to Top */}
+      {selectedSiswa && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="md:hidden fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg hover:bg-emerald-700 active:scale-95 transition-all"
+          aria-label="Kembali ke atas"
+        >
+          <ChevronUp className="h-6 w-6" />
+        </button>
+      )}
 
       <RiwayatModal
         isOpen={isRiwayatOpen}
