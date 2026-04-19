@@ -15,9 +15,9 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Search, CheckCircle2, XCircle, Settings2, Plus, AlertCircle, Upload, Check, Pencil, CalendarDays } from 'lucide-react'
+import { Search, CheckCircle2, XCircle, Settings2, Plus, AlertCircle, Upload, Check, Pencil, CalendarDays, Zap } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { updateSppSetting, getSppTagihanList, buatSppTagihanSiswa, tandaiSppLunas, updateSppTagihanNominal, importSppBulk, getSiswaTemplate, getSppMulaiList, setSppMulaiAngkatan } from '../actions'
+import { updateSppSetting, getSppTagihanList, buatSppTagihanSiswa, tandaiSppLunas, updateSppTagihanNominal, importSppBulk, getSiswaTemplate, getSppMulaiList, setSppMulaiAngkatan, buatTagihanMassal } from '../actions'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 
 interface SppSetting { id: string; tingkat: number; nominal: number; aktif: number }
@@ -85,7 +85,19 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
   const [mulaiFormTahun, setMulaiFormTahun] = useState(String(defaultTahun))
   const [mulaiMsg, setMulaiMsg] = useState('')
 
+  // Buat massal
+  const [buatMassalAngkatan, setBuatMassalAngkatan] = useState('semua')
+
   const [msg, setMsg] = useState('')
+
+  // Apakah siswa sudah melewati tanggal mulai SPP untuk periode yang dipilih?
+  function isSudahMulai(row: SppRow): boolean {
+    const mulai = mulaiList.find(m => m.tahun_masuk === row.tahun_masuk)
+    if (!mulai) return false
+    if (mulai.tahun_mulai < tahun) return true
+    if (mulai.tahun_mulai === tahun && mulai.bulan_mulai <= bulan) return true
+    return false
+  }
   const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(10)
 
   // Modal buat tagihan individual
@@ -184,6 +196,19 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
         setMulaiList(fresh.data as SppMulai[])
         setMulaiEditAngkatan(null)
         setMsg(res.success ?? '')
+      }
+    })
+  }
+
+  async function handleBuatMassal() {
+    const angkatan = buatMassalAngkatan === 'semua' ? undefined : parseInt(buatMassalAngkatan)
+    startTransition(async () => {
+      const res = await buatTagihanMassal(tahun, bulan, angkatan)
+      setMsg(res.error ?? res.success ?? '')
+      if (!res.error) {
+        const fresh = await getSppTagihanList({ bulan, tahun })
+        setTagihan(fresh.data as SppRow[])
+        reset()
       }
     })
   }
@@ -308,7 +333,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
       {/* ── Tab: Daftar Tagihan ─────────────────────────────────────────── */}
       <TabsContent value="tagihan" className="space-y-3 mt-0">
 
-        {/* Baris 1: Period + Generate */}
+        {/* Baris 1: Period + Buat Semua */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 flex flex-wrap gap-2 items-center">
           <p className="text-xs font-medium text-slate-500 mr-1">Periode:</p>
           <Select value={String(bulan)} onValueChange={handleBulanChange} disabled={isPending}>
@@ -325,6 +350,20 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
               {tahunOptions.map(t => <SelectItem key={t} value={String(t)}>{t}</SelectItem>)}
             </SelectContent>
           </Select>
+
+          <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1" />
+
+          <p className="text-xs font-medium text-slate-500 mr-1">Buat tagihan untuk:</p>
+          <Select value={buatMassalAngkatan} onValueChange={setBuatMassalAngkatan}>
+            <SelectTrigger className="h-8 w-36 text-xs rounded-md"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua Angkatan</SelectItem>
+              {angkatanList.map(y => <SelectItem key={y} value={String(y)}>Angkatan {y}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleBuatMassal} disabled={isPending}>
+            <Zap className="h-3.5 w-3.5" /> Buat Tagihan {BULAN_SHORT[bulan]} {tahun}
+          </Button>
 
           <div className="ml-auto flex gap-2">
             <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
@@ -417,11 +456,12 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
               )}
               {!isPending && paginated.map((row, idx) => {
                 const noTagihan = row.status === 'tidak_ada'
+                const sudahMulai = isSudahMulai(row)
                 return (
                   <TableRow
                     key={row.id ?? `${row.siswa_id}-${idx}`}
-                    className={`${noTagihan ? 'opacity-60' : 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
-                    onClick={noTagihan ? undefined : () => router.push(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=spp`)}
+                    className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                    onClick={() => router.push(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=spp`)}
                   >
                     <TableCell>
                       <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
@@ -438,13 +478,17 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                     </TableCell>
                     <TableCell>
                       {noTagihan ? (
-                        <Button
-                          size="sm" variant="outline"
-                          className="h-6 text-[11px] px-2 gap-1 border-amber-300 text-amber-600 hover:bg-amber-50"
-                          onClick={e => { e.stopPropagation(); openBuatModal(row) }}
-                        >
-                          <Plus className="h-2.5 w-2.5" /> Buat Tagihan
-                        </Button>
+                        sudahMulai ? (
+                          <Button
+                            size="sm" variant="outline"
+                            className="h-6 text-[11px] px-2 gap-1 border-amber-300 text-amber-600 hover:bg-amber-50"
+                            onClick={e => { e.stopPropagation(); openBuatModal(row) }}
+                          >
+                            <Plus className="h-2.5 w-2.5" /> Buat Tagihan
+                          </Button>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 italic">Belum mulai</span>
+                        )
                       ) : (
                         <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${
                           row.status === 'lunas'
@@ -496,7 +540,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg divide-y divide-slate-100 dark:divide-slate-800">
           <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50">
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">Pengaturan SPP per Tingkat</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Nominal default saat generate tagihan. Toggle aktif hanya berpengaruh pada tampilan — generate tetap bisa untuk semua angkatan.</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Nominal SPP per bulan untuk masing-masing tingkat kelas. Dipakai saat tagihan dibuat otomatis maupun massal. Jika diubah, semua tagihan yang belum lunas akan otomatis ikut diperbarui.</p>
           </div>
           {settings.map(s => (
             <div key={s.tingkat} className="px-4 py-4 flex flex-wrap items-end gap-4">
