@@ -15,9 +15,9 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Search, CheckCircle2, XCircle, Settings2, Plus, AlertCircle, Upload, Check, Pencil, CalendarDays, Zap } from 'lucide-react'
+import { Search, CheckCircle2, XCircle, Settings2, Upload, Check, Pencil, CalendarDays } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { updateSppSetting, getSppTagihanList, buatSppTagihanSiswa, tandaiSppLunas, updateSppTagihanNominal, importSppBulk, getSiswaTemplate, getSppMulaiList, setSppMulaiAngkatan, buatTagihanMassal } from '../actions'
+import { updateSppSetting, getSppTagihanList, tandaiSppLunas, updateSppTagihanNominal, importSppBulk, getSiswaTemplate, getSppMulaiList, setSppMulaiAngkatan } from '../actions'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 
 interface SppSetting { id: string; tingkat: number; nominal: number; aktif: number }
@@ -30,7 +30,6 @@ interface SppRow {
 }
 
 const BULAN_LABEL = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
-const BULAN_SHORT = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des']
 
 async function downloadSppTemplate(bulan: number, tahun: number, angkatan?: number) {
   const XLSX = await import('xlsx')
@@ -85,9 +84,6 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
   const [mulaiFormTahun, setMulaiFormTahun] = useState(String(defaultTahun))
   const [mulaiMsg, setMulaiMsg] = useState('')
 
-  // Buat massal
-  const [buatMassalAngkatan, setBuatMassalAngkatan] = useState('semua')
-
   const [msg, setMsg] = useState('')
 
   // Apakah siswa sudah melewati tanggal mulai SPP untuk periode yang dipilih?
@@ -103,9 +99,6 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
   }
   const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(10)
 
-  // Modal buat tagihan individual
-  const [buatModal, setBuatModal] = useState<SppRow | null>(null)
-  const [buatNominal, setBuatNominal] = useState('')
 
   // Modal edit tagihan (nominal + dibayar)
   const [editModal, setEditModal] = useState<SppRow | null>(null)
@@ -199,40 +192,6 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
         setMulaiList(fresh.data as SppMulai[])
         setMulaiEditAngkatan(null)
         setMsg(res.success ?? '')
-      }
-    })
-  }
-
-  async function handleBuatMassal() {
-    const angkatan = buatMassalAngkatan === 'semua' ? undefined : parseInt(buatMassalAngkatan)
-    startTransition(async () => {
-      const res = await buatTagihanMassal(tahun, bulan, angkatan)
-      setMsg(res.error ?? res.success ?? '')
-      if (!res.error) {
-        const fresh = await getSppTagihanList({ bulan, tahun })
-        setTagihan(fresh.data as SppRow[])
-        reset()
-      }
-    })
-  }
-
-  function openBuatModal(row: SppRow) {
-    // Pre-fill nominal dari setting tingkat
-    const nomSetting = settings.find(s => s.tingkat === row.tingkat)?.nominal ?? 0
-    setBuatNominal(String(nomSetting))
-    setBuatModal(row)
-  }
-
-  async function handleBuatTagihan() {
-    if (!buatModal) return
-    startTransition(async () => {
-      const res = await buatSppTagihanSiswa(buatModal.siswa_id, bulan, tahun, parseInt(buatNominal) || 0)
-      setMsg(res.error ?? res.success ?? '')
-      if (!res.error) {
-        setBuatModal(null)
-        const fresh = await getSppTagihanList({ bulan, tahun })
-        setTagihan(fresh.data as SppRow[])
-        reset()
       }
     })
   }
@@ -354,20 +313,6 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
             </SelectContent>
           </Select>
 
-          <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1" />
-
-          <p className="text-xs font-medium text-slate-500 mr-1">Buat tagihan untuk:</p>
-          <Select value={buatMassalAngkatan} onValueChange={setBuatMassalAngkatan}>
-            <SelectTrigger className="h-8 w-36 text-xs rounded-md"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="semua">Semua Angkatan</SelectItem>
-              {angkatanList.map(y => <SelectItem key={y} value={String(y)}>Angkatan {y}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleBuatMassal} disabled={isPending}>
-            <Zap className="h-3.5 w-3.5" /> Buat Tagihan {BULAN_SHORT[bulan]} {tahun}
-          </Button>
-
           <div className="ml-auto flex gap-2">
             <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
               onClick={() => { setImportModal(true); setImportRows([]); setImportMsg('') }}>
@@ -481,17 +426,9 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                     </TableCell>
                     <TableCell>
                       {noTagihan ? (
-                        sudahMulai ? (
-                          <Button
-                            size="sm" variant="outline"
-                            className="h-6 text-[11px] px-2 gap-1 border-amber-300 text-amber-600 hover:bg-amber-50"
-                            onClick={e => { e.stopPropagation(); openBuatModal(row) }}
-                          >
-                            <Plus className="h-2.5 w-2.5" /> Buat Tagihan
-                          </Button>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 italic">Belum mulai</span>
-                        )
+                        <span className="text-[11px] text-slate-400 italic">
+                          {sudahMulai ? 'Buka buku besar' : 'Belum mulai'}
+                        </span>
                       ) : (
                         <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${
                           row.status === 'lunas'
@@ -649,48 +586,6 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
             <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}>Simpan</Button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
-
-    {/* ── Modal Buat Tagihan Individual ──────────────────────────────────── */}
-    <Dialog open={!!buatModal} onOpenChange={v => { if (!v) setBuatModal(null) }}>
-      <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
-        <DialogHeader className="px-5 py-4 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-700">
-          <DialogTitle className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-            Buat Tagihan SPP
-          </DialogTitle>
-        </DialogHeader>
-        <div className="p-5 space-y-4">
-          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-sm">
-            <p className="font-medium text-slate-800 dark:text-slate-100">{buatModal?.nama_lengkap}</p>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {BULAN_LABEL[bulan]} {tahun} · Kelas {buatModal?.tingkat}-{buatModal?.nomor_kelas}{buatModal?.kelompok ? ' ' + buatModal.kelompok : ''}
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Nominal SPP (Rp)</Label>
-            <Input
-              type="number" min={0}
-              value={buatNominal}
-              onChange={e => setBuatNominal(e.target.value)}
-              className="h-9 text-sm"
-              placeholder="0"
-              autoFocus
-            />
-            <p className="text-[11px] text-slate-400">
-              <AlertCircle className="inline h-3 w-3 mr-1" />
-              Pre-fill dari setting nominal tingkat ini
-            </p>
-          </div>
-          <div className="flex gap-2 pt-1">
-            <Button variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setBuatModal(null)}>
-              Batal
-            </Button>
-            <Button size="sm" className="flex-1 h-9 text-sm" disabled={isPending} onClick={handleBuatTagihan}>
-              {isPending ? 'Menyimpan...' : 'Buat Tagihan'}
-            </Button>
-          </div>
-        </div>
       </DialogContent>
     </Dialog>
 
