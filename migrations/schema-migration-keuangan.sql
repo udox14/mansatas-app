@@ -226,3 +226,16 @@ INSERT OR IGNORE INTO role_features (role, feature_id) VALUES
 INSERT OR IGNORE INTO role_features (role, feature_id) VALUES
   ('pengurus_koperasi', 'keuangan-koperasi'),
   ('pengurus_koperasi', 'keuangan-kuitansi');
+
+-- Tabel mulai SPP per angkatan (dan override per siswa)
+CREATE TABLE IF NOT EXISTS fin_spp_mulai (
+  id          TEXT PRIMARY KEY,
+  tahun_masuk INTEGER,    -- angkatan (NULL jika override per siswa)
+  siswa_id    TEXT REFERENCES siswa(id),  -- NULL jika angkatan-level
+  bulan_mulai INTEGER NOT NULL,  -- 1-12
+  tahun_mulai INTEGER NOT NULL,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_spp_mulai_angkatan ON fin_spp_mulai(tahun_masuk) WHERE siswa_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_spp_mulai_siswa    ON fin_spp_mulai(siswa_id)    WHERE siswa_id IS NOT NULL;

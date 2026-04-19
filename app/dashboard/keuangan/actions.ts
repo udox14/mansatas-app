@@ -226,6 +226,84 @@ export async function importDsptBulk(rows: { nisn?: string; nama?: string; nomin
   return { error: gagal.length ? `${gagal.length} baris gagal (siswa tidak ditemukan): ${gagal.slice(0, 5).join(', ')}` : null, success: `${sukses} data DSPT berhasil diimport`, sukses, gagal }
 }
 
+// ─── SPP Mulai (tanggal mulai per angkatan / per siswa) ────────────────────
+
+export async function getSppMulaiList() {
+  const { db } = await requireAuth('keuangan-spp')
+  const res = await db.prepare(`
+    SELECT * FROM fin_spp_mulai ORDER BY tahun_masuk DESC
+  `).all<any>()
+  return { data: res.results ?? [] }
+}
+
+export async function setSppMulaiAngkatan(tahunMasuk: number, bulanMulai: number, tahunMulai: number) {
+  const { db } = await requireAuth('keuangan-spp')
+  const existing = await db.prepare(
+    `SELECT id FROM fin_spp_mulai WHERE tahun_masuk = ? AND siswa_id IS NULL`
+  ).bind(tahunMasuk).first<any>()
+  if (existing) {
+    await db.prepare(`
+      UPDATE fin_spp_mulai SET bulan_mulai=?, tahun_mulai=?, updated_at=datetime('now')
+      WHERE id=?
+    `).bind(bulanMulai, tahunMulai, existing.id).run()
+  } else {
+    await db.prepare(`
+      INSERT INTO fin_spp_mulai (id, tahun_masuk, bulan_mulai, tahun_mulai)
+      VALUES (?, ?, ?, ?)
+    `).bind(generateId(), tahunMasuk, bulanMulai, tahunMulai).run()
+  }
+  revalidatePath('/dashboard/keuangan/spp')
+  return { error: null, success: 'Pengaturan mulai SPP disimpan' }
+}
+
+export async function setSppMulaiSiswa(siswaId: string, bulanMulai: number, tahunMulai: number) {
+  const { db } = await requireAuth('keuangan-spp')
+  const existing = await db.prepare(
+    `SELECT id FROM fin_spp_mulai WHERE siswa_id = ?`
+  ).bind(siswaId).first<any>()
+  if (existing) {
+    await db.prepare(`
+      UPDATE fin_spp_mulai SET bulan_mulai=?, tahun_mulai=?, updated_at=datetime('now')
+      WHERE id=?
+    `).bind(bulanMulai, tahunMulai, existing.id).run()
+  } else {
+    await db.prepare(`
+      INSERT INTO fin_spp_mulai (id, siswa_id, bulan_mulai, tahun_mulai)
+      VALUES (?, ?, ?, ?)
+    `).bind(generateId(), siswaId, bulanMulai, tahunMulai).run()
+  }
+  revalidatePath('/dashboard/keuangan/spp')
+  return { error: null, success: 'Override mulai SPP siswa disimpan' }
+}
+
+/** Buat tagihan SPP jika belum ada, lalu return tagihan-nya */
+export async function getOrCreateSppTagihan(siswaId: string, bulan: number, tahun: number) {
+  const { db } = await requireAuth('keuangan-spp')
+  const existing = await db.prepare(
+    'SELECT * FROM fin_spp_tagihan WHERE siswa_id=? AND bulan=? AND tahun=?'
+  ).bind(siswaId, bulan, tahun).first<any>()
+  if (existing) return { data: existing, error: null }
+
+  // Ambil nominal dari setting sesuai tingkat siswa
+  const siswa = await db.prepare(`
+    SELECT s.id, k.tingkat FROM siswa s
+    LEFT JOIN kelas k ON k.id = s.kelas_id
+    WHERE s.id = ?
+  `).bind(siswaId).first<any>()
+  const setting = siswa?.tingkat
+    ? await db.prepare('SELECT nominal FROM fin_spp_setting WHERE tingkat=?').bind(siswa.tingkat).first<any>()
+    : null
+  const nominal = setting?.nominal ?? 0
+
+  const id = generateId()
+  await db.prepare(
+    'INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal) VALUES (?,?,?,?,?)'
+  ).bind(id, siswaId, bulan, tahun, nominal).run()
+
+  const created = await db.prepare('SELECT * FROM fin_spp_tagihan WHERE id=?').bind(id).first<any>()
+  return { data: created, error: null }
+}
+
 // ─── SPP Setting ────────────────────────────────────────────────────────────
 
 export async function getSppSettings() {
@@ -875,7 +953,7 @@ export async function getDashboardStats(tahunAjaran?: string) {
 export async function getBukuBesarSiswa(siswaId: string) {
   const { db } = await requireAuth('keuangan-dspt')
 
-  const [siswa, dspt, sppTagihan, kopTagihan, transaksi, janjiList] = await Promise.all([
+  const [siswa, dspt, sppTagihan, sppMulaiRow, kopTagihan, transaksi, janjiList] = await Promise.all([
     db.prepare(`
       SELECT s.*, k.tingkat, k.nomor_kelas, k.kelompok
       FROM siswa s
@@ -884,6 +962,16 @@ export async function getBukuBesarSiswa(siswaId: string) {
     `).bind(siswaId).first<any>(),
     db.prepare('SELECT * FROM fin_dspt WHERE siswa_id = ?').bind(siswaId).first<any>(),
     db.prepare('SELECT * FROM fin_spp_tagihan WHERE siswa_id = ? ORDER BY tahun DESC, bulan DESC').bind(siswaId).all<any>(),
+    // Per-siswa override dulu, jika tidak ada cari level angkatan
+    db.prepare(`
+      SELECT m.bulan_mulai, m.tahun_mulai FROM fin_spp_mulai m
+      WHERE m.siswa_id = ?
+      UNION ALL
+      SELECT m2.bulan_mulai, m2.tahun_mulai FROM fin_spp_mulai m2
+      INNER JOIN siswa s2 ON s2.tahun_masuk = m2.tahun_masuk
+      WHERE s2.id = ? AND m2.siswa_id IS NULL
+      LIMIT 1
+    `).bind(siswaId, siswaId).first<any>(),
     db.prepare(`
       SELECT t.*, GROUP_CONCAT(i.nama_item, ', ') as item_names
       FROM fin_koperasi_tagihan t
@@ -913,6 +1001,7 @@ export async function getBukuBesarSiswa(siswaId: string) {
     siswa,
     dspt,
     sppTagihan: sppTagihan.results ?? [],
+    sppMulai: sppMulaiRow ?? null,
     kopTagihan,
     kopItems,
     transaksi: transaksi.results ?? [],

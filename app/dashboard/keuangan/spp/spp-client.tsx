@@ -15,9 +15,9 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Search, CheckCircle2, XCircle, Zap, Settings2, Plus, AlertCircle, Upload, Check, Pencil } from 'lucide-react'
+import { Search, CheckCircle2, XCircle, Settings2, Plus, AlertCircle, Upload, Check, Pencil, CalendarDays } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { updateSppSetting, generateSppBulanan, getSppTagihanList, buatSppTagihanSiswa, tandaiSppLunas, updateSppTagihanNominal, importSppBulk, getSiswaTemplate } from '../actions'
+import { updateSppSetting, getSppTagihanList, buatSppTagihanSiswa, tandaiSppLunas, updateSppTagihanNominal, importSppBulk, getSiswaTemplate, getSppMulaiList, setSppMulaiAngkatan } from '../actions'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 
 interface SppSetting { id: string; tingkat: number; nominal: number; aktif: number }
@@ -53,17 +53,21 @@ async function downloadSppTemplate(bulan: number, tahun: number, angkatan?: numb
   XLSX.writeFile(wb, `template_spp_${bulan}_${tahun}${suffix}.xlsx`)
 }
 
-export function SppClient({ initialSettings, initialTagihan, defaultTahun, defaultBulan, angkatanList }: {
+interface SppMulai { id: string; tahun_masuk: number; bulan_mulai: number; tahun_mulai: number }
+
+export function SppClient({ initialSettings, initialTagihan, defaultTahun, defaultBulan, angkatanList, initialMulai }: {
   initialSettings: SppSetting[]
   initialTagihan: SppRow[]
   defaultTahun: number
   defaultBulan: number
   angkatanList: number[]
+  initialMulai: SppMulai[]
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [settings, setSettings] = useState<SppSetting[]>(initialSettings)
   const [tagihan, setTagihan] = useState<SppRow[]>(initialTagihan)
+  const [mulaiList, setMulaiList] = useState<SppMulai[]>(initialMulai)
 
   // Period selector
   const [bulan, setBulan] = useState(defaultBulan)
@@ -74,7 +78,12 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
   const [filterStatus, setFilterStatus] = useState('semua')
   const [filterAngkatan, setFilterAngkatan] = useState('semua')
   const [filterKelas, setFilterKelas] = useState('semua')
-  const [generateAngkatan, setGenerateAngkatan] = useState('semua')
+
+  // Mulai SPP edit state
+  const [mulaiEditAngkatan, setMulaiEditAngkatan] = useState<number | null>(null)
+  const [mulaiFormBulan, setMulaiFormBulan] = useState('1')
+  const [mulaiFormTahun, setMulaiFormTahun] = useState(String(defaultTahun))
+  const [mulaiMsg, setMulaiMsg] = useState('')
 
   const [msg, setMsg] = useState('')
   const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(10)
@@ -156,17 +165,25 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
     })
   }
 
-  async function handleGenerate() {
-    const angkatan = generateAngkatan === 'semua' ? undefined : parseInt(generateAngkatan)
-    const label = angkatan ? `Angkatan ${angkatan}` : 'semua angkatan'
+  function openMulaiEdit(tahunMasuk: number) {
+    const existing = mulaiList.find(m => m.tahun_masuk === tahunMasuk)
+    setMulaiEditAngkatan(tahunMasuk)
+    setMulaiFormBulan(String(existing?.bulan_mulai ?? 1))
+    setMulaiFormTahun(String(existing?.tahun_mulai ?? defaultTahun))
+    setMulaiMsg('')
+  }
+
+  async function handleSaveMulai(e: React.FormEvent) {
+    e.preventDefault()
+    if (!mulaiEditAngkatan) return
     startTransition(async () => {
-      const res = await generateSppBulanan(tahun, bulan, angkatan)
-      setMsg(res.error ?? res.success ?? '')
+      const res = await setSppMulaiAngkatan(mulaiEditAngkatan, parseInt(mulaiFormBulan), parseInt(mulaiFormTahun))
+      setMulaiMsg(res.error ?? res.success ?? '')
       if (!res.error) {
-        // Reload data setelah generate
-        const fresh = await getSppTagihanList({ bulan, tahun })
-        setTagihan(fresh.data as SppRow[])
-        reset()
+        const fresh = await getSppMulaiList()
+        setMulaiList(fresh.data as SppMulai[])
+        setMulaiEditAngkatan(null)
+        setMsg(res.success ?? '')
       }
     })
   }
@@ -275,7 +292,10 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
         <TabsList className="h-8 text-xs">
           <TabsTrigger value="tagihan" className="text-xs h-7 px-3">Daftar Tagihan</TabsTrigger>
           <TabsTrigger value="setting" className="text-xs h-7 px-3 gap-1.5">
-            <Settings2 className="h-3 w-3" />Pengaturan
+            <Settings2 className="h-3 w-3" />Nominal SPP
+          </TabsTrigger>
+          <TabsTrigger value="mulai" className="text-xs h-7 px-3 gap-1.5">
+            <CalendarDays className="h-3 w-3" />Mulai SPP
           </TabsTrigger>
         </TabsList>
         {msg && (
@@ -306,26 +326,12 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
             </SelectContent>
           </Select>
 
-          <div className="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1" />
-
-          <p className="text-xs font-medium text-slate-500 mr-1">Generate untuk:</p>
-          <Select value={generateAngkatan} onValueChange={setGenerateAngkatan}>
-            <SelectTrigger className="h-8 w-36 text-xs rounded-md"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="semua">Semua Angkatan</SelectItem>
-              {angkatanList.map(y => (
-                <SelectItem key={y} value={String(y)}>Angkatan {y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button size="sm" className="h-8 text-xs gap-1.5" onClick={handleGenerate} disabled={isPending}>
-            <Zap className="h-3.5 w-3.5" />
-            Generate {BULAN_SHORT[bulan]} {tahun}
-          </Button>
-          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
-            onClick={() => { setImportModal(true); setImportRows([]); setImportMsg('') }}>
-            <Upload className="h-3.5 w-3.5" /> Import Excel
-          </Button>
+          <div className="ml-auto flex gap-2">
+            <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
+              onClick={() => { setImportModal(true); setImportRows([]); setImportMsg('') }}>
+              <Upload className="h-3.5 w-3.5" /> Import Excel
+            </Button>
+          </div>
         </div>
 
         {/* Baris 2: Filter & Search */}
@@ -525,7 +531,79 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
           ))}
         </div>
       </TabsContent>
+
+      {/* ── Tab: Mulai SPP per Angkatan ──────────────────────────────────── */}
+      <TabsContent value="mulai" className="mt-0">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">Mulai SPP per Angkatan</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Tentukan sejak kapan tagihan SPP berlaku untuk tiap angkatan. Bulan sebelum tanggal ini tidak akan ditampilkan di buku besar siswa.
+              Override per siswa bisa diatur langsung di buku besar siswa (ikon pensil di tab SPP).
+            </p>
+          </div>
+          {angkatanList.length === 0 && (
+            <div className="px-4 py-6 text-center text-sm text-slate-400">Tidak ada data angkatan</div>
+          )}
+          {angkatanList.map(angkatan => {
+            const existing = mulaiList.find(m => m.tahun_masuk === angkatan)
+            return (
+              <div key={angkatan} className="px-4 py-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Angkatan {angkatan}</p>
+                  <p className="text-[11px] text-slate-400">
+                    {existing
+                      ? `Mulai: ${BULAN_LABEL[existing.bulan_mulai]} ${existing.tahun_mulai}`
+                      : <span className="text-amber-500">Belum diatur</span>
+                    }
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5"
+                  onClick={() => openMulaiEdit(angkatan)}>
+                  <Pencil className="h-3 w-3" />{existing ? 'Ubah' : 'Atur'}
+                </Button>
+              </div>
+            )
+          })}
+        </div>
+      </TabsContent>
     </Tabs>
+
+    {/* ── Modal Atur Mulai SPP per Angkatan ─────────────────────────────── */}
+    <Dialog open={mulaiEditAngkatan !== null} onOpenChange={v => { if (!v) setMulaiEditAngkatan(null) }}>
+      <DialogContent className="sm:max-w-xs rounded-xl p-0 overflow-hidden">
+        <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
+          <DialogTitle className="text-sm font-semibold">Mulai SPP — Angkatan {mulaiEditAngkatan}</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSaveMulai} className="p-5 space-y-3">
+          <p className="text-xs text-slate-500">Tagihan SPP akan dimulai dari bulan dan tahun yang dipilih. Bulan sebelumnya tidak akan ditagih.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Bulan Mulai</Label>
+              <Select value={mulaiFormBulan} onValueChange={setMulaiFormBulan}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {BULAN_LABEL.slice(1).map((b, i) => (
+                    <SelectItem key={i + 1} value={String(i + 1)}>{b}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Tahun Mulai</Label>
+              <Input type="number" value={mulaiFormTahun}
+                onChange={e => setMulaiFormTahun(e.target.value)}
+                className="h-9 text-sm" min={2020} max={2040} />
+            </div>
+          </div>
+          {mulaiMsg && <p className={`text-xs px-3 py-2 rounded-md ${mulaiMsg.includes('disimpan') ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>{mulaiMsg}</p>}
+          <div className="flex gap-2 pt-1">
+            <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setMulaiEditAngkatan(null)}>Batal</Button>
+            <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}>Simpan</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
 
     {/* ── Modal Buat Tagihan Individual ──────────────────────────────────── */}
     <Dialog open={!!buatModal} onOpenChange={v => { if (!v) setBuatModal(null) }}>
