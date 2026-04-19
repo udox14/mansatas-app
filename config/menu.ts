@@ -35,6 +35,12 @@ import {
   TrendingDown,
   BarChart3,
   ClipboardCheck,
+  LineChart,
+  FileCheck,
+  Landmark,
+  UserCheck,
+  NotebookPen,
+  BookCheck,
 } from 'lucide-react'
 
 export type MenuItem = {
@@ -121,14 +127,14 @@ export const MENU_ITEMS: MenuItem[] = [
     id: 'agenda',
     title: 'Agenda Guru',
     href: '/dashboard/agenda',
-    icon: ClipboardPen,
+    icon: NotebookPen,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_ppl']
   },
   {
     id: 'nilai-harian',
     title: 'Nilai Harian',
     href: '/dashboard/nilai-harian',
-    icon: ClipboardEdit,
+    icon: BookCheck,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_ppl']
   },
   {
@@ -205,21 +211,21 @@ export const MENU_ITEMS: MenuItem[] = [
     id: 'analitik',
     title: 'Analitik Akademik',
     href: '/dashboard/analitik',
-    icon: Activity,
+    icon: LineChart,
     roles: ['super_admin', 'kepsek', 'wakamad']
   },
   {
     id: 'tka',
     title: 'TKA',
     href: '/dashboard/tka',
-    icon: ClipboardList,
+    icon: FileCheck,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk']
   },
   {
     id: 'penerimaan-pt',
     title: 'Penerimaan PT',
     href: '/dashboard/penerimaan-pt',
-    icon: GraduationCap,
+    icon: Landmark,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk']
   },
 
@@ -234,7 +240,7 @@ export const MENU_ITEMS: MenuItem[] = [
     id: 'kelola-ppl',
     title: 'Kelola PPL',
     href: '/dashboard/kelola-ppl',
-    icon: Users,
+    icon: UserCheck,
     roles: ['super_admin', 'kepsek', 'wakamad']
   },
   {
