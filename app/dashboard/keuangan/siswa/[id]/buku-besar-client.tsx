@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/table'
 import { CheckCircle2, Clock, XCircle, Plus, Printer, AlertTriangle, Ban, Calendar, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar, createKoperasiTagihan, getOrCreateSppTagihan, setSppMulaiSiswa } from '../../actions'
+import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar, createKoperasiTagihan, getOrCreateSppTagihan, setSppMulaiSiswa, tandaiSppLunas } from '../../actions'
 import { KuitansiModal, type KuitansiData } from '../../components/kuitansi-print'
 
 const STATUS_MAP = {
@@ -87,16 +87,25 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
   async function handleClickBulanSpp(bulan: number) {
     if (isBeforeMulai(bulan, sppTahun)) return
     startTransition(async () => {
+      // 1. Pastikan tagihan ada
       const res = await getOrCreateSppTagihan(siswa.id, bulan, sppTahun)
       if (res.error || !res.data) { setMsg(res.error ?? 'Gagal membuat tagihan'); return }
       if (res.data.status === 'lunas') {
-        // Tampilkan rekap
         openKuitansiRekap('spp', res.data)
         return
       }
-      setBayarModal({ type: 'spp', target: res.data })
-      setBayarForm({ jumlah: String(res.data.nominal - res.data.total_dibayar - res.data.total_diskon), metode: 'tunai', selectedItems: [] })
+      // 2. Auto-lunas sesuai nominal setting
+      const lunas = await tandaiSppLunas(res.data.id)
+      if (lunas.error) { setMsg(lunas.error); return }
+      setMsg(`SPP ${BULAN_LABEL[bulan]} ${sppTahun} — lunas`)
+      router.refresh()
     })
+  }
+
+  // Edit manual SPP (untuk koreksi nominal/jumlah bayar)
+  function handleEditSppManual(tagihan: any) {
+    setBayarModal({ type: 'spp', target: tagihan })
+    setBayarForm({ jumlah: String(tagihan.nominal - tagihan.total_dibayar - tagihan.total_diskon), metode: 'tunai', selectedItems: [] })
   }
 
   async function handleSaveMulai(e: React.FormEvent) {
@@ -576,16 +585,28 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                       <p className={`text-sm font-semibold ${nunggak ? 'text-rose-600' : lunas ? 'text-emerald-600' : 'text-slate-800 dark:text-slate-200'}`}>
                         {formatRupiah(tagihan.nominal)}
                       </p>
-                      {nunggak && (
-                        <span className="mt-1.5 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400">
-                          NUNGGAK
-                        </span>
-                      )}
-                      {lunas && (
-                        <span className="mt-1.5 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
-                          LUNAS
-                        </span>
-                      )}
+                      <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                        {nunggak && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400">
+                            NUNGGAK
+                          </span>
+                        )}
+                        {lunas && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
+                            LUNAS
+                          </span>
+                        )}
+                        {!lunas && (
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); handleEditSppManual(tagihan) }}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300"
+                            title="Edit jumlah bayar"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
                     </>
                   ) : sebelumMulai ? (
                     <p className="text-[11px] text-slate-400 italic">Tidak berlaku</p>
