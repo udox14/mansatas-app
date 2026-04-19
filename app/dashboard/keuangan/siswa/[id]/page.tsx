@@ -7,8 +7,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
 import { getBukuBesarSiswa, getMasterItemKoperasi } from '../../actions'
 import { BukuBesarClient } from './buku-besar-client'
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
+import { BackButton } from './back-button'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Buku Besar Siswa | Keuangan MANSATAS' }
@@ -48,9 +47,7 @@ export default async function BukuBesarPage({ params }: { params: Promise<{ id: 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
       <div className="flex items-center gap-2">
-        <Link href="/dashboard/keuangan/dspt" className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 transition-colors">
-          <ChevronLeft className="h-3.5 w-3.5" /> Kembali
-        </Link>
+        <BackButton />
       </div>
       <Suspense fallback={<PageLoading text="Memuat data siswa..." />}>
         <BukuBesarDataFetcher id={id} />
