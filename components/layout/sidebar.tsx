@@ -134,13 +134,13 @@ export function Sidebar({
           collapsed ? 'justify-center px-3' : 'px-4 gap-2.5'
         )}>
           <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div className="relative w-[26px] h-[26px] shrink-0 bg-white rounded-full p-[3px] shadow-sm">
-              <Image src="/logokemenag.png" alt="MAN 1 Tasikmalaya" fill className="object-contain" />
+            <div className="relative w-8 h-8 shrink-0">
+              <Image src="/logokemenag.png" alt="MAN 1 Tasikmalaya" fill className="object-contain drop-shadow-sm" />
             </div>
             {!collapsed && (
               <div className="min-w-0">
-                <p className={cn("text-[13px] font-bold leading-tight tracking-tight", theme.activeText)}>MANSATAS</p>
-                <p className={cn("text-[10px] leading-tight", theme.textMuted)}>MAN 1 Tasikmalaya</p>
+                <p className={cn("text-[14px] font-bold leading-tight tracking-tight", theme.activeText)}>MANSATAS App</p>
+                <p className="text-[10px] text-white/90 leading-tight">MAN 1 Tasikmalaya</p>
               </div>
             )}
           </Link>
@@ -156,8 +156,8 @@ export function Sidebar({
           <style>{`
             .custom-scrollbar::-webkit-scrollbar { width: 4px; }
             .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-            .custom-scrollbar::-webkit-scrollbar-thumb { background-color: ${theme.scrollbarThumb}60; border-radius: 10px; }
-            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: ${theme.scrollbarThumb}; }
+            .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); border-radius: 10px; }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.25); }
           `}</style>
           {MENU_GROUPS.map((group, gi) => {
             const groupItems = group.hrefs
