@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/table'
 import { CheckCircle2, Clock, XCircle, Plus, Printer, AlertTriangle, Ban, Calendar, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar, createKoperasiTagihan, setSppMulaiSiswa, simpanSppBulanTerpilih } from '../../actions'
+import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar, createKoperasiTagihan, setSppMulaiSiswa, simpanSppBulanTerpilih, setSppSaldoAwal, tandaiLunasSaldoAwalSpp } from '../../actions'
 import { KuitansiModal, type KuitansiData } from '../../components/kuitansi-print'
 
 const STATUS_MAP = {
@@ -51,7 +51,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
   const [voidAlasan, setVoidAlasan] = useState('')
   const [janjiForm, setJanjiForm] = useState({ tanggal: '', catatan: '' })
 
-  const { siswa, dspt, sppTagihan, sppMulai, kopTagihan, kopItems, transaksi, janjiList } = data
+  const { siswa, dspt, sppTagihan, sppMulai, sppSaldoAwal, kopTagihan, kopItems, transaksi, janjiList } = data
 
   // ── SPP tahun navigation + multi-select ──────────────────────────────────
   const [sppTahun, setSppTahun] = useState(() => new Date().getFullYear())
@@ -60,6 +60,13 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
   const [mulaiForm, setMulaiForm] = useState({
     bulan: String(sppMulai?.bulan_mulai ?? new Date().getMonth() + 1),
     tahun: String(sppMulai?.bulan_mulai ? sppMulai.tahun_mulai : new Date().getFullYear()),
+  })
+
+  // Saldo Awal (tunggakan migrasi)
+  const [saldoAwalModal, setSaldoAwalModal] = useState(false)
+  const [saldoAwalForm, setSaldoAwalForm] = useState({
+    jumlah: String(sppSaldoAwal?.jumlah ?? ''),
+    keterangan: sppSaldoAwal?.keterangan ?? '',
   })
 
   // Reset pilihan saat tahun berubah
@@ -131,6 +138,24 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
       const res = await setSppMulaiSiswa(siswa.id, parseInt(mulaiForm.bulan), parseInt(mulaiForm.tahun))
       setMsg(res.error ?? res.success ?? '')
       if (!res.error) { setMulaiEditModal(false); router.refresh() }
+    })
+  }
+
+  async function handleSaveSaldoAwal(e: React.FormEvent) {
+    e.preventDefault()
+    startTransition(async () => {
+      const res = await setSppSaldoAwal(siswa.id, parseInt(saldoAwalForm.jumlah) || 0, saldoAwalForm.keterangan || undefined)
+      setMsg(res.error ?? res.success ?? '')
+      if (!res.error) { setSaldoAwalModal(false); router.refresh() }
+    })
+  }
+
+  async function handleLunasSaldoAwal() {
+    if (!sppSaldoAwal?.id) return
+    startTransition(async () => {
+      const res = await tandaiLunasSaldoAwalSpp(sppSaldoAwal.id)
+      setMsg(res.error ?? res.success ?? '')
+      if (!res.error) router.refresh()
     })
   }
 
@@ -568,6 +593,45 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
             </div>
           </div>
 
+          {/* ── Tunggakan Awal (Migrasi) ── */}
+          {sppSaldoAwal ? (
+            <div className={`rounded-xl border px-4 py-3 flex items-center justify-between gap-3 ${
+              sppSaldoAwal.status === 'lunas'
+                ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20'
+                : 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'
+            }`}>
+              <div>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-0.5">Tunggakan Awal (Migrasi)</p>
+                <p className={`text-base font-bold ${sppSaldoAwal.status === 'lunas' ? 'text-emerald-600' : 'text-amber-700 dark:text-amber-400'}`}>
+                  {formatRupiah(sppSaldoAwal.jumlah)}
+                </p>
+                {sppSaldoAwal.keterangan && (
+                  <p className="text-[11px] text-slate-400 mt-0.5">{sppSaldoAwal.keterangan}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {sppSaldoAwal.status === 'lunas'
+                  ? <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30">LUNAS</span>
+                  : <Button size="sm" className="h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white"
+                      onClick={handleLunasSaldoAwal} disabled={isPending}>
+                      Tandai Lunas
+                    </Button>
+                }
+                <button type="button"
+                  onClick={() => { setSaldoAwalForm({ jumlah: String(sppSaldoAwal.jumlah), keterangan: sppSaldoAwal.keterangan ?? '' }); setSaldoAwalModal(true) }}
+                  className="text-[11px] px-2 py-1 rounded bg-white/60 dark:bg-slate-700/60 text-slate-500 hover:bg-white dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
+                  Edit
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="button"
+              onClick={() => { setSaldoAwalForm({ jumlah: '', keterangan: '' }); setSaldoAwalModal(true) }}
+              className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline underline-offset-2 text-left">
+              + Tambah tunggakan awal (data migrasi)
+            </button>
+          )}
+
           {/* Grid 12 kartu bulan */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {Array.from({ length: 12 }, (_, i) => i + 1).map(bulan => {
@@ -650,6 +714,34 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
               </div>
             </div>
           )}
+
+          {/* Modal: Saldo Awal SPP */}
+          <Dialog open={saldoAwalModal} onOpenChange={v => { if (!v) setSaldoAwalModal(false) }}>
+            <DialogContent className="sm:max-w-xs rounded-xl p-0 overflow-hidden">
+              <DialogHeader className="px-5 py-4 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
+                <DialogTitle className="text-sm font-semibold text-amber-800 dark:text-amber-300">Tunggakan Awal SPP</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSaveSaldoAwal} className="p-5 space-y-3">
+                <p className="text-xs text-slate-500">Catat total hutang SPP dari periode sebelum sistem ini dipakai (tanpa rincian bulan).</p>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Jumlah Tunggakan (Rp)</Label>
+                  <Input type="number" min={0} value={saldoAwalForm.jumlah}
+                    onChange={e => setSaldoAwalForm(f => ({ ...f, jumlah: e.target.value }))}
+                    className="h-9 text-sm" placeholder="0" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Keterangan (opsional)</Label>
+                  <Input value={saldoAwalForm.keterangan}
+                    onChange={e => setSaldoAwalForm(f => ({ ...f, keterangan: e.target.value }))}
+                    className="h-9 text-sm" placeholder="Misal: tunggakan SPP 2022-2023" />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setSaldoAwalModal(false)}>Batal</Button>
+                  <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}>Simpan</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
 
           {/* Modal: Atur mulai SPP per siswa */}
           <Dialog open={mulaiEditModal} onOpenChange={v => { if (!v) setMulaiEditModal(false) }}>

@@ -9,24 +9,13 @@ import { MENU_ITEMS } from '@/config/menu'
 import { LogOut, X, ChevronLeft, ChevronRight, Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const ACCENT_COLORS = [
-  { id: 'emerald', label: 'Hijau',  active: 'bg-emerald-600 text-white', text: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40', swatch: 'bg-emerald-500', ring: 'ring-emerald-400' },
-  { id: 'blue',    label: 'Biru',   active: 'bg-blue-600 text-white',    text: 'text-blue-600 dark:text-blue-400',       bg: 'bg-blue-50 dark:bg-blue-950/40',       swatch: 'bg-blue-500',   ring: 'ring-blue-400' },
-  { id: 'violet',  label: 'Ungu',   active: 'bg-violet-600 text-white',  text: 'text-violet-600 dark:text-violet-400',   bg: 'bg-violet-50 dark:bg-violet-950/40',   swatch: 'bg-violet-500', ring: 'ring-violet-400' },
-  { id: 'rose',    label: 'Merah',  active: 'bg-rose-600 text-white',    text: 'text-rose-600 dark:text-rose-400',       bg: 'bg-rose-50 dark:bg-rose-950/40',       swatch: 'bg-rose-500',   ring: 'ring-rose-400' },
-  { id: 'amber',   label: 'Amber',  active: 'bg-amber-500 text-white',   text: 'text-amber-600 dark:text-amber-400',     bg: 'bg-amber-50 dark:bg-amber-950/40',     swatch: 'bg-amber-400',  ring: 'ring-amber-300' },
-  { id: 'cyan',    label: 'Cyan',   active: 'bg-cyan-600 text-white',    text: 'text-cyan-600 dark:text-cyan-400',       bg: 'bg-cyan-50 dark:bg-cyan-950/40',       swatch: 'bg-cyan-500',   ring: 'ring-cyan-400' },
+const SIDEBAR_THEMES = [
+  { id: 'green', label: 'Hijau', sidebarBg: 'bg-[#1b2a24]', sidebarDarkBg: 'dark:bg-[#131e1a]', text: 'text-[#8ba89a]', textMuted: 'text-[#637d70]', activeBg: 'bg-[#294036]', activeText: 'text-[#d1e8dd]', hoverBg: 'hover:bg-[#22362d]', hoverText: 'hover:text-[#b4d4c5]', border: 'border-[#294036]', swatch: 'bg-[#3b5c4e]', ring: 'ring-[#578571]', scrollbarThumb: '#3b5c4e' },
+  { id: 'blue', label: 'Biru', sidebarBg: 'bg-[#1a2333]', sidebarDarkBg: 'dark:bg-[#121926]', text: 'text-[#879ab3]', textMuted: 'text-[#5d708a]', activeBg: 'bg-[#26354d]', activeText: 'text-[#c6daf5]', hoverBg: 'hover:bg-[#202d42]', hoverText: 'hover:text-[#aabce0]', border: 'border-[#26354d]', swatch: 'bg-[#3b5375]', ring: 'ring-[#5a7baf]', scrollbarThumb: '#3b5375' },
+  { id: 'black', label: 'Hitam', sidebarBg: 'bg-[#1c1d21]', sidebarDarkBg: 'dark:bg-[#121314]', text: 'text-[#8d8f99]', textMuted: 'text-[#656770]', activeBg: 'bg-[#2d2e36]', activeText: 'text-[#d6d8e0]', hoverBg: 'hover:bg-[#25262c]', hoverText: 'hover:text-[#b8bac4]', border: 'border-[#2d2e36]', swatch: 'bg-[#464854]', ring: 'ring-[#6a6d7d]', scrollbarThumb: '#464854' },
 ]
 
-type AccentKey = typeof ACCENT_COLORS[number]['id']
-
-const getAccentHex = (id: AccentKey) => {
-  const map: Record<string, string> = {
-    emerald: '#10b981', blue: '#3b82f6', violet: '#8b5cf6',
-    rose: '#f43f5e', amber: '#f59e0b', cyan: '#06b6d4'
-  }
-  return map[id as string] || '#cbd5e1'
-}
+type ThemeKey = typeof SIDEBAR_THEMES[number]['id']
 
 const MENU_GROUPS = [
   { label: 'Utama', hrefs: ['/dashboard'] },
@@ -69,15 +58,15 @@ export function Sidebar({
   const [isOpen, setIsOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [accentId, setAccentId] = useState<AccentKey>('emerald')
+  const [themeId, setThemeId] = useState<ThemeKey>('black')
   const [isDark, setIsDark] = useState(false)
   const [mounted, setMounted] = useState(false)
   const userCollapsedRef = useRef(false)
 
   useEffect(() => {
     setMounted(true)
-    const saved = localStorage.getItem('mansatas_accent') as AccentKey
-    if (saved && ACCENT_COLORS.find(c => c.id === saved)) setAccentId(saved)
+    const saved = localStorage.getItem('mansatas_sidebar_theme') as ThemeKey
+    if (saved && SIDEBAR_THEMES.find(c => c.id === saved)) setThemeId(saved)
     const savedCollapsed = localStorage.getItem('mansatas_collapsed')
     if (savedCollapsed === 'true') { setIsCollapsed(true); userCollapsedRef.current = true }
     const savedDark = localStorage.getItem('mansatas_dark') === 'true'
@@ -88,14 +77,14 @@ export function Sidebar({
 
   useEffect(() => { setIsOpen(false) }, [pathname])
 
-  const accent = ACCENT_COLORS.find(c => c.id === accentId) ?? ACCENT_COLORS[0]
+  const theme = SIDEBAR_THEMES.find(c => c.id === themeId) ?? SIDEBAR_THEMES[2]
   const activeHref = getActiveMenu(pathname, MENU_ITEMS)
 
   // Filter menu berdasarkan allowedFeatures dari DB
   const allowedSet = new Set(allowedFeatures)
   const allowedMenus = MENU_ITEMS.filter(item => allowedSet.has(item.id))
 
-  const changeAccent = (id: AccentKey) => { setAccentId(id); localStorage.setItem('mansatas_accent', id) }
+  const changeTheme = (id: ThemeKey) => { setThemeId(id); localStorage.setItem('mansatas_sidebar_theme', id) }
 
   const toggleDark = () => {
     const next = !isDark
@@ -137,34 +126,35 @@ export function Sidebar({
 
         {/* ── LOGO — h-12 sejajar header ── */}
         <div className={cn(
-          'h-12 flex items-center border-b border-slate-100 dark:border-slate-700/60 shrink-0',
+          'h-12 flex items-center border-b shrink-0',
+          theme.border,
           collapsed ? 'justify-center px-3' : 'px-4 gap-2.5'
         )}>
           <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0 flex-1">
-            <div className="relative w-6 h-6 shrink-0">
+            <div className="relative w-[26px] h-[26px] shrink-0 bg-white rounded-full p-[3px] shadow-sm">
               <Image src="/logokemenag.png" alt="MAN 1 Tasikmalaya" fill className="object-contain" />
             </div>
             {!collapsed && (
               <div className="min-w-0">
-                <p className="text-[13px] font-bold text-slate-900 dark:text-slate-100 leading-tight tracking-tight">MANSATAS</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">MAN 1 Tasikmalaya</p>
+                <p className={cn("text-[13px] font-bold leading-tight tracking-tight", theme.activeText)}>MANSATAS</p>
+                <p className={cn("text-[10px] leading-tight", theme.textMuted)}>MAN 1 Tasikmalaya</p>
               </div>
             )}
           </Link>
           {mobile && (
-            <button onClick={() => setIsOpen(false)} className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <button onClick={() => setIsOpen(false)} className={cn("p-1.5 rounded-lg transition-colors", theme.textMuted, theme.hoverBg, theme.activeText)}>
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
 
         {/* ── NAV ── */}
-        <nav className="flex-1 overflow-y-auto py-3 px-3 custom-scrollbar">
+        <nav className="flex-1 overflow-y-auto py-4 px-3 custom-scrollbar">
           <style>{`
-            .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+            .custom-scrollbar::-webkit-scrollbar { width: 4px; }
             .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-            .custom-scrollbar::-webkit-scrollbar-thumb { background-color: ${getAccentHex(accentId)}80; border-radius: 10px; }
-            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: ${getAccentHex(accentId)}; }
+            .custom-scrollbar::-webkit-scrollbar-thumb { background-color: ${theme.scrollbarThumb}60; border-radius: 10px; }
+            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: ${theme.scrollbarThumb}; }
           `}</style>
           {MENU_GROUPS.map((group, gi) => {
             const groupItems = group.hrefs
@@ -173,16 +163,16 @@ export function Sidebar({
             if (groupItems.length === 0) return null
 
             return (
-              <div key={group.label} className={cn(gi > 0 && 'mt-4')}>
+              <div key={group.label} className={cn(gi > 0 && 'mt-5')}>
                 {/* Section label */}
                 {!collapsed && (
-                  <p className="px-3 pt-1 pb-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-400/80 dark:text-slate-500 select-none">
+                  <p className={cn("px-3 pt-1 pb-2 text-[10px] font-extrabold uppercase tracking-widest select-none", theme.textMuted)}>
                     {group.label}
                   </p>
                 )}
                 {/* Divider tipis antar grup saat collapsed */}
                 {collapsed && gi > 0 && (
-                  <div className="h-px bg-slate-100 dark:bg-slate-700/60 mx-2 my-2.5" />
+                  <div className={cn("h-px mx-3 my-3", theme.border, "border-t")} />
                 )}
                 <div className="space-y-1">
                   {groupItems.map(item => {
@@ -194,14 +184,14 @@ export function Sidebar({
                         href={item.href}
                         title={collapsed ? item.title : undefined}
                         className={cn(
-                          'group flex items-center rounded-xl text-[13px] transition-all duration-200',
-                          collapsed ? 'justify-center p-2.5 mx-auto w-10 h-10' : 'gap-3 px-3 py-[9px]',
+                          'group flex items-center rounded-xl text-[13px] transition-all duration-300',
+                          collapsed ? 'justify-center p-2.5 mx-auto w-[42px] h-[42px]' : 'gap-3 px-3 py-[9px]',
                           isActive
-                            ? cn(accent.bg, accent.text, 'font-semibold shadow-sm ring-1 ring-black/5 dark:ring-white/5')
-                            : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-slate-100 hover:translate-x-0.5'
+                            ? cn(theme.activeBg, theme.activeText, 'font-medium shadow-sm')
+                            : cn(theme.text, theme.hoverBg, theme.hoverText, !collapsed && 'hover:translate-x-1')
                         )}
                       >
-                        <Icon className={cn('h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:scale-110', !isActive && 'opacity-70')} />
+                        <Icon className={cn('h-[18px] w-[18px] shrink-0 transition-all duration-300', isActive ? 'opacity-100 scale-110 drop-shadow-sm' : 'opacity-70 group-hover:scale-110 group-hover:opacity-100')} />
                         {!collapsed && <span className="truncate leading-snug">{item.title}</span>}
                       </Link>
                     )
@@ -213,27 +203,28 @@ export function Sidebar({
         </nav>
 
         {/* ── FOOTER ── */}
-        <div className={cn('border-t border-slate-100 dark:border-slate-700/60 shrink-0 p-2 space-y-0.5', mobile && 'pb-20')}>
+        <div className={cn('border-t shrink-0 p-3 space-y-1', theme.border, mobile && 'pb-20')}>
 
           {/* Tema + dark toggle */}
           {!collapsed && (
-            <div className="flex items-center gap-1.5 px-3 py-2">
-              <span className="text-[10px] text-slate-400 dark:text-slate-600 font-medium uppercase tracking-widest mr-auto">Tema</span>
-              {ACCENT_COLORS.map(c => (
-                <button key={c.id} onClick={() => changeAccent(c.id as AccentKey)} title={c.label}
+            <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-black/10 dark:bg-black/20 rounded-xl">
+              <span className={cn("text-[10px] font-semibold uppercase tracking-widest mr-auto", theme.textMuted)}>Tema</span>
+              {SIDEBAR_THEMES.map(c => (
+                <button key={c.id} onClick={() => changeTheme(c.id as ThemeKey)} title={c.label}
                   className={cn(
-                    'w-3 h-3 rounded-full transition-all duration-150', c.swatch,
-                    accentId === c.id ? cn('ring-2 ring-offset-1', c.ring, 'scale-125') : 'opacity-30 hover:opacity-60 hover:scale-110'
+                    'w-3.5 h-3.5 rounded-full transition-all duration-200 shadow-sm border border-white/10 saturate-150', c.swatch,
+                    themeId === c.id ? cn('ring-2 ring-offset-2 ring-offset-transparent', c.ring, 'scale-110') : 'opacity-50 hover:opacity-100 hover:scale-110'
                   )}
                 />
               ))}
+              <div className={cn("w-px h-4 mx-1.5", theme.border, "border-l")} />
               <button onClick={toggleDark} title={isDark ? 'Mode Terang' : 'Mode Gelap'}
                 className={cn(
-                  'ml-0.5 w-5 h-5 rounded-md flex items-center justify-center transition-all duration-150',
-                  isDark ? 'bg-slate-700 text-amber-300 hover:bg-slate-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  'w-6 h-6 rounded-md flex items-center justify-center transition-all duration-200',
+                  isDark ? 'text-amber-300 hover:bg-black/20' : cn(theme.text, 'hover:bg-black/10')
                 )}
               >
-                {isDark ? <Sun className="h-3 w-3" /> : <Moon className="h-3 w-3" />}
+                {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
               </button>
             </div>
           )}
@@ -242,32 +233,34 @@ export function Sidebar({
           {collapsed && (
             <button onClick={toggleDark} title={isDark ? 'Mode Terang' : 'Mode Gelap'}
               className={cn(
-                'w-full flex justify-center p-2.5 rounded-lg transition-colors',
-                isDark ? 'text-amber-300 hover:bg-slate-700' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                'w-full flex justify-center p-2.5 rounded-xl transition-all duration-200 mb-2',
+                theme.hoverBg,
+                isDark ? 'text-amber-300' : theme.text
               )}
             >
-              {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+              {isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
             </button>
           )}
 
           {/* User */}
           <Link href="/dashboard/settings/profile"
             className={cn(
-              'flex items-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors',
-              collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-3 py-2'
+              'flex items-center rounded-xl transition-all duration-200',
+              theme.hoverBg,
+              collapsed ? 'justify-center p-2.5 mx-auto w-[42px] h-[42px]' : 'gap-3 px-3 py-2.5'
             )}
             title={collapsed ? userName : undefined}
           >
-            <div className={cn('shrink-0 rounded-full flex items-center justify-center font-semibold text-[11px] text-white h-6 w-6', accent.active)}>
+            <div className={cn('shrink-0 rounded-full flex items-center justify-center font-bold text-[11px] shadow-sm h-7 w-7 border border-white/5', theme.swatch, theme.activeText)}>
               {userName.charAt(0).toUpperCase()}
             </div>
             {!collapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-semibold text-slate-800 dark:text-slate-200 truncate leading-tight">{userName}</p>
+                <p className={cn("text-[12px] font-semibold truncate leading-tight", theme.activeText)}>{userName}</p>
                 <div className="flex items-center gap-1 mt-0.5">
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate leading-tight capitalize">{roleDisplay}</span>
+                  <span className={cn("text-[10px] truncate leading-tight capitalize", theme.textMuted)}>{roleDisplay}</span>
                   {extraRoleCount > 0 && (
-                    <span className="text-[9px] font-semibold bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1 py-px rounded leading-tight">
+                    <span className={cn("text-[9px] font-semibold px-1 py-px rounded leading-tight bg-black/20", theme.text)}>
                       +{extraRoleCount}
                     </span>
                   )}
@@ -280,11 +273,12 @@ export function Sidebar({
           <button onClick={handleLogout} disabled={isLoggingOut}
             title={collapsed ? 'Keluar' : undefined}
             className={cn(
-              'w-full flex items-center rounded-lg transition-colors text-slate-400 dark:text-slate-500 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400',
-              collapsed ? 'justify-center p-2.5' : 'gap-2.5 px-3 py-2'
+              'w-full flex items-center rounded-xl transition-all duration-200 hover:bg-red-500/10 hover:text-red-400 group',
+              theme.textMuted,
+              collapsed ? 'justify-center p-2.5 mx-auto w-[42px] h-[42px]' : 'gap-3 px-3 py-2.5'
             )}
           >
-            <LogOut className="h-3.5 w-3.5 shrink-0" />
+            <LogOut className="h-[18px] w-[18px] shrink-0 transition-transform duration-300 group-hover:-translate-x-1" />
             {!collapsed && <span className="text-[12px] font-medium">{isLoggingOut ? 'Keluar...' : 'Keluar Aplikasi'}</span>}
           </button>
         </div>
@@ -295,24 +289,29 @@ export function Sidebar({
 
   return (
     <>
-      {isOpen && <div onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/40 z-40 lg:hidden" />}
+      {isOpen && <div onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden transition-opacity" />}
 
       {/* Desktop sidebar */}
       <aside className={cn(
-        'hidden lg:flex flex-col h-[100dvh] bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700/60 shrink-0 sticky top-0 transition-all duration-300 relative',
-        isCollapsed ? 'w-[52px]' : 'w-52'
+        'hidden lg:flex flex-col h-[100dvh] border-r shrink-0 sticky top-0 transition-all duration-300 ease-in-out relative',
+        theme.sidebarBg, theme.sidebarDarkBg, theme.border,
+        isCollapsed ? 'w-[72px]' : 'w-64'
       )}>
         {renderNavContent()}
         <button onClick={toggleCollapse}
-          className="absolute -right-3 top-[24px] z-10 h-5 w-5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 shadow-sm flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+          className={cn(
+            "absolute -right-3 top-[22px] z-10 h-6 w-6 rounded-full border shadow-sm flex items-center justify-center transition-all duration-300 hover:scale-110",
+            theme.sidebarBg, theme.sidebarDarkBg, theme.border, theme.text, theme.hoverText
+          )}
         >
-          {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
+          {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
         </button>
       </aside>
 
       {/* Mobile drawer */}
       <aside className={cn(
-        'fixed top-0 left-0 z-50 h-[100dvh] w-56 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700/60 flex flex-col lg:hidden transition-transform duration-300 ease-in-out shadow-xl',
+        'fixed top-0 left-0 z-50 h-[100dvh] w-64 border-r flex flex-col lg:hidden transition-transform duration-300 ease-in-out shadow-2xl',
+        theme.sidebarBg, theme.sidebarDarkBg, theme.border,
         isOpen ? 'translate-x-0' : '-translate-x-full'
       )}>
         {renderNavContent(true)}

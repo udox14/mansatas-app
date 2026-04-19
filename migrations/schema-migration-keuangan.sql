@@ -239,3 +239,17 @@ CREATE TABLE IF NOT EXISTS fin_spp_mulai (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_spp_mulai_angkatan ON fin_spp_mulai(tahun_masuk) WHERE siswa_id IS NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_spp_mulai_siswa    ON fin_spp_mulai(siswa_id)    WHERE siswa_id IS NOT NULL;
+
+-- Tunggakan Awal SPP (data migrasi — total hutang tanpa rincian bulan)
+CREATE TABLE IF NOT EXISTS fin_spp_saldo_awal (
+  id            TEXT PRIMARY KEY,
+  siswa_id      TEXT NOT NULL REFERENCES siswa(id),
+  jumlah        INTEGER NOT NULL DEFAULT 0,   -- total tunggakan awal
+  total_dibayar INTEGER NOT NULL DEFAULT 0,
+  -- status: belum_bayar | lunas
+  status        TEXT NOT NULL DEFAULT 'belum_bayar',
+  keterangan    TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(siswa_id)
+);

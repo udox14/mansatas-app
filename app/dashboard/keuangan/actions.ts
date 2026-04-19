@@ -226,6 +226,62 @@ export async function importDsptBulk(rows: { nisn?: string; nama?: string; nomin
   return { error: gagal.length ? `${gagal.length} baris gagal (siswa tidak ditemukan): ${gagal.slice(0, 5).join(', ')}` : null, success: `${sukses} data DSPT berhasil diimport`, sukses, gagal }
 }
 
+// ─── DSPT Lunas Massal (Migrasi) ────────────────────────────────────────────
+
+/** Buat record fin_dspt dengan nominal=0, status='lunas' untuk semua siswa
+ *  yang BELUM punya record DSPT sama sekali. Siswa yang sudah ada datanya aman. */
+export async function tandaiLunasMigrasiDspt() {
+  const { db } = await requireAuth('keuangan-dspt')
+  // Ambil semua siswa yang BELUM ada di fin_dspt
+  const res = await db.prepare(`
+    SELECT s.id FROM siswa s
+    WHERE s.id NOT IN (SELECT siswa_id FROM fin_dspt)
+  `).all<{ id: string }>()
+  const siswaList = res.results ?? []
+  if (!siswaList.length) return { error: null, success: '0 siswa — semua sudah punya data DSPT', jumlah: 0 }
+
+  const stmts = siswaList.map(({ id }) =>
+    db.prepare(`
+      INSERT INTO fin_dspt (id, siswa_id, nominal_target, total_dibayar, status, catatan)
+      VALUES (?, ?, 0, 0, 'lunas', 'Lunas (migrasi)')
+    `).bind(generateId(), id)
+  )
+  for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
+  revalidatePath('/dashboard/keuangan/dspt')
+  return { error: null, success: `${siswaList.length} siswa berhasil ditandai lunas DSPT (migrasi)`, jumlah: siswaList.length }
+}
+
+// ─── SPP Saldo Awal (data migrasi tanpa rincian bulan) ──────────────────────
+
+export async function setSppSaldoAwal(siswaId: string, jumlah: number, keterangan?: string) {
+  const { db } = await requireAuth('keuangan-spp')
+  const existing = await db.prepare('SELECT id FROM fin_spp_saldo_awal WHERE siswa_id = ?').bind(siswaId).first<any>()
+  if (existing) {
+    const status = jumlah <= 0 ? 'lunas' : 'belum_bayar'
+    await db.prepare(`
+      UPDATE fin_spp_saldo_awal SET jumlah=?, keterangan=?, status=?, updated_at=datetime('now') WHERE id=?
+    `).bind(jumlah, keterangan ?? null, status, existing.id).run()
+  } else {
+    const status = jumlah <= 0 ? 'lunas' : 'belum_bayar'
+    await db.prepare(`
+      INSERT INTO fin_spp_saldo_awal (id, siswa_id, jumlah, status, keterangan)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(generateId(), siswaId, jumlah, status, keterangan ?? null).run()
+  }
+  revalidatePath(`/dashboard/keuangan/siswa/${siswaId}`)
+  return { error: null, success: 'Saldo awal SPP disimpan' }
+}
+
+export async function tandaiLunasSaldoAwalSpp(saldoAwalId: string) {
+  const { db } = await requireAuth('keuangan-spp')
+  const rec = await db.prepare('SELECT jumlah FROM fin_spp_saldo_awal WHERE id = ?').bind(saldoAwalId).first<any>()
+  if (!rec) return { error: 'Data tidak ditemukan', success: null }
+  await db.prepare(`
+    UPDATE fin_spp_saldo_awal SET total_dibayar=?, status='lunas', updated_at=datetime('now') WHERE id=?
+  `).bind(rec.jumlah, saldoAwalId).run()
+  return { error: null, success: 'Tunggakan awal SPP ditandai lunas' }
+}
+
 // ─── SPP Mulai (tanggal mulai per angkatan / per siswa) ────────────────────
 
 export async function getSppMulaiList() {
@@ -993,7 +1049,7 @@ export async function getDashboardStats(tahunAjaran?: string) {
 export async function getBukuBesarSiswa(siswaId: string) {
   const { db } = await requireAuth('keuangan-dspt')
 
-  const [siswa, dspt, sppTagihan, sppMulaiRow, kopTagihan, transaksi, janjiList] = await Promise.all([
+  const [siswa, dspt, sppTagihan, sppMulaiRow, sppSaldoAwal, kopTagihan, transaksi, janjiList] = await Promise.all([
     db.prepare(`
       SELECT s.*, k.tingkat, k.nomor_kelas, k.kelompok
       FROM siswa s
@@ -1012,6 +1068,7 @@ export async function getBukuBesarSiswa(siswaId: string) {
       WHERE s2.id = ? AND m2.siswa_id IS NULL
       LIMIT 1
     `).bind(siswaId, siswaId).first<any>(),
+    db.prepare('SELECT * FROM fin_spp_saldo_awal WHERE siswa_id = ?').bind(siswaId).first<any>(),
     db.prepare(`
       SELECT t.*, GROUP_CONCAT(i.nama_item, ', ') as item_names
       FROM fin_koperasi_tagihan t
@@ -1086,6 +1143,7 @@ export async function getBukuBesarSiswa(siswaId: string) {
     dspt,
     sppTagihan: freshSppTagihan,
     sppMulai: sppMulaiRow ?? null,
+    sppSaldoAwal: sppSaldoAwal ?? null,
     kopTagihan,
     kopItems,
     transaksi: transaksi.results ?? [],

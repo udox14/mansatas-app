@@ -19,7 +19,7 @@ import { formatRupiah } from '@/lib/utils'
 import {
   createDspt, searchSiswa, updateDsptTarget, updateDsptPembayaran,
   tandaiDsptLunas, setNominalDsptMassal, importDsptBulk, getDsptList,
-  getSiswaTemplate,
+  getSiswaTemplate, tandaiLunasMigrasiDspt,
 } from '../actions'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 
@@ -124,6 +124,10 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
   const [massalAngkatan, setMassalAngkatan] = useState('')
   const [massalNominal, setMassalNominal] = useState('')
   const [massalMsg, setMassalMsg] = useState('')
+
+  // ── Modal: Migrasi Lunas Massal ─────────────────────────────────────────────
+  const [migrasiModal, setMigrasiModal] = useState(false)
+  const [migrasiMsg, setMigrasiMsg] = useState('')
 
   // ── Modal: Import Excel ─────────────────────────────────────────────────────
   const [importModal, setImportModal] = useState<'dspt' | null>(null)
@@ -281,6 +285,14 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
     setImportLoading(false)
   }
 
+  async function handleMigrasiLunas() {
+    startTransition(async () => {
+      const res = await tandaiLunasMigrasiDspt()
+      setMigrasiMsg(res.error ?? res.success ?? '')
+      if (!res.error) { await reloadData(); if (!res.error && res.jumlah > 0) setMigrasiModal(false) }
+    })
+  }
+
   return (
     <div className="space-y-3 pb-8">
       {/* Toolbar */}
@@ -322,6 +334,10 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
             onClick={() => { setImportModal('dspt'); setImportRows([]); setImportMsg('') }}>
             <Upload className="h-3.5 w-3.5" /> Import Excel
+          </Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400"
+            onClick={() => { setMigrasiModal(true); setMigrasiMsg('') }}>
+            <Check className="h-3.5 w-3.5" /> Lunas Massal (Migrasi)
           </Button>
           <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => { setAddModal(true); setAddMsg('') }}>
             <Plus className="h-3.5 w-3.5" /> Input Manual
@@ -631,6 +647,33 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
               <Button size="sm" className="flex-1 h-9 text-sm gap-1.5" disabled={!importRows.length || importLoading || isPending} onClick={handleImportSubmit}>
                 <Upload className="h-3.5 w-3.5" />
                 {importLoading ? 'Mengimport...' : `Import ${importRows.length} Baris`}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal: Migrasi Lunas Massal ───────────────────────────────────── */}
+      <Dialog open={migrasiModal} onOpenChange={v => { if (!v) setMigrasiModal(false) }}>
+        <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
+          <DialogHeader className="px-5 py-4 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
+            <DialogTitle className="text-sm font-semibold text-amber-800 dark:text-amber-300">Tandai Lunas Massal (Migrasi)</DialogTitle>
+          </DialogHeader>
+          <div className="p-5 space-y-4">
+            <div className="text-xs text-slate-600 dark:text-slate-300 space-y-2">
+              <p>Fitur ini akan membuat record DSPT dengan <strong>nominal Rp 0, status Lunas</strong> untuk semua siswa yang <strong>belum punya data DSPT</strong>.</p>
+              <p className="text-amber-700 dark:text-amber-400 font-medium">⚠ Siswa yang sudah punya data DSPT tidak akan tersentuh sama sekali.</p>
+              <p>Gunakan ini untuk data migrasi: siswa yang sudah lunas DSPT tapi belum sempat diinput ke sistem.</p>
+            </div>
+            {migrasiMsg && (
+              <p className={`text-xs px-3 py-2 rounded-md ${migrasiMsg.includes('berhasil') || migrasiMsg.startsWith('0') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' : 'text-rose-600 bg-rose-50 dark:bg-rose-900/20'}`}>
+                {migrasiMsg}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setMigrasiModal(false)}>Batal</Button>
+              <Button size="sm" className="flex-1 h-9 text-sm bg-amber-500 hover:bg-amber-600 text-white" onClick={handleMigrasiLunas} disabled={isPending}>
+                {isPending ? 'Memproses...' : 'Ya, Tandai Lunas'}
               </Button>
             </div>
           </div>
