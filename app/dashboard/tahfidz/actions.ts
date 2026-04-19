@@ -12,8 +12,7 @@ export async function getKelasTahfidz() {
   const { results } = await db.prepare(
     `SELECT id, tingkat, nomor_kelas, kelompok 
      FROM kelas 
-     WHERE kelompok LIKE '%TAHFIDZ%' OR kelompok = 'KEAGAMAAN'
-     ORDER BY tingkat ASC, nomor_kelas ASC`
+     ORDER BY tingkat ASC, CAST(nomor_kelas AS INTEGER) ASC, nomor_kelas ASC`
   ).all<any>()
   
   return results?.map(r => ({
@@ -26,13 +25,14 @@ export async function getKelasTahfidz() {
 // MENDAPATKAN DAFTAR SISWA (BERDASARKAN KELAS ATAU SEARCH)
 // ===========================================
 export async function getSiswaTahfidz(kelasId?: string, search?: string) {
+  if (!kelasId && !search) return []
+
   const db = await getDB()
   
   let q = `
     SELECT s.id, s.nisn, s.nama_lengkap, s.foto_url, k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok
     FROM siswa s
     LEFT JOIN kelas k ON s.kelas_id = k.id
-    LEFT JOIN tahfidz_siswa ts ON ts.siswa_id = s.id
     WHERE s.status = 'aktif'
   `
   
@@ -44,12 +44,9 @@ export async function getSiswaTahfidz(kelasId?: string, search?: string) {
   } else if (search && search.length > 2) {
     q += ` AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)`
     params.push(`%${search}%`, `%${search}%`)
-  } else {
-    // Default: hanya siswa dari kelas tahfidz atau yang sudah terdaftar manual
-    q += ` AND (k.kelompok LIKE '%TAHFIDZ%' OR k.kelompok = 'KEAGAMAAN' OR ts.id IS NOT NULL)`
   }
   
-  q += ` ORDER BY k.tingkat ASC, k.nomor_kelas ASC, s.nama_lengkap ASC LIMIT 50`
+  q += ` ORDER BY k.tingkat ASC, CAST(k.nomor_kelas AS INTEGER) ASC, k.nomor_kelas ASC, s.nama_lengkap ASC LIMIT 50`
   
   const { results } = await db.prepare(q).bind(...params).all<any>()
   return results || []
@@ -273,17 +270,14 @@ export async function getDataLaporanKelas(kelasId?: string) {
     SELECT s.id, s.nisn, s.nama_lengkap, k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok
     FROM siswa s
     LEFT JOIN kelas k ON s.kelas_id = k.id
-    LEFT JOIN tahfidz_siswa ts ON ts.siswa_id = s.id
     WHERE s.status = 'aktif'`
 
   const siswaParams: any[] = []
   if (kelasId) {
     siswaQuery += ` AND s.kelas_id = ?`
     siswaParams.push(kelasId)
-  } else {
-    siswaQuery += ` AND (k.kelompok LIKE '%TAHFIDZ%' OR k.kelompok = 'KEAGAMAAN' OR ts.id IS NOT NULL)`
   }
-  siswaQuery += ` ORDER BY k.tingkat ASC, k.nomor_kelas ASC, s.nama_lengkap ASC`
+  siswaQuery += ` ORDER BY k.tingkat ASC, CAST(k.nomor_kelas AS INTEGER) ASC, k.nomor_kelas ASC, s.nama_lengkap ASC`
 
   const { results: siswaResults } = await db.prepare(siswaQuery).bind(...siswaParams).all<any>()
   const siswaList = siswaResults || []
@@ -295,14 +289,11 @@ export async function getDataLaporanKelas(kelasId?: string) {
     FROM tahfidz_progress tp
     INNER JOIN siswa s ON tp.siswa_id = s.id
     LEFT JOIN kelas k ON s.kelas_id = k.id
-    LEFT JOIN tahfidz_siswa ts ON ts.siswa_id = s.id
     WHERE s.status = 'aktif'`
   const progParams: any[] = []
   if (kelasId) {
     progQuery += ` AND s.kelas_id = ?`
     progParams.push(kelasId)
-  } else {
-    progQuery += ` AND (k.kelompok LIKE '%TAHFIDZ%' OR k.kelompok = 'KEAGAMAAN' OR ts.id IS NOT NULL)`
   }
 
   const { results: progResults } = await db.prepare(progQuery).bind(...progParams).all<any>()

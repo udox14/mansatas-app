@@ -11,7 +11,6 @@ import { Search, Loader2, BookOpen, ChevronRight, ChevronUp, History, Check, Pri
 import { getSiswaTahfidz, getProgressSiswa, simpanSetoranHafalan, getRiwayatSetoran, getNilaiJuz, simpanNilaiJuz, simpanHafalanJuzPenuh } from '../actions'
 import { AyatGrid } from './AyatGrid'
 import { RiwayatModal } from './RiwayatModal'
-import { TambahSiswaModal } from './TambahSiswaModal'
 import { CetakLaporanModal, type CetakType } from './CetakLaporanModal'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 
@@ -32,7 +31,7 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
     setCetakType(type)
     setCetakModalOpen(true)
   }
-  const [kelasId, setKelasId] = useState<string>('all')
+  const [kelasId, setKelasId] = useState<string>('')
   const [search, setSearch] = useState('')
   const [siswaList, setSiswaList] = useState<any[]>([])
   const [isLoadingSiswa, setIsLoadingSiswa] = useState(false)
@@ -57,7 +56,7 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
   // Load siswa
   const fetchSiswa = async () => {
     setIsLoadingSiswa(true)
-    const data = await getSiswaTahfidz(kelasId === 'all' ? undefined : kelasId, search)
+    const data = await getSiswaTahfidz(kelasId, search)
     setSiswaList(data)
     setIsLoadingSiswa(false)
   }
@@ -169,21 +168,23 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
     
     return (
       <Card 
-        className={`cursor-pointer transition-all hover:border-emerald-500 dark:hover:border-emerald-500 hover:shadow-sm ${selectedJuz === juzNum ? 'border-emerald-500 dark:border-emerald-500 ring-1 ring-emerald-500' : ''}`}
+        className={`cursor-pointer h-full transition-all hover:border-emerald-500 dark:hover:border-emerald-500 hover:shadow-sm ${selectedJuz === juzNum ? 'border-emerald-500 dark:border-emerald-500 ring-1 ring-emerald-500' : ''}`}
         onClick={() => { setSelectedJuz(juzNum); setSelectedSurah(null) }}
       >
-        <CardContent className="p-4">
+        <CardContent className="p-4 h-full flex flex-col justify-between">
           <div className="flex justify-between items-center mb-2">
             <h4 className="font-semibold text-emerald-800 dark:text-emerald-400">Juz {juzNum}</h4>
             {nilaiJuzObj && (
               <div className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 text-xs px-2 py-0.5 rounded font-medium border border-emerald-200 dark:border-emerald-800">
-                Nilai: {nilaiJuzObj.nilai}
+                {nilaiJuzObj.nilai}
               </div>
             )}
           </div>
-          <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">{hafal} dari {total} Ayat</div>
-          <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800/80 rounded-full overflow-hidden">
-            <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${pct}%`}}></div>
+          <div>
+            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">{hafal}/{total} ayat</div>
+            <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800/80 rounded-full overflow-hidden">
+              <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${pct}%`}}></div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -198,10 +199,9 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
           <h3 className="font-semibold text-slate-800 dark:text-slate-200">Pilih Siswa</h3>
           <Select value={kelasId} onValueChange={setKelasId}>
             <SelectTrigger>
-              <SelectValue placeholder="Pilih Kelas" />
+              <SelectValue placeholder="Pilih Kelas..." />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Semua Kelas Tahfidz</SelectItem>
               {kelasList.map(k => (
                 <SelectItem key={k.id} value={k.id}>{k.label}</SelectItem>
               ))}
@@ -217,8 +217,6 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          
-          <TambahSiswaModal onSuccess={fetchSiswa} />
         </div>
 
         <div className="bg-white dark:bg-slate-900 rounded-xl border shadow-sm overflow-hidden flex flex-col h-[280px] md:h-[600px] lg:h-[700px]">
