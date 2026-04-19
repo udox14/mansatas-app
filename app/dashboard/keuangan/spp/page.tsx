@@ -5,7 +5,7 @@ import { getDB } from '@/utils/db'
 import { checkFeatureAccess } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
-import { getSppSettings, getSppTagihanList } from '../actions'
+import { getSppSettings, getSppTagihanList, getSppMulaiList } from '../actions'
 import { SppClient } from './spp-client'
 
 export const dynamic = 'force-dynamic'
@@ -17,10 +17,11 @@ async function SppDataFetcher() {
 
   const db = await (await import('@/utils/db')).getDB()
 
-  const [{ data: settings }, { data: tagihan }, angkatanRes] = await Promise.all([
+  const [{ data: settings }, { data: tagihan }, angkatanRes, { data: mulai }] = await Promise.all([
     getSppSettings(),
     getSppTagihanList({ tahun, bulan }),
     db.prepare('SELECT DISTINCT tahun_masuk FROM siswa WHERE tahun_masuk IS NOT NULL ORDER BY tahun_masuk DESC').all<{ tahun_masuk: number }>(),
+    getSppMulaiList(),
   ])
 
   return (
@@ -30,6 +31,7 @@ async function SppDataFetcher() {
       defaultTahun={tahun}
       defaultBulan={bulan}
       angkatanList={(angkatanRes.results ?? []).map(r => r.tahun_masuk)}
+      initialMulai={mulai}
     />
   )
 }

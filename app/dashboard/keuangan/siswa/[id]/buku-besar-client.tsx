@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -15,9 +15,9 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { CheckCircle2, Clock, XCircle, Plus, Printer, AlertTriangle, Ban, Calendar } from 'lucide-react'
+import { CheckCircle2, Clock, XCircle, Plus, Printer, AlertTriangle, Ban, Calendar, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar, createKoperasiTagihan } from '../../actions'
+import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar, createKoperasiTagihan, getOrCreateSppTagihan, setSppMulaiSiswa } from '../../actions'
 import { KuitansiModal, type KuitansiData } from '../../components/kuitansi-print'
 
 const STATUS_MAP = {
@@ -51,7 +51,62 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
   const [voidAlasan, setVoidAlasan] = useState('')
   const [janjiForm, setJanjiForm] = useState({ tanggal: '', catatan: '' })
 
-  const { siswa, dspt, sppTagihan, kopTagihan, kopItems, transaksi, janjiList } = data
+  const { siswa, dspt, sppTagihan, sppMulai, kopTagihan, kopItems, transaksi, janjiList } = data
+
+  // ── SPP tahun navigation ──────────────────────────────────────────────────
+  const [sppTahun, setSppTahun] = useState(() => new Date().getFullYear())
+  const [mulaiEditModal, setMulaiEditModal] = useState(false)
+  const [mulaiForm, setMulaiForm] = useState({
+    bulan: String(sppMulai?.bulan_mulai ?? new Date().getMonth() + 1),
+    tahun: String(sppMulai?.bulan_mulai ? sppMulai.tahun_mulai : new Date().getFullYear()),
+  })
+
+  // Map: `${bulan}-${tahun}` → tagihan
+  const sppTagihanMap = useMemo(() => {
+    const map = new Map<string, any>()
+    for (const t of sppTagihan) map.set(`${t.bulan}-${t.tahun}`, t)
+    return map
+  }, [sppTagihan])
+
+  // Apakah bulan ini sebelum tanggal mulai SPP siswa?
+  function isBeforeMulai(bulan: number, tahun: number) {
+    if (!sppMulai) return false // belum diatur → semua aktif
+    if (tahun < sppMulai.tahun_mulai) return true
+    if (tahun === sppMulai.tahun_mulai && bulan < sppMulai.bulan_mulai) return true
+    return false
+  }
+
+  // Apakah bulan ini sudah lewat (nunggak)?
+  function isPastMonth(bulan: number, tahun: number) {
+    const now = new Date()
+    if (tahun < now.getFullYear()) return true
+    if (tahun === now.getFullYear() && bulan < now.getMonth() + 1) return true
+    return false
+  }
+
+  async function handleClickBulanSpp(bulan: number) {
+    if (isBeforeMulai(bulan, sppTahun)) return
+    startTransition(async () => {
+      const res = await getOrCreateSppTagihan(siswa.id, bulan, sppTahun)
+      if (res.error || !res.data) { setMsg(res.error ?? 'Gagal membuat tagihan'); return }
+      if (res.data.status === 'lunas') {
+        // Tampilkan rekap
+        openKuitansiRekap('spp', res.data)
+        return
+      }
+      setBayarModal({ type: 'spp', target: res.data })
+      setBayarForm({ jumlah: String(res.data.nominal - res.data.total_dibayar - res.data.total_diskon), metode: 'tunai', selectedItems: [] })
+    })
+  }
+
+  async function handleSaveMulai(e: React.FormEvent) {
+    e.preventDefault()
+    startTransition(async () => {
+      const res = await setSppMulaiSiswa(siswa.id, parseInt(mulaiForm.bulan), parseInt(mulaiForm.tahun))
+      setMsg(res.error ?? res.success ?? '')
+      if (!res.error) { setMulaiEditModal(false); router.refresh() }
+    })
+  }
 
   function getJanji(type: string, id: string) {
     return janjiList.find((j: any) => j.target_type === type && j.target_id === id)
@@ -454,61 +509,128 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
 
         {/* ── TAB SPP ── */}
         <TabsContent value="spp" className="space-y-3 mt-0">
-          {sppTagihan.length === 0 ? (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-8 text-center">
-              <p className="text-sm text-slate-400">Belum ada tagihan SPP</p>
+          {/* Header: mulai SPP + navigasi tahun */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <div className="text-xs text-slate-500">
+                {sppMulai
+                  ? <>Mulai SPP: <span className="font-semibold text-slate-700 dark:text-slate-300">{BULAN_LABEL[sppMulai.bulan_mulai]} {sppMulai.tahun_mulai}</span></>
+                  : <span className="text-amber-600">Mulai SPP belum diatur</span>
+                }
+              </div>
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600"
+                title="Atur mulai SPP"
+                onClick={() => {
+                  setMulaiForm({
+                    bulan: String(sppMulai?.bulan_mulai ?? new Date().getMonth() + 1),
+                    tahun: String(sppMulai?.tahun_mulai ?? new Date().getFullYear()),
+                  })
+                  setMulaiEditModal(true)
+                }}>
+                <Pencil className="h-3 w-3" />
+              </Button>
             </div>
-          ) : (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                    <TableHead className="text-xs font-semibold">Periode</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Nominal</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Dibayar</TableHead>
-                    <TableHead className="text-xs font-semibold text-right">Sisa</TableHead>
-                    <TableHead className="text-xs font-semibold">Status</TableHead>
-                    <TableHead className="w-28" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sppTagihan.map((row: any) => {
-                    const sisa = row.nominal - row.total_dibayar - row.total_diskon
-                    const s = STATUS_MAP[row.status as keyof typeof STATUS_MAP] ?? STATUS_MAP.belum_bayar
-                    const Icon = s.icon
-                    return (
-                      <TableRow key={row.id}>
-                        <TableCell className="text-sm font-medium">{BULAN_LABEL[row.bulan]} {row.tahun}</TableCell>
-                        <TableCell className="text-sm text-right">{formatRupiah(row.nominal)}</TableCell>
-                        <TableCell className="text-sm text-right text-emerald-600">{formatRupiah(row.total_dibayar)}</TableCell>
-                        <TableCell className={`text-sm text-right font-medium ${sisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatRupiah(sisa)}</TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${s.cls}`}>
-                            <Icon className="h-2.5 w-2.5" />{s.label}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            {sisa > 0 && (
-                              <Button size="sm" variant="outline" className="h-6 text-[11px] px-2"
-                                onClick={() => setBayarModal({ type: 'spp', target: row })}>
-                                Bayar
-                              </Button>
-                            )}
-                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
-                              title="Cetak Kuitansi"
-                              onClick={() => openKuitansiRekap('spp', row)}>
-                              <Printer className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+            {/* Navigasi tahun */}
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setSppTahun(t => t - 1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm font-semibold w-12 text-center">{sppTahun}</span>
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setSppTahun(t => t + 1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
-          )}
+          </div>
+
+          {/* Grid 12 kartu bulan */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {Array.from({ length: 12 }, (_, i) => i + 1).map(bulan => {
+              const tagihan = sppTagihanMap.get(`${bulan}-${sppTahun}`)
+              const sebelumMulai = isBeforeMulai(bulan, sppTahun)
+              const nunggak = tagihan && tagihan.status !== 'lunas' && isPastMonth(bulan, sppTahun)
+              const lunas = tagihan?.status === 'lunas'
+
+              return (
+                <button
+                  key={bulan}
+                  type="button"
+                  disabled={sebelumMulai || isPending}
+                  onClick={() => handleClickBulanSpp(bulan)}
+                  className={[
+                    'rounded-xl border p-3 text-left transition-all',
+                    sebelumMulai
+                      ? 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 opacity-40 cursor-not-allowed'
+                      : lunas
+                        ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 cursor-pointer'
+                        : nunggak
+                          ? 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20 hover:bg-rose-100 cursor-pointer'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer',
+                  ].join(' ')}
+                >
+                  <p className={`text-sm font-bold mb-1 ${nunggak ? 'text-rose-600' : lunas ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>
+                    {BULAN_LABEL[bulan]}
+                  </p>
+                  {tagihan ? (
+                    <>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Tagihan</p>
+                      <p className={`text-sm font-semibold ${nunggak ? 'text-rose-600' : lunas ? 'text-emerald-600' : 'text-slate-800 dark:text-slate-200'}`}>
+                        {formatRupiah(tagihan.nominal)}
+                      </p>
+                      {nunggak && (
+                        <span className="mt-1.5 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400">
+                          NUNGGAK
+                        </span>
+                      )}
+                      {lunas && (
+                        <span className="mt-1.5 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
+                          LUNAS
+                        </span>
+                      )}
+                    </>
+                  ) : sebelumMulai ? (
+                    <p className="text-[11px] text-slate-400 italic">Tidak berlaku</p>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic">Tap untuk bayar</p>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Modal: Atur mulai SPP per siswa */}
+          <Dialog open={mulaiEditModal} onOpenChange={v => { if (!v) setMulaiEditModal(false) }}>
+            <DialogContent className="sm:max-w-xs rounded-xl p-0 overflow-hidden">
+              <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
+                <DialogTitle className="text-sm font-semibold">Atur Mulai SPP — {siswa.nama_lengkap}</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSaveMulai} className="p-5 space-y-3">
+                <p className="text-xs text-slate-500">Override mulai SPP khusus untuk siswa ini (misalnya siswa baru masuk tengah tahun).</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Bulan Mulai</Label>
+                    <Select value={mulaiForm.bulan} onValueChange={v => setMulaiForm(f => ({ ...f, bulan: v }))}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {BULAN_LABEL.slice(1).map((b, i) => (
+                          <SelectItem key={i + 1} value={String(i + 1)}>{b}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Tahun Mulai</Label>
+                    <Input type="number" value={mulaiForm.tahun}
+                      onChange={e => setMulaiForm(f => ({ ...f, tahun: e.target.value }))}
+                      className="h-9 text-sm" min={2020} max={2040} />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setMulaiEditModal(false)}>Batal</Button>
+                  <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}>Simpan</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* ── TAB KOPERASI ── */}
