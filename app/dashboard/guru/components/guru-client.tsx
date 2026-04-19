@@ -512,37 +512,48 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
         </div>
 
         {viewMode === 'gallery' ? (
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-            {paginatedData.length === 0 ? (
-              <div className="col-span-full py-12 text-center text-sm text-slate-400 bg-surface rounded-lg border border-surface">
-                Tidak ada pegawai ditemukan.
-              </div>
-            ) : paginatedData.map(p => (
-              <div key={p.id} className="bg-surface rounded-lg border border-surface overflow-hidden group flex flex-col">
-                <div className="relative aspect-[3/4] bg-surface-3">
-                  {uploadingId === p.id ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-slate-900/70 z-10">
-                      <Loader2 className="h-5 w-5 text-emerald-600 animate-spin" />
-                    </div>
-                  ) : p.avatar_url ? (
-                    <img src={p.avatar_url} alt={p.nama_lengkap} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className={cn("w-full h-full bg-gradient-to-br flex items-center justify-center text-3xl font-black text-white/60", getAvatarColor(p.nama_lengkap))}>
-                      {p.nama_lengkap.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <label className="absolute bottom-1 right-1 bg-white dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 p-1 rounded shadow cursor-pointer z-10 hover:bg-surface transition-colors">
-                    <Camera className="w-3 h-3" />
-                    <input type="file" className="hidden" accept="image/*" capture="environment" onChange={e => handleUploadFoto(p.id, e)} />
-                  </label>
+          <>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+              {paginatedData.length === 0 ? (
+                <div className="col-span-full py-12 text-center text-sm text-slate-400 bg-surface rounded-lg border border-surface">
+                  Tidak ada pegawai ditemukan.
                 </div>
-                <div className="p-1.5 text-center flex-1">
-                  <p className="text-[10px] font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight line-clamp-2">{p.nama_lengkap}</p>
-                  <p className="text-[9px] text-slate-400 mt-0.5">{getRoleLabel(p.role)}</p>
+              ) : paginatedData.map(p => (
+                <div key={p.id} className="bg-surface rounded-lg border border-surface overflow-hidden group flex flex-col">
+                  <div className="relative aspect-[3/4] bg-surface-3">
+                    {uploadingId === p.id ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-slate-900/70 z-10">
+                        <Loader2 className="h-5 w-5 text-emerald-600 animate-spin" />
+                      </div>
+                    ) : p.avatar_url ? (
+                      <img src={p.avatar_url} alt={p.nama_lengkap} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className={cn("w-full h-full bg-gradient-to-br flex items-center justify-center text-3xl font-black text-white/60", getAvatarColor(p.nama_lengkap))}>
+                        {p.nama_lengkap.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <label className="absolute bottom-1 right-1 bg-white dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 p-1 rounded shadow cursor-pointer z-10 hover:bg-surface transition-colors">
+                      <Camera className="w-3 h-3" />
+                      <input type="file" className="hidden" accept="image/*" capture="environment" onChange={e => handleUploadFoto(p.id, e)} />
+                    </label>
+                  </div>
+                  <div className="p-1.5 text-center flex-1">
+                    <p className="text-[10px] font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight line-clamp-2">{p.nama_lengkap}</p>
+                    <p className="text-[9px] text-slate-400 mt-0.5">{getRoleLabel(p.role)}</p>
+                  </div>
                 </div>
+              ))}
+            </div>
+            {/* Desktop Pagination for Gallery View */}
+            <div className="hidden md:flex items-center justify-between px-4 py-2 mt-3 bg-surface border border-surface rounded-lg">
+              <span className="text-xs text-slate-500 dark:text-slate-400">Total <strong className="text-slate-700 dark:text-slate-300 dark:text-slate-200">{filteredData.length}</strong> pegawai</span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 px-2.5 text-xs rounded">&#8592;</Button>
+                <span className="text-xs font-medium px-2">{currentPage}/{totalPages || 1}</span>
+                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="h-7 px-2.5 text-xs rounded">&#8594;</Button>
               </div>
-            ))}
-          </div>
+            </div>
+          </>
         ) : (
           <>
             {/* MOBILE CARDS */}
