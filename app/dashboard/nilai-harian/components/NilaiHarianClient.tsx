@@ -30,7 +30,7 @@ const fmtTanggal = (d: string) => {
   try { return new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) } catch { return d }
 }
 const gradeColor = (n: number, kkm: number) => {
-  if (n >= kkm) return 'text-emerald-700'
+  if (n >= kkm) return 'text-emerald-700 dark:text-emerald-400'
   if (n >= kkm * 0.8) return 'text-amber-600'
   return 'text-rose-600'
 }
@@ -61,7 +61,7 @@ function MiniBarChart({ data, kkm }: { data: number[]; kkm: number }) {
     <div className="flex items-end gap-2 h-20">
       {buckets.map(b => (
         <div key={b.label} className="flex flex-col items-center flex-1 gap-1">
-          <span className="text-[10px] font-bold text-slate-600">{b.count}</span>
+          <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">{b.count}</span>
           <div className={cn('w-full rounded-t transition-all', b.color)} style={{ height: `${(b.count / bmax) * 52}px`, minHeight: b.count > 0 ? 4 : 0 }} />
           <span className="text-[9px] text-slate-400 leading-tight text-center">{b.label}</span>
         </div>
@@ -100,7 +100,7 @@ function FormSesiDialog({ open, onClose, existing, penugasanId, kkmDefault }: {
       <DialogContent className="sm:max-w-sm">
         <DialogHeader><DialogTitle className="text-sm">{existing ? 'Edit' : 'Tambah'} Sesi Penilaian</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          {msg && <div className={cn('text-xs px-3 py-2 rounded-lg flex items-center gap-2', msg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700')}>
+          {msg && <div className={cn('text-xs px-3 py-2 rounded-lg flex items-center gap-2', msg.ok ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400' : 'bg-rose-50 text-rose-700')}>
             {msg.ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <AlertCircle className="h-3.5 w-3.5 shrink-0" />}{msg.text}
           </div>}
           <div className="space-y-1"><Label className="text-xs">Judul <span className="text-rose-500">*</span></Label>
@@ -230,12 +230,12 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
 
   return (
     <div className="space-y-3">
-      {msg && <div className={cn('text-xs px-3 py-2 rounded-lg flex items-center gap-2', msg.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200')}>
+      {msg && <div className={cn('text-xs px-3 py-2 rounded-lg flex items-center gap-2', msg.ok ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' : 'bg-rose-50 text-rose-700 border border-rose-200')}>
         {msg.ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <AlertCircle className="h-3.5 w-3.5 shrink-0" />}{msg.text}
       </div>}
 
       <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-500">{headers.length} sesi penilaian</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{headers.length} sesi penilaian</p>
         <Button size="sm" onClick={() => { setEditTarget(null); setShowForm(true) }}
           className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1 rounded-lg">
           <Plus className="h-3.5 w-3.5" /> Tambah Sesi
@@ -260,7 +260,7 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
               className={cn('border rounded-xl p-3 cursor-pointer transition-all space-y-2', isSelected ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-300' : 'border-surface bg-surface hover:border-blue-200')}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate">{h.judul}</p>
+                  <p className="font-semibold text-sm text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{h.judul}</p>
                   <p className="text-[10px] text-slate-400">{fmtTanggal(h.tanggal)} · KKM {h.kkm}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -271,7 +271,7 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
                 </div>
               </div>
               <div className="flex items-center gap-3 text-[11px]">
-                <span className="flex items-center gap-1 text-slate-500"><Users className="h-3 w-3" />{h.jumlah_siswa} siswa</span>
+                <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400"><Users className="h-3 w-3" />{h.jumlah_siswa} siswa</span>
                 {h.rata_rata != null && <span className={cn('font-bold', gradeColor(h.rata_rata, h.kkm))}>Rata-rata: {h.rata_rata}</span>}
               </div>
             </div>
@@ -288,7 +288,7 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
               <p className="text-[10px] text-blue-600">{fmtTanggal(selectedHeader.tanggal)} · KKM {selectedHeader.kkm}</p>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={handleDownloadTemplate} className="h-7 px-2 text-[10px] flex items-center gap-1 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600">
+              <button onClick={handleDownloadTemplate} className="h-7 px-2 text-[10px] flex items-center gap-1 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400">
                 <Download className="h-3 w-3" /> Template
               </button>
               <label className="h-7 px-2 text-[10px] flex items-center gap-1 border border-blue-200 rounded-lg hover:bg-blue-50 text-blue-700 cursor-pointer">
@@ -313,8 +313,8 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
               <div className="block md:hidden divide-y divide-slate-100">
                 {detail.map((s, i) => {
                   const n = parseFloat(nilaiDraft[s.siswa_id] || '')
-                  const color = isNaN(n) ? 'text-slate-700' : gradeColor(n, selectedHeader.kkm)
-                  const bgColor = isNaN(n) ? '' : n >= selectedHeader.kkm ? 'bg-emerald-50 border-emerald-200' : n >= selectedHeader.kkm * 0.8 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'
+                  const color = isNaN(n) ? 'text-slate-700 dark:text-slate-300' : gradeColor(n, selectedHeader.kkm)
+                  const bgColor = isNaN(n) ? '' : n >= selectedHeader.kkm ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800' : n >= selectedHeader.kkm * 0.8 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'
                   return (
                     <div key={s.siswa_id} className="px-4 py-3 space-y-2">
                       {/* Nama + No */}
@@ -322,7 +322,7 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="text-[10px] font-bold text-slate-400 shrink-0 w-5">{i + 1}.</span>
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">{s.nama_lengkap}</p>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight">{s.nama_lengkap}</p>
                             <p className="text-[10px] text-slate-400 font-mono">{s.nisn}</p>
                           </div>
                         </div>
@@ -358,12 +358,12 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100">
-                      <th className="px-3 py-2 text-left font-semibold text-slate-500 w-8">No</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-500">Nama Siswa</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-500 w-20">NISN</th>
-                      <th className="px-3 py-2 text-center font-semibold text-slate-500 w-24">Nilai</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-500">Catatan</th>
+                    <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-800">
+                      <th className="px-3 py-2 text-left font-semibold text-slate-500 dark:text-slate-400 w-8">No</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-500 dark:text-slate-400">Nama Siswa</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-500 dark:text-slate-400 w-20">NISN</th>
+                      <th className="px-3 py-2 text-center font-semibold text-slate-500 dark:text-slate-400 w-24">Nilai</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-500 dark:text-slate-400">Catatan</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -371,9 +371,9 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
                       const n = parseFloat(nilaiDraft[s.siswa_id] || '')
                       const color = isNaN(n) ? '' : gradeColor(n, selectedHeader.kkm)
                       return (
-                        <tr key={s.siswa_id} className="hover:bg-slate-50/50">
+                        <tr key={s.siswa_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                           <td className="px-3 py-1.5 text-slate-400">{i + 1}</td>
-                          <td className="px-3 py-1.5 font-medium text-slate-800 dark:text-slate-100">{s.nama_lengkap}</td>
+                          <td className="px-3 py-1.5 font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100">{s.nama_lengkap}</td>
                           <td className="px-3 py-1.5 text-slate-400 font-mono">{s.nisn}</td>
                           <td className="px-3 py-1.5">
                             <Input
@@ -466,23 +466,23 @@ function TabRekap({ penugasanId, mapelNama, kelasLabel }: { penugasanId: string;
       <div className="overflow-x-auto rounded-xl border border-surface">
         <table className="w-full text-xs">
           <thead>
-            <tr className="bg-slate-50 border-b border-slate-100">
-              <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-0 bg-slate-50">No</th>
-              <th className="px-3 py-2 text-left font-semibold text-slate-500 sticky left-6 bg-slate-50">Nama Siswa</th>
+            <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-800">
+              <th className="px-3 py-2 text-left font-semibold text-slate-500 dark:text-slate-400 sticky left-0 bg-slate-50 dark:bg-slate-800">No</th>
+              <th className="px-3 py-2 text-left font-semibold text-slate-500 dark:text-slate-400 sticky left-6 bg-slate-50 dark:bg-slate-800">Nama Siswa</th>
               {headers.map(h => (
-                <th key={h.id} className="px-3 py-2 text-center font-semibold text-slate-500 whitespace-nowrap">
+                <th key={h.id} className="px-3 py-2 text-center font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                   <div>{h.judul}</div>
                   <div className="text-[9px] font-normal text-slate-400">{fmtTanggal(h.tanggal)}</div>
                 </th>
               ))}
-              <th className="px-3 py-2 text-center font-semibold text-slate-500">Rata-rata</th>
+              <th className="px-3 py-2 text-center font-semibold text-slate-500 dark:text-slate-400">Rata-rata</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {rows.map((r, i) => (
-              <tr key={r.siswa_id} className="hover:bg-slate-50/50">
+              <tr key={r.siswa_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                 <td className="px-3 py-2 text-slate-400">{i + 1}</td>
-                <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100 whitespace-nowrap">{r.nama_lengkap}</td>
+                <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 whitespace-nowrap">{r.nama_lengkap}</td>
                 {headers.map(h => {
                   const n = r.nilai[h.id]
                   return (
@@ -591,7 +591,7 @@ function TabAnalitik({ penugasanId }: { penugasanId: string }) {
         {[
           { label: 'Total Siswa', val: rows.length, icon: Users, color: 'bg-blue-50 text-blue-700' },
           { label: 'Total Sesi', val: headers.length, icon: BookOpen, color: 'bg-violet-50 text-violet-700' },
-          { label: 'Rata-rata Kelas', val: allValues.length ? (allValues.reduce((a, b) => a + b, 0) / allValues.length).toFixed(1) : '-', icon: TrendingUp, color: 'bg-emerald-50 text-emerald-700' },
+          { label: 'Rata-rata Kelas', val: allValues.length ? (allValues.reduce((a, b) => a + b, 0) / allValues.length).toFixed(1) : '-', icon: TrendingUp, color: 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400' },
           { label: 'Di Bawah KKM', val: rows.filter(r => { const vals = headers.map(h => r.nilai[h.id]).filter(v => v != null) as number[]; return vals.length > 0 && (vals.reduce((a, b) => a + b, 0) / vals.length) < kkm }).length, icon: TrendingDown, color: 'bg-rose-50 text-rose-700' },
         ].map(card => (
           <div key={card.label} className="bg-surface border border-surface rounded-xl p-3 flex items-center gap-3">
@@ -600,7 +600,7 @@ function TabAnalitik({ penugasanId }: { penugasanId: string }) {
             </div>
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase">{card.label}</p>
-              <p className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none">{card.val}</p>
+              <p className="text-xl font-black text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-none">{card.val}</p>
             </div>
           </div>
         ))}
@@ -617,13 +617,13 @@ function TabAnalitik({ penugasanId }: { penugasanId: string }) {
           return (
             <div key={h.id} className="bg-surface border border-surface rounded-xl p-3 space-y-3">
               <div>
-                <p className="font-bold text-sm text-slate-800 dark:text-slate-100">{h.judul}</p>
+                <p className="font-bold text-sm text-slate-800 dark:text-slate-200 dark:text-slate-100">{h.judul}</p>
                 <p className="text-[10px] text-slate-400">{fmtTanggal(h.tanggal)} · {vals.length} nilai</p>
               </div>
               <MiniBarChart data={vals} kkm={kkm} />
               <div className="grid grid-cols-3 gap-1 text-center text-[10px]">
-                <div><p className="text-slate-400">Rata-rata</p><p className="font-bold text-slate-700 dark:text-slate-200">{avg}</p></div>
-                <div><p className="text-slate-400">Min–Max</p><p className="font-bold text-slate-700 dark:text-slate-200">{min ?? '-'}–{max ?? '-'}</p></div>
+                <div><p className="text-slate-400">Rata-rata</p><p className="font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200">{avg}</p></div>
+                <div><p className="text-slate-400">Min–Max</p><p className="font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200">{min ?? '-'}–{max ?? '-'}</p></div>
                 <div><p className="text-slate-400">Lulus KKM</p><p className="font-bold text-emerald-600">{lulus}/{vals.length}</p></div>
               </div>
             </div>
@@ -641,16 +641,16 @@ function TabAnalitik({ penugasanId }: { penugasanId: string }) {
               .slice(0, 5)
             return (
               <div key={type} className="bg-surface border border-surface rounded-xl overflow-hidden">
-                <div className={cn('px-4 py-2.5 border-b flex items-center gap-2', type === 'top' ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100')}>
+                <div className={cn('px-4 py-2.5 border-b flex items-center gap-2', type === 'top' ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-100' : 'bg-rose-50 border-rose-100')}>
                   {type === 'top' ? <TrendingUp className="h-4 w-4 text-emerald-600" /> : <TrendingDown className="h-4 w-4 text-rose-500" />}
-                  <p className={cn('font-bold text-sm', type === 'top' ? 'text-emerald-800' : 'text-rose-700')}>{type === 'top' ? '5 Nilai Tertinggi' : '5 Nilai Terendah'}</p>
+                  <p className={cn('font-bold text-sm', type === 'top' ? 'text-emerald-800 dark:text-emerald-400' : 'text-rose-700')}>{type === 'top' ? '5 Nilai Tertinggi' : '5 Nilai Terendah'}</p>
                 </div>
                 <div className="divide-y divide-surface-2">
                   {sorted.map((r, i) => (
                     <div key={r.siswa_id} className="px-4 py-2 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
                         <span className="text-[10px] font-bold text-slate-400 w-4">{i + 1}.</span>
-                        <p className="text-xs font-medium text-slate-700 dark:text-slate-200">{r.nama_lengkap}</p>
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{r.nama_lengkap}</p>
                       </div>
                       <span className={cn('text-sm font-bold', gradeColor(r.rata_rata!, kkm))}>{r.rata_rata}</span>
                     </div>
@@ -679,7 +679,7 @@ export function NilaiHarianClient({ penugasanList }: { penugasanList: PenugasanG
 
       {/* Pilih Mapel + Kelas */}
       <div className="bg-surface border border-surface rounded-xl p-4">
-        <Label className="text-xs font-semibold text-slate-500 mb-2 block flex items-center gap-1">
+        <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block flex items-center gap-1">
           <BookOpen className="h-3.5 w-3.5 text-blue-500" /> Mata Pelajaran & Kelas
         </Label>
         {penugasanList.length === 0 ? (

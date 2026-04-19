@@ -111,7 +111,7 @@ export function BukuTamuAdminClient({ initialData, initialTotal }: Props) {
 
       <div className="space-y-3 h-[calc(100vh-10rem)] flex flex-col">
         {/* Filter Bar */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3">
           {/* Mode Toggle */}
           <div className="flex gap-2">
             {[
@@ -141,14 +141,14 @@ export function BukuTamuAdminClient({ initialData, initialTotal }: Props) {
                 type="date"
                 value={filterTanggal}
                 onChange={e => setFilterTanggal(e.target.value)}
-                className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 transition"
+                className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-50 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 transition"
               />
             ) : (
               <input
                 type="month"
                 value={filterBulan}
                 onChange={e => setFilterBulan(e.target.value)}
-                className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 transition"
+                className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-50 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 transition"
               />
             )}
             <button
@@ -162,7 +162,7 @@ export function BukuTamuAdminClient({ initialData, initialTotal }: Props) {
             {hasFilter && (
               <button
                 onClick={resetFilter}
-                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+                className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-700 text-slate-600 dark:text-slate-400 dark:text-slate-300 text-sm font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
               >
                 <RefreshCw className="h-4 w-4" />
               </button>
@@ -206,7 +206,7 @@ export function BukuTamuAdminClient({ initialData, initialTotal }: Props) {
             {data.map((tamu, i) => (
               <div
                 key={tamu.id}
-                className="flex gap-3 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-700/60 shadow-sm hover:shadow-md transition-shadow group"
+                className="flex gap-3 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 dark:border-slate-700/60 shadow-sm hover:shadow-md transition-shadow group"
               >
                 {/* No + Foto */}
                 <div className="flex flex-col items-center gap-2 shrink-0">
@@ -237,7 +237,7 @@ export function BukuTamuAdminClient({ initialData, initialTotal }: Props) {
                 <div className="flex-1 min-w-0 space-y-1.5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">
+                      <p className="font-bold text-slate-900 dark:text-slate-50 dark:text-slate-100 text-sm truncate">
                         {tamu.nama || tamu.instansi || '—'}
                       </p>
                       <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
@@ -271,7 +271,7 @@ export function BukuTamuAdminClient({ initialData, initialTotal }: Props) {
                     </button>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
-                    <span className="font-medium text-slate-600 dark:text-slate-300">Keperluan: </span>
+                    <span className="font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300">Keperluan: </span>
                     {tamu.maksud_tujuan}
                   </p>
                   {tamu.pencatat_nama && (
@@ -292,7 +292,7 @@ export function BukuTamuAdminClient({ initialData, initialTotal }: Props) {
             <button
               onClick={() => changePage(page - 1)}
               disabled={page <= 1 || isPending}
-              className="flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
               <ChevronLeft className="h-4 w-4" /> Sebelumnya
             </button>
@@ -302,7 +302,7 @@ export function BukuTamuAdminClient({ initialData, initialTotal }: Props) {
             <button
               onClick={() => changePage(page + 1)}
               disabled={page >= totalPages || isPending}
-              className="flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
               Berikutnya <ChevronRight className="h-4 w-4" />
             </button>

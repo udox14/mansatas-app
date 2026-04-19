@@ -136,7 +136,7 @@ export function AsetTab({ aset: initialAset, kategori, options }: AsetTabProps) 
 
         {/* Date and Actions Row */}
         <div className="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
-          <div className="flex items-center gap-2 rounded-md border border-slate-200 dark:border-slate-800 px-3 h-11 md:h-10 bg-slate-50 dark:bg-slate-900/50 text-[13px] w-full md:w-auto">
+          <div className="flex items-center gap-2 rounded-md border border-slate-200 dark:border-slate-800 px-3 h-11 md:h-10 bg-slate-50 dark:bg-slate-800 dark:bg-slate-900/50 text-[13px] w-full md:w-auto">
              <span className="text-muted-foreground font-medium whitespace-nowrap">Periode:</span>
              <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="bg-transparent outline-none cursor-pointer flex-1" title="Dari Tanggal" />
              <span className="text-muted-foreground">-</span>
@@ -155,15 +155,15 @@ export function AsetTab({ aset: initialAset, kategori, options }: AsetTabProps) 
       </div>
 
       {/* TABLE */}
-      <div className="border rounded-xl bg-white dark:bg-slate-950 shadow-sm relative min-h-[400px] overflow-hidden">
+      <div className="border rounded-xl bg-white dark:bg-slate-900 dark:bg-slate-950 shadow-sm relative min-h-[400px] overflow-hidden">
         {isPending && (
-          <div className="absolute inset-0 bg-white/60 dark:bg-slate-950/60 z-10 flex items-center justify-center backdrop-blur-sm rounded-xl">
+          <div className="absolute inset-0 bg-white dark:bg-slate-900/60 dark:bg-slate-950/60 z-10 flex items-center justify-center backdrop-blur-sm rounded-xl">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
           </div>
         )}
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader className="bg-slate-50/80 dark:bg-slate-900/80">
+            <TableHeader className="bg-slate-50 dark:bg-slate-800/80 dark:bg-slate-900/80">
               <TableRow>
                 <TableHead className="w-12 text-center whitespace-nowrap">No</TableHead>
                 <TableHead className="whitespace-nowrap">Nama & Merek</TableHead>
@@ -198,36 +198,36 @@ export function AsetTab({ aset: initialAset, kategori, options }: AsetTabProps) 
                             {item.foto_url ? (
                               <img src={item.foto_url} alt="foto" className="w-10 h-10 rounded-md object-cover border shadow-sm" />
                             ) : (
-                              <div className="w-10 h-10 rounded-md bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200">
+                              <div className="w-10 h-10 rounded-md bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-400 border border-slate-200 dark:border-slate-800">
                                 <ImageIcon className="w-4 h-4" />
                               </div>
                             )}
                             <div>
-                              <div className="font-semibold text-slate-800">{item.nama_barang}</div>
+                              <div className="font-semibold text-slate-800 dark:text-slate-200">{item.nama_barang}</div>
                               <div className="text-xs text-muted-foreground">{item.merek || '-'}</div>
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="font-semibold text-slate-700">{item.kuantitas}</TableCell>
+                        <TableCell className="font-semibold text-slate-700 dark:text-slate-300">{item.kuantitas}</TableCell>
                         <TableCell>
-                          <div className="text-slate-800 font-medium">{item.tahun_pembuatan || '-'}</div>
+                          <div className="text-slate-800 dark:text-slate-200 font-medium">{item.tahun_pembuatan || '-'}</div>
                           <div className="text-xs text-muted-foreground">{item.tanggal_pembukuan}</div>
                         </TableCell>
                         <TableCell>
-                          <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[11px] font-medium border border-slate-200">
+                          <span className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded text-[11px] font-medium border border-slate-200 dark:border-slate-800">
                             {item.asal_anggaran || '-'}
                           </span>
                         </TableCell>
                         <TableCell>
                           <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide border ${
-                            item.keadaan_barang === 'BAIK' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            item.keadaan_barang === 'BAIK' ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' :
                             item.keadaan_barang === 'KURANG BAIK' ? 'bg-amber-50 text-amber-700 border-amber-200' :
                             item.keadaan_barang === 'RUSAK' ? 'bg-red-50 text-red-700 border-red-200' :
-                            'bg-slate-50 text-slate-600 border-slate-200'
+                            'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
                           }`}>
                             {item.keadaan_barang || '-'}
                           </span>
-                          {item.keterangan && <div className="text-[11px] text-slate-500 mt-1 max-w-[150px] truncate" title={item.keterangan}>{item.keterangan}</div>}
+                          {item.keterangan && <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 max-w-[150px] truncate" title={item.keterangan}>{item.keterangan}</div>}
                         </TableCell>
                         <TableCell className="font-mono text-sm tracking-tight">
                           {item.harga ? `Rp ${item.harga.toLocaleString('id-ID')}` : '-'}

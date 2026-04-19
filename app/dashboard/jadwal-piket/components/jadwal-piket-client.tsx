@@ -83,13 +83,13 @@ export function JadwalPiketClient({
   return (
     <div className="space-y-6">
       {pesan && (
-        <div className={`p-4 rounded-xl flex items-center gap-2 text-sm font-medium ${pesan.tipe === 'sukses' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+        <div className={`p-4 rounded-xl flex items-center gap-2 text-sm font-medium ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' : 'bg-red-50 text-red-700 border border-red-200'}`}>
           <CheckCircle2 className="h-5 w-5" /> {pesan.teks}
         </div>
       )}
 
       <Tabs defaultValue="jadwal" className="space-y-4">
-        <TabsList className="bg-white border rounded-xl p-1 shadow-sm grid grid-cols-2 max-w-[400px]">
+        <TabsList className="bg-white dark:bg-slate-900 border rounded-xl p-1 shadow-sm grid grid-cols-2 max-w-[400px]">
           <TabsTrigger value="jadwal" className="rounded-lg data-[state=active]:bg-violet-50 data-[state=active]:text-violet-700 data-[state=active]:shadow-none">
             <CalendarDays className="h-4 w-4 mr-2" /> Jadwal Piket
           </TabsTrigger>

@@ -29,7 +29,7 @@ type PolaJam = { id: string; nama: string; hari: number[]; slots: any[] }
 
 const getAvatarColor = (name: string) => {
   const colors = [
-    'from-emerald-100 to-emerald-200 text-emerald-800',
+    'from-emerald-100 to-emerald-200 text-emerald-800 dark:text-emerald-400',
     'from-teal-100 to-teal-200 text-teal-800',
     'from-blue-100 to-blue-200 text-blue-800',
     'from-indigo-100 to-indigo-200 text-indigo-800',
@@ -138,7 +138,7 @@ function BergilirTab({ taAktif, guruList, isSuperAdmin }: {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
           <Input placeholder="Cari mapel atau guru..." value={searchBergilir} onChange={e => setSearchBergilir(e.target.value)} className="pl-8 h-8 text-sm rounded-md" />
         </div>
-        <button onClick={loadData} className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-surface-2 hover:text-slate-600 transition-colors shrink-0" title="Refresh">
+        <button onClick={loadData} className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:bg-surface-2 hover:text-slate-600 dark:hover:text-slate-400 transition-colors shrink-0" title="Refresh">
           <RefreshCw className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -157,7 +157,7 @@ function BergilirTab({ taAktif, guruList, isSuperAdmin }: {
             <Users className="h-8 w-8 text-slate-300 dark:text-slate-600" />
           </div>
           <div className="text-center space-y-1">
-            <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Belum Ada Pelajaran Bergilir</p>
+            <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Belum Ada Pelajaran Bergilir</p>
             <p className="text-xs text-slate-400">Import XML ASC terlebih dahulu, pelajaran RISET/KSM/MUHADATSAH/SPEAKING/THEATER BAHASA otomatis terdeteksi.</p>
           </div>
         </div>
@@ -186,7 +186,7 @@ function BergilirTab({ taAktif, guruList, isSuperAdmin }: {
                     <div className="flex items-center gap-2">
                       <div className="h-7 w-7 rounded-md bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-xs border border-amber-200">{item.tingkat}</div>
                       <div>
-                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{formatNamaKelas(item.tingkat, item.nomor_kelas, item.kelas_kelompok)}</span>
+                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">{formatNamaKelas(item.tingkat, item.nomor_kelas, item.kelas_kelompok)}</span>
                       </div>
                     </div>
                     {isSuperAdmin && (
@@ -209,7 +209,7 @@ function BergilirTab({ taAktif, guruList, isSuperAdmin }: {
                             "flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg border text-xs font-medium transition-all",
                             isActive
                               ? 'bg-amber-100 border-amber-300 text-amber-900 ring-1 ring-amber-200'
-                              : 'bg-surface-2 border-surface text-slate-600 dark:text-slate-300'
+                              : 'bg-surface-2 border-surface text-slate-600 dark:text-slate-400 dark:text-slate-300'
                           )}>
                             {isActive && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />}
                             <span className="truncate max-w-[140px]">{gp.guru_nama.split(',')[0]}</span>
@@ -480,23 +480,23 @@ export function AkademikClient({
   const MapelFormFields = ({ defaults }: { defaults?: MapelType }) => (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Nama Mata Pelajaran <span className="text-rose-500">*</span></Label>
+        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Nama Mata Pelajaran <span className="text-rose-500">*</span></Label>
         <Input name="nama_mapel" defaultValue={defaults?.nama_mapel} required placeholder="Contoh: Biologi" className="h-9 text-sm rounded-lg" />
       </div>
       <div className="space-y-1.5">
-        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Kode RDM <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-normal">(Opsional)</span></Label>
-        <Input name="kode_mapel" defaultValue={defaults?.kode_mapel || ''} placeholder="Contoh: BIO, IPAT" className="h-9 text-sm rounded-lg font-mono text-emerald-700" />
+        <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Kode RDM <span className="text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 font-normal">(Opsional)</span></Label>
+        <Input name="kode_mapel" defaultValue={defaults?.kode_mapel || ''} placeholder="Contoh: BIO, IPAT" className="h-9 text-sm rounded-lg font-mono text-emerald-700 dark:text-emerald-400" />
       </div>
       <div className="grid grid-cols-3 gap-2">
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Kelompok</Label>
+          <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Kelompok</Label>
           <Select name="kelompok" defaultValue={defaults?.kelompok || 'UMUM'}>
             <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
             <SelectContent>{daftarJurusan.map(j => <SelectItem key={j} value={j} className="text-xs">{j}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Tingkat</Label>
+          <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Tingkat</Label>
           <Select name="tingkat" defaultValue={defaults?.tingkat || 'Semua'}>
             <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -505,7 +505,7 @@ export function AkademikClient({
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Kategori</Label>
+          <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Kategori</Label>
           <Select name="kategori" defaultValue={defaults?.kategori || 'Kelompok Mata Pelajaran Umum'}>
             <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -571,7 +571,7 @@ export function AkademikClient({
                         <div className="flex items-center gap-2.5">
                           <div className="h-7 w-7 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs border border-indigo-200">{p.kelas.tingkat}</div>
                           <div>
-                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{formatNamaKelas(p.kelas.tingkat, p.kelas.nomor_kelas, p.kelas.kelompok)}</span>
+                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">{formatNamaKelas(p.kelas.tingkat, p.kelas.nomor_kelas, p.kelas.kelompok)}</span>
                           </div>
                         </div>
                         <button
@@ -599,10 +599,10 @@ export function AkademikClient({
           {selectedMapelGroup && (
             <div className="flex flex-col max-h-[75vh]">
               <div className="p-4 pb-2">
-                <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100 flex justify-between items-center">
+                <div className="bg-emerald-50 dark:bg-emerald-950/50 p-3 rounded-lg border border-emerald-100 flex justify-between items-center">
                   <div>
                     <p className="font-bold text-emerald-900 text-sm leading-tight">{selectedMapelGroup.mapel_nama_utama}</p>
-                    <p className="text-xs text-emerald-700 mt-0.5">{selectedMapelGroup.total_kelas} Kelas · {selectedMapelGroup.guru_list.length} Guru</p>
+                    <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">{selectedMapelGroup.total_kelas} Kelas · {selectedMapelGroup.guru_list.length} Guru</p>
                   </div>
                 </div>
               </div>
@@ -617,7 +617,7 @@ export function AkademikClient({
                               {gi.guru_nama.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 leading-tight">{gi.guru_nama}</p>
+                              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight">{gi.guru_nama}</p>
                               {gi.mapel_asli !== selectedMapelGroup.mapel_nama_utama && (
                                 <p className="text-[9px] text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 italic">{gi.mapel_asli}</p>
                               )}
@@ -627,8 +627,8 @@ export function AkademikClient({
                         </div>
                         <div className="p-2 grid grid-cols-3 gap-1.5">
                           {gi.kelas_list.map((p: any) => (
-                            <div key={p.id} className="flex justify-between items-center bg-surface-2 px-2 py-1.5 rounded border border-surface-2 group hover:border-emerald-200 transition-colors">
-                              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{formatNamaKelas(p.kelas.tingkat, p.kelas.nomor_kelas, p.kelas.kelompok)}</span>
+                            <div key={p.id} className="flex justify-between items-center bg-surface-2 px-2 py-1.5 rounded border border-surface-2 group hover:border-emerald-200 dark:hover:border-emerald-800 transition-colors">
+                              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">{formatNamaKelas(p.kelas.tingkat, p.kelas.nomor_kelas, p.kelas.kelompok)}</span>
                               <button
                                 onClick={async () => { if (confirm(`Hapus jadwal di Kelas ${formatNamaKelas(p.kelas.tingkat, p.kelas.nomor_kelas, p.kelas.kelompok)}?`)) { setIsMapelPending(true); await hapusPenugasan(p.id); setIsMapelPending(false) } }}
                                 className="text-slate-300 dark:text-slate-600 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
@@ -700,10 +700,10 @@ export function AkademikClient({
                 </div>
                 {/* View toggle */}
                 <div className="flex bg-surface-3 p-0.5 rounded-md shrink-0">
-                  <button onClick={() => setViewModePenugasan('guru')} className={cn("px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 transition-colors", viewModePenugasan === 'guru' ? 'bg-surface text-indigo-700 shadow-sm' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-200')}>
+                  <button onClick={() => setViewModePenugasan('guru')} className={cn("px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 transition-colors", viewModePenugasan === 'guru' ? 'bg-surface text-indigo-700 shadow-sm' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 dark:text-slate-200')}>
                     <User className="h-3.5 w-3.5" /> Guru
                   </button>
-                  <button onClick={() => setViewModePenugasan('mapel')} className={cn("px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 transition-colors", viewModePenugasan === 'mapel' ? 'bg-surface text-indigo-700 shadow-sm' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-200')}>
+                  <button onClick={() => setViewModePenugasan('mapel')} className={cn("px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 transition-colors", viewModePenugasan === 'mapel' ? 'bg-surface text-indigo-700 shadow-sm' : 'text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 dark:text-slate-200')}>
                     <BookOpen className="h-3.5 w-3.5" /> Mapel
                   </button>
                 </div>
@@ -723,7 +723,7 @@ export function AkademikClient({
                     <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Import Data ASC</DialogTitle></DialogHeader>
                     <div className="space-y-3 pt-2">
                       <div className="flex justify-between items-center p-2.5 bg-surface-2 border border-surface rounded-lg">
-                        <span className="text-xs text-slate-600 dark:text-slate-300 dark:text-slate-600 font-medium">Download template:</span>
+                        <span className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 font-medium">Download template:</span>
                         <Button size="sm" variant="outline" onClick={handleDownloadTemplateASC} className="h-7 text-xs gap-1"><Download className="h-3 w-3" />Template</Button>
                       </div>
                       <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-lg text-xs text-indigo-800 space-y-1">
@@ -762,7 +762,7 @@ export function AkademikClient({
                         {g.guru_nama.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">{g.guru_nama}</p>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate leading-tight">{g.guru_nama}</p>
                         <p className="text-xs text-indigo-600 truncate mt-0.5">{g.mapel_nama}</p>
                         {g.mapel_kelompok !== 'UMUM' && <span className="text-[9px] font-bold bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 uppercase">{g.mapel_kelompok}</span>}
                       </div>
@@ -778,15 +778,15 @@ export function AkademikClient({
                   const m = item as any
                   return (
                     <div key={m.key} className="bg-surface border border-surface rounded-lg p-3 flex items-center gap-3">
-                      <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600 border border-emerald-100 shrink-0">
+                      <div className="p-2 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg text-emerald-600 border border-emerald-100 shrink-0">
                         <BookOpen className="h-4 w-4" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">{m.mapel_nama_utama}</p>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate leading-tight">{m.mapel_nama_utama}</p>
                         <p className="text-xs text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{m.guru_list.length} Guru Pengampu</p>
                       </div>
                       <div className="flex flex-col items-end gap-1.5 shrink-0">
-                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">{m.total_kelas} Kls</span>
+                        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">{m.total_kelas} Kls</span>
                         <button onClick={() => setSelectedMapelKey(m.key)} className="text-[10px] font-medium text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 hover:text-emerald-600 flex items-center gap-0.5">
                           <Eye className="h-3 w-3" />Detail
                         </button>
@@ -831,11 +831,11 @@ export function AkademikClient({
                                 <div className={cn("h-8 w-8 shrink-0 rounded-full bg-gradient-to-br flex items-center justify-center text-sm font-bold", getAvatarColor(g.guru_nama))}>
                                   {g.guru_nama.charAt(0).toUpperCase()}
                                 </div>
-                                <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{g.guru_nama}</span>
+                                <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{g.guru_nama}</span>
                               </div>
                             </TableCell>
                             <TableCell className="py-2.5">
-                              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{g.mapel_nama}</p>
+                              <p className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{g.mapel_nama}</p>
                               {g.mapel_kelompok !== 'UMUM' && <span className="text-[9px] font-bold uppercase tracking-wide text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded mt-0.5 inline-block">{g.mapel_kelompok}</span>}
                             </TableCell>
                             <TableCell className="py-2.5 text-center">
@@ -854,23 +854,23 @@ export function AkademikClient({
                           <TableRow key={m.key} className="hover:bg-surface-2/60 border-surface-2 group">
                             <TableCell className="px-4 py-2.5">
                               <div className="flex items-center gap-2.5">
-                                <div className="p-1.5 bg-emerald-50 rounded-md text-emerald-600 border border-emerald-100"><BookOpen className="h-3.5 w-3.5" /></div>
-                                <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{m.mapel_nama_utama}</span>
+                                <div className="p-1.5 bg-emerald-50 dark:bg-emerald-950/50 rounded-md text-emerald-600 border border-emerald-100"><BookOpen className="h-3.5 w-3.5" /></div>
+                                <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{m.mapel_nama_utama}</span>
                               </div>
                             </TableCell>
                             <TableCell className="py-2.5">
                               <div className="flex flex-wrap gap-1">
                                 {m.guru_list.slice(0, 3).map((g: any) => (
-                                  <span key={g.guru_nama} className="text-[10px] font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600 bg-surface-3 border border-surface px-2 py-0.5 rounded">{g.guru_nama.split(',')[0]}</span>
+                                  <span key={g.guru_nama} className="text-[10px] font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 bg-surface-3 border border-surface px-2 py-0.5 rounded">{g.guru_nama.split(',')[0]}</span>
                                 ))}
-                                {m.guru_list.length > 3 && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">+{m.guru_list.length - 3}</span>}
+                                {m.guru_list.length > 3 && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded">+{m.guru_list.length - 3}</span>}
                               </div>
                             </TableCell>
                             <TableCell className="py-2.5 text-center">
-                              <span className="text-sm font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">{m.total_kelas}</span>
+                              <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">{m.total_kelas}</span>
                             </TableCell>
                             <TableCell className="py-2.5 px-4 text-right">
-                              <button onClick={() => setSelectedMapelKey(m.key)} className="text-xs font-medium text-emerald-600 hover:text-emerald-800 flex items-center gap-1 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => setSelectedMapelKey(m.key)} className="text-xs font-medium text-emerald-600 hover:text-emerald-800 dark:hover:text-emerald-400 flex items-center gap-1 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
                                 <Eye className="h-3.5 w-3.5" /> Rincian
                               </button>
                             </TableCell>
@@ -890,7 +890,7 @@ export function AkademikClient({
                   <SelectTrigger className="h-7 w-16 text-xs rounded border-surface"><SelectValue /></SelectTrigger>
                   <SelectContent>{[10,20,50].map(n => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}</SelectContent>
                 </Select>
-                <span><strong className="text-slate-700 dark:text-slate-200">{currentActiveData.length}</strong> grup {viewModePenugasan}</span>
+                <span><strong className="text-slate-700 dark:text-slate-300 dark:text-slate-200">{currentActiveData.length}</strong> grup {viewModePenugasan}</span>
               </div>
               <div className="flex items-center gap-1">
                 <Button variant="outline" size="sm" onClick={() => setCurrentPenugasanPage(p => Math.max(1, p - 1))} disabled={currentPenugasanPage === 1} className="h-7 px-2.5 text-xs rounded">←</Button>
@@ -917,7 +917,7 @@ export function AkademikClient({
                 {/* Import Mapel */}
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 text-xs rounded-md border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                    <Button variant="outline" size="sm" className="h-8 text-xs rounded-md border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50">
                       <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Import
                     </Button>
                   </DialogTrigger>
@@ -925,16 +925,16 @@ export function AkademikClient({
                     <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Import Master Mata Pelajaran</DialogTitle></DialogHeader>
                     <div className="space-y-3 pt-2">
                       <div className="flex justify-between items-center p-2.5 bg-surface-2 border border-surface rounded-lg">
-                        <span className="text-xs text-slate-600 dark:text-slate-300 dark:text-slate-600 font-medium">Download template:</span>
+                        <span className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 font-medium">Download template:</span>
                         <Button size="sm" variant="outline" onClick={handleDownloadTemplateMapel} className="h-7 text-xs gap-1"><Download className="h-3 w-3" />Template</Button>
                       </div>
-                      <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg text-xs text-emerald-800 space-y-0.5">
+                      <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 p-3 rounded-lg text-xs text-emerald-800 dark:text-emerald-400 space-y-0.5">
                         {['NAMA_MAPEL','KODE_RDM (opsional)','KELOMPOK','TINGKAT','KATEGORI'].map(k => (
-                          <p key={k} className="font-mono"><strong className="bg-surface px-1 rounded border border-emerald-200">{k}</strong></p>
+                          <p key={k} className="font-mono"><strong className="bg-surface px-1 rounded border border-emerald-200 dark:border-emerald-800">{k}</strong></p>
                         ))}
                       </div>
                       <Input type="file" accept=".xlsx,.xls" onChange={handleFileUploadMapel} disabled={isImportingMapel} className="h-9 text-xs rounded-lg cursor-pointer" />
-                      {isImportingMapel && <div className="flex items-center text-xs text-emerald-600 bg-emerald-50 p-2.5 rounded-lg animate-pulse"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Mengimport...</div>}
+                      {isImportingMapel && <div className="flex items-center text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 p-2.5 rounded-lg animate-pulse"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Mengimport...</div>}
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -970,9 +970,9 @@ export function AkademikClient({
                 const currentKode = getMapelValue(m.id, m.kode_mapel)
                 const isPendingChange = pendingMapelChanges[m.id]?.kode_mapel !== undefined
                 return (
-                  <div key={m.id} className={cn("bg-surface border rounded-lg p-3 space-y-2 transition-colors", isPendingChange ? 'border-emerald-300 bg-emerald-50/20' : 'border-surface')}>
+                  <div key={m.id} className={cn("bg-surface border rounded-lg p-3 space-y-2 transition-colors", isPendingChange ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/50/20' : 'border-surface')}>
                     <div className="flex items-start justify-between">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight flex-1 pr-2">{m.nama_mapel}</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight flex-1 pr-2">{m.nama_mapel}</p>
                       <div className="flex gap-1 shrink-0">
                         <button onClick={() => setEditingMapel(m)} className="p-1.5 rounded text-blue-600 hover:bg-blue-50"><Pencil className="h-3.5 w-3.5" /></button>
                         <button onClick={() => handleHapusMapel(m.id, m.nama_mapel)} className="p-1.5 rounded text-rose-500 hover:bg-rose-50"><Trash2 className="h-3.5 w-3.5" /></button>
@@ -989,10 +989,10 @@ export function AkademikClient({
                       <Input
                         value={currentKode} onChange={e => handleQueueMapelChange(m.id, e.target.value)}
                         placeholder="Kosong" disabled={isSavingBatchMapel}
-                        className={cn("h-7 w-24 text-xs font-mono font-bold px-2 rounded", isPendingChange ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-surface-2 border-surface')}
+                        className={cn("h-7 w-24 text-xs font-mono font-bold px-2 rounded", isPendingChange ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-surface-2 border-surface')}
                       />
                       <div className="flex gap-1 flex-wrap">
-                        <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border", m.kelompok !== 'UMUM' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-surface-3 text-slate-600 dark:text-slate-300 dark:text-slate-600 border-surface')}>{m.kelompok}</span>
+                        <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border", m.kelompok !== 'UMUM' ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 'bg-surface-3 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 border-surface')}>{m.kelompok}</span>
                         <span className="text-[9px] font-bold uppercase bg-surface-3 text-slate-500 dark:text-slate-400 dark:text-slate-500 dark:text-slate-400 dark:text-slate-500 border border-surface px-1.5 py-0.5 rounded">{m.tingkat === 'Semua' ? 'SEMUA' : `KLS ${m.tingkat}`}</span>
                       </div>
                     </div>
@@ -1022,8 +1022,8 @@ export function AkademikClient({
                       const currentKode = getMapelValue(m.id, m.kode_mapel)
                       const isPendingChange = pendingMapelChanges[m.id]?.kode_mapel !== undefined
                       return (
-                        <TableRow key={m.id} className={cn("border-surface-2 group transition-colors", isPendingChange ? 'bg-emerald-50/20' : 'hover:bg-surface-2/60')}>
-                          <TableCell className="px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-100">{m.nama_mapel}</TableCell>
+                        <TableRow key={m.id} className={cn("border-surface-2 group transition-colors", isPendingChange ? 'bg-emerald-50 dark:bg-emerald-950/50/20' : 'hover:bg-surface-2/60')}>
+                          <TableCell className="px-4 py-2.5 text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{m.nama_mapel}</TableCell>
                           <TableCell className="py-2.5">
                             <span className="text-xs font-mono font-bold text-blue-600 dark:text-blue-400">{m.kode_asc || <span className="text-slate-300 dark:text-slate-600 font-normal">—</span>}</span>
                           </TableCell>
@@ -1031,14 +1031,14 @@ export function AkademikClient({
                             <Input
                               value={currentKode} onChange={e => handleQueueMapelChange(m.id, e.target.value)}
                               placeholder="Kosong" disabled={isSavingBatchMapel}
-                              className={cn("h-8 font-mono font-bold text-xs w-full transition-all", isPendingChange ? 'bg-emerald-50 border-emerald-300 text-emerald-700 ring-1 ring-emerald-200' : 'bg-transparent border-transparent hover:border-surface hover:bg-surface-2 focus:bg-surface text-slate-600 dark:text-slate-300 dark:text-slate-600')}
+                              className={cn("h-8 font-mono font-bold text-xs w-full transition-all", isPendingChange ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-200' : 'bg-transparent border-transparent hover:border-surface hover:bg-surface-2 focus:bg-surface text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600')}
                             />
                           </TableCell>
                           <TableCell className="py-2.5">
-                            <span className={cn("text-[9px] font-bold uppercase px-2 py-0.5 rounded border", m.kelompok !== 'UMUM' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-surface-3 text-slate-600 dark:text-slate-300 dark:text-slate-600 border-surface')}>{m.kelompok}</span>
+                            <span className={cn("text-[9px] font-bold uppercase px-2 py-0.5 rounded border", m.kelompok !== 'UMUM' ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 'bg-surface-3 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 border-surface')}>{m.kelompok}</span>
                           </TableCell>
                           <TableCell className="py-2.5">
-                            <span className="text-xs text-slate-600 dark:text-slate-300 dark:text-slate-600 bg-surface-2 px-2 py-0.5 rounded border border-surface">{m.tingkat === 'Semua' ? 'Semua' : `Kelas ${m.tingkat}`}</span>
+                            <span className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 bg-surface-2 px-2 py-0.5 rounded border border-surface">{m.tingkat === 'Semua' ? 'Semua' : `Kelas ${m.tingkat}`}</span>
                           </TableCell>
                           <TableCell className="py-2.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1061,7 +1061,7 @@ export function AkademikClient({
                   <SelectTrigger className="h-7 w-16 text-xs rounded border-surface"><SelectValue /></SelectTrigger>
                   <SelectContent>{[10,20,50].map(n => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}</SelectContent>
                 </Select>
-                <span><strong className="text-slate-700 dark:text-slate-200">{filteredMapel.length}</strong> mapel</span>
+                <span><strong className="text-slate-700 dark:text-slate-300 dark:text-slate-200">{filteredMapel.length}</strong> mapel</span>
               </div>
               <div className="flex items-center gap-1">
                 <Button variant="outline" size="sm" onClick={() => setCurrentMapelPage(p => Math.max(1, p - 1))} disabled={currentMapelPage === 1} className="h-7 px-2.5 text-xs rounded">←</Button>
@@ -1076,7 +1076,7 @@ export function AkademikClient({
       {/* BATCH SAVE FAB — Kode RDM */}
       {Object.keys(pendingMapelChanges).length > 0 && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-slate-700 w-[calc(100%-2rem)] sm:w-auto">
-          <div className="h-6 w-6 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-xs font-bold border border-emerald-500/30 shrink-0">
+          <div className="h-6 w-6 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-xs font-bold border border-emerald-500 dark:border-emerald-500/30 shrink-0">
             {Object.keys(pendingMapelChanges).length}
           </div>
           <div className="flex-1 min-w-0">

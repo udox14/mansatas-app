@@ -50,11 +50,11 @@ export function SanksiConfigModal({ isOpen, onClose, sanksiList }: {
       <DialogContent className="sm:max-w-lg rounded-xl max-h-[90vh] flex flex-col p-0 gap-0">
         <DialogHeader className="px-5 pt-5 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center justify-between">
-            <DialogTitle className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">
               <Shield className="h-4 w-4 text-rose-500" />
               Kelola Tingkat Sanksi
             </DialogTitle>
-            <button onClick={onClose} className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <button onClick={onClose} className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 dark:hover:bg-slate-800">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -78,7 +78,7 @@ export function SanksiConfigModal({ isOpen, onClose, sanksiList }: {
                 <div key={s.id}
                   className={cn('border rounded-xl px-4 py-3 flex items-center gap-3', getSanksiStyle(s.urutan))}
                 >
-                  <div className="shrink-0 w-8 h-8 rounded-lg bg-white/60 flex items-center justify-center font-black text-sm border border-current/20">
+                  <div className="shrink-0 w-8 h-8 rounded-lg bg-white dark:bg-slate-900/60 flex items-center justify-center font-black text-sm border border-current/20">
                     {s.urutan}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -91,11 +91,11 @@ export function SanksiConfigModal({ isOpen, onClose, sanksiList }: {
                   </div>
                   <div className="flex gap-1 shrink-0">
                     <button onClick={() => setEditData(s)}
-                      className="p-1.5 rounded-lg bg-white/50 hover:bg-white/80 transition-colors">
+                      className="p-1.5 rounded-lg bg-white dark:bg-slate-900/50 hover:bg-white dark:hover:bg-slate-900/80 transition-colors">
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button onClick={() => handleHapus(s.id, s.nama)} disabled={isPending}
-                      className="p-1.5 rounded-lg bg-white/50 hover:bg-white/80 transition-colors">
+                      className="p-1.5 rounded-lg bg-white dark:bg-slate-900/50 hover:bg-white dark:hover:bg-slate-900/80 transition-colors">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -105,14 +105,14 @@ export function SanksiConfigModal({ isOpen, onClose, sanksiList }: {
           </div>
 
           {/* Form tambah/edit */}
-          <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50 dark:bg-slate-800/50">
-            <h4 className="text-xs font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+          <div className="border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-xl p-4 bg-slate-50 dark:bg-slate-800/50">
+            <h4 className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 uppercase tracking-wide mb-3 flex items-center gap-1.5">
               <PlusCircle className="h-3.5 w-3.5" />
               {editData ? `Edit: ${editData.nama}` : 'Tambah Sanksi Baru'}
             </h4>
 
             {formState?.success && (
-              <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg px-3 py-2 mb-3">
+              <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg px-3 py-2 mb-3">
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{formState.success}
               </div>
             )}
@@ -130,7 +130,7 @@ export function SanksiConfigModal({ isOpen, onClose, sanksiList }: {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">
                     Nama Sanksi <span className="text-rose-500">*</span>
                   </Label>
                   <Input name="nama" placeholder="mis. SP1, Skorsing" required
@@ -139,7 +139,7 @@ export function SanksiConfigModal({ isOpen, onClose, sanksiList }: {
                     className="h-8 text-sm" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">
                     Poin Minimal <span className="text-rose-500">*</span>
                   </Label>
                   <Input name="poin_minimal" type="number" min="1" placeholder="mis. 100" required
@@ -150,7 +150,7 @@ export function SanksiConfigModal({ isOpen, onClose, sanksiList }: {
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">
                   Deskripsi <span className="text-slate-400 dark:text-slate-500 font-normal">(opsional)</span>
                 </Label>
                 <Input name="deskripsi" placeholder="mis. Surat Peringatan Pertama"
@@ -162,7 +162,7 @@ export function SanksiConfigModal({ isOpen, onClose, sanksiList }: {
               <div className="flex items-center justify-between">
                 {editData ? (
                   <button type="button" onClick={() => setEditData(null)}
-                    className="text-xs text-slate-400 hover:text-slate-600 underline">
+                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 underline">
                     Batal edit
                   </button>
                 ) : <span />}

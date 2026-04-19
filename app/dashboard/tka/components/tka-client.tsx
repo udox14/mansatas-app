@@ -32,7 +32,7 @@ export function TkaClient({ tahunAjaranAktif, kelasList, hasHasil, userRole }: P
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
         <ClipboardList className="h-10 w-10 text-slate-300 mb-3" />
-        <p className="text-slate-500 font-medium">Belum ada tahun ajaran aktif</p>
+        <p className="text-slate-500 dark:text-slate-400 font-medium">Belum ada tahun ajaran aktif</p>
         <p className="text-slate-400 text-sm mt-1">Aktifkan tahun ajaran terlebih dahulu di menu Pengaturan.</p>
       </div>
     )
@@ -43,7 +43,7 @@ export function TkaClient({ tahunAjaranAktif, kelasList, hasHasil, userRole }: P
   return (
     <div className="space-y-4">
       {/* Info Tahun Ajaran */}
-      <div className="flex items-center gap-2 text-xs text-slate-500 bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/50 rounded-lg px-3 py-2">
+      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/50 rounded-lg px-3 py-2">
         <ClipboardList className="h-3.5 w-3.5 text-sky-500 shrink-0" />
         <span>
           Tahun Ajaran Aktif:{' '}
@@ -54,7 +54,7 @@ export function TkaClient({ tahunAjaranAktif, kelasList, hasHasil, userRole }: P
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 h-10 bg-slate-100 dark:bg-slate-800/60 p-1">
+        <TabsList className="grid w-full grid-cols-4 h-10 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800/60 p-1">
           <TabsTrigger
             value="mapel"
             className={cn('flex items-center gap-1.5 text-xs sm:text-sm transition-all', TAB_STYLES.mapel.active)}

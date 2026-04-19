@@ -36,7 +36,7 @@ export function KelolaPplClient({
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {pplList.length === 0 ? (
-          <div className="col-span-full py-16 text-center text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
+          <div className="col-span-full py-16 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
             Tida ada Guru PPL yang terdaftar.
           </div>
         ) : (
@@ -50,12 +50,12 @@ export function KelolaPplClient({
                   <h3 className="font-bold text-slate-800 dark:text-slate-200 leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                     {ppl.nama_lengkap}
                   </h3>
-                  <p className="text-[11px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded w-fit mt-1">Guru PPL</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 px-1.5 py-0.5 rounded w-fit mt-1">Guru PPL</p>
                 </div>
               </div>
 
               <div className="flex-1 mb-5">
-                <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wide">Status Substitusi</p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">Status Substitusi</p>
                 {ppl.substitutions.length === 0 ? (
                   <p className="text-sm text-slate-400 italic">Belum ada tugas.</p>
                 ) : (
@@ -145,12 +145,12 @@ function PplEditor({
       {/* Header Panel */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={onBack} className="rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 shrink-0">
+          <Button variant="ghost" size="icon" onClick={onBack} className="rounded-full bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h2 className="font-bold text-lg text-slate-800 dark:text-slate-100 leading-tight">Penugasan Substitusi</h2>
-            <p className="text-sm text-slate-500 font-medium">{ppl.nama_lengkap}</p>
+            <h2 className="font-bold text-lg text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight">Penugasan Substitusi</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{ppl.nama_lengkap}</p>
           </div>
         </div>
         
@@ -173,7 +173,7 @@ function PplEditor({
       </div>
 
       {activeUtamaIds.length === 0 ? (
-        <div className="py-24 text-center text-slate-400 bg-white/50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+        <div className="py-24 text-center text-slate-400 bg-white dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
           <UserCheck className="h-10 w-10 mx-auto mb-4 opacity-30" />
           <p className="text-sm font-medium">Belum ada penugasan guru pengganti.</p>
           <p className="text-xs mt-1">Pilih Guru Utama dari menu dropdown di atas.</p>
@@ -321,10 +321,10 @@ function UtamaScheduleEditor({
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-300">
       {/* Header Inside Editor */}
-      <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
+      <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-800/20">
         <div>
           <h3 className="font-bold text-lg text-slate-800 dark:text-slate-200">Jadwal {guruUtamaNama}</h3>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             <span className="font-semibold text-indigo-600 dark:text-indigo-400">{selKbm.size + selPiket.size}</span> Sesi Dipilih
           </p>
         </div>
@@ -344,7 +344,7 @@ function UtamaScheduleEditor({
         <div>
           <div className="flex items-center gap-2 mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">
             <GraduationCap className="h-5 w-5 text-indigo-500" />
-            <h4 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+            <h4 className="text-sm font-bold text-slate-600 dark:text-slate-400 dark:text-slate-300 uppercase tracking-wider">
               Jadwal KBM ({jadwal.kbm.length})
             </h4>
           </div>
@@ -361,13 +361,13 @@ function UtamaScheduleEditor({
                       Hari {HARI_NAMES[hariNum]}
                     </div>
                     {groupedKBM[hariNum].map(k => (
-                      <label key={k.id} className="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 cursor-pointer transition-colors group shadow-sm">
+                      <label key={k.id} className="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 cursor-pointer transition-colors group shadow-sm">
                         <Checkbox checked={selKbm.has(k.id)} onCheckedChange={() => toggleKbm(k.id)} className="mt-0.5 shrink-0 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600" />
                         <div className="flex flex-col">
                           <span className="text-sm font-bold truncate text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                             {k.mapel_nama}
                           </span>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1.5">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1.5">
                             <span className="bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 px-1.5 py-0.5 rounded font-mono font-medium">Jam {k.jam_ke}</span>
                             <span className="font-medium">Kelas {k.kelas_label}</span>
                           </div>
@@ -392,7 +392,7 @@ function UtamaScheduleEditor({
             ) : (
               <div className="space-y-2">
                 {jadwal.piket.map(p => (
-                  <label key={p.id} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-amber-300 cursor-pointer shadow-sm">
+                  <label key={p.id} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700 hover:border-amber-300 cursor-pointer shadow-sm">
                     <Checkbox checked={selPiket.has(p.id)} onCheckedChange={() => togglePiket(p.id)} className="data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500" />
                     <div>
                       <p className="text-sm font-bold text-slate-800 dark:text-slate-200">Piket Hari {HARI_NAMES[p.hari]}</p>

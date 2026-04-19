@@ -38,7 +38,7 @@ export function TambahDsptModal({ onSuccess }: { onSuccess: () => void }) {
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md rounded-xl p-0 overflow-hidden">
-          <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+          <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 dark:border-slate-700">
             <DialogTitle className="text-sm font-semibold">Input Tagihan DSPT</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="p-5 space-y-4">

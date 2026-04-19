@@ -75,18 +75,18 @@ const KAMUS: { kode: string; nama: string; deskripsi: string; kategori: string }
 const IQ_COLORS: Record<string, string> = {
   'Superior':            'bg-violet-100 text-violet-700 border-violet-200',
   'Di atas rata-rata':   'bg-blue-100 text-blue-700 border-blue-200',
-  'Rata-rata':           'bg-emerald-100 text-emerald-700 border-emerald-200',
+  'Rata-rata':           'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
   'Di bawah rata-rata':  'bg-amber-100 text-amber-700 border-amber-200',
 }
 const GAYA_COLORS: Record<string, string> = {
   'VISUAL':      'bg-blue-50 text-blue-700 border-blue-200',
-  'AUDITORI':    'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'AUDITORI':    'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
   'KINESTETIK':  'bg-amber-50 text-amber-700 border-amber-200',
 }
 
 function Badge({ label, colorClass }: { label: string; colorClass?: string }) {
   return (
-    <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', colorClass ?? 'bg-surface-3 text-slate-500 border-surface')}>
+    <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', colorClass ?? 'bg-surface-3 text-slate-500 dark:text-slate-400 border-surface')}>
       {label}
     </span>
   )
@@ -212,7 +212,7 @@ function ModalKamus({ open, onClose }: { open: boolean; onClose: () => void }) {
                         <span className="text-[11px] font-bold text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded font-mono">{k.kode.split(' ')[0]}</span>
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-tight">{k.nama}</p>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200 leading-tight">{k.nama}</p>
                         <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed mt-0.5">{k.deskripsi}</p>
                       </div>
                     </div>
@@ -270,7 +270,7 @@ function ModalDetail({ siswaId, onClose, isAdmin }: {
                     : <span className="text-sm font-bold text-violet-600">{data.nama_lengkap?.charAt(0)}</span>}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <DialogTitle className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate leading-tight">{data.nama_lengkap}</DialogTitle>
+                  <DialogTitle className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate leading-tight">{data.nama_lengkap}</DialogTitle>
                   <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
                     Kelas {formatNamaKelas(data.tingkat, data.nomor_kelas, data.kelas_kelompok)}
                     {data.usia_thn ? ` · Usia ${data.usia_thn} thn ${data.usia_bln ?? 0} bln saat tes` : ''}
@@ -295,7 +295,7 @@ function ModalDetail({ siswaId, onClose, isAdmin }: {
                     <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">IQ (CFIT)</p>
                     <p className="text-3xl font-black text-violet-600 leading-none">{data.iq_score ?? '—'}</p>
                     {data.iq_klasifikasi && (
-                      <span className={cn('mt-1.5 inline-block text-[10px] font-semibold px-2 py-0.5 rounded border', IQ_COLORS[data.iq_klasifikasi] ?? 'bg-surface-3 text-slate-500 border-surface')}>
+                      <span className={cn('mt-1.5 inline-block text-[10px] font-semibold px-2 py-0.5 rounded border', IQ_COLORS[data.iq_klasifikasi] ?? 'bg-surface-3 text-slate-500 dark:text-slate-400 border-surface')}>
                         {data.iq_klasifikasi}
                       </span>
                     )}
@@ -307,7 +307,7 @@ function ModalDetail({ siswaId, onClose, isAdmin }: {
                   <div className="rounded-xl bg-surface-2 border border-surface p-3 text-center">
                     <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Gaya Belajar</p>
                     {data.gaya_belajar
-                      ? <Badge label={data.gaya_belajar} colorClass={GAYA_COLORS[data.gaya_belajar?.toUpperCase()] ?? 'bg-surface-3 text-slate-500 border-surface'} />
+                      ? <Badge label={data.gaya_belajar} colorClass={GAYA_COLORS[data.gaya_belajar?.toUpperCase()] ?? 'bg-surface-3 text-slate-500 dark:text-slate-400 border-surface'} />
                       : <span className="text-sm text-slate-400 dark:text-slate-500">—</span>}
                   </div>
                   <div className="rounded-xl bg-surface-2 border border-surface p-3 text-center">
@@ -329,7 +329,7 @@ function ModalDetail({ siswaId, onClose, isAdmin }: {
                           'text-xs font-semibold px-2.5 py-1 rounded-full border',
                           i === 0 ? 'bg-violet-100 text-violet-700 border-violet-200' :
                           i === 1 ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                          'bg-surface text-slate-500 border-surface'
+                          'bg-surface text-slate-500 dark:text-slate-400 border-surface'
                         )}>{r.trim()}</span>
                       ))}
                     </div>
@@ -342,7 +342,7 @@ function ModalDetail({ siswaId, onClose, isAdmin }: {
                     <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">Mata Pelajaran Pilihan</p>
                     <div className="flex flex-wrap gap-1">
                       {data.mapel_pilihan.split(',').map((m: string, i: number) => (
-                        <span key={i} className="text-[11px] font-medium px-2 py-0.5 rounded bg-surface border border-surface text-slate-600 dark:text-slate-300">{m.trim()}</span>
+                        <span key={i} className="text-[11px] font-medium px-2 py-0.5 rounded bg-surface border border-surface text-slate-600 dark:text-slate-400 dark:text-slate-300">{m.trim()}</span>
                       ))}
                     </div>
                   </div>
@@ -496,7 +496,7 @@ function TabDaftar({ kelasList, isAdmin, userRole }: {
           </Select>
 
           <button onClick={() => { setFilterKelas(''); setFilterRekom(''); setFilterGaya(''); setFilterIQ('') }}
-            className="h-8 px-3 text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 hover:bg-surface-2 rounded-lg border border-surface transition-colors ml-auto">
+            className="h-8 px-3 text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400 hover:bg-surface-2 rounded-lg border border-surface transition-colors ml-auto">
             Reset filter
           </button>
 
@@ -523,7 +523,7 @@ function TabDaftar({ kelasList, isAdmin, userRole }: {
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
             {isLoading ? 'Memuat...' : `${total} siswa`}
           </p>
-          <button onClick={() => loadData(page)} className="text-[11px] text-slate-400 dark:text-slate-500 hover:text-slate-600 flex items-center gap-1">
+          <button onClick={() => loadData(page)} className="text-[11px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400 flex items-center gap-1">
             <RefreshCw className="h-3 w-3" /> Refresh
           </button>
         </div>
@@ -564,10 +564,10 @@ function TabDaftar({ kelasList, isAdmin, userRole }: {
                             {row.foto_url ? <img src={row.foto_url} alt="" className="h-full w-full object-cover" />
                               : <span className="text-[10px] font-bold text-violet-600">{row.nama_lengkap?.charAt(0)}</span>}
                           </div>
-                          <p className="font-semibold text-slate-800 dark:text-slate-100 truncate max-w-[160px]">{row.nama_lengkap}</p>
+                          <p className="font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate max-w-[160px]">{row.nama_lengkap}</p>
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                      <td className="px-3 py-2.5 text-slate-600 dark:text-slate-400 dark:text-slate-300 whitespace-nowrap">
                         {row.tingkat ? formatNamaKelas(row.tingkat, row.nomor_kelas || '', row.kelas_kelompok || '') : '—'}
                       </td>
                       <td className="px-3 py-2.5 text-center">
@@ -580,19 +580,19 @@ function TabDaftar({ kelasList, isAdmin, userRole }: {
                         </div>
                       </td>
                       <td className="px-3 py-2.5">
-                        <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate max-w-[120px] block">
+                        <span className="text-[11px] text-slate-600 dark:text-slate-400 dark:text-slate-300 truncate max-w-[120px] block">
                           {row.riasec?.split(',').slice(0, 2).join(',') ?? '—'}
                         </span>
                       </td>
                       <td className="px-3 py-2.5">
                         {row.rekom_jurusan
-                          ? <Badge label={row.rekom_jurusan} colorClass="bg-emerald-50 text-emerald-700 border-emerald-200" />
+                          ? <Badge label={row.rekom_jurusan} colorClass="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" />
                           : <span className="text-slate-400 dark:text-slate-500">—</span>}
                       </td>
                       <td className="px-3 py-2.5 font-mono text-blue-600 font-bold">{row.mbti ?? '—'}</td>
                       <td className="px-3 py-2.5">
                         {row.gaya_belajar
-                          ? <Badge label={row.gaya_belajar} colorClass={GAYA_COLORS[row.gaya_belajar?.toUpperCase()] ?? 'bg-surface-3 text-slate-500 border-surface'} />
+                          ? <Badge label={row.gaya_belajar} colorClass={GAYA_COLORS[row.gaya_belajar?.toUpperCase()] ?? 'bg-surface-3 text-slate-500 dark:text-slate-400 border-surface'} />
                           : <span className="text-slate-400 dark:text-slate-500">—</span>}
                       </td>
                     </tr>
@@ -611,15 +611,15 @@ function TabDaftar({ kelasList, isAdmin, userRole }: {
                       : <span className="text-xs font-bold text-violet-600">{row.nama_lengkap?.charAt(0)}</span>}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{row.nama_lengkap}</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{row.nama_lengkap}</p>
                     <p className="text-[11px] text-slate-400 dark:text-slate-500">
                       {row.tingkat ? formatNamaKelas(row.tingkat, row.nomor_kelas || '', row.kelas_kelompok || '') : '—'}
                       {row.iq_score ? ` · IQ ${row.iq_score}` : ''}
                     </p>
                     <div className="flex gap-1 mt-1 flex-wrap">
                       {row.iq_klasifikasi && <Badge label={row.iq_klasifikasi} colorClass={IQ_COLORS[row.iq_klasifikasi]} />}
-                      {row.gaya_belajar && <Badge label={row.gaya_belajar} colorClass={GAYA_COLORS[row.gaya_belajar?.toUpperCase()] ?? 'bg-surface-3 text-slate-500 border-surface'} />}
-                      {row.rekom_jurusan && <Badge label={row.rekom_jurusan} colorClass="bg-emerald-50 text-emerald-700 border-emerald-200" />}
+                      {row.gaya_belajar && <Badge label={row.gaya_belajar} colorClass={GAYA_COLORS[row.gaya_belajar?.toUpperCase()] ?? 'bg-surface-3 text-slate-500 dark:text-slate-400 border-surface'} />}
+                      {row.rekom_jurusan && <Badge label={row.rekom_jurusan} colorClass="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" />}
                     </div>
                   </div>
                   <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600 shrink-0" />
@@ -698,7 +698,7 @@ function TabAnalitik({ kelasList }: { kelasList: KelasItem[] }) {
 
           {/* IQ Distribusi */}
           <div className="bg-surface border border-surface rounded-xl p-4">
-            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Distribusi Klasifikasi IQ</p>
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 mb-3">Distribusi Klasifikasi IQ</p>
             <BarChart
               data={data.iqDist.map((d: any) => ({
                 label: d.iq_klasifikasi?.replace('Di atas rata-rata', '↑Avg').replace('Di bawah rata-rata', '↓Avg').replace('Rata-rata', 'Avg') ?? '?',
@@ -709,7 +709,7 @@ function TabAnalitik({ kelasList }: { kelasList: KelasItem[] }) {
 
           {/* Gaya Belajar */}
           <div className="bg-surface border border-surface rounded-xl p-4">
-            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Distribusi Gaya Belajar</p>
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 mb-3">Distribusi Gaya Belajar</p>
             {(() => {
               const GAYA_COL: Record<string, string> = {
                 VISUAL: '#3b82f6', AUDITORI: '#10b981', KINESTETIK: '#f59e0b',
@@ -743,7 +743,7 @@ function TabAnalitik({ kelasList }: { kelasList: KelasItem[] }) {
 
           {/* Rekom Jurusan */}
           <div className="bg-surface border border-surface rounded-xl p-4">
-            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Rekomendasi Jurusan</p>
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 mb-3">Rekomendasi Jurusan</p>
             <BarChart
               data={data.rekomDist.map((d: any) => ({ label: d.rekom_jurusan ?? '?', value: d.n, total: totalSiswa, color: '#059669' }))}
             />
@@ -751,7 +751,7 @@ function TabAnalitik({ kelasList }: { kelasList: KelasItem[] }) {
 
           {/* RIASEC */}
           <div className="bg-surface border border-surface rounded-xl p-4">
-            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Tipe RIASEC</p>
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 mb-3">Tipe RIASEC</p>
             <div className="space-y-2.5">
               {data.riasecDist.map((d: any) => {
                 const pct = Math.round(d.n / totalSiswa * 100)
@@ -759,7 +759,7 @@ function TabAnalitik({ kelasList }: { kelasList: KelasItem[] }) {
                   <div key={d.tipe}>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[11px] font-bold text-violet-600">{d.tipe}</span>
-                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">{d.n} <span className="text-slate-400 dark:text-slate-500 font-normal">({pct}%)</span></span>
+                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">{d.n} <span className="text-slate-400 dark:text-slate-500 font-normal">({pct}%)</span></span>
                     </div>
                     <div className="h-2 rounded-full bg-surface-3 overflow-hidden">
                       <div className="h-full rounded-full bg-violet-400 transition-all" style={{ width: `${pct}%` }} />
@@ -772,7 +772,7 @@ function TabAnalitik({ kelasList }: { kelasList: KelasItem[] }) {
 
           {/* MBTI */}
           <div className="bg-surface border border-surface rounded-xl p-4">
-            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Distribusi MBTI</p>
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 mb-3">Distribusi MBTI</p>
             <div className="space-y-2">
               {data.mbtiDist.map((d: any) => {
                 const pct = Math.round(d.n / totalSiswa * 100)
@@ -780,7 +780,7 @@ function TabAnalitik({ kelasList }: { kelasList: KelasItem[] }) {
                   <div key={d.mbti}>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[11px] font-mono font-bold text-blue-600">{d.mbti}</span>
-                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">{d.n} <span className="text-slate-400 dark:text-slate-500 font-normal">({pct}%)</span></span>
+                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">{d.n} <span className="text-slate-400 dark:text-slate-500 font-normal">({pct}%)</span></span>
                     </div>
                     <div className="h-1.5 rounded-full bg-surface-3 overflow-hidden">
                       <div className="h-full rounded-full bg-blue-400 transition-all" style={{ width: `${pct}%` }} />
@@ -794,7 +794,7 @@ function TabAnalitik({ kelasList }: { kelasList: KelasItem[] }) {
           {/* Rata-rata Bakat */}
           {data.bakatAvg && (
             <div className="bg-surface border border-surface rounded-xl p-4">
-              <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-3">Rata-rata Profil Bakat</p>
+              <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 mb-3">Rata-rata Profil Bakat</p>
               <RadarChart
                 data={['ver','num','skl','abs','mek','rr','kkk'].map(k => data.bakatAvg[k] ?? 0)}
                 labels={['VER','NUM','SKL','ABS','MEK','RR','KKK']}
@@ -1082,7 +1082,7 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
         <div className="space-y-3">
           <div className="bg-surface border border-surface rounded-xl overflow-hidden">
             <div className="px-4 py-3 border-b border-surface-2">
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Mapping Label Excel → Jurusan Aplikasi</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">Mapping Label Excel → Jurusan Aplikasi</p>
               <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Sesuaikan label rekomendasi dari Excel dengan jurusan yang aktif di aplikasi</p>
             </div>
             <div className="divide-y divide-surface-2">
@@ -1103,13 +1103,13 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
                         else setMappingList(prev => prev.map(x => x.id === m.id ? { ...x, jurusan_db: editJurusan, keterangan: editKet } : x))
                         setEditingId(null); setIsSavingMap(false)
                       }} disabled={isSavingMap}
-                        className="p-1 rounded text-emerald-600 hover:bg-emerald-50"><CheckCircle2 className="h-4 w-4" /></button>
+                        className="p-1 rounded text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"><CheckCircle2 className="h-4 w-4" /></button>
                       <button onClick={() => setEditingId(null)}
                         className="p-1 rounded text-slate-400 dark:text-slate-500 hover:bg-surface-3"><X className="h-4 w-4" /></button>
                     </>
                   ) : (
                     <>
-                      <span className="text-xs font-semibold text-emerald-700 flex-1">{m.jurusan_db}</span>
+                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex-1">{m.jurusan_db}</span>
                       <span className="text-[11px] text-slate-400 dark:text-slate-500 flex-1 truncate">{m.keterangan ?? ''}</span>
                       <div className="opacity-0 group-hover:opacity-100 flex gap-1 transition-opacity">
                         <button onClick={() => { setEditingId(m.id); setEditJurusan(m.jurusan_db); setEditKet(m.keterangan ?? '') }}
@@ -1155,7 +1155,7 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
         <div className="space-y-3">
           {/* Upload area */}
           <div className="bg-surface border border-surface rounded-xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Upload File Excel</p>
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">Upload File Excel</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">File Rekapitulasi (IQ, Bakat, Minat)</label>
@@ -1197,7 +1197,7 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
               {/* Summary cards — klik untuk filter */}
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { key: 'all',       label: '⚠️ Semua masalah', count: ambigCount + notFoundCount, color: 'bg-slate-50 border-slate-200 text-slate-700', active: 'bg-slate-900 text-white border-slate-900' },
+                  { key: 'all',       label: '⚠️ Semua masalah', count: ambigCount + notFoundCount, color: 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300', active: 'bg-slate-900 text-white border-slate-900' },
                   { key: 'ambiguous', label: '⚠️ Perlu dipilih', count: ambigCount,           color: 'bg-amber-50 border-amber-200 text-amber-700',  active: 'bg-amber-500 text-white border-amber-500' },
                   { key: 'notfound',  label: '❌ Tidak ditemukan',count: notFoundCount,        color: 'bg-rose-50 border-rose-200 text-rose-700',    active: 'bg-rose-500 text-white border-rose-500' },
                 ].map(({ key, label, count, color, active }) => (
@@ -1228,7 +1228,7 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
               {/* Tabel preview — dinamis sesuai filter */}
               <div className="bg-surface border border-surface rounded-xl overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-2.5 border-b border-surface-2">
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">
                     {previewFilter === 'all' && `${ambigCount + notFoundCount} nama bermasalah (${ambigCount} ambigu + ${notFoundCount} tidak ditemukan)`}
                     {previewFilter === 'ambiguous' && `${ambigCount} nama ambigu — wajib dipilih manual`}
                     {previewFilter === 'notfound' && `${notFoundCount} nama tidak ditemukan — akan dilewati`}
@@ -1259,12 +1259,12 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
                             {/* Baris atas: status + nama di excel */}
                             <div className="flex items-center gap-2">
                               <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0',
-                                m.status === 'matched'   ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                                m.status === 'matched'   ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' :
                                 m.status === 'ambiguous' ? 'bg-amber-100 text-amber-700 border-amber-200' :
                                 'bg-rose-100 text-rose-700 border-rose-200')}>
                                 {m.status === 'matched' ? '✓ MATCHED' : m.status === 'ambiguous' ? '? AMBIGU' : '✗ TIDAK DITEMUKAN'}
                               </span>
-                              <span className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate flex-1">
+                              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate flex-1">
                                 {m.nama}
                               </span>
                             </div>
@@ -1273,7 +1273,7 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
                             {m.status === 'matched' && m.matched && (
                               <p className="text-[11px] text-slate-400 dark:text-slate-500 pl-1">
                                 → {m.matched.nama_lengkap}
-                                <span className="ml-1.5 text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                <span className="ml-1.5 text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded">
                                   {m.matched.kelas}
                                 </span>
                               </p>
@@ -1291,12 +1291,12 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
                                       onClick={() => setMatchResults(prev => prev.map((x, j) =>
                                         j === globalIdx ? { ...x, status: 'matched', matched: c } : x
                                       ))}
-                                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-200 bg-white hover:bg-amber-50 hover:border-amber-400 transition-colors text-left w-full">
+                                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-200 bg-white dark:bg-slate-900 hover:bg-amber-50 hover:border-amber-400 transition-colors text-left w-full">
                                       <div className="h-6 w-6 rounded-full bg-amber-100 flex items-center justify-center text-[10px] font-bold text-amber-700 shrink-0">
                                         {c.nama_lengkap.charAt(0)}
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{c.nama_lengkap}</p>
+                                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{c.nama_lengkap}</p>
                                         <p className="text-[10px] text-slate-400 dark:text-slate-500">{c.nisn} · {c.kelas}</p>
                                       </div>
                                       <ChevronRight className="h-3.5 w-3.5 text-amber-400 shrink-0" />
@@ -1355,7 +1355,7 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
               {/* Import result */}
               {importResult && (
                 <div className={cn('p-3 rounded-xl border text-xs space-y-1',
-                  importResult.error === 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800')}>
+                  importResult.error === 0 ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-400' : 'bg-amber-50 border-amber-200 text-amber-800')}>
                   <div className="flex items-center gap-2 font-semibold">
                     {importResult.error === 0 ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
                     Import selesai: {importResult.success} berhasil, {importResult.error} gagal
@@ -1395,14 +1395,14 @@ export function PsikotesClient({ mappingList, kelasList, stats, userRole, isAdmi
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div className="bg-surface border border-surface rounded-xl px-3 py-2.5 flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-violet-50 border border-violet-100"><Brain className="h-4 w-4 text-violet-600" /></div>
-            <div><p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wide font-medium">Total Data</p><p className="text-lg font-black text-slate-800 dark:text-slate-100 leading-tight">{stats.total}</p></div>
+            <div><p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wide font-medium">Total Data</p><p className="text-lg font-black text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight">{stats.total}</p></div>
           </div>
           <div className="bg-surface border border-surface rounded-xl px-3 py-2.5 flex items-center gap-2.5">
             <div className="p-1.5 rounded-lg bg-blue-50 border border-blue-100"><Users className="h-4 w-4 text-blue-600" /></div>
             <div><p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wide font-medium">Visual</p><p className="text-lg font-black text-blue-600 leading-tight">{stats.visual}</p></div>
           </div>
           <div className="bg-surface border border-surface rounded-xl px-3 py-2.5 flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-emerald-50 border border-emerald-100"><BookOpen className="h-4 w-4 text-emerald-600" /></div>
+            <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100"><BookOpen className="h-4 w-4 text-emerald-600" /></div>
             <div><p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wide font-medium">Auditori</p><p className="text-lg font-black text-emerald-600 leading-tight">{stats.auditori}</p></div>
           </div>
           <div className="bg-surface border border-surface rounded-xl px-3 py-2.5 flex items-center gap-2.5">

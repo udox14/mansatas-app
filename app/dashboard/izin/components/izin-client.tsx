@@ -93,7 +93,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
   // Autocomplete component (reusable)
   const SiswaAutocomplete = () => (
     <div className="space-y-1.5 relative">
-      <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Cari Siswa <span className="text-rose-500">*</span></Label>
+      <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Cari Siswa <span className="text-rose-500">*</span></Label>
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
         <Input
@@ -102,7 +102,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
           onChange={e => handleSiswaSearch(e.target.value)}
           onFocus={() => setShowSiswaDropdown(true)}
           onBlur={() => setTimeout(() => setShowSiswaDropdown(false), 200)}
-          className={cn("pl-8 h-9 text-sm rounded-lg", selectedSiswaId ? 'border-emerald-400 bg-emerald-50/40' : '')}
+          className={cn("pl-8 h-9 text-sm rounded-lg", selectedSiswaId ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/50/40' : '')}
         />
         {isSearching && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-slate-400 dark:text-slate-500" />}
       </div>
@@ -118,7 +118,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
               onClick={() => { setSelectedSiswaId(s.id); setSearchSiswa(s.nama_lengkap); setShowSiswaDropdown(false) }}
               className="px-3 py-2 hover:bg-surface-2 cursor-pointer border-b border-surface-2 flex justify-between items-center last:border-0"
             >
-              <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{s.nama_lengkap}</span>
+              <span className="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100">{s.nama_lengkap}</span>
               <span className="text-[10px] bg-surface-3 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-400 dark:text-slate-500">{s.kelas ? formatNamaKelas(s.kelas.tingkat, s.kelas.nomor_kelas, s.kelas.kelompok) : ''}</span>
             </div>
           ))}
@@ -140,11 +140,11 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
           </DialogHeader>
           <form action={actionKeluar} className="space-y-3 pt-1">
             {stateKeluar?.error && <div className="p-2.5 text-xs text-rose-600 bg-rose-50 rounded-lg border border-rose-200 flex gap-1.5"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{stateKeluar.error}</div>}
-            {stateKeluar?.success && <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200 flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{stateKeluar.success}</div>}
+            {stateKeluar?.success && <div className="p-2.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-200 dark:border-emerald-800 flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{stateKeluar.success}</div>}
             <input type="hidden" name="siswa_id" value={selectedSiswaId} />
             <SiswaAutocomplete />
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Keterangan / Tujuan (Opsional)</Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Keterangan / Tujuan (Opsional)</Label>
               <Input name="keterangan" placeholder="Contoh: Beli alat tulis..." className="h-9 text-sm rounded-lg" />
             </div>
             <div className="bg-blue-50 p-2.5 rounded-lg border border-blue-100 text-xs text-blue-700 flex gap-1.5">
@@ -166,13 +166,13 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
           </DialogHeader>
           <form action={actionKelas} className="space-y-3 pt-1">
             {stateKelas?.error && <div className="p-2.5 text-xs text-rose-600 bg-rose-50 rounded-lg border flex gap-1.5"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{stateKelas.error}</div>}
-            {stateKelas?.success && <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{stateKelas.success}</div>}
+            {stateKelas?.success && <div className="p-2.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{stateKelas.success}</div>}
             <input type="hidden" name="siswa_id" value={selectedSiswaId} />
             {selectedJam.map(jam => <input key={jam} type="hidden" name="jam_pelajaran" value={jam} />)}
             <SiswaAutocomplete />
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Jam Pelajaran <span className="text-rose-500">*</span></Label>
+                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Jam Pelajaran <span className="text-rose-500">*</span></Label>
                 <button type="button" onClick={toggleSemuaJam} className="text-[10px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors">
                   {selectedJam.length === 10 ? 'Batal Semua' : 'Pilih Semua'}
                 </button>
@@ -187,7 +187,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Alasan <span className="text-rose-500">*</span></Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Alasan <span className="text-rose-500">*</span></Label>
               <Select name="alasan" required>
                 <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue placeholder="Pilih alasan..." /></SelectTrigger>
                 <SelectContent>
@@ -201,7 +201,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Keterangan (Opsional)</Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Keterangan (Opsional)</Label>
               <Input name="keterangan" placeholder="Contoh: Lomba OSN..." className="h-9 text-sm rounded-lg" />
             </div>
             <SubmitBtn label="Simpan Izin Kelas" />
@@ -255,12 +255,12 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                 )}
                 <div className="flex items-start justify-between pr-6 mb-1.5">
                   <div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">{k.siswa?.nama_lengkap}</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight">{k.siswa?.nama_lengkap}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-surface-3 px-1.5 py-0.5 rounded border border-surface">
                         {k.siswa?.kelas ? formatNamaKelas(k.siswa.kelas.tingkat, k.siswa.kelas.nomor_kelas, k.siswa.kelas.kelompok) : ''}
                       </span>
-                      <span className="text-[10px] font-mono text-slate-600 dark:text-slate-300 dark:text-slate-600">{formatTime(k.waktu_keluar)}</span>
+                      <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">{formatTime(k.waktu_keluar)}</span>
                     </div>
                   </div>
                   <span className={cn("text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shrink-0", k.status === 'BELUM KEMBALI' ? 'bg-amber-100 text-amber-700 animate-pulse' : 'bg-surface-3 text-slate-500 dark:text-slate-400 dark:text-slate-500')}>
@@ -300,10 +300,10 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                 ) : displayKeluar.map(k => (
                   <TableRow key={k.id} className={cn("border-surface-2 group", k.status === 'BELUM KEMBALI' ? 'bg-amber-50/20 hover:bg-amber-50/40' : 'hover:bg-surface-2/60')}>
                     <TableCell className="px-4 py-2.5">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">{k.siswa?.nama_lengkap}</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight">{k.siswa?.nama_lengkap}</p>
                       <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Kelas {k.siswa?.kelas ? formatNamaKelas(k.siswa.kelas.tingkat, k.siswa.kelas.nomor_kelas, k.siswa.kelas.kelompok) : ''} · {k.pelapor?.nama_lengkap}</p>
                     </TableCell>
-                    <TableCell className="py-2.5 text-xs font-mono text-slate-600 dark:text-slate-300 dark:text-slate-600">{formatTime(k.waktu_keluar)}</TableCell>
+                    <TableCell className="py-2.5 text-xs font-mono text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">{formatTime(k.waktu_keluar)}</TableCell>
                     <TableCell className="py-2.5 text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">{k.keterangan || '-'}</TableCell>
                     <TableCell className="py-2.5 text-center">
                       <span className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded border", k.status === 'BELUM KEMBALI' ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse' : 'bg-surface-2 text-slate-500 dark:text-slate-400 dark:text-slate-500 border-surface')}>
@@ -368,7 +368,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                   </button>
                 )}
                 <div className="flex items-start justify-between pr-6 mb-1.5">
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight truncate">{k.siswa?.nama_lengkap}</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight truncate">{k.siswa?.nama_lengkap}</p>
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 bg-surface-3 px-1.5 py-0.5 rounded border border-surface shrink-0 ml-2">
                     {k.siswa?.kelas ? formatNamaKelas(k.siswa.kelas.tingkat, k.siswa.kelas.nomor_kelas, k.siswa.kelas.kelompok) : ''}
                   </span>
@@ -378,7 +378,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                     {k.alasan}
                   </span>
                   {k.jam_pelajaran.map((jam: number) => (
-                    <span key={jam} className="text-[9px] h-4 w-4 rounded bg-surface-3 text-slate-600 dark:text-slate-300 dark:text-slate-600 font-bold flex items-center justify-center border border-surface">{jam}</span>
+                    <span key={jam} className="text-[9px] h-4 w-4 rounded bg-surface-3 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 font-bold flex items-center justify-center border border-surface">{jam}</span>
                   ))}
                 </div>
                 {k.keterangan && <p className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 truncate">{k.keterangan}</p>}
@@ -406,7 +406,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                   ) : displayKelas.map(k => (
                     <TableRow key={k.id} className="hover:bg-surface-2/60 border-surface-2 group">
                       <TableCell className="px-4 py-2.5">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">{k.siswa?.nama_lengkap}</p>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight">{k.siswa?.nama_lengkap}</p>
                         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Kelas {k.siswa?.kelas ? formatNamaKelas(k.siswa.kelas.tingkat, k.siswa.kelas.nomor_kelas, k.siswa.kelas.kelompok) : ''}</p>
                       </TableCell>
                       <TableCell className="py-2.5 text-center">
@@ -420,7 +420,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
                         <span className="text-[10px] font-bold uppercase text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded tracking-wide">{k.alasan}</span>
                       </TableCell>
                       <TableCell className="py-2.5">
-                        <p className="text-xs text-slate-600 dark:text-slate-300 dark:text-slate-600 truncate max-w-[200px]">{k.keterangan || '-'}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 truncate max-w-[200px]">{k.keterangan || '-'}</p>
                         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Oleh: {k.pelapor?.nama_lengkap}</p>
                       </TableCell>
                       <TableCell className="py-2.5 px-4 text-right">

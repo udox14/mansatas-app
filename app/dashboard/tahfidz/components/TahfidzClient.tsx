@@ -169,20 +169,20 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
     
     return (
       <Card 
-        className={`cursor-pointer transition-all hover:border-emerald-500 hover:shadow-sm ${selectedJuz === juzNum ? 'border-emerald-500 ring-1 ring-emerald-500' : ''}`}
+        className={`cursor-pointer transition-all hover:border-emerald-500 dark:hover:border-emerald-500 hover:shadow-sm ${selectedJuz === juzNum ? 'border-emerald-500 dark:border-emerald-500 ring-1 ring-emerald-500' : ''}`}
         onClick={() => { setSelectedJuz(juzNum); setSelectedSurah(null) }}
       >
         <CardContent className="p-4">
           <div className="flex justify-between items-center mb-2">
-            <h4 className="font-semibold text-emerald-800">Juz {juzNum}</h4>
+            <h4 className="font-semibold text-emerald-800 dark:text-emerald-400">Juz {juzNum}</h4>
             {nilaiJuzObj && (
-              <div className="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded font-medium border border-emerald-200">
+              <div className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 text-xs px-2 py-0.5 rounded font-medium border border-emerald-200 dark:border-emerald-800">
                 Nilai: {nilaiJuzObj.nilai}
               </div>
             )}
           </div>
-          <div className="text-xs text-slate-500 mb-2">{hafal} dari {total} Ayat</div>
-          <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">{hafal} dari {total} Ayat</div>
+          <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800/80 rounded-full overflow-hidden">
             <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${pct}%`}}></div>
           </div>
         </CardContent>
@@ -194,8 +194,8 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
       {/* KIRI: Daftar Siswa */}
       <div className="md:col-span-4 lg:col-span-3 space-y-4">
-        <div className="bg-white p-4 rounded-xl border shadow-sm space-y-3">
-          <h3 className="font-semibold text-slate-800">Pilih Siswa</h3>
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border shadow-sm space-y-3">
+          <h3 className="font-semibold text-slate-800 dark:text-slate-200">Pilih Siswa</h3>
           <Select value={kelasId} onValueChange={setKelasId}>
             <SelectTrigger>
               <SelectValue placeholder="Pilih Kelas" />
@@ -209,7 +209,7 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
           </Select>
           
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500 dark:text-slate-400" />
             <Input 
               placeholder="Cari nama/NISN..." 
               className="pl-9" 
@@ -221,15 +221,15 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
           <TambahSiswaModal onSuccess={fetchSiswa} />
         </div>
 
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col h-[280px] md:h-[600px] lg:h-[700px]">
-          <div className="p-3 border-b bg-slate-50 text-xs font-semibold text-slate-500 uppercase">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border shadow-sm overflow-hidden flex flex-col h-[280px] md:h-[600px] lg:h-[700px]">
+          <div className="p-3 border-b bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
             Data Siswa
           </div>
           <div className="flex-1 overflow-y-auto p-2 space-y-1 relative">
             {isLoadingSiswa ? (
               <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>
             ) : siswaList.length === 0 ? (
-              <div className="text-center p-8 text-sm text-slate-500">Tidak ada data.</div>
+              <div className="text-center p-8 text-sm text-slate-500 dark:text-slate-400">Tidak ada data.</div>
             ) : (
               siswaList.map(s => (
                 <button
@@ -241,16 +241,16 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
                     }, 100)
                   }}
                   className={`w-full text-left flex items-center gap-3 p-2 rounded-lg transition-colors ${
-                    selectedSiswa?.id === s.id ? 'bg-emerald-50 border border-emerald-200' : 'hover:bg-slate-50 border border-transparent'
+                    selectedSiswa?.id === s.id ? 'bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent'
                   }`}
                 >
-                  <Avatar className="h-10 w-10 border border-slate-200">
+                  <Avatar className="h-10 w-10 border border-slate-200 dark:border-slate-800">
                     <AvatarImage src={s.foto_url || ''} />
                     <AvatarFallback>{s.nama_lengkap.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 overflow-hidden">
-                    <p className="font-medium text-sm text-slate-800 truncate">{s.nama_lengkap}</p>
-                    <p className="text-xs text-slate-500">{s.tingkat}-{s.nomor_kelas} {s.kelompok}</p>
+                    <p className="font-medium text-sm text-slate-800 dark:text-slate-200 truncate">{s.nama_lengkap}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{s.tingkat}-{s.nomor_kelas} {s.kelompok}</p>
                   </div>
                   {selectedSiswa?.id === s.id && <ChevronRight className="h-4 w-4 text-emerald-500" />}
                 </button>
@@ -263,35 +263,35 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
       {/* KANAN: Detail Tahfidz */}
       <div id="tahfidz-detail" className="md:col-span-8 lg:col-span-9 space-y-6 scroll-mt-20">
         {!selectedSiswa ? (
-          <div className="h-[400px] flex flex-col items-center justify-center p-8 text-center text-slate-500 border-2 border-dashed rounded-xl bg-slate-50">
+          <div className="h-[400px] flex flex-col items-center justify-center p-8 text-center text-slate-500 dark:text-slate-400 border-2 border-dashed rounded-xl bg-slate-50 dark:bg-slate-800">
             <BookOpen className="h-12 w-12 text-slate-300 mb-4" />
-            <p className="text-lg font-medium text-slate-700">Belum ada siswa dipilih</p>
+            <p className="text-lg font-medium text-slate-700 dark:text-slate-300">Belum ada siswa dipilih</p>
             <p className="text-sm">Silakan pilih siswa dari daftar di sebelah kiri untuk melihat dan mengisi progress setoran.</p>
           </div>
         ) : isLoadingDetail ? (
-          <div className="h-[400px] flex items-center justify-center bg-white rounded-xl border shadow-sm">
+          <div className="h-[400px] flex items-center justify-center bg-white dark:bg-slate-900 rounded-xl border shadow-sm">
             <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
           </div>
         ) : (
           <>
             {/* Tombol kembali mobile */}
             <button 
-              className="md:hidden flex items-center gap-1.5 text-sm text-emerald-700 font-medium mb-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-lg w-fit transition-colors"
+              className="md:hidden flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400 font-medium mb-1 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded-lg w-fit transition-colors"
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             >
               <ChevronUp className="w-4 h-4" /> Kembali cari siswa
             </button>
             
             {/* Header Profil */}
-            <div className="bg-white p-4 rounded-xl border shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="flex items-center gap-4">
-                <Avatar className="h-14 w-14 border border-slate-200">
+                <Avatar className="h-14 w-14 border border-slate-200 dark:border-slate-800">
                   <AvatarImage src={selectedSiswa.foto_url || ''} />
                   <AvatarFallback className="text-lg">{selectedSiswa.nama_lengkap.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-800">{selectedSiswa.nama_lengkap}</h2>
-                  <p className="text-sm text-slate-500">NISN: {selectedSiswa.nisn} • Kelas {selectedSiswa.tingkat}-{selectedSiswa.nomor_kelas} {selectedSiswa.kelompok}</p>
+                  <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">{selectedSiswa.nama_lengkap}</h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">NISN: {selectedSiswa.nisn} • Kelas {selectedSiswa.tingkat}-{selectedSiswa.nomor_kelas} {selectedSiswa.kelompok}</p>
                 </div>
               </div>
               <Button variant="outline" onClick={() => setIsRiwayatOpen(true)} className="gap-2">
@@ -303,16 +303,16 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
             <div>
               <div className="flex items-center justify-between gap-4 mb-3">
                 <div className="flex items-center gap-4">
-                  <h3 className="text-sm font-semibold text-slate-500 uppercase">Pilih Juz Target</h3>
+                  <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase">Pilih Juz Target</h3>
                   {msg && (
-                    <span className={`text-xs px-2 py-1 rounded font-medium ${msg.ok ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    <span className={`text-xs px-2 py-1 rounded font-medium ${msg.ok ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400' : 'bg-rose-100 text-rose-700'}`}>
                       {msg.text}
                     </span>
                   )}
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-1.5 text-slate-600">
+                    <Button variant="outline" size="sm" className="gap-1.5 text-slate-600 dark:text-slate-400">
                       <Printer className="h-4 w-4" /> Cetak Laporan <ChevronDown className="h-3 w-3" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -344,21 +344,21 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
 
             {/* List Surah dalam Juz terpilih */}
             {selectedJuz && (
-              <div className="bg-white rounded-xl border shadow-sm p-4 animate-in slide-in-from-top-4 duration-300">
+              <div className="bg-white dark:bg-slate-900 rounded-xl border shadow-sm p-4 animate-in slide-in-from-top-4 duration-300">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-                  <h3 className="text-lg font-bold text-emerald-800">Juz {selectedJuz} · Detail Surah</h3>
+                  <h3 className="text-lg font-bold text-emerald-800 dark:text-emerald-400">Juz {selectedJuz} · Detail Surah</h3>
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
                       variant="outline"
                       disabled={isSaving}
                       onClick={handleHafalSemuaJuz}
-                      className="gap-1.5 border-emerald-500 text-emerald-700 hover:bg-emerald-50"
+                      className="gap-1.5 border-emerald-500 dark:border-emerald-500 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
                     >
                       <Check className="h-4 w-4" />
                       Hafal Semua Juz
                     </Button>
-                    <span className="text-sm font-medium text-slate-600">Nilai Juz ini:</span>
+                    <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Nilai Juz ini:</span>
                     <Input
                       type="number"
                       min={0} max={100}
@@ -381,11 +381,11 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
                         key={s.nomor}
                         onClick={() => setSelectedSurah(s.nomor)}
                         className={`p-3 text-left border rounded-lg transition-all ${
-                          selectedSurah === s.nomor ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500' : 'hover:bg-slate-50'
+                          selectedSurah === s.nomor ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 dark:border-emerald-500 ring-1 ring-emerald-500' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                         }`}
                       >
                         <div className="font-semibold text-sm truncate">{s.nama}</div>
-                        <div className="text-xs text-slate-500 flex justify-between items-center mt-1">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 flex justify-between items-center mt-1">
                           <span>{progLen}/{s.jumlahAyat}</span>
                           {isDone && <Check className="h-3 w-3 text-emerald-500" />}
                         </div>

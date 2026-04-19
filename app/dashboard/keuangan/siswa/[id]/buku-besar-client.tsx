@@ -21,7 +21,7 @@ import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar, createKope
 import { KuitansiModal, type KuitansiData } from '../../components/kuitansi-print'
 
 const STATUS_MAP = {
-  lunas: { label: 'Lunas', icon: CheckCircle2, cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  lunas: { label: 'Lunas', icon: CheckCircle2, cls: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-900/30 dark:text-emerald-400' },
   nyicil: { label: 'Nyicil', icon: Clock, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
   belum_bayar: { label: 'Belum Bayar', icon: XCircle, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' },
 }
@@ -447,7 +447,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
   return (
     <div className="space-y-3 pb-8">
       {msg && (
-        <p className={`text-xs px-3 py-2 rounded-md ${msg.includes('berhasil') || msg.includes('disimpan') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' : 'text-rose-600 bg-rose-50 dark:bg-rose-900/20'}`}>
+        <p className={`text-xs px-3 py-2 rounded-md ${msg.includes('berhasil') || msg.includes('disimpan') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-900/20' : 'text-rose-600 bg-rose-50 dark:bg-rose-900/20'}`}>
           {msg}
         </p>
       )}
@@ -472,7 +472,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <p className="text-xs text-slate-500 mb-0.5">Status DSPT</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">Status DSPT</p>
                     {(() => {
                       const s = STATUS_MAP[dspt.status as keyof typeof STATUS_MAP] ?? STATUS_MAP.belum_bayar
                       const Icon = s.icon
@@ -501,25 +501,25 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
-                    <p className="text-[11px] text-slate-500">Target</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Target</p>
                     <p className="text-sm font-semibold">{formatRupiah(dspt.nominal_target)}</p>
                   </div>
                   <div>
-                    <p className="text-[11px] text-slate-500">Dibayar</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Dibayar</p>
                     <p className="text-sm font-semibold text-emerald-600">{formatRupiah(dspt.total_dibayar)}</p>
                   </div>
                   <div>
-                    <p className="text-[11px] text-slate-500">Diskon</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Diskon</p>
                     <p className="text-sm font-semibold text-blue-600">{formatRupiah(dspt.total_diskon)}</p>
                   </div>
                   <div>
-                    <p className="text-[11px] text-slate-500">Sisa</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Sisa</p>
                     <p className={`text-sm font-bold ${dsptSisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatRupiah(dsptSisa)}</p>
                   </div>
                 </div>
                 {/* Progress bar */}
                 <div className="mt-3">
-                  <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-emerald-500 rounded-full transition-all"
                       style={{ width: `${Math.min(100, Math.round(((dspt.total_dibayar + dspt.total_diskon) / dspt.nominal_target) * 100))}%` }}
@@ -563,13 +563,13 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
           {/* Header: mulai SPP + navigasi tahun */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2">
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-slate-500 dark:text-slate-400">
                 {sppMulai
                   ? <>Mulai SPP: <span className="font-semibold text-slate-700 dark:text-slate-300">{BULAN_LABEL[sppMulai.bulan_mulai]} {sppMulai.tahun_mulai}</span></>
                   : <span className="text-amber-600">Mulai SPP belum diatur</span>
                 }
               </div>
-              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600"
+              <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-400"
                 title="Atur mulai SPP"
                 onClick={() => {
                   setMulaiForm({
@@ -597,7 +597,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
           {sppSaldoAwal ? (
             <div className={`rounded-xl border px-4 py-3 flex items-center justify-between gap-3 ${
               sppSaldoAwal.status === 'lunas'
-                ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20'
+                ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-900/20'
                 : 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'
             }`}>
               <div>
@@ -611,7 +611,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {sppSaldoAwal.status === 'lunas'
-                  ? <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30">LUNAS</span>
+                  ? <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-900/30">LUNAS</span>
                   : <Button size="sm" className="h-7 text-xs bg-amber-500 hover:bg-amber-600 text-white"
                       onClick={handleLunasSaldoAwal} disabled={isPending}>
                       Tandai Lunas
@@ -619,7 +619,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                 }
                 <button type="button"
                   onClick={() => { setSaldoAwalForm({ jumlah: String(sppSaldoAwal.jumlah), keterangan: sppSaldoAwal.keterangan ?? '' }); setSaldoAwalModal(true) }}
-                  className="text-[11px] px-2 py-1 rounded bg-white/60 dark:bg-slate-700/60 text-slate-500 hover:bg-white dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
+                  className="text-[11px] px-2 py-1 rounded bg-white dark:bg-slate-900/60 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-900 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-800 dark:border-slate-600">
                   Edit
                 </button>
               </div>
@@ -627,7 +627,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
           ) : (
             <button type="button"
               onClick={() => { setSaldoAwalForm({ jumlah: '', keterangan: '' }); setSaldoAwalModal(true) }}
-              className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline underline-offset-2 text-left">
+              className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 dark:hover:text-slate-300 underline underline-offset-2 text-left">
               + Tambah tunggakan awal (data migrasi)
             </button>
           )}
@@ -650,18 +650,18 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                   className={[
                     'rounded-xl border p-3 text-left transition-all duration-150',
                     sebelumMulai
-                      ? 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 opacity-40 cursor-not-allowed'
+                      ? 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 dark:bg-slate-900/50 opacity-40 cursor-not-allowed'
                       : lunas
-                        ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 cursor-pointer'
+                        ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-900/20 cursor-pointer'
                         : dipilih
                           ? 'border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-300 dark:ring-blue-700 cursor-pointer'
                           : nunggak
                             ? 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20 hover:border-blue-300 hover:bg-blue-50 cursor-pointer'
-                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-slate-800/50 cursor-pointer',
+                            : 'border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-slate-800/50 cursor-pointer',
                   ].join(' ')}
                 >
                   <p className={`text-sm font-bold mb-1 ${
-                    lunas ? 'text-emerald-600' : dipilih ? 'text-blue-600 dark:text-blue-400' : nunggak ? 'text-rose-600' : 'text-slate-700 dark:text-slate-200'
+                    lunas ? 'text-emerald-600' : dipilih ? 'text-blue-600 dark:text-blue-400' : nunggak ? 'text-rose-600' : 'text-slate-700 dark:text-slate-300 dark:text-slate-200'
                   }`}>
                     {BULAN_LABEL[bulan]}
                   </p>
@@ -672,13 +672,13 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                         {formatRupiah(tagihan.nominal)}
                       </p>
                       <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                        {lunas && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-600">LUNAS</span>}
+                        {lunas && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600">LUNAS</span>}
                         {nunggak && !dipilih && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600">NUNGGAK</span>}
                         {dipilih && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-600">DIPILIH</span>}
                         {!lunas && (
                           <button type="button"
                             onClick={e => { e.stopPropagation(); handleEditSppManual(tagihan) }}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300">
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300">
                             Edit
                           </button>
                         )}
@@ -700,7 +700,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
           {sppSelected.size > 0 && (
             <div className="sticky bottom-4 flex justify-center">
               <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 rounded-xl shadow-lg px-4 py-3 flex items-center gap-3">
-                <p className="text-sm text-slate-600 dark:text-slate-300">
+                <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300">
                   <span className="font-bold text-blue-600">{sppSelected.size} bulan</span> dipilih
                 </p>
                 <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-400" onClick={() => setSppSelected(new Set())}>
@@ -722,7 +722,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                 <DialogTitle className="text-sm font-semibold text-amber-800 dark:text-amber-300">Tunggakan Awal SPP</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSaveSaldoAwal} className="p-5 space-y-3">
-                <p className="text-xs text-slate-500">Catat total hutang SPP dari periode sebelum sistem ini dipakai (tanpa rincian bulan).</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Catat total hutang SPP dari periode sebelum sistem ini dipakai (tanpa rincian bulan).</p>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium">Jumlah Tunggakan (Rp)</Label>
                   <Input type="number" min={0} value={saldoAwalForm.jumlah}
@@ -750,7 +750,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                 <DialogTitle className="text-sm font-semibold">Atur Mulai SPP — {siswa.nama_lengkap}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSaveMulai} className="p-5 space-y-3">
-                <p className="text-xs text-slate-500">Override mulai SPP khusus untuk siswa ini (misalnya siswa baru masuk tengah tahun).</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Override mulai SPP khusus untuk siswa ini (misalnya siswa baru masuk tengah tahun).</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium">Bulan Mulai</Label>
@@ -795,7 +795,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <p className="text-xs text-slate-500">Status Koperasi</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Status Koperasi</p>
                     {(() => {
                       const s = STATUS_MAP[kopTagihan.status as keyof typeof STATUS_MAP] ?? STATUS_MAP.belum_bayar
                       const Icon = s.icon
@@ -820,16 +820,16 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-3 text-sm">
-                  <div><p className="text-[11px] text-slate-500">Total Tagihan</p><p className="font-semibold">{formatRupiah(kopTagihan.total_nominal)}</p></div>
-                  <div><p className="text-[11px] text-slate-500">Dibayar</p><p className="font-semibold text-emerald-600">{formatRupiah(kopTagihan.total_dibayar)}</p></div>
-                  <div><p className="text-[11px] text-slate-500">Sisa</p><p className={`font-bold ${(kopTagihan.total_nominal - kopTagihan.total_dibayar - kopTagihan.total_diskon) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatRupiah(kopTagihan.total_nominal - kopTagihan.total_dibayar - kopTagihan.total_diskon)}</p></div>
+                  <div><p className="text-[11px] text-slate-500 dark:text-slate-400">Total Tagihan</p><p className="font-semibold">{formatRupiah(kopTagihan.total_nominal)}</p></div>
+                  <div><p className="text-[11px] text-slate-500 dark:text-slate-400">Dibayar</p><p className="font-semibold text-emerald-600">{formatRupiah(kopTagihan.total_dibayar)}</p></div>
+                  <div><p className="text-[11px] text-slate-500 dark:text-slate-400">Sisa</p><p className={`font-bold ${(kopTagihan.total_nominal - kopTagihan.total_dibayar - kopTagihan.total_diskon) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatRupiah(kopTagihan.total_nominal - kopTagihan.total_dibayar - kopTagihan.total_diskon)}</p></div>
                 </div>
               </div>
 
               {/* Item breakdown */}
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
                 <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Rincian Item</p>
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Rincian Item</p>
                 </div>
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                   {kopItems.map((item: any) => {
@@ -845,7 +845,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                         <div className="flex items-center gap-2">
                           <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
                             item.status === 'lunas'
-                              ? 'bg-emerald-100 text-emerald-700'
+                              ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400'
                               : 'bg-rose-100 text-rose-700'
                           }`}>
                             {item.status === 'lunas' ? 'Lunas' : formatRupiah(sisaItem) + ' sisa'}
@@ -888,8 +888,8 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                 )}
                 {transaksi.map((trx: any) => (
                   <TableRow key={trx.id} className={trx.is_void ? 'opacity-50' : ''}>
-                    <TableCell className="text-[11px] font-mono text-slate-600 dark:text-slate-300">{trx.nomor_kuitansi}</TableCell>
-                    <TableCell className="text-xs text-slate-600 whitespace-nowrap">
+                    <TableCell className="text-[11px] font-mono text-slate-600 dark:text-slate-400 dark:text-slate-300">{trx.nomor_kuitansi}</TableCell>
+                    <TableCell className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
                       {new Date(trx.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </TableCell>
                     <TableCell>
@@ -897,7 +897,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                         {trx.kategori}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs text-slate-600">{trx.metode_bayar === 'tunai' ? 'Tunai' : 'Transfer'}</TableCell>
+                    <TableCell className="text-xs text-slate-600 dark:text-slate-400">{trx.metode_bayar === 'tunai' ? 'Tunai' : 'Transfer'}</TableCell>
                     <TableCell className="text-sm text-right font-semibold">{formatRupiah(trx.jumlah_total)}</TableCell>
                     <TableCell className="text-xs text-slate-400">{trx.nama_input}</TableCell>
                     <TableCell>
@@ -906,7 +906,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                           <Ban className="h-2.5 w-2.5" /> Void
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">
+                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-medium">
                           <CheckCircle2 className="h-2.5 w-2.5" /> SAH
                         </span>
                       )}
@@ -994,7 +994,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                 const checked = bayarForm.selectedItems.includes(item.id)
                 return (
                   <label key={item.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                    checked ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700'
+                    checked ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-800 dark:border-slate-700'
                   }`}>
                     <input type="checkbox" checked={checked}
                       onChange={() => setBayarForm(f => ({
@@ -1150,11 +1150,11 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
             <DialogTitle className="text-sm font-semibold">Buat Tagihan Koperasi</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleBuatKoperasi} className="p-5 space-y-4">
-            <p className="text-xs text-slate-500">Centang item yang dikenakan untuk siswa ini. Nominal bisa disesuaikan.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Centang item yang dikenakan untuk siswa ini. Nominal bisa disesuaikan.</p>
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {kopItemForm.map((item, idx) => (
                 <div key={item.masterItemId} className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                  item.checked ? 'border-blue-300 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700' : 'border-slate-200 dark:border-slate-700'
+                  item.checked ? 'border-blue-300 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700' : 'border-slate-200 dark:border-slate-800 dark:border-slate-700'
                 }`}>
                   <input type="checkbox" checked={item.checked}
                     onChange={() => setKopItemForm(f => f.map((r, i) => i === idx ? { ...r, checked: !r.checked } : r))}

@@ -20,7 +20,7 @@ type RekapItem = { mapel: string; jumlah: number }
 
 const KATEGORI_COLOR: Record<string, string> = {
   'Matematika Tingkat Lanjut': 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800',
-  'Bahasa Indonesia Tingkat Lanjut': 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
+  'Bahasa Indonesia Tingkat Lanjut': 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
   'Bahasa Inggris Tingkat Lanjut': 'bg-sky-100 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800',
   'Fisika': 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800',
   'Kimia': 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
@@ -33,7 +33,7 @@ const KATEGORI_COLOR: Record<string, string> = {
 }
 
 function getMapelColor(mapel: string) {
-  return KATEGORI_COLOR[mapel] ?? 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+  return KATEGORI_COLOR[mapel] ?? 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
 }
 
 export function TabRekap({ tahunAjaranId, isAdmin }: Props) {
@@ -97,9 +97,9 @@ export function TabRekap({ tahunAjaranId, isAdmin }: Props) {
   return (
     <div className="space-y-4">
       {!loaded ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center border rounded-xl border-dashed border-slate-200 dark:border-slate-700">
+        <div className="flex flex-col items-center justify-center py-20 text-center border rounded-xl border-dashed border-slate-200 dark:border-slate-800 dark:border-slate-700">
           <BookMarked className="h-10 w-10 text-slate-300 mb-3" />
-          <p className="text-slate-500 font-medium text-sm">Lihat rekapitulasi mapel pilihan siswa</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Lihat rekapitulasi mapel pilihan siswa</p>
           <p className="text-slate-400 text-xs mt-1 mb-4">Klik tombol di bawah untuk memuat data</p>
           <Button onClick={loadRekap} disabled={loading} size="sm" variant="outline">
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <RefreshCw className="h-3.5 w-3.5 mr-1.5" />}
@@ -109,7 +109,7 @@ export function TabRekap({ tahunAjaranId, isAdmin }: Props) {
       ) : (
         <>
           <div className="flex items-center justify-between">
-            <p className="text-xs text-slate-500">{totalPilihan1} siswa telah memilih Mapel Pilihan 1 · {totalPilihan2} siswa untuk Pilihan 2</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{totalPilihan1} siswa telah memilih Mapel Pilihan 1 · {totalPilihan2} siswa untuk Pilihan 2</p>
             <Button onClick={loadRekap} disabled={loading} size="sm" variant="outline">
               {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
             </Button>
@@ -144,17 +144,17 @@ export function TabRekap({ tahunAjaranId, isAdmin }: Props) {
           <DialogHeader>
             <DialogTitle className="text-sm font-semibold">
               Siswa Pemilih: {modal?.mapel}
-              <span className="ml-2 text-xs font-normal text-slate-500">(Pilihan {modal?.pilihan})</span>
+              <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">(Pilihan {modal?.pilihan})</span>
             </DialogTitle>
           </DialogHeader>
-          <div className="text-xs text-slate-500 mb-2">{modalTotal} siswa</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">{modalTotal} siswa</div>
           <ScrollArea className="h-72">
             {modalLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-xs text-slate-500 border-b border-slate-100 dark:border-slate-800">
+                  <tr className="text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
                     <th className="text-left py-1.5 pr-2">#</th>
                     <th className="text-left py-1.5 pr-2">Nama</th>
                     <th className="text-left py-1.5 pr-2">NISN</th>
@@ -166,8 +166,8 @@ export function TabRekap({ tahunAjaranId, isAdmin }: Props) {
                     <tr key={row.nisn} className="border-b border-slate-50 dark:border-slate-800">
                       <td className="py-1.5 pr-2 text-xs text-slate-400">{(modalPage - 1) * PAGE_SIZE + i + 1}</td>
                       <td className="py-1.5 pr-2 font-medium text-slate-800 dark:text-slate-200">{row.nama_lengkap}</td>
-                      <td className="py-1.5 pr-2 text-xs font-mono text-slate-500">{row.nisn}</td>
-                      <td className="py-1.5 text-xs text-slate-500">
+                      <td className="py-1.5 pr-2 text-xs font-mono text-slate-500 dark:text-slate-400">{row.nisn}</td>
+                      <td className="py-1.5 text-xs text-slate-500 dark:text-slate-400">
                         {row.tingkat ? `${row.tingkat}-${row.nomor_kelas} ${row.kelompok}` : '-'}
                       </td>
                     </tr>
@@ -182,7 +182,7 @@ export function TabRekap({ tahunAjaranId, isAdmin }: Props) {
               <Button variant="outline" size="sm" disabled={modalPage <= 1} onClick={() => loadModalPage(modalPage - 1)}>
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
-              <span className="text-xs text-slate-500">Hal {modalPage} / {totalPages}</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">Hal {modalPage} / {totalPages}</span>
               <Button variant="outline" size="sm" disabled={modalPage >= totalPages} onClick={() => loadModalPage(modalPage + 1)}>
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
@@ -205,10 +205,10 @@ function RekapCard({
   onClickMapel: (mapel: string, pilihan: 1 | 2) => void
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 overflow-hidden">
+      <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 dark:border-slate-700">
         <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">{title}</h3>
-        <p className="text-xs text-slate-500 mt-0.5">{total} siswa · {items.length} mapel dipilih</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{total} siswa · {items.length} mapel dipilih</p>
       </div>
       {items.length === 0 ? (
         <div className="px-4 py-8 text-center text-sm text-slate-400">Belum ada data</div>
@@ -232,7 +232,7 @@ function RekapCard({
                   <Users className="h-3 w-3 text-slate-400 group-hover:text-sky-500 transition-colors" />
                 </div>
               </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
+              <div className="w-full bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 rounded-full h-1.5">
                 <div
                   className="h-1.5 rounded-full bg-sky-400 dark:bg-sky-500 transition-all"
                   style={{ width: `${(item.jumlah / maxVal) * 100}%` }}

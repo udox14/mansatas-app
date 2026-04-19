@@ -50,7 +50,7 @@ const defaultJurusan = ['MIPA-F', 'MIPA-M', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
 const HARI_LABELS = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
 const HARI_COLORS = [
   '', 'bg-blue-100 text-blue-700 border-blue-200',
-  'bg-emerald-100 text-emerald-700 border-emerald-200',
+  'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
   'bg-teal-100 text-teal-700 border-teal-200',
   'bg-violet-100 text-violet-700 border-violet-200',
   'bg-rose-100 text-rose-700 border-rose-200',
@@ -69,7 +69,7 @@ function SubmitBtn() {
 function JurusanTag({ label, onRemove }: { label: string; onRemove?: () => void }) {
   const isUmum = label === 'UMUM'
   return (
-    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-semibold ${isUmum ? 'bg-surface-3 text-slate-500 border-surface' : 'bg-surface text-blue-700 border-blue-200'}`}>
+    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-[11px] font-semibold ${isUmum ? 'bg-surface-3 text-slate-500 dark:text-slate-400 border-surface' : 'bg-surface text-blue-700 border-blue-200'}`}>
       {label}
       {!isUmum && onRemove && (
         <button type="button" onClick={onRemove} className="text-slate-300 dark:text-slate-600 hover:text-rose-500 transition-colors">
@@ -141,7 +141,7 @@ function PolaEditor({
     onUpdate({ ...pola, slots: pola.slots.map(s => s.id === id ? { ...s, [field]: value } : s) })
   }
 
-  const colorClass = pola.hari.length > 0 ? HARI_COLORS[pola.hari[0]] : 'bg-surface-3 text-slate-500 border-surface'
+  const colorClass = pola.hari.length > 0 ? HARI_COLORS[pola.hari[0]] : 'bg-surface-3 text-slate-500 dark:text-slate-400 border-surface'
 
   return (
     <div className="rounded-xl border border-surface overflow-hidden">
@@ -160,7 +160,7 @@ function PolaEditor({
           value={pola.nama}
           onChange={e => { e.stopPropagation(); onUpdate({ ...pola, nama: e.target.value }) }}
           onClick={e => e.stopPropagation()}
-          className="h-7 text-xs font-semibold bg-transparent border-transparent hover:border-surface focus:bg-surface focus:border-slate-200 rounded-md flex-1 min-w-0 px-2"
+          className="h-7 text-xs font-semibold bg-transparent border-transparent hover:border-surface focus:bg-surface focus:border-slate-200 dark:focus:border-slate-800 rounded-md flex-1 min-w-0 px-2"
           placeholder="Nama pola..."
         />
 
@@ -458,7 +458,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
               <CalendarDays className="h-4 w-4 text-slate-500 dark:text-slate-400" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Manajemen Tahun Ajaran</p>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Manajemen Tahun Ajaran</p>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Kelola periode, jurusan, dan jam pelajaran per hari</p>
             </div>
           </div>
@@ -472,7 +472,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
             </DialogTrigger>
             <DialogContent className="sm:max-w-xl rounded-xl border-surface">
               <DialogHeader className="border-b border-surface-2 pb-3">
-                <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-100">Setup Tahun Ajaran Baru</DialogTitle>
+                <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Setup Tahun Ajaran Baru</DialogTitle>
               </DialogHeader>
               <ScrollArea className="max-h-[78vh] pr-1 py-1">
                 <form action={formAction} className="space-y-4 px-1">
@@ -482,18 +482,18 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
                     </div>
                   )}
                   {state?.success && (
-                    <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-100 flex gap-2">
+                    <div className="p-2.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-100 flex gap-2">
                       <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {state.success}
                     </div>
                   )}
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Nama periode</Label>
+                      <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300">Nama periode</Label>
                       <Input name="nama" required placeholder="Contoh: 2025/2026" className="h-9 rounded-lg bg-surface-2 text-sm" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Semester</Label>
+                      <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300">Semester</Label>
                       <Select name="semester" defaultValue="1">
                         <SelectTrigger className="h-9 rounded-lg bg-surface-2 text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -553,7 +553,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
           return (
             <div key={ta.id} className={cn(
               'flex flex-col xl:flex-row xl:items-center justify-between p-4 border-b border-surface-2 last:border-0 gap-4 transition-colors',
-              ta.is_active ? 'bg-emerald-50/40' : 'hover:bg-surface-2/50'
+              ta.is_active ? 'bg-emerald-50 dark:bg-emerald-950/50/40' : 'hover:bg-surface-2/50'
             )}>
               {/* Info */}
               <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -564,7 +564,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
                   {ta.semester}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className={cn('text-sm font-semibold', ta.is_active ? 'text-emerald-900' : 'text-slate-800 dark:text-slate-100')}>{ta.nama}</p>
+                  <p className={cn('text-sm font-semibold', ta.is_active ? 'text-emerald-900' : 'text-slate-800 dark:text-slate-200 dark:text-slate-100')}>{ta.nama}</p>
                   <p className="text-xs text-slate-400 dark:text-slate-500">Semester {ta.semester === 1 ? 'Ganjil' : 'Genap'}</p>
 
                   {/* Jurusan */}
@@ -572,7 +572,7 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
                     {ta.daftar_jurusan?.map(j => (
                       <span key={j} className={cn(
                         'text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded border',
-                        ta.is_active ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-surface-3 text-slate-500 dark:text-slate-400 border-surface'
+                        ta.is_active ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 'bg-surface-3 text-slate-500 dark:text-slate-400 border-surface'
                       )}>{j}</span>
                     ))}
                   </div>
@@ -616,13 +616,13 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
                 </Button>
 
                 {ta.is_active ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-200">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 text-xs font-semibold border border-emerald-200 dark:border-emerald-800">
                     <CheckCircle2 className="h-3.5 w-3.5" /> Aktif
                   </span>
                 ) : (
                   <>
                     <Button variant="outline" size="sm" onClick={() => handleSetAktif(ta.id)} disabled={isPending}
-                      className="h-8 text-xs gap-1.5 border-surface text-slate-600 dark:text-slate-300 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 rounded-lg">
+                      className="h-8 text-xs gap-1.5 border-surface text-slate-600 dark:text-slate-400 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-600 hover:border-emerald-200 dark:hover:border-emerald-800 rounded-lg">
                       <Power className="h-3.5 w-3.5" /> Aktifkan
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => handleHapus(ta.id, ta.is_active)} disabled={isPending}

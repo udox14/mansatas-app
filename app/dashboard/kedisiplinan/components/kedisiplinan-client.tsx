@@ -30,7 +30,7 @@ function getSanksiStyle(urutan: number) {
   return 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800'
 }
 
-const AMAN_STYLE = 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
+const AMAN_STYLE = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
 
 // ─── Modal Detail Kasus per Siswa ──────────────────────────────
 function DetailKasusModal({
@@ -69,12 +69,12 @@ function DetailKasusModal({
               {group.siswa.nama_lengkap?.charAt(0)?.toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <DialogTitle className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-snug">
+              <DialogTitle className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-snug">
                 {group.siswa.nama_lengkap}
               </DialogTitle>
               <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Kelas {kelas}</p>
             </div>
-            <button onClick={onClose} className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <button onClick={onClose} className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 dark:hover:bg-slate-800 transition-colors">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -83,7 +83,7 @@ function DetailKasusModal({
           <div className="grid grid-cols-3 gap-2 mt-3">
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-2.5 text-center">
               <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Kasus (TA ini)</p>
-              <p className="text-xl font-black text-slate-700 dark:text-slate-200">{group.kasus.length}</p>
+              <p className="text-xl font-black text-slate-700 dark:text-slate-300 dark:text-slate-200">{group.kasus.length}</p>
             </div>
             <div className="bg-rose-50 dark:bg-rose-900/20 rounded-lg p-2.5 text-center">
               <p className="text-[10px] text-rose-500 font-medium uppercase tracking-wide">Poin Seumur</p>
@@ -117,13 +117,13 @@ function DetailKasusModal({
                       {new Date(k.tanggal).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                     </p>
                     {k.keterangan && (
-                      <p className="text-[11px] italic text-slate-500 dark:text-slate-400 mt-1.5 bg-slate-50 dark:bg-slate-800 px-2 py-1.5 rounded-lg border border-slate-100 dark:border-slate-700">
+                      <p className="text-[11px] italic text-slate-500 dark:text-slate-400 mt-1.5 bg-slate-50 dark:bg-slate-800 px-2 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800 dark:border-slate-700">
                         "{k.keterangan}"
                       </p>
                     )}
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                        Pelapor: <span className="font-semibold text-slate-600 dark:text-slate-300">{isOwner ? 'Anda' : (k.pelapor?.nama_lengkap || 'Sistem')}</span>
+                        Pelapor: <span className="font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">{isOwner ? 'Anda' : (k.pelapor?.nama_lengkap || 'Sistem')}</span>
                       </span>
                       {k.foto_url && (
                         <a href={k.foto_url} target="_blank" rel="noreferrer"
@@ -307,7 +307,7 @@ export function KedisiplinanClient({
     m.nama_pelanggaran.toLowerCase().includes(searchMaster.toLowerCase())
   )
   const kategoriColor = (k: string) => {
-    if (k === 'Ringan') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    if (k === 'Ringan') return 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
     if (k === 'Sedang') return 'bg-amber-50 text-amber-700 border-amber-200'
     return 'bg-rose-50 text-rose-700 border-rose-200'
   }
@@ -418,7 +418,7 @@ export function KedisiplinanClient({
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-rose-700 dark:group-hover:text-rose-400 transition-colors">
+                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate group-hover:text-rose-700 dark:group-hover:text-rose-400 transition-colors">
                               {group.siswa.nama_lengkap}
                             </p>
                             <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full border', badgeStyle)}>
@@ -482,7 +482,7 @@ export function KedisiplinanClient({
                               'h-7 w-7 text-xs rounded-md font-medium transition-colors',
                               pageNum === safePage
                                 ? 'bg-rose-600 text-white'
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                                : 'bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                             )}>
                             {pageNum}
                           </button>
@@ -528,12 +528,12 @@ export function KedisiplinanClient({
                       <DialogHeader><DialogTitle className="text-base font-semibold">Import Kamus Pelanggaran</DialogTitle></DialogHeader>
                       <div className="space-y-3 py-3">
                         <div className="flex justify-between items-center bg-surface-2 p-2.5 rounded-lg border border-surface">
-                          <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Download format:</span>
+                          <span className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300">Download format:</span>
                           <Button size="sm" variant="outline" onClick={handleDownloadTemplateKamus} className="h-7 text-xs gap-1">
                             <Download className="h-3 w-3" />Template
                           </Button>
                         </div>
-                        <div className="bg-surface-3 p-3 rounded-lg text-xs font-mono text-slate-600 dark:text-slate-300 space-y-0.5">
+                        <div className="bg-surface-3 p-3 rounded-lg text-xs font-mono text-slate-600 dark:text-slate-400 dark:text-slate-300 space-y-0.5">
                           <p className="font-bold mb-1">Kolom:</p>
                           <p>1. NAMA_PELANGGARAN</p>
                           <p>2. KATEGORI (Ringan/Sedang/Berat)</p>
@@ -541,7 +541,7 @@ export function KedisiplinanClient({
                         </div>
                         <Input type="file" accept=".xlsx,.xls" onChange={handleFileUploadKamus} disabled={isImportingKamus} className="h-9 text-xs rounded-lg cursor-pointer" />
                         {isImportingKamus && (
-                          <div className="flex items-center text-xs font-medium text-slate-600 dark:text-slate-300 bg-surface-3 p-2.5 rounded-lg animate-pulse">
+                          <div className="flex items-center text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 bg-surface-3 p-2.5 rounded-lg animate-pulse">
                             <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Mengimport...
                           </div>
                         )}
@@ -556,15 +556,15 @@ export function KedisiplinanClient({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {filteredMaster.map(m => (
-                  <div key={m.id} className="bg-surface border border-surface rounded-lg p-3 flex flex-col justify-between group hover:border-slate-300 transition-colors">
+                  <div key={m.id} className="bg-surface border border-surface rounded-lg p-3 flex flex-col justify-between group hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
                     <div>
                       <div className="flex justify-between items-start mb-2">
                         <span className={cn("text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border", kategoriColor(m.kategori))}>
                           {m.kategori}
                         </span>
-                        <span className="text-base font-black text-slate-800 dark:text-slate-100">+{m.poin}</span>
+                        <span className="text-base font-black text-slate-800 dark:text-slate-200 dark:text-slate-100">+{m.poin}</span>
                       </div>
-                      <p className="text-xs font-medium text-slate-700 dark:text-slate-200 leading-snug">{m.nama_pelanggaran}</p>
+                      <p className="text-xs font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200 leading-snug">{m.nama_pelanggaran}</p>
                     </div>
                     <div className="flex justify-end gap-1 mt-2.5 pt-2 border-t border-surface-2 opacity-30 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => { setEditMasterData(m); setIsMasterModalOpen(true) }} className="p-1.5 rounded text-blue-600 hover:bg-blue-50">

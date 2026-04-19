@@ -45,8 +45,8 @@ export function DetailKelasClient({ siswaData, kelasId, tingkatKelas }: { siswaD
             ) : filteredData.map((s, i) => (
               <TableRow key={s.id} className="hover:bg-surface-2/60 border-surface-2 group">
                 <TableCell className="text-center text-xs text-slate-400 dark:text-slate-500 py-2.5">{i + 1}</TableCell>
-                <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600 py-2.5 font-mono">{s.nisn}</TableCell>
-                <TableCell className="text-sm font-medium text-slate-800 dark:text-slate-100 py-2.5">{s.nama_lengkap}</TableCell>
+                <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 py-2.5 font-mono">{s.nisn}</TableCell>
+                <TableCell className="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 py-2.5">{s.nama_lengkap}</TableCell>
                 <TableCell className="text-center text-xs py-2.5">
                   <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${s.jenis_kelamin === 'L' ? 'bg-blue-50 text-blue-700' : 'bg-pink-50 text-pink-700'}`}>{s.jenis_kelamin}</span>
                 </TableCell>

@@ -54,7 +54,7 @@ export function AyatGrid({ surahNama, jumlahAyat, progressAwal, onSave, isSaving
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h3 className="font-semibold text-lg">{surahNama}</h3>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             {selected.size} / {jumlahAyat} Ayat Dihafal
             {numNew > 0 && <span className="text-emerald-600 ml-2 font-medium">(+{numNew} Setoran Baru)</span>}
           </p>
@@ -96,9 +96,9 @@ export function AyatGrid({ surahNama, jumlahAyat, progressAwal, onSave, isSaving
                 "h-10 w-full rounded-md font-medium text-sm flex items-center justify-center transition-all",
                 isSelected
                   ? isNewlySelected
-                    ? "bg-emerald-100 text-emerald-700 border-2 border-emerald-500 shadow-sm ring-2 ring-emerald-500 ring-offset-1" // New selection visual
+                    ? "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-2 border-emerald-500 dark:border-emerald-500 shadow-sm ring-2 ring-emerald-500 ring-offset-1" // New selection visual
                     : "bg-emerald-500 text-white shadow-sm" // Previously saved visual
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200" // Not selected
+                  : "bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:bg-slate-200 border border-slate-200 dark:border-slate-800" // Not selected
               )}
             >
               {num}
@@ -107,15 +107,15 @@ export function AyatGrid({ surahNama, jumlahAyat, progressAwal, onSave, isSaving
         })}
       </div>
       
-      <div className="flex items-center gap-4 text-xs text-slate-500 pt-2 border-t mt-4">
+      <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 pt-2 border-t mt-4">
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded-sm bg-emerald-500"></div> Sudah Dihafal
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-sm bg-emerald-100 border-2 border-emerald-500"></div> Setoran Baru (belum simpan)
+          <div className="w-3 h-3 rounded-sm bg-emerald-100 dark:bg-emerald-900/50 border-2 border-emerald-500 dark:border-emerald-500"></div> Setoran Baru (belum simpan)
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-sm bg-slate-100 border border-slate-200"></div> Belum Dihafal
+          <div className="w-3 h-3 rounded-sm bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-800"></div> Belum Dihafal
         </div>
       </div>
     </div>

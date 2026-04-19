@@ -77,7 +77,7 @@ const ROLE_COLORS: Record<string, string> = {
   admin_tu: 'bg-violet-100 text-violet-700 border-violet-200',
   kepsek: 'bg-amber-100 text-amber-700 border-amber-200',
   wakamad: 'bg-blue-100 text-blue-700 border-blue-200',
-  guru: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  guru: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
   guru_bk: 'bg-cyan-100 text-cyan-700 border-cyan-200',
   guru_piket: 'bg-teal-100 text-teal-700 border-teal-200',
   wali_kelas: 'bg-indigo-100 text-indigo-700 border-indigo-200',
@@ -98,7 +98,7 @@ function SubmitButton() {
 
 const getAvatarColor = (name: string) => {
   const colors = [
-    'from-emerald-100 to-emerald-200 text-emerald-800',
+    'from-emerald-100 to-emerald-200 text-emerald-800 dark:text-emerald-400',
     'from-teal-100 to-teal-200 text-teal-800',
     'from-cyan-100 to-cyan-200 text-cyan-800',
     'from-blue-100 to-blue-200 text-blue-800',
@@ -280,7 +280,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
       {roles.map(role => (
         <span key={role} className={cn(
           'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold border',
-          ROLE_COLORS[role] || 'bg-slate-100 text-slate-600 border-slate-200',
+          ROLE_COLORS[role] || 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800',
           role === primaryRole && 'ring-1 ring-offset-0.5 ring-slate-400'
         )}>
           {role === primaryRole && <span className="text-[7px]">★</span>}
@@ -301,11 +301,11 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
           <form onSubmit={handleEditSubmit} className="space-y-3 pt-1">
             <input type="hidden" name="id" value={editingPegawai?.id} />
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Nama Lengkap</Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Nama Lengkap</Label>
               <Input name="nama_lengkap" defaultValue={editingPegawai?.nama_lengkap} required className="h-9 text-sm rounded-lg" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Email (Login)</Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Email (Login)</Label>
               <Input type="email" name="email" defaultValue={editingPegawai?.email} required className="h-9 text-sm rounded-lg" />
             </div>
             <Button type="submit" disabled={isPending} className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">
@@ -324,7 +324,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-1">
-            <p className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 border border-surface">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 border border-surface">
               Centang role yang berlaku. User bisa memiliki banyak role sekaligus. Role dengan ★ adalah role utama.
             </p>
             <div className="space-y-1.5">
@@ -334,21 +334,21 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                 return (
                   <div key={r.value} className={cn(
                     'flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all',
-                    isSelected ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-surface border-surface hover:bg-surface-2'
+                    isSelected ? 'bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-surface border-surface hover:bg-surface-2'
                   )}>
                     <button type="button" onClick={() => toggleRole(r.value)} className={cn(
                       'h-4 w-4 rounded shrink-0 flex items-center justify-center transition-colors',
-                      isSelected ? 'bg-emerald-500 text-white' : 'border-2 border-slate-300 dark:border-slate-600'
+                      isSelected ? 'bg-emerald-500 text-white' : 'border-2 border-slate-300 dark:border-slate-700 dark:border-slate-600'
                     )}>
                       {isSelected && <Check className="h-2.5 w-2.5" />}
                     </button>
-                    <span className={cn('text-xs font-medium flex-1', isSelected ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400')}>
+                    <span className={cn('text-xs font-medium flex-1', isSelected ? 'text-slate-800 dark:text-slate-200 dark:text-slate-100' : 'text-slate-400')}>
                       {r.label}
                     </span>
                     {isSelected && (
                       <button type="button" onClick={() => setSelectedPrimary(r.value)} className={cn(
                         'text-[9px] font-bold px-1.5 py-0.5 rounded transition-colors',
-                        isPrimary ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 hover:bg-amber-50 hover:text-amber-600'
+                        isPrimary ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-700 text-slate-400 hover:bg-amber-50 hover:text-amber-600'
                       )} title="Set sebagai role utama">
                         {isPrimary ? '★ Utama' : 'Set utama'}
                       </button>
@@ -373,7 +373,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-2 pt-1">
-            <p className="text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 border border-surface">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 border border-surface">
               Klik berulang untuk mengubah status: <span className="font-semibold text-emerald-600">✓ Grant</span> → <span className="font-semibold text-rose-600">✗ Revoke</span> → <span className="text-slate-400">Normal</span>.
             </p>
             <ScrollArea className="h-[50vh]">
@@ -389,17 +389,17 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                   return (
                     <button key={feature.id} onClick={() => handleToggleOverride(feature.id)} disabled={overrideLoading} className={cn(
                       'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border transition-all text-left',
-                      isGrant ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800'
+                      isGrant ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/30 dark:border-emerald-800'
                         : isRevoke ? 'bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:border-rose-800'
                           : 'bg-surface border-surface hover:bg-surface-2'
                     )}>
-                      <div className={cn('p-1 rounded shrink-0', isGrant ? 'bg-emerald-100' : isRevoke ? 'bg-rose-100' : 'bg-slate-100 dark:bg-slate-800')}>
+                      <div className={cn('p-1 rounded shrink-0', isGrant ? 'bg-emerald-100 dark:bg-emerald-900/50' : isRevoke ? 'bg-rose-100' : 'bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800')}>
                         <Icon className={cn('h-3 w-3', isGrant ? 'text-emerald-600' : isRevoke ? 'text-rose-500' : 'text-slate-400')} />
                       </div>
-                      <span className={cn('text-xs font-medium flex-1 truncate', isGrant ? 'text-emerald-700' : isRevoke ? 'text-rose-600 line-through' : 'text-slate-600 dark:text-slate-300')}>
+                      <span className={cn('text-xs font-medium flex-1 truncate', isGrant ? 'text-emerald-700 dark:text-emerald-400' : isRevoke ? 'text-rose-600 line-through' : 'text-slate-600 dark:text-slate-400 dark:text-slate-300')}>
                         {feature.title}
                       </span>
-                      {isGrant && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200">+ Grant</span>}
+                      {isGrant && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">+ Grant</span>}
                       {isRevoke && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 border border-rose-200">− Revoke</span>}
                       {!isGrant && !isRevoke && <span className="text-[9px] text-slate-400 px-1.5 py-0.5">Normal</span>}
                     </button>
@@ -421,10 +421,10 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
 
           {/* View toggle */}
           <div className="flex bg-surface-2 border border-surface p-0.5 rounded-lg shrink-0">
-            <button onClick={() => { setViewMode('table'); setCurrentPage(1) }} className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${viewMode === 'table' ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+            <button onClick={() => { setViewMode('table'); setCurrentPage(1) }} className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${viewMode === 'table' ? 'bg-surface text-slate-800 dark:text-slate-200 dark:text-slate-100 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-400'}`}>
               <List className="h-3.5 w-3.5" /><span className="hidden sm:inline">Tabel</span>
             </button>
-            <button onClick={() => { setViewMode('gallery'); setCurrentPage(1) }} className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${viewMode === 'gallery' ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+            <button onClick={() => { setViewMode('gallery'); setCurrentPage(1) }} className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${viewMode === 'gallery' ? 'bg-surface text-slate-800 dark:text-slate-200 dark:text-slate-100 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-400'}`}>
               <LayoutGrid className="h-3.5 w-3.5" /><span className="hidden sm:inline">Foto</span>
             </button>
           </div>
@@ -449,15 +449,15 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                 <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Import Akun Pegawai Massal</DialogTitle></DialogHeader>
                 <div className="space-y-3 pt-2">
                   <div className="flex justify-between items-center p-2.5 bg-surface-2 border border-surface rounded-lg">
-                    <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">Download format template:</p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 font-medium">Download format template:</p>
                     <Button size="sm" variant="outline" onClick={handleDownloadTemplate} className="h-7 text-xs gap-1"><Download className="h-3 w-3" />Template</Button>
                   </div>
-                  <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg text-xs text-emerald-800 space-y-1">
-                    <p className="flex items-center gap-1.5 font-medium"><KeyRound className="h-3.5 w-3.5 text-emerald-600" />Password otomatis: <strong className="font-mono bg-surface px-1.5 py-0.5 rounded border border-emerald-200">mansatas2026</strong></p>
+                  <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 p-3 rounded-lg text-xs text-emerald-800 dark:text-emerald-400 space-y-1">
+                    <p className="flex items-center gap-1.5 font-medium"><KeyRound className="h-3.5 w-3.5 text-emerald-600" />Password otomatis: <strong className="font-mono bg-surface px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">mansatas2026</strong></p>
                     <p>Kolom: <strong>NAMA_LENGKAP</strong>, <strong>EMAIL</strong>, <strong>JABATAN</strong></p>
                   </div>
                   <Input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} disabled={isImporting} className="h-9 text-xs rounded-lg cursor-pointer" />
-                  {isImporting && <div className="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 p-2.5 rounded-lg animate-pulse"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Sedang membuat akun...</div>}
+                  {isImporting && <div className="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 p-2.5 rounded-lg animate-pulse"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Sedang membuat akun...</div>}
                   {importLogs.length > 0 && (
                     <div className="border border-rose-200 rounded-lg overflow-hidden">
                       <div className="bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5" />Log Gagal:</div>
@@ -481,24 +481,24 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                 <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Buat Akun Pegawai Baru</DialogTitle></DialogHeader>
                 <form action={formAction} className="space-y-3 pt-2">
                   {state?.error && <div className="p-2.5 text-xs text-rose-600 bg-rose-50 rounded-lg border border-rose-200 flex gap-1.5"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{state.error}</div>}
-                  {state?.success && <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-200 flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{state.success}</div>}
-                  <div className="bg-emerald-50 border border-emerald-100 p-2.5 rounded-lg flex gap-2 text-xs text-emerald-800">
+                  {state?.success && <div className="p-2.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-200 dark:border-emerald-800 flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{state.success}</div>}
+                  <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 p-2.5 rounded-lg flex gap-2 text-xs text-emerald-800 dark:text-emerald-400">
                     <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-emerald-600 mt-0.5" />
-                    Password default: <strong className="font-mono bg-surface px-1 py-0.5 rounded border border-emerald-200">mansatas2026</strong>
+                    Password default: <strong className="font-mono bg-surface px-1 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">mansatas2026</strong>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Nama Lengkap <span className="text-rose-500">*</span></Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Nama Lengkap <span className="text-rose-500">*</span></Label>
                     <Input name="nama_lengkap" required className="h-9 text-sm rounded-lg" placeholder="Contoh: Budi Santoso, S.Pd" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Email Resmi <span className="text-rose-500">*</span></Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Email Resmi <span className="text-rose-500">*</span></Label>
                     <div className="relative">
                       <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                       <Input name="email" type="email" required className="pl-8 h-9 text-sm rounded-lg" placeholder="guru@man1tasikmalaya.sch.id" />
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Jabatan <span className="text-rose-500">*</span></Label>
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Jabatan <span className="text-rose-500">*</span></Label>
                     <Select name="role" defaultValue="guru">
                       <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
                       <SelectContent>{masterRoles.map((r: MasterRoleType) => <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>)}</SelectContent>
@@ -521,7 +521,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
               <div key={p.id} className="bg-surface rounded-lg border border-surface overflow-hidden group flex flex-col">
                 <div className="relative aspect-[3/4] bg-surface-3">
                   {uploadingId === p.id ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-10">
+                    <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-slate-900/70 z-10">
                       <Loader2 className="h-5 w-5 text-emerald-600 animate-spin" />
                     </div>
                   ) : p.avatar_url ? (
@@ -531,13 +531,13 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                       {p.nama_lengkap.charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <label className="absolute bottom-1 right-1 bg-white/90 text-slate-700 p-1 rounded shadow cursor-pointer z-10 hover:bg-surface transition-colors">
+                  <label className="absolute bottom-1 right-1 bg-white dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 p-1 rounded shadow cursor-pointer z-10 hover:bg-surface transition-colors">
                     <Camera className="w-3 h-3" />
                     <input type="file" className="hidden" accept="image/*" capture="environment" onChange={e => handleUploadFoto(p.id, e)} />
                   </label>
                 </div>
                 <div className="p-1.5 text-center flex-1">
-                  <p className="text-[10px] font-semibold text-slate-800 dark:text-slate-100 leading-tight line-clamp-2">{p.nama_lengkap}</p>
+                  <p className="text-[10px] font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight line-clamp-2">{p.nama_lengkap}</p>
                   <p className="text-[9px] text-slate-400 mt-0.5">{getRoleLabel(p.role)}</p>
                 </div>
               </div>
@@ -555,7 +555,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
               ) : paginatedData.map(p => (
                 <div key={p.id} className="bg-surface border border-surface rounded-lg p-3">
                   <div className="flex items-center gap-3 mb-2">
-                    <div className={cn("h-9 w-9 rounded-full shrink-0 flex items-center justify-center text-sm font-bold overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700", getAvatarColor(p.nama_lengkap))}>
+                    <div className={cn("h-9 w-9 rounded-full shrink-0 flex items-center justify-center text-sm font-bold overflow-hidden bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 dark:border-slate-700", getAvatarColor(p.nama_lengkap))}>
                       {p.avatar_url ? (
                         <img src={p.avatar_url} alt={p.nama_lengkap} className="w-full h-full object-cover" />
                       ) : (
@@ -565,7 +565,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">{p.nama_lengkap}</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate leading-tight">{p.nama_lengkap}</p>
                       <p className="text-[10px] text-slate-400 truncate flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
                     </div>
                   </div>
@@ -582,7 +582,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                     <button onClick={() => handleResetPassword(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-amber-600 hover:bg-amber-50" title="Reset Password">
                       <KeyRound className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={() => setEditingPegawai(p)} disabled={isPending} className="p-1.5 rounded text-emerald-600 hover:bg-emerald-50" title="Edit">
+                    <button onClick={() => setEditingPegawai(p)} disabled={isPending} className="p-1.5 rounded text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50" title="Edit">
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button onClick={() => handleHapus(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-rose-500 hover:bg-rose-50" title="Hapus">
@@ -614,10 +614,10 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                       </TableCell>
                     </TableRow>
                   ) : paginatedData.map(p => (
-                    <TableRow key={p.id} className="hover:bg-emerald-50/20 border-surface-2 group">
+                    <TableRow key={p.id} className="hover:bg-emerald-50 dark:hover:bg-emerald-950/50/20 border-surface-2 group">
                       <TableCell className="px-4 py-2.5">
                         <div className="flex items-center gap-3">
-                          <div className={cn("h-8 w-8 rounded-full shrink-0 flex items-center justify-center text-sm font-bold overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700", getAvatarColor(p.nama_lengkap))}>
+                          <div className={cn("h-8 w-8 rounded-full shrink-0 flex items-center justify-center text-sm font-bold overflow-hidden bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 dark:border-slate-700", getAvatarColor(p.nama_lengkap))}>
                             {p.avatar_url ? (
                               <img src={p.avatar_url} alt={p.nama_lengkap} className="w-full h-full object-cover" />
                             ) : (
@@ -627,7 +627,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                             )}
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 group-hover:text-emerald-700 transition-colors leading-tight">{p.nama_lengkap}</p>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors leading-tight">{p.nama_lengkap}</p>
                             <p className="text-[11px] text-slate-400 flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
                           </div>
                         </div>
@@ -650,7 +650,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                           <button onClick={() => handleResetPassword(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-amber-600 hover:bg-amber-50" title="Reset Password">
                             <KeyRound className="h-3.5 w-3.5" />
                           </button>
-                          <button onClick={() => setEditingPegawai(p)} disabled={isPending} className="p-1.5 rounded text-emerald-600 hover:bg-emerald-50" title="Edit">
+                          <button onClick={() => setEditingPegawai(p)} disabled={isPending} className="p-1.5 rounded text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50" title="Edit">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
                           <button onClick={() => handleHapus(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-rose-500 hover:bg-rose-50" title="Hapus">
@@ -664,14 +664,14 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
               </Table>
 
               {/* PAGINATION */}
-              <div className="flex items-center justify-between px-4 py-2 border-t border-surface-2 bg-slate-50/50">
-                <div className="flex items-center gap-2 text-xs text-slate-500">
+              <div className="flex items-center justify-between px-4 py-2 border-t border-surface-2 bg-slate-50 dark:bg-slate-800/50">
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                   <span className="hidden sm:inline">Tampilkan</span>
                   <Select value={itemsPerPage.toString()} onValueChange={v => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
                     <SelectTrigger className="h-7 w-16 text-xs rounded border-surface"><SelectValue /></SelectTrigger>
                     <SelectContent>{[10, 20, 50].map(n => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}</SelectContent>
                   </Select>
-                  <span><strong className="text-slate-700 dark:text-slate-200">{filteredData.length}</strong> pegawai</span>
+                  <span><strong className="text-slate-700 dark:text-slate-300 dark:text-slate-200">{filteredData.length}</strong> pegawai</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 px-2.5 text-xs rounded">&#8592;</Button>
@@ -685,7 +685,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
 
         {/* Mobile pagination */}
         <div className="flex items-center justify-between md:hidden bg-surface border border-surface rounded-lg px-3 py-2">
-          <span className="text-xs text-slate-500"><strong>{filteredData.length}</strong> pegawai</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400"><strong>{filteredData.length}</strong> pegawai</span>
           <div className="flex items-center gap-1">
             <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 px-2.5 text-xs rounded">&#8592;</Button>
             <span className="text-xs font-medium px-2">{currentPage}/{totalPages || 1}</span>

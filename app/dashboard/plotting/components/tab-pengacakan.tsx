@@ -78,8 +78,8 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
 
   if (!siswaList.length) return (
     <div className="flex flex-col items-center justify-center py-16 rounded-lg border border-dashed border-surface text-center gap-3">
-      <div className="p-3 rounded-full bg-emerald-50"><CheckCircle2 className="h-6 w-6 text-emerald-500" /></div>
-      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Tidak ada data kelas 11</p>
+      <div className="p-3 rounded-full bg-emerald-50 dark:bg-emerald-950/50"><CheckCircle2 className="h-6 w-6 text-emerald-500" /></div>
+      <p className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">Tidak ada data kelas 11</p>
       <p className="text-xs text-slate-400 dark:text-slate-500">Semua sudah dinaikkan atau belum ada data.</p>
     </div>
   )
@@ -94,11 +94,11 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-3">Sumber (kelas 11)</p>
           <div className="flex flex-wrap gap-1.5">
             {Array.from(new Set(siswaList.map(s => s.kelompok))).map(k => (
-              <div key={k} className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-semibold px-2 py-1 rounded">
+              <div key={k} className="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-100 text-[10px] font-semibold px-2 py-1 rounded">
                 {k}: {siswaList.filter(s => s.kelompok === k).length}
               </div>
             ))}
-            <div className="bg-surface-3 text-slate-600 dark:text-slate-300 dark:text-slate-600 text-[10px] font-semibold px-2 py-1 rounded">
+            <div className="bg-surface-3 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 text-[10px] font-semibold px-2 py-1 rounded">
               Total: {siswaList.length}
             </div>
           </div>
@@ -109,7 +109,7 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide">Wadah kelas 12</p>
             <Button variant="outline" size="sm" onClick={handleSelectAll}
-              className="h-6 text-[10px] px-2 rounded border-surface text-slate-600 dark:text-slate-300 dark:text-slate-600 hover:bg-surface-2">
+              className="h-6 text-[10px] px-2 rounded border-surface text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 hover:bg-surface-2">
               {selectedKelasIds.length === sortedKelas.length ? 'Batal semua' : 'Pilih semua'}
             </Button>
           </div>
@@ -119,7 +119,7 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
               return (
                 <div key={k.id} className="flex items-center gap-2.5 p-2 rounded-md hover:bg-surface-2 border border-transparent hover:border-surface-2 transition-colors">
                   <Checkbox id={`p-${k.id}`} checked={selectedKelasIds.includes(k.id)} onCheckedChange={() => handleToggleKelas(k.id)} disabled={full} />
-                  <Label htmlFor={`p-${k.id}`} className={`flex-1 flex items-center justify-between text-xs cursor-pointer ${full ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200 font-medium'}`}>
+                  <Label htmlFor={`p-${k.id}`} className={`flex-1 flex items-center justify-between text-xs cursor-pointer ${full ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-300 dark:text-slate-200 font-medium'}`}>
                     <span>{k.nama}</span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${full ? 'bg-rose-50 text-rose-500' : 'bg-surface-3 text-slate-500 dark:text-slate-400 dark:text-slate-500'}`}>
                       {k.jumlah_siswa}/{k.kapasitas}
@@ -142,7 +142,7 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
         <div className="rounded-lg border border-surface bg-surface flex flex-col min-h-[420px]">
           <div className="flex items-center justify-between px-4 py-3 border-b border-surface-2">
             <div>
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Preview hasil pengacakan</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">Preview hasil pengacakan</p>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Siswa diacak silang L/P dalam jurusan yang sama</p>
             </div>
             {simulasiResult.length > 0 && (
@@ -156,9 +156,9 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
 
           <div className="flex-1 relative">
             {successMsg ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-emerald-50/60">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-emerald-50 dark:bg-emerald-950/50/60">
                 <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-                <p className="text-sm font-semibold text-emerald-800">Berhasil!</p>
+                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-400">Berhasil!</p>
                 <p className="text-xs text-emerald-600">{successMsg}</p>
               </div>
             ) : !simulasiResult.length ? (
@@ -169,7 +169,7 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
             ) : (
               <div className="overflow-auto h-full max-h-[500px]">
                 <Table>
-                  <TableHeader className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10">
+                  <TableHeader className="sticky top-0 bg-slate-50 dark:bg-slate-800/95 backdrop-blur-sm z-10">
                     <TableRow>
                       <TableHead className="text-xs h-9">Nama siswa</TableHead>
                       <TableHead className="text-xs h-9 text-center w-24">Lama (11)</TableHead>
@@ -180,7 +180,7 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
                   <TableBody>
                     {simulasiResult.map(r => (
                       <TableRow key={r.siswa_id} className="hover:bg-surface-2/50">
-                        <TableCell className="text-xs font-medium text-slate-800 dark:text-slate-100 py-2">
+                        <TableCell className="text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 py-2">
                           {r.nama_lengkap}
                           <span className="ml-1.5 text-[9px] font-bold bg-surface-3 text-slate-500 dark:text-slate-400 dark:text-slate-500 px-1 py-0.5 rounded">{r.jk}</span>
                         </TableCell>
@@ -191,7 +191,7 @@ export function TabPengacakan({ siswaList, kelasList }: { siswaList: SiswaType[]
                           <ArrowRight className="h-3 w-3 mx-auto" />
                         </TableCell>
                         <TableCell className="text-right py-2 pr-4">
-                          <span className="text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">{r.kelas_nama}</span>
+                          <span className="text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded">{r.kelas_nama}</span>
                         </TableCell>
                       </TableRow>
                     ))}

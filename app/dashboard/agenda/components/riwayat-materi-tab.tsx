@@ -55,37 +55,37 @@ export function RiwayatMateriTab({ data }: Props) {
           placeholder="Cari mapel atau isi materi..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10 h-11 bg-white border-slate-200 shadow-sm rounded-xl"
+          className="pl-10 h-11 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl"
         />
       </div>
 
       {filteredData.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50">
+        <div className="flex flex-col items-center justify-center py-12 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
           <BookOpen className="h-10 w-10 text-slate-300 mb-2" />
-          <p className="text-sm text-slate-500 font-medium">Riwayat materi tidak ditemukan.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Riwayat materi tidak ditemukan.</p>
         </div>
       ) : (
         <div className="grid gap-3">
           {filteredData.map((item) => (
             <Card key={item.id} className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all duration-300 group">
               <CardContent className="p-0">
-                <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 bg-white">
+                <div className="flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x divide-slate-100 bg-white dark:bg-slate-900">
                   {/* Left: Info Metadata */}
-                  <div className="p-4 md:w-64 bg-slate-50/50 group-hover:bg-indigo-50/30 transition-colors shrink-0">
+                  <div className="p-4 md:w-64 bg-slate-50 dark:bg-slate-800/50 group-hover:bg-indigo-50/30 transition-colors shrink-0">
                     <div className="flex flex-col gap-2">
                       <div className="flex items-center gap-1.5 text-indigo-600 font-bold text-sm">
                         <Hash className="h-3.5 w-3.5" />
                         {formatNamaKelas(item.tingkat, item.nomor_kelas, item.kelompok)}
                       </div>
-                      <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
+                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-xs font-medium">
                         <Calendar className="h-3.5 w-3.5 text-slate-400" />
                         {fmtTgl(item.tanggal)}
                       </div>
-                      <div className="flex items-center gap-2 text-slate-500 text-[11px]">
+                      <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-[11px]">
                         <Clock className="h-3.5 w-3.5 text-slate-400" />
                         Diinput pukul {fmtWaktu(item.waktu_input)}
                       </div>
-                      <div className="mt-1 text-[10px] bg-slate-200/50 text-slate-600 px-2 py-0.5 rounded w-fit font-medium">
+                      <div className="mt-1 text-[10px] bg-slate-200/50 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded w-fit font-medium">
                         Jam {item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}
                       </div>
                     </div>
@@ -93,9 +93,9 @@ export function RiwayatMateriTab({ data }: Props) {
 
                   {/* Right: Content */}
                   <div className="p-4 flex-1">
-                    <h3 className="font-bold text-slate-800 text-sm mb-2">{item.nama_mapel}</h3>
-                    <div className="bg-slate-50/30 p-3 rounded-lg border border-slate-100/50">
-                      <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap italic">
+                    <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm mb-2">{item.nama_mapel}</h3>
+                    <div className="bg-slate-50 dark:bg-slate-800/30 p-3 rounded-lg border border-slate-100 dark:border-slate-800/50">
+                      <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap italic">
                         &quot;{item.materi}&quot;
                       </p>
                     </div>

@@ -36,7 +36,7 @@ type ParsedRow = {
 }
 
 const KATEGORI_COLOR: Record<string, string> = {
-  'Istimewa': 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
+  'Istimewa': 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
   'Baik':     'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800',
   'Memadai':  'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
   'Kurang':   'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800',
@@ -45,7 +45,7 @@ const KATEGORI_COLOR: Record<string, string> = {
 function KatBadge({ kat }: { kat: string | null }) {
   if (!kat) return <span className="text-slate-300 dark:text-slate-600 text-xs">-</span>
   return (
-    <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-semibold', KATEGORI_COLOR[kat] ?? 'bg-slate-100 text-slate-600 border-slate-200')}>
+    <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-semibold', KATEGORI_COLOR[kat] ?? 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800')}>
       {kat}
     </span>
   )
@@ -588,7 +588,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
         <div className={cn(
           'flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm border',
           toast.type === 'success'
-            ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400'
+            ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400'
             : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/30 dark:border-red-800 dark:text-red-400'
         )}>
           {toast.type === 'success'
@@ -605,7 +605,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
             'flex flex-col items-center justify-center py-16 border-2 border-dashed rounded-xl transition-colors',
             parsing
               ? 'border-sky-300 bg-sky-50/80 dark:bg-sky-950/20 cursor-not-allowed'
-              : 'border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-700 hover:bg-sky-50/40 dark:hover:bg-sky-950/10 cursor-pointer'
+              : 'border-slate-200 dark:border-slate-800 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-700 hover:bg-sky-50/40 dark:hover:bg-sky-950/10 cursor-pointer'
           )}>
             <input
               ref={fileRef}
@@ -623,7 +623,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
               </>
             ) : (
               <>
-                <div className="h-14 w-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-3">
+                <div className="h-14 w-14 rounded-2xl bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 flex items-center justify-center mb-3">
                   <FileText className="h-7 w-7 text-slate-400" />
                 </div>
                 <p className="text-slate-700 dark:text-slate-300 font-semibold text-sm">Upload file PDF Hasil TKA</p>
@@ -699,11 +699,11 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 overflow-hidden">
             <div className="overflow-x-auto max-h-[65vh]">
               <table className="w-full text-xs">
                 <thead className="sticky top-0 z-10">
-                  <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                  <tr className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-800 dark:border-slate-700">
                     {['#', 'Nama (PDF)', 'Nama (Cocok)', 'B.Ind', 'Mat', 'B.Ing', 'Pilihan 1', 'Pilihan 2'].map(h => (
                       <th key={h} className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                         {h}
@@ -787,7 +787,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
               {filterSearch && (
                 <button
                   onClick={() => { setFilterSearch(''); loadList(1, filterKelas === '__all__' ? '' : filterKelas, '') }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-400">
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
@@ -809,9 +809,9 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
             )
             : listData.length === 0
             ? (
-              <div className="flex flex-col items-center justify-center py-20 border rounded-xl border-dashed border-slate-200 dark:border-slate-700 text-center">
+              <div className="flex flex-col items-center justify-center py-20 border rounded-xl border-dashed border-slate-200 dark:border-slate-800 dark:border-slate-700 text-center">
                 <FileText className="h-10 w-10 text-slate-300 mb-3" />
-                <p className="text-slate-500 font-medium text-sm">Belum ada data hasil TKA</p>
+                <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Belum ada data hasil TKA</p>
                 {isAdmin && (
                   <Button size="sm" variant="outline" className="mt-4" onClick={() => setPhase('upload')}>
                     <Upload className="h-3.5 w-3.5 mr-1.5" /> Upload File PDF
@@ -820,11 +820,11 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
               </div>
             )
             : (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                      <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 dark:border-slate-700">
                         <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">#</th>
                         <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Nama Siswa</th>
                         <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Kelas</th>
@@ -848,7 +848,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
                             <p className="font-medium text-slate-800 dark:text-slate-200 text-sm leading-tight">{row.nama_lengkap}</p>
                             <p className="text-xs text-slate-400 font-mono">{row.nisn}</p>
                           </td>
-                          <td className="px-4 py-2.5 text-xs text-slate-500">
+                          <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">
                             {row.tingkat ? `${row.tingkat}-${row.nomor_kelas} ${row.kelas_kelompok}` : '—'}
                           </td>
                           <td className="px-3 py-2.5 text-center"><NilaiCell nilai={row.nilai_bind} kat={row.kategori_bind} /></td>
@@ -865,7 +865,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
                               : <span className="text-slate-300 dark:text-slate-600 text-xs">—</span>}
                           </td>
                           <td className="px-2 py-2.5">
-                            <div className="h-7 w-7 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-700">
+                            <div className="h-7 w-7 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-800/80 dark:hover:bg-slate-700">
                               <Eye className="h-3.5 w-3.5 text-slate-400" />
                             </div>
                           </td>
@@ -876,7 +876,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
                 </div>
 
                 {/* Pagination */}
-                <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-200 dark:border-slate-800 dark:border-slate-700 flex items-center justify-between">
                   <span className="text-xs text-slate-400">{listTotal} data</span>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" size="sm" className="h-7 w-7 p-0"
@@ -884,7 +884,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
                       onClick={() => loadList(listPage - 1, filterKelas === '__all__' ? '' : filterKelas, filterSearch)}>
                       <ChevronLeft className="h-3.5 w-3.5" />
                     </Button>
-                    <span className="text-xs text-slate-500 min-w-[80px] text-center">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 min-w-[80px] text-center">
                       Hal {listPage} / {totalPages || 1}
                     </span>
                     <Button variant="outline" size="sm" className="h-7 w-7 p-0"
@@ -910,8 +910,8 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
             <div className="space-y-4">
               <div className="rounded-lg bg-slate-50 dark:bg-slate-800 px-4 py-3">
                 <p className="font-semibold text-slate-800 dark:text-slate-200">{detail.nama_lengkap}</p>
-                <p className="text-xs text-slate-500 font-mono mt-0.5">{detail.nisn}</p>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">{detail.nisn}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   {detail.tingkat ? `${detail.tingkat}-${detail.nomor_kelas} ${detail.kelas_kelompok}` : 'Kelas tidak diketahui'}
                 </p>
                 {detail.nomor_peserta && (
@@ -935,7 +935,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
                     { label: 'Pilihan 1', mapel: detail.mapel_pilihan1, nilai: detail.nilai_pilihan1, kat: detail.kategori_pilihan1 },
                     { label: 'Pilihan 2', mapel: detail.mapel_pilihan2, nilai: detail.nilai_pilihan2, kat: detail.kategori_pilihan2 },
                   ].map(p => (
-                    <div key={p.label} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+                    <div key={p.label} className="rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700 p-3">
                       <p className="text-[10px] text-slate-400 font-semibold mb-1">{p.label}</p>
                       <p className="text-xs font-medium text-slate-700 dark:text-slate-300 leading-snug min-h-[2rem]">
                         {p.mapel ?? <span className="text-slate-300 dark:text-slate-600">Tidak ada</span>}
@@ -983,7 +983,7 @@ export function TabHasil({ tahunAjaranId, kelasList, isAdmin }: Props) {
                   {reviewLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
                 </Button>
               </div>
-              <ScrollArea className="h-56 rounded-lg border border-slate-200 dark:border-slate-700">
+              <ScrollArea className="h-56 rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700">
                 {reviewResults.length === 0
                   ? <p className="text-xs text-slate-400 text-center py-8">
                       {reviewLoading ? 'Mencari...' : 'Ketik nama lalu tekan Enter'}
@@ -1035,7 +1035,7 @@ function NilaiCell({ nilai, kat }: { nilai: number | null; kat: string | null })
 
 function NilaiCard({ label, nilai, kat }: { label: string; nilai: number | null; kat: string | null }) {
   return (
-    <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5 text-center">
+    <div className="rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700 p-2.5 text-center">
       <p className="text-[10px] text-slate-400 font-semibold mb-1 leading-tight">{label}</p>
       <p className="text-base font-bold text-slate-800 dark:text-slate-200">
         {nilai != null ? nilai.toFixed(2) : '—'}

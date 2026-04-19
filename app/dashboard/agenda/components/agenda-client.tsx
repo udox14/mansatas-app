@@ -41,7 +41,7 @@ interface AgendaClientProps {
 }
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label: string }> = {
-  TEPAT_WAKTU: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', icon: CheckCircle2, label: 'Tepat Waktu' },
+  TEPAT_WAKTU: { bg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle2, label: 'Tepat Waktu' },
   TELAT: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', icon: Clock, label: 'Telat' },
   ALFA: { bg: 'bg-red-50 border-red-200', text: 'text-red-700', icon: XCircle, label: 'Alfa' },
   SAKIT: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', icon: AlertTriangle, label: 'Sakit' },
@@ -161,18 +161,18 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
 
   if (hari === 7) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
+      <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-10 text-center">
         <BookOpen className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-        <p className="text-sm text-slate-500">Hari Minggu — tidak ada jadwal mengajar.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Hari Minggu — tidak ada jadwal mengajar.</p>
       </div>
     )
   }
 
   if (blocks.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
+      <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-10 text-center">
         <BookOpen className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-        <p className="text-sm text-slate-500">Tidak ada jadwal mengajar hari ini ({HARI_NAMA[hari]}).</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Tidak ada jadwal mengajar hari ini ({HARI_NAMA[hari]}).</p>
       </div>
     )
   }
@@ -180,12 +180,12 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
   return (
     <div className="space-y-3">
       {/* Header Info */}
-      <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3">
+      <div className="flex items-center justify-between rounded-lg border bg-white dark:bg-slate-900 px-4 py-3">
         <div>
-          <p className="text-sm font-medium text-slate-700">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
             {HARI_NAMA[hari]}, {new Date(tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
-          <p className="text-xs text-slate-500">{blocks.length} blok mengajar</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{blocks.length} blok mengajar</p>
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -195,7 +195,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
 
       {/* Pesan global */}
       {pesan && (
-        <div className={`rounded-lg border px-4 py-3 text-sm ${pesan.tipe === 'sukses' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+        <div className={`rounded-lg border px-4 py-3 text-sm ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
           {pesan.teks}
         </div>
       )}
@@ -207,15 +207,15 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
         const StatusIcon = style.icon
 
         return (
-          <div key={block.penugasan_id} className="rounded-lg border bg-white overflow-hidden">
+          <div key={block.penugasan_id} className="rounded-lg border bg-white dark:bg-slate-900 overflow-hidden">
             {/* Card Header */}
             <div className="px-4 py-3 flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-slate-800">{block.mapel_nama}</span>
-                  <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{block.kelas_label}</span>
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{block.mapel_nama}</span>
+                  <span className="text-xs bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full">{block.kelas_label}</span>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   {block.jam_ke_mulai === block.jam_ke_selesai
                     ? `Jam ke-${block.jam_ke_mulai}`
                     : `Jam ke-${block.jam_ke_mulai} s/d ${block.jam_ke_selesai}`}
@@ -245,34 +245,34 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
 
             {/* Expanded Form */}
             {isExpanded && !block.sudah_isi && (
-              <div className="border-t bg-slate-50/50 px-4 py-4 space-y-4">
+              <div className="border-t bg-slate-50 dark:bg-slate-800/50 px-4 py-4 space-y-4">
                 {/* Info auto-fill (readonly) */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs text-slate-500">Mata Pelajaran</Label>
-                    <p className="text-sm font-medium text-slate-700">{block.mapel_nama}</p>
+                    <Label className="text-xs text-slate-500 dark:text-slate-400">Mata Pelajaran</Label>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{block.mapel_nama}</p>
                   </div>
                   <div>
-                    <Label className="text-xs text-slate-500">Kelas</Label>
-                    <p className="text-sm font-medium text-slate-700">{block.kelas_label}</p>
+                    <Label className="text-xs text-slate-500 dark:text-slate-400">Kelas</Label>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{block.kelas_label}</p>
                   </div>
                   <div>
-                    <Label className="text-xs text-slate-500">Jam Pelajaran</Label>
-                    <p className="text-sm font-medium text-slate-700">
+                    <Label className="text-xs text-slate-500 dark:text-slate-400">Jam Pelajaran</Label>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
                       {block.jam_ke_mulai === block.jam_ke_selesai
                         ? `Jam ke-${block.jam_ke_mulai}`
                         : `Jam ke-${block.jam_ke_mulai} s/d ${block.jam_ke_selesai}`}
                     </p>
                   </div>
                   <div>
-                    <Label className="text-xs text-slate-500">Waktu</Label>
-                    <p className="text-sm font-medium text-slate-700">{block.slot_mulai} — {block.slot_selesai}</p>
+                    <Label className="text-xs text-slate-500 dark:text-slate-400">Waktu</Label>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{block.slot_mulai} — {block.slot_selesai}</p>
                   </div>
                 </div>
 
                 {/* Materi */}
                 <div>
-                  <Label htmlFor="materi" className="text-xs text-slate-600 font-medium">
+                  <Label htmlFor="materi" className="text-xs text-slate-600 dark:text-slate-400 font-medium">
                     Materi Pelajaran <span className="text-red-500">*</span>
                   </Label>
                   <textarea
@@ -281,13 +281,13 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                     onChange={(e) => setMateri(e.target.value)}
                     placeholder="Tuliskan materi yang diajarkan hari ini..."
                     rows={3}
-                    className="mt-1 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 outline-none resize-none"
+                    className="mt-1 w-full rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 outline-none resize-none"
                   />
                 </div>
 
                 {/* Foto (camera only) — opsional saat act-as */}
                 <div>
-                  <Label className="text-xs text-slate-600 font-medium">
+                  <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">
                     Foto Kegiatan {!isActingAs && <span className="text-red-500">*</span>}
                   </Label>
 
@@ -309,10 +309,10 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="mt-1 w-full flex flex-col items-center justify-center gap-2 py-8 rounded-lg border-2 border-dashed border-slate-300 bg-white hover:border-emerald-400 hover:bg-emerald-50/50 transition-colors"
+                      className="mt-1 w-full flex flex-col items-center justify-center gap-2 py-8 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50/50 transition-colors"
                     >
                       <Camera className="h-8 w-8 text-slate-400" />
-                      <span className="text-sm text-slate-500">Ketuk untuk membuka kamera</span>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">Ketuk untuk membuka kamera</span>
                     </button>
                   )}
                   {/* Hidden input — camera only via capture attribute */}

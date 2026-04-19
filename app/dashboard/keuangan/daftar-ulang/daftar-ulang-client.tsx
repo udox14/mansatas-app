@@ -68,7 +68,7 @@ function NumInput({
   useEffect(() => { setDisplay(value) }, [value])
   return (
     <div className="space-y-1">
-      <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">{label}</Label>
+      <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300">{label}</Label>
       <Input
         value={display}
         disabled={disabled}
@@ -305,7 +305,7 @@ export function DaftarUlangClient({
       <div className="space-y-4">
 
         {/* ── Info Tahun Ajaran ─────────────────────────────────────────── */}
-        <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg px-3 py-2">
           <Info className="h-3.5 w-3.5 flex-shrink-0" />
           Tahun Ajaran Aktif: <span className="font-semibold text-slate-700 dark:text-slate-300">{tahunAjaranNama}</span>
           <span className="ml-auto text-slate-400">Petugas: {namaKomite} / {namaKoperasiPetugas}</span>
@@ -315,7 +315,7 @@ export function DaftarUlangClient({
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <User className="h-4 w-4 text-indigo-500" />
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Pilih Siswa</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Pilih Siswa</p>
           </div>
 
           {selectedSiswa ? (
@@ -357,12 +357,12 @@ export function DaftarUlangClient({
                 </div>
               )}
               {showDropdown && searchResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-900 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden max-h-64 overflow-y-auto">
                   {searchResults.map(s => (
                     <button
                       key={s.id}
                       type="button"
-                      className="w-full text-left px-4 py-3 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700 last:border-0"
+                      className="w-full text-left px-4 py-3 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 dark:border-slate-700 last:border-0"
                       onClick={() => handleSelectSiswa(s)}
                     >
                       <div>
@@ -375,7 +375,7 @@ export function DaftarUlangClient({
                 </div>
               )}
               {showDropdown && !isSearching && query.length >= 2 && searchResults.length === 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg px-4 py-3 text-sm text-slate-400">
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-slate-900 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg shadow-lg px-4 py-3 text-sm text-slate-400">
                   Tidak ada siswa ditemukan
                 </div>
               )}
@@ -397,9 +397,9 @@ export function DaftarUlangClient({
 
             {/* ──── Panel DSPT ──────────────────────────────────────────── */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+              <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 dark:border-slate-700 flex items-center gap-2">
                 <Banknote className="h-4 w-4 text-slate-600 dark:text-slate-400" />
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">DSPT</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">DSPT</p>
                 <span className="text-[11px] text-slate-400 ml-auto">Dana Sumbangan Pendidikan Tahunan</span>
               </div>
 
@@ -426,7 +426,7 @@ export function DaftarUlangClient({
                   hint={parseNum(dspt.bayarSekarang) === 0 ? '⚠️ Kosong/0 = tidak ada kuitansi DSPT' : undefined}
                 />
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Metode Pembayaran</Label>
+                  <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300">Metode Pembayaran</Label>
                   <Select value={dspt.metode} onValueChange={v => setDspt(p => ({ ...p, metode: v as 'tunai' | 'transfer' }))}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -443,7 +443,7 @@ export function DaftarUlangClient({
                     placeholder="0"
                   />
                   <div className="space-y-1">
-                    <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Alasan Diskon</Label>
+                    <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300">Alasan Diskon</Label>
                     <Input
                       value={dspt.alasanDiskon}
                       onChange={e => setDspt(p => ({ ...p, alasanDiskon: e.target.value }))}
@@ -455,8 +455,8 @@ export function DaftarUlangClient({
 
                 {/* Summary DSPT */}
                 {dsptTarget > 0 && (
-                  <div className="mt-2 pt-3 border-t border-slate-100 dark:border-slate-700 space-y-1.5 text-xs">
-                    <div className="flex justify-between text-slate-500">
+                  <div className="mt-2 pt-3 border-t border-slate-100 dark:border-slate-800 dark:border-slate-700 space-y-1.5 text-xs">
+                    <div className="flex justify-between text-slate-500 dark:text-slate-400">
                       <span>Target DSPT</span>
                       <span className="font-mono">{formatRupiah(dsptTarget)}</span>
                     </div>
@@ -472,7 +472,7 @@ export function DaftarUlangClient({
                         <span className="font-mono">− {formatRupiah(dsptDiskon)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between font-semibold text-sm pt-1 border-t border-slate-100 dark:border-slate-700">
+                    <div className="flex justify-between font-semibold text-sm pt-1 border-t border-slate-100 dark:border-slate-800 dark:border-slate-700">
                       <span className={dsptSisa === 0 ? 'text-emerald-600' : 'text-rose-600'}>
                         {dsptSisa === 0 ? '✓ Lunas' : 'Sisa Tagihan'}
                       </span>
@@ -487,9 +487,9 @@ export function DaftarUlangClient({
 
             {/* ──── Panel Koperasi ──────────────────────────────────────── */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+              <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 dark:border-slate-700 flex items-center gap-2">
                 <ShoppingBag className="h-4 w-4 text-green-600" />
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Koperasi</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Koperasi</p>
                 <span className="text-[11px] text-slate-400 ml-auto">Perlengkapan Siswa Baru</span>
               </div>
 
@@ -504,7 +504,7 @@ export function DaftarUlangClient({
                 {/* Item checklist */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Pilih item yang dibeli / dibayar</Label>
+                    <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300">Pilih item yang dibeli / dibayar</Label>
                     <button
                       type="button"
                       onClick={() => {
@@ -522,7 +522,7 @@ export function DaftarUlangClient({
                         className={`rounded-lg border p-2 transition-colors ${
                           item.checked
                             ? 'border-green-200 bg-green-50 dark:bg-green-900/10 dark:border-green-700'
-                            : 'border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30'
+                            : 'border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-800/30'
                         }`}>
                         <div className="flex items-center gap-2">
                           <input
@@ -533,7 +533,7 @@ export function DaftarUlangClient({
                             ))}
                             className="h-4 w-4 rounded accent-green-600 cursor-pointer"
                           />
-                          <span className="text-sm flex-1 text-slate-800 dark:text-slate-100">{item.namaItem}</span>
+                          <span className="text-sm flex-1 text-slate-800 dark:text-slate-200 dark:text-slate-100">{item.namaItem}</span>
                           <Input
                             value={item.checked ? (item.nominal ? parseNum(item.nominal).toLocaleString('id-ID') : '') : ''}
                             disabled={!item.checked}
@@ -566,7 +566,7 @@ export function DaftarUlangClient({
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Metode Pembayaran Koperasi</Label>
+                  <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300">Metode Pembayaran Koperasi</Label>
                   <Select value={kopMetode} onValueChange={v => setKopMetode(v as 'tunai' | 'transfer')}>
                     <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -578,7 +578,7 @@ export function DaftarUlangClient({
 
                 {/* Summary Koperasi */}
                 {checkedItems.length > 0 && (
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-700 space-y-1.5 text-xs">
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 dark:border-slate-700 space-y-1.5 text-xs">
                     {kopTotalDiskon > 0 && (
                       <div className="flex justify-between text-blue-600">
                         <span>Total diskon</span>
@@ -601,7 +601,7 @@ export function DaftarUlangClient({
         {msg && (
           <div className={`flex items-center gap-2 px-4 py-3 rounded-lg text-sm ${
             msg.type === 'success'
-              ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-700'
+              ? 'bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 dark:border-emerald-700'
               : 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-700'
           }`}>
             {msg.type === 'success' ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
@@ -622,7 +622,7 @@ export function DaftarUlangClient({
         {selectedSiswa && !isLoadingData && (
           <div className="flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-4">
             <div className="flex-1">
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 {dsptTarget > 0 && <span className="mr-3">DSPT: <strong>{formatRupiah(dsptTarget)}</strong>{dsptBayar > 0 ? ` (bayar ${formatRupiah(dsptBayar)})` : ' (target saja)'}</span>}
                 {checkedItems.length > 0 && <span>Koperasi: <strong>{formatRupiah(kopSisa)}</strong> ({checkedItems.length} item)</span>}
               </p>

@@ -56,8 +56,8 @@ export function MonitoringClient({
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredData.map(dt => (
-            <Card key={dt.delegasi_id} className={`shadow-sm overflow-hidden ${isSelesai(dt.status) ? 'border-emerald-200' : ''}`}>
-              <CardHeader className={`px-4 py-3 border-b ${isSelesai(dt.status) ? 'bg-emerald-50' : 'bg-gray-50'}`}>
+            <Card key={dt.delegasi_id} className={`shadow-sm overflow-hidden ${isSelesai(dt.status) ? 'border-emerald-200 dark:border-emerald-800' : ''}`}>
+              <CardHeader className={`px-4 py-3 border-b ${isSelesai(dt.status) ? 'bg-emerald-50 dark:bg-emerald-950/50' : 'bg-gray-50'}`}>
                 <CardTitle className="text-sm font-semibold flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-gray-700">{dt.dari_nama}</span>
@@ -65,7 +65,7 @@ export function MonitoringClient({
                     <span className="text-violet-700">{dt.kepada_nama}</span>
                   </div>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                    isSelesai(dt.status) ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
+                    isSelesai(dt.status) ? 'bg-emerald-200 text-emerald-800 dark:text-emerald-400' : 'bg-amber-200 text-amber-800'
                   }`}>
                     {dt.status}
                   </span>
@@ -74,7 +74,7 @@ export function MonitoringClient({
               <CardContent className="p-0 divide-y">
                 {dt.items.map((item, i) => (
                   <div key={i} className="px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors">
-                    <div className={`mt-0.5 h-5 w-5 rounded-full flex items-center justify-center shrink-0 ${item.absen_selesai ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                    <div className={`mt-0.5 h-5 w-5 rounded-full flex items-center justify-center shrink-0 ${item.absen_selesai ? 'bg-emerald-100 dark:bg-emerald-900/50' : 'bg-gray-100'}`}>
                       {item.absen_selesai ? (
                         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                       ) : (

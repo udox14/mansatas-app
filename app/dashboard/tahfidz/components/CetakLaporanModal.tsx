@@ -357,7 +357,7 @@ export function CetakLaporanModal({ isOpen, onClose, type, siswaId, siswaNama, k
                 </SelectContent>
               </Select>
               {!selectedKelasId && (
-                <p className="text-xs text-slate-500">Kosongkan untuk semua kelas tahfidz.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Kosongkan untuk semua kelas tahfidz.</p>
               )}
             </div>
           )}
@@ -385,7 +385,7 @@ export function CetakLaporanModal({ isOpen, onClose, type, siswaId, siswaNama, k
           >
             <div>
               <p className="text-sm font-medium">Tanda Tangan Guru Tahfidz</p>
-              <p className="text-xs text-slate-500">Tampilkan kolom tanda tangan di laporan</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Tampilkan kolom tanda tangan di laporan</p>
             </div>
             <Checkbox checked={tandaTangan} onCheckedChange={(v) => setTandaTangan(Boolean(v))} />
           </div>

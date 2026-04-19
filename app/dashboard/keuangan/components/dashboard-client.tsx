@@ -130,11 +130,11 @@ export function KeuanganDashboardClient({ stats }: Props) {
             <div className="flex items-center gap-4 mt-3">
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-2 rounded-sm bg-emerald-400 dark:bg-emerald-600" />
-                <span className="text-[11px] text-slate-500">Masuk</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Masuk</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-2 rounded-sm bg-rose-400 dark:bg-rose-600" />
-                <span className="text-[11px] text-slate-500">Keluar</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Keluar</span>
               </div>
             </div>
           </CardContent>
@@ -188,9 +188,9 @@ function KepatuhanBar({ label, persen, lunas, total, color }: {
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{label}</span>
-        <span className="text-xs font-bold text-slate-900 dark:text-slate-100">{persen}%</span>
+        <span className="text-xs font-bold text-slate-900 dark:text-slate-50 dark:text-slate-100">{persen}%</span>
       </div>
-      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
+      <div className="w-full bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 rounded-full h-2">
         <div
           className={`${colorClass} h-2 rounded-full transition-all`}
           style={{ width: `${persen}%` }}

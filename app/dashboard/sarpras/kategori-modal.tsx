@@ -64,7 +64,7 @@ export function KategoriModal({ isOpen, onClose, kategori }: { isOpen: boolean, 
               value={nama}
               onChange={(e) => setNama(e.target.value)}
               placeholder="Nama kategori baru..."
-              className="flex-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isPending}
             />
             <button 
@@ -78,7 +78,7 @@ export function KategoriModal({ isOpen, onClose, kategori }: { isOpen: boolean, 
               <button 
                 type="button" 
                 onClick={() => { setEditingId(null); setNama(''); setError(null) }}
-                className="bg-slate-200 text-slate-700 p-2 rounded-md hover:bg-slate-300 flex-shrink-0 text-sm"
+                className="bg-slate-200 text-slate-700 dark:text-slate-300 p-2 rounded-md hover:bg-slate-300 flex-shrink-0 text-sm"
               >
                 Batal
               </button>
@@ -86,14 +86,14 @@ export function KategoriModal({ isOpen, onClose, kategori }: { isOpen: boolean, 
           </form>
           {error && <p className="text-red-500 text-xs">{error}</p>}
 
-          <div className="border rounded-md overflow-hidden bg-slate-50">
+          <div className="border rounded-md overflow-hidden bg-slate-50 dark:bg-slate-800">
             <div className="max-h-[300px] overflow-y-auto">
               {kategori.length === 0 ? (
-                <div className="p-4 text-center text-sm text-slate-500">Belum ada kategori</div>
+                <div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">Belum ada kategori</div>
               ) : (
                 <ul className="divide-y divide-slate-200">
                   {kategori.map((k) => (
-                    <li key={k.id} className={`flex items-center justify-between p-3 text-sm ${editingId === k.id ? 'bg-blue-50' : 'hover:bg-slate-100'}`}>
+                    <li key={k.id} className={`flex items-center justify-between p-3 text-sm ${editingId === k.id ? 'bg-blue-50' : 'hover:bg-slate-100 dark:hover:bg-slate-800/80'}`}>
                       <span>{k.nama}</span>
                       <div className="flex items-center gap-1">
                         <button onClick={() => handleEdit(k)} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded">

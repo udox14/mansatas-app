@@ -48,9 +48,9 @@ export default async function DetailKelasPage({ params }: { params: Promise<{ id
           <div className="flex items-center gap-3">
             <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-slate-50 tracking-tight">{namaKelasSingkat}</h1>
           </div>
-          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 dark:text-slate-600 font-medium">
+          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 font-medium">
             <UserCircle className="h-5 w-5 text-slate-400 dark:text-slate-500" />
-            <span>Wali Kelas: <strong className="text-slate-800 dark:text-slate-100">{kelasData.wali_kelas_nama || 'Belum Ditentukan'}</strong></span>
+            <span>Wali Kelas: <strong className="text-slate-800 dark:text-slate-200 dark:text-slate-100">{kelasData.wali_kelas_nama || 'Belum Ditentukan'}</strong></span>
           </div>
         </div>
 
@@ -72,7 +72,7 @@ export default async function DetailKelasPage({ params }: { params: Promise<{ id
       </div>
 
       <div className="pt-2">
-        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
+        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 mb-4 flex items-center gap-2">
           <Users className="h-5 w-5 text-blue-600"/> Daftar Siswa Kelas {namaKelasSingkat}
         </h2>
         <DetailKelasClient siswaData={siswaList} kelasId={kelasData.id} tingkatKelas={kelasData.tingkat} />

@@ -302,7 +302,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
           </TabsTrigger>
         </TabsList>
         {msg && (
-          <p className={`text-xs px-3 py-1 rounded-md ${msg.startsWith('Error') || msg.includes('tidak') ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20'}`}>
+          <p className={`text-xs px-3 py-1 rounded-md ${msg.startsWith('Error') || msg.includes('tidak') ? 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' : 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-900/20'}`}>
             {msg}
           </p>
         )}
@@ -313,7 +313,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
 
         {/* Baris 1: Period + Buat Semua */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 flex flex-wrap gap-2 items-center">
-          <p className="text-xs font-medium text-slate-500 mr-1">Periode:</p>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mr-1">Periode:</p>
           <Select value={String(bulan)} onValueChange={handleBulanChange} disabled={isPending}>
             <SelectTrigger className="h-8 w-32 text-xs rounded-md"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -384,7 +384,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
             { label: 'Belum Ada Tagihan', value: tidakAda + ' siswa', color: tidakAda > 0 ? 'text-amber-600' : 'text-slate-400' },
           ].map(s => (
             <div key={s.label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2">
-              <p className="text-[11px] text-slate-500">{s.label}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">{s.label}</p>
               <p className={`text-sm font-bold ${s.color}`}>{s.value}</p>
             </div>
           ))}
@@ -394,7 +394,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
           <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-2.5 flex flex-wrap gap-4 items-center">
             <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 shrink-0">Tunggakan Awal (Migrasi)</p>
             <div className="flex gap-4 text-xs">
-              <span className="text-slate-600 dark:text-slate-300">Total: <strong>{formatRupiah(saldoAwalStats.total_jumlah ?? 0)}</strong></span>
+              <span className="text-slate-600 dark:text-slate-400 dark:text-slate-300">Total: <strong>{formatRupiah(saldoAwalStats.total_jumlah ?? 0)}</strong></span>
               <span className="text-emerald-600">Terbayar: <strong>{formatRupiah(saldoAwalStats.total_dibayar ?? 0)}</strong></span>
               <span className="text-rose-600">Sisa: <strong>{formatRupiah((saldoAwalStats.total_jumlah ?? 0) - (saldoAwalStats.total_dibayar ?? 0))}</strong></span>
               {saldoAwalStats.belum_lunas > 0 && (
@@ -422,7 +422,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-sm text-slate-400">
                     <div className="flex items-center justify-center gap-2">
-                      <div className="h-4 w-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                      <div className="h-4 w-4 border-2 border-slate-300 dark:border-slate-700 border-t-slate-600 rounded-full animate-spin" />
                       Memuat data...
                     </div>
                   </TableCell>
@@ -451,7 +451,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                         {saldoAwal && (
                           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                             saldoAwal.status === 'lunas'
-                              ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
                               : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                           }`}>
                             {saldoAwal.status === 'lunas' ? 'T.Awal ✓' : `T.Awal ${formatRupiah(saldoAwal.jumlah - saldoAwal.total_dibayar)}`}
@@ -460,7 +460,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                       </div>
                       <p className="text-[11px] text-slate-400">{row.nisn}</p>
                     </TableCell>
-                    <TableCell className="text-sm text-slate-600 dark:text-slate-300">
+                    <TableCell className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300">
                       {row.tingkat ? `${row.tingkat}-${row.nomor_kelas}${row.kelompok ? ' ' + row.kelompok : ''}` : '-'}
                     </TableCell>
                     <TableCell className="text-sm text-right font-medium">
@@ -477,7 +477,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                       ) : (
                         <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${
                           row.status === 'lunas'
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                            ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-900/30 dark:text-emerald-400'
                             : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
                         }`}>
                           {row.status === 'lunas' ? <CheckCircle2 className="h-2.5 w-2.5" /> : <XCircle className="h-2.5 w-2.5" />}
@@ -489,13 +489,13 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                       <div className="flex items-center justify-center gap-1">
                         {!noTagihan && (
                           <>
-                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
+                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                               onClick={e => { e.stopPropagation(); openEditModal(row) }} title="Edit">
                               <Pencil className="h-3 w-3" />
                             </Button>
                             {row.status !== 'lunas' && (
                               <Button size="sm" variant="ghost"
-                                className="h-6 text-[11px] px-2 gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                className="h-6 text-[11px] px-2 gap-1 text-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
                                 onClick={e => handleLunasSpp(row, e)} disabled={isPending}>
                                 <Check className="h-3 w-3" /> Lunas
                               </Button>
@@ -537,7 +537,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                     onClick={() => setSettings(prev => prev.map(x => x.tingkat === s.tingkat ? { ...x, aktif: x.aktif ? 0 : 1 } : x))}
                     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${s.aktif ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
                   >
-                    <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transform transition-transform ${s.aktif ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                    <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white dark:bg-slate-900 shadow-sm transform transition-transform ${s.aktif ? 'translate-x-4' : 'translate-x-0.5'}`} />
                   </button>
                   <span className={`text-xs font-medium ${s.aktif ? 'text-emerald-600' : 'text-slate-400'}`}>
                     {s.aktif ? 'Aktif' : 'Nonaktif'}
@@ -605,7 +605,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
           <DialogTitle className="text-sm font-semibold">Mulai SPP — Angkatan {mulaiEditAngkatan}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSaveMulai} className="p-5 space-y-3">
-          <p className="text-xs text-slate-500">Tagihan SPP akan dimulai dari bulan dan tahun yang dipilih. Bulan sebelumnya tidak akan ditagih.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Tagihan SPP akan dimulai dari bulan dan tahun yang dipilih. Bulan sebelumnya tidak akan ditagih.</p>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Bulan Mulai</Label>
@@ -625,7 +625,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                 className="h-9 text-sm" min={2020} max={2040} />
             </div>
           </div>
-          {mulaiMsg && <p className={`text-xs px-3 py-2 rounded-md ${mulaiMsg.includes('disimpan') ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>{mulaiMsg}</p>}
+          {mulaiMsg && <p className={`text-xs px-3 py-2 rounded-md ${mulaiMsg.includes('disimpan') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50' : 'text-rose-600 bg-rose-50'}`}>{mulaiMsg}</p>}
           <div className="flex gap-2 pt-1">
             <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setMulaiEditAngkatan(null)}>Batal</Button>
             <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}>Simpan</Button>
@@ -642,7 +642,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
         </DialogHeader>
         <div className="p-5 space-y-4">
           <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-sm">
-            <p className="font-medium text-slate-800 dark:text-slate-100">{editModal?.nama_lengkap}</p>
+            <p className="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100">{editModal?.nama_lengkap}</p>
             <p className="text-xs text-slate-400 mt-0.5">
               {BULAN_LABEL[bulan]} {tahun}
             </p>
@@ -658,7 +658,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
             </div>
           </div>
           {editModal && (
-            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-[11px] text-slate-500">
+            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-[11px] text-slate-500 dark:text-slate-400">
               Sisa: {formatRupiah(Math.max(0, (parseInt(editNominal) || 0) - (parseInt(editDibayar) || 0) - (editModal.total_diskon ?? 0)))}
             </div>
           )}
@@ -681,8 +681,8 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
         </DialogHeader>
         <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
           {/* Download Template */}
-          <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 space-y-2.5">
-            <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Download Template Excel</p>
+          <div className="bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 space-y-2.5">
+            <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-400 dark:text-emerald-300">Download Template Excel</p>
             <p className="text-xs text-emerald-700 dark:text-emerald-400">
               Template sudah terisi nama & NISN semua siswa, plus kolom Bulan ({bulan}) dan Tahun ({tahun}). Tinggal isi Nominal & Total Dibayar.
             </p>
@@ -694,7 +694,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                   {angkatanList.map(y => <SelectItem key={y} value={String(y)}>Angkatan {y}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 whitespace-nowrap"
+              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 whitespace-nowrap"
                 disabled={templateLoading}
                 onClick={async () => {
                   setTemplateLoading(true)
@@ -708,26 +708,26 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
           </div>
 
           <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
-            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Upload File yang Sudah Diisi</p>
-            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-xs text-slate-500 mb-3">
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 mb-2">Upload File yang Sudah Diisi</p>
+            <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg p-3 text-xs text-slate-500 dark:text-slate-400 mb-3">
               Kolom: <strong>NISN</strong>, <strong>Nama Siswa</strong>, <strong>Bulan</strong>, <strong>Tahun</strong>, <strong>Nominal</strong>, <strong>Total Dibayar</strong>
             </div>
           </div>
           <div>
             <Label className="text-xs font-medium mb-1.5 block">Pilih File (.xlsx / .xls)</Label>
             <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFileChange}
-              className="block w-full text-xs text-slate-600 file:mr-3 file:text-xs file:font-medium file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:rounded-md hover:file:bg-slate-200 cursor-pointer" />
+              className="block w-full text-xs text-slate-600 dark:text-slate-400 file:mr-3 file:text-xs file:font-medium file:border-0 file:bg-slate-100 dark:file:bg-slate-800/80 file:px-3 file:py-1.5 file:rounded-md hover:file:bg-slate-200 cursor-pointer" />
           </div>
           {importLoading && <p className="text-xs text-slate-400 animate-pulse">Membaca file...</p>}
           {importRows.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-slate-600 mb-2">{importRows.length} baris terdeteksi — preview 5 baris pertama:</p>
-              <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden overflow-x-auto">
+              <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">{importRows.length} baris terdeteksi — preview 5 baris pertama:</p>
+              <div className="border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg overflow-hidden overflow-x-auto">
                 <table className="text-[11px] w-full">
                   <thead className="bg-slate-50 dark:bg-slate-800">
                     <tr>
                       {Object.keys(importRows[0]).map(k => (
-                        <th key={k} className="px-2 py-1.5 text-left font-medium text-slate-600 whitespace-nowrap border-b border-slate-200 dark:border-slate-700">{k}</th>
+                        <th key={k} className="px-2 py-1.5 text-left font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap border-b border-slate-200 dark:border-slate-800 dark:border-slate-700">{k}</th>
                       ))}
                     </tr>
                   </thead>
@@ -745,7 +745,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
             </div>
           )}
           {importMsg && (
-            <p className={`text-xs px-3 py-2 rounded-md ${importMsg.includes('berhasil') && !importMsg.startsWith('0') ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>
+            <p className={`text-xs px-3 py-2 rounded-md ${importMsg.includes('berhasil') && !importMsg.startsWith('0') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50' : 'text-rose-600 bg-rose-50'}`}>
               {importMsg}
             </p>
           )}

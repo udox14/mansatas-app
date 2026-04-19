@@ -37,7 +37,7 @@ const getRoleLabel = (r: string) => ROLE_LABEL[r] || r
 
 const STATUS_BADGE: Record<string, string> = {
   BELUM_RESPOND: 'bg-amber-50 text-amber-700 border-amber-200',
-  HADIR: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  HADIR: 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
   TIDAK_HADIR: 'bg-rose-50 text-rose-700 border-rose-200',
 }
 const STATUS_LABEL: Record<string, string> = {
@@ -124,7 +124,7 @@ function CheckboxPeserta({
 
       {/* Select All */}
       <div className="flex items-center justify-between px-1">
-        <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-600">
+        <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-400">
           <input
             type="checkbox"
             checked={allChecked}
@@ -138,13 +138,13 @@ function CheckboxPeserta({
       </div>
 
       {/* Scrollable List */}
-      <div className="border border-slate-200 rounded-lg overflow-y-auto max-h-52 divide-y divide-slate-100">
+      <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-y-auto max-h-52 divide-y divide-slate-100">
         {filtered.length === 0 ? (
           <div className="py-6 text-center text-xs text-slate-400">Tidak ada pengguna ditemukan.</div>
         ) : (
           filtered.map(u => (
             <label key={u.id} className={cn(
-              'flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50 transition-colors',
+              'flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors',
               selectedIds.has(u.id) && 'bg-blue-50/60'
             )}>
               <input
@@ -154,7 +154,7 @@ function CheckboxPeserta({
                 className="rounded shrink-0"
               />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-slate-800 truncate">{u.nama_lengkap}</p>
+                <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">{u.nama_lengkap}</p>
                 <p className="text-[10px] text-slate-400">{getRoleLabel(u.role)}</p>
               </div>
             </label>
@@ -206,7 +206,7 @@ function DialogPeserta({ rapat }: { rapat: any }) {
           <DialogTitle className="text-sm">Peserta — {rapat.agenda}</DialogTitle>
         </DialogHeader>
         {pesan && (
-          <div className={cn('text-xs px-3 py-2 rounded-lg border', pesan.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700')}>
+          <div className={cn('text-xs px-3 py-2 rounded-lg border', pesan.ok ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 border-red-200 text-red-700')}>
             {pesan.teks}
           </div>
         )}
@@ -221,7 +221,7 @@ function DialogPeserta({ rapat }: { rapat: any }) {
             ) : data.map((p) => (
               <div key={p.peserta_id} className="flex items-center gap-3 py-2.5">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-slate-800 truncate">{p.nama_lengkap}</p>
+                  <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">{p.nama_lengkap}</p>
                   <p className="text-[10px] text-slate-400">{getRoleLabel(p.role)}</p>
                   {p.alasan_tidak_hadir && (
                     <p className="text-[10px] text-rose-500 mt-0.5 italic">"{p.alasan_tidak_hadir}"</p>
@@ -301,14 +301,14 @@ function DialogCetak({ rapat }: { rapat: any }) {
 
         <div className="space-y-4 overflow-y-auto flex-1">
           {/* Opsi */}
-          <div className="bg-slate-50 rounded-lg border border-slate-200 p-3 space-y-3">
-            <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Opsi Tampilan</p>
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-800 p-3 space-y-3">
+            <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Opsi Tampilan</p>
             <div className="grid grid-cols-2 gap-3">
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 dark:text-slate-300">
                 <input type="checkbox" checked={showStatus} onChange={e => setShowStatus(e.target.checked)} className="rounded" />
                 Tampilkan Kolom Status
               </label>
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 dark:text-slate-300">
                 <input type="checkbox" checked={showTtd} onChange={e => setShowTtd(e.target.checked)} className="rounded" />
                 Tampilkan Kolom Tanda Tangan
               </label>
@@ -317,15 +317,15 @@ function DialogCetak({ rapat }: { rapat: any }) {
             {showTtd && (
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-slate-500">Jabatan Kiri</Label>
+                  <Label className="text-[10px] text-slate-500 dark:text-slate-400">Jabatan Kiri</Label>
                   <Input value={ttdKiri} onChange={e => setTtdKiri(e.target.value)} className="h-7 text-xs rounded" />
-                  <Label className="text-[10px] text-slate-500">Nama Kiri</Label>
+                  <Label className="text-[10px] text-slate-500 dark:text-slate-400">Nama Kiri</Label>
                   <Input value={namaKiri} onChange={e => setNamaKiri(e.target.value)} placeholder="(kosongkan jika tidak perlu)" className="h-7 text-xs rounded" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[10px] text-slate-500">Jabatan Kanan</Label>
+                  <Label className="text-[10px] text-slate-500 dark:text-slate-400">Jabatan Kanan</Label>
                   <Input value={ttdKanan} onChange={e => setTtdKanan(e.target.value)} className="h-7 text-xs rounded" />
-                  <Label className="text-[10px] text-slate-500">Nama Kanan</Label>
+                  <Label className="text-[10px] text-slate-500 dark:text-slate-400">Nama Kanan</Label>
                   <Input value={namaKanan} onChange={e => setNamaKanan(e.target.value)} placeholder="(kosongkan jika tidak perlu)" className="h-7 text-xs rounded" />
                 </div>
               </div>
@@ -568,7 +568,7 @@ export function RapatClient({
                   </div>
                 )}
                 {(createState as any)?.success && (
-                  <div className="p-3 text-sm text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-100 flex gap-2">
+                  <div className="p-3 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-100 flex gap-2">
                     <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" /> {(createState as any).success}
                   </div>
                 )}
@@ -660,7 +660,7 @@ export function RapatClient({
                 <div className="p-4 space-y-3 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h3 className="font-bold text-base text-slate-800 dark:text-slate-100 leading-tight truncate">{u.agenda}</h3>
+                      <h3 className="font-bold text-base text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight truncate">{u.agenda}</h3>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">Pengundang: {u.pengundang_nama}</p>
                     </div>
                     <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-full border uppercase shrink-0', STATUS_BADGE[u.status_kehadiran])}>
@@ -676,7 +676,7 @@ export function RapatClient({
 
                   {u.catatan && (
                     <div className="p-2.5 bg-surface-2 text-slate-700 dark:text-slate-300 text-[11px] rounded-lg border border-surface">
-                      <strong className="text-slate-900 dark:text-slate-100 block mb-0.5 font-bold uppercase text-[9px]">Catatan:</strong>
+                      <strong className="text-slate-900 dark:text-slate-50 dark:text-slate-100 block mb-0.5 font-bold uppercase text-[9px]">Catatan:</strong>
                       {u.catatan}
                     </div>
                   )}
@@ -745,30 +745,30 @@ export function RapatClient({
                   <div className="flex justify-between items-start gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-bold text-base text-slate-800 dark:text-slate-100 leading-tight">{r.agenda}</h3>
+                        <h3 className="font-bold text-base text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight">{r.agenda}</h3>
                         {isExpired && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border bg-slate-100 text-slate-500 border-slate-200 uppercase">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 uppercase">
                             Expired
                           </span>
                         )}
                       </div>
                       <div className="mt-1.5 space-y-0.5">
-                        <span className="flex items-center gap-1.5 text-xs text-slate-500"><Calendar className="h-3.5 w-3.5" /> {r.tanggalFmt}</span>
-                        <span className="flex items-center gap-1.5 text-xs text-slate-500"><Clock className="h-3.5 w-3.5" /> {r.waktu} WIB</span>
-                        <span className="flex items-center gap-1.5 text-xs text-slate-500"><MapPin className="h-3.5 w-3.5" /> {r.tempat}</span>
+                        <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Calendar className="h-3.5 w-3.5" /> {r.tanggalFmt}</span>
+                        <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><Clock className="h-3.5 w-3.5" /> {r.waktu} WIB</span>
+                        <span className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400"><MapPin className="h-3.5 w-3.5" /> {r.tempat}</span>
                       </div>
                     </div>
                     <div className="text-right shrink-0 bg-surface-2 border border-surface rounded-lg p-2 min-w-[60px]">
                       <div className="text-[9px] font-bold text-slate-400 uppercase">Diundang</div>
-                      <div className="text-xl font-black text-slate-700 dark:text-slate-200 leading-none mt-0.5">{r.total_peserta}</div>
+                      <div className="text-xl font-black text-slate-700 dark:text-slate-300 dark:text-slate-200 leading-none mt-0.5">{r.total_peserta}</div>
                     </div>
                   </div>
 
                   {/* Stats */}
                   <div className="grid grid-cols-3 gap-2 pt-2 border-t border-surface">
-                    <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-2 text-center border border-emerald-100 dark:border-emerald-800">
+                    <div className="bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-900/20 rounded-lg p-2 text-center border border-emerald-100 dark:border-emerald-800">
                       <div className="text-lg font-black text-emerald-600 dark:text-emerald-400">{r.total_hadir}</div>
-                      <div className="text-[9px] font-bold text-emerald-800 dark:text-emerald-600 uppercase">Hadir</div>
+                      <div className="text-[9px] font-bold text-emerald-800 dark:text-emerald-400 dark:text-emerald-600 uppercase">Hadir</div>
                     </div>
                     <div className="bg-rose-50 dark:bg-rose-900/20 rounded-lg p-2 text-center border border-rose-100 dark:border-rose-800">
                       <div className="text-lg font-black text-rose-600 dark:text-rose-400">{r.total_tidak_hadir}</div>

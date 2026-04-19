@@ -715,7 +715,7 @@ export function KuitansiModal({ data, open, onClose }: KuitansiModalProps) {
   if (!data) return null
 
   const isKoperasi = data.kategori === 'Koperasi'
-  const accentCls  = isKoperasi ? 'bg-green-50 dark:bg-green-900/20 border-green-200' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200'
+  const accentCls  = isKoperasi ? 'bg-green-50 dark:bg-green-900/20 border-green-200' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800'
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>

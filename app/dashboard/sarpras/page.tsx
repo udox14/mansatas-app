@@ -13,7 +13,7 @@ export default async function SarprasPage() {
     getSarprasOptions()
   ])
   return (
-    <div className="flex-1 flex flex-col h-[100dvh] bg-slate-50 dark:bg-slate-900/50">
+    <div className="flex-1 flex flex-col h-[100dvh] bg-slate-50 dark:bg-slate-800 dark:bg-slate-900/50">
       <PageHeader 
         title="Sarana Prasarana" 
         description="Manajemen inventaris dan aset fasilitas madrasah"
