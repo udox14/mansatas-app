@@ -244,53 +244,52 @@ export function NilaiClient() {
       <Dialog open={isVerifyDialogOpen} onOpenChange={setIsVerifyDialogOpen}>
         <DialogContent className="max-w-[95vw] md:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-4 md:p-6 bg-slate-50 dark:bg-slate-950">
           <DialogHeader className="sm:text-center shrink-0">
-            <div className="mx-auto w-12 h-12 bg-amber-100 dark:bg-amber-900/50 rounded-full flex items-center justify-center mb-4">
-              <UserCheck className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+            <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center mb-4">
+              <UserCheck className="h-6 w-6 text-foreground" />
             </div>
             <DialogTitle className="text-xl md:text-2xl">Perlu Verifikasi Manual</DialogTitle>
-            <DialogDescription className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+            <DialogDescription className="max-w-md mx-auto">
               Ditemukan {verificationList.length} siswa dengan NISN tidak cocok/kosong namun memiliki kemiripan nama. Pilih <strong>Abaikan</strong> jika tidak ada yang cocok.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 overflow-y-auto -mx-4 px-4 md:-mx-6 md:px-6 my-4 border-y border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 shadow-inner relative">
+          <div className="flex-1 overflow-y-auto -mx-4 px-4 md:-mx-6 md:px-6 my-4 border-y bg-muted/10 shadow-inner relative">
             <div className="space-y-4 py-4 pr-1">
               {verificationList.map((item, idx) => {
                 const mapKey = item.rowId + item.fileName
                 return (
-                  <div key={idx} className="border border-slate-200 dark:border-slate-800 p-4 rounded-xl bg-white dark:bg-slate-900 shadow-sm relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-amber-400"></div>
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
-                      <div>
-                        <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-1">Nama Tertulis di Excel</p>
-                        <p className="font-bold text-base text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                  <div key={idx} className="border p-4 rounded-xl shadow-sm relative overflow-hidden flex flex-col gap-3">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+                      <div className="flex-1 space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground mr-2">Nama di Excel</Label>
+                        <div className="font-semibold text-sm flex items-center flex-wrap gap-2 text-foreground">
                            {item.namaExcel}
-                           <span className="text-xs font-normal px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-slate-500">NISN: {item.nisnExcel || 'Kosong'}</span>
-                        </p>
+                           <span className="text-[10px] font-normal px-2 py-0.5 bg-muted rounded text-muted-foreground">NISN: {item.nisnExcel || 'Kosong'}</span>
+                        </div>
                       </div>
-                      <div className="text-xs text-slate-500 text-left md:text-right bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded inline-block">
-                        File: <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[150px] inline-block align-bottom">{item.fileName}</span>
+                      <div className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded inline-block whitespace-normal break-all max-w-full">
+                        File: <span className="font-medium text-foreground">{item.fileName}</span>
                       </div>
                     </div>
                     
-                    <div className="space-y-2 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 rounded-lg border border-emerald-100/50 dark:border-emerald-900/30">
-                      <Label className="text-xs font-semibold text-emerald-800 dark:text-emerald-400">Apakah Siswa Ini yang Dimaksud?</Label>
+                    <div className="space-y-2 bg-muted/30 p-3 rounded-lg border">
+                      <Label className="text-xs font-semibold">Memilih Siswa Tujuan</Label>
                       <Select 
                         value={manualSelections[mapKey] || 'IGNORE'} 
                         onValueChange={val => setManualSelections(p => ({...p, [mapKey]: val}))}
                       >
-                        <SelectTrigger className="w-full bg-white dark:bg-slate-950 border-emerald-200 dark:border-emerald-800/50 focus:ring-emerald-500 shadow-sm">
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Pilih yang cocok..." />
                         </SelectTrigger>
-                        <SelectContent className="max-w-[calc(100vw-3rem)]">
-                          <SelectItem value="IGNORE" className="text-rose-600 dark:text-rose-400 font-bold focuses:bg-rose-50 dark:focus:bg-rose-950/50">
-                            ❌ BUKAN SEMUA — ABAIKAN BARIS INI
+                        <SelectContent className="max-w-[85vw] sm:max-w-md">
+                          <SelectItem value="IGNORE" className="text-destructive font-semibold">
+                            ❌ Abaikan & Buang Baris Ini
                           </SelectItem>
                           {item.suggestedMatches.map((m: any) => (
                             <SelectItem key={m.id} value={m.id} className="py-2.5 outline-none cursor-pointer">
-                              <div className="flex flex-col items-start text-left">
+                              <div className="flex flex-col items-start text-left whitespace-normal break-words">
                                 <span className="font-semibold text-sm">{m.nama_lengkap}</span>
-                                <span className="text-[10px] text-slate-500">
+                                <span className="text-[10px] text-muted-foreground">
                                   Kelas {m.tingkat}-{m.nomor_kelas} {m.kelompok} • NISN Asli: {m.nisn}
                                 </span>
                               </div>
@@ -306,13 +305,13 @@ export function NilaiClient() {
           </div>
           
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 shrink-0">
-             <div className="text-xs text-slate-500">
-               {readyImportList.length > 0 && <span className="text-emerald-600 font-medium">+{readyImportList.length} otomatis siap diproses. </span>}
+             <div className="text-xs text-muted-foreground">
+               {readyImportList.length > 0 && <span className="text-primary font-medium">+{readyImportList.length} otomatis siap diproses. </span>}
                Total Final: <strong>{readyImportList.length + Object.values(manualSelections).filter(v => v !== 'IGNORE').length} Data</strong>
              </div>
              <div className="flex gap-2 w-full sm:w-auto">
               <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setIsVerifyDialogOpen(false)}>Batal & Tutup</Button>
-              <Button className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700" onClick={handleSubmitVerification}>
+              <Button className="flex-1 sm:flex-none" onClick={handleSubmitVerification}>
                 Terapkan & Simpan
               </Button>
             </div>
