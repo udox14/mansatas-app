@@ -9,57 +9,57 @@ import { SEMESTER_MAP, SEMESTER_KEYS } from './constants'
 // IMPORT NILAI DARI EXCEL (dipertahankan dari MANSATAS)
 // Chunk upsert per 50 baris agar tidak spike memory di Worker
 // ============================================================
-export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string) {
+export async function validateImportNilai(dataExcel: any[], targetKolom: string) {
   if (!SEMESTER_KEYS.includes(targetKolom)) {
-    return { error: `Kolom target "${targetKolom}" tidak valid.`, logs: [] }
+    return { error: `Kolom target "${targetKolom}" tidak valid.` }
   }
 
   const db = await getDB()
-
   const [dbSiswa, dbMapel] = await Promise.all([
-    db.prepare('SELECT id, nisn, nama_lengkap FROM siswa').all<any>(),
+    db.prepare(`
+      SELECT s.id, s.nisn, s.nama_lengkap, k.tingkat, k.nomor_kelas, k.kelompok 
+      FROM siswa s 
+      LEFT JOIN kelas k ON s.kelas_id = k.id 
+      WHERE s.status = 'aktif'
+    `).all<any>(),
     db.prepare('SELECT nama_mapel, kode_mapel FROM mata_pelajaran').all<any>(),
   ])
 
-  if (!dbSiswa.results.length) return { error: 'Gagal memuat database siswa', logs: [] }
+  if (!dbSiswa.results.length) return { error: 'Gagal memuat database siswa' }
+  const siswaList = dbSiswa.results
 
-  // Bangun kamus mapel (nama & kode → nama canonical)
   const kamusMapel = new Map<string, string>()
   dbMapel.results.forEach((m: any) => {
     kamusMapel.set(m.nama_mapel.toLowerCase().trim(), m.nama_mapel)
     if (m.kode_mapel) kamusMapel.set(m.kode_mapel.toLowerCase().trim(), m.nama_mapel)
   })
 
-  // Bersihkan spasi dari NISN di DB agar pasti match
-  const nisnMap = new Map<string, string>(
-    dbSiswa.results.map((s: any) => [s.nisn ? String(s.nisn).trim() : '', s.id])
-  )
+  const nisnMap = new Map<string, any>()
+  siswaList.forEach((s: any) => {
+    if (s.nisn) nisnMap.set(String(s.nisn).trim(), s)
+  })
 
-  const toUpsert: any[] = []
+  const readyToImport: any[] = []
+  const needsVerification: any[] = []
   const errorLogs: string[] = []
 
   for (let i = 0; i < dataExcel.length; i++) {
     const row = dataExcel[i]
+    if (!row) continue
 
     const nisnKey = Object.keys(row).find((k) => k.toUpperCase().trim() === 'NISN')
     const nisn = nisnKey ? String(row[nisnKey]).trim() : ''
+    
+    const namaKey = Object.keys(row).find((k) => {
+      const up = k.toUpperCase().trim()
+      return up === 'NAMA' || up === 'NAMA LENGKAP' || up === 'NAMA_LENGKAP' || up === 'NAMA SISWA'
+    })
+    const namaExcel = namaKey ? String(row[namaKey]).trim() : `Baris ${i+2}`
 
-    if (!nisn) {
-      errorLogs.push(`Baris ${i + 2}: NISN kosong, dilewati`)
-      continue
-    }
-
-    const siswaId = nisnMap.get(nisn)
-    if (!siswaId) {
-      errorLogs.push(`Baris ${i + 2}: NISN ${nisn} tidak ditemukan`)
-      continue
-    }
-
-    // Ambil semua kolom nilai dari baris Excel (kecuali NISN dan NAMA)
     const nilaiObj: Record<string, number> = {}
     for (const [key, val] of Object.entries(row)) {
       const upperKey = key.toUpperCase().trim()
-      if (['NISN', 'NAMA', 'NAMA_LENGKAP', 'NO'].includes(upperKey)) continue
+      if (['NISN', 'NAMA', 'NAMA_LENGKAP', 'NAMA SISWA', 'NO'].includes(upperKey)) continue
       const mapelCanonical = kamusMapel.get(key.toLowerCase().trim())
       if (mapelCanonical && val !== '' && val !== null && val !== undefined) {
         const num = parseFloat(String(val))
@@ -67,22 +67,57 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
       }
     }
 
-    if (Object.keys(nilaiObj).length === 0) continue
-    toUpsert.push({ siswaId, nilaiObj })
-  }
+    if (Object.keys(nilaiObj).length === 0) {
+      if (nisn) errorLogs.push(`Baris ${i + 2}: Tidak ada nilai yang cocok dengan mata pelajaran sistem untuk ${namaExcel}`)
+      continue
+    }
 
-  if (toUpsert.length === 0) {
-    return {
-      error: errorLogs.length > 0
-        ? `Tidak ada data valid. Error: ${errorLogs.slice(0, 3).join('; ')}`
-        : 'Tidak ada data nilai yang bisa diimport.',
-      logs: errorLogs,
+    const exactStudent = nisn ? nisnMap.get(nisn) : undefined
+    
+    if (exactStudent) {
+      readyToImport.push({
+        siswaId: exactStudent.id,
+        namaExcel,
+        namaDb: exactStudent.nama_lengkap,
+        nisn,
+        nilaiObj
+      })
+    } else {
+      // Fuzzy string match
+      const searchExcel = namaExcel.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim()
+      
+      const suggestedMatches = siswaList.filter((s:any) => {
+        const dName = s.nama_lengkap.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim()
+        if (searchExcel.length < 3 || dName.length < 3) return false
+        return dName.includes(searchExcel) || searchExcel.includes(dName)
+      }).slice(0, 5)
+
+      if (suggestedMatches.length > 0) {
+        needsVerification.push({
+          rowId: i,
+          namaExcel,
+          nisnExcel: nisn,
+          suggestedMatches,
+          nilaiObj
+        })
+      } else {
+         errorLogs.push(`Baris ${i + 2}: NISN '${nisn}' salah & tidak ada kemiripan pada nama '${namaExcel}'`)
+      }
     }
   }
 
-  // Ambil rekap nilai yang sudah ada untuk di-merge
-  const existingIds = toUpsert.map((u) => u.siswaId)
+  return { readyToImport, needsVerification, errorLogs }
+}
+
+// Eksekusi Pukulan Akhir
+export async function simpanImportNilai(preparedRows: { siswaId: string, nilaiObj: Record<string, number> }[], targetKolom: string) {
+  if (!SEMESTER_KEYS.includes(targetKolom)) return { error: `Kolom target tidak valid.` }
+  if (preparedRows.length === 0) return { error: 'Daftar penyisipan kosong.' }
+  
+  const db = await getDB()
+  const existingIds = preparedRows.map((u) => u.siswaId)
   const existingMap = new Map<string, any>()
+  
   const fetchChunk = 50
   for (let i = 0; i < existingIds.length; i += fetchChunk) {
     const chunk = existingIds.slice(i, i + fetchChunk)
@@ -94,9 +129,8 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
     rows.results.forEach((r: any) => existingMap.set(r.siswa_id, r))
   }
 
-  // Build upsert statements
   const now = new Date().toISOString()
-  const stmts = toUpsert.map(({ siswaId, nilaiObj }) => {
+  const stmts = preparedRows.map(({ siswaId, nilaiObj }) => {
     const existing = existingMap.get(siswaId)
     const existingNilai = existing ? parseJsonCol<Record<string, number>>(existing[targetKolom], {}) : {}
     const merged = { ...existingNilai, ...nilaiObj }
@@ -115,9 +149,8 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
     }
   })
 
-  // Chunk batch per 50
-  const chunkSize = 50
   let successCount = 0
+  const chunkSize = 50
   for (let i = 0; i < stmts.length; i += chunkSize) {
     const results = await db.batch(stmts.slice(i, i + chunkSize))
     successCount += results.filter((r) => r.success).length
@@ -125,17 +158,8 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
 
   revalidatePath('/dashboard/akademik/nilai')
   revalidatePath('/dashboard/siswa')
-
-  let successMsg = `Berhasil import ${SEMESTER_MAP[targetKolom]} untuk ${successCount} siswa.`
-  if (errorLogs.length > 0) {
-    successMsg += ` ${errorLogs.length} baris dilewati (lihat log).`
-  }
-
-  return {
-    error: successCount === 0 ? 'Tidak ada data yang berhasil diimport.' : null,
-    success: successMsg,
-    logs: errorLogs,
-  }
+  
+  return { success: `Berhasil import nilai untuk ${successCount} santri ke kolom ${SEMESTER_MAP[targetKolom as keyof typeof SEMESTER_MAP]}.` }
 }
 
 // ============================================================
