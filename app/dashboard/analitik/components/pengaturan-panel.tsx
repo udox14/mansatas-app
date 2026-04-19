@@ -27,12 +27,12 @@ function JalurSection({
   onMoveUp: (i: number) => void; onMoveDown: (i: number) => void
 }) {
   const colorMap = {
-    emerald: { dot: 'bg-emerald-500', title: 'text-emerald-900', badge: 'bg-emerald-100 text-emerald-700', check: 'data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600', hover: 'hover:border-emerald-200' },
+    emerald: { dot: 'bg-emerald-500', title: 'text-emerald-900', badge: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400', check: 'data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600', hover: 'hover:border-emerald-200 dark:hover:border-emerald-800' },
     indigo: { dot: 'bg-indigo-500', title: 'text-indigo-900', badge: 'bg-indigo-100 text-indigo-700', check: 'data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600', hover: 'hover:border-indigo-200' },
   }
   const c = colorMap[color]
   return (
-    <div className="space-y-3 border border-surface-2 p-3 rounded-lg bg-slate-50/40">
+    <div className="space-y-3 border border-surface-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/40">
       <div className="flex items-center gap-2">
         <div className={`h-2 w-2 rounded-full ${c.dot}`} />
         <h4 className={`text-xs font-bold ${c.title} tracking-wide uppercase`}>{label}</h4>
@@ -49,7 +49,7 @@ function JalurSection({
                   <Checkbox id={`${label}-${m.id}`} checked={selected.includes(m.nama_mapel)}
                     onCheckedChange={() => onToggle(m.nama_mapel)}
                     className={`mt-0.5 ${c.check}`} />
-                  <Label htmlFor={`${label}-${m.id}`} className="text-[11px] cursor-pointer leading-snug text-slate-700 dark:text-slate-200">{m.nama_mapel}</Label>
+                  <Label htmlFor={`${label}-${m.id}`} className="text-[11px] cursor-pointer leading-snug text-slate-700 dark:text-slate-300 dark:text-slate-200">{m.nama_mapel}</Label>
                 </div>
               ))}
             </div>
@@ -63,16 +63,16 @@ function JalurSection({
               ? <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center mt-8">Belum ada mapel</p>
               : selected.map((mp, idx) => (
                 <div key={mp} className={`flex items-center justify-between bg-surface-2 px-2 py-1.5 rounded-md border border-surface-2 mb-1 group ${c.hover} transition-colors`}>
-                  <span className="text-[11px] text-slate-700 dark:text-slate-200 truncate flex-1">
+                  <span className="text-[11px] text-slate-700 dark:text-slate-300 dark:text-slate-200 truncate flex-1">
                     <span className="text-slate-400 dark:text-slate-500 mr-1">{idx + 1}.</span>{mp}
                   </span>
                   <div className="flex gap-0.5 shrink-0">
                     <button type="button" onClick={() => onMoveUp(idx)} disabled={idx === 0}
-                      className="h-5 w-5 rounded flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-200 hover:bg-slate-200 disabled:opacity-30">
+                      className="h-5 w-5 rounded flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 dark:text-slate-200 hover:bg-slate-200 disabled:opacity-30">
                       <ArrowUp className="h-3 w-3" />
                     </button>
                     <button type="button" onClick={() => onMoveDown(idx)} disabled={idx === selected.length - 1}
-                      className="h-5 w-5 rounded flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:text-slate-200 hover:bg-slate-200 disabled:opacity-30">
+                      className="h-5 w-5 rounded flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 dark:text-slate-200 hover:bg-slate-200 disabled:opacity-30">
                       <ArrowDown className="h-3 w-3" />
                     </button>
                   </div>
@@ -123,17 +123,17 @@ export function PengaturanPanel({ pengaturan, mapelList }: { pengaturan: any; ma
     <div className="bg-surface rounded-lg border border-surface p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2.5 pb-3 border-b border-surface-2">
-        <div className="bg-emerald-100 p-1.5 rounded-md text-emerald-700">
+        <div className="bg-emerald-100 dark:bg-emerald-900/50 p-1.5 rounded-md text-emerald-700 dark:text-emerald-400">
           <Settings2 className="h-4 w-4" />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Pengaturan Rumus & Format Kelulusan</h3>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Pengaturan Rumus & Format Kelulusan</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Pilih mapel dan atur urutan untuk format export SNBP & SPAN-PTKIN.</p>
         </div>
       </div>
 
       {pesan && (
-        <div className="p-2.5 bg-emerald-50 text-emerald-800 rounded-lg border border-emerald-100 flex items-center gap-2 text-xs font-medium">
+        <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-400 rounded-lg border border-emerald-100 flex items-center gap-2 text-xs font-medium">
           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" /> {pesan}
         </div>
       )}
@@ -155,13 +155,13 @@ export function PengaturanPanel({ pengaturan, mapelList }: { pengaturan: any; ma
 
         {/* Bobot */}
         <div className="bg-surface-2 p-3 rounded-lg border border-surface-2">
-          <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-2">Simulasi Bobot Nilai Akhir</p>
+          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200 mb-2">Simulasi Bobot Nilai Akhir</p>
           <div className="flex items-center gap-3">
             <div className="flex-1 space-y-1">
               <Label className="text-[10px] text-slate-500 dark:text-slate-400 dark:text-slate-500 font-semibold uppercase">Bobot Rapor 5 Smt (%)</Label>
               <Input type="number" name="bobot_rapor" value={bobotRapor}
                 onChange={e => setBobotRapor(Number(e.target.value))} max={100} min={0}
-                className="h-8 text-sm rounded-md bg-surface font-bold text-emerald-700" />
+                className="h-8 text-sm rounded-md bg-surface font-bold text-emerald-700 dark:text-emerald-400" />
             </div>
             <span className="text-slate-300 dark:text-slate-600 font-bold mt-4">+</span>
             <div className="flex-1 space-y-1">

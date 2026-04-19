@@ -96,7 +96,7 @@ export function DetailSiswaClient({
   const DataItem = ({ label, value, className = '' }: { label: string, value: string | number | null, className?: string }) => (
     <div className={`flex flex-col border-b border-surface-2 pb-3 mb-3 last:border-0 last:mb-0 last:pb-0 ${className}`}>
       <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">{label}</span>
-      <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug">{value || '-'}</span>
+      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-snug">{value || '-'}</span>
     </div>
   )
 
@@ -125,7 +125,7 @@ export function DetailSiswaClient({
               {tingkat}
             </div>
             <div className="text-left">
-              <h4 className={`font-bold text-sm font-semibold leading-tight ${isOpen ? 'text-indigo-900' : 'text-slate-800 dark:text-slate-100'}`}>
+              <h4 className={`font-bold text-sm font-semibold leading-tight ${isOpen ? 'text-indigo-900' : 'text-slate-800 dark:text-slate-200 dark:text-slate-100'}`}>
                 Kelas {classStr} <span className="text-xs font-semibold px-2 py-0.5 bg-surface border rounded-md ml-2 text-slate-500 dark:text-slate-400 dark:text-slate-500 hidden sm:inline-block">TA: {taStr}</span>
               </h4>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 dark:text-slate-500 font-medium mt-1">
@@ -139,35 +139,35 @@ export function DetailSiswaClient({
         </button>
 
         {isOpen && (
-          <div className="p-3 bg-slate-50/50 animate-in slide-in-from-top-2 fade-in duration-300">
+          <div className="p-3 bg-slate-50 dark:bg-slate-800/50 animate-in slide-in-from-top-2 fade-in duration-300">
             {isNoData ? (
               <div className="text-center py-12 text-slate-400 dark:text-slate-500 bg-surface rounded-xl border border-dashed border-surface">
                 <LineChart className="h-10 w-10 mx-auto mb-3 opacity-30 text-slate-400 dark:text-slate-500" />
-                <p className="font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600">Belum ada riwayat kelas dan nilai.</p>
+                <p className="font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Belum ada riwayat kelas dan nilai.</p>
                 <p className="text-sm mt-1">Data akademik untuk tingkat {tingkat} belum diinputkan ke sistem.</p>
               </div>
             ) : mapels.length === 0 ? (
                <div className="text-center py-10 text-slate-400 dark:text-slate-500 bg-surface rounded-xl border border-surface-2">
                 <BookOpen className="h-8 w-8 mx-auto mb-3 opacity-30 text-slate-400 dark:text-slate-500" />
-                <p className="font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600">Riwayat Kelas Ada, tapi nilai kosong.</p>
+                <p className="font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Riwayat Kelas Ada, tapi nilai kosong.</p>
                 <p className="text-sm mt-1">Silakan import nilai dari RDM terlebih dahulu.</p>
               </div>
             ) : (
               <div className="overflow-x-auto custom-scrollbar border border-surface rounded-xl sm:rounded-2xl bg-surface shadow-sm">
                 <Table className="min-w-[500px]">
-                  <TableHeader className="bg-slate-100/80 border-b border-surface">
+                  <TableHeader className="bg-slate-100 dark:bg-slate-800/80/80 border-b border-surface">
                     <TableRow>
-                      <TableHead className="font-bold text-slate-700 dark:text-slate-200 w-[50%] px-5">Mata Pelajaran</TableHead>
+                      <TableHead className="font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200 w-[50%] px-5">Mata Pelajaran</TableHead>
                       <TableHead className="font-extrabold text-indigo-800 text-center w-[25%] bg-indigo-50/50 border-l border-surface">{titleSmt1}</TableHead>
-                      <TableHead className="font-extrabold text-emerald-800 text-center w-[25%] bg-emerald-50/50 border-l border-surface">{titleSmt2}</TableHead>
+                      <TableHead className="font-extrabold text-emerald-800 dark:text-emerald-400 text-center w-[25%] bg-emerald-50 dark:bg-emerald-950/50/50 border-l border-surface">{titleSmt2}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {mapels.map(mp => (
                       <TableRow key={mp} className="hover:bg-surface-2 transition-colors">
-                        <TableCell className="font-semibold text-slate-700 dark:text-slate-200 px-5 border-b border-surface-2">{mp}</TableCell>
-                        <TableCell className="text-center font-mono font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600 border-l border-b border-surface-2 bg-indigo-50/10">{rna[keySmt1]?.[mp] || '-'}</TableCell>
-                        <TableCell className="text-center font-mono font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600 border-l border-b border-surface-2 bg-emerald-50/10">{rna[keySmt2]?.[mp] || '-'}</TableCell>
+                        <TableCell className="font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200 px-5 border-b border-surface-2">{mp}</TableCell>
+                        <TableCell className="text-center font-mono font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 border-l border-b border-surface-2 bg-indigo-50/10">{rna[keySmt1]?.[mp] || '-'}</TableCell>
+                        <TableCell className="text-center font-mono font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 border-l border-b border-surface-2 bg-emerald-50 dark:bg-emerald-950/50/10">{rna[keySmt2]?.[mp] || '-'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -203,7 +203,7 @@ export function DetailSiswaClient({
       {/* HEADER PROFIL */}
       <div className="bg-surface rounded-xl p-4 border border-surface shadow-sm flex flex-col md:flex-row items-center md:items-start gap-6 relative overflow-hidden">
         {/* Dekorasi Latar */}
-        <div className="absolute right-0 top-0 w-64 h-64 bg-emerald-50 rounded-full blur-3xl -z-0 opacity-50"></div>
+        <div className="absolute right-0 top-0 w-64 h-64 bg-emerald-50 dark:bg-emerald-950/50 rounded-full blur-3xl -z-0 opacity-50"></div>
         <div className="absolute left-0 bottom-0 w-32 h-32 bg-blue-50 rounded-full blur-2xl -z-0 opacity-50"></div>
         
         {/* FOTO PROFIL / INISIAL */}
@@ -229,7 +229,7 @@ export function DetailSiswaClient({
             {/* BADGES + TOMBOL EDIT */}
             <div className="flex flex-wrap justify-center md:justify-end gap-2 items-center">
               <div className="flex flex-col items-center gap-0.5">
-                <span className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide border ${siswa.status === 'aktif' ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : siswa.status === 'lulus' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-rose-100 text-rose-800 border-rose-200'}`}>
+                <span className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide border ${siswa.status === 'aktif' ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : siswa.status === 'lulus' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-rose-100 text-rose-800 border-rose-200'}`}>
                   {siswa.status}
                 </span>
                 {siswa.status === 'keluar' && siswa.tanggal_keluar && (
@@ -238,7 +238,7 @@ export function DetailSiswaClient({
                   </span>
                 )}
               </div>
-              <span className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-surface-3 text-slate-700 dark:text-slate-200 border border-surface shadow-sm flex items-center gap-1.5">
+              <span className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-surface-3 text-slate-700 dark:text-slate-300 dark:text-slate-200 border border-surface shadow-sm flex items-center gap-1.5">
                 <GraduationCap className="h-3.5 w-3.5" /> Kelas {namaKelasSekarang}
               </span>
               {siswa.tempat_tinggal !== 'Non-Pesantren' && (
@@ -277,7 +277,7 @@ export function DetailSiswaClient({
             </div>
           </div>
           
-          <p className="text-sm font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600 flex justify-center md:justify-start items-center gap-2 pt-2">
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 flex justify-center md:justify-start items-center gap-2 pt-2">
             <User className="h-4 w-4 text-slate-400 dark:text-slate-500" /> {siswa.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}
             <span className="text-slate-300 dark:text-slate-600">|</span>
             <Phone className="h-4 w-4 text-slate-400 dark:text-slate-500" /> {siswa.nomor_whatsapp || 'Belum ada nomor WA'}
@@ -307,7 +307,7 @@ export function DetailSiswaClient({
             
             {/* Kartu 1: Data Pribadi */}
             <div className="bg-surface p-4 rounded-lg shadow-sm border border-surface">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 border-b border-surface-2 pb-4 mb-4 flex items-center gap-2"><User className="text-emerald-600 h-5 w-5"/> Data Pribadi Siswa</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 border-b border-surface-2 pb-4 mb-4 flex items-center gap-2"><User className="text-emerald-600 h-5 w-5"/> Data Pribadi Siswa</h3>
               <DataItem label="NIK" value={siswa.nik} />
               <DataItem label="Tempat, Tanggal Lahir" value={`${siswa.tempat_lahir || '-'}, ${siswa.tanggal_lahir ? new Date(siswa.tanggal_lahir).toLocaleDateString('id-ID') : '-'}`} />
               <DataItem label="Agama" value={siswa.agama} />
@@ -320,7 +320,7 @@ export function DetailSiswaClient({
 
             {/* Kartu 2: Tempat Tinggal */}
             <div className="bg-surface p-4 rounded-lg shadow-sm border border-surface">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 border-b border-surface-2 pb-4 mb-4 flex items-center gap-2"><MapPin className="text-blue-600 h-5 w-5"/> Domisili & Alamat</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 border-b border-surface-2 pb-4 mb-4 flex items-center gap-2"><MapPin className="text-blue-600 h-5 w-5"/> Domisili & Alamat</h3>
               <DataItem label="Status Domisili / Pesantren" value={siswa.tempat_tinggal} className="bg-blue-50/50 p-3 rounded-xl border border-blue-100" />
               {siswa.tempat_tinggal !== 'Non-Pesantren' && (
                 <div className="grid grid-cols-2 gap-4 bg-orange-50/60 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 p-3 rounded-xl mb-3">
@@ -340,19 +340,19 @@ export function DetailSiswaClient({
 
             {/* Kartu 3: Data Orang Tua */}
             <div className="bg-surface p-4 rounded-lg shadow-sm border border-surface xl:col-span-1 md:col-span-2">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 border-b border-surface-2 pb-4 mb-4 flex items-center gap-2"><Users className="text-orange-600 h-5 w-5"/> Data Orang Tua / Wali</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 border-b border-surface-2 pb-4 mb-4 flex items-center gap-2"><Users className="text-orange-600 h-5 w-5"/> Data Orang Tua / Wali</h3>
               <DataItem label="Nomor Kartu Keluarga (KK)" value={siswa.nomor_kk} className="bg-orange-50/50 p-3 rounded-xl border border-orange-100" />
               
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-6 mt-4">
-                <div className="border border-surface-2 rounded-xl p-4 bg-slate-50/50">
-                  <h4 className="font-bold text-slate-700 dark:text-slate-200 mb-3">Data Ayah</h4>
+                <div className="border border-surface-2 rounded-xl p-4 bg-slate-50 dark:bg-slate-800/50">
+                  <h4 className="font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200 mb-3">Data Ayah</h4>
                   <DataItem label="Nama Ayah" value={siswa.nama_ayah} />
                   <DataItem label="Status" value={siswa.status_ayah} />
                   <DataItem label="Pekerjaan" value={siswa.pekerjaan_ayah} />
                   <DataItem label="Penghasilan" value={siswa.penghasilan_ayah} />
                 </div>
-                <div className="border border-surface-2 rounded-xl p-4 bg-slate-50/50">
-                  <h4 className="font-bold text-slate-700 dark:text-slate-200 mb-3">Data Ibu</h4>
+                <div className="border border-surface-2 rounded-xl p-4 bg-slate-50 dark:bg-slate-800/50">
+                  <h4 className="font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200 mb-3">Data Ibu</h4>
                   <DataItem label="Nama Ibu" value={siswa.nama_ibu} />
                   <DataItem label="Status" value={siswa.status_ibu} />
                   <DataItem label="Pekerjaan" value={siswa.pekerjaan_ibu} />
@@ -370,7 +370,7 @@ export function DetailSiswaClient({
             
             <div className="flex flex-col sm:flex-row justify-between sm:items-end mb-6 gap-2">
               <div>
-                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 flex items-center gap-2">
                   <LineChart className="text-indigo-600 h-6 w-6"/> Histori Penempatan & Nilai
                 </h3>
                 <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-sm mt-1">Klik pada masing-masing tingkat kelas untuk melihat rekapitulasi nilai semester.</p>
@@ -398,7 +398,7 @@ export function DetailSiswaClient({
                 ? activeSanksi.urutan >= 3 ? 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
                   : activeSanksi.urutan === 2 ? 'bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800'
                   : 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800'
-                : 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'}`}>
+                : 'bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'}`}>
 
               {/* Poin counter */}
               <div className="flex flex-col items-center justify-center h-24 w-24 rounded-full border-4
@@ -414,7 +414,7 @@ export function DetailSiswaClient({
                     ? activeSanksi.urutan >= 3 ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
                       : activeSanksi.urutan === 2 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400'
                       : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
-                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'}`}>
+                    : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-900/40 dark:text-emerald-400'}`}>
                   {activeSanksi
                     ? <><ShieldAlert className="h-3.5 w-3.5" />{activeSanksi.nama}</>
                     : <><ShieldCheck className="h-3.5 w-3.5" />Baik</>}
@@ -440,7 +440,7 @@ export function DetailSiswaClient({
             </div>
 
             <div className="bg-surface rounded-lg border border-surface md:col-span-2 overflow-hidden flex flex-col h-80">
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 px-3 py-2.5 border-b bg-surface-2 flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 px-3 py-2.5 border-b bg-surface-2 flex items-center gap-2">
                 <History className="h-5 w-5 text-slate-500 dark:text-slate-400 dark:text-slate-500"/> Riwayat Pelanggaran Tercatat
               </h3>
               <ScrollArea className="flex-1">
@@ -457,9 +457,9 @@ export function DetailSiswaClient({
                           +{p.master_pelanggaran?.poin}
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm">{p.master_pelanggaran?.nama_pelanggaran}</h4>
+                          <h4 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 text-sm">{p.master_pelanggaran?.nama_pelanggaran}</h4>
                           <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{new Date(p.tanggal).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                          {p.keterangan && <p className="text-xs text-slate-600 dark:text-slate-300 dark:text-slate-600 italic mt-1.5 bg-surface-3 p-2 rounded-lg">"{p.keterangan}"</p>}
+                          {p.keterangan && <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 italic mt-1.5 bg-surface-3 p-2 rounded-lg">"{p.keterangan}"</p>}
                           <div className="flex items-center gap-2 mt-2">
                             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Pelapor: {p.pelapor?.nama_lengkap}</span>
                             {p.foto_url && <a href={p.foto_url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded flex items-center gap-1 hover:bg-blue-100"><ImageIcon className="h-3 w-3"/> Bukti Foto</a>}
@@ -482,7 +482,7 @@ export function DetailSiswaClient({
             <div className="bg-surface rounded-lg border border-surface overflow-hidden flex flex-col h-96">
               <div className="p-4 border-b bg-blue-50/50 flex items-center gap-2">
                 <DoorOpen className="h-5 w-5 text-blue-600" />
-                <h3 className="font-bold text-slate-800 dark:text-slate-100">Riwayat Keluar Komplek</h3>
+                <h3 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">Riwayat Keluar Komplek</h3>
               </div>
               <ScrollArea className="flex-1 p-4">
                 {izinKeluar.length === 0 ? <p className="text-center text-sm text-slate-400 dark:text-slate-500 mt-10">Tidak ada riwayat izin keluar komplek.</p> : (
@@ -491,19 +491,19 @@ export function DetailSiswaClient({
                       <div key={k.id} className="border border-surface rounded-lg p-2.5 hover:border-blue-300 transition-colors">
                         <div className="flex justify-between items-start mb-2">
                           <span className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">{new Date(k.waktu_keluar).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${k.status === 'BELUM KEMBALI' ? 'bg-amber-100 text-amber-700' : 'bg-surface-3 text-slate-600 dark:text-slate-300 dark:text-slate-600'}`}>{k.status}</span>
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${k.status === 'BELUM KEMBALI' ? 'bg-amber-100 text-amber-700' : 'bg-surface-3 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600'}`}>{k.status}</span>
                         </div>
                         <div className="flex gap-4 mb-2">
                           <div className="flex-1 bg-surface-2 p-2 rounded-xl text-center border border-surface-2">
                             <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">Jam Keluar</p>
-                            <p className="font-mono font-bold text-slate-700 dark:text-slate-200">{new Date(k.waktu_keluar).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</p>
+                            <p className="font-mono font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200">{new Date(k.waktu_keluar).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</p>
                           </div>
                           <div className="flex-1 bg-surface-2 p-2 rounded-xl text-center border border-surface-2">
                             <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">Jam Kembali</p>
-                            <p className="font-mono font-bold text-slate-700 dark:text-slate-200">{k.waktu_kembali ? new Date(k.waktu_kembali).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}</p>
+                            <p className="font-mono font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200">{k.waktu_kembali ? new Date(k.waktu_kembali).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}</p>
                           </div>
                         </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 dark:text-slate-600 line-clamp-2"><span className="font-semibold text-slate-400 dark:text-slate-500">Ket:</span> {k.keterangan || '-'}</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 line-clamp-2"><span className="font-semibold text-slate-400 dark:text-slate-500">Ket:</span> {k.keterangan || '-'}</p>
                       </div>
                     ))}
                   </div>
@@ -515,7 +515,7 @@ export function DetailSiswaClient({
             <div className="bg-surface rounded-lg border border-surface overflow-hidden flex flex-col h-96">
               <div className="p-4 border-b bg-indigo-50/50 flex items-center gap-2">
                 <Users className="h-5 w-5 text-indigo-600" />
-                <h3 className="font-bold text-slate-800 dark:text-slate-100">Riwayat Izin Tidak Masuk Kelas</h3>
+                <h3 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">Riwayat Izin Tidak Masuk Kelas</h3>
               </div>
               <ScrollArea className="flex-1 p-4">
                 {izinKelas.length === 0 ? <p className="text-center text-sm text-slate-400 dark:text-slate-500 mt-10">Tidak ada riwayat izin jam pelajaran.</p> : (
@@ -531,7 +531,7 @@ export function DetailSiswaClient({
                             </div>
                           </div>
                           <p className="text-[11px] font-black text-indigo-700 uppercase tracking-wider mb-1 bg-indigo-50 w-fit px-2 py-0.5 rounded">{k.alasan}</p>
-                          {k.keterangan && <p className="text-xs text-slate-600 dark:text-slate-300 dark:text-slate-600 italic">"{k.keterangan}"</p>}
+                          {k.keterangan && <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 italic">"{k.keterangan}"</p>}
                         </div>
                       </div>
                     ))}

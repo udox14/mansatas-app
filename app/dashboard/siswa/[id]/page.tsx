@@ -42,7 +42,7 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
   `).bind(id).first<any>()
 
   if (!siswa) return (
-    <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500">
+    <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500 dark:text-slate-400">
       <h1 className="text-2xl font-bold mb-2">Siswa Tidak Ditemukan</h1>
       <Link href="/dashboard/siswa" className="text-blue-600 hover:underline">Kembali ke Daftar Siswa</Link>
     </div>

@@ -66,7 +66,7 @@ export function MutasiModal({ isOpen, onClose, siswa, currentKelasId, tingkat }:
         </DialogHeader>
         <div className="space-y-3 pt-2">
           {message && (
-            <div className={`p-2.5 text-xs rounded-lg flex items-center gap-2 ${message.type === 'error' ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+            <div className={`p-2.5 text-xs rounded-lg flex items-center gap-2 ${message.type === 'error' ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'}`}>
               {message.type === 'error' ? <AlertCircle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
               {message.text}
             </div>
@@ -77,7 +77,7 @@ export function MutasiModal({ isOpen, onClose, siswa, currentKelasId, tingkat }:
             <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">NISN: {siswa.nisn}</p>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Kelas Tujuan (Tingkat {tingkat})</Label>
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Kelas Tujuan (Tingkat {tingkat})</Label>
             {isKelasLoading ? (
               <div className="h-9 border rounded-lg flex items-center justify-center bg-surface-2 text-xs text-slate-400 dark:text-slate-500"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memuat kelas...</div>
             ) : (

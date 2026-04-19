@@ -46,13 +46,13 @@ type RekapResult = {
 // ============================================================
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { cls: string; icon: React.ReactNode; label: string }> = {
-    'HADIR':         { cls: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <CheckCircle2 className="h-3 w-3" />, label: 'Hadir' },
+    'HADIR':         { cls: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800', icon: <CheckCircle2 className="h-3 w-3" />, label: 'Hadir' },
     'HADIR PARSIAL': { cls: 'bg-amber-100 text-amber-700 border-amber-200',       icon: <Clock className="h-3 w-3" />,        label: 'Parsial' },
     'SAKIT':         { cls: 'bg-blue-100 text-blue-700 border-blue-200',           icon: <MinusCircle className="h-3 w-3" />,  label: 'Sakit' },
     'IZIN':          { cls: 'bg-indigo-100 text-indigo-700 border-indigo-200',     icon: <MinusCircle className="h-3 w-3" />,  label: 'Izin' },
     'ALFA':          { cls: 'bg-rose-100 text-rose-700 border-rose-200',           icon: <XCircle className="h-3 w-3" />,      label: 'Alfa' },
   }
-  const cfg = map[status] ?? { cls: 'bg-slate-100 text-slate-600 border-slate-200', icon: null, label: status }
+  const cfg = map[status] ?? { cls: 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800', icon: null, label: status }
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${cfg.cls}`}>
       {cfg.icon}{cfg.label}
@@ -295,7 +295,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
 
   // ── Stat card ──
   const statCards = summary ? [
-    { label: 'Hadir',   val: summary.hadir,   cls: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+    { label: 'Hadir',   val: summary.hadir,   cls: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' },
     { label: 'Parsial', val: summary.parsial, cls: 'bg-amber-50 border-amber-200 text-amber-700' },
     { label: 'Sakit',   val: summary.sakit,   cls: 'bg-blue-50 border-blue-200 text-blue-700' },
     { label: 'Izin',    val: summary.izin,    cls: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
@@ -309,7 +309,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
         <div className="bg-surface border border-surface rounded-xl p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
             <CalendarSearch className="h-5 w-5 text-cyan-600" />
-            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Rekap Absensi Harian</h3>
+            <h3 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 text-sm">Rekap Absensi Harian</h3>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 items-end">
             <div className="flex-1 flex flex-col sm:flex-row gap-3">
@@ -322,7 +322,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
                   value={tglMulai}
                   max={tglSelesai}
                   onChange={e => setTglMulai(e.target.value)}
-                  className="w-full border border-surface rounded-lg px-3 py-1.5 text-sm font-medium bg-surface-2 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+                  className="w-full border border-surface rounded-lg px-3 py-1.5 text-sm font-medium bg-surface-2 text-slate-700 dark:text-slate-300 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
                 />
               </div>
               <div className="flex-1">
@@ -334,7 +334,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
                   value={tglSelesai}
                   min={tglMulai}
                   onChange={e => setTglSelesai(e.target.value)}
-                  className="w-full border border-surface rounded-lg px-3 py-1.5 text-sm font-medium bg-surface-2 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+                  className="w-full border border-surface rounded-lg px-3 py-1.5 text-sm font-medium bg-surface-2 text-slate-700 dark:text-slate-300 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
                 />
               </div>
             </div>
@@ -371,7 +371,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
         {!loaded && !loading && (
           <div className="flex flex-col items-center justify-center py-16 text-slate-400 bg-surface border border-dashed border-surface rounded-xl">
             <BarChart3 className="h-12 w-12 mb-4 opacity-25" />
-            <p className="font-semibold text-slate-500">Data belum dimuat</p>
+            <p className="font-semibold text-slate-500 dark:text-slate-400">Data belum dimuat</p>
             <p className="text-sm mt-1">Atur rentang tanggal lalu tekan <strong>Muat Data Absensi</strong></p>
           </div>
         )}
@@ -410,7 +410,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
             {days.length === 0 ? (
               <div className="text-center py-12 bg-surface border border-dashed border-surface rounded-xl text-slate-400">
                 <CheckCircle2 className="h-10 w-10 mx-auto mb-3 text-emerald-200" />
-                <p className="font-semibold text-slate-500">Tidak ada data absensi pada rentang ini.</p>
+                <p className="font-semibold text-slate-500 dark:text-slate-400">Tidak ada data absensi pada rentang ini.</p>
               </div>
             ) : (
               <ScrollArea className="max-h-[520px] pr-1">
@@ -431,7 +431,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
                           } ${isExpanded ? 'bg-surface-2' : ''}`}
                         >
                           <div className="shrink-0 text-center w-10">
-                            <p className="text-xs font-black text-slate-800 dark:text-slate-100 leading-none">
+                            <p className="text-xs font-black text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-none">
                               {new Date(day.tanggal + 'T00:00:00').getDate()}
                             </p>
                             <p className="text-[9px] font-bold text-slate-400 uppercase">
@@ -439,7 +439,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
                             </p>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 truncate">
+                            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 truncate">
                               {new Date(day.tanggal + 'T00:00:00').toLocaleDateString('id-ID', {
                                 day: 'numeric', month: 'long', year: 'numeric'
                               })}
@@ -459,25 +459,25 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
                         </button>
 
                         {isExpanded && hasDetail && (
-                          <div className="border-t border-surface bg-slate-50/70 divide-y divide-slate-100 animate-in slide-in-from-top-1 fade-in duration-200">
+                          <div className="border-t border-surface bg-slate-50 dark:bg-slate-800/70 divide-y divide-slate-100 animate-in slide-in-from-top-1 fade-in duration-200">
                             {day.detail.map((d, i) => (
                               <div key={i} className="flex items-start gap-3 px-4 py-2">
                                 <span className={`mt-0.5 shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full border ${
                                   d.status === 'ALFA'  ? 'bg-rose-100 text-rose-700 border-rose-200' :
                                   d.status === 'SAKIT' ? 'bg-blue-100 text-blue-700 border-blue-200' :
                                   d.status === 'IZIN'  ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
-                                  'bg-slate-100 text-slate-600 border-slate-200'
+                                  'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
                                 }`}>
                                   {d.status}
                                 </span>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{d.nama_mapel}</p>
+                                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200 truncate">{d.nama_mapel}</p>
                                   <p className="text-[10px] text-slate-400 mt-0.5">
                                     Jam ke-{d.jam_ke_mulai}{d.jam_ke_selesai > d.jam_ke_mulai ? `–${d.jam_ke_selesai}` : ''}
                                     {d.guru_nama ? ` · ${d.guru_nama}` : ''}
                                   </p>
                                   {d.catatan && (
-                                    <p className="text-[10px] italic text-slate-500 mt-0.5 bg-white border border-slate-100 rounded px-2 py-0.5">
+                                    <p className="text-[10px] italic text-slate-500 dark:text-slate-400 mt-0.5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded px-2 py-0.5">
                                       "{d.catatan}"
                                     </p>
                                   )}
@@ -507,12 +507,12 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
           </DialogHeader>
 
           <div className="py-1 space-y-2">
-            <p className="text-xs text-slate-500 pb-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 pb-1">
               Centang status kehadiran yang ingin diikutkan dalam laporan cetak.
             </p>
 
             {([
-              { key: 'HADIR'         as StatusKey, label: 'Hadir',         desc: 'Hadir semua jam pelajaran',   cls: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+              { key: 'HADIR'         as StatusKey, label: 'Hadir',         desc: 'Hadir semua jam pelajaran',   cls: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' },
               { key: 'HADIR PARSIAL' as StatusKey, label: 'Hadir Parsial', desc: 'Hadir sebagian jam',          cls: 'bg-amber-50 border-amber-200 text-amber-700' },
               { key: 'SAKIT'         as StatusKey, label: 'Sakit',         desc: 'Tidak hadir karena sakit',    cls: 'bg-blue-50 border-blue-200 text-blue-700' },
               { key: 'IZIN'          as StatusKey, label: 'Izin',          desc: 'Tidak hadir karena izin',     cls: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
@@ -544,9 +544,9 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
               )
             })}
 
-            <div className="pt-3 border-t border-surface-2 text-xs text-slate-500 flex justify-between items-center">
+            <div className="pt-3 border-t border-surface-2 text-xs text-slate-500 dark:text-slate-400 flex justify-between items-center">
               <span>Total hari yang akan dicetak:</span>
-              <strong className="text-sm text-slate-700 dark:text-slate-200">
+              <strong className="text-sm text-slate-700 dark:text-slate-300 dark:text-slate-200">
                 {result?.days?.filter(d => printFilter.has(d.statusHari as StatusKey)).length ?? 0} hari
               </strong>
             </div>

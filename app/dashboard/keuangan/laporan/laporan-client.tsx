@@ -80,9 +80,9 @@ export function LaporanClient({ rekapAngkatan }: { rekapAngkatan: RekapAngkatan[
                     <TableCell className="text-sm font-semibold text-slate-900 dark:text-slate-50">
                       Angkatan {row.tahun_masuk}
                     </TableCell>
-                    <TableCell className="text-sm text-center text-slate-600">{row.total_siswa}</TableCell>
+                    <TableCell className="text-sm text-center text-slate-600 dark:text-slate-400">{row.total_siswa}</TableCell>
                     <TableCell className="text-center">
-                      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-medium">
+                      <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-900/30 dark:text-emerald-400 font-medium">
                         <CheckCircle2 className="h-2.5 w-2.5" />{row.dspt_lunas}
                       </span>
                     </TableCell>
@@ -100,10 +100,10 @@ export function LaporanClient({ rekapAngkatan }: { rekapAngkatan: RekapAngkatan[
                     <TableCell className="text-sm text-right text-emerald-600 font-medium">{formatRupiah(row.dspt_dibayar)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full">
+                        <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 rounded-full">
                           <div className="h-1.5 bg-emerald-500 rounded-full" style={{ width: `${persen}%` }} />
                         </div>
-                        <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 w-8 text-right">{persen}%</span>
+                        <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 w-8 text-right">{persen}%</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -130,40 +130,40 @@ export function LaporanClient({ rekapAngkatan }: { rekapAngkatan: RekapAngkatan[
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 space-y-4">
           <div>
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-50 mb-0.5">Kirim Pengingat Tagihan via WhatsApp</p>
-            <p className="text-xs text-slate-500">Pilih kriteria siswa yang akan dikirimkan pesan pengingat</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Pilih kriteria siswa yang akan dikirimkan pesan pengingat</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 space-y-2">
+            <div className="border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg p-3 space-y-2">
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Filter Tunggakan</p>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="rounded" defaultChecked /> <span className="text-sm text-slate-600 dark:text-slate-300">DSPT belum lunas</span>
+                <input type="checkbox" className="rounded" defaultChecked /> <span className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300">DSPT belum lunas</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="rounded" defaultChecked /> <span className="text-sm text-slate-600 dark:text-slate-300">SPP belum bayar</span>
+                <input type="checkbox" className="rounded" defaultChecked /> <span className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300">SPP belum bayar</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="rounded" /> <span className="text-sm text-slate-600 dark:text-slate-300">Koperasi belum lunas</span>
+                <input type="checkbox" className="rounded" /> <span className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300">Koperasi belum lunas</span>
               </label>
             </div>
-            <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 space-y-2">
+            <div className="border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg p-3 space-y-2">
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Filter Janji Bayar</p>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="rounded" /> <span className="text-sm text-slate-600 dark:text-slate-300">Mendekati janji bayar (≤ 7 hari)</span>
+                <input type="checkbox" className="rounded" /> <span className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300">Mendekati janji bayar (≤ 7 hari)</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="rounded" /> <span className="text-sm text-slate-600 dark:text-slate-300">Janji bayar sudah lewat</span>
+                <input type="checkbox" className="rounded" /> <span className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300">Janji bayar sudah lewat</span>
               </label>
             </div>
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Preview Pesan</label>
             <textarea
-              className="w-full h-24 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full h-24 text-sm rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-white dark:bg-slate-900 dark:bg-slate-800 p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
               defaultValue={`Assalamu'alaikum Bapak/Ibu Orang Tua {nama_siswa}.\n\nKami mengingatkan bahwa masih terdapat tunggakan pembayaran {jenis_tagihan} sebesar {sisa_tagihan}.\n\nMohon segera diselesaikan. Terima kasih.`}
             />
           </div>
           <div className="flex items-center justify-between">
-            <p className="text-xs text-slate-500">Estimasi: <strong>0 siswa</strong> akan dikirim pesan</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Estimasi: <strong>0 siswa</strong> akan dikirim pesan</p>
             <Button size="sm" className="h-8 text-xs gap-1.5">
               <Send className="h-3.5 w-3.5" /> Kirim WA Blast
             </Button>

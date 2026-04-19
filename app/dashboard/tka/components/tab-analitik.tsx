@@ -15,7 +15,7 @@ interface Props {
 type Analitik = Awaited<ReturnType<typeof getAnalitikTka>>
 
 const KATEGORI_COLORS: Record<string, { bar: string; text: string; bg: string }> = {
-  'Istimewa': { bar: 'bg-emerald-400', text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/40' },
+  'Istimewa': { bar: 'bg-emerald-400', text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-950/40' },
   'Baik': { bar: 'bg-blue-400', text: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/40' },
   'Memadai': { bar: 'bg-amber-400', text: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/40' },
   'Kurang': { bar: 'bg-red-400', text: 'text-red-700 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/40' },
@@ -33,7 +33,7 @@ function DistribBar({ items, total }: { items: { kategori: string; jumlah: numbe
         return (
           <div key={kat} className="flex items-center gap-2">
             <div className={cn('text-[10px] font-semibold w-16 shrink-0', c.text)}>{kat}</div>
-            <div className="flex-1 bg-slate-100 dark:bg-slate-800 rounded-full h-2">
+            <div className="flex-1 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 rounded-full h-2">
               <div className={cn('h-2 rounded-full transition-all', c.bar)} style={{ width: `${pct}%` }} />
             </div>
             <div className="text-[11px] text-slate-600 dark:text-slate-400 w-16 text-right">
@@ -59,7 +59,7 @@ function MapelBarChart({ items, maxVal }: { items: { mapel: string; jumlah: numb
               <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{item.jumlah} siswa</span>
             </div>
           </div>
-          <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5">
+          <div className="w-full bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 rounded-full h-1.5">
             <div
               className="h-1.5 rounded-full bg-sky-400 dark:bg-sky-500"
               style={{ width: `${(item.jumlah / maxVal) * 100}%` }}
@@ -75,7 +75,7 @@ function StatCard({ icon: Icon, label, value, sub, color }: {
   icon: any; label: string; value: string | number; sub?: string; color: string
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 p-4">
       <div className="flex items-start gap-3">
         <div className={cn('p-2 rounded-lg', color)}>
           <Icon className="h-4 w-4" />
@@ -106,7 +106,7 @@ function MapelWajibRadar({ avgBind, avgMat, avgBing }: { avgBind: number; avgMat
             <span className="text-xs text-slate-600 dark:text-slate-400">{b.label}</span>
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">{b.val?.toFixed(2) ?? '-'}</span>
           </div>
-          <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3">
+          <div className="w-full bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 rounded-full h-3">
             <div
               className={cn('h-3 rounded-full transition-all', b.color)}
               style={{ width: `${((b.val ?? 0) / max) * 100}%` }}
@@ -134,9 +134,9 @@ export function TabAnalitik({ tahunAjaranId, hasHasil }: Props) {
 
   if (!data && !loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center border rounded-xl border-dashed border-slate-200 dark:border-slate-700">
+      <div className="flex flex-col items-center justify-center py-20 text-center border rounded-xl border-dashed border-slate-200 dark:border-slate-800 dark:border-slate-700">
         <BarChart2 className="h-10 w-10 text-slate-300 mb-3" />
-        <p className="text-slate-500 font-medium text-sm">Analitik Hasil TKA</p>
+        <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Analitik Hasil TKA</p>
         <p className="text-slate-400 text-xs mt-1 mb-4">
           {hasHasil ? 'Klik untuk memuat analitik dari data yang ada' : 'Upload hasil PDF terlebih dahulu'}
         </p>
@@ -188,7 +188,7 @@ export function TabAnalitik({ tahunAjaranId, hasHasil }: Props) {
           label="Rata-rata B. Indonesia"
           value={s?.avg_bind?.toFixed(2) ?? '-'}
           sub={`Tertinggi: ${s?.max_bind?.toFixed(2) ?? '-'}`}
-          color="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500"
+          color="bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-950/40 text-emerald-500"
         />
         <StatCard
           icon={TrendingUp}
@@ -207,7 +207,7 @@ export function TabAnalitik({ tahunAjaranId, hasHasil }: Props) {
       </div>
 
       {/* Rata-rata mapel wajib */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 p-5">
         <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Rata-rata Nilai Mapel Wajib</h4>
         <MapelWajibRadar
           avgBind={s?.avg_bind ?? 0}
@@ -223,7 +223,7 @@ export function TabAnalitik({ tahunAjaranId, hasHasil }: Props) {
           { label: 'Distribusi Matematika', items: data.distribMat },
           { label: 'Distribusi Bahasa Inggris', items: data.distribBing },
         ].map(({ label, items }) => (
-          <div key={label} className="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+          <div key={label} className="rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 p-4">
             <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-3">{label}</h4>
             <DistribBar items={items} total={total} />
           </div>
@@ -232,11 +232,11 @@ export function TabAnalitik({ tahunAjaranId, hasHasil }: Props) {
 
       {/* Top Mapel Pilihan */}
       <div className="grid md:grid-cols-2 gap-4">
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 p-5">
           <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Top Mapel Pilihan 1 (Diambil)</h4>
           <MapelBarChart items={data.topMapel1} maxVal={maxMapel1} />
         </div>
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-5">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 p-5">
           <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Top Mapel Pilihan 2 (Diambil)</h4>
           <MapelBarChart items={data.topMapel2} maxVal={maxMapel2} />
         </div>
@@ -244,19 +244,19 @@ export function TabAnalitik({ tahunAjaranId, hasHasil }: Props) {
 
       {/* Per Kelas */}
       {data.perKelas.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-          <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 overflow-hidden">
+          <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 dark:border-slate-700">
             <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Perbandingan Antar Kelas</h4>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800">
-                  <th className="text-left text-xs font-semibold text-slate-500 px-4 py-2.5">Kelas</th>
-                  <th className="text-center text-xs font-semibold text-slate-500 px-4 py-2.5">Peserta</th>
-                  <th className="text-center text-xs font-semibold text-slate-500 px-4 py-2.5">Avg B.Ind</th>
-                  <th className="text-center text-xs font-semibold text-slate-500 px-4 py-2.5">Avg Mat</th>
-                  <th className="text-center text-xs font-semibold text-slate-500 px-4 py-2.5">Avg B.Ing</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Kelas</th>
+                  <th className="text-center text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Peserta</th>
+                  <th className="text-center text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Avg B.Ind</th>
+                  <th className="text-center text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Avg Mat</th>
+                  <th className="text-center text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Avg B.Ing</th>
                 </tr>
               </thead>
               <tbody>

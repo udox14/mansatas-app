@@ -81,7 +81,7 @@ export function KasKeluarClient({ initialData, defaultTahun, defaultBulan }: {
         <div className="flex items-center gap-2 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-lg px-3 py-2">
           <TrendingDown className="h-4 w-4 text-rose-500" />
           <div>
-            <p className="text-[11px] text-slate-500">Total Keluar Bulan Ini</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">Total Keluar Bulan Ini</p>
             <p className="text-sm font-bold text-rose-600 dark:text-rose-400">{formatRupiah(total)}</p>
           </div>
         </div>
@@ -92,7 +92,7 @@ export function KasKeluarClient({ initialData, defaultTahun, defaultBulan }: {
         </div>
       </div>
 
-      {msg && <p className={`text-xs px-3 py-2 rounded-md ${msg.includes('berhasil') ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>{msg}</p>}
+      {msg && <p className={`text-xs px-3 py-2 rounded-md ${msg.includes('berhasil') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50' : 'text-rose-600 bg-rose-50'}`}>{msg}</p>}
 
       {/* Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
@@ -114,21 +114,21 @@ export function KasKeluarClient({ initialData, defaultTahun, defaultBulan }: {
             )}
             {paginated.map(row => (
               <TableRow key={row.id}>
-                <TableCell className="text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                <TableCell className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300 whitespace-nowrap">
                   {new Date(row.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </TableCell>
                 <TableCell className="text-sm font-medium text-slate-900 dark:text-slate-50 max-w-[200px]">
                   <p className="truncate">{row.keterangan}</p>
                 </TableCell>
                 <TableCell>
-                  <span className="text-[11px] px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-full">
+                  <span className="text-[11px] px-2 py-0.5 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400 dark:text-slate-300 rounded-full">
                     {row.kategori}
                   </span>
                 </TableCell>
                 <TableCell>
                   <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
                     row.metode === 'tunai'
-                      ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                      ? 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 dark:bg-slate-800 dark:text-slate-300'
                       : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                   }`}>
                     {row.metode === 'tunai' ? 'Tunai' : 'Transfer'}
@@ -215,7 +215,7 @@ export function KasKeluarClient({ initialData, defaultTahun, defaultBulan }: {
             <DialogTitle className="text-sm font-semibold text-rose-700 dark:text-rose-400">Hapus Pengeluaran?</DialogTitle>
           </DialogHeader>
           <div className="p-5">
-            <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">Data pengeluaran ini akan dihapus permanen.</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300 mb-4">Data pengeluaran ini akan dihapus permanen.</p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setDeleteConfirm(null)}>Batal</Button>
               <Button variant="destructive" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}

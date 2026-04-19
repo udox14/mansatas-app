@@ -44,8 +44,8 @@ export function TambahModal({ daftarGuru = [], daftarJurusan = [] }: { daftarGur
       </DialogTrigger>
       <DialogContent className="sm:max-w-md rounded-xl">
         <DialogHeader className="border-b pb-3">
-          <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <PlusCircle className="h-4 w-4 text-slate-600 dark:text-slate-300 dark:text-slate-600" /> Buat Wadah Kelas Baru
+          <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 flex items-center gap-2">
+            <PlusCircle className="h-4 w-4 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600" /> Buat Wadah Kelas Baru
           </DialogTitle>
         </DialogHeader>
 
@@ -56,16 +56,16 @@ export function TambahModal({ daftarGuru = [], daftarJurusan = [] }: { daftarGur
             </div>
           )}
           {state?.success && (
-            <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-100 flex items-start gap-2">
+            <div className="p-2.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-100 flex items-start gap-2">
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {state.success}
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Tingkat <span className="text-rose-500">*</span></Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Tingkat <span className="text-rose-500">*</span></Label>
               <Select name="tingkat" required defaultValue="10">
-                <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50 dark:bg-slate-800"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="10" className="text-xs">Kelas 10</SelectItem>
                   <SelectItem value="11" className="text-xs">Kelas 11</SelectItem>
@@ -74,9 +74,9 @@ export function TambahModal({ daftarGuru = [], daftarJurusan = [] }: { daftarGur
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Kelompok / Jurusan <span className="text-rose-500">*</span></Label>
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Kelompok / Jurusan <span className="text-rose-500">*</span></Label>
               <Select name="kelompok" required defaultValue="UMUM">
-                <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50 dark:bg-slate-800"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {daftarJurusan.map(jur => (
                     <SelectItem key={jur} value={jur} className="text-xs">{jur}</SelectItem>
@@ -88,19 +88,19 @@ export function TambahModal({ daftarGuru = [], daftarJurusan = [] }: { daftarGur
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Nomor Kelas <span className="text-rose-500">*</span></Label>
-              <Input name="nomor_kelas" placeholder="Contoh: 1, 2, A" required className="h-8 text-sm rounded-md bg-slate-50" />
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Nomor Kelas <span className="text-rose-500">*</span></Label>
+              <Input name="nomor_kelas" placeholder="Contoh: 1, 2, A" required className="h-8 text-sm rounded-md bg-slate-50 dark:bg-slate-800" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Kapasitas <span className="text-rose-500">*</span></Label>
-              <Input name="kapasitas" type="number" defaultValue="36" required className="h-8 text-sm rounded-md bg-slate-50 font-bold" />
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Kapasitas <span className="text-rose-500">*</span></Label>
+              <Input name="kapasitas" type="number" defaultValue="36" required className="h-8 text-sm rounded-md bg-slate-50 dark:bg-slate-800 font-bold" />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300 dark:text-slate-600">Wali Kelas <span className="text-slate-400 dark:text-slate-500 font-normal">(opsional)</span></Label>
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Wali Kelas <span className="text-slate-400 dark:text-slate-500 font-normal">(opsional)</span></Label>
             <Select name="wali_kelas_id">
-              <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50"><SelectValue placeholder="Bisa dipilih nanti..." /></SelectTrigger>
+              <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50 dark:bg-slate-800"><SelectValue placeholder="Bisa dipilih nanti..." /></SelectTrigger>
               <SelectContent className="max-h-56">
                 <SelectItem value="none" className="text-xs text-slate-400 dark:text-slate-500 italic">-- Kosongkan --</SelectItem>
                 {daftarGuru.map(g => (

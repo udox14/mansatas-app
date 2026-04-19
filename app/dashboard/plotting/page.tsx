@@ -44,7 +44,7 @@ async function PlottingDataFetcher({ currentTab, daftarJurusan }: { currentTab: 
               data-[state=active]:bg-blue-600
               data-[state=active]:text-white
               data-[state=active]:shadow-sm
-              hover:text-slate-700 dark:hover:text-slate-200
+              hover:text-slate-700 dark:hover:text-slate-300 dark:hover:text-slate-200
               hover:bg-surface
             "
           >
@@ -60,7 +60,7 @@ async function PlottingDataFetcher({ currentTab, daftarJurusan }: { currentTab: 
               data-[state=active]:bg-indigo-600
               data-[state=active]:text-white
               data-[state=active]:shadow-sm
-              hover:text-slate-700 dark:hover:text-slate-200
+              hover:text-slate-700 dark:hover:text-slate-300 dark:hover:text-slate-200
               hover:bg-surface
             "
           >
@@ -76,7 +76,7 @@ async function PlottingDataFetcher({ currentTab, daftarJurusan }: { currentTab: 
               data-[state=active]:bg-emerald-600
               data-[state=active]:text-white
               data-[state=active]:shadow-sm
-              hover:text-slate-700 dark:hover:text-slate-200
+              hover:text-slate-700 dark:hover:text-slate-300 dark:hover:text-slate-200
               hover:bg-surface
             "
           >
@@ -92,7 +92,7 @@ async function PlottingDataFetcher({ currentTab, daftarJurusan }: { currentTab: 
               data-[state=active]:bg-rose-600
               data-[state=active]:text-white
               data-[state=active]:shadow-sm
-              hover:text-slate-700 dark:hover:text-slate-200
+              hover:text-slate-700 dark:hover:text-slate-300 dark:hover:text-slate-200
               hover:bg-surface
             "
           >
@@ -137,9 +137,9 @@ export default async function PlottingPage({ searchParams }: { searchParams: Pro
         iconColor="text-blue-500"
       >
         {taAktif && (
-          <div className="flex items-center gap-1.5 text-[12px] text-slate-500 border border-surface px-2.5 py-1 rounded-md bg-surface-2">
+          <div className="flex items-center gap-1.5 text-[12px] text-slate-500 dark:text-slate-400 border border-surface px-2.5 py-1 rounded-md bg-surface-2">
             <CalendarDays className="h-3.5 w-3.5" />
-            <span>TA: <strong className="text-slate-800 dark:text-slate-100 font-semibold">{taAktif.nama}</strong> SMT {taAktif.semester}</span>
+            <span>TA: <strong className="text-slate-800 dark:text-slate-200 dark:text-slate-100 font-semibold">{taAktif.nama}</strong> SMT {taAktif.semester}</span>
           </div>
         )}
       </PageHeader>

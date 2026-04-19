@@ -29,7 +29,7 @@ interface TagihanRow {
 interface MasterItem { id: string; nama_item: string; nominal_default: number; aktif: number; urutan: number }
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
-  lunas: { label: 'Lunas', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  lunas: { label: 'Lunas', cls: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-900/30 dark:text-emerald-400' },
   nyicil: { label: 'Sebagian', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
   belum_bayar: { label: 'Belum Bayar', cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' },
 }
@@ -137,7 +137,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
             </TabsTrigger>
           )}
         </TabsList>
-        {msg && <p className="text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-md">{msg}</p>}
+        {msg && <p className="text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-900/20 px-3 py-1 rounded-md">{msg}</p>}
       </div>
 
       {/* Tab Tagihan */}
@@ -188,7 +188,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
             { label: 'Sisa', value: formatRupiah(filtered.reduce((s, r) => s + (r.total_nominal - r.total_dibayar - r.total_diskon), 0)), color: 'text-rose-600' },
           ].map(s => (
             <div key={s.label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2">
-              <p className="text-[11px] text-slate-500">{s.label}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">{s.label}</p>
               <p className={`text-sm font-bold ${s.color}`}>{s.value}</p>
             </div>
           ))}
@@ -221,7 +221,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
                       <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
                       <p className="text-[11px] text-slate-400">{row.nisn}</p>
                     </TableCell>
-                    <TableCell className="text-sm text-slate-600">{row.tahun_masuk}</TableCell>
+                    <TableCell className="text-sm text-slate-600 dark:text-slate-400">{row.tahun_masuk}</TableCell>
                     <TableCell className="text-sm text-right font-medium">{formatRupiah(row.total_nominal)}</TableCell>
                     <TableCell className="text-sm text-right text-emerald-600 font-medium">{formatRupiah(row.total_dibayar)}</TableCell>
                     <TableCell className="text-sm text-right text-rose-600 font-medium">{formatRupiah(sisa)}</TableCell>
@@ -271,7 +271,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
                     <TableCell className="text-sm font-medium text-slate-900 dark:text-slate-50">{item.nama_item}</TableCell>
                     <TableCell className="text-sm text-right">{formatRupiah(item.nominal_default)}</TableCell>
                     <TableCell>
-                      <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${item.aktif ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${item.aktif ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400'}`}>
                         {item.aktif ? 'Aktif' : 'Nonaktif'}
                       </span>
                     </TableCell>
@@ -334,7 +334,7 @@ export function KoperasiClient({ initialTagihan, masterItem, isBendahara, tahunA
           <DialogTitle className="text-sm font-semibold text-rose-700 dark:text-rose-400">Hapus Item Koperasi?</DialogTitle>
         </DialogHeader>
         <div className="p-5">
-          <p className="text-sm text-slate-600 dark:text-slate-300 mb-1">Item <strong>{deleteItemConfirm?.nama_item}</strong> akan dihapus permanen.</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300 mb-1">Item <strong>{deleteItemConfirm?.nama_item}</strong> akan dihapus permanen.</p>
           <p className="text-xs text-slate-400 mb-4">Item yang sudah dipakai di tagihan tidak bisa dihapus.</p>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setDeleteItemConfirm(null)}>Batal</Button>

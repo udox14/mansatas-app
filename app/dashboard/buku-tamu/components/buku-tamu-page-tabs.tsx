@@ -26,7 +26,7 @@ export function BukuTamuPageTabs({ tamuHariIni, userRoles, isAdmin, adminData, a
   return (
     <div className="space-y-5">
       {/* Top-level Tab Switcher (hanya untuk admin) */}
-      <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800/60 rounded-xl">
+      <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800/60 rounded-xl">
         {[
           { id: 'tamu', label: 'Form Tamu', icon: BookUser },
           { id: 'monitoring', label: 'Monitoring', icon: BarChart3 },
@@ -38,7 +38,7 @@ export function BukuTamuPageTabs({ tamuHariIni, userRoles, isAdmin, adminData, a
               'flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-semibold transition-all duration-200',
               tab === t.id
                 ? 'bg-white dark:bg-slate-900 text-violet-700 dark:text-violet-400 shadow-sm'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 dark:hover:text-slate-200'
             )}
           >
             <t.icon className="h-4 w-4" />

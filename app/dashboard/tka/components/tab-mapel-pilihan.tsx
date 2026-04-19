@@ -136,7 +136,7 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
         <div className={cn(
           'flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm border',
           toast.type === 'success'
-            ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400'
+            ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400'
             : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/30 dark:border-red-800 dark:text-red-400'
         )}>
           {toast.type === 'success'
@@ -173,7 +173,7 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
           />
           {searchQuery && (
             <button onClick={handleClearSearch}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 dark:hover:text-slate-300">
               <X className="h-3.5 w-3.5" />
             </button>
           )}
@@ -209,16 +209,16 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
 
       {/* Empty state */}
       {!loading && rows.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+        <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-xl">
           <Users className="h-10 w-10 text-slate-300 mb-3" />
           {mode === 'idle' && (
-            <><p className="text-slate-500 font-medium text-sm">Pilih kelas atau cari nama siswa</p></>
+            <><p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Pilih kelas atau cari nama siswa</p></>
           )}
           {mode === 'kelas' && (
-            <p className="text-slate-500 font-medium text-sm">Tidak ada siswa aktif di kelas ini</p>
+            <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Tidak ada siswa aktif di kelas ini</p>
           )}
           {mode === 'search' && (
-            <p className="text-slate-500 font-medium text-sm">Siswa tidak ditemukan</p>
+            <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Siswa tidak ditemukan</p>
           )}
         </div>
       )}
@@ -226,11 +226,11 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
       {/* ── DESKTOP: tabel (md ke atas) ── */}
       {!loading && rows.length > 0 && (
         <>
-          <div className="hidden md:block rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="hidden md:block rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 dark:border-slate-700">
                     <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5 w-10">#</th>
                     <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Nama Siswa</th>
                     <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5 w-[200px]">Mapel Pilihan 1</th>
@@ -277,7 +277,7 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
                 </tbody>
               </table>
             </div>
-            <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs text-slate-400">
+            <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-200 dark:border-slate-800 dark:border-slate-700 flex items-center justify-between text-xs text-slate-400">
               <span>{rows.length} siswa</span>
               {dirtyRows.length > 0 && <span className="text-amber-500">{dirtyRows.length} belum disimpan</span>}
             </div>
@@ -291,7 +291,7 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
                   'rounded-xl border p-3 transition-colors',
                   row._dirty
                     ? 'border-amber-200 bg-amber-50/60 dark:bg-amber-950/10 dark:border-amber-800'
-                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
+                    : 'border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-white dark:bg-slate-900'
                 )}>
                 {/* Header card */}
                 <div className="flex items-center gap-2 mb-3">
@@ -308,7 +308,7 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
                 {/* Dropdown mapel — full width di mobile */}
                 <div className="space-y-2">
                   <div>
-                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1">Mapel Pilihan 1</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide mb-1">Mapel Pilihan 1</p>
                     <MapelSelect
                       value={row.mapel_pilihan1 ?? NONE_VALUE}
                       onChange={val => updateRow(row.siswa_id, 'mapel_pilihan1', val)}
@@ -317,7 +317,7 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
                     />
                   </div>
                   <div>
-                    <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-1">Mapel Pilihan 2</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide mb-1">Mapel Pilihan 2</p>
                     <MapelSelect
                       value={row.mapel_pilihan2 ?? NONE_VALUE}
                       onChange={val => updateRow(row.siswa_id, 'mapel_pilihan2', val)}

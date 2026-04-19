@@ -225,7 +225,7 @@ function TabKirimTugas({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-white rounded-xl border p-3">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border p-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-gray-500">{HARI_NAMA[hari]}, {new Date(tanggalHariIni + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
@@ -236,7 +236,7 @@ function TabKirimTugas({
 
       {/* Pesan */}
       {pesan && (
-        <div className={`p-3 rounded-lg text-sm ${pesan.tipe === 'sukses' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+        <div className={`p-3 rounded-lg text-sm ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' : 'bg-red-50 text-red-700 border border-red-200'}`}>
           {pesan.teks}
         </div>
       )}
@@ -245,7 +245,7 @@ function TabKirimTugas({
       {availableBlocks.length > 0 && (
         <div className="space-y-3">
           {/* Step 1: Pilih Kelas */}
-          <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border overflow-hidden">
             <div className="px-3 py-2.5 bg-gray-50 border-b">
               <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">1. Pilih Kelas</p>
             </div>
@@ -297,7 +297,7 @@ function TabKirimTugas({
 
           {/* Step 2: Pilih Pelaksana */}
           {selected.size > 0 && (
-            <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border overflow-hidden">
               <div className="px-3 py-2.5 bg-gray-50 border-b">
                 <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">2. Pilih Pelaksana</p>
               </div>
@@ -411,7 +411,7 @@ function DelegasiTerkirimCard({
   const isSelesai = data.status === 'SELESAI'
 
   return (
-    <div className={`bg-white rounded-xl border overflow-hidden ${isSelesai ? 'border-emerald-200' : ''}`}>
+    <div className={`bg-white dark:bg-slate-900 rounded-xl border overflow-hidden ${isSelesai ? 'border-emerald-200 dark:border-emerald-800' : ''}`}>
       <button
         className="w-full px-3 py-2.5 flex items-center justify-between text-left"
         onClick={() => setExpanded(p => !p)}
@@ -421,7 +421,7 @@ function DelegasiTerkirimCard({
             <Users className="h-3.5 w-3.5 text-gray-400 shrink-0" />
             <span className="text-sm font-medium truncate">{data.kepada_user_nama}</span>
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-              isSelesai ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+              isSelesai ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400' : 'bg-amber-100 text-amber-700'
             }`}>
               {isSelesai ? 'Selesai' : 'Dikirim'}
             </span>
@@ -502,13 +502,13 @@ function TabTugasMasuk({
   return (
     <div className="space-y-3">
       {pesan && (
-        <div className={`p-3 rounded-lg text-sm ${pesan.tipe === 'sukses' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+        <div className={`p-3 rounded-lg text-sm ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800' : 'bg-red-50 text-red-700 border border-red-200'}`}>
           {pesan.teks}
         </div>
       )}
 
       {Array.from(grouped).map(([delegasiId, items]) => (
-        <div key={delegasiId} className="bg-white rounded-xl border overflow-hidden">
+        <div key={delegasiId} className="bg-white dark:bg-slate-900 rounded-xl border overflow-hidden">
           {/* Header: dari siapa */}
           <div className="px-3 py-2.5 bg-violet-50 border-b border-violet-100">
             <div className="flex items-center gap-2">
@@ -611,7 +611,7 @@ function TugasMasukItem({
         className="w-full px-3 py-3 flex items-start gap-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
         onClick={handleExpand}
       >
-        <div className={`mt-0.5 h-5 w-5 rounded-full flex items-center justify-center shrink-0 ${item.absen_selesai ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+        <div className={`mt-0.5 h-5 w-5 rounded-full flex items-center justify-center shrink-0 ${item.absen_selesai ? 'bg-emerald-100 dark:bg-emerald-900/50' : 'bg-gray-100'}`}>
           {item.absen_selesai ? (
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
           ) : (

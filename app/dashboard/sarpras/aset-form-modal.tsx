@@ -139,7 +139,7 @@ export function AsetFormModal({ isOpen, onClose, kategori, options, initialData 
                   <select 
                     value={kategoriId} 
                     onChange={e => setKategoriId(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm bg-white dark:bg-slate-900"
                     required
                   >
                     <option value="" disabled>Pilih Kategori...</option>
@@ -153,7 +153,7 @@ export function AsetFormModal({ isOpen, onClose, kategori, options, initialData 
                     type="date" 
                     value={tanggalDb} 
                     onChange={e => setTanggalDb(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm bg-white dark:bg-slate-900"
                     required
                   />
                 </div>
@@ -164,7 +164,7 @@ export function AsetFormModal({ isOpen, onClose, kategori, options, initialData 
                     type="text" 
                     value={namaBarang} 
                     onChange={e => setNamaBarang(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
                     required
                   />
                 </div>
@@ -176,7 +176,7 @@ export function AsetFormModal({ isOpen, onClose, kategori, options, initialData 
                     list="sarpras_merek"
                     value={merek} 
                     onChange={e => setMerek(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
                     placeholder="Contoh: JOYKO, EPSON..."
                   />
                   <datalist id="sarpras_merek">
@@ -192,7 +192,7 @@ export function AsetFormModal({ isOpen, onClose, kategori, options, initialData 
                       min="1"
                       value={kuantitas} 
                       onChange={e => setKuantitas(parseInt(e.target.value) || 1)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
                       required
                     />
                   </div>
@@ -202,7 +202,7 @@ export function AsetFormModal({ isOpen, onClose, kategori, options, initialData 
                       type="text" 
                       value={tahunPembuatan} 
                       onChange={e => setTahunPembuatan(e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                      className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
                       placeholder="Contoh: 2023, 2021/2022"
                     />
                   </div>
@@ -217,7 +217,7 @@ export function AsetFormModal({ isOpen, onClose, kategori, options, initialData 
                     list="sarpras_anggaran"
                     value={asalAnggaran} 
                     onChange={e => setAsalAnggaran(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
                   />
                   <datalist id="sarpras_anggaran">
                     <option value="ANGGARAN" />
@@ -233,7 +233,7 @@ export function AsetFormModal({ isOpen, onClose, kategori, options, initialData 
                     list="sarpras_keadaan"
                     value={keadaanBarang} 
                     onChange={e => setKeadaanBarang(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
                   />
                   <datalist id="sarpras_keadaan">
                     <option value="BAIK" />
@@ -250,7 +250,7 @@ export function AsetFormModal({ isOpen, onClose, kategori, options, initialData 
                     list="sarpras_keterangan"
                     value={keterangan} 
                     onChange={e => setKeterangan(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
                   />
                   <datalist id="sarpras_keterangan">
                     <option value="BERFUNGSI" />
@@ -268,7 +268,7 @@ export function AsetFormModal({ isOpen, onClose, kategori, options, initialData 
                       const val = e.target.value.replace(/\D/g, '')
                       setHarga(val ? parseInt(val).toLocaleString('id-ID') : '')
                     }}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm"
                     placeholder="0"
                   />
                 </div>
@@ -276,7 +276,7 @@ export function AsetFormModal({ isOpen, onClose, kategori, options, initialData 
                 <div className="pt-2">
                   <label className="text-sm font-medium mb-1.5 block">Foto Barang</label>
                   {fotoUrl ? (
-                    <div className="relative inline-block border rounded-lg bg-slate-100 overflow-hidden group">
+                    <div className="relative inline-block border rounded-lg bg-slate-100 dark:bg-slate-800/80 overflow-hidden group">
                       <img src={fotoUrl} alt="Foto barang" className="h-32 w-auto object-contain" />
                       <button 
                         type="button" 
@@ -289,7 +289,7 @@ export function AsetFormModal({ isOpen, onClose, kategori, options, initialData 
                   ) : (
                     <div 
                       onClick={() => !isUploading && fileInputRef.current?.click()}
-                      className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:bg-slate-50 transition-colors ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                      className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
                     >
                       {isUploading ? <Loader2 className="w-8 h-8 animate-spin mb-2" /> : <ImageIcon className="w-8 h-8 mb-2 opacity-50" />}
                       <span className="text-sm">{isUploading ? 'Mengupload...' : 'Klik untuk upload foto'}</span>
@@ -313,7 +313,7 @@ export function AsetFormModal({ isOpen, onClose, kategori, options, initialData 
               <button 
                 type="button" 
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 rounded-md transition-colors"
                 disabled={isPending || isUploading}
               >
                 Batal

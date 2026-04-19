@@ -97,20 +97,20 @@ export default async function KedisiplinanPage() {
         title="Kedisiplinan & Tata Tertib"
         description="Catat pelanggaran siswa, pantau akumulasi poin, dan lihat analitik kedisiplinan madrasah."
       >
-        <div className="flex items-center gap-1.5 text-[12px] text-slate-500 dark:text-slate-400 border border-slate-200 px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-800/60 dark:border-slate-700">
+        <div className="flex items-center gap-1.5 text-[12px] text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800 px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-800/60 dark:border-slate-700">
           <CalendarDays className="h-3.5 w-3.5" />
-          <span>TA: <strong className="text-slate-800 dark:text-slate-100 font-semibold">{taAktif.nama}</strong></span>
+          <span>TA: <strong className="text-slate-800 dark:text-slate-200 dark:text-slate-100 font-semibold">{taAktif.nama}</strong></span>
         </div>
       </PageHeader>
 
       <TabsPrimitive.Root defaultValue="log">
-        <TabsPrimitive.List className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 w-fit mb-4">
+        <TabsPrimitive.List className="flex gap-1 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 rounded-lg p-1 w-fit mb-4">
           <TabsPrimitive.Trigger value="log"
-            className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+            className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:bg-slate-900 dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all text-slate-600 dark:text-slate-400 dark:text-slate-300 flex items-center gap-1.5">
             <ClipboardList className="h-3.5 w-3.5" /> Log Pelanggaran
           </TabsPrimitive.Trigger>
           <TabsPrimitive.Trigger value="analitik"
-            className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+            className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:bg-slate-900 dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all text-slate-600 dark:text-slate-400 dark:text-slate-300 flex items-center gap-1.5">
             <BarChart3 className="h-3.5 w-3.5" /> Analitik &amp; Radar
           </TabsPrimitive.Trigger>
         </TabsPrimitive.List>

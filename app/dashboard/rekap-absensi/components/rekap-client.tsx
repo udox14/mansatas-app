@@ -26,7 +26,7 @@ type FilterOpt = { kelas: any[]; siswa: any[] }
 interface Props { filterOptions: FilterOpt }
 
 const ST: Record<string, { bg: string; text: string; label: string; dot: string }> = {
-  HADIR:          { bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'Hadir', dot: 'bg-emerald-500' },
+  HADIR:          { bg: 'bg-emerald-50 dark:bg-emerald-950/50', text: 'text-emerald-700 dark:text-emerald-400', label: 'Hadir', dot: 'bg-emerald-500' },
   'HADIR PARSIAL':{ bg: 'bg-yellow-50', text: 'text-yellow-700', label: 'Hadir Parsial', dot: 'bg-yellow-500' },
   SAKIT:          { bg: 'bg-amber-50', text: 'text-amber-700', label: 'Sakit', dot: 'bg-amber-500' },
   ALFA:           { bg: 'bg-red-50', text: 'text-red-700', label: 'Alfa', dot: 'bg-red-500' },
@@ -101,7 +101,7 @@ function TabKelas() {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border bg-white dark:bg-slate-800 p-3 flex items-center gap-2 flex-wrap">
+      <div className="rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-3 flex items-center gap-2 flex-wrap">
         <Button variant="outline" size="sm" onClick={() => nav(-1)} className="px-2"><ChevronLeft className="h-4 w-4" /></Button>
         <Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="w-[160px] h-9 text-sm" />
         <Button variant="outline" size="sm" onClick={() => nav(1)} className="px-2"><ChevronRight className="h-4 w-4" /></Button>
@@ -111,24 +111,24 @@ function TabKelas() {
         </Button>
       </div>
 
-      {data.length > 0 && <p className="text-xs text-slate-500 px-1">{fmtTglFull(tanggal)}</p>}
+      {data.length > 0 && <p className="text-xs text-slate-500 dark:text-slate-400 px-1">{fmtTglFull(tanggal)}</p>}
 
       {Array.from(grouped.entries()).map(([tingkat, items]) => (
         <div key={tingkat}>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest px-1 mb-1.5">Kelas {tingkat}</p>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest px-1 mb-1.5">Kelas {tingkat}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
             {items.map((k: any) => {
               const pct = k.total > 0 ? Math.round((k.hadir / k.total) * 100) : 0
               const barColor = pct >= 90 ? 'bg-emerald-400' : pct >= 70 ? 'bg-amber-400' : 'bg-red-400'
               return (
                 <button key={k.kelas_id} onClick={() => openDetail(k.kelas_id, k.label)}
-                  className="rounded-lg border bg-white dark:bg-slate-800 p-3 text-left hover:border-indigo-300 transition-colors active:scale-[0.98]">
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{k.label}</p>
+                  className="rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-3 text-left hover:border-indigo-300 transition-colors active:scale-[0.98]">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{k.label}</p>
                   <div className="flex items-center gap-1.5 mt-1.5">
-                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
                     </div>
-                    <span className="text-[10px] font-semibold text-slate-500">{pct}%</span>
+                    <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">{pct}%</span>
                   </div>
                   <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1.5 text-[10px]">
                     <span className="text-emerald-600">H:{k.hadir}</span>
@@ -150,14 +150,14 @@ function TabKelas() {
           {loadingDetail ? (
             <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>
           ) : detailKelas?.data.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-4">Semua siswa hadir!</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-4">Semua siswa hadir!</p>
           ) : (
             <div className="space-y-2">
               {detailKelas?.data.map((r: any, i: number) => (
                 <div key={`${r.siswa_id}-${r.jam_ke_mulai}-${i}`} className="flex items-center gap-2 p-2 rounded-lg border bg-slate-50 dark:bg-slate-800">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-slate-800 dark:text-slate-100 truncate">{r.nama_lengkap}</p>
-                    <p className="text-[10px] text-slate-500">{r.nama_mapel} — Jam {r.jam_ke_mulai === r.jam_ke_selesai ? r.jam_ke_mulai : `${r.jam_ke_mulai}-${r.jam_ke_selesai}`}</p>
+                    <p className="text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{r.nama_lengkap}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">{r.nama_mapel} — Jam {r.jam_ke_mulai === r.jam_ke_selesai ? r.jam_ke_mulai : `${r.jam_ke_mulai}-${r.jam_ke_selesai}`}</p>
                     {r.catatan && <p className="text-[10px] text-amber-600 mt-0.5">📝 {r.catatan}</p>}
                   </div>
                   <StatusBadge status={r.status} />
@@ -195,18 +195,18 @@ function TabSiswa({ filterOptions }: { filterOptions: FilterOpt }) {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border bg-white dark:bg-slate-800 p-4 space-y-3">
+      <div className="rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-4 space-y-3">
         {/* Siswa picker */}
         <div>
-          <Label className="text-xs text-slate-500">Cari Siswa</Label>
+          <Label className="text-xs text-slate-500 dark:text-slate-400">Cari Siswa</Label>
           <Input placeholder="Ketik nama atau NISN..." value={searchQ} onChange={e => { setSearchQ(e.target.value); setSiswaId('') }}
             className="h-9 text-sm mt-1" />
           {filteredSiswa.length > 0 && !siswaId && (
-            <div className="mt-1 max-h-40 overflow-y-auto rounded-md border bg-white dark:bg-slate-800 shadow-sm">
+            <div className="mt-1 max-h-40 overflow-y-auto rounded-md border bg-white dark:bg-slate-900 dark:bg-slate-800 shadow-sm">
               {filteredSiswa.map((s: any) => (
                 <button key={s.id} onClick={() => { setSiswaId(s.id); setSearchQ(s.nama) }}
-                  className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs border-b last:border-0">
-                  <span className="font-medium text-slate-800 dark:text-slate-100">{s.nama}</span>
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 dark:hover:bg-slate-700 text-xs border-b last:border-0">
+                  <span className="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100">{s.nama}</span>
                   <span className="text-slate-400 ml-2">{s.nisn} — {s.kelas_label}</span>
                 </button>
               ))}
@@ -214,8 +214,8 @@ function TabSiswa({ filterOptions }: { filterOptions: FilterOpt }) {
           )}
         </div>
         <div className="flex flex-wrap items-end gap-3">
-          <div><Label className="text-xs text-slate-500">Dari</Label><Input type="date" value={tglMulai} onChange={e => setTglMulai(e.target.value)} className="h-9 text-sm w-[150px]" /></div>
-          <div><Label className="text-xs text-slate-500">Sampai</Label><Input type="date" value={tglSelesai} onChange={e => setTglSelesai(e.target.value)} className="h-9 text-sm w-[150px]" /></div>
+          <div><Label className="text-xs text-slate-500 dark:text-slate-400">Dari</Label><Input type="date" value={tglMulai} onChange={e => setTglMulai(e.target.value)} className="h-9 text-sm w-[150px]" /></div>
+          <div><Label className="text-xs text-slate-500 dark:text-slate-400">Sampai</Label><Input type="date" value={tglSelesai} onChange={e => setTglSelesai(e.target.value)} className="h-9 text-sm w-[150px]" /></div>
           <Button onClick={search} disabled={loading || !siswaId} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Search className="h-4 w-4 mr-1" />Cari</>}
           </Button>
@@ -223,17 +223,17 @@ function TabSiswa({ filterOptions }: { filterOptions: FilterOpt }) {
       </div>
 
       {result?.siswa && (
-        <div className="rounded-lg border bg-white dark:bg-slate-800 p-4">
+        <div className="rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-4">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{result.siswa.nama}</p>
-              <p className="text-[11px] text-slate-500">{result.siswa.nisn} — Kelas {result.siswa.kelas}</p>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{result.siswa.nama}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">{result.siswa.nisn} — Kelas {result.siswa.kelas}</p>
             </div>
           </div>
           {/* Summary */}
           <div className="flex flex-wrap gap-2 mb-3">
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">{result.totalHari} hari</span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">Hadir: {result.summary.hadir}</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 font-medium">{result.totalHari} hari</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-medium">Hadir: {result.summary.hadir}</span>
             {result.summary.parsial > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">Parsial: {result.summary.parsial}</span>}
             {result.summary.sakit > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Sakit: {result.summary.sakit}</span>}
             {result.summary.izin > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">Izin: {result.summary.izin}</span>}
@@ -242,11 +242,11 @@ function TabSiswa({ filterOptions }: { filterOptions: FilterOpt }) {
           {/* Day list */}
           <div className="space-y-1.5">
             {result.days.map((day: any) => (
-              <div key={day.tanggal} className="flex items-center gap-2 p-2 rounded-md border bg-slate-50/50 dark:bg-slate-700/30">
+              <div key={day.tanggal} className="flex items-center gap-2 p-2 rounded-md border bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-700/30">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-slate-700 dark:text-slate-200">{day.hariNama}, {fmtTgl(day.tanggal)}</p>
+                  <p className="text-xs font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">{day.hariNama}, {fmtTgl(day.tanggal)}</p>
                   {day.detail.length > 0 && (
-                    <div className="text-[10px] text-slate-500 mt-0.5">
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                       {day.detail.map((d: any, i: number) => (
                         <span key={i}>{i > 0 && ' · '}{d.nama_mapel} (Jam {d.jam_ke_mulai}-{d.jam_ke_selesai}): <span className={ST[d.status]?.text || ''}>{ST[d.status]?.label || d.status}</span></span>
                       ))}
@@ -287,7 +287,7 @@ function TabJam() {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border bg-white dark:bg-slate-800 p-3 flex items-center gap-2 flex-wrap">
+      <div className="rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-3 flex items-center gap-2 flex-wrap">
         <Button variant="outline" size="sm" onClick={() => nav(-1)} className="px-2"><ChevronLeft className="h-4 w-4" /></Button>
         <Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="w-[160px] h-9 text-sm" />
         <Button variant="outline" size="sm" onClick={() => nav(1)} className="px-2"><ChevronRight className="h-4 w-4" /></Button>
@@ -297,14 +297,14 @@ function TabJam() {
         </Button>
       </div>
 
-      {data.length > 0 && <p className="text-xs text-slate-500 px-1">{hariNama}, {fmtTglFull(tanggal)}</p>}
+      {data.length > 0 && <p className="text-xs text-slate-500 dark:text-slate-400 px-1">{hariNama}, {fmtTglFull(tanggal)}</p>}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
         {data.map((jam: any) => (
           <button key={jam.jam_ke} onClick={() => jam.tidak_hadir > 0 && setDetailJam(jam)}
-            className={`rounded-lg border p-3 text-left transition-colors active:scale-[0.98] ${jam.tidak_hadir > 0 ? 'bg-white dark:bg-slate-800 hover:border-indigo-300 cursor-pointer' : 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'}`}>
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{jam.nama}</p>
-            <p className="text-[10px] text-slate-500">{jam.mulai} — {jam.selesai}</p>
+            className={`rounded-lg border p-3 text-left transition-colors active:scale-[0.98] ${jam.tidak_hadir > 0 ? 'bg-white dark:bg-slate-900 dark:bg-slate-800 hover:border-indigo-300 cursor-pointer' : 'bg-emerald-50 dark:bg-emerald-950/50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'}`}>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{jam.nama}</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">{jam.mulai} — {jam.selesai}</p>
             {jam.tidak_hadir > 0 ? (
               <p className="text-xs mt-1.5 text-red-600 font-medium">{jam.tidak_hadir} tidak hadir</p>
             ) : (
@@ -321,8 +321,8 @@ function TabJam() {
             {detailJam?.detail.map((r: any, i: number) => (
               <div key={`${r.siswa_id}-${i}`} className="flex items-center gap-2 p-2 rounded-lg border bg-slate-50 dark:bg-slate-800">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-slate-800 dark:text-slate-100 truncate">{r.nama_lengkap}</p>
-                  <p className="text-[10px] text-slate-500">{formatNamaKelas(r.tingkat, r.nomor_kelas, r.kelompok)} — {r.nama_mapel}</p>
+                  <p className="text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{r.nama_lengkap}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">{formatNamaKelas(r.tingkat, r.nomor_kelas, r.kelompok)} — {r.nama_mapel}</p>
                 </div>
                 <StatusBadge status={r.status} />
               </div>
@@ -391,20 +391,20 @@ function TabCetak({ filterOptions }: { filterOptions: FilterOpt }) {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border bg-white dark:bg-slate-800 p-4 space-y-3">
+      <div className="rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-4 space-y-3">
         <div className="relative max-w-sm">
-          <Label className="text-xs text-slate-500">Filter Siswa (Opsional)</Label>
+          <Label className="text-xs text-slate-500 dark:text-slate-400">Filter Siswa (Opsional)</Label>
           <div className="flex items-center gap-2 mt-1">
             <Input placeholder="Ketik nama atau NISN..." value={searchQ} onChange={e => { setSearchQ(e.target.value); setSiswaId('') }}
               className="h-9 text-sm flex-1" />
             {siswaId && <Button size="sm" variant="outline" className="h-9" onClick={() => { setSiswaId(''); setSearchQ('') }}>Reset</Button>}
           </div>
           {filteredSiswa.length > 0 && !siswaId && (
-            <div className="absolute z-10 w-full mt-1 max-h-40 overflow-y-auto rounded-md border bg-white dark:bg-slate-800 shadow-lg">
+            <div className="absolute z-10 w-full mt-1 max-h-40 overflow-y-auto rounded-md border bg-white dark:bg-slate-900 dark:bg-slate-800 shadow-lg">
               {filteredSiswa.map((s: any) => (
                 <button key={s.id} onClick={() => { setSiswaId(s.id); setSearchQ(s.nama) }}
-                  className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs border-b border-slate-100 dark:border-slate-700 last:border-0 block">
-                  <span className="font-medium text-slate-800 dark:text-slate-100">{s.nama}</span>
+                  className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 dark:hover:bg-slate-700 text-xs border-b border-slate-100 dark:border-slate-800 dark:border-slate-700 last:border-0 block">
+                  <span className="font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100">{s.nama}</span>
                   <span className="text-slate-400 ml-2">{s.nisn} — {s.kelas_label}</span>
                 </button>
               ))}
@@ -412,10 +412,10 @@ function TabCetak({ filterOptions }: { filterOptions: FilterOpt }) {
           )}
         </div>
         <div className="flex flex-wrap items-end gap-3 relative z-0">
-          <div><Label className="text-xs text-slate-500">Dari</Label><Input type="date" value={tglMulai} onChange={e => setTglMulai(e.target.value)} className="h-9 text-sm w-[150px]" /></div>
-          <div><Label className="text-xs text-slate-500">Sampai</Label><Input type="date" value={tglSelesai} onChange={e => setTglSelesai(e.target.value)} className="h-9 text-sm w-[150px]" /></div>
+          <div><Label className="text-xs text-slate-500 dark:text-slate-400">Dari</Label><Input type="date" value={tglMulai} onChange={e => setTglMulai(e.target.value)} className="h-9 text-sm w-[150px]" /></div>
+          <div><Label className="text-xs text-slate-500 dark:text-slate-400">Sampai</Label><Input type="date" value={tglSelesai} onChange={e => setTglSelesai(e.target.value)} className="h-9 text-sm w-[150px]" /></div>
           <div>
-            <Label className="text-xs text-slate-500">Kelas</Label>
+            <Label className="text-xs text-slate-500 dark:text-slate-400">Kelas</Label>
             <Select value={kelasId} onValueChange={setKelasId}>
               <SelectTrigger className="w-[160px] h-9 text-sm"><SelectValue placeholder="Semua" /></SelectTrigger>
               <SelectContent>
@@ -425,7 +425,7 @@ function TabCetak({ filterOptions }: { filterOptions: FilterOpt }) {
             </Select>
           </div>
           <div>
-            <Label className="text-xs text-slate-500">Status</Label>
+            <Label className="text-xs text-slate-500 dark:text-slate-400">Status</Label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[130px] h-9 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -451,7 +451,7 @@ function TabCetak({ filterOptions }: { filterOptions: FilterOpt }) {
       </div>
 
       {data.length > 0 && (
-        <div className="rounded-lg border bg-white dark:bg-slate-800 p-4 overflow-x-auto">
+        <div className="rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-4 overflow-x-auto">
           <div ref={printRef}>
             <div className="print-only">
               <img src="/kopsurat.png" alt="Kop Surat" style={{ width: '100%', display: 'block', marginBottom: '15px' }} />
@@ -499,9 +499,9 @@ function TabCetak({ filterOptions }: { filterOptions: FilterOpt }) {
       )}
 
       {data.length === 0 && !loading && (
-        <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 dark:bg-slate-800/50 p-10 text-center">
+        <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-10 text-center">
           <Printer className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-          <p className="text-sm text-slate-500">Pilih kriteria dan klik &quot;Muat Data&quot; untuk preview.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Pilih kriteria dan klik &quot;Muat Data&quot; untuk preview.</p>
         </div>
       )}
     </div>

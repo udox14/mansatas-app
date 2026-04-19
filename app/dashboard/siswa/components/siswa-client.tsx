@@ -49,7 +49,7 @@ const getAvatarColor = (name: string) => {
 
 const getStatusBadge = (status: string) => {
   const s = status.toLowerCase()
-  if (s === 'aktif') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (s === 'aktif') return 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
   if (s === 'lulus') return 'bg-blue-50 text-blue-700 border-blue-200'
   return 'bg-rose-50 text-rose-700 border-rose-200'
 }
@@ -213,8 +213,8 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                   onClick={() => setViewMode('table')}
                   className={`h-8 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
                     viewMode === 'table'
-                      ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm'
-                      : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 dark:text-slate-600'
+                      ? 'bg-surface text-slate-800 dark:text-slate-200 dark:text-slate-100 shadow-sm'
+                      : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400 dark:text-slate-300 dark:text-slate-600'
                   }`}
                 >
                   <List className="h-3.5 w-3.5" />
@@ -224,8 +224,8 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                   onClick={() => setViewMode('gallery')}
                   className={`h-8 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
                     viewMode === 'gallery'
-                      ? 'bg-surface text-slate-800 dark:text-slate-100 shadow-sm'
-                      : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-300 dark:text-slate-600'
+                      ? 'bg-surface text-slate-800 dark:text-slate-200 dark:text-slate-100 shadow-sm'
+                      : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400 dark:text-slate-300 dark:text-slate-600'
                   }`}
                 >
                   <LayoutGrid className="h-3.5 w-3.5" />
@@ -299,7 +299,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                 <div key={s.id} className="bg-surface rounded-lg border border-surface overflow-hidden group flex flex-col">
                   <div className="relative aspect-[3/4] bg-surface-3">
                     {uploadingId === s.id ? (
-                      <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-10">
+                      <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-slate-900/70 z-10">
                         <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
                       </div>
                     ) : s.foto_url ? (
@@ -309,7 +309,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                         {s.nama_lengkap.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <label className="absolute bottom-1 right-1 bg-white/90 text-slate-700 dark:text-slate-200 p-1 rounded shadow cursor-pointer z-10 hover:bg-surface transition-colors">
+                    <label className="absolute bottom-1 right-1 bg-white dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 dark:text-slate-200 p-1 rounded shadow cursor-pointer z-10 hover:bg-surface transition-colors">
                       <Camera className="w-3 h-3" />
                       <input type="file" className="hidden" accept="image/*" capture="environment" onChange={e => handleUploadFoto(s.id, e)} />
                     </label>
@@ -321,7 +321,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                     )} 
                     onClick={() => { if (hasDetailAccess(s)) navigateToDetail(s.id) }}
                   >
-                    <p className="text-[10px] font-semibold text-slate-800 dark:text-slate-100 leading-tight line-clamp-2">{s.nama_lengkap}</p>
+                    <p className="text-[10px] font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight line-clamp-2">{s.nama_lengkap}</p>
                     <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">{s.kelas ? formatNamaKelas(s.kelas.tingkat, s.kelas.nomor_kelas, s.kelas.kelompok) : '-'}</p>
                   </div>
                 </div>
@@ -361,7 +361,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate leading-tight">{s.nama_lengkap}</p>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate leading-tight">{s.nama_lengkap}</p>
                         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                           <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{s.nisn}</span>
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border uppercase ${getStatusBadge(s.status)}`}>{s.status}</span>
@@ -447,7 +447,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                                 }
                               </div>
                               <div>
-                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 group-hover:text-blue-700 transition-colors leading-tight">{s.nama_lengkap}</p>
+                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 group-hover:text-blue-700 transition-colors leading-tight">{s.nama_lengkap}</p>
                                 <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">{s.nisn}</p>
                               </div>
                             </div>
@@ -548,7 +548,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                 value={keluarSearch}
                 onChange={e => handleKeluarSearch(e.target.value)}
                 placeholder="Cari nama siswa yang keluar..."
-                className="w-full pl-9 h-9 rounded-lg border border-surface bg-surface-2 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-300"
+                className="w-full pl-9 h-9 rounded-lg border border-surface bg-surface-2 text-xs text-slate-800 dark:text-slate-200 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-300"
               />
             </div>
           </div>
@@ -599,7 +599,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                                   ? <img src={s.foto_url} alt="" className="h-full w-full object-cover" />
                                   : <span className="text-[10px] font-bold text-rose-600">{s.nama_lengkap?.charAt(0)}</span>}
                               </div>
-                              <p className="font-semibold text-slate-700 dark:text-slate-200 truncate max-w-[180px]">{s.nama_lengkap}</p>
+                              <p className="font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200 truncate max-w-[180px]">{s.nama_lengkap}</p>
                             </div>
                           </td>
                           <td className="px-3 py-2.5 font-mono text-slate-500 dark:text-slate-400">{s.nisn}</td>
@@ -637,7 +637,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                           : <span className="text-xs font-bold text-rose-600">{s.nama_lengkap?.charAt(0)}</span>}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
                         <p className="text-[11px] text-slate-400 dark:text-slate-500">{s.nisn}</p>
                         <div className="flex items-center gap-1 mt-0.5">
                           {s.alasan_keluar && (
@@ -672,7 +672,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
           </DialogTitle>
         </DialogHeader>
         <div className="p-5 space-y-4">
-          <p className="text-xs text-slate-500">Update tahun masuk siswa secara massal. Berguna untuk memperbaiki data angkatan yang belum diisi dengan benar.</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Update tahun masuk siswa secara massal. Berguna untuk memperbaiki data angkatan yang belum diisi dengan benar.</p>
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Filter Kelas</label>
             <Select value={bulkKelasId} onValueChange={setBulkKelasId}>
@@ -696,11 +696,11 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
               value={bulkTahun}
               onChange={e => setBulkTahun(e.target.value)}
               placeholder="cth: 2024"
-              className="w-full h-9 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full h-9 text-sm rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-white dark:bg-slate-900 dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           {bulkMsg && (
-            <p className={`text-xs px-3 py-2 rounded-md ${bulkMsg.includes('berhasil') ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>{bulkMsg}</p>
+            <p className={`text-xs px-3 py-2 rounded-md ${bulkMsg.includes('berhasil') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50' : 'text-rose-600 bg-rose-50'}`}>{bulkMsg}</p>
           )}
           <div className="flex gap-2 pt-1">
             <Button variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setShowBulkAngkatan(false)}>Batal</Button>

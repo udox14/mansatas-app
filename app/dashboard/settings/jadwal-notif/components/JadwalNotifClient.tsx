@@ -83,7 +83,7 @@ function CheckboxPeserta({ allUsers, roles, selectedIds, setSelectedIds }: {
         </Select>
       </div>
       <div className="flex items-center justify-between px-1">
-        <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-600">
+        <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-600 dark:text-slate-400">
           <input type="checkbox" checked={allChecked}
             ref={el => { if (el) el.indeterminate = !allChecked && someChecked }}
             onChange={toggleAll} className="rounded" />
@@ -91,16 +91,16 @@ function CheckboxPeserta({ allUsers, roles, selectedIds, setSelectedIds }: {
         </label>
         <span className="text-[10px] text-slate-400">{selectedIds.size} dipilih</span>
       </div>
-      <div className="border border-slate-200 rounded-lg overflow-y-auto max-h-44 divide-y divide-slate-100">
+      <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-y-auto max-h-44 divide-y divide-slate-100">
         {filtered.length === 0
           ? <div className="py-4 text-center text-xs text-slate-400">Tidak ada pengguna.</div>
           : filtered.map(u => (
-            <label key={u.id} className={cn('flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50', selectedIds.has(u.id) && 'bg-blue-50/60')}>
+            <label key={u.id} className={cn('flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800', selectedIds.has(u.id) && 'bg-blue-50/60')}>
               <input type="checkbox" checked={selectedIds.has(u.id)}
                 onChange={() => setSelectedIds(prev => { const n = new Set(prev); n.has(u.id) ? n.delete(u.id) : n.add(u.id); return n })}
                 className="rounded shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-slate-800 truncate">{u.nama_lengkap}</p>
+                <p className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate">{u.nama_lengkap}</p>
                 <p className="text-[10px] text-slate-400">{ROLE_LABEL[u.role] || u.role}</p>
               </div>
             </label>
@@ -179,7 +179,7 @@ function FormDialog({ open, onClose, existing, roles, allUsers }: {
         <div className="space-y-3 overflow-y-auto flex-1 pr-1">
           {pesan && (
             <div className={cn('text-xs px-3 py-2 rounded-lg border flex items-center gap-2',
-              pesan.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700')}>
+              pesan.ok ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-rose-50 border-rose-200 text-rose-700')}>
               {pesan.ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <AlertCircle className="h-3.5 w-3.5 shrink-0" />}
               {pesan.teks}
             </div>
@@ -210,7 +210,7 @@ function FormDialog({ open, onClose, existing, roles, allUsers }: {
                   className={cn('px-2.5 py-1 text-[10px] font-bold rounded-full border transition-colors',
                     hariAktif.includes(h.v)
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300')}>
+                      : 'bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-blue-300')}>
                   {h.l}
                 </button>
               ))}
@@ -271,7 +271,7 @@ function FormDialog({ open, onClose, existing, roles, allUsers }: {
           )}
         </div>
 
-        <div className="flex gap-2 pt-2 border-t border-slate-100">
+        <div className="flex gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
           <Button variant="outline" size="sm" onClick={() => onClose()} className="flex-1 h-8 text-xs rounded-lg">Batal</Button>
           <Button size="sm" onClick={handleSubmit} disabled={isPending} className="flex-1 h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
             {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
@@ -329,7 +329,7 @@ function KartuJadwal({ jadwal, roles, allUsers, onEdit, onRefresh }: {
     <div className={cn('bg-surface border rounded-xl p-4 flex flex-col gap-3 transition-opacity', !isActive && 'opacity-60', 'border-surface')}>
       {pesan && (
         <div className={cn('text-[11px] px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5',
-          pesan.ok ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700')}>
+          pesan.ok ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-rose-50 border-rose-200 text-rose-700')}>
           {pesan.ok ? <CheckCircle2 className="h-3 w-3 shrink-0" /> : <AlertCircle className="h-3 w-3 shrink-0" />}
           {pesan.teks}
         </div>
@@ -338,13 +338,13 @@ function KartuJadwal({ jadwal, roles, allUsers, onEdit, onRefresh }: {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">{jadwal.nama}</h3>
+            <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200 dark:text-slate-100">{jadwal.nama}</h3>
             <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-full border uppercase',
-              isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200')}>
+              isActive ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800')}>
               {isActive ? 'Aktif' : 'Nonaktif'}
             </span>
           </div>
-          <p className="text-[11px] text-slate-500 mt-0.5 italic">"{jadwal.judul}"</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 italic">"{jadwal.judul}"</p>
         </div>
         <div className="text-right shrink-0">
           <div className="flex items-center gap-1 text-blue-600">
@@ -359,7 +359,7 @@ function KartuJadwal({ jadwal, roles, allUsers, onEdit, onRefresh }: {
       <div className="flex flex-wrap gap-1">
         {HARI_OPTIONS.map(h => (
           <span key={h.v} className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded border',
-            hariAktif.includes(h.v) ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-300 border-slate-100')}>
+            hariAktif.includes(h.v) ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 dark:bg-slate-800 text-slate-300 border-slate-100 dark:border-slate-800')}>
             {h.l.slice(0, 3)}
           </span>
         ))}
@@ -373,12 +373,12 @@ function KartuJadwal({ jadwal, roles, allUsers, onEdit, onRefresh }: {
           {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} Test Kirim
         </Button>
         <Button size="sm" variant="ghost" onClick={() => onEdit(jadwal)} disabled={isPending}
-          className="h-7 text-[10px] px-2 text-slate-600 hover:bg-slate-100 gap-1">
+          className="h-7 text-[10px] px-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 gap-1">
           <Pencil className="h-3 w-3" /> Edit
         </Button>
         <button onClick={handleToggle} disabled={isPending}
           className={cn('ml-auto h-7 flex items-center gap-1 text-[10px] font-medium px-2 rounded-lg transition-colors',
-            isActive ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50')}>
+            isActive ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50')}>
           {isActive ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
           {isActive ? 'Nonaktifkan' : 'Aktifkan'}
         </button>
@@ -420,7 +420,7 @@ export function JadwalNotifClient({ jadwals: initialJadwals, roles, allUsers }: 
     <div className="space-y-4">
       {/* Header + Tambah */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           {jadwals.length} jadwal terdaftar · cron berjalan setiap menit
         </p>
         <Button size="sm" onClick={() => { setEditTarget(null); setShowForm(true) }}

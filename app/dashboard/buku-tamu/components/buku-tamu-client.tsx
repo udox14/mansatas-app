@@ -108,7 +108,7 @@ function CameraCapture({ onCapture, onClose }: CameraProps) {
       <div className="flex flex-col items-center justify-center h-full gap-3 p-6 text-center">
         <AlertCircle className="h-10 w-10 text-rose-400" />
         <p className="text-sm text-slate-500 dark:text-slate-400">{error}</p>
-        <button onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+        <button onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-700 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
           Tutup
         </button>
       </div>
@@ -156,14 +156,14 @@ function CameraCapture({ onCapture, onClose }: CameraProps) {
               'flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all',
               ready && countdown === null
                 ? 'bg-violet-600 hover:bg-violet-700 text-white shadow-md'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                : 'bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
             )}>
             <Camera className="h-4 w-4" />
             {countdown !== null ? `Mengambil... ${countdown}` : ready ? 'Ambil Foto (3 detik)' : 'Memuat kamera...'}
           </button>
         )}
         <button onClick={onClose}
-          className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl text-sm font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+          className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl text-sm font-medium bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-700 text-slate-600 dark:text-slate-400 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
           <X className="h-4 w-4" />{captured ? 'Tutup' : 'Batal'}
         </button>
       </div>
@@ -176,11 +176,11 @@ function SuccessScreen({ onNew, onList }: { onNew: () => void; onList: () => voi
   return (
     <div className="flex items-center justify-center h-full">
       <div className="flex flex-col items-center gap-5 text-center max-w-xs">
-        <div className="p-5 rounded-full bg-emerald-50 dark:bg-emerald-950/40">
+        <div className="p-5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-950/40">
           <CheckCircle2 className="h-16 w-16 text-emerald-500" />
         </div>
         <div>
-          <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100">Terima Kasih!</h2>
+          <h2 className="text-2xl font-black text-slate-800 dark:text-slate-200 dark:text-slate-100">Terima Kasih!</h2>
           <p className="mt-1 text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
             Data kunjungan Anda berhasil dicatat.
           </p>
@@ -191,7 +191,7 @@ function SuccessScreen({ onNew, onList }: { onNew: () => void; onList: () => voi
             <RotateCcw className="h-4 w-4" /> Tamu Baru
           </button>
           <button onClick={onList}
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
             <List className="h-4 w-4" /> Lihat Daftar
           </button>
         </div>
@@ -301,7 +301,7 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
       {/* ── TOP HEADER STRIP ────────────────────────────────────── */}
       <div className="shrink-0 rounded-2xl bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 px-6 py-3 mb-4 flex items-center justify-between text-white shadow-lg shadow-indigo-200/40 dark:shadow-indigo-900/30">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-white/10">
+          <div className="p-2 rounded-xl bg-white dark:bg-slate-900/10">
             <BookOpen className="h-5 w-5" />
           </div>
           <div>
@@ -311,7 +311,7 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
         </div>
         <div className="flex items-center gap-4">
           {/* Tab switcher */}
-          <div className="flex gap-1 p-0.5 bg-white/10 rounded-lg">
+          <div className="flex gap-1 p-0.5 bg-white dark:bg-slate-900/10 rounded-lg">
             {[
               { id: 'form', label: 'Form Kunjungan', icon: FileText },
               { id: 'list', label: `Hari Ini (${tamuList.length})`, icon: List },
@@ -319,7 +319,7 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
               <button key={t.id} onClick={() => setView(t.id as any)}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all',
-                  view === t.id ? 'bg-white text-violet-700 shadow-sm' : 'text-white/70 hover:text-white hover:bg-white/10'
+                  view === t.id ? 'bg-white dark:bg-slate-900 text-violet-700 shadow-sm' : 'text-white/70 hover:text-white hover:bg-white dark:hover:bg-slate-900/10'
                 )}>
                 <t.icon className="h-3.5 w-3.5" />
                 {t.label}
@@ -349,7 +349,7 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
               `}</style>
 
               {/* Kategori */}
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
                 <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 mb-3">Kategori Tamu</p>
                 <div className="grid grid-cols-2 gap-2.5">
                   {([
@@ -364,13 +364,13 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
                           ? opt.c === 'violet'
                             ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/30'
                             : 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
-                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          : 'border-slate-200 dark:border-slate-800 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-700 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
                       )}>
                       <div className={cn(
                         'p-2.5 rounded-xl shrink-0',
                         kategori === opt.value
                           ? opt.c === 'violet' ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400' : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                          : 'bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 text-slate-400'
                       )}>
                         <opt.icon className="h-5 w-5" />
                       </div>
@@ -388,7 +388,7 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
               </div>
 
               {/* Nama / Instansi + Tujuan */}
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3.5">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-3.5">
                 {kategori === 'INDIVIDU' ? (
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Nama Lengkap</label>
@@ -396,7 +396,7 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
                       <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                       <input type="text" value={nama} onChange={e => setNama(e.target.value)}
                         placeholder="Masukkan nama lengkap tamu..."
-                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 transition" />
+                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-50 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 transition" />
                     </div>
                   </div>
                 ) : (
@@ -406,7 +406,7 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
                       <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                       <input type="text" value={instansi} onChange={e => setInstansi(e.target.value)}
                         placeholder="Nama instansi atau lembaga..."
-                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition" />
+                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-50 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition" />
                     </div>
                   </div>
                 )}
@@ -416,7 +416,7 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
                   <textarea value={maksudTujuan} onChange={e => setMaksudTujuan(e.target.value)}
                     placeholder="Jelaskan keperluan atau tujuan kunjungan Anda..."
                     rows={4}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 transition resize-none" />
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-50 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 transition resize-none" />
                 </div>
               </div>
 
@@ -457,7 +457,7 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <button onClick={() => setShowCamera(true)}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+                      className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
                       <RotateCcw className="h-4 w-4" /> Ambil Ulang
                     </button>
                     <button onClick={resetFoto}
@@ -468,10 +468,10 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
                 </div>
               ) : (
                 /* Prompt aktifkan kamera */
-                <div className="flex flex-col h-full rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="flex flex-col h-full rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 dark:border-slate-700 overflow-hidden">
                   <button onClick={() => setShowCamera(true)}
                     className="flex-1 flex flex-col items-center justify-center gap-4 hover:bg-violet-50 dark:hover:bg-violet-950/10 hover:border-violet-400 dark:hover:border-violet-500 transition-all group">
-                    <div className="p-5 rounded-full bg-slate-100 dark:bg-slate-800 group-hover:bg-violet-100 dark:group-hover:bg-violet-900/30 transition-colors">
+                    <div className="p-5 rounded-full bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 group-hover:bg-violet-100 dark:group-hover:bg-violet-900/30 transition-colors">
                       <Camera className="h-10 w-10 text-slate-300 dark:text-slate-600 group-hover:text-violet-500 dark:group-hover:text-violet-400 transition-colors" />
                     </div>
                     <div className="text-center px-4">
@@ -499,7 +499,7 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
           `}</style>
           {tamuList.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-              <div className="p-5 rounded-full bg-slate-100 dark:bg-slate-800">
+              <div className="p-5 rounded-full bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800">
                 <UserCheck className="h-10 w-10 text-slate-300 dark:text-slate-600" />
               </div>
               <div>
@@ -513,7 +513,7 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 content-start">
               {tamuList.map((tamu, i) => (
                 <div key={tamu.id}
-                  className="flex gap-3 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-700/60 shadow-sm hover:shadow-md transition-shadow">
+                  className="flex gap-3 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 dark:border-slate-700/60 shadow-sm hover:shadow-md transition-shadow">
                   {/* Foto / Icon */}
                   <div className="shrink-0">
                     {tamu.foto_url ? (
@@ -533,7 +533,7 @@ export function BukuTamuClient({ tamuHariIni: initialTamu, userRoles }: Props) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-1">
-                      <p className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate leading-tight">
+                      <p className="font-bold text-slate-900 dark:text-slate-50 dark:text-slate-100 text-sm truncate leading-tight">
                         {tamu.nama || tamu.instansi || '—'}
                       </p>
                       <span className="text-[10px] text-slate-400 shrink-0">#{tamuList.length - i}</span>

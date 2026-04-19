@@ -104,7 +104,7 @@ export function AssignBKModal({ kelasList }: { kelasList: KelasData[] }) {
           <div className="space-y-4 pt-1">
             {/* Pilih guru BK */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Guru BK</label>
+              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Guru BK</label>
               {guruBkAll.length === 0 ? (
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs">
                   <AlertCircle className="h-4 w-4 shrink-0" />
@@ -128,7 +128,7 @@ export function AssignBKModal({ kelasList }: { kelasList: KelasData[] }) {
             {selectedGuru && (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">
                     Kelas Binaan
                   </label>
                   <span className="text-[11px] text-slate-400 dark:text-slate-500">{selectedKelasIds.size} dipilih</span>
@@ -152,11 +152,11 @@ export function AssignBKModal({ kelasList }: { kelasList: KelasData[] }) {
                                     'flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all text-left',
                                     checked
                                       ? 'bg-rose-50 border-rose-200 text-rose-700'
-                                      : 'bg-surface border-surface text-slate-600 dark:text-slate-300 hover:bg-surface-3'
+                                      : 'bg-surface border-surface text-slate-600 dark:text-slate-400 dark:text-slate-300 hover:bg-surface-3'
                                   )}>
                                   <div className={cn(
                                     'h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0',
-                                    checked ? 'bg-rose-500 border-rose-500' : 'border-slate-300 dark:border-slate-600'
+                                    checked ? 'bg-rose-500 border-rose-500' : 'border-slate-300 dark:border-slate-700 dark:border-slate-600'
                                   )}>
                                     {checked && <CheckCircle2 className="h-2.5 w-2.5 text-white" />}
                                   </div>

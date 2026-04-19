@@ -22,7 +22,7 @@ interface AgendaPiketClientProps {
 }
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label: string }> = {
-  HADIR:    { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', icon: CheckCircle2, label: 'Hadir' },
+  HADIR:    { bg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle2, label: 'Hadir' },
   TELAT:    { bg: 'bg-amber-50 border-amber-200',    text: 'text-amber-700',   icon: Clock,         label: 'Telat' },
   ALFA:     { bg: 'bg-red-50 border-red-200',        text: 'text-red-700',     icon: XCircle,       label: 'Alfa' },
   SAKIT:    { bg: 'bg-blue-50 border-blue-200',      text: 'text-blue-700',    icon: AlertTriangle, label: 'Sakit' },
@@ -137,18 +137,18 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
 
   if (hari === 7) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
+      <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-10 text-center">
         <ShieldCheck className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-        <p className="text-sm text-slate-500">Hari Minggu — tidak ada jadwal piket.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Hari Minggu — tidak ada jadwal piket.</p>
       </div>
     )
   }
 
   if (shifts.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
+      <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-10 text-center">
         <ShieldCheck className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-        <p className="text-sm text-slate-500">Tidak ada jadwal piket hari ini ({HARI_NAMA[hari]}).</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Tidak ada jadwal piket hari ini ({HARI_NAMA[hari]}).</p>
       </div>
     )
   }
@@ -156,15 +156,15 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
   return (
     <div className="space-y-3">
       {/* Header Info */}
-      <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3">
+      <div className="flex items-center justify-between rounded-lg border bg-white dark:bg-slate-900 px-4 py-3">
         <div>
-          <p className="text-sm font-medium text-slate-700">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
             {HARI_NAMA[hari]},{' '}
             {new Date(tanggal + 'T00:00:00').toLocaleDateString('id-ID', {
               day: 'numeric', month: 'long', year: 'numeric',
             })}
           </p>
-          <p className="text-xs text-slate-500">{shifts.length} shift piket</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{shifts.length} shift piket</p>
         </div>
         <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -174,7 +174,7 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
 
       {/* Pesan global */}
       {pesan && (
-        <div className={`rounded-lg border px-4 py-3 text-sm ${pesan.tipe === 'sukses' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+        <div className={`rounded-lg border px-4 py-3 text-sm ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
           {pesan.teks}
         </div>
       )}
@@ -186,17 +186,17 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
         const StatusIcon = style.icon
 
         return (
-          <div key={shift.jadwal_id} className="rounded-lg border bg-white overflow-hidden">
+          <div key={shift.jadwal_id} className="rounded-lg border bg-white dark:bg-slate-900 overflow-hidden">
             {/* Card Header */}
             <div className="px-4 py-3 flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-slate-800">{shift.shift_nama}</span>
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{shift.shift_nama}</span>
                   <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full font-medium">
                     Guru Piket
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Jam ke-{shift.jam_mulai} s/d {shift.jam_selesai}
                   {' '}·{' '}
                   {shift.slot_mulai !== '??:??' ? `${shift.slot_mulai} — ${shift.slot_selesai}` : 'Waktu belum dikonfigurasi'}
@@ -246,16 +246,16 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
 
             {/* Expanded Form */}
             {isExpanded && !shift.sudah_isi && (
-              <div className="border-t bg-slate-50/50 px-4 py-4 space-y-4">
+              <div className="border-t bg-slate-50 dark:bg-slate-800/50 px-4 py-4 space-y-4">
                 {/* Info shift (readonly) */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs text-slate-500">Shift</Label>
-                    <p className="text-sm font-medium text-slate-700">{shift.shift_nama}</p>
+                    <Label className="text-xs text-slate-500 dark:text-slate-400">Shift</Label>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{shift.shift_nama}</p>
                   </div>
                   <div>
-                    <Label className="text-xs text-slate-500">Waktu</Label>
-                    <p className="text-sm font-medium text-slate-700">
+                    <Label className="text-xs text-slate-500 dark:text-slate-400">Waktu</Label>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
                       {shift.slot_mulai !== '??:??' ? `${shift.slot_mulai} — ${shift.slot_selesai}` : `Jam ke-${shift.jam_mulai} s/d ${shift.jam_selesai}`}
                     </p>
                   </div>
@@ -263,7 +263,7 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
 
                 {/* Foto (camera only) */}
                 <div>
-                  <Label className="text-xs text-slate-600 font-medium">
+                  <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">
                     Foto Kehadiran <span className="text-red-500">*</span>
                     <span className="text-slate-400 font-normal ml-1">(wajib, kamera saja)</span>
                   </Label>
@@ -286,10 +286,10 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="mt-1 w-full flex flex-col items-center justify-center gap-2 py-8 rounded-lg border-2 border-dashed border-slate-300 bg-white hover:border-teal-400 hover:bg-teal-50/50 transition-colors"
+                      className="mt-1 w-full flex flex-col items-center justify-center gap-2 py-8 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-teal-400 hover:bg-teal-50/50 transition-colors"
                     >
                       <Camera className="h-8 w-8 text-slate-400" />
-                      <span className="text-sm text-slate-500">Ketuk untuk membuka kamera</span>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">Ketuk untuk membuka kamera</span>
                       <span className="text-xs text-slate-400">Foto akan tercatat sebagai bukti kehadiran</span>
                     </button>
                   )}
@@ -304,7 +304,7 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
                 </div>
 
                 {/* Waktu otomatis — info */}
-                <div className="text-[11px] text-slate-500 bg-slate-100 rounded-lg px-3 py-2">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 rounded-lg px-3 py-2">
                   ⏱ Waktu submit akan dicatat otomatis saat Anda klik kirim.
                 </div>
 

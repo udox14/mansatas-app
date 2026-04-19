@@ -37,7 +37,7 @@ const HARI_SHORT  = ['', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
 const HARI_COLORS = [
   '',
   'bg-blue-50 dark:bg-blue-950/40 border-blue-100 text-blue-700 dark:text-blue-400',
-  'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 text-emerald-700 dark:text-emerald-400',
+  'bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-950/40 border-emerald-100 text-emerald-700 dark:text-emerald-400',
   'bg-teal-50 dark:bg-teal-950/40 border-teal-100 text-teal-700 dark:text-teal-400',
   'bg-violet-50 dark:bg-violet-950/40 border-violet-100 text-violet-700 dark:text-violet-400',
   'bg-rose-50 dark:bg-rose-950/40 border-rose-100 text-rose-700 dark:text-rose-400',
@@ -69,7 +69,7 @@ function JadwalCell({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-100 leading-tight truncate pr-3">
+      <p className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight truncate pr-3">
         {mode === 'kelas' ? byKelas.nama_mapel : byGuru.nama_mapel}
       </p>
       <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
@@ -225,7 +225,7 @@ function ImportXMLPanel({ onDone }: { onDone: () => void }) {
   return (
     <>
       <Button size="sm" variant="outline" onClick={() => setIsOpen(true)}
-        className="h-8 text-xs gap-1.5 border-surface text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 rounded-lg">
+        className="h-8 text-xs gap-1.5 border-surface text-slate-600 dark:text-slate-400 dark:text-slate-300 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 rounded-lg">
         <Upload className="h-3.5 w-3.5" /> Import XML ASC
       </Button>
 
@@ -247,19 +247,19 @@ function ImportXMLPanel({ onDone }: { onDone: () => void }) {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">File XML (aSc Timetables format)</label>
+              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">File XML (aSc Timetables format)</label>
               <input
                 ref={fileRef}
                 type="file"
                 accept=".xml"
-                className="w-full h-9 text-xs file:mr-2 file:h-full file:border-0 file:bg-slate-100 file:px-3 file:text-xs file:font-medium file:text-slate-700 hover:file:bg-slate-200 rounded-lg border border-surface bg-surface-2 cursor-pointer"
+                className="w-full h-9 text-xs file:mr-2 file:h-full file:border-0 file:bg-slate-100 dark:file:bg-slate-800/80 file:px-3 file:text-xs file:font-medium file:text-slate-700 dark:file:text-slate-300 hover:file:bg-slate-200 rounded-lg border border-surface bg-surface-2 cursor-pointer"
               />
             </div>
 
             {result && (
               <div className={cn(
                 'p-3 rounded-lg text-xs border space-y-2',
-                result.success ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'
+                result.success ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-400' : 'bg-rose-50 border-rose-200 text-rose-800'
               )}>
                 <div className="flex items-center gap-2 font-semibold">
                   {result.success ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
@@ -441,7 +441,7 @@ export function JadwalTab({
           {loaded && (viewMode === 'kelas' ? selectedKelas : selectedGuru) && (
             <button
               onClick={() => loadJadwal(viewMode === 'kelas' ? selectedKelas : selectedGuru, viewMode)}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:bg-surface-2 hover:text-slate-600 transition-colors shrink-0"
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:bg-surface-2 hover:text-slate-600 dark:hover:text-slate-400 transition-colors shrink-0"
               title="Refresh"
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -511,7 +511,7 @@ export function JadwalTab({
               <Calendar className="h-8 w-8 text-slate-300 dark:text-slate-600" />
             </div>
             <div className="text-center space-y-1">
-              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">Jadwal Mengajar</p>
+              <p className="text-sm font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Jadwal Mengajar</p>
               <p className="text-xs text-slate-400 dark:text-slate-500">
                 {viewMode === 'kelas' ? 'Pilih kelas untuk melihat jadwal' : 'Pilih guru untuk melihat jadwal'}
               </p>
@@ -539,11 +539,11 @@ export function JadwalTab({
         {/* Empty: setelah import */}
         {!isLoading && !loaded && hasImported && (
           <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <div className="p-3 rounded-full bg-emerald-50 border border-emerald-100">
+            <div className="p-3 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100">
               <CheckCircle2 className="h-6 w-6 text-emerald-500" />
             </div>
             <div className="text-center space-y-1">
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Import berhasil!</p>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">Import berhasil!</p>
               <p className="text-xs text-slate-400 dark:text-slate-500">Pilih kelas atau guru di atas untuk melihat jadwalnya</p>
             </div>
           </div>

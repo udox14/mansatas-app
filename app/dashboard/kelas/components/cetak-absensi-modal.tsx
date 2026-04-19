@@ -154,7 +154,7 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
                   <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Cetak Blanko Absensi</h2>
+                  <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Cetak Blanko Absensi</h2>
                   <p className="text-[11px] text-slate-400 dark:text-slate-500">
                     Format F4 · {previewLabel ? <span className="text-indigo-500 font-medium">{previewLabel} siap cetak</span> : 'Pilih kelas atau tingkat'}
                   </p>
@@ -184,7 +184,7 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
                         className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors text-xs ${
                           filterMode === opt.mode
                             ? 'bg-indigo-600 text-white'
-                            : 'bg-surface hover:bg-surface-2 text-slate-700 dark:text-slate-200 border border-surface'
+                            : 'bg-surface hover:bg-surface-2 text-slate-700 dark:text-slate-300 dark:text-slate-200 border border-surface'
                         }`}
                       >
                         <div>
@@ -218,7 +218,7 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
                               className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
                                 selectedKelasId === k.id
                                   ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-200 dark:border-indigo-800'
-                                  : 'hover:bg-surface-2 text-slate-600 dark:text-slate-300'
+                                  : 'hover:bg-surface-2 text-slate-600 dark:text-slate-400 dark:text-slate-300'
                               }`}
                             >
                               {k.tingkat}.{k.nomor_kelas}
@@ -237,11 +237,11 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
                   <div className="mt-1 bg-surface border border-surface rounded-lg p-2.5 text-xs space-y-1">
                     <div className="flex justify-between text-slate-400 dark:text-slate-500">
                       <span>Jumlah kelas</span>
-                      <span className="font-semibold text-slate-700 dark:text-slate-200">{previewDataList.length}</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">{previewDataList.length}</span>
                     </div>
                     <div className="flex justify-between text-slate-400 dark:text-slate-500">
                       <span>Total siswa</span>
-                      <span className="font-semibold text-slate-700 dark:text-slate-200">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">
                         {previewDataList.reduce((a, d) => a + d.siswa.length, 0)}
                       </span>
                     </div>
@@ -269,7 +269,7 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
               </div>
 
               {/* ─ Preview ─ */}
-              <div className="flex-1 overflow-auto bg-slate-100 dark:bg-slate-900 p-4">
+              <div className="flex-1 overflow-auto bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-900 p-4">
 
                 {/* Kosong */}
                 {!isLoading && previewDataList.length === 0 && !error && (
@@ -326,7 +326,7 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
                           </div>
                         )}
                         <div
-                          className="bg-white shadow-xl ring-1 ring-black/10 origin-top"
+                          className="bg-white dark:bg-slate-900 shadow-xl ring-1 ring-black/10 origin-top"
                           style={{
                             width: '215mm',
                             transform: 'scale(0.68)',

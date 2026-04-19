@@ -201,7 +201,7 @@ export function NilaiClient() {
       <div className="rounded-lg border border-surface bg-surface p-5 space-y-4">
         <div className="flex items-center gap-2">
           <Upload className="h-4 w-4 text-emerald-600" />
-          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Import Nilai dari Excel / RDM</h3>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Import Nilai dari Excel / RDM</h3>
         </div>
 
         <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-lg px-4 py-3 flex gap-2.5">
@@ -214,7 +214,7 @@ export function NilaiClient() {
 
         <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3">
           <div className="space-y-1.5 w-full sm:w-56">
-            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Target Semester</Label>
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Target Semester</Label>
             <Select value={targetImport} onValueChange={setTargetImport}>
               <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -226,21 +226,21 @@ export function NilaiClient() {
           </div>
 
           <div className="space-y-1.5 flex-1 w-full">
-            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-300">File Excel (.xlsx / .xls)</Label>
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">File Excel (.xlsx / .xls)</Label>
             <Input
               type="file"
               accept=".xlsx,.xls,.csv"
               multiple
               onChange={handleFileUpload}
               disabled={isImporting}
-              className="h-9 text-xs rounded-lg file:mr-2 file:text-xs file:font-medium file:bg-emerald-50 file:text-emerald-700 file:border-0 file:rounded file:px-2 file:py-1"
+              className="h-9 text-xs rounded-lg file:mr-2 file:text-xs file:font-medium file:bg-emerald-50 dark:file:bg-emerald-950/50 file:text-emerald-700 dark:file:text-emerald-400 file:border-0 file:rounded file:px-2 file:py-1"
             />
           </div>
         </div>
 
         {/* Progress */}
         {importProgress && (
-          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 bg-surface-2 px-3 py-2 rounded-lg">
+          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 bg-surface-2 px-3 py-2 rounded-lg">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-600" />
             <span>Memproses file {importProgress.current}/{importProgress.total}: <strong>{importProgress.fileName}</strong></span>
           </div>
@@ -248,7 +248,7 @@ export function NilaiClient() {
 
         {/* Success */}
         {successMessage && (
-          <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 rounded-lg border border-emerald-200 dark:border-emerald-900/40">
+          <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-950/30 px-3 py-2 rounded-lg border border-emerald-200 dark:border-emerald-800 dark:border-emerald-900/40">
             <CheckCircle2 className="h-3.5 w-3.5" />
             <span>{successMessage}</span>
           </div>
@@ -259,7 +259,7 @@ export function NilaiClient() {
           <div className="border border-surface-2 rounded-lg overflow-hidden">
             <div className="px-3 py-2 bg-surface-2 flex items-center gap-1.5">
               <AlertCircle className="h-3 w-3 text-amber-500" />
-              <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">Log Import ({importLogs.length})</span>
+              <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Log Import ({importLogs.length})</span>
             </div>
             <ScrollArea className="max-h-40">
               <div className="px-3 py-2 space-y-0.5">

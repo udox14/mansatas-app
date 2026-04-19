@@ -63,21 +63,21 @@ export function ImportModal() {
         </DialogTrigger>
         <DialogContent className="sm:max-w-md rounded-xl">
           <DialogHeader className="border-b pb-3">
-            <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 flex items-center gap-2">
               <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Import Data Kelas Massal
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3 pt-1">
             {message && (
-              <div className={`p-2.5 text-xs rounded-lg border flex items-start gap-2 ${message.type === 'error' ? 'text-rose-600 bg-rose-50 border-rose-100' : 'text-emerald-700 bg-emerald-50 border-emerald-100'}`}>
+              <div className={`p-2.5 text-xs rounded-lg border flex items-start gap-2 ${message.type === 'error' ? 'text-rose-600 bg-rose-50 border-rose-100' : 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-100'}`}>
                 {message.type === 'error' ? <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" /> : <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />}
                 {message.text}
               </div>
             )}
 
             <div className="flex items-center justify-between p-3 bg-surface-2 border border-surface-2 rounded-lg">
-              <p className="text-xs text-slate-600 dark:text-slate-300 dark:text-slate-600">Belum punya format Excel?</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Belum punya format Excel?</p>
               <Button type="button" size="sm" variant="outline" onClick={handleDownloadTemplate} className="h-7 text-xs gap-1.5 rounded-md bg-surface ml-3 shrink-0">
                 <Download className="h-3 w-3" /> Template
               </Button>
@@ -107,7 +107,7 @@ export function ImportModal() {
             />
 
             {isUploading && (
-              <div className="flex items-center justify-center gap-2 p-2.5 text-xs text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100 animate-pulse">
+              <div className="flex items-center justify-center gap-2 p-2.5 text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-100 animate-pulse">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Memproses database...
               </div>
             )}

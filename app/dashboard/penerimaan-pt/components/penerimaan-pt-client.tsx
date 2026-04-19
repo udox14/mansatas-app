@@ -42,13 +42,13 @@ const KAMPUS_LIST = kampusData as Kampus[]
 
 // ── Helpers dengan dynamic jalur ──────────────────────────────────────
 function getJalurColor(jalur: string, jalurList: typeof JALUR_LIST) {
-  return jalurList.find(j => j.value === jalur)?.color ?? 'bg-slate-100 text-slate-600 border-slate-200'
+  return jalurList.find(j => j.value === jalur)?.color ?? 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
 }
 function getJalurLabel(jalur: string, jalurList: typeof JALUR_LIST) {
   return jalurList.find(j => j.value === jalur)?.label ?? jalur
 }
 function getStatusColor(status: string) {
-  return STATUS_LIST.find(s => s.value === status)?.color ?? 'bg-slate-100 text-slate-600 border-slate-200'
+  return STATUS_LIST.find(s => s.value === status)?.color ?? 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'
 }
 function getStatusLabel(status: string) {
   return STATUS_LIST.find(s => s.value === status)?.label ?? status
@@ -129,7 +129,7 @@ function KampusAutocomplete({
     PTN: 'bg-blue-50 text-blue-700 border-blue-100',
     PTKIN: 'bg-violet-50 text-violet-700 border-violet-100',
     PTS: 'bg-amber-50 text-amber-700 border-amber-100',
-    POLITEKNIK: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    POLITEKNIK: 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-100',
   }
 
   return (
@@ -146,7 +146,7 @@ function KampusAutocomplete({
         />
         {value && (
           <button type="button" onClick={() => { onChange(null); setQuery('') }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-slate-600">
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-400">
             <X className="h-3.5 w-3.5" />
           </button>
         )}
@@ -161,12 +161,12 @@ function KampusAutocomplete({
                 idx === highlightIdx ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'hover:bg-surface-2'
               )}>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight truncate">{k.nama}</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight truncate">{k.nama}</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">{k.kota}, {k.provinsi}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded border', JENIS_COLOR[k.jenis] ?? 'bg-slate-100 text-slate-500 border-slate-200')}>{k.jenis}</span>
-                <span className="text-[10px] font-semibold text-slate-500 bg-surface-3 border border-surface-2 px-1.5 py-0.5 rounded">{k.singkatan}</span>
+                <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded border', JENIS_COLOR[k.jenis] ?? 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800')}>{k.jenis}</span>
+                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-surface-3 border border-surface-2 px-1.5 py-0.5 rounded">{k.singkatan}</span>
               </div>
             </button>
           ))}
@@ -174,9 +174,9 @@ function KampusAutocomplete({
       )}
 
       {value && (
-        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-500">
+        <div className="mt-1.5 flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-          <span className="font-medium text-slate-600 dark:text-slate-300">{value.kota} · {value.jenis}</span>
+          <span className="font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300">{value.kota} · {value.jenis}</span>
         </div>
       )}
     </div>
@@ -232,19 +232,19 @@ function FormPenerimaan({
       <div className="flex items-center gap-3 p-3 rounded-xl bg-indigo-50/60 border border-indigo-100">
         <AvatarSiswa siswa={siswa} />
         <div>
-          <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{siswa.nama_lengkap}</p>
+          <p className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">{siswa.nama_lengkap}</p>
           <p className="text-[11px] text-slate-400">{siswa.nisn} · Kelas {siswa.tingkat}-{siswa.nomor_kelas} {siswa.kelas_kelompok}</p>
         </div>
       </div>
 
       {!editData && (
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Jalur Seleksi <span className="text-rose-500">*</span></label>
+          <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Jalur Seleksi <span className="text-rose-500">*</span></label>
           <div className="flex flex-wrap gap-2">
             {dynamicJalurList.map(j => (
               <button key={j.value} type="button" onClick={() => setJalur(j.value as JalurPT)}
                 className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
-                  jalur === j.value ? j.color : 'bg-surface-2 text-slate-500 border-surface hover:bg-surface-3')}>
+                  jalur === j.value ? j.color : 'bg-surface-2 text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-3')}>
                 {j.label}
               </button>
             ))}
@@ -253,24 +253,24 @@ function FormPenerimaan({
       )}
 
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Perguruan Tinggi <span className="text-rose-500">*</span></label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Perguruan Tinggi <span className="text-rose-500">*</span></label>
         <KampusAutocomplete value={kampus} onChange={setKampus} />
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Program Studi <span className="text-slate-400 font-normal">(opsional)</span></label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Program Studi <span className="text-slate-400 font-normal">(opsional)</span></label>
         <Input value={prodi} onChange={e => setProdi(e.target.value)}
           placeholder="Contoh: Teknik Informatika, Pendidikan Matematika..."
           className="h-9 text-sm rounded-xl bg-surface-2 border-surface" />
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Status <span className="text-rose-500">*</span></label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Status <span className="text-rose-500">*</span></label>
         <div className="flex flex-wrap gap-2">
           {STATUS_LIST.map(s => (
             <button key={s.value} type="button" onClick={() => setStatus(s.value)}
               className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
-                status === s.value ? s.color : 'bg-surface-2 text-slate-500 border-surface hover:bg-surface-3')}>
+                status === s.value ? s.color : 'bg-surface-2 text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-3')}>
               {s.label}
             </button>
           ))}
@@ -278,9 +278,9 @@ function FormPenerimaan({
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Catatan <span className="text-slate-400 font-normal">(opsional)</span></label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Catatan <span className="text-slate-400 font-normal">(opsional)</span></label>
         <textarea value={catatan} onChange={e => setCatatan(e.target.value)} rows={2}
-          className="w-full rounded-xl border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-300 resize-none"
+          className="w-full rounded-xl border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-300 resize-none"
           placeholder="Catatan tambahan..." />
       </div>
 
@@ -310,7 +310,7 @@ function ModalInputPenerimaan({ siswa, taId, jalurDefault, editData, onSaved, on
     <Dialog open onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-lg rounded-2xl p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-5 pt-5 pb-4 border-b border-surface-2">
-          <DialogTitle className="text-sm font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+          <DialogTitle className="text-sm font-bold flex items-center gap-2 text-slate-800 dark:text-slate-200 dark:text-slate-100">
             <GraduationCap className="h-4 w-4 text-indigo-600" />
             {editData ? 'Edit Data Penerimaan' : 'Input Data Penerimaan PT'}
           </DialogTitle>
@@ -456,7 +456,7 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
         {dynamicJalurList.map(j => (
           <button key={j.value} onClick={() => setActiveJalur(j.value as JalurPT)}
             className={cn('px-4 py-2 rounded-xl text-xs font-bold border transition-all shadow-sm',
-              activeJalur === j.value ? j.color + ' shadow-md scale-[1.02]' : 'bg-surface text-slate-500 border-surface hover:bg-surface-2')}>
+              activeJalur === j.value ? j.color + ' shadow-md scale-[1.02]' : 'bg-surface text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-2')}>
             {j.label}
           </button>
         ))}
@@ -477,7 +477,7 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <label className="text-xs font-semibold text-slate-600">Nama Jalur</label>
+              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Nama Jalur</label>
               <Input
                 value={newJalurLabel}
                 onChange={e => setNewJalurLabel(e.target.value)}
@@ -486,14 +486,14 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-600">Warna (opsional)</label>
+              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Warna (opsional)</label>
               <div className="flex gap-2 mt-1 flex-wrap">
-                {['bg-emerald-50 text-emerald-700 border-emerald-200',
+                {['bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
                   'bg-blue-50 text-blue-700 border-blue-200',
                   'bg-violet-50 text-violet-700 border-violet-200',
                   'bg-amber-50 text-amber-700 border-amber-200',
                   'bg-rose-50 text-rose-700 border-rose-200',
-                  'bg-slate-100 text-slate-600 border-slate-200'].map(color => (
+                  'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800'].map(color => (
                   <button
                     key={color}
                     type="button"
@@ -518,7 +518,7 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
           <div className={cn('flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border shrink-0', jalurInfo.color)}>
             <BookOpen className="h-3.5 w-3.5" />
             {jalurInfo.label}
-            <span className="bg-white/60 px-1.5 py-0.5 rounded font-black">{penerimaanList.filter(p => p.status === 'DITERIMA').length}</span>
+            <span className="bg-white dark:bg-slate-900/60 px-1.5 py-0.5 rounded font-black">{penerimaanList.filter(p => p.status === 'DITERIMA').length}</span>
           </div>
           <span className="text-xs text-slate-400 dark:text-slate-500">siswa diterima</span>
         </div>
@@ -564,7 +564,7 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
                   <button onClick={() => toggleExpand(siswa.id)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
                     <AvatarSiswa siswa={siswa} size="sm" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{siswa.nama_lengkap}</p>
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{siswa.nama_lengkap}</p>
                       <p className="text-[10px] text-slate-400">{siswa.nisn} · {siswa.tingkat}-{siswa.nomor_kelas}</p>
                     </div>
                     {entries.length > 0 && (
@@ -581,17 +581,17 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
                 </div>
 
                 {isExpanded && (
-                  <div className="border-t border-surface-2 bg-slate-50/50 dark:bg-slate-900/10 px-4 py-3 space-y-2">
+                  <div className="border-t border-surface-2 bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-900/10 px-4 py-3 space-y-2">
                     {entries.length === 0 ? (
                       <p className="text-[11px] text-slate-400 italic text-center py-2">Belum ada data untuk jalur {jalurInfo.label}</p>
                     ) : entries.map(entry => (
                       <div key={entry.id} className="flex items-start gap-3 p-2.5 rounded-lg bg-surface border border-surface-2 group">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{entry.kampus_nama}</p>
+                            <p className="text-xs font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{entry.kampus_nama}</p>
                             <Badge label={getStatusLabel(entry.status)} colorClass={getStatusColor(entry.status)} small />
                           </div>
-                          {entry.program_studi && <p className="text-[10px] text-slate-500 mt-0.5">{entry.program_studi}</p>}
+                          {entry.program_studi && <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{entry.program_studi}</p>}
                           {entry.catatan && <p className="text-[10px] text-slate-400 italic mt-0.5">{entry.catatan}</p>}
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
@@ -625,7 +625,7 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-slate-500 dark:text-slate-400">
             Halaman {currentPage} dari {totalPages} ({totalItems} siswa)
           </span>
           <Button
@@ -717,11 +717,11 @@ function TabPerSiswa({ taId, dynamicJalurList }: {
                     selectedSiswa?.id === s.id ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'hover:bg-surface-2')}>
                   <AvatarSiswa siswa={s} size="sm" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
                     <p className="text-[10px] text-slate-400">{s.tingkat}-{s.nomor_kelas}</p>
                   </div>
                   {s.jumlah_diterima > 0 && (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full shrink-0">
+                    <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 px-1.5 py-0.5 rounded-full shrink-0">
                       {s.jumlah_diterima}
                     </span>
                   )}
@@ -744,7 +744,7 @@ function TabPerSiswa({ taId, dynamicJalurList }: {
             <div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-indigo-50 to-white dark:from-indigo-900/20 dark:to-transparent border border-indigo-100">
               <AvatarSiswa siswa={selectedSiswa} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{selectedSiswa.nama_lengkap}</p>
+                <p className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">{selectedSiswa.nama_lengkap}</p>
                 <p className="text-[11px] text-slate-400">{selectedSiswa.nisn} · Kelas {selectedSiswa.tingkat}-{selectedSiswa.nomor_kelas} {selectedSiswa.kelas_kelompok}</p>
               </div>
               <Button size="sm" onClick={() => { setEditData(undefined); setShowModal(true) }}
@@ -773,7 +773,7 @@ function TabPerSiswa({ taId, dynamicJalurList }: {
                     <div key={j.value} className="rounded-xl border border-surface bg-surface overflow-hidden">
                       <div className={cn('px-4 py-2 border-b border-surface-2 flex items-center gap-2', j.color.replace('text-', 'text-').replace('bg-', 'bg-opacity-60 bg-'))}>
                         <Badge label={j.label} colorClass={j.color} />
-                        <span className="text-[11px] text-slate-500 font-medium">{jalurEntries.length} perguruan tinggi</span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{jalurEntries.length} perguruan tinggi</span>
                       </div>
                       <div className="divide-y divide-surface-2">
                         {jalurEntries.map(entry => (
@@ -782,7 +782,7 @@ function TabPerSiswa({ taId, dynamicJalurList }: {
                               <Building2 className="h-4 w-4 text-indigo-500" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">{entry.kampus_nama}</p>
+                              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight">{entry.kampus_nama}</p>
                               {entry.program_studi && <p className="text-[11px] text-indigo-600 font-medium mt-0.5">{entry.program_studi}</p>}
                               {entry.catatan && <p className="text-[11px] text-slate-400 italic mt-0.5">{entry.catatan}</p>}
                             </div>
@@ -845,7 +845,7 @@ function TabPerKampus({ taId, dynamicJalurList }: {
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Cari Perguruan Tinggi</label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Cari Perguruan Tinggi</label>
         <KampusAutocomplete value={selectedKampus} onChange={k => { setSelectedKampus(k); setFilterJalur('') }} placeholder="Ketik nama kampus..." />
       </div>
 
@@ -856,7 +856,7 @@ function TabPerKampus({ taId, dynamicJalurList }: {
               <Building2 className="h-6 w-6 text-indigo-600" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-base font-bold text-slate-800 dark:text-slate-100 truncate">{selectedKampus.nama}</p>
+              <p className="text-base font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{selectedKampus.nama}</p>
               <p className="text-xs text-slate-400">{selectedKampus.kota}, {selectedKampus.provinsi}</p>
             </div>
             <div className="shrink-0 text-center">
@@ -869,7 +869,7 @@ function TabPerKampus({ taId, dynamicJalurList }: {
             <div className="flex gap-1.5 flex-wrap">
               <button onClick={() => setFilterJalur('')}
                 className={cn('px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all',
-                  filterJalur === '' ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900' : 'bg-surface-2 text-slate-500 border-surface hover:bg-surface-3')}>
+                  filterJalur === '' ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900' : 'bg-surface-2 text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-3')}>
                 Semua ({entries.length})
               </button>
               {dynamicJalurList.map(j => {
@@ -878,7 +878,7 @@ function TabPerKampus({ taId, dynamicJalurList }: {
                 return (
                   <button key={j.value} onClick={() => setFilterJalur(j.value as JalurPT)}
                     className={cn('px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all',
-                      filterJalur === j.value ? j.color : 'bg-surface-2 text-slate-500 border-surface hover:bg-surface-3')}>
+                      filterJalur === j.value ? j.color : 'bg-surface-2 text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-3')}>
                     {j.label} ({count})
                   </button>
                 )
@@ -895,7 +895,7 @@ function TabPerKampus({ taId, dynamicJalurList }: {
             </div>
           ) : (
             <div className="bg-surface border border-surface rounded-xl overflow-hidden">
-              <div className="hidden md:grid grid-cols-12 bg-surface-2 border-b border-surface-2 px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+              <div className="hidden md:grid grid-cols-12 bg-surface-2 border-b border-surface-2 px-4 py-2.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                 <div className="col-span-4">Siswa</div>
                 <div className="col-span-2">Kelas</div>
                 <div className="col-span-2">Jalur</div>
@@ -910,11 +910,11 @@ function TabPerKampus({ taId, dynamicJalurList }: {
                         <span className="text-[10px] font-bold text-indigo-600">{entry.nama_lengkap?.charAt(0)}</span>
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{entry.nama_lengkap}</p>
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{entry.nama_lengkap}</p>
                         <p className="text-[10px] text-slate-400">{entry.nisn}</p>
                       </div>
                     </div>
-                    <div className="md:col-span-2 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap hidden md:block">
+                    <div className="md:col-span-2 text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 whitespace-nowrap hidden md:block">
                       {entry.tingkat}-{entry.nomor_kelas}
                     </div>
                     <div className="md:col-span-2 hidden md:block">
@@ -969,22 +969,22 @@ function TabAnalitik({ taId, dynamicJalurList }: {
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Siswa Kelas 12', value: data.totalSiswa, icon: Users, color: 'text-slate-600', bg: 'bg-slate-50 border-slate-200' },
-          { label: 'Sudah Terdata', value: data.sudahData, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' },
+          { label: 'Siswa Kelas 12', value: data.totalSiswa, icon: Users, color: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-800' },
+          { label: 'Sudah Terdata', value: data.sudahData, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800' },
           { label: 'Belum Terdata', value: data.totalSiswa - data.sudahData, icon: AlertCircle, color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200' },
           { label: 'Persentase', value: `${pct}%`, icon: TrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-200' },
         ].map(card => (
           <div key={card.label} className={cn('rounded-xl border p-4', card.bg)}>
             <card.icon className={cn('h-5 w-5 mb-2', card.color)} />
             <div className={cn('text-2xl font-black', card.color)}>{card.value}</div>
-            <div className="text-xs text-slate-500 font-medium mt-0.5">{card.label}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">{card.label}</div>
           </div>
         ))}
       </div>
 
       <div className="bg-surface border border-surface rounded-xl p-4 space-y-2">
         <div className="flex justify-between items-center">
-          <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Kelengkapan Data</p>
+          <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Kelengkapan Data</p>
           <p className="text-sm font-black text-indigo-600">{pct}%</p>
         </div>
         <div className="h-2.5 bg-surface-2 rounded-full overflow-hidden">
@@ -997,7 +997,7 @@ function TabAnalitik({ taId, dynamicJalurList }: {
         <div className="bg-surface border border-surface rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-surface-2 flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-indigo-500" />
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Distribusi per Jalur</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Distribusi per Jalur</p>
           </div>
           <div className="p-4 space-y-3">
             {jalurSummary.length === 0 ? (
@@ -1008,7 +1008,7 @@ function TabAnalitik({ taId, dynamicJalurList }: {
                   <div className="flex items-center gap-2">
                     <Badge label={j.label} colorClass={j.color} />
                   </div>
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{j.diterima} diterima</span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200">{j.diterima} diterima</span>
                 </div>
                 <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-700"
@@ -1025,7 +1025,7 @@ function TabAnalitik({ taId, dynamicJalurList }: {
         <div className="bg-surface border border-surface rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-surface-2 flex items-center gap-2">
             <Award className="h-4 w-4 text-amber-500" />
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Top Perguruan Tinggi</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Top Perguruan Tinggi</p>
           </div>
           <ScrollArea className="h-72">
             {data.topKampus.length === 0 ? (
@@ -1038,13 +1038,13 @@ function TabAnalitik({ taId, dynamicJalurList }: {
                     <div key={k.kampus_id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-surface-2 transition-colors">
                       <div className={cn('h-7 w-7 rounded-lg flex items-center justify-center text-xs font-black shrink-0',
                         idx === 0 ? 'bg-amber-100 text-amber-700 border border-amber-200' :
-                        idx === 1 ? 'bg-slate-100 text-slate-600 border border-slate-200' :
+                        idx === 1 ? 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800' :
                         idx === 2 ? 'bg-orange-100 text-orange-700 border border-orange-200' :
-                        'bg-surface-2 text-slate-500 border border-surface-2')}>
+                        'bg-surface-2 text-slate-500 dark:text-slate-400 border border-surface-2')}>
                         {idx + 1}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{k.kampus_nama}</p>
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{k.kampus_nama}</p>
                         {kampusInfo && <p className="text-[10px] text-slate-400">{kampusInfo.kota} · {kampusInfo.jenis}</p>}
                       </div>
                       <span className="text-xs font-black text-indigo-600 shrink-0">{k.total}</span>
@@ -1372,7 +1372,7 @@ function ImportExcelModal({
                 />
                 <label
                   htmlFor="excel-upload"
-                  className="cursor-pointer flex flex-col items-center gap-2 text-slate-500 hover:text-indigo-600"
+                  className="cursor-pointer flex flex-col items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-indigo-600"
                 >
                   <FileSpreadsheet className="h-12 w-12" />
                   <span className="text-sm font-medium">Klik untuk upload file Excel atau CSV</span>
@@ -1392,7 +1392,7 @@ function ImportExcelModal({
               <div className="grid grid-cols-2 gap-4">
                 {Object.entries(mapping).map(([field, value]) => (
                   <div key={field}>
-                    <label className="text-xs font-medium text-slate-600 capitalize">{field}</label>
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 capitalize">{field}</label>
                     <select
                       className="mt-1 w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm"
                       value={value ?? ''}
@@ -1536,7 +1536,7 @@ export function PenerimaanPTClient({
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface border border-surface text-xs text-slate-500 flex-1">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface border border-surface text-xs text-slate-500 dark:text-slate-400 flex-1">
           <CalendarDays className="h-3.5 w-3.5 shrink-0" />
           <span>TA {taAktif.nama} · Semester {taAktif.semester === 1 ? 'Ganjil' : 'Genap'}</span>
         </div>
@@ -1547,7 +1547,7 @@ export function PenerimaanPTClient({
             <span className="hidden sm:inline">Import Excel</span>
           </Button>
           <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={isExporting}
-            className="h-8 text-xs gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-lg">
+            className="h-8 text-xs gap-1.5 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded-lg">
             {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">Export CSV</span>
           </Button>

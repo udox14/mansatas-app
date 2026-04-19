@@ -186,21 +186,21 @@ export function ImportModalSiswa() {
         </DialogTrigger>
         <DialogContent className="sm:max-w-lg rounded-xl">
           <DialogHeader className="border-b pb-3">
-            <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 flex items-center gap-2">
               <FileSpreadsheet className="h-4 w-4 text-emerald-600" /> Import Biodata Siswa
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3 pt-1">
             {pesan && (
-              <div className={`p-2.5 text-xs rounded-lg border flex items-start gap-2 ${pesan.tipe === 'error' ? 'text-rose-600 bg-rose-50 border-rose-100' : 'text-emerald-700 bg-emerald-50 border-emerald-100'}`}>
+              <div className={`p-2.5 text-xs rounded-lg border flex items-start gap-2 ${pesan.tipe === 'error' ? 'text-rose-600 bg-rose-50 border-rose-100' : 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-100'}`}>
                 {pesan.tipe === 'error' ? <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" /> : <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 shrink-0" />}
                 {pesan.teks}
               </div>
             )}
 
             <div className="flex items-center justify-between p-3 bg-surface-2 border border-surface-2 rounded-lg">
-              <p className="text-xs text-slate-600 dark:text-slate-300">Download format Excel PPDB terlebih dahulu:</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300">Download format Excel PPDB terlebih dahulu:</p>
               <Button
                 size="sm"
                 variant="outline"
@@ -215,9 +215,9 @@ export function ImportModalSiswa() {
               </Button>
             </div>
 
-            <div className="bg-emerald-50 border border-emerald-100 p-3 rounded-lg text-xs text-emerald-800 space-y-1">
-              <p className="font-semibold text-emerald-700">Smart Upsert aktif</p>
-              <p className="text-emerald-700/80">Jika siswa sudah ada (cocok NISN atau nama), sistem akan <strong>melengkapi data</strong> tanpa duplikasi.</p>
+            <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 p-3 rounded-lg text-xs text-emerald-800 dark:text-emerald-400 space-y-1">
+              <p className="font-semibold text-emerald-700 dark:text-emerald-400">Smart Upsert aktif</p>
+              <p className="text-emerald-700 dark:text-emerald-400/80">Jika siswa sudah ada (cocok NISN atau nama), sistem akan <strong>melengkapi data</strong> tanpa duplikasi.</p>
             </div>
 
             <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg text-xs text-blue-800">
@@ -234,7 +234,7 @@ export function ImportModalSiswa() {
             />
 
             {isImporting && (
-              <div className="flex items-center justify-center gap-2 p-2.5 text-xs text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100 animate-pulse">
+              <div className="flex items-center justify-center gap-2 p-2.5 text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-100 animate-pulse">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Memproses data biodata...
               </div>
             )}

@@ -20,7 +20,7 @@ const ROLE_COLORS_MAP: Record<string, { bg: string; text: string; border: string
   admin_tu:   { bg: 'bg-violet-50',  text: 'text-violet-700',  border: 'border-violet-200',  dot: 'bg-violet-500' },
   kepsek:     { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   dot: 'bg-amber-500' },
   wakamad:    { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',    dot: 'bg-blue-500' },
-  guru:       { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+  guru:       { bg: 'bg-emerald-50 dark:bg-emerald-950/50', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-800', dot: 'bg-emerald-500' },
   guru_bk:    { bg: 'bg-cyan-50',   text: 'text-cyan-700',    border: 'border-cyan-200',    dot: 'bg-cyan-500' },
   guru_piket: { bg: 'bg-teal-50',   text: 'text-teal-700',    border: 'border-teal-200',    dot: 'bg-teal-500' },
   wali_kelas: { bg: 'bg-indigo-50', text: 'text-indigo-700',  border: 'border-indigo-200',  dot: 'bg-indigo-500' },
@@ -32,7 +32,7 @@ const ROLE_COLORS_MAP: Record<string, { bg: string; text: string; border: string
   operator:   { bg: 'bg-sky-50',    text: 'text-sky-700',     border: 'border-sky-200',     dot: 'bg-sky-500' },
   bendahara_komite: { bg: 'bg-fuchsia-50', text: 'text-fuchsia-700', border: 'border-fuchsia-200', dot: 'bg-fuchsia-500' },
 }
-const DEFAULT_COLOR = { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', dot: 'bg-slate-500' }
+const DEFAULT_COLOR = { bg: 'bg-slate-50 dark:bg-slate-800', text: 'text-slate-700 dark:text-slate-300', border: 'border-slate-200 dark:border-slate-800', dot: 'bg-slate-500' }
 const CUSTOM_COLOR  = { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', dot: 'bg-orange-500' }
 
 const LOCKED_FEATURES = new Set(['dashboard', 'settings', 'settings-fitur'])
@@ -105,7 +105,7 @@ export function FiturClient({ initialMatrix, initialRoles }: FiturClientProps) {
             />
           </div>
         )}
-        <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+        <div className="flex items-center bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 rounded-lg p-0.5">
           {([
             { id: 'per-fitur', label: 'Per Fitur', icon: Layers },
             { id: 'per-role',  label: 'Per Role',  icon: Shield },
@@ -118,8 +118,8 @@ export function FiturClient({ initialMatrix, initialRoles }: FiturClientProps) {
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
                 viewMode === id
-                  ? 'bg-white dark:bg-slate-700 text-violet-700 dark:text-violet-300 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
+                  ? 'bg-white dark:bg-slate-900 dark:bg-slate-700 text-violet-700 dark:text-violet-300 shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
               )}
             >
               <Icon className="h-3.5 w-3.5" /> {label}
@@ -172,7 +172,7 @@ function RoleToggleBtn({ role, featureId, enabled, loading, locked, onToggle }: 
       disabled={loading || locked}
       className={cn(
         'flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-all duration-150',
-        enabled ? cn(colors.bg, colors.border) : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 opacity-50 hover:opacity-80',
+        enabled ? cn(colors.bg, colors.border) : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 dark:border-slate-700 opacity-50 hover:opacity-80',
         locked && 'cursor-not-allowed',
         !locked && !loading && 'hover:shadow-sm'
       )}
@@ -184,7 +184,7 @@ function RoleToggleBtn({ role, featureId, enabled, loading, locked, onToggle }: 
           <Check className="h-2.5 w-2.5 text-white" />
         </div>
       ) : (
-        <div className="h-4 w-4 rounded border-2 border-slate-300 dark:border-slate-600 shrink-0" />
+        <div className="h-4 w-4 rounded border-2 border-slate-300 dark:border-slate-700 dark:border-slate-600 shrink-0" />
       )}
       <span className={cn('text-xs font-medium truncate', enabled ? colors.text : 'text-slate-400 dark:text-slate-500')}>
         {role.label}
@@ -216,10 +216,10 @@ function PerFiturView({ features, matrix, roles, pendingKeys, onToggle, getEnabl
                 <Icon className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{feature.title}</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{feature.title}</p>
                 <p className="text-[10px] text-slate-400">{feature.href}</p>
               </div>
-              <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 px-2 py-0.5 rounded-full">
                 {count}/{roles.length} role
               </span>
             </div>
@@ -270,12 +270,12 @@ function PerRoleView({ features, matrix, roles, pendingKeys, onToggle, getFeatur
               onClick={() => setSelectedRole(role.value)}
               className={cn(
                 'flex flex-col items-start gap-1 px-3 py-2.5 rounded-xl border transition-all duration-150',
-                isSelected ? cn(rc.bg, rc.border, 'shadow-sm ring-2 ring-offset-1 ring-slate-300') : 'bg-surface border-surface hover:border-slate-300 hover:shadow-sm'
+                isSelected ? cn(rc.bg, rc.border, 'shadow-sm ring-2 ring-offset-1 ring-slate-300') : 'bg-surface border-surface hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm'
               )}
             >
               <div className="flex items-center gap-2 w-full">
                 <div className={cn('h-2 w-2 rounded-full shrink-0', rc.dot)} />
-                <span className={cn('text-xs font-semibold truncate', isSelected ? rc.text : 'text-slate-600 dark:text-slate-300')}>
+                <span className={cn('text-xs font-semibold truncate', isSelected ? rc.text : 'text-slate-600 dark:text-slate-400 dark:text-slate-300')}>
                   {role.label}
                 </span>
                 {role.is_custom === 1 && <span className="text-[8px] font-bold text-orange-500 ml-auto">★</span>}
@@ -311,22 +311,22 @@ function PerRoleView({ features, matrix, roles, pendingKeys, onToggle, getFeatur
                   disabled={pendingKeys.has(key) || locked}
                   className={cn(
                     'flex items-center gap-2.5 px-3 py-2.5 rounded-lg border transition-all duration-150 text-left',
-                    enabled ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 opacity-60 hover:opacity-90',
+                    enabled ? 'bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 dark:border-slate-700 opacity-60 hover:opacity-90',
                     locked && 'cursor-not-allowed'
                   )}
                 >
-                  <div className={cn('p-1 rounded shrink-0', enabled ? 'bg-emerald-100 dark:bg-emerald-900/50' : 'bg-slate-100 dark:bg-slate-800')}>
+                  <div className={cn('p-1 rounded shrink-0', enabled ? 'bg-emerald-100 dark:bg-emerald-900/50' : 'bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800')}>
                     <Icon className={cn('h-3.5 w-3.5', enabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400')} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={cn('text-xs font-medium truncate', enabled ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400')}>{feature.title}</p>
+                    <p className={cn('text-xs font-medium truncate', enabled ? 'text-slate-800 dark:text-slate-200 dark:text-slate-100' : 'text-slate-400')}>{feature.title}</p>
                   </div>
                   {pendingKeys.has(key) ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 shrink-0" />
                   ) : (
                     <div className={cn(
                       'h-[18px] w-[18px] rounded-full flex items-center justify-center shrink-0',
-                      enabled ? 'bg-emerald-500' : 'border-2 border-slate-300 dark:border-slate-600'
+                      enabled ? 'bg-emerald-500' : 'border-2 border-slate-300 dark:border-slate-700 dark:border-slate-600'
                     )}>
                       {enabled && <Check className="h-2.5 w-2.5 text-white" />}
                     </div>
@@ -421,7 +421,7 @@ function RoleManagerView({ roles, setRoles, matrix, setMatrix }: {
         </div>
       )}
       {successMsg && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 text-xs">
+        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-lg text-emerald-700 dark:text-emerald-400 text-xs">
           <Check className="h-3.5 w-3.5 shrink-0" /> {successMsg}
         </div>
       )}
@@ -477,7 +477,7 @@ function RoleManagerView({ roles, setRoles, matrix, setMatrix }: {
       {customRoles.length > 0 && (
         <div className="bg-surface border border-surface rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-surface-2">
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Role Custom ({customRoles.length})</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Role Custom ({customRoles.length})</p>
             <p className="text-[10px] text-slate-400 mt-0.5">Role yang dibuat oleh admin. Dapat diedit atau dihapus.</p>
           </div>
           <div className="divide-y divide-surface-2">
@@ -498,20 +498,20 @@ function RoleManagerView({ roles, setRoles, matrix, setMatrix }: {
                     <Button size="sm" onClick={() => handleEdit(role.value)} disabled={isPending} className="h-8 text-xs bg-emerald-600 text-white rounded-md px-3">
                       {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Simpan'}
                     </Button>
-                    <button onClick={() => setEditingRole(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
+                    <button onClick={() => setEditingRole(null)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-400">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
                 ) : (
                   <>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{role.label}</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{role.label}</p>
                       <p className="text-[10px] font-mono text-slate-400">{role.value} · {matrix[role.value]?.length ?? 0} fitur aktif</p>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => { setEditingRole(role.value); setEditLabel(role.label) }}
-                        className="p-1.5 rounded hover:bg-emerald-50 text-emerald-600 transition-colors"
+                        className="p-1.5 rounded hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-emerald-600 transition-colors"
                         title="Edit nama"
                       >
                         <Pencil className="h-3.5 w-3.5" />
@@ -535,7 +535,7 @@ function RoleManagerView({ roles, setRoles, matrix, setMatrix }: {
       {/* Default Roles */}
       <div className="bg-surface border border-surface rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b border-surface-2">
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Role Default ({defaultRoles.length})</p>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Role Default ({defaultRoles.length})</p>
           <p className="text-[10px] text-slate-400 mt-0.5">Role bawaan sistem. Nama bisa diedit, namun tidak bisa dihapus.</p>
         </div>
         <div className="divide-y divide-surface-2">
@@ -558,7 +558,7 @@ function RoleManagerView({ roles, setRoles, matrix, setMatrix }: {
                     <Button size="sm" onClick={() => handleEdit(role.value)} disabled={isPending} className="h-8 text-xs bg-emerald-600 text-white rounded-md px-3">
                       {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Simpan'}
                     </Button>
-                    <button onClick={() => setEditingRole(null)} className="p-1.5 text-slate-400 hover:text-slate-600">
+                    <button onClick={() => setEditingRole(null)} className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-400">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -570,7 +570,7 @@ function RoleManagerView({ roles, setRoles, matrix, setMatrix }: {
                     </div>
                     <button
                       onClick={() => { setEditingRole(role.value); setEditLabel(role.label) }}
-                      className="p-1.5 rounded hover:bg-emerald-50 text-emerald-600 transition-colors shrink-0"
+                      className="p-1.5 rounded hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-emerald-600 transition-colors shrink-0"
                       title="Edit nama tampil"
                     >
                       <Pencil className="h-3.5 w-3.5" />
@@ -649,10 +649,10 @@ function NavbarView({ roles, setRoles, matrix }: {
                 onClick={() => setSelectedRole(role.value)}
                 className={cn(
                   'w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all text-left',
-                  isSelected ? 'bg-violet-50 border-violet-300 ring-2 ring-violet-100' : 'bg-surface border-surface-2 hover:bg-slate-50'
+                  isSelected ? 'bg-violet-50 border-violet-300 ring-2 ring-violet-100' : 'bg-surface border-surface-2 hover:bg-slate-50 dark:hover:bg-slate-800'
                 )}
               >
-                <span className={cn('text-xs font-semibold', isSelected ? 'text-violet-700' : 'text-slate-600')}>{role.label}</span>
+                <span className={cn('text-xs font-semibold', isSelected ? 'text-violet-700' : 'text-slate-600 dark:text-slate-400')}>{role.label}</span>
                 {JSON.parse(role.mobile_nav_links || '[]').length > 0 && (
                   <div className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
                 )}
@@ -665,7 +665,7 @@ function NavbarView({ roles, setRoles, matrix }: {
         {selectedRoleData && (
           <div className="md:col-span-3 bg-surface border border-surface rounded-xl overflow-hidden p-5 space-y-4 relative">
              {isSaving && (
-               <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-sm flex items-center justify-center">
+               <div className="absolute inset-0 z-10 bg-white dark:bg-slate-900/50 backdrop-blur-sm flex items-center justify-center">
                   <Loader2 className="h-6 w-6 animate-spin text-violet-600" />
                </div>
              )}
@@ -698,7 +698,7 @@ function NavbarView({ roles, setRoles, matrix }: {
                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Tambahkan Jalan Pintas</p>
                <Select onValueChange={addNavLink} value="" disabled={currentNavLinks.length >= 5}>
                  <SelectTrigger className="w-[300px] h-9 text-xs bg-surface border-surface-2 rounded-lg">
-                   <div className="flex items-center gap-2 text-slate-500">
+                   <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
                      <Plus className="h-3.5 w-3.5" /> {currentNavLinks.length >= 5 ? "Kapasitas penuh (maks 5)" : "Pilih dari fitur yang diizinkan..."}
                    </div>
                  </SelectTrigger>

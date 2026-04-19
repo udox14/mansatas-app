@@ -36,7 +36,7 @@ function WaliKelasSelector({ value, onChange, daftarGuru, disabled }: { value: s
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex items-center justify-between w-full h-8 px-2.5 border rounded text-xs font-medium transition-colors disabled:opacity-50",
-          isOpen ? 'bg-surface border-blue-400 ring-1 ring-blue-200' : 'bg-surface-2 border-surface hover:bg-surface text-slate-700 dark:text-slate-200'
+          isOpen ? 'bg-surface border-blue-400 ring-1 ring-blue-200' : 'bg-surface-2 border-surface hover:bg-surface text-slate-700 dark:text-slate-300 dark:text-slate-200'
         )}
       >
         <span className="truncate">{selected ? selected.nama_lengkap : <span className="text-slate-400 dark:text-slate-500 italic">— Kosong —</span>}</span>
@@ -56,7 +56,7 @@ function WaliKelasSelector({ value, onChange, daftarGuru, disabled }: { value: s
               <div onClick={() => { onChange('none'); setIsOpen(false) }} className="px-2.5 py-1.5 text-xs text-slate-400 dark:text-slate-500 italic hover:bg-surface-2 rounded cursor-pointer">— Kosongkan —</div>
               {filtered.map(g => (
                 <div key={g.id} onClick={() => { onChange(g.id); setIsOpen(false) }}
-                  className={cn("px-2.5 py-1.5 text-xs rounded cursor-pointer transition-colors", value === g.id ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-surface-2 text-slate-700 dark:text-slate-200')}
+                  className={cn("px-2.5 py-1.5 text-xs rounded cursor-pointer transition-colors", value === g.id ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-surface-2 text-slate-700 dark:text-slate-300 dark:text-slate-200')}
                 >{g.nama_lengkap}</div>
               ))}
               {filtered.length === 0 && <div className="px-2.5 py-3 text-center text-xs text-slate-400 dark:text-slate-500">Tidak ditemukan</div>}
@@ -156,12 +156,12 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
         <div className="flex items-center gap-2 bg-surface border border-surface rounded-lg px-3 py-2">
           <Library className="h-4 w-4 text-blue-500" />
           <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Total Kelas</span>
-          <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{sortedData.length}</span>
+          <span className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">{sortedData.length}</span>
         </div>
         <div className="flex items-center gap-2 bg-surface border border-surface rounded-lg px-3 py-2">
           <Users className="h-4 w-4 text-emerald-500" />
           <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">Siswa</span>
-          <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{sortedData.reduce((a, k) => a + k.jumlah_siswa, 0)}</span>
+          <span className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">{sortedData.reduce((a, k) => a + k.jumlah_siswa, 0)}</span>
         </div>
       </div>
 
@@ -188,7 +188,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
               {/* Header row */}
               <div className="flex items-center justify-between cursor-pointer" onClick={() => router.push(`/dashboard/kelas/${k.id}`)}>
                 <div>
-                  <span className="text-lg font-bold text-slate-800 dark:text-slate-100">{formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}</span>
+                  <span className="text-lg font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">{formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}</span>
                   {!isJurusanValid && (
                     <span className="ml-2 text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">
                       <AlertTriangle className="h-2.5 w-2.5 inline mr-0.5" />Usang
@@ -196,7 +196,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 dark:text-slate-300 dark:text-slate-600 border-surface')}>
+                  <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 border-surface')}>
                     {k.jumlah_siswa}/{k.kapasitas}
                   </span>
                   <ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500" />
@@ -272,7 +272,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
                   isRowPending ? 'bg-blue-50/40 border-l-2 border-l-blue-400' : 'hover:bg-surface-2/60'
                 )}>
                   <TableCell className="px-4 py-2.5 cursor-pointer" onClick={() => router.push(`/dashboard/kelas/${k.id}`)}>
-                    <span className="text-base font-bold text-slate-800 dark:text-slate-100 group-hover:text-blue-700 transition-colors">
+                    <span className="text-base font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 group-hover:text-blue-700 transition-colors">
                       {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}
                     </span>
                     {!isJurusanValid && <AlertTriangle className="h-3 w-3 text-rose-500 inline ml-1" />}
@@ -295,7 +295,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
                   </TableCell>
                   <TableCell className="py-2.5">
                     <div className="flex flex-col items-center gap-1">
-                      <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 dark:text-slate-300 dark:text-slate-600 border-surface')}>
+                      <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 border-surface')}>
                         {k.jumlah_siswa} / {k.kapasitas}
                       </span>
                       <div className="w-20 h-1.5 bg-surface-3 rounded-full overflow-hidden">

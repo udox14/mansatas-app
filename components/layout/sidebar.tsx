@@ -15,7 +15,7 @@ const SIDEBAR_THEMES = [
   { id: 'slate', label: 'Hitam', sidebarBg: 'bg-slate-900', sidebarDarkBg: 'dark:bg-slate-950', text: 'text-slate-300', textMuted: 'text-slate-500', activeBg: 'bg-white/10', activeText: 'text-white', hoverBg: 'hover:bg-white/5', hoverText: 'hover:text-white', border: 'border-slate-800', swatch: 'bg-slate-500', ring: 'ring-slate-400', scrollbarThumb: '#94a3b8' },
   { id: 'purple', label: 'Ungu', sidebarBg: 'bg-purple-950', sidebarDarkBg: 'dark:bg-[#200b4a]', text: 'text-purple-100', textMuted: 'text-purple-400/80', activeBg: 'bg-purple-500/30', activeText: 'text-white', hoverBg: 'hover:bg-purple-500/15', hoverText: 'hover:text-white', border: 'border-purple-800/50', swatch: 'bg-purple-500', ring: 'ring-purple-400', scrollbarThumb: '#a78bfa' },
   { id: 'rose', label: 'Merah', sidebarBg: 'bg-rose-950', sidebarDarkBg: 'dark:bg-[#330311]', text: 'text-rose-100', textMuted: 'text-rose-400/80', activeBg: 'bg-rose-500/30', activeText: 'text-white', hoverBg: 'hover:bg-rose-500/15', hoverText: 'hover:text-white', border: 'border-rose-800/50', swatch: 'bg-rose-500', ring: 'ring-rose-400', scrollbarThumb: '#fb7185' },
-  { id: 'teal', label: 'Teal', sidebarBg: 'bg-teal-950', sidebarDarkBg: 'dark:bg-[#022120]', text: 'text-teal-100', textMuted: 'text-teal-400/80', activeBg: 'bg-teal-500/30', activeText: 'text-white', hoverBg: 'hover:bg-teal-500/15', hoverText: 'hover:text-white', border: 'border-teal-800/50', swatch: 'bg-teal-500', ring: 'ring-teal-400', scrollbarThumb: '#2dd4bf' },
+  { id: 'amber', label: 'Senja', sidebarBg: 'bg-orange-950', sidebarDarkBg: 'dark:bg-[#2e1005]', text: 'text-orange-100', textMuted: 'text-orange-400/80', activeBg: 'bg-orange-500/30', activeText: 'text-white', hoverBg: 'hover:bg-orange-500/15', hoverText: 'hover:text-white', border: 'border-orange-800/50', swatch: 'bg-orange-500', ring: 'ring-orange-400', scrollbarThumb: '#fb923c' },
 ]
 
 type ThemeKey = typeof SIDEBAR_THEMES[number]['id']
@@ -302,7 +302,7 @@ export function Sidebar({
       <aside className={cn(
         'hidden lg:flex flex-col h-[100dvh] border-r shrink-0 sticky top-0 transition-all duration-300 ease-in-out relative',
         theme.sidebarBg, theme.sidebarDarkBg, theme.border,
-        isCollapsed ? 'w-[72px]' : 'w-64'
+        isCollapsed ? 'w-[60px]' : 'w-56'
       )}>
         {renderNavContent()}
         <button onClick={toggleCollapse}
@@ -317,7 +317,7 @@ export function Sidebar({
 
       {/* Mobile drawer */}
       <aside className={cn(
-        'fixed top-0 left-0 z-50 h-[100dvh] w-64 border-r flex flex-col lg:hidden transition-transform duration-300 ease-in-out shadow-2xl',
+        'fixed top-0 left-0 z-50 h-[100dvh] w-60 border-r flex flex-col lg:hidden transition-transform duration-300 ease-in-out shadow-2xl',
         theme.sidebarBg, theme.sidebarDarkBg, theme.border,
         isOpen ? 'translate-x-0' : '-translate-x-full'
       )}>

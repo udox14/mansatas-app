@@ -25,7 +25,7 @@ interface Props {
 
 const STATUS_CYCLE: Array<SiswaAbsensi['status']> = ['HADIR', 'SAKIT', 'ALFA', 'IZIN']
 const STATUS_UI: Record<string, { bg: string; text: string; icon: any; label: string; border: string }> = {
-  HADIR: { bg: 'bg-emerald-50', text: 'text-emerald-700', icon: CheckCircle2, label: 'Hadir', border: 'border-emerald-200' },
+  HADIR: { bg: 'bg-emerald-50 dark:bg-emerald-950/50', text: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle2, label: 'Hadir', border: 'border-emerald-200 dark:border-emerald-800' },
   SAKIT: { bg: 'bg-amber-50', text: 'text-amber-700', icon: Thermometer, label: 'Sakit', border: 'border-amber-200' },
   ALFA:  { bg: 'bg-red-50', text: 'text-red-700', icon: XCircle, label: 'Alfa', border: 'border-red-200' },
   IZIN:  { bg: 'bg-blue-50', text: 'text-blue-700', icon: ShieldAlert, label: 'Izin', border: 'border-blue-200' },
@@ -123,19 +123,19 @@ export function AbsensiClient({ initialData }: Props) {
         {/* Header */}
         <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b pb-2 -mx-1 px-1">
           <div className="flex items-center gap-2 mb-1.5">
-            <button onClick={closeBlock} className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800">
-              <ArrowLeft className="h-4 w-4 text-slate-500" />
+            <button onClick={closeBlock} className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800/80 dark:hover:bg-slate-800">
+              <ArrowLeft className="h-4 w-4 text-slate-500 dark:text-slate-400" />
             </button>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{activeBlock.mapel_nama}</p>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{activeBlock.mapel_nama}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 {activeBlock.kelas_label} &middot; Jam {activeBlock.jam_ke_mulai === activeBlock.jam_ke_selesai ? activeBlock.jam_ke_mulai : `${activeBlock.jam_ke_mulai}-${activeBlock.jam_ke_selesai}`} ({activeBlock.slot_mulai}—{activeBlock.slot_selesai})
               </p>
             </div>
           </div>
           {/* Quick stats */}
           <div className="flex gap-1.5 flex-wrap">
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">Hadir: {hadir}</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-medium">Hadir: {hadir}</span>
             {(counts.SAKIT || 0) > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Sakit: {counts.SAKIT}</span>}
             {(counts.ALFA || 0) > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Alfa: {counts.ALFA}</span>}
             {(counts.IZIN || 0) > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">Izin: {counts.IZIN}</span>}
@@ -143,7 +143,7 @@ export function AbsensiClient({ initialData }: Props) {
           {/* Bulk actions */}
           <div className="flex gap-1.5 mt-2">
             <button onClick={() => { setSiswaList(prev => prev.map(s => ({ ...s, status: 'HADIR' }))); setHasChanges(true) }}
-              className="text-[10px] px-2 py-1 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-medium">Semua Hadir</button>
+              className="text-[10px] px-2 py-1 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 font-medium">Semua Hadir</button>
             <button onClick={() => { setSiswaList(prev => prev.map(s => ({ ...s, status: 'ALFA' }))); setHasChanges(true) }}
               className="text-[10px] px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 font-medium">Semua Alfa</button>
           </div>
@@ -158,7 +158,7 @@ export function AbsensiClient({ initialData }: Props) {
 
         {/* Pesan */}
         {pesan && (
-          <div className={`rounded-lg border px-3 py-2 text-xs ${pesan.tipe === 'sukses' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+          <div className={`rounded-lg border px-3 py-2 text-xs ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
             {pesan.teks}
           </div>
         )}
@@ -177,7 +177,7 @@ export function AbsensiClient({ initialData }: Props) {
 
                 {/* Name + info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-slate-800 dark:text-slate-100 truncate leading-tight">{s.nama_lengkap}</p>
+                  <p className="text-[13px] font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate leading-tight">{s.nama_lengkap}</p>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] text-slate-400">{s.nisn}</span>
                     {s.ada_izin && (
@@ -198,7 +198,7 @@ export function AbsensiClient({ initialData }: Props) {
                 {/* Note toggle */}
                 <button
                   onClick={() => setExpandedNote(noteOpen ? null : s.siswa_id)}
-                  className={`p-1.5 rounded-md shrink-0 ${s.catatan ? 'text-amber-500' : 'text-slate-300'} hover:bg-white/50`}
+                  className={`p-1.5 rounded-md shrink-0 ${s.catatan ? 'text-amber-500' : 'text-slate-300'} hover:bg-white dark:hover:bg-slate-900/50`}
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
                 </button>
@@ -213,7 +213,7 @@ export function AbsensiClient({ initialData }: Props) {
                     <button
                       key={st}
                       onClick={() => setStatus(s.siswa_id, st)}
-                      className={`flex-1 py-1.5 text-[10px] font-medium text-center transition-colors ${active ? `${u.text} font-bold` : 'text-slate-400 hover:text-slate-600'}`}
+                      className={`flex-1 py-1.5 text-[10px] font-medium text-center transition-colors ${active ? `${u.text} font-bold` : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-400'}`}
                     >
                       {u.label}
                     </button>
@@ -229,7 +229,7 @@ export function AbsensiClient({ initialData }: Props) {
                     value={s.catatan}
                     onChange={e => setCatatan(s.siswa_id, e.target.value)}
                     placeholder="Catatan (opsional)..."
-                    className="w-full text-xs bg-white/70 border border-slate-200 rounded-md px-2.5 py-1.5 placeholder:text-slate-400 focus:outline-none focus:border-slate-400"
+                    className="w-full text-xs bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-md px-2.5 py-1.5 placeholder:text-slate-400 focus:outline-none focus:border-slate-400"
                   />
                 </div>
               )}
@@ -261,21 +261,21 @@ export function AbsensiClient({ initialData }: Props) {
 
   // ── VIEW: DAFTAR BLOK MENGAJAR ──
   if (blocks.length === 0) return (
-    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-10 text-center">
+    <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-10 text-center">
       <BookOpen className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-      <p className="text-sm text-slate-500">Tidak ada jadwal mengajar hari ini ({hariNama}).</p>
+      <p className="text-sm text-slate-500 dark:text-slate-400">Tidak ada jadwal mengajar hari ini ({hariNama}).</p>
     </div>
   )
 
   return (
     <div className="space-y-3">
       {/* Date header */}
-      <div className="flex items-center justify-between rounded-lg border bg-white dark:bg-slate-800 px-4 py-3">
+      <div className="flex items-center justify-between rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 px-4 py-3">
         <div>
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">
             {hariNama}, {new Date(tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
-          <p className="text-[11px] text-slate-500">{blocks.length} kelas untuk diabsen</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{blocks.length} kelas untuk diabsen</p>
         </div>
         <Button variant="outline" size="sm" onClick={refresh} disabled={isRefreshing}>
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh
@@ -283,7 +283,7 @@ export function AbsensiClient({ initialData }: Props) {
       </div>
 
       {pesan && (
-        <div className={`rounded-lg border px-3 py-2 text-xs ${pesan.tipe === 'sukses' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+        <div className={`rounded-lg border px-3 py-2 text-xs ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
           {pesan.teks}
         </div>
       )}
@@ -293,30 +293,30 @@ export function AbsensiClient({ initialData }: Props) {
         <button
           key={block.penugasan_id}
           onClick={() => openBlock(block)}
-          className="w-full text-left rounded-lg border bg-white dark:bg-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700 p-4 transition-colors active:scale-[0.99]"
+          className="w-full text-left rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700 p-4 transition-colors active:scale-[0.99]"
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{block.mapel_nama}</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{block.mapel_nama}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                 {block.kelas_label} &middot;{' '}
                 {block.jam_ke_mulai === block.jam_ke_selesai ? `Jam ${block.jam_ke_mulai}` : `Jam ${block.jam_ke_mulai}-${block.jam_ke_selesai}`}
                 {' '}({block.jumlah_jam} JP) &middot; {block.slot_mulai}—{block.slot_selesai}
               </p>
             </div>
             {block.sudah_absen ? (
-              <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium border border-emerald-200">
+              <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-medium border border-emerald-200 dark:border-emerald-800">
                 {block.tidak_hadir > 0 ? `${block.tidak_hadir} tdk hadir` : '✓ Semua hadir'}
               </span>
             ) : (
-              <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium border border-slate-200">
+              <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 font-medium border border-slate-200 dark:border-slate-800">
                 Belum diabsen
               </span>
             )}
           </div>
           <div className="flex items-center gap-1.5 mt-2">
             <Users className="h-3 w-3 text-slate-400" />
-            <span className="text-[11px] text-slate-500">{block.total_siswa} siswa</span>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">{block.total_siswa} siswa</span>
           </div>
         </button>
       ))}

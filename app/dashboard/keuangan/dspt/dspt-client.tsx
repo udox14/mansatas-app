@@ -40,10 +40,10 @@ interface DsptRow {
 }
 
 const STATUS_MAP = {
-  lunas:       { label: 'Lunas',          icon: CheckCircle2, cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  lunas:       { label: 'Lunas',          icon: CheckCircle2, cls: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-900/30 dark:text-emerald-400' },
   nyicil:      { label: 'Nyicil',         icon: Clock,        cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
   belum_bayar: { label: 'Belum Bayar',    icon: XCircle,      cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' },
-  tidak_ada:   { label: 'Belum Diinput',  icon: Minus,        cls: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' },
+  tidak_ada:   { label: 'Belum Diinput',  icon: Minus,        cls: 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 dark:bg-slate-800 dark:text-slate-400' },
 }
 
 async function parseExcelFile(file: File): Promise<any[]> {
@@ -330,7 +330,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
         </div>
       </div>
 
-      {msg && <p className={`text-xs px-3 py-2 rounded-md ${msg.includes('berhasil') ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>{msg}</p>}
+      {msg && <p className={`text-xs px-3 py-2 rounded-md ${msg.includes('berhasil') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50' : 'text-rose-600 bg-rose-50'}`}>{msg}</p>}
 
       {/* Summary Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -341,7 +341,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           { label: 'Sisa Tunggakan', value: formatRupiah(totalSisa), color: 'text-rose-600 dark:text-rose-400' },
         ].map(s => (
           <div key={s.label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2">
-            <p className="text-[11px] text-slate-500">{s.label}</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">{s.label}</p>
             <p className={`text-sm font-bold ${s.color}`}>{s.value}</p>
           </div>
         ))}
@@ -383,8 +383,8 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
                     <p className="text-[11px] text-slate-400">{row.nisn ?? '-'}</p>
                   </TableCell>
-                  <TableCell className="text-sm text-slate-600 dark:text-slate-300">{row.tahun_masuk}</TableCell>
-                  <TableCell className="text-sm text-slate-600 dark:text-slate-300">
+                  <TableCell className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300">{row.tahun_masuk}</TableCell>
+                  <TableCell className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300">
                     {row.tingkat ? `${row.tingkat}-${row.nomor_kelas}${row.kelompok ? ' ' + row.kelompok : ''}` : '-'}
                   </TableCell>
                   <TableCell className="text-sm text-right font-medium">{belumInput ? '-' : formatRupiah(row.nominal_target ?? 0)}</TableCell>
@@ -404,13 +404,13 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
                           onClick={e => { e.stopPropagation(); openSetDspt(row) }}>Input</Button>
                       ) : (
                         <>
-                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700"
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
                             onClick={e => { e.stopPropagation(); openEditDspt(row) }} title="Edit">
                             <Pencil className="h-3 w-3" />
                           </Button>
                           {row.status !== 'lunas' && (
                             <Button size="sm" variant="ghost"
-                              className="h-6 text-[11px] px-2 gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                              className="h-6 text-[11px] px-2 gap-1 text-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
                               onClick={e => handleLunas(row, e)} disabled={isPending} title="Tandai Lunas">
                               <Check className="h-3 w-3" /> Lunas
                             </Button>
@@ -446,7 +446,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           <form onSubmit={handleSetDspt} className="p-5 space-y-4">
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{modalSiswa?.nama_lengkap}</p>
-              <p className="text-[11px] text-slate-500">{modalSiswa?.nisn ?? '-'} · Angkatan {modalSiswa?.tahun_masuk}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">{modalSiswa?.nisn ?? '-'} · Angkatan {modalSiswa?.tahun_masuk}</p>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Nominal Target DSPT (Rp)</Label>
@@ -477,7 +477,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           <form onSubmit={handleEditSave} className="p-5 space-y-4">
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{editModal?.nama_lengkap}</p>
-              <p className="text-[11px] text-slate-500">{editModal?.nisn ?? '-'} · Angkatan {editModal?.tahun_masuk}</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">{editModal?.nisn ?? '-'} · Angkatan {editModal?.tahun_masuk}</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -497,7 +497,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
               <Input value={editCatatan} onChange={e => setEditCatatan(e.target.value)} className="h-9 text-sm" placeholder="Anak guru, beasiswa, dll" />
             </div>
             {editModal && (
-              <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-[11px] text-slate-500 space-y-0.5">
+              <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5">
                 <p>Diskon: {formatRupiah(editModal.total_diskon ?? 0)}</p>
                 <p>Sisa setelah simpan: {formatRupiah(Math.max(0, (parseInt(editNominal) || 0) - (parseInt(editDibayar) || 0) - (editModal.total_diskon ?? 0)))}</p>
               </div>
@@ -520,7 +520,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
             <DialogTitle className="text-sm font-semibold">Set Nominal DSPT Massal</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleMassal} className="p-5 space-y-4">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Menentukan nominal target DSPT untuk seluruh siswa dalam angkatan terpilih.
               Siswa yang sudah ada record DSPT-nya akan diupdate nominalnya; yang belum ada akan dibuatkan otomatis.
             </p>
@@ -539,7 +539,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
                 className="h-9 text-sm" placeholder="Contoh: 5000000" autoFocus />
             </div>
             {massalMsg && (
-              <p className={`text-xs px-3 py-2 rounded-md ${massalMsg.includes('berhasil') ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>
+              <p className={`text-xs px-3 py-2 rounded-md ${massalMsg.includes('berhasil') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50' : 'text-rose-600 bg-rose-50'}`}>
                 {massalMsg}
               </p>
             )}
@@ -561,8 +561,8 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           </DialogHeader>
           <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
             {/* Download Template */}
-            <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 space-y-2.5">
-              <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Download Template Excel</p>
+            <div className="bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 space-y-2.5">
+              <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-400 dark:text-emerald-300">Download Template Excel</p>
               <p className="text-xs text-emerald-700 dark:text-emerald-400">Template sudah terisi nama & NISN semua siswa. Tinggal isi kolom nominalnya.</p>
               <div className="flex gap-2 items-center">
                 <Select value={templateAngkatan} onValueChange={setTemplateAngkatan}>
@@ -572,7 +572,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
                     {angkatanList.map(y => <SelectItem key={y} value={String(y)}>Angkatan {y}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50 whitespace-nowrap"
+                <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 whitespace-nowrap"
                   disabled={templateLoading}
                   onClick={async () => {
                     setTemplateLoading(true)
@@ -586,26 +586,26 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
             </div>
 
             <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
-              <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Upload File yang Sudah Diisi</p>
-              <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-xs text-slate-500 space-y-0.5 mb-3">
+              <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 mb-2">Upload File yang Sudah Diisi</p>
+              <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg p-3 text-xs text-slate-500 dark:text-slate-400 space-y-0.5 mb-3">
                 <p>Kolom yang dikenali: <strong>NISN</strong>, <strong>Nama Siswa</strong>, <strong>Nominal Target</strong>, <strong>Total Dibayar</strong>, <strong>Catatan</strong></p>
               </div>
             </div>
             <div>
               <Label className="text-xs font-medium mb-1.5 block">Pilih File (.xlsx / .xls)</Label>
               <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFileChange}
-                className="block w-full text-xs text-slate-600 file:mr-3 file:text-xs file:font-medium file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:rounded-md hover:file:bg-slate-200 cursor-pointer" />
+                className="block w-full text-xs text-slate-600 dark:text-slate-400 file:mr-3 file:text-xs file:font-medium file:border-0 file:bg-slate-100 dark:file:bg-slate-800/80 file:px-3 file:py-1.5 file:rounded-md hover:file:bg-slate-200 cursor-pointer" />
             </div>
             {importLoading && <p className="text-xs text-slate-400 animate-pulse">Membaca file...</p>}
             {importRows.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-slate-600 mb-2">{importRows.length} baris terdeteksi — preview 5 baris pertama:</p>
-                <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden overflow-x-auto">
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">{importRows.length} baris terdeteksi — preview 5 baris pertama:</p>
+                <div className="border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg overflow-hidden overflow-x-auto">
                   <table className="text-[11px] w-full">
                     <thead className="bg-slate-50 dark:bg-slate-800">
                       <tr>
                         {Object.keys(importRows[0]).map(k => (
-                          <th key={k} className="px-2 py-1.5 text-left font-medium text-slate-600 whitespace-nowrap border-b border-slate-200 dark:border-slate-700">{k}</th>
+                          <th key={k} className="px-2 py-1.5 text-left font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap border-b border-slate-200 dark:border-slate-800 dark:border-slate-700">{k}</th>
                         ))}
                       </tr>
                     </thead>
@@ -623,7 +623,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
               </div>
             )}
             {importMsg && (
-              <p className={`text-xs px-3 py-2 rounded-md ${importMsg.includes('berhasil') && !importMsg.startsWith('0') ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>
+              <p className={`text-xs px-3 py-2 rounded-md ${importMsg.includes('berhasil') && !importMsg.startsWith('0') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50' : 'text-rose-600 bg-rose-50'}`}>
                 {importMsg}
               </p>
             )}
@@ -655,10 +655,10 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
               </div>
             </div>
             {addResults.length > 0 && (
-              <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden max-h-40 overflow-y-auto">
+              <div className="border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg overflow-hidden max-h-40 overflow-y-auto">
                 {addResults.map((s: any) => (
                   <button key={s.id} type="button" onClick={() => setAddSelected(s)}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 border-b last:border-b-0 border-slate-100 dark:border-slate-700 transition-colors ${addSelected?.id === s.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 border-b last:border-b-0 border-slate-100 dark:border-slate-800 dark:border-slate-700 transition-colors ${addSelected?.id === s.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
                     <p className="font-medium text-slate-900 dark:text-slate-50">{s.nama_lengkap}</p>
                     <p className="text-[11px] text-slate-400">{s.nisn ?? '-'} · {s.tingkat ? `Kelas ${s.tingkat}` : 'Kelas -'} · Angkatan {s.tahun_masuk}</p>
                   </button>

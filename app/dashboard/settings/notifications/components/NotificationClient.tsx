@@ -108,7 +108,7 @@ function CheckboxPeserta({
 
       {/* Select All */}
       <div className="flex items-center justify-between px-1">
-        <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-600">
+        <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-400">
           <input
             type="checkbox"
             checked={allChecked}
@@ -122,7 +122,7 @@ function CheckboxPeserta({
       </div>
 
       {/* Scrollable List */}
-      <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-y-auto max-h-48 divide-y divide-slate-100 dark:divide-slate-800">
+      <div className="border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg overflow-y-auto max-h-48 divide-y divide-slate-100 dark:divide-slate-800">
         {filtered.length === 0 ? (
           <div className="py-6 text-center text-xs text-slate-400">Tidak ada pengguna ditemukan.</div>
         ) : (
@@ -138,7 +138,7 @@ function CheckboxPeserta({
                 className="rounded shrink-0"
               />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-slate-800 dark:text-slate-100 truncate">{u.nama_lengkap}</p>
+                <p className="text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{u.nama_lengkap}</p>
                 <p className="text-[10px] text-slate-400">{getRoleLabel(u.role)}</p>
               </div>
             </label>
@@ -202,7 +202,7 @@ export function NotificationClient({ roles = [], allUsers = [], diagnostics }: {
         >
           <div className="flex items-center gap-2 mb-2">
             <Send className="h-4 w-4 text-blue-500" />
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-tight">Form Broadcast</h3>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 uppercase tracking-tight">Form Broadcast</h3>
           </div>
 
           {state?.error && (
@@ -211,21 +211,21 @@ export function NotificationClient({ roles = [], allUsers = [], diagnostics }: {
             </div>
           )}
           {state?.success && (
-            <div className="p-3 text-sm text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-100 flex gap-2">
+            <div className="p-3 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-100 flex gap-2">
               <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" /> {state.success}
             </div>
           )}
 
           {/* Judul */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-500">Judul Notifikasi</Label>
+            <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Judul Notifikasi</Label>
             <Input name="title" required placeholder="Cth: Pengumuman Rapat Dinas" className="h-9 text-sm rounded-lg" />
           </div>
 
           {/* Target cepat + role */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-500">Preset Target</Label>
+              <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Preset Target</Label>
               <Select value={targetType} onValueChange={handleTargetTypeChange}>
                 <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -238,7 +238,7 @@ export function NotificationClient({ roles = [], allUsers = [], diagnostics }: {
 
             {targetType === 'role' && (
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-slate-500">Role</Label>
+                <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Role</Label>
                 <Select value={targetRole} onValueChange={handleTargetRoleChange}>
                   <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -249,7 +249,7 @@ export function NotificationClient({ roles = [], allUsers = [], diagnostics }: {
             )}
 
             <div className={cn('space-y-1.5 col-span-2 sm:col-span-1', targetType === 'role' ? 'sm:col-span-1' : '')}>
-              <Label className="text-xs font-medium text-slate-500 flex items-center gap-1">
+              <Label className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
                 <Users className="h-3.5 w-3.5" /> Penerima
                 <span className="text-slate-400 font-normal">({selectedIds.size} dipilih)</span>
               </Label>
@@ -266,13 +266,13 @@ export function NotificationClient({ roles = [], allUsers = [], diagnostics }: {
 
           {/* Isi Pesan */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-500">Isi Pesan / Body</Label>
+            <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Isi Pesan / Body</Label>
             <Textarea name="body" required rows={3} placeholder="Tulis pesan lengkap di sini..." className="resize-none text-sm rounded-lg min-h-[80px]" />
           </div>
 
           {/* URL */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-500">URL Tujuan (Internal Path)</Label>
+            <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">URL Tujuan (Internal Path)</Label>
             <Input name="url" defaultValue="/dashboard" placeholder="/dashboard" className="h-9 text-sm rounded-lg" />
           </div>
 
@@ -285,7 +285,7 @@ export function NotificationClient({ roles = [], allUsers = [], diagnostics }: {
         <div className="rounded-xl border border-surface bg-surface-2/30 p-4 sm:p-5">
           <div className="flex items-center gap-2 mb-4">
             <Monitor className="h-4 w-4 text-slate-400" />
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Status Subscriber</h3>
+            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Status Subscriber</h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
@@ -295,19 +295,19 @@ export function NotificationClient({ roles = [], allUsers = [], diagnostics }: {
               </div>
               <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">Total Devices</p>
-                <p className="text-xl font-black text-slate-900 dark:text-white leading-none">
+                <p className="text-xl font-black text-slate-900 dark:text-slate-50 dark:text-white leading-none">
                   {diagnostics.totalDevices}
                 </p>
               </div>
             </div>
 
             <div className="bg-surface border border-surface rounded-xl p-3 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+              <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center shrink-0">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">Akun Aktif</p>
-                <p className="text-xl font-black text-slate-900 dark:text-white leading-none">
+                <p className="text-xl font-black text-slate-900 dark:text-slate-50 dark:text-white leading-none">
                   {subscribedUsers.length} <span className="text-[10px] font-medium text-slate-400">/ {allUsers.length}</span>
                 </p>
               </div>
@@ -319,7 +319,7 @@ export function NotificationClient({ roles = [], allUsers = [], diagnostics }: {
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">VAPID Key Status</p>
-                <p className="text-[10px] font-mono text-slate-500 truncate bg-slate-50 dark:bg-slate-900 px-1 rounded border border-slate-100 py-0.5">
+                <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate bg-slate-50 dark:bg-slate-800 dark:bg-slate-900 px-1 rounded border border-slate-100 dark:border-slate-800 py-0.5">
                   {diagnostics.vapidKey}
                 </p>
               </div>
@@ -327,11 +327,11 @@ export function NotificationClient({ roles = [], allUsers = [], diagnostics }: {
           </div>
 
           <div className="rounded-xl border border-surface bg-surface overflow-hidden">
-             <div className="flex border-b border-surface-2 bg-slate-50 dark:bg-slate-900/50">
-               <button type="button" onClick={() => setSubTab('sudah')} className={cn('flex-1 py-3 text-xs font-bold border-b-2 transition-colors', subTab === 'sudah' ? 'border-emerald-500 text-emerald-700 bg-white dark:bg-slate-950' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800')}>
+             <div className="flex border-b border-surface-2 bg-slate-50 dark:bg-slate-800 dark:bg-slate-900/50">
+               <button type="button" onClick={() => setSubTab('sudah')} className={cn('flex-1 py-3 text-xs font-bold border-b-2 transition-colors', subTab === 'sudah' ? 'border-emerald-500 dark:border-emerald-500 text-emerald-700 dark:text-emerald-400 bg-white dark:bg-slate-900 dark:bg-slate-950' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 dark:hover:bg-slate-800')}>
                  Sudah Mengaktifkan ({subscribedUsers.length})
                </button>
-               <button type="button" onClick={() => setSubTab('belum')} className={cn('flex-1 py-3 text-xs font-bold border-b-2 transition-colors', subTab === 'belum' ? 'border-amber-500 text-amber-700 bg-white dark:bg-slate-950' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800')}>
+               <button type="button" onClick={() => setSubTab('belum')} className={cn('flex-1 py-3 text-xs font-bold border-b-2 transition-colors', subTab === 'belum' ? 'border-amber-500 text-amber-700 bg-white dark:bg-slate-900 dark:bg-slate-950' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 dark:hover:bg-slate-800')}>
                  Belum Mengaktifkan ({unsubscribedUsers.length})
                </button>
              </div>
@@ -341,14 +341,14 @@ export function NotificationClient({ roles = [], allUsers = [], diagnostics }: {
                   <div className="p-8 text-center text-xs text-slate-400">Tidak ada data.</div>
                 ) : (
                   (subTab === 'sudah' ? subscribedUsers : unsubscribedUsers).map(u => (
-                    <div key={u.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                    <div key={u.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:hover:bg-slate-800/30 transition-colors">
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{u.nama_lengkap}</p>
-                        <p className="text-[10px] text-slate-500">{getRoleLabel(u.role)}</p>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{u.nama_lengkap}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400">{getRoleLabel(u.role)}</p>
                       </div>
                       <div className="shrink-0">
                          {subTab === 'sudah' ? (
-                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-[10px] font-bold text-emerald-700">
+                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
                              <CheckCircle2 className="h-3 w-3" /> Aktif
                            </span>
                          ) : (

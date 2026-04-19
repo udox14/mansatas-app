@@ -54,7 +54,7 @@ export default async function DashboardLayout({
   const navEnabled = navLinks.length > 0;
 
   return (
-    <div className="flex h-[100dvh] w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden">
+    <div className="flex h-[100dvh] w-full bg-slate-50 dark:bg-slate-800 dark:bg-slate-950 text-slate-900 dark:text-slate-50 dark:text-slate-100 overflow-hidden">
       <PushNotificationBanner />
       <Sidebar
         userRoles={userRoles}

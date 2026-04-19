@@ -67,8 +67,8 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
 
   if (!siswaList.length) return (
     <div className="flex flex-col items-center justify-center py-16 rounded-lg border border-dashed border-surface text-center gap-3">
-      <div className="p-3 rounded-full bg-emerald-50"><CheckCircle2 className="h-6 w-6 text-emerald-500" /></div>
-      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Semua siswa sudah terploting</p>
+      <div className="p-3 rounded-full bg-emerald-50 dark:bg-emerald-950/50"><CheckCircle2 className="h-6 w-6 text-emerald-500" /></div>
+      <p className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">Semua siswa sudah terploting</p>
       <p className="text-xs text-slate-400 dark:text-slate-500">Tidak ada siswa baru / tanpa kelas saat ini.</p>
     </div>
   )
@@ -81,7 +81,7 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
         {/* Info sumber */}
         <div className="rounded-lg border border-surface bg-surface p-4">
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-3">Sumber data</p>
-          <p className="text-sm text-slate-600 dark:text-slate-300 dark:text-slate-600 mb-3">
+          <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 mb-3">
             <span className="font-semibold text-slate-900 dark:text-slate-50">{siswaList.length}</span> siswa baru siap disebar
           </p>
           <div className="grid grid-cols-2 gap-2">
@@ -105,7 +105,7 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
               return (
                 <div key={k.id} className="flex items-center gap-2.5 p-2 rounded-md hover:bg-surface-2 border border-transparent hover:border-surface-2 transition-colors">
                   <Checkbox id={`k-${k.id}`} checked={selectedKelasIds.includes(k.id)} onCheckedChange={() => handleToggleKelas(k.id)} disabled={full} />
-                  <Label htmlFor={`k-${k.id}`} className={`flex-1 flex items-center justify-between text-xs cursor-pointer ${full ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200 font-medium'}`}>
+                  <Label htmlFor={`k-${k.id}`} className={`flex-1 flex items-center justify-between text-xs cursor-pointer ${full ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-300 dark:text-slate-200 font-medium'}`}>
                     <span>{k.nama}</span>
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${full ? 'bg-rose-50 text-rose-500' : 'bg-surface-3 text-slate-500 dark:text-slate-400 dark:text-slate-500'}`}>
                       {k.jumlah_siswa}/{k.kapasitas}
@@ -132,7 +132,7 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
         <div className="rounded-lg border border-surface bg-surface flex flex-col min-h-[420px]">
           <div className="flex items-center justify-between px-4 py-3 border-b border-surface-2">
             <div>
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Preview hasil simulasi</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">Preview hasil simulasi</p>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Cek distribusi L/P sebelum simpan permanen</p>
             </div>
             {simulasiResult.length > 0 && (
@@ -146,9 +146,9 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
 
           <div className="flex-1 relative">
             {successMsg ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-emerald-50/60">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-emerald-50 dark:bg-emerald-950/50/60">
                 <CheckCircle2 className="h-10 w-10 text-emerald-500" />
-                <p className="text-sm font-semibold text-emerald-800">Plotting berhasil!</p>
+                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-400">Plotting berhasil!</p>
                 <p className="text-xs text-emerald-600">{successMsg}</p>
               </div>
             ) : simulasiResult.length === 0 ? (
@@ -159,7 +159,7 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
             ) : (
               <div className="overflow-auto h-full max-h-[500px]">
                 <Table>
-                  <TableHeader className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10">
+                  <TableHeader className="sticky top-0 bg-slate-50 dark:bg-slate-800/95 backdrop-blur-sm z-10">
                     <TableRow>
                       <TableHead className="text-xs h-9 w-10 text-center">#</TableHead>
                       <TableHead className="text-xs h-9">Nama siswa</TableHead>
@@ -171,12 +171,12 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
                     {simulasiResult.map((r, i) => (
                       <TableRow key={r.siswa_id} className="hover:bg-surface-2/50">
                         <TableCell className="text-center text-xs text-slate-400 dark:text-slate-500 py-2">{i + 1}</TableCell>
-                        <TableCell className="text-xs font-medium text-slate-800 dark:text-slate-100 py-2">{r.nama_lengkap}</TableCell>
+                        <TableCell className="text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 py-2">{r.nama_lengkap}</TableCell>
                         <TableCell className="text-center py-2">
-                          <span className="text-[10px] font-bold bg-surface-3 text-slate-600 dark:text-slate-300 dark:text-slate-600 px-1.5 py-0.5 rounded">{r.jk}</span>
+                          <span className="text-[10px] font-bold bg-surface-3 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 px-1.5 py-0.5 rounded">{r.jk}</span>
                         </TableCell>
                         <TableCell className="text-right pr-4 py-2">
-                          <span className="text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">{r.kelas_nama}</span>
+                          <span className="text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded">{r.kelas_nama}</span>
                         </TableCell>
                       </TableRow>
                     ))}

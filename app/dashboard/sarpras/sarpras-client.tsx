@@ -39,14 +39,14 @@ export function SarprasClient({ initialAset, initialKategori, options }: Sarpras
           {activeTab === 'data' && (
             <button 
               onClick={() => setIsKategoriOpen(true)}
-              className="flex items-center justify-center gap-2 text-[13px] font-medium text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-all bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-2 rounded-lg shadow-sm w-full md:w-auto"
+              className="flex items-center justify-center gap-2 text-[13px] font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 hover:text-blue-600 transition-all bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-2 rounded-lg shadow-sm w-full md:w-auto"
             >
               <Settings className="w-4 h-4 text-slate-400" /> Kelola Kategori
             </button>
           )}
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
           <TabsContent value="data" className="p-0 m-0 outline-none">
             <AsetTab aset={initialAset} kategori={initialKategori} options={options} />
           </TabsContent>

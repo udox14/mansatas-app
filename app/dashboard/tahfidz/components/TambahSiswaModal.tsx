@@ -43,7 +43,7 @@ export function TambahSiswaModal({ onSuccess }: TambahSiswaModalProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="w-full justify-start text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100 mt-2">
+        <Button variant="outline" className="w-full justify-start text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 mt-2">
           <Plus className="h-4 w-4 mr-2" />
           Daftarkan Siswa Lainnya
         </Button>
@@ -54,7 +54,7 @@ export function TambahSiswaModal({ onSuccess }: TambahSiswaModalProps) {
         </DialogHeader>
         
         {msg && (
-          <div className={`text-xs px-3 py-2 rounded-lg ${msg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+          <div className={`text-xs px-3 py-2 rounded-lg ${msg.ok ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400' : 'bg-rose-50 text-rose-700'}`}>
             {msg.text}
           </div>
         )}
@@ -74,13 +74,13 @@ export function TambahSiswaModal({ onSuccess }: TambahSiswaModalProps) {
 
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
             {results.length === 0 && search.length >= 3 && !isSearching && (
-              <p className="text-center text-sm text-slate-500 py-4">Tidak ada siswa ditemukan.</p>
+              <p className="text-center text-sm text-slate-500 dark:text-slate-400 py-4">Tidak ada siswa ditemukan.</p>
             )}
             {results.map(s => (
-              <div key={s.id} className="flex justify-between items-center p-3 border rounded-lg hover:bg-slate-50">
+              <div key={s.id} className="flex justify-between items-center p-3 border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">
                 <div>
                   <p className="font-semibold text-sm">{s.nama_lengkap}</p>
-                  <p className="text-xs text-slate-500">{s.nisn} • {s.tingkat}-{s.nomor_kelas} {s.kelompok}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{s.nisn} • {s.tingkat}-{s.nomor_kelas} {s.kelompok}</p>
                 </div>
                 <Button 
                   size="sm" 

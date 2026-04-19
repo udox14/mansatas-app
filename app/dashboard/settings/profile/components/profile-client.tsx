@@ -107,9 +107,9 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleAvatarChange} />
           </div>
 
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{profile.nama_lengkap}</p>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{profile.nama_lengkap}</p>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{email}</p>
-          <span className="mt-2.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold uppercase tracking-wide rounded-md">
+          <span className="mt-2.5 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-[10px] font-semibold uppercase tracking-wide rounded-md">
             {profile.role.replace('_', ' ')}
           </span>
         </div>
@@ -131,7 +131,7 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
 
         {/* Form ubah nama */}
         <div className="rounded-xl border border-surface bg-surface p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-0.5">Informasi Dasar</p>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 mb-0.5">Informasi Dasar</p>
           <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Ubah nama tampilan Anda di dalam sistem.</p>
 
           <form action={profileAction} className="space-y-3 max-w-md">
@@ -141,16 +141,16 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
               </div>
             )}
             {profileState?.success && (
-              <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-100 flex gap-2">
+              <div className="p-2.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-100 flex gap-2">
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {profileState.success}
               </div>
             )}
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600">Nama Lengkap</Label>
+              <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Nama Lengkap</Label>
               <Input name="nama_lengkap" defaultValue={profile.nama_lengkap} required className="h-9 rounded-lg bg-surface-2 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600">Email</Label>
+              <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Email</Label>
               <Input value={email} readOnly className="h-9 rounded-lg bg-surface-3 text-slate-400 dark:text-slate-500 text-sm cursor-not-allowed" />
             </div>
             <SubmitProfileBtn />
@@ -159,7 +159,7 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
 
         {/* Form ubah password */}
         <div className="rounded-xl border border-surface bg-surface p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-0.5">Keamanan Akun</p>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 mb-0.5">Keamanan Akun</p>
           <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Perbarui kata sandi Anda secara berkala.</p>
 
           <form action={passwordAction} className="space-y-3 max-w-md">
@@ -169,16 +169,16 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
               </div>
             )}
             {passwordState?.success && (
-              <div className="p-2.5 text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-100 flex gap-2">
+              <div className="p-2.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-100 flex gap-2">
                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {passwordState.success}
               </div>
             )}
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600">Password Baru</Label>
+              <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Password Baru</Label>
               <Input name="password" type="password" required minLength={6} placeholder="Minimal 6 karakter" className="h-9 rounded-lg bg-surface-2 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 dark:text-slate-300 dark:text-slate-600">Konfirmasi Password Baru</Label>
+              <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Konfirmasi Password Baru</Label>
               <Input name="confirm_password" type="password" required minLength={6} placeholder="Ketik ulang password baru" className="h-9 rounded-lg bg-surface-2 text-sm" />
             </div>
             <SubmitPasswordBtn />
@@ -193,7 +193,7 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
             </div>
             <div className="flex-1 space-y-3">
               <div>
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Push Notifications</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Push Notifications</p>
                 <p className="text-xs text-slate-400 dark:text-slate-500">Terima pemberitahuan saat ada tugas baru, jadwal mengajar, atau undangan rapat langsung di perangkat ini.</p>
               </div>
               <PushNotificationManager />

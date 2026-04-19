@@ -54,7 +54,7 @@ const COLOR_MAP: Record<string, { border: string; iconBg: string }> = {
   indigo: { border: 'border-indigo-200 dark:border-indigo-800 hover:border-indigo-400', iconBg: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400' },
   rose: { border: 'border-rose-200 dark:border-rose-800 hover:border-rose-400', iconBg: 'bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400' },
   orange: { border: 'border-orange-200 dark:border-orange-800 hover:border-orange-400', iconBg: 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400' },
-  slate: { border: 'border-slate-200 dark:border-slate-700 hover:border-slate-400', iconBg: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400' },
+  slate: { border: 'border-slate-200 dark:border-slate-800 dark:border-slate-700 hover:border-slate-400', iconBg: 'bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400' },
   green: { border: 'border-green-200 dark:border-green-800 hover:border-green-400', iconBg: 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400' },
 }
 
@@ -82,7 +82,7 @@ function SearchableSelect({ label, options, value, onChange, placeholder }: {
     <div className="relative">
       <Label className="text-xs font-medium">{label}</Label>
       <button type="button" onClick={() => setOpen(!open)}
-        className="w-full mt-1 flex items-center justify-between rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-left">
+        className="w-full mt-1 flex items-center justify-between rounded-md border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-left">
         <span className={value ? 'text-slate-800 dark:text-slate-200 truncate' : 'text-slate-400'}>
           {value ? options.find(o => o.value === value)?.label || value : (placeholder || '-- Pilih --')}
         </span>
@@ -91,7 +91,7 @@ function SearchableSelect({ label, options, value, onChange, placeholder }: {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setSearch('') }} />
-          <div className="absolute z-50 mt-1 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md shadow-lg max-h-60 overflow-hidden">
+          <div className="absolute z-50 mt-1 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-md shadow-lg max-h-60 overflow-hidden">
             <div className="p-2 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 rounded-md px-2">
                 <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -132,7 +132,7 @@ function SearchMulti({ options, selected, onChange }: {
   }, [search, options])
 
   return (
-    <div className="mt-1 border rounded-md border-slate-200 dark:border-slate-700">
+    <div className="mt-1 border rounded-md border-slate-200 dark:border-slate-800 dark:border-slate-700">
       <div className="p-2 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 rounded-md px-2">
           <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -156,7 +156,7 @@ function SearchMulti({ options, selected, onChange }: {
         })}
       </div>
       {selected.length > 0 && (
-        <div className="px-2 py-1.5 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-500">{selected.length} pegawai dipilih</div>
+        <div className="px-2 py-1.5 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400">{selected.length} pegawai dipilih</div>
       )}
     </div>
   )
@@ -389,7 +389,7 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
         {wizardType !== 'pernyataan' && (
           <div>
             <Label className="text-xs font-medium">Penandatangan</Label>
-            <select className="w-full mt-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+            <select className="w-full mt-1 rounded-md border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
               value={formData.penandatangan || ''} onChange={e => updateField('penandatangan', e.target.value)}>
               <option value="">-- Pilih --</option>
               {KEPALA_MADRASAH_OPTIONS.map((p, i) => (
@@ -412,11 +412,11 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
   return (
     <>
       <TabsPrimitive.Root value={activeTab} onValueChange={setActiveTab}>
-        <TabsPrimitive.List className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 w-fit">
-          <TabsPrimitive.Trigger value="buat" className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all">
+        <TabsPrimitive.List className="flex gap-1 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 rounded-lg p-1 w-fit">
+          <TabsPrimitive.Trigger value="buat" className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:bg-slate-900 dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all">
             <Plus className="h-3.5 w-3.5 inline mr-1.5" />Buat Surat
           </TabsPrimitive.Trigger>
-          <TabsPrimitive.Trigger value="log" className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all">
+          <TabsPrimitive.Trigger value="log" className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:bg-slate-900 dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all">
             <FileText className="h-3.5 w-3.5 inline mr-1.5" />Log Surat Keluar
           </TabsPrimitive.Trigger>
         </TabsPrimitive.List>
@@ -434,7 +434,7 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
                     <Icon className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100 leading-tight">{cfg.label}</p>
+                    <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight">{cfg.label}</p>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-snug">{cfg.desc}</p>
                   </div>
                 </button>
@@ -445,25 +445,25 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
 
         {/* ── TAB: LOG SURAT ── */}
         <TabsPrimitive.Content value="log" className="mt-4 space-y-3">
-          <div className="flex flex-wrap items-end gap-2 p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+          <div className="flex flex-wrap items-end gap-2 p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 dark:border-slate-700">
             <div>
-              <Label className="text-[10px] text-slate-500">Jenis Surat</Label>
-              <select className="block mt-0.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 text-xs"
+              <Label className="text-[10px] text-slate-500 dark:text-slate-400">Jenis Surat</Label>
+              <select className="block mt-0.5 rounded-md border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 text-xs"
                 value={filterJenis} onChange={e => setFilterJenis(e.target.value)}>
                 <option value="">Semua</option>
                 {Object.entries(JENIS_SURAT_LABEL).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
               </select>
             </div>
             <div>
-              <Label className="text-[10px] text-slate-500">Bulan</Label>
-              <select className="block mt-0.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 text-xs"
+              <Label className="text-[10px] text-slate-500 dark:text-slate-400">Bulan</Label>
+              <select className="block mt-0.5 rounded-md border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 text-xs"
                 value={filterBulan} onChange={e => setFilterBulan(e.target.value)}>
                 <option value="">Semua</option>
                 {BULAN_NAMES.slice(1).map((b, i) => (<option key={i + 1} value={String(i + 1)}>{b}</option>))}
               </select>
             </div>
             <div>
-              <Label className="text-[10px] text-slate-500">Tahun</Label>
+              <Label className="text-[10px] text-slate-500 dark:text-slate-400">Tahun</Label>
               <Input className="h-8 w-20 text-xs" value={filterTahun} onChange={e => setFilterTahun(e.target.value)} />
             </div>
             <Button size="sm" variant="outline" onClick={refreshLog} disabled={isFilterLoading}>
@@ -471,15 +471,15 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
               <span className="ml-1 text-xs">Filter</span>
             </Button>
             <div className="ml-auto">
-              <Label className="text-[10px] text-slate-500">Per halaman</Label>
-              <select className="block mt-0.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 text-xs"
+              <Label className="text-[10px] text-slate-500 dark:text-slate-400">Per halaman</Label>
+              <select className="block mt-0.5 rounded-md border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 text-xs"
                 value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setCurrentPage(1) }}>
                 {[10, 20, 50, 100].map(n => (<option key={n} value={n}>{n}</option>))}
               </select>
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-x-auto bg-white dark:bg-slate-900">
+          <div className="rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700 overflow-x-auto bg-white dark:bg-slate-900">
             {selectedIds.length > 0 && (
               <div className="bg-red-50 dark:bg-red-950/20 px-3 py-2 border-b border-red-100 dark:border-red-900 flex justify-between items-center">
                 <span className="text-xs font-semibold text-red-700 dark:text-red-400">{selectedIds.length} item dipilih</span>
@@ -506,12 +506,12 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
                       }}
                     />
                   </th>
-                  <th className="px-3 py-2 font-medium text-slate-500">No. Surat</th>
-                  <th className="px-3 py-2 font-medium text-slate-500">Jenis</th>
-                  <th className="px-3 py-2 font-medium text-slate-500">Perihal</th>
-                  <th className="px-3 py-2 font-medium text-slate-500">Dicetak oleh</th>
-                  <th className="px-3 py-2 font-medium text-slate-500">Tanggal</th>
-                  <th className="px-3 py-2 font-medium text-slate-500 text-center">Aksi</th>
+                  <th className="px-3 py-2 font-medium text-slate-500 dark:text-slate-400">No. Surat</th>
+                  <th className="px-3 py-2 font-medium text-slate-500 dark:text-slate-400">Jenis</th>
+                  <th className="px-3 py-2 font-medium text-slate-500 dark:text-slate-400">Perihal</th>
+                  <th className="px-3 py-2 font-medium text-slate-500 dark:text-slate-400">Dicetak oleh</th>
+                  <th className="px-3 py-2 font-medium text-slate-500 dark:text-slate-400">Tanggal</th>
+                  <th className="px-3 py-2 font-medium text-slate-500 dark:text-slate-400 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -533,7 +533,7 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
                     </td>
                     <td className="px-3 py-2 text-slate-600 dark:text-slate-400 max-w-[200px] truncate">{s.perihal || '-'}</td>
                     <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{s.nama_pencetak || '-'}</td>
-                    <td className="px-3 py-2 text-slate-500">
+                    <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
                       {s.created_at ? new Date(s.created_at + 'Z').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
                     </td>
                     <td className="px-3 py-2 text-center">
@@ -553,7 +553,7 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
           </div>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between text-xs text-slate-500">
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
               <span>Menampilkan {(currentPage - 1) * perPage + 1}–{Math.min(currentPage * perPage, logData.length)} dari {logData.length}</span>
               <div className="flex gap-1">
                 <Button size="sm" variant="outline" disabled={currentPage <= 1} onClick={() => setCurrentPage(p => p - 1)} className="h-7 px-2 text-xs">Prev</Button>
@@ -573,7 +573,7 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
           <DialogPrimitive.Overlay className="fixed inset-0 bg-black/50 z-50" />
           <DialogPrimitive.Content className="fixed inset-0 z-50 flex items-start justify-center pt-[3vh] pb-[3vh] overflow-y-auto">
             <div className={`bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full mx-3 ${wizardStep === 'preview' ? 'max-w-[240mm]' : 'max-w-lg'} transition-all duration-300`}>
-              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-800 dark:border-slate-700">
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4 text-amber-500" />
                   <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">{wizardType ? JENIS_SURAT_LABEL[wizardType] : 'Buat Surat'}</h3>
@@ -581,7 +581,7 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
                     <span className="text-[10px] font-mono text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded">{saveResult.nomor_surat}</span>
                   )}
                 </div>
-                <DialogPrimitive.Close className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"><X className="h-4 w-4" /></DialogPrimitive.Close>
+                <DialogPrimitive.Close className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"><X className="h-4 w-4" /></DialogPrimitive.Close>
               </div>
               <div className="px-5 py-4">
                 {wizardStep === 'form' && (<>
@@ -595,7 +595,7 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
                   {saveResult?.error && <p className="text-xs text-red-500 mt-2">{saveResult.error}</p>}
                 </>)}
                 {wizardStep === 'preview' && wizardType && (<>
-                  <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-auto max-h-[70vh] bg-gray-100 dark:bg-slate-800 p-4">
+                  <div className="border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg overflow-auto max-h-[70vh] bg-gray-100 dark:bg-slate-800 p-4">
                     <div ref={printRef} style={{ background: '#fff' }}>
                       {(() => { const Tpl = TEMPLATE_MAP[wizardType]; return Tpl ? <Tpl data={{ ...buildTemplateData(), nomor_surat: saveResult?.nomor_surat || '' }} /> : <p>Template tidak ditemukan</p> })()}
                     </div>
@@ -617,16 +617,16 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
           <DialogPrimitive.Overlay className="fixed inset-0 bg-black/50 z-50" />
           <DialogPrimitive.Content className="fixed inset-0 z-50 flex items-start justify-center pt-[3vh] pb-[3vh] overflow-y-auto">
             <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-[240mm] mx-3">
-              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-800 dark:border-slate-700">
                 <div className="flex items-center gap-2">
                   <RotateCcw className="h-4 w-4 text-blue-500" />
                   <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Cetak Ulang Surat</h3>
                   {reprintData?.nomor_surat && <span className="text-[10px] font-mono text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded">{reprintData.nomor_surat}</span>}
                 </div>
-                <DialogPrimitive.Close className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"><X className="h-4 w-4" /></DialogPrimitive.Close>
+                <DialogPrimitive.Close className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors"><X className="h-4 w-4" /></DialogPrimitive.Close>
               </div>
               <div className="px-5 py-4">
-                <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-auto max-h-[70vh] bg-gray-100 dark:bg-slate-800 p-4">
+                <div className="border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg overflow-auto max-h-[70vh] bg-gray-100 dark:bg-slate-800 p-4">
                   <div ref={reprintRef} style={{ background: '#fff' }}>
                     {reprintType && reprintData && (() => { const Tpl = TEMPLATE_MAP[reprintType]; return Tpl ? <Tpl data={reprintData} /> : <p>Template tidak ditemukan</p> })()}
                   </div>
@@ -654,7 +654,7 @@ function Field({ label, field, formData, onChange, type = 'text', placeholder, t
     <div>
       <Label className="text-xs font-medium">{label}</Label>
       {textarea ? (
-        <textarea className="w-full mt-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm min-h-[60px]"
+        <textarea className="w-full mt-1 rounded-md border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm min-h-[60px]"
           value={formData[field] || ''} onChange={e => onChange(field, e.target.value)} placeholder={placeholder} />
       ) : (
         <Input type={type} className="mt-1" value={formData[field] || ''} onChange={e => onChange(field, e.target.value)} placeholder={placeholder} />
