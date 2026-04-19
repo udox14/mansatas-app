@@ -17,7 +17,7 @@ async function SppDataFetcher() {
 
   const db = await (await import('@/utils/db')).getDB()
 
-  const [{ data: settings }, { data: tagihan }, angkatanRes, { data: mulai }, saldoAwalStats] = await Promise.all([
+  const [{ data: settings }, { data: tagihan }, angkatanRes, { data: mulai }, saldoAwalStats, saldoAwalRes] = await Promise.all([
     getSppSettings(),
     getSppTagihanList({ tahun, bulan }),
     db.prepare('SELECT DISTINCT tahun_masuk FROM siswa WHERE tahun_masuk IS NOT NULL ORDER BY tahun_masuk DESC').all<{ tahun_masuk: number }>(),
@@ -30,6 +30,7 @@ async function SppDataFetcher() {
         SUM(CASE WHEN status = 'belum_bayar' THEN 1 ELSE 0 END) as belum_lunas
       FROM fin_spp_saldo_awal
     `).first<{ total: number; total_jumlah: number; total_dibayar: number; belum_lunas: number }>(),
+    db.prepare(`SELECT siswa_id, status, jumlah, total_dibayar FROM fin_spp_saldo_awal`).all<{ siswa_id: string; status: string; jumlah: number; total_dibayar: number }>(),
   ])
 
   return (
@@ -41,6 +42,7 @@ async function SppDataFetcher() {
       angkatanList={(angkatanRes.results ?? []).map(r => r.tahun_masuk)}
       initialMulai={mulai}
       saldoAwalStats={saldoAwalStats ?? null}
+      saldoAwalList={saldoAwalRes.results ?? []}
     />
   )
 }

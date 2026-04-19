@@ -133,7 +133,7 @@ export function Sidebar({
           theme.border,
           collapsed ? 'justify-center px-3' : 'px-4 gap-2.5'
         )}>
-          <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0 flex-1">
+          <Link href="/dashboard" className={cn("flex items-center min-w-0", collapsed ? "justify-center w-full" : "gap-2.5 flex-1")}>
             <div className="relative w-8 h-8 shrink-0">
               <Image src="/logokemenag.png" alt="MAN 1 Tasikmalaya" fill className="object-contain drop-shadow-sm" />
             </div>

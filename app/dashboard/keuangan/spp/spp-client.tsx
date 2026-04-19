@@ -55,8 +55,9 @@ async function downloadSppTemplate(bulan: number, tahun: number, angkatan?: numb
 interface SppMulai { id: string; tahun_masuk: number | null; siswa_id: string | null; bulan_mulai: number; tahun_mulai: number }
 
 interface SaldoAwalStats { total: number; total_jumlah: number; total_dibayar: number; belum_lunas: number }
+interface SaldoAwalRow { siswa_id: string; status: string; jumlah: number; total_dibayar: number }
 
-export function SppClient({ initialSettings, initialTagihan, defaultTahun, defaultBulan, angkatanList, initialMulai, saldoAwalStats }: {
+export function SppClient({ initialSettings, initialTagihan, defaultTahun, defaultBulan, angkatanList, initialMulai, saldoAwalStats, saldoAwalList }: {
   initialSettings: SppSetting[]
   initialTagihan: SppRow[]
   defaultTahun: number
@@ -64,12 +65,20 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
   angkatanList: number[]
   initialMulai: SppMulai[]
   saldoAwalStats: SaldoAwalStats | null
+  saldoAwalList: SaldoAwalRow[]
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [settings, setSettings] = useState<SppSetting[]>(initialSettings)
   const [tagihan, setTagihan] = useState<SppRow[]>(initialTagihan)
   const [mulaiList, setMulaiList] = useState<SppMulai[]>(initialMulai)
+
+  // Map siswa_id → saldo awal (untuk lookup O(1) di tabel)
+  const saldoAwalMap = useMemo(() => {
+    const m = new Map<string, SaldoAwalRow>()
+    for (const s of saldoAwalList) m.set(s.siswa_id, s)
+    return m
+  }, [saldoAwalList])
 
   // Period selector
   const [bulan, setBulan] = useState(defaultBulan)
@@ -152,7 +161,11 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
     reset()
     return tagihan.filter(r => {
       const matchS = !search || r.nama_lengkap.toLowerCase().includes(search.toLowerCase())
-      const matchSt = filterStatus === 'semua' || r.status === filterStatus
+      const matchSt = filterStatus === 'semua'
+        ? true
+        : filterStatus === 'ada_tunggakan_awal'
+          ? saldoAwalMap.has(r.siswa_id)
+          : r.status === filterStatus
       const matchAngkatan = filterAngkatan === 'semua' || String(r.tahun_masuk) === filterAngkatan
       const matchKelas = filterKelas === 'semua' || `${r.tingkat}-${r.nomor_kelas}${r.kelompok ? ' ' + r.kelompok : ''}` === filterKelas
       return matchS && matchSt && matchAngkatan && matchKelas
@@ -331,12 +344,15 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
             <Input placeholder="Cari nama siswa..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-8 text-sm rounded-md" />
           </div>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="h-8 w-40 text-xs rounded-md"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="h-8 w-44 text-xs rounded-md"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="semua">Semua Status</SelectItem>
               <SelectItem value="lunas">Lunas</SelectItem>
               <SelectItem value="belum_bayar">Belum Bayar</SelectItem>
               <SelectItem value="tidak_ada">Belum Ada Tagihan</SelectItem>
+              {saldoAwalList.length > 0 && (
+                <SelectItem value="ada_tunggakan_awal">Ada Tunggakan Awal</SelectItem>
+              )}
             </SelectContent>
           </Select>
           <Select value={filterAngkatan} onValueChange={setFilterAngkatan}>
@@ -422,6 +438,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
               {!isPending && paginated.map((row, idx) => {
                 const noTagihan = row.status === 'tidak_ada'
                 const sudahMulai = isSudahMulai(row)
+                const saldoAwal = saldoAwalMap.get(row.siswa_id)
                 return (
                   <TableRow
                     key={row.id ?? `${row.siswa_id}-${idx}`}
@@ -429,7 +446,18 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                     onClick={() => router.push(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=spp`)}
                   >
                     <TableCell>
-                      <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
+                        {saldoAwal && (
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                            saldoAwal.status === 'lunas'
+                              ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                          }`}>
+                            {saldoAwal.status === 'lunas' ? 'T.Awal ✓' : `T.Awal ${formatRupiah(saldoAwal.jumlah - saldoAwal.total_dibayar)}`}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-slate-400">{row.nisn}</p>
                     </TableCell>
                     <TableCell className="text-sm text-slate-600 dark:text-slate-300">
