@@ -276,34 +276,6 @@ export async function setSppMulaiSiswa(siswaId: string, bulanMulai: number, tahu
   return { error: null, success: 'Override mulai SPP siswa disimpan' }
 }
 
-/** Buat tagihan SPP jika belum ada, lalu return tagihan-nya */
-export async function getOrCreateSppTagihan(siswaId: string, bulan: number, tahun: number) {
-  const { db } = await requireAuth('keuangan-spp')
-  const existing = await db.prepare(
-    'SELECT * FROM fin_spp_tagihan WHERE siswa_id=? AND bulan=? AND tahun=?'
-  ).bind(siswaId, bulan, tahun).first<any>()
-  if (existing) return { data: existing, error: null }
-
-  // Ambil nominal dari setting sesuai tingkat siswa
-  const siswa = await db.prepare(`
-    SELECT s.id, k.tingkat FROM siswa s
-    LEFT JOIN kelas k ON k.id = s.kelas_id
-    WHERE s.id = ?
-  `).bind(siswaId).first<any>()
-  const setting = siswa?.tingkat
-    ? await db.prepare('SELECT nominal FROM fin_spp_setting WHERE tingkat=?').bind(siswa.tingkat).first<any>()
-    : null
-  const nominal = setting?.nominal ?? 0
-
-  const id = generateId()
-  await db.prepare(
-    'INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal) VALUES (?,?,?,?,?)'
-  ).bind(id, siswaId, bulan, tahun, nominal).run()
-
-  const created = await db.prepare('SELECT * FROM fin_spp_tagihan WHERE id=?').bind(id).first<any>()
-  return { data: created, error: null }
-}
-
 // ─── SPP Setting ────────────────────────────────────────────────────────────
 
 export async function getSppSettings() {
@@ -471,6 +443,56 @@ export async function buatTagihanMassal(tahun: number, bulan: number, tahunMasuk
 
   revalidatePath('/dashboard/keuangan/spp')
   return { error: null, success: `${stmts.length} tagihan SPP berhasil dibuat (dari ${eligible.length} siswa eligible)` }
+}
+
+/** Batch: buat tagihan jika belum ada, lalu tandai lunas semua bulan sekaligus — 1 batch write */
+export async function simpanSppBulanTerpilih(
+  siswaId: string,
+  bulanList: number[],  // bulan yang dipilih
+  tahun: number,
+) {
+  const { db } = await requireAuth('keuangan-spp')
+  if (!bulanList.length) return { error: 'Tidak ada bulan dipilih', success: null }
+
+  // Nominal dari setting (butuh tingkat siswa)
+  const siswaRow = await db.prepare(`
+    SELECT s.id, k.tingkat FROM siswa s LEFT JOIN kelas k ON k.id = s.kelas_id WHERE s.id = ?
+  `).bind(siswaId).first<any>()
+  const setting = siswaRow?.tingkat
+    ? await db.prepare('SELECT nominal FROM fin_spp_setting WHERE tingkat = ?').bind(siswaRow.tingkat).first<any>()
+    : null
+  const nominal = setting?.nominal ?? 0
+
+  // Tagihan yang sudah ada untuk bulan-bulan ini
+  const placeholders = bulanList.map(() => '?').join(',')
+  const existing = await db.prepare(
+    `SELECT id, bulan, nominal AS nom, total_diskon FROM fin_spp_tagihan WHERE siswa_id = ? AND tahun = ? AND bulan IN (${placeholders})`
+  ).bind(siswaId, tahun, ...bulanList).all<any>()
+  const existingMap = new Map<number, any>()
+  for (const r of existing.results ?? []) existingMap.set(r.bulan, r)
+
+  const stmts: D1PreparedStatement[] = []
+  for (const bulan of bulanList) {
+    const ex = existingMap.get(bulan)
+    if (ex) {
+      // Sudah ada → update jadi lunas
+      const dibayar = Math.max(0, (ex.nom ?? nominal) - (ex.total_diskon ?? 0))
+      stmts.push(db.prepare(
+        `UPDATE fin_spp_tagihan SET total_dibayar = ?, status = 'lunas', updated_at = datetime('now') WHERE id = ?`
+      ).bind(dibayar, ex.id))
+    } else {
+      // Belum ada → insert + langsung lunas
+      const id = generateId()
+      const dibayar = Math.max(0, nominal)
+      stmts.push(db.prepare(
+        `INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal, total_dibayar, status) VALUES (?, ?, ?, ?, ?, ?, 'lunas')`
+      ).bind(id, siswaId, bulan, tahun, nominal, dibayar))
+    }
+  }
+
+  if (stmts.length) await db.batch(stmts)
+  revalidatePath('/dashboard/keuangan/spp')
+  return { error: null, success: `${bulanList.length} bulan SPP berhasil disimpan` }
 }
 
 export async function tandaiSppLunas(tagihanId: string) {
@@ -1007,6 +1029,50 @@ export async function getBukuBesarSiswa(siswaId: string) {
     db.prepare('SELECT * FROM fin_janji_bayar WHERE siswa_id = ? ORDER BY tanggal_janji ASC').bind(siswaId).all<any>(),
   ])
 
+  // ── Auto-create tagihan SPP dari mulai s/d bulan ini ────────────────────
+  let freshSppTagihan = sppTagihan.results ?? []
+  if (sppMulaiRow && siswa) {
+    const now = new Date()
+    const nowBulan = now.getMonth() + 1
+    const nowTahun = now.getFullYear()
+
+    // Hitung semua bulan yang seharusnya ada (mulai → sekarang)
+    const expectedMonths: { bulan: number; tahun: number }[] = []
+    let b = sppMulaiRow.bulan_mulai as number
+    let t = sppMulaiRow.tahun_mulai as number
+    while (t < nowTahun || (t === nowTahun && b <= nowBulan)) {
+      expectedMonths.push({ bulan: b, tahun: t })
+      b++; if (b > 12) { b = 1; t++ }
+    }
+
+    if (expectedMonths.length > 0) {
+      // Cek mana yang belum ada
+      const existingSet = new Set(freshSppTagihan.map((r: any) => `${r.bulan}-${r.tahun}`))
+      const missing = expectedMonths.filter(m => !existingSet.has(`${m.bulan}-${m.tahun}`))
+
+      if (missing.length > 0) {
+        // Ambil nominal dari setting sesuai tingkat
+        const setting = siswa.tingkat
+          ? await db.prepare('SELECT nominal FROM fin_spp_setting WHERE tingkat = ?').bind(siswa.tingkat).first<any>()
+          : null
+        const nominal = setting?.nominal ?? 0
+
+        const stmts = missing.map(m =>
+          db.prepare('INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal) VALUES (?,?,?,?,?)')
+            .bind(generateId(), siswaId, m.bulan, m.tahun, nominal)
+        )
+        // Batch per 100
+        for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
+
+        // Fetch ulang setelah insert
+        const updated = await db.prepare(
+          'SELECT * FROM fin_spp_tagihan WHERE siswa_id = ? ORDER BY tahun DESC, bulan DESC'
+        ).bind(siswaId).all<any>()
+        freshSppTagihan = updated.results ?? []
+      }
+    }
+  }
+
   let kopItems: any[] = []
   if (kopTagihan) {
     const items = await db.prepare(
@@ -1018,7 +1084,7 @@ export async function getBukuBesarSiswa(siswaId: string) {
   return {
     siswa,
     dspt,
-    sppTagihan: sppTagihan.results ?? [],
+    sppTagihan: freshSppTagihan,
     sppMulai: sppMulaiRow ?? null,
     kopTagihan,
     kopItems,

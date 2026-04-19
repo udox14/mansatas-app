@@ -53,7 +53,7 @@ async function downloadSppTemplate(bulan: number, tahun: number, angkatan?: numb
   XLSX.writeFile(wb, `template_spp_${bulan}_${tahun}${suffix}.xlsx`)
 }
 
-interface SppMulai { id: string; tahun_masuk: number; bulan_mulai: number; tahun_mulai: number }
+interface SppMulai { id: string; tahun_masuk: number | null; siswa_id: string | null; bulan_mulai: number; tahun_mulai: number }
 
 export function SppClient({ initialSettings, initialTagihan, defaultTahun, defaultBulan, angkatanList, initialMulai }: {
   initialSettings: SppSetting[]
@@ -91,8 +91,11 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
   const [msg, setMsg] = useState('')
 
   // Apakah siswa sudah melewati tanggal mulai SPP untuk periode yang dipilih?
+  // Prioritas: override per-siswa → level angkatan
   function isSudahMulai(row: SppRow): boolean {
-    const mulai = mulaiList.find(m => m.tahun_masuk === row.tahun_masuk)
+    const mulai =
+      mulaiList.find(m => m.siswa_id === row.siswa_id) ??          // per-student override
+      mulaiList.find(m => m.tahun_masuk === row.tahun_masuk && !m.siswa_id)  // level angkatan
     if (!mulai) return false
     if (mulai.tahun_mulai < tahun) return true
     if (mulai.tahun_mulai === tahun && mulai.bulan_mulai <= bulan) return true
