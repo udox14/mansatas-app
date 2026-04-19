@@ -198,7 +198,7 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+    <div id="tahfidz-top" className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
       {/* KIRI: Daftar Siswa */}
       <div className="md:col-span-4 lg:col-span-3 flex flex-col gap-4">
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border shadow-sm flex flex-col gap-3">
@@ -281,7 +281,7 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
             {/* Tombol kembali mobile */}
             <button 
               className="md:hidden flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400 font-medium mb-1 bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded-lg w-fit transition-colors"
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              onClick={() => document.getElementById('tahfidz-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
             >
               <ChevronUp className="w-4 h-4" /> Kembali cari siswa
             </button>
@@ -428,8 +428,8 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
       {/* Floating Action Button for Mobile: Scroll to Top */}
       {selectedSiswa && (
         <button
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="md:hidden fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg hover:bg-emerald-700 active:scale-95 transition-all"
+          onClick={() => document.getElementById('tahfidz-top')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          className="md:hidden fixed bottom-24 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-white shadow-lg hover:bg-emerald-700 active:scale-95 transition-all"
           aria-label="Kembali ke atas"
         >
           <ChevronUp className="h-6 w-6" />
