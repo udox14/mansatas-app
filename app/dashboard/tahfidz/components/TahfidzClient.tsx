@@ -172,16 +172,18 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
         onClick={() => { setSelectedJuz(juzNum); setSelectedSurah(null) }}
       >
         <CardContent className="p-4 h-full flex flex-col justify-between">
-          <div className="flex justify-between items-center mb-2">
-            <h4 className="font-semibold text-emerald-800 dark:text-emerald-400">Juz {juzNum}</h4>
+          <div className="flex justify-between items-start mb-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-teal-600 dark:bg-teal-700 text-[14px] font-bold text-white shadow-sm ring-4 ring-teal-50 dark:ring-teal-900/30">
+              {juzNum}
+            </div>
             {nilaiJuzObj && (
-              <div className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 text-xs px-2 py-0.5 rounded font-medium border border-emerald-200 dark:border-emerald-800">
+              <div className="bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 text-[11px] px-2 py-0.5 rounded font-medium border border-emerald-200 dark:border-emerald-800 mt-1">
                 {nilaiJuzObj.nilai}
               </div>
             )}
           </div>
           <div>
-            <div className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">{hafal}/{total} ayat</div>
+            <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{hafal}/{total} ayat</div>
             <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800/80 rounded-full overflow-hidden">
               <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${pct}%`}}></div>
             </div>
@@ -194,8 +196,8 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
       {/* KIRI: Daftar Siswa */}
-      <div className="md:col-span-4 lg:col-span-3 space-y-4">
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border shadow-sm space-y-3">
+      <div className="md:col-span-4 lg:col-span-3 flex flex-col gap-4">
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border shadow-sm flex flex-col gap-3">
           <h3 className="font-semibold text-slate-800 dark:text-slate-200">Pilih Siswa</h3>
           <Select value={kelasId} onValueChange={setKelasId}>
             <SelectTrigger>
@@ -223,7 +225,7 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
           <div className="p-3 border-b bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">
             Data Siswa
           </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-1 relative">
+          <div className="flex-1 overflow-y-auto p-2 flex flex-col gap-1 relative">
             {isLoadingSiswa ? (
               <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>
             ) : siswaList.length === 0 ? (
@@ -259,7 +261,7 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
       </div>
 
       {/* KANAN: Detail Tahfidz */}
-      <div id="tahfidz-detail" className="md:col-span-8 lg:col-span-9 space-y-6 scroll-mt-20">
+      <div id="tahfidz-detail" className="md:col-span-8 lg:col-span-9 flex flex-col gap-6 scroll-mt-20">
         {!selectedSiswa ? (
           <div className="h-[400px] flex flex-col items-center justify-center p-8 text-center text-slate-500 dark:text-slate-400 border-2 border-dashed rounded-xl bg-slate-50 dark:bg-slate-800">
             <BookOpen className="h-12 w-12 text-slate-300 mb-4" />
