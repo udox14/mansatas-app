@@ -253,8 +253,8 @@ export function NilaiClient() {
             </DialogDescription>
           </DialogHeader>
           
-          <ScrollArea className="flex-1 -mx-4 px-4 md:-mx-6 md:px-6 my-4 border-y border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 shadow-inner">
-            <div className="space-y-4 py-4 pr-3">
+          <div className="flex-1 overflow-y-auto -mx-4 px-4 md:-mx-6 md:px-6 my-4 border-y border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 shadow-inner relative">
+            <div className="space-y-4 py-4 pr-1">
               {verificationList.map((item, idx) => {
                 const mapKey = item.rowId + item.fileName
                 return (
@@ -303,7 +303,7 @@ export function NilaiClient() {
                 )
               })}
             </div>
-          </ScrollArea>
+          </div>
           
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 shrink-0">
              <div className="text-xs text-slate-500">
