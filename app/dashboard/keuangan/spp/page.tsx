@@ -17,11 +17,19 @@ async function SppDataFetcher() {
 
   const db = await (await import('@/utils/db')).getDB()
 
-  const [{ data: settings }, { data: tagihan }, angkatanRes, { data: mulai }] = await Promise.all([
+  const [{ data: settings }, { data: tagihan }, angkatanRes, { data: mulai }, saldoAwalStats] = await Promise.all([
     getSppSettings(),
     getSppTagihanList({ tahun, bulan }),
     db.prepare('SELECT DISTINCT tahun_masuk FROM siswa WHERE tahun_masuk IS NOT NULL ORDER BY tahun_masuk DESC').all<{ tahun_masuk: number }>(),
     getSppMulaiList(),
+    db.prepare(`
+      SELECT
+        COUNT(*) as total,
+        SUM(jumlah) as total_jumlah,
+        SUM(total_dibayar) as total_dibayar,
+        SUM(CASE WHEN status = 'belum_bayar' THEN 1 ELSE 0 END) as belum_lunas
+      FROM fin_spp_saldo_awal
+    `).first<{ total: number; total_jumlah: number; total_dibayar: number; belum_lunas: number }>(),
   ])
 
   return (
@@ -32,6 +40,7 @@ async function SppDataFetcher() {
       defaultBulan={bulan}
       angkatanList={(angkatanRes.results ?? []).map(r => r.tahun_masuk)}
       initialMulai={mulai}
+      saldoAwalStats={saldoAwalStats ?? null}
     />
   )
 }
