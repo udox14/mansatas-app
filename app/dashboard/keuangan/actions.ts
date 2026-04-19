@@ -404,17 +404,32 @@ export async function buatSppTagihanSiswa(siswaId: string, bulan: number, tahun:
   return { error: null, success: 'Tagihan SPP berhasil dibuat' }
 }
 
-export async function generateSppBulanan(tahun: number, bulan: number, tahunMasuk?: number) {
+/** Buat tagihan SPP massal untuk semua siswa yang sudah melewati tanggal mulai SPP-nya.
+ *  Menghormati fin_spp_mulai — siswa yang belum mulai tidak dibuatkan tagihan.
+ */
+export async function buatTagihanMassal(tahun: number, bulan: number, tahunMasuk?: number) {
   const { db } = await requireAuth('keuangan-spp')
 
-  // Ambil semua setting nominal per tingkat (aktif maupun tidak — nominal tetap dipakai)
-  const settings = await db.prepare('SELECT * FROM fin_spp_setting').all<any>()
+  // Nominal per tingkat
+  const settings = await db.prepare('SELECT tingkat, nominal FROM fin_spp_setting').all<any>()
   const nominalByTingkat: Record<number, number> = {}
   for (const s of settings.results ?? []) nominalByTingkat[s.tingkat] = s.nominal
 
-  // Ambil siswa target: filter by angkatan jika dipilih
+  // Ambil semua siswa beserta tingkat dan tanggal mulai SPP-nya
+  // Override per-siswa diutamakan, fallback ke level angkatan
   let siswaQuery = `
-    SELECT s.id AS siswa_id, k.tingkat
+    SELECT
+      s.id AS siswa_id,
+      s.tahun_masuk,
+      k.tingkat,
+      COALESCE(
+        (SELECT bulan_mulai FROM fin_spp_mulai WHERE siswa_id = s.id LIMIT 1),
+        (SELECT bulan_mulai FROM fin_spp_mulai WHERE tahun_masuk = s.tahun_masuk AND siswa_id IS NULL LIMIT 1)
+      ) AS bulan_mulai,
+      COALESCE(
+        (SELECT tahun_mulai FROM fin_spp_mulai WHERE siswa_id = s.id LIMIT 1),
+        (SELECT tahun_mulai FROM fin_spp_mulai WHERE tahun_masuk = s.tahun_masuk AND siswa_id IS NULL LIMIT 1)
+      ) AS tahun_mulai
     FROM siswa s
     LEFT JOIN kelas k ON k.id = s.kelas_id
     WHERE 1=1
@@ -425,34 +440,37 @@ export async function generateSppBulanan(tahun: number, bulan: number, tahunMasu
   const siswaList = await db.prepare(siswaQuery).bind(...siswaParams).all<any>()
   if (!siswaList.results?.length) return { error: 'Tidak ada siswa ditemukan', success: null }
 
-  // Ambil semua tagihan yang sudah ada untuk bulan+tahun ini dalam SATU query (hindari N+1)
+  // Filter: hanya siswa yang sudah melewati tanggal mulai untuk periode ini
+  const eligible = (siswaList.results ?? []).filter(row => {
+    if (!row.bulan_mulai || !row.tahun_mulai) return false // belum diatur = skip
+    if (row.tahun_mulai > tahun) return false
+    if (row.tahun_mulai === tahun && row.bulan_mulai > bulan) return false
+    return true
+  })
+  if (!eligible.length) return { error: 'Tidak ada siswa yang memenuhi kriteria mulai SPP untuk periode ini', success: null }
+
+  // Tagihan yang sudah ada
   const existingRes = await db.prepare(
     'SELECT siswa_id FROM fin_spp_tagihan WHERE bulan = ? AND tahun = ?'
   ).bind(bulan, tahun).all<{ siswa_id: string }>()
   const existingSet = new Set((existingRes.results ?? []).map(r => r.siswa_id))
 
   const stmts: D1PreparedStatement[] = []
-  let totalGenerated = 0
-
-  for (const row of siswaList.results) {
+  for (const row of eligible) {
     if (!existingSet.has(row.siswa_id)) {
       const nominal = nominalByTingkat[row.tingkat] ?? 0
       stmts.push(db.prepare(
         'INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal) VALUES (?, ?, ?, ?, ?)'
       ).bind(generateId(), row.siswa_id, bulan, tahun, nominal))
-      totalGenerated++
     }
   }
 
   if (stmts.length > 0) {
-    // D1 batch max ~100 — proses per chunk
-    for (let i = 0; i < stmts.length; i += 100) {
-      await db.batch(stmts.slice(i, i + 100))
-    }
+    for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
   }
 
   revalidatePath('/dashboard/keuangan/spp')
-  return { error: null, success: `${totalGenerated} tagihan SPP berhasil digenerate` }
+  return { error: null, success: `${stmts.length} tagihan SPP berhasil dibuat (dari ${eligible.length} siswa eligible)` }
 }
 
 export async function tandaiSppLunas(tagihanId: string) {
