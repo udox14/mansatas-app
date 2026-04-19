@@ -152,12 +152,16 @@ export function Sidebar({
         </div>
 
         {/* ── NAV ── */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 custom-scrollbar">
+        <nav className="flex-1 overflow-y-auto py-4 px-3 sidebar-scrollbar">
           <style>{`
-            .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-            .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); border-radius: 10px; }
-            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.25); }
+            .sidebar-scrollbar {
+                scrollbar-width: thin;
+                scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+            }
+            .sidebar-scrollbar::-webkit-scrollbar { width: 4px; }
+            .sidebar-scrollbar::-webkit-scrollbar-track { background: transparent; }
+            .sidebar-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); border-radius: 10px; }
+            .sidebar-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.25); }
           `}</style>
           {MENU_GROUPS.map((group, gi) => {
             const groupItems = group.hrefs
