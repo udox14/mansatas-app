@@ -350,3 +350,31 @@ export async function tambahSiswaTahfidz(siswaId: string) {
   revalidatePath('/dashboard/tahfidz')
   return { success: 'Siswa berhasil ditambahkan ke program Tahfidz.' }
 }
+
+// ===========================================
+// DATA ANALITIK SUPER RINGAN (HEMAT ROWS)
+// ===========================================
+export async function getAnalitikSantri(kelasId?: string | 'semua') {
+  const db = await getDB()
+
+  let q = `
+    SELECT 
+      s.id, s.nama_lengkap, k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok,
+      IFNULL(SUM(json_array_length(tp.ayat_hafal)), 0) as totalAyat
+    FROM siswa s
+    LEFT JOIN kelas k ON s.kelas_id = k.id
+    LEFT JOIN tahfidz_progress tp ON s.id = tp.siswa_id
+    WHERE s.status = 'aktif'
+  `
+
+  const params: any[] = []
+  if (kelasId && kelasId !== 'semua') {
+    q += ` AND s.kelas_id = ?`
+    params.push(kelasId)
+  }
+
+  q += ` GROUP BY s.id ORDER BY k.tingkat ASC, CAST(k.nomor_kelas AS INTEGER) ASC, k.nomor_kelas ASC, s.nama_lengkap ASC`
+
+  const { results } = await db.prepare(q).bind(...params).all<any>()
+  return results || []
+}
