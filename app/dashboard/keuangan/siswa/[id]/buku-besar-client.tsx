@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/table'
 import { CheckCircle2, Clock, XCircle, Plus, Printer, AlertTriangle, Ban, Calendar, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar, createKoperasiTagihan, getOrCreateSppTagihan, setSppMulaiSiswa, tandaiSppLunas } from '../../actions'
+import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar, createKoperasiTagihan, setSppMulaiSiswa, simpanSppBulanTerpilih } from '../../actions'
 import { KuitansiModal, type KuitansiData } from '../../components/kuitansi-print'
 
 const STATUS_MAP = {
@@ -53,30 +53,37 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
 
   const { siswa, dspt, sppTagihan, sppMulai, kopTagihan, kopItems, transaksi, janjiList } = data
 
-  // ── SPP tahun navigation ──────────────────────────────────────────────────
+  // ── SPP tahun navigation + multi-select ──────────────────────────────────
   const [sppTahun, setSppTahun] = useState(() => new Date().getFullYear())
+  const [sppSelected, setSppSelected] = useState<Set<number>>(new Set())
   const [mulaiEditModal, setMulaiEditModal] = useState(false)
   const [mulaiForm, setMulaiForm] = useState({
     bulan: String(sppMulai?.bulan_mulai ?? new Date().getMonth() + 1),
     tahun: String(sppMulai?.bulan_mulai ? sppMulai.tahun_mulai : new Date().getFullYear()),
   })
 
-  // Map: `${bulan}-${tahun}` → tagihan
-  const sppTagihanMap = useMemo(() => {
-    const map = new Map<string, any>()
-    for (const t of sppTagihan) map.set(`${t.bulan}-${t.tahun}`, t)
-    return map
-  }, [sppTagihan])
+  // Reset pilihan saat tahun berubah
+  function changeSppTahun(delta: number) {
+    setSppTahun(t => t + delta)
+    setSppSelected(new Set())
+  }
 
-  // Apakah bulan ini sebelum tanggal mulai SPP siswa?
+  // Map: bulan → tagihan (untuk tahun yang sedang dilihat)
+  const sppTagihanMap = useMemo(() => {
+    const map = new Map<number, any>()
+    for (const t of sppTagihan) {
+      if (t.tahun === sppTahun) map.set(t.bulan, t)
+    }
+    return map
+  }, [sppTagihan, sppTahun])
+
   function isBeforeMulai(bulan: number, tahun: number) {
-    if (!sppMulai) return false // belum diatur → semua aktif
+    if (!sppMulai) return false
     if (tahun < sppMulai.tahun_mulai) return true
     if (tahun === sppMulai.tahun_mulai && bulan < sppMulai.bulan_mulai) return true
     return false
   }
 
-  // Apakah bulan ini sudah lewat (nunggak)?
   function isPastMonth(bulan: number, tahun: number) {
     const now = new Date()
     if (tahun < now.getFullYear()) return true
@@ -84,20 +91,30 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
     return false
   }
 
-  async function handleClickBulanSpp(bulan: number) {
+  function toggleBulanSpp(bulan: number) {
+    const tagihan = sppTagihanMap.get(bulan)
+    if (tagihan?.status === 'lunas') {
+      // Sudah lunas → buka kuitansi rekap
+      openKuitansiRekap('spp', tagihan)
+      return
+    }
     if (isBeforeMulai(bulan, sppTahun)) return
+    setSppSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(bulan)) next.delete(bulan)
+      else next.add(bulan)
+      return next
+    })
+  }
+
+  async function handleSimpanSpp() {
+    if (!sppSelected.size) return
+    const bulanList = [...sppSelected].sort((a, b) => a - b)
     startTransition(async () => {
-      // 1. Pastikan tagihan ada
-      const res = await getOrCreateSppTagihan(siswa.id, bulan, sppTahun)
-      if (res.error || !res.data) { setMsg(res.error ?? 'Gagal membuat tagihan'); return }
-      if (res.data.status === 'lunas') {
-        openKuitansiRekap('spp', res.data)
-        return
-      }
-      // 2. Auto-lunas sesuai nominal setting
-      const lunas = await tandaiSppLunas(res.data.id)
-      if (lunas.error) { setMsg(lunas.error); return }
-      setMsg(`SPP ${BULAN_LABEL[bulan]} ${sppTahun} — lunas`)
+      const res = await simpanSppBulanTerpilih(siswa.id, bulanList, sppTahun)
+      if (res.error) { setMsg(res.error); return }
+      setMsg(res.success ?? '')
+      setSppSelected(new Set())
       router.refresh()
     })
   }
@@ -541,11 +558,11 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
             </div>
             {/* Navigasi tahun */}
             <div className="flex items-center gap-1">
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setSppTahun(t => t - 1)}>
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => changeSppTahun(-1)}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-sm font-semibold w-12 text-center">{sppTahun}</span>
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setSppTahun(t => t + 1)}>
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => changeSppTahun(1)}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -554,55 +571,50 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
           {/* Grid 12 kartu bulan */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {Array.from({ length: 12 }, (_, i) => i + 1).map(bulan => {
-              const tagihan = sppTagihanMap.get(`${bulan}-${sppTahun}`)
+              const tagihan = sppTagihanMap.get(bulan)
               const sebelumMulai = isBeforeMulai(bulan, sppTahun)
-              const nunggak = tagihan && tagihan.status !== 'lunas' && isPastMonth(bulan, sppTahun)
               const lunas = tagihan?.status === 'lunas'
+              const nunggak = tagihan && !lunas && isPastMonth(bulan, sppTahun)
+              const dipilih = sppSelected.has(bulan)
 
               return (
                 <button
                   key={bulan}
                   type="button"
-                  disabled={sebelumMulai || isPending}
-                  onClick={() => handleClickBulanSpp(bulan)}
+                  disabled={sebelumMulai}
+                  onClick={() => toggleBulanSpp(bulan)}
                   className={[
-                    'rounded-xl border p-3 text-left transition-all',
+                    'rounded-xl border p-3 text-left transition-all duration-150',
                     sebelumMulai
                       ? 'border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 opacity-40 cursor-not-allowed'
                       : lunas
-                        ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 cursor-pointer'
-                        : nunggak
-                          ? 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20 hover:bg-rose-100 cursor-pointer'
-                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer',
+                        ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 cursor-pointer'
+                        : dipilih
+                          ? 'border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-300 dark:ring-blue-700 cursor-pointer'
+                          : nunggak
+                            ? 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20 hover:border-blue-300 hover:bg-blue-50 cursor-pointer'
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-slate-800/50 cursor-pointer',
                   ].join(' ')}
                 >
-                  <p className={`text-sm font-bold mb-1 ${nunggak ? 'text-rose-600' : lunas ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-200'}`}>
+                  <p className={`text-sm font-bold mb-1 ${
+                    lunas ? 'text-emerald-600' : dipilih ? 'text-blue-600 dark:text-blue-400' : nunggak ? 'text-rose-600' : 'text-slate-700 dark:text-slate-200'
+                  }`}>
                     {BULAN_LABEL[bulan]}
                   </p>
                   {tagihan ? (
                     <>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400">Tagihan</p>
-                      <p className={`text-sm font-semibold ${nunggak ? 'text-rose-600' : lunas ? 'text-emerald-600' : 'text-slate-800 dark:text-slate-200'}`}>
+                      <p className={`text-sm font-semibold ${lunas ? 'text-emerald-600' : dipilih ? 'text-blue-600' : nunggak ? 'text-rose-600' : 'text-slate-800 dark:text-slate-200'}`}>
                         {formatRupiah(tagihan.nominal)}
                       </p>
                       <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
-                        {nunggak && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400">
-                            NUNGGAK
-                          </span>
-                        )}
-                        {lunas && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
-                            LUNAS
-                          </span>
-                        )}
+                        {lunas && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-600">LUNAS</span>}
+                        {nunggak && !dipilih && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600">NUNGGAK</span>}
+                        {dipilih && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-600">DIPILIH</span>}
                         {!lunas && (
-                          <button
-                            type="button"
+                          <button type="button"
                             onClick={e => { e.stopPropagation(); handleEditSppManual(tagihan) }}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300"
-                            title="Edit jumlah bayar"
-                          >
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300">
                             Edit
                           </button>
                         )}
@@ -611,12 +623,33 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                   ) : sebelumMulai ? (
                     <p className="text-[11px] text-slate-400 italic">Tidak berlaku</p>
                   ) : (
-                    <p className="text-[11px] text-slate-400 italic">Tap untuk bayar</p>
+                    <p className={`text-[11px] italic ${dipilih ? 'text-blue-500' : 'text-slate-400'}`}>
+                      {dipilih ? 'Akan dilunaskan' : 'Tap untuk pilih'}
+                    </p>
                   )}
                 </button>
               )
             })}
           </div>
+
+          {/* Tombol Simpan — muncul saat ada bulan dipilih */}
+          {sppSelected.size > 0 && (
+            <div className="sticky bottom-4 flex justify-center">
+              <div className="bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 rounded-xl shadow-lg px-4 py-3 flex items-center gap-3">
+                <p className="text-sm text-slate-600 dark:text-slate-300">
+                  <span className="font-bold text-blue-600">{sppSelected.size} bulan</span> dipilih
+                </p>
+                <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-400" onClick={() => setSppSelected(new Set())}>
+                  Batal
+                </Button>
+                <Button size="sm" className="h-8 text-xs gap-1.5 bg-blue-600 hover:bg-blue-700"
+                  onClick={handleSimpanSpp} disabled={isPending}>
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {isPending ? 'Menyimpan...' : `Simpan & Lunaskan`}
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Modal: Atur mulai SPP per siswa */}
           <Dialog open={mulaiEditModal} onOpenChange={v => { if (!v) setMulaiEditModal(false) }}>
