@@ -103,6 +103,7 @@ export function AyatGrid({ surahNama, jumlahAyat, progressAwal, onSave, isSaving
           >
             {isSaving ? 'Menyimpan...' : 'Simpan'}
           </Button>
+          </div>
         </div>
       </div>
 
