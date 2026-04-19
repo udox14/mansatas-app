@@ -54,13 +54,16 @@ async function downloadSppTemplate(bulan: number, tahun: number, angkatan?: numb
 
 interface SppMulai { id: string; tahun_masuk: number | null; siswa_id: string | null; bulan_mulai: number; tahun_mulai: number }
 
-export function SppClient({ initialSettings, initialTagihan, defaultTahun, defaultBulan, angkatanList, initialMulai }: {
+interface SaldoAwalStats { total: number; total_jumlah: number; total_dibayar: number; belum_lunas: number }
+
+export function SppClient({ initialSettings, initialTagihan, defaultTahun, defaultBulan, angkatanList, initialMulai, saldoAwalStats }: {
   initialSettings: SppSetting[]
   initialTagihan: SppRow[]
   defaultTahun: number
   defaultBulan: number
   angkatanList: number[]
   initialMulai: SppMulai[]
+  saldoAwalStats: SaldoAwalStats | null
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -357,7 +360,7 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
         </div>
 
         {/* Summary */}
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {[
             { label: 'Total Tagihan', value: formatRupiah(withTagihan.reduce((s, r) => s + r.nominal, 0)), color: 'text-slate-900 dark:text-slate-50' },
             { label: 'Terkumpul', value: formatRupiah(withTagihan.reduce((s, r) => s + r.total_dibayar, 0)), color: 'text-emerald-600' },
@@ -370,6 +373,20 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
             </div>
           ))}
         </div>
+        {/* Saldo Awal (Migrasi) — tampil hanya jika ada data */}
+        {saldoAwalStats && saldoAwalStats.total > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-2.5 flex flex-wrap gap-4 items-center">
+            <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 shrink-0">Tunggakan Awal (Migrasi)</p>
+            <div className="flex gap-4 text-xs">
+              <span className="text-slate-600 dark:text-slate-300">Total: <strong>{formatRupiah(saldoAwalStats.total_jumlah ?? 0)}</strong></span>
+              <span className="text-emerald-600">Terbayar: <strong>{formatRupiah(saldoAwalStats.total_dibayar ?? 0)}</strong></span>
+              <span className="text-rose-600">Sisa: <strong>{formatRupiah((saldoAwalStats.total_jumlah ?? 0) - (saldoAwalStats.total_dibayar ?? 0))}</strong></span>
+              {saldoAwalStats.belum_lunas > 0 && (
+                <span className="text-amber-700 dark:text-amber-400">{saldoAwalStats.belum_lunas} siswa belum lunas</span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Table */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">

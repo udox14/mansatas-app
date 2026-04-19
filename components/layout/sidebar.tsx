@@ -10,9 +10,12 @@ import { LogOut, X, ChevronLeft, ChevronRight, Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const SIDEBAR_THEMES = [
-  { id: 'green', label: 'Hijau', sidebarBg: 'bg-[#1b2a24]', sidebarDarkBg: 'dark:bg-[#131e1a]', text: 'text-[#8ba89a]', textMuted: 'text-[#637d70]', activeBg: 'bg-[#294036]', activeText: 'text-[#d1e8dd]', hoverBg: 'hover:bg-[#22362d]', hoverText: 'hover:text-[#b4d4c5]', border: 'border-[#294036]', swatch: 'bg-[#3b5c4e]', ring: 'ring-[#578571]', scrollbarThumb: '#3b5c4e' },
-  { id: 'blue', label: 'Biru', sidebarBg: 'bg-[#1a2333]', sidebarDarkBg: 'dark:bg-[#121926]', text: 'text-[#879ab3]', textMuted: 'text-[#5d708a]', activeBg: 'bg-[#26354d]', activeText: 'text-[#c6daf5]', hoverBg: 'hover:bg-[#202d42]', hoverText: 'hover:text-[#aabce0]', border: 'border-[#26354d]', swatch: 'bg-[#3b5375]', ring: 'ring-[#5a7baf]', scrollbarThumb: '#3b5375' },
-  { id: 'black', label: 'Hitam', sidebarBg: 'bg-[#1c1d21]', sidebarDarkBg: 'dark:bg-[#121314]', text: 'text-[#8d8f99]', textMuted: 'text-[#656770]', activeBg: 'bg-[#2d2e36]', activeText: 'text-[#d6d8e0]', hoverBg: 'hover:bg-[#25262c]', hoverText: 'hover:text-[#b8bac4]', border: 'border-[#2d2e36]', swatch: 'bg-[#464854]', ring: 'ring-[#6a6d7d]', scrollbarThumb: '#464854' },
+  { id: 'emerald', label: 'Hijau', sidebarBg: 'bg-emerald-950', sidebarDarkBg: 'dark:bg-[#02241b]', text: 'text-emerald-100', textMuted: 'text-emerald-400/80', activeBg: 'bg-emerald-500/30', activeText: 'text-white', hoverBg: 'hover:bg-emerald-500/15', hoverText: 'hover:text-white', border: 'border-emerald-800/50', swatch: 'bg-emerald-500', ring: 'ring-emerald-400', scrollbarThumb: '#34d399' },
+  { id: 'blue', label: 'Biru', sidebarBg: 'bg-blue-950', sidebarDarkBg: 'dark:bg-[#0b1433]', text: 'text-blue-100', textMuted: 'text-blue-400/80', activeBg: 'bg-blue-500/30', activeText: 'text-white', hoverBg: 'hover:bg-blue-500/15', hoverText: 'hover:text-white', border: 'border-blue-800/50', swatch: 'bg-blue-500', ring: 'ring-blue-400', scrollbarThumb: '#60a5fa' },
+  { id: 'slate', label: 'Hitam', sidebarBg: 'bg-slate-900', sidebarDarkBg: 'dark:bg-slate-950', text: 'text-slate-300', textMuted: 'text-slate-500', activeBg: 'bg-white/10', activeText: 'text-white', hoverBg: 'hover:bg-white/5', hoverText: 'hover:text-white', border: 'border-slate-800', swatch: 'bg-slate-500', ring: 'ring-slate-400', scrollbarThumb: '#94a3b8' },
+  { id: 'purple', label: 'Ungu', sidebarBg: 'bg-purple-950', sidebarDarkBg: 'dark:bg-[#200b4a]', text: 'text-purple-100', textMuted: 'text-purple-400/80', activeBg: 'bg-purple-500/30', activeText: 'text-white', hoverBg: 'hover:bg-purple-500/15', hoverText: 'hover:text-white', border: 'border-purple-800/50', swatch: 'bg-purple-500', ring: 'ring-purple-400', scrollbarThumb: '#a78bfa' },
+  { id: 'rose', label: 'Merah', sidebarBg: 'bg-rose-950', sidebarDarkBg: 'dark:bg-[#330311]', text: 'text-rose-100', textMuted: 'text-rose-400/80', activeBg: 'bg-rose-500/30', activeText: 'text-white', hoverBg: 'hover:bg-rose-500/15', hoverText: 'hover:text-white', border: 'border-rose-800/50', swatch: 'bg-rose-500', ring: 'ring-rose-400', scrollbarThumb: '#fb7185' },
+  { id: 'teal', label: 'Teal', sidebarBg: 'bg-teal-950', sidebarDarkBg: 'dark:bg-[#022120]', text: 'text-teal-100', textMuted: 'text-teal-400/80', activeBg: 'bg-teal-500/30', activeText: 'text-white', hoverBg: 'hover:bg-teal-500/15', hoverText: 'hover:text-white', border: 'border-teal-800/50', swatch: 'bg-teal-500', ring: 'ring-teal-400', scrollbarThumb: '#2dd4bf' },
 ]
 
 type ThemeKey = typeof SIDEBAR_THEMES[number]['id']
@@ -58,7 +61,7 @@ export function Sidebar({
   const [isOpen, setIsOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [themeId, setThemeId] = useState<ThemeKey>('black')
+  const [themeId, setThemeId] = useState<ThemeKey>('slate')
   const [isDark, setIsDark] = useState(false)
   const [mounted, setMounted] = useState(false)
   const userCollapsedRef = useRef(false)
@@ -126,7 +129,7 @@ export function Sidebar({
 
         {/* ── LOGO — h-12 sejajar header ── */}
         <div className={cn(
-          'h-12 flex items-center border-b shrink-0',
+          'h-12 flex items-center border-b shrink-0 bg-black/10',
           theme.border,
           collapsed ? 'justify-center px-3' : 'px-4 gap-2.5'
         )}>
@@ -187,7 +190,7 @@ export function Sidebar({
                           'group flex items-center rounded-xl text-[13px] transition-all duration-300',
                           collapsed ? 'justify-center p-2.5 mx-auto w-[42px] h-[42px]' : 'gap-3 px-3 py-[9px]',
                           isActive
-                            ? cn(theme.activeBg, theme.activeText, 'font-medium shadow-sm')
+                            ? cn(theme.activeBg, theme.activeText, 'font-semibold shadow-sm ring-1 ring-white/5')
                             : cn(theme.text, theme.hoverBg, theme.hoverText, !collapsed && 'hover:translate-x-1')
                         )}
                       >
@@ -212,8 +215,8 @@ export function Sidebar({
               {SIDEBAR_THEMES.map(c => (
                 <button key={c.id} onClick={() => changeTheme(c.id as ThemeKey)} title={c.label}
                   className={cn(
-                    'w-3.5 h-3.5 rounded-full transition-all duration-200 shadow-sm border border-white/10 saturate-150', c.swatch,
-                    themeId === c.id ? cn('ring-2 ring-offset-2 ring-offset-transparent', c.ring, 'scale-110') : 'opacity-50 hover:opacity-100 hover:scale-110'
+                    'w-3.5 h-3.5 rounded-full transition-all duration-200 shadow-sm border border-white/20', c.swatch,
+                    themeId === c.id ? cn('ring-2 ring-offset-2 ring-offset-transparent', c.ring, 'scale-110') : 'opacity-60 hover:opacity-100 hover:scale-110'
                   )}
                 />
               ))}
