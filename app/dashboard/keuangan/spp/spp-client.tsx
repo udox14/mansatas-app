@@ -451,10 +451,14 @@ export function SppClient({ initialSettings, initialTagihan, defaultTahun, defau
                         {saldoAwal && (
                           <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
                             saldoAwal.status === 'lunas'
-                              ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
-                              : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                              ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              : saldoAwal.status === 'nyicil'
+                                ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                           }`}>
-                            {saldoAwal.status === 'lunas' ? 'T.Awal ✓' : `T.Awal ${formatRupiah(saldoAwal.jumlah - saldoAwal.total_dibayar)}`}
+                            {saldoAwal.status === 'lunas'
+                              ? 'T.Awal ✓'
+                              : `T.Awal ${formatRupiah(saldoAwal.jumlah - saldoAwal.total_dibayar)}`}
                           </span>
                         )}
                       </div>
