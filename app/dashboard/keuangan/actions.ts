@@ -272,14 +272,19 @@ export async function setSppSaldoAwal(siswaId: string, jumlah: number, keteranga
   return { error: null, success: 'Saldo awal SPP disimpan' }
 }
 
-export async function tandaiLunasSaldoAwalSpp(saldoAwalId: string) {
+export async function bayarSaldoAwalSpp(saldoAwalId: string, jumlahBayar: number) {
   const { db } = await requireAuth('keuangan-spp')
-  const rec = await db.prepare('SELECT jumlah FROM fin_spp_saldo_awal WHERE id = ?').bind(saldoAwalId).first<any>()
+  const rec = await db.prepare('SELECT siswa_id, jumlah, total_dibayar FROM fin_spp_saldo_awal WHERE id = ?').bind(saldoAwalId).first<any>()
   if (!rec) return { error: 'Data tidak ditemukan', success: null }
+  if (jumlahBayar <= 0) return { error: 'Jumlah bayar harus lebih dari 0', success: null }
+  const newDibayar = Math.min(rec.jumlah, (rec.total_dibayar ?? 0) + jumlahBayar)
+  const status = newDibayar >= rec.jumlah ? 'lunas' : newDibayar > 0 ? 'nyicil' : 'belum_bayar'
   await db.prepare(`
-    UPDATE fin_spp_saldo_awal SET total_dibayar=?, status='lunas', updated_at=datetime('now') WHERE id=?
-  `).bind(rec.jumlah, saldoAwalId).run()
-  return { error: null, success: 'Tunggakan awal SPP ditandai lunas' }
+    UPDATE fin_spp_saldo_awal SET total_dibayar=?, status=?, updated_at=datetime('now') WHERE id=?
+  `).bind(newDibayar, status, saldoAwalId).run()
+  revalidatePath(`/dashboard/keuangan/siswa/${rec.siswa_id}`)
+  revalidatePath('/dashboard/keuangan/spp')
+  return { error: null, success: `Pembayaran ${status === 'lunas' ? '— Tunggakan awal LUNAS!' : 'berhasil dicatat'}` }
 }
 
 // ─── SPP Mulai (tanggal mulai per angkatan / per siswa) ────────────────────
