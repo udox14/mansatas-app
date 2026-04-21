@@ -41,6 +41,7 @@ import {
   UserCheck,
   NotebookPen,
   BookCheck,
+  ClipboardSignature,
 } from 'lucide-react'
 
 export type MenuItem = {
@@ -121,6 +122,13 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Rekap Absensi',
     href: '/dashboard/rekap-absensi',
     icon: ClipboardList,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas']
+  },
+  {
+    id: 'keterangan-absensi',
+    title: 'Keterangan Absensi',
+    href: '/dashboard/keterangan-absensi',
+    icon: ClipboardSignature,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas']
   },
   {

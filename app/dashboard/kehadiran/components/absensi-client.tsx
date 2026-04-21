@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import {
   CheckCircle2, XCircle, Thermometer, ShieldAlert,
   Loader2, BookOpen, RefreshCw, Save,
-  MessageSquare, Users, ArrowLeft,
+  MessageSquare, Users, ArrowLeft, ClipboardCheck,
 } from 'lucide-react'
 import {
   getBlokMengajarHariIni, loadSiswaAbsensi, simpanAbsensi,
@@ -178,8 +178,14 @@ export function AbsensiClient({ initialData }: Props) {
                 {/* Name + info */}
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate leading-tight">{s.nama_lengkap}</p>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[10px] text-slate-400">{s.nisn}</span>
+                    {s.keterangan_wali_kelas && (
+                      <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0 rounded bg-purple-100 text-purple-700 font-medium">
+                        <ClipboardCheck className="h-2.5 w-2.5" />
+                        Wali Kelas
+                      </span>
+                    )}
                     {s.ada_izin && (
                       <span className="text-[10px] px-1.5 py-0 rounded bg-blue-200 text-blue-800 font-medium">Izin: {s.alasan_izin}</span>
                     )}
