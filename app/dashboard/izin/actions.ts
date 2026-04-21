@@ -8,16 +8,64 @@ import { revalidatePath } from 'next/cache'
 import { nowWIBISO, todayWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 
-export const ALASAN_IZIN = [
-  'KELUAR KOMPLEK BERSAMA ORANG TUA',
-  'SAKIT DI UKS',
-  'SAKIT (PULANG)',
-  'BIMBINGAN LOMBA',
-  'KEGIATAN DI DALAM',
-  'KEGIATAN DI LUAR',
-] as const
+export type AlasanIzin = string
 
-export type AlasanIzin = typeof ALASAN_IZIN[number]
+export type AlasanIzinRow = {
+  id: string
+  alasan: string
+  urutan: number
+}
+
+// ============================================================
+// ALASAN IZIN — CRUD (hanya super admin bisa tambah/hapus)
+// ============================================================
+export async function getAlasanIzin(): Promise<AlasanIzinRow[]> {
+  const db = await getDB()
+  const res = await db.prepare(
+    `SELECT id, alasan, urutan FROM alasan_izin_kelas ORDER BY urutan, alasan`
+  ).all<any>()
+  return (res.results || []).map(r => ({ id: r.id, alasan: r.alasan, urutan: r.urutan }))
+}
+
+export async function tambahAlasanIzin(alasan: string): Promise<{ error?: string; success?: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const db = await getDB()
+  const roles = await getUserRoles(db, user.id)
+  if (!roles.includes('super_admin')) return { error: 'Hanya super admin yang dapat mengelola alasan' }
+
+  const teks = alasan.trim().toUpperCase()
+  if (!teks) return { error: 'Alasan tidak boleh kosong' }
+
+  try {
+    const maxUrutan = await db.prepare(`SELECT COALESCE(MAX(urutan), 0) as m FROM alasan_izin_kelas`).first<any>()
+    const id = crypto.randomUUID()
+    await db.prepare(
+      `INSERT INTO alasan_izin_kelas (id, alasan, urutan) VALUES (?, ?, ?)`
+    ).bind(id, teks, (maxUrutan?.m ?? 0) + 1).run()
+    revalidatePath('/dashboard/izin')
+    return { success: 'Alasan berhasil ditambahkan' }
+  } catch (e: any) {
+    if (e.message?.includes('UNIQUE')) return { error: 'Alasan sudah ada' }
+    return { error: e.message }
+  }
+}
+
+export async function hapusAlasanIzin(id: string): Promise<{ error?: string; success?: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const db = await getDB()
+  const roles = await getUserRoles(db, user.id)
+  if (!roles.includes('super_admin')) return { error: 'Hanya super admin yang dapat mengelola alasan' }
+
+  try {
+    await db.prepare(`DELETE FROM alasan_izin_kelas WHERE id = ?`).bind(id).run()
+    revalidatePath('/dashboard/izin')
+    return { success: 'Alasan dihapus' }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+}
 
 export type SiswaIzinWaliKelas = {
   siswa_id: string

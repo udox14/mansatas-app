@@ -9,11 +9,11 @@ import { IzinWaliKelasClient } from './components/izin-wali-kelas-client'
 import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
 import { todayWIB } from '@/lib/time'
-import { getKelasBinaanForIzin } from './actions'
+import { getKelasBinaanForIzin, getAlasanIzin } from './actions'
 
 export const metadata = { title: 'Perizinan Siswa - MANSATAS App' }
 
-async function IzinDataFetcher({ currentUserRole }: { currentUserRole: string }) {
+async function IzinDataFetcher({ currentUserRole, alasanList }: { currentUserRole: string; alasanList: any[] }) {
   const db = await getDB()
   const today = todayWIB()
 
@@ -51,7 +51,7 @@ async function IzinDataFetcher({ currentUserRole }: { currentUserRole: string })
     pelapor: { nama_lengkap: itk.pelapor_nama }
   }))
 
-  return <IzinClient izinKeluarList={filteredKeluar} izinKelasList={formattedIzinKelas} currentUserRole={currentUserRole} />
+  return <IzinClient izinKeluarList={filteredKeluar} izinKelasList={formattedIzinKelas} currentUserRole={currentUserRole} initialAlasanList={alasanList} />
 }
 
 export const dynamic = 'force-dynamic'
@@ -73,6 +73,8 @@ export default async function IzinPage() {
     !roles.includes('guru_piket') &&
     !roles.includes('resepsionis')
 
+  const [alasanList] = await Promise.all([getAlasanIzin()])
+
   if (isWaliKelasOnly) {
     const { kelas, error } = await getKelasBinaanForIzin()
     return (
@@ -85,7 +87,7 @@ export default async function IzinPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400">Anda belum ditugaskan sebagai wali kelas.</p>
           </div>
         ) : (
-          <IzinWaliKelasClient kelasList={kelas} />
+          <IzinWaliKelasClient kelasList={kelas} alasanList={alasanList} />
         )}
       </div>
     )
@@ -97,7 +99,7 @@ export default async function IzinPage() {
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader title="Perizinan Siswa Harian" description="Posko pencatatan siswa keluar komplek dan izin meninggalkan jam pelajaran." />
       <Suspense fallback={<PageLoading text="Memuat data perizinan..." />}>
-        <IzinDataFetcher currentUserRole={role} />
+        <IzinDataFetcher currentUserRole={role} alasanList={alasanList} />
       </Suspense>
     </div>
   )

@@ -12,7 +12,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Search, Loader2, DoorOpen, UserX, AlertCircle, CheckCircle2, Trash2, LogIn, Clock } from 'lucide-react'
-import { tambahIzinKeluar, tandaiSudahKembali, tambahIzinKelas, hapusIzinKeluar, hapusIzinKelas, searchSiswaIzin } from '../actions'
+import { tambahIzinKeluar, tandaiSudahKembali, tambahIzinKelas, hapusIzinKeluar, hapusIzinKelas, searchSiswaIzin, type AlasanIzinRow } from '../actions'
+import { KelolaAlasanModal } from './kelola-alasan-modal'
 import { cn, formatNamaKelas } from '@/lib/utils'
 
 const initialFormState = { error: null as string | null, success: null as string | null }
@@ -26,10 +27,11 @@ function SubmitBtn({ label }: { label: string }) {
   )
 }
 
-export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
-  izinKeluarList: any[], izinKelasList: any[], currentUserRole: string
+export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole, initialAlasanList }: {
+  izinKeluarList: any[], izinKelasList: any[], currentUserRole: string, initialAlasanList: AlasanIzinRow[]
 }) {
   const isSuperAdmin = currentUserRole === 'super_admin'
+  const [alasanList, setAlasanList] = useState<AlasanIzinRow[]>(initialAlasanList)
 
   // Tab 1: Keluar
   const [searchKeluar, setSearchKeluar] = useState('')
@@ -191,12 +193,9 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
               <Select name="alasan" required>
                 <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue placeholder="Pilih alasan..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="KELUAR KOMPLEK BERSAMA ORANG TUA">Keluar bersama Ortu</SelectItem>
-                  <SelectItem value="SAKIT DI UKS">Sakit di UKS</SelectItem>
-                  <SelectItem value="SAKIT (PULANG)">Sakit (Pulang)</SelectItem>
-                  <SelectItem value="BIMBINGAN LOMBA">Bimbingan Lomba</SelectItem>
-                  <SelectItem value="KEGIATAN DI DALAM">Kegiatan di Dalam</SelectItem>
-                  <SelectItem value="KEGIATAN DI LUAR">Kegiatan di Luar</SelectItem>
+                  {alasanList.map(a => (
+                    <SelectItem key={a.id} value={a.alasan}>{a.alasan}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -342,16 +341,17 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole }: {
               <SelectTrigger className="h-8 w-36 text-xs rounded-md shrink-0"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="SEMUA">Semua Alasan</SelectItem>
-                <SelectItem value="SAKIT DI UKS">Sakit di UKS</SelectItem>
-                <SelectItem value="SAKIT (PULANG)">Sakit (Pulang)</SelectItem>
-                <SelectItem value="BIMBINGAN LOMBA">Bimbingan Lomba</SelectItem>
-                <SelectItem value="KEGIATAN DI DALAM">Kegiatan di Dalam</SelectItem>
-                <SelectItem value="KEGIATAN DI LUAR">Kegiatan di Luar</SelectItem>
+                {alasanList.map(a => (
+                  <SelectItem key={a.id} value={a.alasan}>{a.alasan}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button onClick={() => setIsModalKelasOpen(true)} size="sm" className="h-8 px-3 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shrink-0">
               <UserX className="h-3.5 w-3.5 mr-1" /> Catat Izin Kelas
             </Button>
+            {isSuperAdmin && (
+              <KelolaAlasanModal alasanList={alasanList} onAlasanChange={setAlasanList} />
+            )}
           </div>
 
           {/* MOBILE */}
