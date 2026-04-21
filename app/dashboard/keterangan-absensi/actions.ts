@@ -32,15 +32,17 @@ export async function getKelasBinaan(): Promise<{ error: string | null; kelas: K
   const db = await getDB()
   const roles = await getUserRoles(db, user.id)
 
-  // super_admin bisa lihat semua kelas, wali_kelas hanya kelasnya
+  const isAdmin = roles.includes('super_admin') || roles.includes('admin_tu') || roles.includes('kepsek') || roles.includes('wakamad')
+
   let rows: any[]
-  if (roles.includes('super_admin') || roles.includes('admin_tu') || roles.includes('kepsek') || roles.includes('wakamad')) {
+  if (isAdmin) {
     rows = (await db.prepare(
-      `SELECT id, tingkat, nomor_kelas, kelompok FROM kelas ORDER BY tingkat, nomor_kelas`
+      `SELECT id, tingkat, nomor_kelas, kelompok FROM kelas ORDER BY tingkat, CAST(nomor_kelas AS INTEGER)`
     ).all<any>()).results || []
   } else {
+    // Wali kelas hanya melihat kelas binaannya sendiri
     rows = (await db.prepare(
-      `SELECT id, tingkat, nomor_kelas, kelompok FROM kelas WHERE wali_kelas_id = ? ORDER BY tingkat, nomor_kelas`
+      `SELECT id, tingkat, nomor_kelas, kelompok FROM kelas WHERE wali_kelas_id = ? ORDER BY tingkat, CAST(nomor_kelas AS INTEGER)`
     ).bind(user.id).all<any>()).results || []
   }
 
