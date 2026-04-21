@@ -34,6 +34,7 @@ export type SiswaAbsensi = {
   catatan: string
   ada_izin: boolean
   alasan_izin: string
+  keterangan_wali_kelas: string | null  // non-null jika wali kelas sudah input keterangan
 }
 
 // ============================================================
@@ -167,26 +168,49 @@ export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tan
   if (!user) return { error: 'Unauthorized', siswa: [] }
   const db = await getDB()
 
-  const [siswaRes, absensiRes, izinRes] = await Promise.all([
+  const [siswaRes, absensiRes, izinRes, waliKelasRes] = await Promise.all([
     db.prepare(`SELECT id, nama_lengkap, nisn FROM siswa WHERE kelas_id = ? AND status = 'aktif' ORDER BY nama_lengkap`).bind(kelasId).all<any>(),
     db.prepare(`SELECT siswa_id, status, catatan FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?`).bind(penugasanId, tanggal).all<any>(),
     db.prepare(`SELECT siswa_id, alasan FROM izin_tidak_masuk_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(tanggal, kelasId).all<any>(),
+    db.prepare(`SELECT siswa_id, status, keterangan FROM keterangan_absensi_wali_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(tanggal, kelasId).all<any>(),
   ])
 
   const absenMap = new Map<string, { status: string; catatan: string }>()
   for (const a of absensiRes.results || []) absenMap.set(a.siswa_id, { status: a.status, catatan: a.catatan || '' })
   const izinMap = new Map<string, string>()
   for (const i of izinRes.results || []) izinMap.set(i.siswa_id, i.alasan || 'Izin')
+  const waliMap = new Map<string, { status: string; keterangan: string }>()
+  for (const w of waliKelasRes.results || []) waliMap.set(w.siswa_id, { status: w.status, keterangan: w.keterangan || '' })
 
   return {
     error: null,
     siswa: (siswaRes.results || []).map((s: any) => {
       const ab = absenMap.get(s.id)
       const adaIzin = izinMap.has(s.id)
+      const wali = waliMap.get(s.id)
+
+      // Prioritas status: absensi guru (sudah disimpan) > keterangan wali kelas > izin_tidak_masuk_kelas > HADIR
+      let status: SiswaAbsensi['status']
+      let catatan: string
+      if (ab) {
+        status = ab.status as any
+        catatan = ab.catatan
+      } else if (wali) {
+        status = wali.status as any
+        catatan = `Keterangan dari wali kelas${wali.keterangan ? ': ' + wali.keterangan : ''}`
+      } else if (adaIzin) {
+        status = 'IZIN'
+        catatan = ''
+      } else {
+        status = 'HADIR'
+        catatan = ''
+      }
+
       return {
         siswa_id: s.id, nama_lengkap: s.nama_lengkap, nisn: s.nisn,
-        status: ab ? ab.status as any : (adaIzin ? 'IZIN' : 'HADIR'),
-        catatan: ab?.catatan || '', ada_izin: adaIzin, alasan_izin: izinMap.get(s.id) || '',
+        status, catatan,
+        ada_izin: adaIzin, alasan_izin: izinMap.get(s.id) || '',
+        keterangan_wali_kelas: wali ? (wali.keterangan || wali.status) : null,
       }
     }),
   }
