@@ -185,7 +185,7 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Perizinan Siswa',
     href: '/dashboard/izin',
     icon: DoorOpen,
-    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis']
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'wali_kelas']
   },
   {
     id: 'kedisiplinan',
