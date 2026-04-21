@@ -26,7 +26,7 @@ const MENU_GROUPS = [
   { label: 'Tugas Harian Guru', hrefs: ['/dashboard/agenda', '/dashboard/kehadiran', '/dashboard/nilai-harian', '/dashboard/penugasan'] },
   { label: 'Monitoring Akademik', hrefs: ['/dashboard/akademik', '/dashboard/akademik/nilai', '/dashboard/monitoring-agenda', '/dashboard/monitoring-penugasan', '/dashboard/analitik'] },
   { label: 'Program Khusus', hrefs: ['/dashboard/tahfidz'] },
-  { label: 'Kesiswaan & BK', hrefs: ['/dashboard/rekap-absensi', '/dashboard/jadwal-piket', '/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes', '/dashboard/tka', '/dashboard/penerimaan-pt'] },
+  { label: 'Kesiswaan & BK', hrefs: ['/dashboard/rekap-absensi', '/dashboard/keterangan-absensi', '/dashboard/jadwal-piket', '/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes', '/dashboard/tka', '/dashboard/penerimaan-pt'] },
   { label: 'Administrasi & HR', hrefs: ['/dashboard/surat', '/dashboard/rapat', '/dashboard/sarpras', '/dashboard/kelola-ppl', '/dashboard/buku-tamu'] },
   { label: 'Keuangan', hrefs: ['/dashboard/keuangan', '/dashboard/keuangan/daftar-ulang', '/dashboard/keuangan/dspt', '/dashboard/keuangan/spp', '/dashboard/keuangan/koperasi', '/dashboard/keuangan/kas-keluar', '/dashboard/keuangan/laporan'] },
   { label: 'Sistem', hrefs: ['/dashboard/settings', '/dashboard/settings/notifications', '/dashboard/settings/jadwal-notif', '/dashboard/settings/fitur'] },
