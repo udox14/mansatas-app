@@ -3,12 +3,13 @@ import { Suspense } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB, parseJsonCol } from '@/utils/db'
 import { redirect } from 'next/navigation'
-import { checkFeatureAccess, getPrimaryRole } from '@/lib/features'
+import { checkFeatureAccess, getPrimaryRole, getUserRoles } from '@/lib/features'
 import { IzinClient } from './components/izin-client'
-import { DoorOpen } from 'lucide-react'
+import { IzinWaliKelasClient } from './components/izin-wali-kelas-client'
 import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
 import { todayWIB } from '@/lib/time'
+import { getKelasBinaanForIzin } from './actions'
 
 export const metadata = { title: 'Perizinan Siswa - MANSATAS App' }
 
@@ -62,14 +63,40 @@ export default async function IzinPage() {
   const allowed = await checkFeatureAccess(db, user.id, 'izin')
   if (!allowed) redirect('/dashboard')
 
+  const roles = await getUserRoles(db, user.id)
+  const isWaliKelasOnly = roles.includes('wali_kelas') &&
+    !roles.includes('super_admin') &&
+    !roles.includes('admin_tu') &&
+    !roles.includes('kepsek') &&
+    !roles.includes('wakamad') &&
+    !roles.includes('guru_bk') &&
+    !roles.includes('guru_piket') &&
+    !roles.includes('resepsionis')
+
+  if (isWaliKelasOnly) {
+    const { kelas, error } = await getKelasBinaanForIzin()
+    return (
+      <div className="space-y-4 animate-in fade-in duration-500 pb-12">
+        <PageHeader title="Perizinan Siswa" description="Input izin tidak masuk kelas untuk siswa kelas binaan Anda." />
+        {error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        ) : kelas.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-10 text-center">
+            <p className="text-sm text-slate-500 dark:text-slate-400">Anda belum ditugaskan sebagai wali kelas.</p>
+          </div>
+        ) : (
+          <IzinWaliKelasClient kelasList={kelas} />
+        )}
+      </div>
+    )
+  }
+
   const role = await getPrimaryRole(db, user.id)
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader title="Perizinan Siswa Harian" description="Posko pencatatan siswa keluar komplek dan izin meninggalkan jam pelajaran." />
-      <Suspense fallback={
-<PageLoading text="Memuat data perizinan..." />
-      }>
+      <Suspense fallback={<PageLoading text="Memuat data perizinan..." />}>
         <IzinDataFetcher currentUserRole={role} />
       </Suspense>
     </div>
