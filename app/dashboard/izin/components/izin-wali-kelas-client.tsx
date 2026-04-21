@@ -8,15 +8,16 @@ import {
   ChevronDown, MessageSquare,
 } from 'lucide-react'
 import {
-  loadSiswaUntukIzin, simpanIzinWaliKelasBatch, ALASAN_IZIN,
-  type SiswaIzinWaliKelas, type KelasIzin, type AlasanIzin,
+  loadSiswaUntukIzin, simpanIzinWaliKelasBatch,
+  type SiswaIzinWaliKelas, type KelasIzin, type AlasanIzin, type AlasanIzinRow,
 } from '../actions'
 
 interface Props {
   kelasList: KelasIzin[]
+  alasanList: AlasanIzinRow[]
 }
 
-export function IzinWaliKelasClient({ kelasList }: Props) {
+export function IzinWaliKelasClient({ kelasList, alasanList }: Props) {
   const today = new Date().toISOString().split('T')[0]
 
   const [selectedKelasId, setSelectedKelasId] = useState(kelasList[0]?.kelas_id || '')
@@ -51,6 +52,8 @@ export function IzinWaliKelasClient({ kelasList }: Props) {
     setHasLoaded(false)
     setSiswaList([])
   }
+
+  const defaultAlasan = alasanList[0]?.alasan ?? ''
 
   const setAlasan = (siswaId: string, alasan: AlasanIzin | null) => {
     setSiswaList(prev => prev.map(s =>
@@ -185,8 +188,8 @@ export function IzinWaliKelasClient({ kelasList }: Props) {
                               onChange={e => setAlasan(s.siswa_id, e.target.value as AlasanIzin)}
                               className="w-full appearance-none rounded border border-blue-200 dark:border-blue-700 bg-white dark:bg-slate-800 px-2 py-1 text-[11px] text-slate-700 dark:text-slate-300 focus:outline-none focus:border-blue-400 pr-6"
                             >
-                              {ALASAN_IZIN.map(a => (
-                                <option key={a} value={a}>{a}</option>
+                              {alasanList.map(a => (
+                                <option key={a.id} value={a.alasan}>{a.alasan}</option>
                               ))}
                             </select>
                             <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
@@ -218,7 +221,7 @@ export function IzinWaliKelasClient({ kelasList }: Props) {
                         </>
                       ) : (
                         <button
-                          onClick={() => setAlasan(s.siswa_id, ALASAN_IZIN[0])}
+                          onClick={() => setAlasan(s.siswa_id, defaultAlasan as AlasanIzin)}
                           className="flex items-center gap-1 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[11px] font-medium text-slate-400 hover:border-blue-300 hover:text-blue-600 dark:hover:border-blue-600 dark:hover:text-blue-400 transition-colors"
                         >
                           <ShieldAlert className="h-3 w-3" />
