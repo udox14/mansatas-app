@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { getCurrentUser } from '@/utils/auth/server'
+import { MENU_ITEMS } from '@/config/menu'
 import {
   ArrowRight,
   BellRing,
@@ -69,6 +70,51 @@ const trustPoints = [
   'Akses berbasis peran untuk guru dan tenaga kependidikan',
   'Data operasional tersambung lintas unit kerja',
   'Siap dipakai di desktop maupun perangkat mobile',
+]
+
+const featureGroups = [
+  {
+    title: 'Utama & data master',
+    ids: ['dashboard', 'siswa', 'kelas', 'plotting', 'guru'],
+  },
+  {
+    title: 'Akademik & pembelajaran',
+    ids: ['akademik', 'akademik-nilai', 'kehadiran', 'rekap-absensi', 'keterangan-absensi', 'agenda', 'nilai-harian', 'tahfidz'],
+  },
+  {
+    title: 'Koordinasi & monitoring',
+    ids: ['penugasan', 'monitoring-agenda', 'monitoring-penugasan', 'rapat', 'jadwal-piket', 'analitik'],
+  },
+  {
+    title: 'Kesiswaan & layanan BK',
+    ids: ['izin', 'kedisiplinan', 'bk', 'psikotes', 'tka', 'penerimaan-pt'],
+  },
+  {
+    title: 'Administrasi madrasah',
+    ids: ['surat', 'sarpras', 'kelola-ppl', 'buku-tamu'],
+  },
+  {
+    title: 'Keuangan',
+    ids: ['keuangan-dashboard', 'keuangan-daftar-ulang', 'keuangan-dspt', 'keuangan-spp', 'keuangan-koperasi', 'keuangan-kas-keluar', 'keuangan-laporan'],
+  },
+  {
+    title: 'Sistem & notifikasi',
+    ids: ['settings', 'settings-fitur', 'settings-notifications', 'settings-jadwal-notif'],
+  },
+].map((group) => ({
+  ...group,
+  features: group.ids
+    .map((id) => MENU_ITEMS.find((item) => item.id === id))
+    .filter((item): item is (typeof MENU_ITEMS)[number] => Boolean(item)),
+}))
+
+const advantages = [
+  'Terpadu dalam satu aplikasi, dari kelas sampai keuangan.',
+  'Hak akses mengikuti peran pengguna, jadi tampilan lebih relevan.',
+  'Mendukung pekerjaan harian guru, TU, BK, piket, bendahara, dan pimpinan.',
+  'Data lebih mudah dipantau karena status pekerjaan tersaji di dashboard.',
+  'Siap untuk mobile sehingga akses cepat dari perangkat harian.',
+  'Dilengkapi broadcast dan notifikasi terjadwal untuk informasi penting.',
 ]
 
 export default async function LandingPage() {
@@ -334,6 +380,59 @@ export default async function LandingPage() {
                     </article>
                   )
                 })}
+              </div>
+            </div>
+          </section>
+
+          <section className="border-y border-slate-200 bg-white">
+            <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:px-10">
+              <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">Fitur aplikasi</p>
+                  <h2 className="mt-3 text-3xl font-black tracking-normal text-slate-950 sm:text-4xl">
+                    Semua modul MANSATAS App.
+                  </h2>
+                </div>
+                <p className="max-w-md text-sm font-semibold leading-6 text-slate-600">
+                  Total {MENU_ITEMS.length} fitur aktif yang disusun untuk kebutuhan operasional MAN 1 Tasikmalaya.
+                </p>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                {featureGroups.map((group) => (
+                  <article key={group.title} className="rounded-xl border border-slate-200 bg-[#f9fbf6] p-5 shadow-sm">
+                    <h3 className="text-base font-black text-slate-950">{group.title}</h3>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {group.features.map((feature) => (
+                        <span
+                          key={feature.id}
+                          className="rounded-full border border-emerald-900/10 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 shadow-sm"
+                        >
+                          {feature.title}
+                        </span>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="mt-10 rounded-2xl bg-slate-950 p-5 text-white shadow-[0_24px_70px_rgba(15,23,42,0.2)] sm:p-7">
+                <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">Kelebihan</p>
+                    <h3 className="mt-2 text-2xl font-black sm:text-3xl">Keunggulan untuk kerja madrasah.</h3>
+                  </div>
+                  <ShieldCheck className="hidden h-10 w-10 text-emerald-300 sm:block" />
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {advantages.map((advantage) => (
+                    <div key={advantage} className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4">
+                      <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+                      <p className="text-sm font-semibold leading-6 text-slate-200">{advantage}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </section>
