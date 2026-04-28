@@ -75,30 +75,37 @@ const trustPoints = [
 const featureGroups = [
   {
     title: 'Utama & data master',
+    summary: 'Fondasi data madrasah: pengguna, siswa, kelas, dan plotting.',
     ids: ['dashboard', 'siswa', 'kelas', 'plotting', 'guru'],
   },
   {
     title: 'Akademik & pembelajaran',
+    summary: 'Jadwal, agenda, absensi, nilai, rekap akademik, dan tahfidz.',
     ids: ['akademik', 'akademik-nilai', 'kehadiran', 'rekap-absensi', 'keterangan-absensi', 'agenda', 'nilai-harian', 'tahfidz'],
   },
   {
     title: 'Koordinasi & monitoring',
+    summary: 'Penugasan, rapat, monitoring agenda, dan pemantauan pekerjaan.',
     ids: ['penugasan', 'monitoring-agenda', 'monitoring-penugasan', 'rapat', 'jadwal-piket', 'analitik'],
   },
   {
     title: 'Kesiswaan & layanan BK',
+    summary: 'Perizinan, kedisiplinan, BK, psikotes, TKA, dan penerimaan PT.',
     ids: ['izin', 'kedisiplinan', 'bk', 'psikotes', 'tka', 'penerimaan-pt'],
   },
   {
     title: 'Administrasi madrasah',
+    summary: 'Surat, sarpras, PPL, dan buku tamu.',
     ids: ['surat', 'sarpras', 'kelola-ppl', 'buku-tamu'],
   },
   {
     title: 'Keuangan',
+    summary: 'DSPT, SPP, daftar ulang, koperasi, kas keluar, dan laporan.',
     ids: ['keuangan-dashboard', 'keuangan-daftar-ulang', 'keuangan-dspt', 'keuangan-spp', 'keuangan-koperasi', 'keuangan-kas-keluar', 'keuangan-laporan'],
   },
   {
     title: 'Sistem & notifikasi',
+    summary: 'Pengaturan aplikasi, akses fitur, broadcast, dan jadwal notifikasi.',
     ids: ['settings', 'settings-fitur', 'settings-notifications', 'settings-jadwal-notif'],
   },
 ].map((group) => ({
@@ -109,46 +116,46 @@ const featureGroups = [
 }))
 
 const featureDescriptions: Record<string, string> = {
-  dashboard: 'Ringkasan kerja sesuai role pengguna: statistik penting, pintasan fitur, jadwal, dan status layanan harian.',
-  siswa: 'Mengelola data siswa, buku induk, foto, import massal, tahun masuk, status aktif/keluar, dan detail riwayat siswa.',
-  kelas: 'Mengatur rombel, anggota kelas, wali kelas, mutasi/barter siswa, kelas binaan BK, dan cetak blanko absensi.',
-  plotting: 'Command center untuk siswa baru, draft penjurusan, pengacakan kelas, plotting massal, serta proses kelulusan.',
-  akademik: 'Mengelola mata pelajaran, penugasan mengajar, jadwal kelas/guru, import jadwal ASC, dan guru piket bergilir.',
-  'akademik-nilai': 'Validasi dan import nilai akademik dari Excel, reset kolom nilai, ringkasan import, dan rekap nilai siswa.',
-  tahfidz: 'Mencatat setoran hafalan, progress ayat per surah, nilai per juz, riwayat setoran, laporan, dan analitik santri.',
-  guru: 'Mengelola akun guru/pegawai, role utama dan tambahan, reset password, import pegawai, serta foto profil pegawai.',
-  kehadiran: 'Absensi siswa berdasarkan jadwal mengajar harian, lengkap dengan status hadir, sakit, izin, alfa, catatan, dan referensi izin/keterangan.',
-  'rekap-absensi': 'Menyajikan rekap kehadiran siswa sebagai bahan pantauan wali kelas, TU, wakamad, dan pimpinan.',
-  'keterangan-absensi': 'Wali kelas mencatat keterangan sakit/izin/alfa per tanggal, baik per siswa maupun batch satu kelas.',
-  agenda: 'Guru mengisi agenda mengajar, status kehadiran KBM, riwayat materi, dan guru piket mengisi agenda piket harian.',
-  'nilai-harian': 'Membuat sesi nilai, mengisi nilai siswa, mengatur KKM, dan melihat rekap/rata-rata nilai harian per penugasan.',
-  penugasan: 'Delegasi tugas berdasarkan jadwal, pengiriman tugas ke pengguna lain, tugas masuk, tugas terkirim, dan absensi delegasi.',
-  'monitoring-agenda': 'Monitoring agenda harian, rekap kehadiran guru, cetak laporan, monitoring agenda piket, dan koreksi status agenda.',
-  'monitoring-penugasan': 'Memantau delegasi tugas pada tanggal tertentu, termasuk pengirim, penerima, jadwal, dan status penyelesaian.',
-  rapat: 'Membuat undangan rapat, memilih peserta, konfirmasi kehadiran, kirim ulang undangan, dan pengingat rapat.',
-  'jadwal-piket': 'Mengatur jadwal guru piket sebagai dasar pencatatan kehadiran dan kejadian harian.',
-  izin: 'Mencatat izin tidak masuk, izin keluar, izin kelas, alasan izin, status kembali, dan pengelolaan alasan izin.',
-  kedisiplinan: 'Merekam kasus pelanggaran, master pelanggaran, poin beban, konfigurasi sanksi, dan analitik kedisiplinan.',
-  sarpras: 'Mengelola kategori aset, data aset sarana prasarana, keadaan barang, filter aset, dan unggah foto aset.',
-  bk: 'Mengatur kelas binaan BK, topik BK, rekaman masalah siswa, sesi konseling/konseling kelompok/home visit, dan tindak lanjut.',
-  psikotes: 'Import dan kelola hasil psikotes, IQ, gaya belajar, RIASEC, MBTI, bakat-minat, rekomendasi jurusan, dan analitik psikotes.',
-  analitik: 'Analitik kelulusan: import nilai Excel, pengaturan bobot akademik, ranking SNBP/SPAN/ijazah, dan ekspor hasil analisis.',
-  tka: 'Mengelola mapel pilihan TKA, rekap pilihan, import hasil TKA, pencocokan nama siswa, daftar hasil, dan analitik nilai TKA.',
-  'penerimaan-pt': 'Mencatat penerimaan siswa kelas 12 ke perguruan tinggi berdasarkan jalur, kampus, status, import data, dan analitik.',
-  surat: 'Membuat dan mengarsipkan surat keluar seperti penerimaan, SPPD, izin pesantren, aktif, permohonan, tugas, rapat, pindah, pernyataan, dan kelakuan baik.',
-  'kelola-ppl': 'Memetakan guru PPL ke guru utama, jadwal KBM, dan jadwal piket agar akses agenda/absensi PPL mengikuti penugasan.',
-  'buku-tamu': 'Form kunjungan tamu individu/instansi, foto tamu, daftar tamu hari ini, monitoring per tanggal/bulan, dan hapus entri.',
-  'keuangan-dashboard': 'Dashboard keuangan untuk melihat ringkasan tagihan, pembayaran, pemasukan, pengeluaran, grafik, dan rekap angkatan.',
-  'keuangan-daftar-ulang': 'Kasir daftar ulang untuk memproses pembayaran DSPT dan koperasi sekaligus, diskon, transaksi, dan cetak kuitansi.',
-  'keuangan-dspt': 'Mengatur target DSPT, pembayaran, diskon, status lunas/nyicil/belum bayar, import bulk, dan nominal massal per angkatan.',
-  'keuangan-spp': 'Mengatur setting nominal SPP, bulan mulai SPP, tagihan bulanan, saldo awal, pembayaran, import bulk, dan status tagihan.',
-  'keuangan-koperasi': 'Mengelola master item koperasi, generate tagihan koperasi, pembayaran, diskon, status tagihan, dan rekap sisa.',
-  'keuangan-kas-keluar': 'Mencatat kas keluar berdasarkan kategori operasional, pemeliharaan, kegiatan siswa, administrasi, atau lainnya.',
-  'keuangan-laporan': 'Menyajikan laporan keuangan dari transaksi, kas keluar, tagihan, pembayaran, dan rekap periode.',
-  settings: 'Mengatur tahun ajaran, jurusan, pola jam pelajaran, status tahun ajaran aktif, dan konfigurasi global madrasah.',
-  'settings-fitur': 'Mengelola matrix akses fitur per role, role custom, override fitur per user, dan bottom navigation mobile.',
-  'settings-notifications': 'Mengirim broadcast/push notification kustom ke pengguna atau role yang ditargetkan.',
-  'settings-jadwal-notif': 'Mengelola jadwal notifikasi berulang, toggle aktif/nonaktif, hapus jadwal, dan uji kirim notifikasi.',
+  dashboard: 'Halaman awal untuk melihat ringkasan pekerjaan, jadwal, pintasan menu, dan informasi penting sesuai peran pengguna.',
+  siswa: 'Tempat menyimpan data siswa secara lengkap, mulai dari biodata, foto, buku induk, tahun masuk, sampai status siswa aktif atau keluar.',
+  kelas: 'Membantu mengatur rombel, wali kelas, anggota kelas, perpindahan siswa, kelas binaan BK, sampai blanko absensi yang siap dicetak.',
+  plotting: 'Ruang kerja untuk menyusun siswa baru, penjurusan, pembagian kelas, plotting massal, dan proses kelulusan dengan lebih tertib.',
+  akademik: 'Pusat pengaturan mapel, guru mengajar, jadwal kelas, jadwal guru, import jadwal ASC, dan pembagian guru piket bergilir.',
+  'akademik-nilai': 'Dipakai untuk memasukkan dan mengecek nilai akademik dari Excel, lalu melihat rekap nilai siswa dengan lebih rapi.',
+  tahfidz: 'Mencatat perkembangan hafalan siswa, setoran ayat, nilai per juz, riwayat setoran, laporan, dan analitik program tahfidz.',
+  guru: 'Mengelola akun guru dan pegawai, termasuk data profil, role akses, reset password, import data, dan foto pegawai.',
+  kehadiran: 'Guru dapat mengisi absensi siswa sesuai jadwal mengajar hari itu, lengkap dengan catatan hadir, sakit, izin, alfa, atau parsial.',
+  'rekap-absensi': 'Menyajikan rekap kehadiran siswa agar wali kelas, TU, wakamad, dan pimpinan bisa melihat kondisi absensi dengan cepat.',
+  'keterangan-absensi': 'Wali kelas bisa memberi keterangan ketidakhadiran siswa per tanggal, baik satu per satu maupun sekaligus satu kelas.',
+  agenda: 'Guru mencatat agenda mengajar dan materi pembelajaran, sementara guru piket dapat mengisi agenda piket harian.',
+  'nilai-harian': 'Guru bisa membuat sesi penilaian, mengisi nilai siswa, mengatur KKM, dan melihat rata-rata nilai harian per kelas.',
+  penugasan: 'Memudahkan guru atau pegawai mendelegasikan tugas, menerima tugas masuk, dan melihat pekerjaan yang sudah dikirim.',
+  'monitoring-agenda': 'Pimpinan dan admin dapat memantau agenda guru, rekap kehadiran mengajar, agenda piket, serta mencetak laporan.',
+  'monitoring-penugasan': 'Menampilkan pekerjaan yang sedang didelegasikan, siapa pengirimnya, siapa penerimanya, dan bagaimana statusnya.',
+  rapat: 'Membuat undangan rapat, memilih peserta, menerima konfirmasi kehadiran, mengirim ulang undangan, dan memberi pengingat.',
+  'jadwal-piket': 'Mengatur siapa saja guru piket setiap hari dan shift, sehingga pencatatan piket harian punya dasar yang jelas.',
+  izin: 'Mencatat izin siswa, baik tidak masuk, keluar, maupun izin di jam pelajaran, lengkap dengan alasan dan status kembali.',
+  kedisiplinan: 'Mencatat pelanggaran siswa, poin beban, jenis sanksi, tindak lanjut, dan ringkasan kasus kedisiplinan.',
+  sarpras: 'Mendata aset madrasah, kategori barang, kondisi aset, foto aset, dan filter pencarian sarana prasarana.',
+  bk: 'Guru BK dapat mengelola kelas binaan, topik bimbingan, rekaman masalah siswa, sesi konseling, home visit, dan tindak lanjut.',
+  psikotes: 'Mengelola hasil psikotes siswa seperti IQ, gaya belajar, bakat-minat, RIASEC, MBTI, dan rekomendasi jurusan.',
+  analitik: 'Membantu membaca data nilai untuk kebutuhan ranking, kelulusan, SNBP, SPAN, ijazah, dan ekspor hasil analisis.',
+  tka: 'Mengatur pilihan mapel TKA, mengimpor hasil tes, mencocokkan nama siswa, melihat daftar hasil, dan membaca analitik nilai.',
+  'penerimaan-pt': 'Mencatat siswa kelas 12 yang diterima di perguruan tinggi berdasarkan jalur, kampus, status, dan hasil import data.',
+  surat: 'Membuat dan menyimpan arsip surat keluar, seperti SPPD, surat tugas, keterangan aktif, pindah, undangan, dan surat lainnya.',
+  'kelola-ppl': 'Menghubungkan guru PPL dengan guru utama, jadwal mengajar, dan jadwal piket agar akses tugas PPL sesuai penugasan.',
+  'buku-tamu': 'Mencatat kunjungan tamu individu atau instansi, termasuk foto, tujuan kunjungan, daftar tamu hari ini, dan monitoring kunjungan.',
+  'keuangan-dashboard': 'Menampilkan gambaran keuangan madrasah, mulai dari tagihan, pembayaran, pemasukan, pengeluaran, sampai rekap angkatan.',
+  'keuangan-daftar-ulang': 'Kasir untuk proses daftar ulang, pembayaran DSPT dan koperasi, pemberian diskon, transaksi, dan cetak kuitansi.',
+  'keuangan-dspt': 'Mengatur target DSPT, pembayaran, diskon, status pelunasan, import data, dan nominal massal per angkatan.',
+  'keuangan-spp': 'Mengelola nominal SPP, awal tagihan tiap siswa atau angkatan, tagihan bulanan, saldo awal, pembayaran, dan import data.',
+  'keuangan-koperasi': 'Mengatur item koperasi, membuat tagihan, mencatat pembayaran, memberi diskon, dan melihat sisa tagihan.',
+  'keuangan-kas-keluar': 'Mencatat pengeluaran kas madrasah berdasarkan kategori seperti operasional, pemeliharaan, kegiatan siswa, dan administrasi.',
+  'keuangan-laporan': 'Menyediakan laporan keuangan dari transaksi, tagihan, pembayaran, kas keluar, dan rekap dalam periode tertentu.',
+  settings: 'Tempat mengatur tahun ajaran, jurusan, pola jam pelajaran, tahun aktif, dan konfigurasi dasar aplikasi.',
+  'settings-fitur': 'Mengatur fitur apa saja yang boleh diakses tiap role, membuat role khusus, override akses user, dan bottom nav mobile.',
+  'settings-notifications': 'Mengirim pengumuman atau broadcast ke pengguna tertentu melalui notifikasi aplikasi.',
+  'settings-jadwal-notif': 'Menjadwalkan notifikasi rutin, mengaktifkan atau mematikan jadwal, menghapus jadwal, dan mencoba kirim notifikasi.',
 }
 
 const advantages = [
@@ -443,29 +450,42 @@ export default async function LandingPage() {
 
               <div className="grid gap-4 lg:grid-cols-2">
                 {featureGroups.map((group) => (
-                  <article key={group.title} className="rounded-xl border border-slate-200 bg-[#f9fbf6] p-5 shadow-sm">
-                    <h3 className="text-base font-black text-slate-950">{group.title}</h3>
-                    <div className="mt-4 grid gap-3">
+                  <details
+                    key={group.title}
+                    className="group rounded-xl border border-slate-200 bg-[#f9fbf6] p-5 shadow-sm open:bg-white"
+                  >
+                    <summary className="flex cursor-pointer list-none items-start justify-between gap-4">
+                      <span>
+                        <span className="block text-base font-black text-slate-950">{group.title}</span>
+                        <span className="mt-2 block text-sm font-semibold leading-6 text-slate-600">{group.summary}</span>
+                        <span className="mt-3 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-800">
+                          {group.features.length} fitur
+                        </span>
+                      </span>
+                      <span className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-800 shadow-sm transition group-open:rotate-90">
+                        <ChevronRight className="h-5 w-5" />
+                      </span>
+                    </summary>
+
+                    <div className="mt-5 grid gap-3 border-t border-slate-200 pt-5">
                       {group.features.map((feature) => {
                         const FeatureIcon = feature.icon
                         return (
-                          <div key={feature.id} className="rounded-xl border border-emerald-900/10 bg-white p-4 shadow-sm">
-                            <div className="flex items-start gap-3">
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-800">
-                                <FeatureIcon className="h-5 w-5" />
-                              </div>
-                              <div>
-                                <h4 className="text-sm font-black text-slate-950">{feature.title}</h4>
-                                <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
-                                  {featureDescriptions[feature.id] ?? 'Modul kerja MANSATAS App untuk mendukung operasional madrasah.'}
-                                </p>
-                              </div>
+                          <div key={feature.id} className="flex items-start gap-3 rounded-xl bg-slate-50 p-4">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-800 shadow-sm">
+                              <FeatureIcon className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-black text-slate-950">{feature.title}</h4>
+                              <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
+                                {featureDescriptions[feature.id] ?? 'Modul kerja MANSATAS App untuk mendukung operasional madrasah.'}
+                              </p>
                             </div>
                           </div>
                         )
                       })}
                     </div>
-                  </article>
+                  </details>
                 ))}
               </div>
 
