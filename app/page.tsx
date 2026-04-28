@@ -1,215 +1,370 @@
-// Lokasi: app/page.tsx
 import Link from 'next/link'
 import Image from 'next/image'
 import { getCurrentUser } from '@/utils/auth/server'
-import { ArrowRight, LayoutDashboard, LogIn, Sparkles, UserCheck, CalendarDays, BarChart3, Fingerprint } from 'lucide-react'
+import {
+  ArrowRight,
+  BellRing,
+  BookOpenCheck,
+  CalendarCheck2,
+  CheckCircle2,
+  ChevronRight,
+  ClipboardList,
+  Clock3,
+  FileText,
+  GraduationCap,
+  LayoutDashboard,
+  LockKeyhole,
+  LogIn,
+  MessageSquareText,
+  PieChart,
+  ScanLine,
+  ShieldCheck,
+  Sparkles,
+  UsersRound,
+} from 'lucide-react'
 
 export const metadata = {
   title: 'MANSATAS App',
-  description: 'Sistem Informasi Manajemen Terpadu MAN 1 Tasikmalaya.',
+  description: 'Ruang kerja digital MAN 1 Tasikmalaya untuk layanan madrasah yang lebih tertib, cepat, dan terukur.',
 }
 
 export const dynamic = 'force-dynamic'
 
+const operatingSignals = [
+  { label: 'Kehadiran hari ini', value: '94%', tone: 'bg-emerald-500', icon: ScanLine },
+  { label: 'Agenda aktif', value: '18', tone: 'bg-sky-500', icon: CalendarCheck2 },
+  { label: 'Surat diproses', value: '27', tone: 'bg-amber-500', icon: FileText },
+]
+
+const workstreams = [
+  {
+    title: 'Akademik dan kelas',
+    description: 'Data siswa, kelas, jadwal, nilai harian, dan rekap absensi tersusun dalam alur kerja yang mudah dipantau.',
+    icon: GraduationCap,
+  },
+  {
+    title: 'Kesiswaan dan BK',
+    description: 'Izin, kedisiplinan, catatan tindak lanjut, dan layanan bimbingan berada di satu ruang koordinasi.',
+    icon: UsersRound,
+  },
+  {
+    title: 'Administrasi madrasah',
+    description: 'Surat, rapat, buku tamu, agenda, penugasan, dan monitoring kegiatan lebih cepat ditelusuri.',
+    icon: ClipboardList,
+  },
+  {
+    title: 'Keuangan dan layanan',
+    description: 'SPP, DSPT, daftar ulang, koperasi, dan laporan kas hadir dengan alur yang jelas untuk petugas.',
+    icon: PieChart,
+  },
+]
+
+const timeline = [
+  { time: '07.00', title: 'Presensi dimulai', detail: 'Kelas X-1 sampai XII-7 dipantau otomatis.' },
+  { time: '09.30', title: 'Surat masuk diverifikasi', detail: '3 dokumen menunggu disposisi pimpinan.' },
+  { time: '12.15', title: 'Agenda piket diperbarui', detail: 'Catatan kejadian siang sudah tercatat.' },
+]
+
+const trustPoints = [
+  'Akses berbasis peran untuk guru dan tenaga kependidikan',
+  'Data operasional tersambung lintas unit kerja',
+  'Siap dipakai di desktop maupun perangkat mobile',
+]
+
 export default async function LandingPage() {
   const user = await getCurrentUser()
+  const primaryHref = user ? '/dashboard' : '/login'
+  const primaryLabel = user ? 'Buka Dashboard' : 'Masuk ke MANSATAS'
+  const PrimaryIcon = user ? LayoutDashboard : LogIn
 
   return (
-    <div className="min-h-[100dvh] bg-[#FCFCFD] font-sans relative overflow-x-hidden selection:bg-blue-200 selection:text-blue-900 flex flex-col">
-      
-      <style>{`
-        @keyframes float-slow {
-          0%, 100% { transform: translateY(0) rotate(0deg); }
-          50% { transform: translateY(-20px) rotate(2deg); }
-        }
-        @keyframes float-fast {
-          0%, 100% { transform: translateY(0) rotate(0deg); }
-          50% { transform: translateY(-15px) rotate(-2deg); }
-        }
-        @keyframes blob {
-          0% { transform: translate(0px, 0px) scale(1); }
-          33% { transform: translate(30px, -50px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
-          100% { transform: translate(0px, 0px) scale(1); }
-        }
-        .animate-blob { animation: blob 10s infinite; }
-        .animation-delay-2000 { animation-delay: 2s; }
-        .animation-delay-4000 { animation-delay: 4s; }
-        .card-float-1 { animation: float-slow 6s ease-in-out infinite; }
-        .card-float-2 { animation: float-fast 5s ease-in-out infinite; }
-        .card-float-3 { animation: float-slow 7s ease-in-out infinite; animation-delay: 1s; }
-        
-        .glass-pill {
-          background: rgba(255, 255, 255, 0.6);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.8);
-          box-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
-        }
-        .glass-card {
-          background: rgba(255, 255, 255, 0.75);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 1);
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.6);
-        }
-        .mesh-bg {
-          background-color: #f8fafc;
-          background-image: 
-            radial-gradient(at 10% 20%, hsla(210,100%,94%,1) 0px, transparent 50%),
-            radial-gradient(at 80% 0%, hsla(189,100%,92%,1) 0px, transparent 50%),
-            radial-gradient(at 0% 50%, hsla(41,100%,92%,1) 0px, transparent 50%),
-            radial-gradient(at 80% 50%, hsla(210,100%,95%,1) 0px, transparent 50%),
-            radial-gradient(at 20% 90%, hsla(189,100%,90%,1) 0px, transparent 50%),
-            radial-gradient(at 70% 90%, hsla(41,100%,95%,1) 0px, transparent 50%);
-        }
-      `}</style>
+    <div className="h-[100dvh] overflow-y-auto bg-[#f6f8f5] text-[#111827] selection:bg-emerald-200 selection:text-emerald-950">
+      <div className="relative min-h-[100dvh] overflow-hidden">
+        <div
+          className="absolute inset-0 opacity-[0.48]"
+          style={{
+            backgroundImage:
+              'linear-gradient(#dfe7dd 1px, transparent 1px), linear-gradient(90deg, #dfe7dd 1px, transparent 1px)',
+            backgroundSize: '46px 46px',
+          }}
+        />
+        <div className="absolute inset-x-0 top-0 h-56 bg-[linear-gradient(180deg,#e7f3e9_0%,rgba(231,243,233,0)_100%)]" />
 
-      {/* Dynamic Mesh Background */}
-      <div className="absolute inset-0 z-0 mesh-bg opacity-70"></div>
-      
-      {/* Animated Light Blobs */}
-      <div className="absolute top-0 right-10 w-72 h-72 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-      <div className="absolute top-0 right-40 w-72 h-72 bg-cyan-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-      <div className="absolute -bottom-8 left-20 w-72 h-72 bg-amber-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
-
-      {/* Floating Pill Header */}
-      <header className="fixed top-6 left-1/2 -translate-x-1/2 w-[90%] max-w-4xl z-50 transition-all duration-300">
-        <div className="h-16 glass-pill rounded-full flex items-center justify-between px-3 sm:px-4">
-          <div className="flex items-center gap-3 pl-2">
-            <div className="relative w-9 h-9 flex-shrink-0 bg-white rounded-full shadow-sm flex items-center justify-center p-1.5">
-              <Image src="/logokemenag.png" alt="MAN 1 Tasikmalaya" width={36} height={36} className="w-full h-full object-contain drop-shadow-sm" priority />
-            </div>
-            <div className="flex flex-col justify-center hidden sm:flex">
-              <span className="font-extrabold text-[15px] tracking-tight text-slate-900 leading-none">MANSATAS</span>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <span className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50/50 text-[11px] font-bold text-blue-700 tracking-wide uppercase mr-2 border border-blue-100">
-              <Fingerprint className="w-3.5 h-3.5" /> Portal Resmi
+        <header className="relative z-20 mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-10">
+          <Link href="/" className="flex min-w-0 items-center gap-3" aria-label="MANSATAS App">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-emerald-900/10 bg-white shadow-sm">
+              <Image
+                src="/logokemenag.png"
+                alt="Logo Kementerian Agama"
+                width={34}
+                height={34}
+                className="h-8 w-8 object-contain"
+                priority
+              />
             </span>
-            {user ? (
-               <Link href="/dashboard" className="group flex items-center gap-2 bg-[#0F172A] hover:bg-slate-800 text-white px-5 py-2.5 rounded-full font-bold text-xs sm:text-sm transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5">
-                <LayoutDashboard className="h-4 w-4 transition-transform group-hover:scale-110" /> 
-                <span>Buka Dashboard</span>
-              </Link>
-            ) : (
-              <Link href="/login" className="group flex items-center gap-2 bg-[#0F172A] hover:bg-slate-800 text-white px-6 py-2.5 rounded-full font-bold text-xs sm:text-sm shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
-                <LogIn className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /> 
-                <span>Masuk Portal</span>
-              </Link>
-            )}
-          </div>
-        </div>
-      </header>
+            <span className="min-w-0">
+              <span className="block text-sm font-black uppercase tracking-[0.18em] text-emerald-900">MANSATAS</span>
+              <span className="block text-xs font-semibold text-slate-500">MAN 1 Tasikmalaya</span>
+            </span>
+          </Link>
 
-      {/* Main Asymmetrical Layout */}
-      <main className="relative z-10 flex-1 flex items-center pt-28 pb-16 lg:pt-0 lg:pb-0">
-        <div className="max-w-[1400px] w-full mx-auto px-6 sm:px-10 lg:px-16 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center min-h-[85vh]">
-          
-          {/* LEFT: Typography & Context */}
-          <div className="lg:col-span-5 flex flex-col items-start text-left pt-12 lg:pt-0">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm text-xs font-bold text-slate-700 mb-8 animate-in fade-in slide-in-from-left-4 duration-700">
-               <Sparkles className="h-4 w-4 text-amber-500" /> Platform Edukasi Terpadu v2.0
-            </div>
+          <nav className="hidden items-center gap-7 text-sm font-semibold text-slate-600 md:flex">
+            <a href="#alur" className="hover:text-emerald-800">Alur kerja</a>
+            <a href="#layanan" className="hover:text-emerald-800">Layanan</a>
+            <a href="#keamanan" className="hover:text-emerald-800">Keamanan</a>
+          </nav>
 
-            <h1 className="text-5xl sm:text-6xl lg:text-[72px] font-[900] text-slate-900 tracking-[-0.03em] leading-[1.05] mb-6 animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-150">
-              MANSATAS <br className="hidden sm:block" />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-cyan-500 inline-block pb-2">
-                App
-              </span>
-            </h1>
+          <Link
+            href={primaryHref}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-slate-950 px-4 text-sm font-bold text-white shadow-[0_10px_30px_rgba(15,23,42,0.16)] transition hover:-translate-y-0.5 hover:bg-emerald-950 sm:px-5"
+          >
+            <PrimaryIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">{primaryLabel}</span>
+            <span className="sm:hidden">Masuk</span>
+          </Link>
+        </header>
 
-            <p className="text-lg text-slate-600 leading-relaxed mb-10 max-w-xl font-medium animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
-              Transformasi digital madrasah modern secara mutlak. Kelola administrasi, asrama, bimbingan, hingga kedisiplinan dalam satu ekosistem presisi bebas hambatan.
-            </p>
+        <main className="relative z-10">
+          <section className="mx-auto grid min-h-[calc(100dvh_-_84px)] w-full max-w-7xl items-center gap-10 px-5 pb-10 pt-4 sm:px-8 lg:grid-cols-[0.86fr_1.14fr] lg:px-10">
+            <div className="max-w-2xl">
+              <div className="mb-6 inline-flex items-center gap-2 rounded-lg border border-emerald-900/10 bg-white/80 px-3 py-2 text-xs font-extrabold uppercase tracking-[0.14em] text-emerald-900 shadow-sm">
+                <Sparkles className="h-4 w-4 text-amber-500" />
+                Ruang kerja madrasah
+              </div>
 
-            <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-4 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-500">
-              {user ? (
-                <Link href="/dashboard" className="h-14 px-8 rounded-2xl bg-gradient-to-r from-blue-700 to-blue-600 hover:from-blue-600 hover:to-blue-500 text-white flex items-center justify-center gap-2 font-bold text-[15px] shadow-lg shadow-blue-600/25 hover:shadow-blue-600/40 hover:-translate-y-1 transition-all duration-300 border border-blue-500/50">
-                  Kembali ke Dashboard <ArrowRight className="h-5 w-5" />
+              <h1 className="max-w-3xl text-5xl font-black leading-[0.98] tracking-normal text-slate-950 sm:text-6xl lg:text-7xl">
+                MANSATAS App
+              </h1>
+
+              <p className="mt-6 max-w-xl text-lg font-medium leading-8 text-slate-600">
+                Satu pusat kendali untuk menyatukan layanan akademik, kesiswaan, administrasi, keuangan, dan agenda harian MAN 1 Tasikmalaya.
+              </p>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href={primaryHref}
+                  className="group inline-flex h-14 items-center justify-center gap-3 rounded-lg bg-emerald-700 px-6 text-sm font-black text-white shadow-[0_18px_40px_rgba(4,120,87,0.22)] transition hover:-translate-y-0.5 hover:bg-emerald-800"
+                >
+                  <span>{primaryLabel}</span>
+                  <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
                 </Link>
-              ) : (
-                <Link href="/login" className="group h-14 px-10 rounded-2xl bg-[#0F172A] hover:bg-slate-800 text-white flex items-center justify-center gap-3 font-bold text-[15px] shadow-lg shadow-slate-900/20 hover:shadow-xl hover:shadow-slate-900/30 hover:-translate-y-1 transition-all duration-300">
-                  Mulai Gunakan <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
-                </Link>
-              )}
-            </div>
+                <a
+                  href="#layanan"
+                  className="inline-flex h-14 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white/80 px-6 text-sm font-black text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-700 hover:text-emerald-900"
+                >
+                  Lihat layanan
+                  <ChevronRight className="h-4 w-4" />
+                </a>
+              </div>
 
-            <div className="mt-12 flex items-center gap-4 animate-in fade-in duration-1000 delay-700">
-              <div className="flex -space-x-2">
-                {[1,2,3,4].map(i => (
-                  <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center">
-                    <UserCheck className="w-4 h-4 text-slate-400" />
+              <div className="mt-9 grid max-w-xl gap-3">
+                {trustPoints.map((point) => (
+                  <div key={point} className="flex items-start gap-3 text-sm font-semibold leading-6 text-slate-700">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+                    <span>{point}</span>
                   </div>
                 ))}
               </div>
-              <p className="text-xs font-semibold text-slate-500">
-                Dipercaya seluruh pendidik <br/> <strong className="text-slate-800">MAN 1 Tasikmalaya</strong>
-              </p>
-            </div>
-          </div>
-
-          {/* RIGHT: Visual Abstraction (Glass Cards) */}
-          <div className="lg:col-span-7 relative h-full min-h-[400px] sm:min-h-[500px] lg:min-h-0 w-full flex items-center justify-center pointer-events-none perspective-1000">
-            {/* Center Main Card */}
-            <div className="absolute z-30 w-72 sm:w-80 glass-card rounded-3xl p-6 card-float-1 border-white/60">
-               <div className="flex items-center justify-between mb-6">
-                 <div className="w-12 h-12 rounded-xl bg-blue-100/80 flex items-center justify-center">
-                   <BarChart3 className="w-6 h-6 text-blue-600" />
-                 </div>
-                 <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full uppercase tracking-wider">Live</span>
-               </div>
-               <div className="space-y-3">
-                 <div className="h-3 w-1/3 bg-slate-200/80 rounded-full" />
-                 <div className="h-2 w-3/4 bg-slate-100 rounded-full" />
-                 <div className="pt-4 grid grid-cols-2 gap-3">
-                   <div className="h-16 rounded-2xl bg-blue-50/60 border border-blue-100/50" />
-                   <div className="h-16 rounded-2xl bg-cyan-50/60 border border-cyan-100/50" />
-                 </div>
-               </div>
             </div>
 
-            {/* Left Overlapping Card */}
-            <div className="absolute z-20 w-64 glass-card rounded-3xl p-5 card-float-2 -left-4 sm:left-4 lg:-left-12 top-10 sm:top-20 opacity-90 rotate-[-4deg]">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-10 h-10 rounded-full bg-amber-100/80 flex items-center justify-center">
-                  <UserCheck className="w-5 h-5 text-amber-600" />
+            <div className="relative min-h-[560px] lg:min-h-[650px]">
+              <div className="absolute inset-0 rounded-[2rem] border border-slate-900/10 bg-slate-950 shadow-[0_30px_80px_rgba(15,23,42,0.26)]" />
+              <div className="absolute inset-3 overflow-hidden rounded-[1.55rem] bg-[#f9fbf6]">
+                <div className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-5">
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full bg-rose-400" />
+                    <span className="h-3 w-3 rounded-full bg-amber-400" />
+                    <span className="h-3 w-3 rounded-full bg-emerald-500" />
+                  </div>
+                  <div className="hidden rounded-md bg-slate-100 px-4 py-2 text-xs font-bold text-slate-500 sm:block">
+                    mansatas.app/dashboard
+                  </div>
+                  <BellRing className="h-5 w-5 text-slate-500" />
                 </div>
+
+                <div className="grid min-h-[calc(100%_-_4rem)] grid-cols-1 lg:grid-cols-[220px_1fr]">
+                  <aside className="hidden border-r border-slate-200 bg-slate-50 p-5 lg:block">
+                    <div className="mb-7 flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-700 text-white">
+                        <ShieldCheck className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-slate-900">Operator</p>
+                        <p className="text-xs font-semibold text-slate-500">Piket pagi</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {['Ringkasan', 'Kehadiran', 'Agenda', 'Surat', 'Keuangan'].map((item, index) => (
+                        <div
+                          key={item}
+                          className={`flex items-center justify-between rounded-lg px-3 py-3 text-sm font-bold ${
+                            index === 0 ? 'bg-emerald-700 text-white' : 'text-slate-600'
+                          }`}
+                        >
+                          <span>{item}</span>
+                          {index === 0 ? <ChevronRight className="h-4 w-4" /> : null}
+                        </div>
+                      ))}
+                    </div>
+                  </aside>
+
+                  <div className="p-4 sm:p-6">
+                    <div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">Hari ini</p>
+                        <h2 className="mt-1 text-2xl font-black text-slate-950">Pusat Kendali Layanan</h2>
+                      </div>
+                      <div className="inline-flex w-fit items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                        Sinkron aktif
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {operatingSignals.map((signal) => {
+                        const Icon = signal.icon
+                        return (
+                          <div key={signal.label} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                            <div className={`mb-4 flex h-9 w-9 items-center justify-center rounded-md ${signal.tone} text-white`}>
+                              <Icon className="h-4 w-4" />
+                            </div>
+                            <p className="text-3xl font-black text-slate-950">{signal.value}</p>
+                            <p className="mt-1 text-xs font-bold text-slate-500">{signal.label}</p>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="mb-4 flex items-center justify-between">
+                          <h3 className="text-sm font-black text-slate-950">Arus pekerjaan</h3>
+                          <Clock3 className="h-4 w-4 text-slate-400" />
+                        </div>
+                        <div className="space-y-4">
+                          {timeline.map((item) => (
+                            <div key={item.time} className="grid grid-cols-[56px_1fr] gap-3">
+                              <span className="rounded-md bg-slate-100 px-2 py-1 text-center text-xs font-black text-slate-600">
+                                {item.time}
+                              </span>
+                              <div>
+                                <p className="text-sm font-black text-slate-900">{item.title}</p>
+                                <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{item.detail}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section className="rounded-lg border border-slate-200 bg-[#111827] p-4 text-white shadow-sm">
+                        <div className="mb-4 flex items-center gap-2">
+                          <MessageSquareText className="h-4 w-4 text-amber-300" />
+                          <h3 className="text-sm font-black">Catatan cepat</h3>
+                        </div>
+                        <p className="text-sm font-semibold leading-6 text-slate-200">
+                          Semua unit bisa melihat pekerjaan yang perlu ditindaklanjuti tanpa menunggu pesan berulang.
+                        </p>
+                        <div className="mt-5 grid grid-cols-2 gap-2">
+                          <div className="rounded-md bg-white/10 p-3">
+                            <p className="text-2xl font-black">8</p>
+                            <p className="text-xs font-bold text-slate-300">Tugas baru</p>
+                          </div>
+                          <div className="rounded-md bg-white/10 p-3">
+                            <p className="text-2xl font-black">5</p>
+                            <p className="text-xs font-bold text-slate-300">Perlu cek</p>
+                          </div>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="alur" className="border-y border-slate-200 bg-white">
+            <div className="mx-auto grid max-w-7xl gap-8 px-5 py-14 sm:px-8 lg:grid-cols-[0.8fr_1.2fr] lg:px-10">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">Cara kerja</p>
+                <h2 className="mt-3 text-3xl font-black tracking-normal text-slate-950 sm:text-4xl">Dari data harian menjadi keputusan yang rapi.</h2>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {['Catat', 'Koordinasi', 'Tindak lanjuti'].map((step, index) => (
+                  <div key={step} className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                    <span className="text-xs font-black text-emerald-800">0{index + 1}</span>
+                    <h3 className="mt-5 text-lg font-black text-slate-950">{step}</h3>
+                    <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
+                      {index === 0
+                        ? 'Setiap layanan masuk melalui form dan modul yang sesuai.'
+                        : index === 1
+                          ? 'Unit terkait melihat konteks yang sama tanpa dokumen tercecer.'
+                          : 'Status pekerjaan mudah dipantau sampai selesai.'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section id="layanan" className="bg-[#f6f8f5]">
+            <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:px-10">
+              <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
                 <div>
-                  <div className="h-2.5 w-20 bg-slate-200/80 rounded-full mb-2" />
-                  <div className="h-2 w-12 bg-slate-100 rounded-full" />
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">Layanan utama</p>
+                  <h2 className="mt-3 text-3xl font-black tracking-normal text-slate-950 sm:text-4xl">Satu aplikasi untuk banyak meja kerja.</h2>
                 </div>
+                <p className="max-w-md text-sm font-semibold leading-6 text-slate-600">
+                  Dirancang untuk pekerjaan madrasah yang berulang, detail, dan butuh kejelasan status.
+                </p>
               </div>
-              <div className="space-y-2">
-                 <div className="h-2 w-full bg-slate-100 rounded-full" />
-                 <div className="h-2 w-4/5 bg-slate-100 rounded-full" />
+
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {workstreams.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <article key={item.title} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                      <div className="mb-7 flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-50 text-emerald-800">
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-lg font-black text-slate-950">{item.title}</h3>
+                      <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">{item.description}</p>
+                    </article>
+                  )
+                })}
               </div>
             </div>
+          </section>
 
-            {/* Right Overlapping Card */}
-            <div className="absolute z-40 w-56 glass-card rounded-2xl p-4 card-float-3 right-0 sm:right-10 lg:-right-4 bottom-10 sm:bottom-20 opacity-95 rotate-[3deg]">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-100/80 flex items-center justify-center shrink-0">
-                  <CalendarDays className="w-4 h-4 text-emerald-600" />
+          <section id="keamanan" className="bg-slate-950 text-white">
+            <div className="mx-auto grid max-w-7xl gap-8 px-5 py-14 sm:px-8 lg:grid-cols-[1fr_0.9fr] lg:px-10">
+              <div>
+                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-500 text-white">
+                  <LockKeyhole className="h-6 w-6" />
                 </div>
-                <div className="w-full space-y-2 pt-1">
-                  <div className="h-2 w-full bg-slate-200/80 rounded-full" />
-                  <div className="h-2 w-2/3 bg-slate-100 rounded-full" />
-                  <div className="h-2 w-1/2 bg-slate-100 rounded-full" />
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">Akses tertib</p>
+                <h2 className="mt-3 text-3xl font-black tracking-normal sm:text-4xl">Setiap pengguna masuk ke ruang kerja yang sesuai perannya.</h2>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-white/5 p-5">
+                <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+                  <BookOpenCheck className="h-5 w-5 text-amber-300" />
+                  <p className="text-sm font-black">Portal resmi MAN 1 Tasikmalaya</p>
                 </div>
+                <p className="mt-4 text-sm font-semibold leading-7 text-slate-300">
+                  MANSATAS App menjaga akses modul berdasarkan tugas pengguna, sehingga guru, wali kelas, bendahara, BK, piket, resepsionis, dan pimpinan dapat bekerja dari data yang relevan.
+                </p>
+                <Link
+                  href={primaryHref}
+                  className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-black text-slate-950 transition hover:-translate-y-0.5 hover:bg-emerald-100"
+                >
+                  {primaryLabel}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
               </div>
             </div>
-            
-            {/* Background Decor Elements */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 border-[1px] border-slate-200/60 rounded-full border-dashed animate-[spin_60s_linear_infinite]" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 border-[1px] border-slate-200/40 rounded-full border-solid" />
-          </div>
-
-        </div>
-      </main>
-
+          </section>
+        </main>
+      </div>
     </div>
   )
 }
