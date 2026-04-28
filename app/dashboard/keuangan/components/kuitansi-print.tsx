@@ -106,10 +106,18 @@ function terbilang(angka: number): string {
 const PAGE_STYLE = `
   @page { size: A4 portrait; margin: 0; }
   @media print {
-    body { margin: 0; padding: 0; }
+    html, body { width: 210mm; margin: 0; padding: 0; background: #fff; }
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .page-break { page-break-after: always; break-after: page; }
+    .page-break:last-child { page-break-after: auto; break-after: auto; }
   }
 `
+
+const A4_WIDTH = '210mm'
+const A4_HEIGHT = '297mm'
+const HALF_A4_HEIGHT = '148.5mm'
+
+type KuitansiCopyLabel = 'Lembar Pembayar' | 'Arsip Sekolah'
 
 // ─── Cap LUNAS (shared) ───────────────────────────────────────────────────────
 
@@ -119,15 +127,15 @@ function CapLunas() {
       position: 'absolute',
       top: '48%', left: '50%',
       transform: 'translate(-50%, -50%) rotate(-22deg)',
-      border: '6px double #16a34a',
+      border: '4px double #16a34a',
       borderRadius: '6px',
-      padding: '6px 24px',
+      padding: '4px 16px',
       color: '#16a34a',
-      fontSize: '52pt',
+      fontSize: '28pt',
       fontWeight: 900,
       fontFamily: '"Arial Black", Arial, sans-serif',
-      letterSpacing: '8px',
-      opacity: 0.16,
+      letterSpacing: '5px',
+      opacity: 0.13,
       pointerEvents: 'none',
       userSelect: 'none',
       whiteSpace: 'nowrap',
@@ -143,9 +151,9 @@ function CapLunas() {
 function InfoRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
     <tr>
-      <td style={{ width: '38%', padding: '2.5px 0', color: '#555', fontSize: '10.5pt' }}>{label}</td>
-      <td style={{ width: '4%',  padding: '2.5px 0', textAlign: 'center' }}>:</td>
-      <td style={{ padding: '2.5px 0', fontWeight: bold ? 'bold' : 'normal', fontSize: '10.5pt' }}>{value}</td>
+      <td style={{ width: '35%', padding: '1px 0', color: '#555', fontSize: '8pt', lineHeight: 1.15 }}>{label}</td>
+      <td style={{ width: '4%',  padding: '1px 0', textAlign: 'center', fontSize: '8pt', lineHeight: 1.15 }}>:</td>
+      <td style={{ padding: '1px 0', fontWeight: bold ? 'bold' : 'normal', fontSize: '8pt', lineHeight: 1.15 }}>{value}</td>
     </tr>
   )
 }
@@ -154,30 +162,31 @@ function InfoRow({ label, value, bold }: { label: string; value: string; bold?: 
 
 function TabelRincian({ items, headerColor = '#1a1a1a' }: { items: KuitansiItem[]; headerColor?: string }) {
   const total = items.reduce((s, i) => s + i.nominal, 0)
+  const dense = items.length > 6
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '7mm', fontSize: '10.5pt' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2.5mm', fontSize: dense ? '7.2pt' : '7.8pt', lineHeight: 1.12 }}>
       <thead>
         <tr style={{ backgroundColor: headerColor, color: '#fff' }}>
-          <th style={{ padding: '5px 8px', textAlign: 'left', width: '6%' }}>No.</th>
-          <th style={{ padding: '5px 8px', textAlign: 'left' }}>Uraian Pembayaran</th>
-          <th style={{ padding: '5px 8px', textAlign: 'right', width: '28%' }}>Jumlah (Rp)</th>
+          <th style={{ padding: dense ? '2px 5px' : '3px 5px', textAlign: 'left', width: '6%' }}>No.</th>
+          <th style={{ padding: dense ? '2px 5px' : '3px 5px', textAlign: 'left' }}>Uraian Pembayaran</th>
+          <th style={{ padding: dense ? '2px 5px' : '3px 5px', textAlign: 'right', width: '28%' }}>Jumlah (Rp)</th>
         </tr>
       </thead>
       <tbody>
         {items.map((item, i) => (
           <tr key={i} style={{ borderBottom: '1px solid #ddd' }}>
-            <td style={{ padding: '5px 8px', textAlign: 'center' }}>{i + 1}</td>
-            <td style={{ padding: '5px 8px' }}>{item.label}</td>
-            <td style={{ padding: '5px 8px', textAlign: 'right', fontFamily: 'monospace' }}>
+            <td style={{ padding: dense ? '1.5px 5px' : '2px 5px', textAlign: 'center' }}>{i + 1}</td>
+            <td style={{ padding: dense ? '1.5px 5px' : '2px 5px' }}>{item.label}</td>
+            <td style={{ padding: dense ? '1.5px 5px' : '2px 5px', textAlign: 'right', fontFamily: 'monospace' }}>
               {formatRupiah(item.nominal)}
             </td>
           </tr>
         ))}
         <tr style={{ borderTop: '2px solid #1a1a1a', backgroundColor: '#f5f5f5' }}>
-          <td colSpan={2} style={{ padding: '6px 8px', fontWeight: 'bold', textAlign: 'right' }}>
+          <td colSpan={2} style={{ padding: dense ? '2px 5px' : '3px 5px', fontWeight: 'bold', textAlign: 'right' }}>
             TOTAL PEMBAYARAN INI
           </td>
-          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace' }}>
+          <td style={{ padding: dense ? '2px 5px' : '3px 5px', textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace' }}>
             {formatRupiah(total)}
           </td>
         </tr>
@@ -191,29 +200,29 @@ function TabelRincian({ items, headerColor = '#1a1a1a' }: { items: KuitansiItem[
 function TabelSisa({ items }: { items: KuitansiSisaTunggakan[] }) {
   if (!items.length) return null
   return (
-    <div style={{ marginBottom: '7mm' }}>
-      <p style={{ fontSize: '10pt', color: '#555', marginBottom: '3px', fontStyle: 'italic' }}>
+    <div style={{ marginBottom: '2.5mm' }}>
+      <p style={{ fontSize: '7.5pt', color: '#555', margin: '0 0 2px 0', fontStyle: 'italic' }}>
         Catatan — sisa tagihan yang belum terbayar:
       </p>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt', border: '1px solid #ddd' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '7.4pt', border: '1px solid #ddd', lineHeight: 1.1 }}>
         <thead>
           <tr style={{ backgroundColor: '#f0f0f0' }}>
-            <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Item</th>
-            <th style={{ padding: '4px 8px', textAlign: 'right', borderBottom: '1px solid #ddd', width: '30%' }}>Sisa (Rp)</th>
+            <th style={{ padding: '2px 5px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Item</th>
+            <th style={{ padding: '2px 5px', textAlign: 'right', borderBottom: '1px solid #ddd', width: '30%' }}>Sisa (Rp)</th>
           </tr>
         </thead>
         <tbody>
           {items.map((item, i) => (
             <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '4px 8px' }}>{item.label}</td>
-              <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#c0392b' }}>
+              <td style={{ padding: '2px 5px' }}>{item.label}</td>
+              <td style={{ padding: '2px 5px', textAlign: 'right', fontFamily: 'monospace', color: '#c0392b' }}>
                 {formatRupiah(item.sisa)}
               </td>
             </tr>
           ))}
           <tr style={{ backgroundColor: '#fdf0ee', borderTop: '1px solid #ddd' }}>
-            <td style={{ padding: '4px 8px', fontWeight: 'bold' }}>Total Sisa Tunggakan</td>
-            <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', color: '#c0392b' }}>
+            <td style={{ padding: '2px 5px', fontWeight: 'bold' }}>Total Sisa Tunggakan</td>
+            <td style={{ padding: '2px 5px', textAlign: 'right', fontWeight: 'bold', fontFamily: 'monospace', color: '#c0392b' }}>
               {formatRupiah(items.reduce((s, i) => s + i.sisa, 0))}
             </td>
           </tr>
@@ -228,28 +237,28 @@ function TabelSisa({ items }: { items: KuitansiSisaTunggakan[] }) {
 function BlokJumlah({ diserahkan, tagihan }: { diserahkan: number; tagihan: number }) {
   const kembalian = diserahkan - tagihan
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10mm' }}>
-      <table style={{ borderCollapse: 'collapse', fontSize: '11pt', minWidth: '240px' }}>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '2.5mm' }}>
+      <table style={{ borderCollapse: 'collapse', fontSize: '8.2pt', minWidth: '190px', lineHeight: 1.1 }}>
         <tbody>
           <tr>
-            <td style={{ padding: '3px 14px 3px 0', color: '#333', letterSpacing: '0.5px' }}>JUMLAH</td>
-            <td style={{ padding: '3px 0', textAlign: 'center', width: '8px' }}>:</td>
-            <td style={{ padding: '3px 0 3px 14px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '12pt' }}>
+            <td style={{ padding: '1px 10px 1px 0', color: '#333', letterSpacing: '0.2px' }}>JUMLAH</td>
+            <td style={{ padding: '1px 0', textAlign: 'center', width: '8px' }}>:</td>
+            <td style={{ padding: '1px 0 1px 10px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', fontSize: '8.8pt' }}>
               {formatRupiah(diserahkan)}
             </td>
           </tr>
           <tr>
-            <td style={{ padding: '3px 14px 3px 0', color: '#333' }}>PEMBAYARAN</td>
-            <td style={{ padding: '3px 0', textAlign: 'center' }}>:</td>
-            <td style={{ padding: '3px 0 3px 14px', textAlign: 'right', fontFamily: 'monospace' }}>
+            <td style={{ padding: '1px 10px 1px 0', color: '#333' }}>PEMBAYARAN</td>
+            <td style={{ padding: '1px 0', textAlign: 'center' }}>:</td>
+            <td style={{ padding: '1px 0 1px 10px', textAlign: 'right', fontFamily: 'monospace' }}>
               {formatRupiah(tagihan)}
             </td>
           </tr>
           <tr style={{ borderTop: '1.5px solid #1a1a1a' }}>
-            <td style={{ padding: '4px 14px 3px 0', fontWeight: 'bold', letterSpacing: '0.5px' }}>KEMBALI</td>
-            <td style={{ padding: '4px 0', textAlign: 'center' }}>:</td>
+            <td style={{ padding: '2px 10px 1px 0', fontWeight: 'bold', letterSpacing: '0.2px' }}>KEMBALI</td>
+            <td style={{ padding: '2px 0', textAlign: 'center' }}>:</td>
             <td style={{
-              padding: '4px 0 3px 14px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold',
+              padding: '2px 0 1px 10px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold',
               color: kembalian > 0 ? '#16a34a' : '#1a1a1a',
             }}>
               {formatRupiah(kembalian > 0 ? kembalian : 0)}
@@ -267,20 +276,20 @@ function BlokTtd({
   tanggalFmt, namaSiswa, namaPerugas, jabatanPenerima,
 }: { tanggalFmt: string; namaSiswa: string; namaPerugas: string; jabatanPenerima: string }) {
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5pt' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', lineHeight: 1.12 }}>
       <tbody>
         <tr>
-          <td style={{ width: '50%', textAlign: 'center', padding: '0 10mm', verticalAlign: 'bottom' }}>
+          <td style={{ width: '50%', textAlign: 'center', padding: '0 9mm', verticalAlign: 'bottom' }}>
             {/* Spacer setinggi 2 baris teks kanan agar garis TTD sejajar */}
-            <p style={{ margin: '0 0 3px 0', visibility: 'hidden' }}>placeholder</p>
-            <p style={{ margin: '0 0 28mm 0' }}>Penyetor / Siswa</p>
-            <div style={{ borderBottom: '1px solid #1a1a1a', marginBottom: '5px' }} />
+            <p style={{ margin: '0 0 2px 0', visibility: 'hidden' }}>placeholder</p>
+            <p style={{ margin: '0 0 11mm 0' }}>Penyetor / Siswa</p>
+            <div style={{ borderBottom: '1px solid #1a1a1a', marginBottom: '3px' }} />
             <p style={{ margin: 0, fontWeight: 'bold' }}>( {namaSiswa} )</p>
           </td>
-          <td style={{ width: '50%', textAlign: 'center', padding: '0 10mm', verticalAlign: 'bottom' }}>
-            <p style={{ margin: '0 0 3px 0' }}>Tasikmalaya, {tanggalFmt}</p>
-            <p style={{ margin: '0 0 28mm 0' }}>{jabatanPenerima}</p>
-            <div style={{ borderBottom: '1px solid #1a1a1a', marginBottom: '5px' }} />
+          <td style={{ width: '50%', textAlign: 'center', padding: '0 9mm', verticalAlign: 'bottom' }}>
+            <p style={{ margin: '0 0 2px 0' }}>Tasikmalaya, {tanggalFmt}</p>
+            <p style={{ margin: '0 0 11mm 0' }}>{jabatanPenerima}</p>
+            <div style={{ borderBottom: '1px solid #1a1a1a', marginBottom: '3px' }} />
             <p style={{ margin: 0, fontWeight: 'bold' }}>( {namaPerugas} )</p>
           </td>
         </tr>
@@ -295,8 +304,8 @@ function FooterDoc({ nomorKuitansi }: { nomorKuitansi: string }) {
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0,
-      borderTop: '1px solid #ccc', padding: '4px 18mm',
-      fontSize: '8pt', color: '#aaa',
+      borderTop: '1px solid #d4d4d4', padding: '2px 10mm',
+      fontSize: '6.6pt', color: '#888',
       display: 'flex', justifyContent: 'space-between',
     }}>
       <span>Dicetak: {new Date().toLocaleString('id-ID')}</span>
@@ -310,41 +319,46 @@ function FooterDoc({ nomorKuitansi }: { nomorKuitansi: string }) {
 //  KUITANSI KOMITE  (DSPT & SPP)  — kop: kopkomite.png
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function KuitansiKomiteContent({ data }: { data: KuitansiData }) {
+function KuitansiKomiteContent({ data, copyLabel }: { data: KuitansiData; copyLabel: KuitansiCopyLabel }) {
   const tanggalFmt = new Date(data.tanggal).toLocaleDateString('id-ID', {
     day: 'numeric', month: 'long', year: 'numeric',
   })
 
   return (
     <div style={{
-      width: '210mm', minHeight: '297mm', margin: '0 auto',
+      width: A4_WIDTH, height: HALF_A4_HEIGHT, margin: '0 auto',
       backgroundColor: '#fff', fontFamily: '"Times New Roman", Times, serif',
-      fontSize: '11pt', color: '#1a1a1a', position: 'relative', boxSizing: 'border-box',
+      fontSize: '8pt', color: '#1a1a1a', position: 'relative', boxSizing: 'border-box',
+      overflow: 'hidden',
     }}>
       {/* Kop */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/kopkomite.png" alt="Kop Komite" style={{ width: '100%', display: 'block' }} />
-      <div style={{ borderTop: '3px solid #1a1a1a', borderBottom: '1px solid #1a1a1a', height: '4px' }} />
+      <img src="/kopkomite.png" alt="Kop Komite" style={{ width: '100%', height: '23mm', objectFit: 'contain', display: 'block' }} />
+      <div style={{ borderTop: '2px solid #1a1a1a', borderBottom: '1px solid #1a1a1a', height: '3px' }} />
 
-      <div style={{ padding: '14mm 18mm 24mm 18mm' }}>
+      <div style={{ padding: '4mm 10mm 8mm 10mm' }}>
 
         {/* Judul kanan atas */}
-        <div style={{ textAlign: 'right', marginBottom: '10mm' }}>
-          <div style={{ display: 'inline-block', borderBottom: '2.5px solid #1a1a1a', paddingBottom: '2px' }}>
-            <p style={{ fontSize: '20pt', fontWeight: 'bold', letterSpacing: '3px', margin: 0 }}>
+        <div style={{ position: 'absolute', top: '28mm', left: '10mm', border: '1px solid #aaa', borderRadius: '999px', padding: '2px 8px', fontSize: '7pt', color: '#555' }}>
+          {copyLabel}
+        </div>
+
+        <div style={{ textAlign: 'right', marginBottom: '2.5mm' }}>
+          <div style={{ display: 'inline-block', borderBottom: '1.5px solid #1a1a1a', paddingBottom: '1px' }}>
+            <p style={{ fontSize: '12.5pt', fontWeight: 'bold', letterSpacing: '1.2px', margin: 0 }}>
               BUKTI PEMBAYARAN
             </p>
           </div>
-          <p style={{ fontSize: '10pt', color: '#666', marginTop: '4px' }}>
+          <p style={{ fontSize: '7.5pt', color: '#666', margin: '1px 0 0 0' }}>
             Pembayaran {data.kategori} — Tahun Pelajaran 2024/2025
           </p>
         </div>
 
         {/* Info 2 kolom */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8mm' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2.5mm' }}>
           <tbody>
             <tr>
-              <td style={{ verticalAlign: 'top', width: '50%', paddingRight: '8mm' }}>
+              <td style={{ verticalAlign: 'top', width: '50%', paddingRight: '6mm' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <tbody>
                     <InfoRow label="Nama Siswa" value={data.namaSiswa} bold />
@@ -369,8 +383,8 @@ function KuitansiKomiteContent({ data }: { data: KuitansiData }) {
 
         {/* Terbilang */}
         <div style={{
-          border: '1px solid #bbb', borderRadius: '4px', padding: '6px 12px',
-          marginBottom: '7mm', backgroundColor: '#fafafa', fontSize: '10pt',
+          border: '1px solid #bbb', borderRadius: '3px', padding: '3px 8px',
+          marginBottom: '2.5mm', backgroundColor: '#fafafa', fontSize: '7.8pt', lineHeight: 1.15,
         }}>
           <span style={{ color: '#555', marginRight: '6px' }}>Terbilang:</span>
           <strong style={{ fontStyle: 'italic' }}>{terbilang(data.jumlahTagihan)} Rupiah</strong>
@@ -408,50 +422,55 @@ function KuitansiKomiteContent({ data }: { data: KuitansiData }) {
 
 const KOPERASI_COLOR = '#166534'   // green-800
 
-function KuitansiKoperasiContent({ data }: { data: KuitansiData }) {
+function KuitansiKoperasiContent({ data, copyLabel }: { data: KuitansiData; copyLabel: KuitansiCopyLabel }) {
   const tanggalFmt = new Date(data.tanggal).toLocaleDateString('id-ID', {
     day: 'numeric', month: 'long', year: 'numeric',
   })
 
   return (
     <div style={{
-      width: '210mm', minHeight: '297mm', margin: '0 auto',
+      width: A4_WIDTH, height: HALF_A4_HEIGHT, margin: '0 auto',
       backgroundColor: '#fff', fontFamily: '"Times New Roman", Times, serif',
-      fontSize: '11pt', color: '#1a1a1a', position: 'relative', boxSizing: 'border-box',
+      fontSize: '8pt', color: '#1a1a1a', position: 'relative', boxSizing: 'border-box',
+      overflow: 'hidden',
     }}>
       {/* Kop Koperasi */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/kopkoperasi.png" alt="Kop Koperasi" style={{ width: '100%', display: 'block' }} />
-      <div style={{ borderTop: `3px solid ${KOPERASI_COLOR}`, borderBottom: `1px solid ${KOPERASI_COLOR}`, height: '4px' }} />
+      <img src="/kopkoperasi.png" alt="Kop Koperasi" style={{ width: '100%', height: '23mm', objectFit: 'contain', display: 'block' }} />
+      <div style={{ borderTop: `2px solid ${KOPERASI_COLOR}`, borderBottom: `1px solid ${KOPERASI_COLOR}`, height: '3px' }} />
 
-      <div style={{ padding: '12mm 18mm 24mm 18mm' }}>
+      <div style={{ padding: '3.5mm 10mm 8mm 10mm' }}>
 
         {/* Judul kanan atas — aksen hijau */}
-        <div style={{ textAlign: 'right', marginBottom: '9mm' }}>
-          <div style={{ display: 'inline-block', borderBottom: `2.5px solid ${KOPERASI_COLOR}`, paddingBottom: '2px' }}>
-            <p style={{ fontSize: '20pt', fontWeight: 'bold', letterSpacing: '3px', margin: 0, color: KOPERASI_COLOR }}>
+        <div style={{ position: 'absolute', top: '28mm', left: '10mm', border: `1px solid ${KOPERASI_COLOR}`, borderRadius: '999px', padding: '2px 8px', fontSize: '7pt', color: KOPERASI_COLOR }}>
+          {copyLabel}
+        </div>
+
+        <div style={{ textAlign: 'right', marginBottom: '2mm' }}>
+          <div style={{ display: 'inline-block', borderBottom: `1.5px solid ${KOPERASI_COLOR}`, paddingBottom: '1px' }}>
+            <p style={{ fontSize: '12.5pt', fontWeight: 'bold', letterSpacing: '1.2px', margin: 0, color: KOPERASI_COLOR }}>
               BUKTI PEMBAYARAN
             </p>
           </div>
-          <p style={{ fontSize: '10.5pt', fontWeight: 'bold', color: KOPERASI_COLOR, marginTop: '3px', letterSpacing: '1px' }}>
+          <p style={{ fontSize: '7.6pt', fontWeight: 'bold', color: KOPERASI_COLOR, margin: '1px 0 0 0', letterSpacing: '0.3px' }}>
             KOPERASI MADRASAH
           </p>
-          <p style={{ fontSize: '9.5pt', color: '#555', marginTop: '2px' }}>
+          <p style={{ fontSize: '7.2pt', color: '#555', margin: '0' }}>
             Perlengkapan Siswa Baru — Tahun Pelajaran 2024/2025
           </p>
         </div>
 
         {/* Info 2 kolom */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8mm' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2.2mm' }}>
           <tbody>
             <tr>
-              <td style={{ verticalAlign: 'top', width: '50%', paddingRight: '8mm' }}>
+              <td style={{ verticalAlign: 'top', width: '50%', paddingRight: '6mm' }}>
                 {/* Kotak hijau muda di belakang info siswa */}
                 <div style={{
                   backgroundColor: '#f0fdf4', border: `1px solid #bbf7d0`,
-                  borderRadius: '4px', padding: '8px 10px',
+                  borderRadius: '3px', padding: '4px 7px',
                 }}>
-                  <p style={{ margin: '0 0 6px 0', fontSize: '9pt', fontWeight: 'bold', color: KOPERASI_COLOR, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <p style={{ margin: '0 0 3px 0', fontSize: '7.2pt', fontWeight: 'bold', color: KOPERASI_COLOR, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                     Data Siswa
                   </p>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -466,9 +485,9 @@ function KuitansiKoperasiContent({ data }: { data: KuitansiData }) {
               <td style={{ verticalAlign: 'top', width: '50%' }}>
                 <div style={{
                   backgroundColor: '#f0fdf4', border: `1px solid #bbf7d0`,
-                  borderRadius: '4px', padding: '8px 10px',
+                  borderRadius: '3px', padding: '4px 7px',
                 }}>
-                  <p style={{ margin: '0 0 6px 0', fontSize: '9pt', fontWeight: 'bold', color: KOPERASI_COLOR, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <p style={{ margin: '0 0 3px 0', fontSize: '7.2pt', fontWeight: 'bold', color: KOPERASI_COLOR, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                     Data Transaksi
                   </p>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -487,8 +506,8 @@ function KuitansiKoperasiContent({ data }: { data: KuitansiData }) {
 
         {/* Terbilang */}
         <div style={{
-          border: `1px solid #bbf7d0`, borderRadius: '4px', padding: '6px 12px',
-          marginBottom: '7mm', backgroundColor: '#f0fdf4', fontSize: '10pt',
+          border: `1px solid #bbf7d0`, borderRadius: '3px', padding: '3px 8px',
+          marginBottom: '2.5mm', backgroundColor: '#f0fdf4', fontSize: '7.8pt', lineHeight: 1.15,
         }}>
           <span style={{ color: KOPERASI_COLOR, fontWeight: 'bold', marginRight: '6px' }}>Terbilang:</span>
           <strong style={{ fontStyle: 'italic' }}>{terbilang(data.jumlahTagihan)} Rupiah</strong>
@@ -522,9 +541,50 @@ function KuitansiKoperasiContent({ data }: { data: KuitansiData }) {
 
 // ─── Pilih content berdasarkan kategori ──────────────────────────────────────
 
-function KuitansiContent({ data }: { data: KuitansiData }) {
-  if (data.kategori === 'Koperasi') return <KuitansiKoperasiContent data={data} />
-  return <KuitansiKomiteContent data={data} />
+function KuitansiContent({ data, copyLabel }: { data: KuitansiData; copyLabel: KuitansiCopyLabel }) {
+  if (data.kategori === 'Koperasi') return <KuitansiKoperasiContent data={data} copyLabel={copyLabel} />
+  return <KuitansiKomiteContent data={data} copyLabel={copyLabel} />
+}
+
+function KuitansiDuplikatPage({ data }: { data: KuitansiData }) {
+  return (
+    <div style={{
+      width: A4_WIDTH,
+      height: A4_HEIGHT,
+      margin: '0 auto',
+      backgroundColor: '#fff',
+      position: 'relative',
+      boxSizing: 'border-box',
+      overflow: 'hidden',
+    }}>
+      <KuitansiContent data={data} copyLabel="Lembar Pembayar" />
+      <div style={{
+        position: 'absolute',
+        left: '0',
+        right: '0',
+        top: HALF_A4_HEIGHT,
+        borderTop: '1px dashed #777',
+        zIndex: 5,
+      }}>
+        <span style={{
+          position: 'absolute',
+          left: '50%',
+          top: '-8px',
+          transform: 'translateX(-50%)',
+          backgroundColor: '#fff',
+          color: '#777',
+          padding: '0 8px',
+          fontFamily: 'Arial, sans-serif',
+          fontSize: '7pt',
+          letterSpacing: '0.3px',
+          textTransform: 'uppercase',
+        }}>
+          Potong di sini
+        </span>
+      </div>
+      <KuitansiContent data={data} copyLabel="Arsip Sekolah" />
+    </div>
+  )
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -627,14 +687,7 @@ export function KuitansiGandaModal({
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `Kuitansi-DaftarUlang-${dspt?.nomorKuitansi ?? koperasi?.nomorKuitansi ?? ''}`,
-    pageStyle: `
-      @page { size: A4 portrait; margin: 0; }
-      @media print {
-        body { margin: 0; padding: 0; }
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        .page-break { page-break-after: always; break-after: page; }
-      }
-    `,
+    pageStyle: PAGE_STYLE,
   })
 
   const hasData = dsptData || koperasiData
@@ -652,7 +705,7 @@ export function KuitansiGandaModal({
                 Kuitansi Daftar Ulang — {titleParts}
               </DialogTitle>
               <span className="text-[11px] bg-indigo-100 dark:bg-indigo-800 text-indigo-600 dark:text-indigo-300 px-2 py-0.5 rounded-full font-medium">
-                {[dsptData, koperasiData].filter(Boolean).length} halaman
+                {[dsptData, koperasiData].filter(Boolean).length} halaman A4 ganda
               </span>
             </div>
             <div className="flex gap-2">
@@ -665,7 +718,7 @@ export function KuitansiGandaModal({
                 className="h-8 text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-700"
                 onClick={() => handlePrint()}
               >
-                <Printer className="h-3.5 w-3.5" /> Cetak {[dsptData, koperasiData].filter(Boolean).length} Halaman
+                <Printer className="h-3.5 w-3.5" /> Cetak {[dsptData, koperasiData].filter(Boolean).length} A4 Ganda
               </Button>
             </div>
           </div>
@@ -677,12 +730,12 @@ export function KuitansiGandaModal({
             <div ref={printRef} style={{ width: '100%' }}>
               {dsptData && (
                 <div className={koperasiData ? 'page-break' : ''}>
-                  <KuitansiContent data={dsptData} />
+                  <KuitansiDuplikatPage data={dsptData} />
                 </div>
               )}
               {koperasiData && (
                 <div>
-                  <KuitansiContent data={koperasiData} />
+                  <KuitansiDuplikatPage data={koperasiData} />
                 </div>
               )}
             </div>
@@ -738,7 +791,7 @@ export function KuitansiModal({ data, open, onClose }: KuitansiModalProps) {
                 className={`h-8 text-xs gap-1.5 ${isKoperasi ? 'bg-green-700 hover:bg-green-800' : ''}`}
                 onClick={() => handlePrint()}
               >
-                <Printer className="h-3.5 w-3.5" /> Cetak A4
+                <Printer className="h-3.5 w-3.5" /> Cetak A4 Ganda
               </Button>
             </div>
           </div>
@@ -754,7 +807,7 @@ export function KuitansiModal({ data, open, onClose }: KuitansiModalProps) {
               width: '100%',
             }}>
               <div ref={printRef}>
-                <KuitansiContent data={data} />
+                <KuitansiDuplikatPage data={data} />
               </div>
             </div>
           </div>
