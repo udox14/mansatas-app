@@ -28,7 +28,7 @@ import {
   ClipboardEdit,
   BookHeart,
   BookUser,
-  Wallet,
+  ReceiptText,
   HandCoins,
   CalendarDays,
   ShoppingBag,
@@ -260,10 +260,10 @@ export const MENU_ITEMS: MenuItem[] = [
   },
   // ── KEUANGAN ──────────────────────────────────────────────────────
   {
-    id: 'keuangan-dashboard',
-    title: 'Dashboard Keuangan',
-    href: '/dashboard/keuangan',
-    icon: Wallet,
+    id: 'keuangan-transaksi',
+    title: 'Riwayat Transaksi',
+    href: '/dashboard/keuangan/transaksi',
+    icon: ReceiptText,
     roles: ['super_admin', 'bendahara_komite'],
   },
   {
