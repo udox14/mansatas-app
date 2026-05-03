@@ -982,7 +982,7 @@ export async function hapusKasKeluar(id: string) {
 
 // ── [DEV] Reset semua data keuangan ─────────────────────────────────────────
 export async function devResetDataKeuangan() {
-  const { db } = await requireAuth('keuangan-dashboard')
+  const { db } = await requireAuth('keuangan-laporan')
   await db.batch([
     db.prepare('DELETE FROM fin_transaksi_detail'),
     db.prepare('DELETE FROM fin_transaksi'),
@@ -1002,7 +1002,7 @@ export async function devResetDataKeuangan() {
 // ─── Dashboard Stats ────────────────────────────────────────────────────────
 
 export async function getDashboardStats(tahunAjaran?: string) {
-  const { db } = await requireAuth('keuangan-dashboard')
+  const { db } = await requireAuth('keuangan-laporan')
   const tahun = tahunAjaran ? parseInt(tahunAjaran) : new Date().getFullYear()
 
   const [dsptStats, sppStats, kasKeluarStats] = await Promise.all([

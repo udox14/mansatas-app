@@ -100,8 +100,8 @@ const featureGroups = [
   },
   {
     title: 'Keuangan',
-    summary: 'DSPT, SPP, daftar ulang, koperasi, kas keluar, dan laporan.',
-    ids: ['keuangan-dashboard', 'keuangan-daftar-ulang', 'keuangan-dspt', 'keuangan-spp', 'keuangan-koperasi', 'keuangan-kas-keluar', 'keuangan-laporan'],
+    summary: 'Riwayat transaksi, DSPT, SPP tunggakan, daftar ulang, koperasi, kas keluar, dan laporan.',
+    ids: ['keuangan-transaksi', 'keuangan-daftar-ulang', 'keuangan-dspt', 'keuangan-spp', 'keuangan-koperasi', 'keuangan-kas-keluar', 'keuangan-laporan'],
   },
   {
     title: 'Sistem & notifikasi',
@@ -145,10 +145,10 @@ const featureDescriptions: Record<string, string> = {
   surat: 'Membuat dan menyimpan arsip surat keluar, seperti SPPD, surat tugas, keterangan aktif, pindah, undangan, dan surat lainnya.',
   'kelola-ppl': 'Menghubungkan guru PPL dengan guru utama, jadwal mengajar, dan jadwal piket agar akses tugas PPL sesuai penugasan.',
   'buku-tamu': 'Mencatat kunjungan tamu individu atau instansi, termasuk foto, tujuan kunjungan, daftar tamu hari ini, dan monitoring kunjungan.',
-  'keuangan-dashboard': 'Menampilkan gambaran keuangan madrasah, mulai dari tagihan, pembayaran, pemasukan, pengeluaran, sampai rekap angkatan.',
+  'keuangan-transaksi': 'Menampilkan riwayat seluruh transaksi keuangan dari berbagai sumber, diurutkan dari transaksi terbaru.',
   'keuangan-daftar-ulang': 'Kasir untuk proses daftar ulang, pembayaran DSPT dan koperasi, pemberian diskon, transaksi, dan cetak kuitansi.',
   'keuangan-dspt': 'Mengatur target DSPT, pembayaran, diskon, status pelunasan, import data, dan nominal massal per angkatan.',
-  'keuangan-spp': 'Mengelola nominal SPP, awal tagihan tiap siswa atau angkatan, tagihan bulanan, saldo awal, pembayaran, dan import data.',
+  'keuangan-spp': 'Menampilkan dan menagih SPP hanya untuk siswa yang masih memiliki tunggakan terdahulu.',
   'keuangan-koperasi': 'Mengatur item koperasi, membuat tagihan, mencatat pembayaran, memberi diskon, dan melihat sisa tagihan.',
   'keuangan-kas-keluar': 'Mencatat pengeluaran kas madrasah berdasarkan kategori seperti operasional, pemeliharaan, kegiatan siswa, dan administrasi.',
   'keuangan-laporan': 'Menyediakan laporan keuangan dari transaksi, tagihan, pembayaran, kas keluar, dan rekap dalam periode tertentu.',
