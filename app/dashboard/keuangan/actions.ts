@@ -27,6 +27,8 @@ function recalcStatus(totalDibayar: number, totalDiskon: number, nominal: number
   return 'belum_bayar'
 }
 
+const SPP_REGULER_DISABLED_MESSAGE = 'SPP reguler dinonaktifkan. Gunakan pembayaran tunggakan awal SPP saja.'
+
 // ─── DSPT ───────────────────────────────────────────────────────────────────
 
 export async function getDsptList(filters?: { status?: string; angkatan?: string }) {
@@ -426,6 +428,8 @@ export async function getSppTagihanList(filters: { bulan: number; tahun: number;
 
 export async function buatSppTagihanSiswa(siswaId: string, bulan: number, tahun: number, nominal: number) {
   const { db } = await requireAuth('keuangan-spp')
+  void db; void siswaId; void bulan; void tahun; void nominal
+  return { error: SPP_REGULER_DISABLED_MESSAGE, success: null }
   const exists = await db.prepare(
     'SELECT id FROM fin_spp_tagihan WHERE siswa_id = ? AND bulan = ? AND tahun = ?'
   ).bind(siswaId, bulan, tahun).first()
@@ -442,6 +446,8 @@ export async function buatSppTagihanSiswa(siswaId: string, bulan: number, tahun:
  */
 export async function buatTagihanMassal(tahun: number, bulan: number, tahunMasuk?: number) {
   const { db } = await requireAuth('keuangan-spp')
+  void db; void tahun; void bulan; void tahunMasuk
+  return { error: SPP_REGULER_DISABLED_MESSAGE, success: null }
 
   // Nominal per tingkat
   const settings = await db.prepare('SELECT tingkat, nominal FROM fin_spp_setting').all<any>()
@@ -513,6 +519,8 @@ export async function simpanSppBulanTerpilih(
   tahun: number,
 ) {
   const { db } = await requireAuth('keuangan-spp')
+  void db; void siswaId; void bulanList; void tahun
+  return { error: SPP_REGULER_DISABLED_MESSAGE, success: null }
   if (!bulanList.length) return { error: 'Tidak ada bulan dipilih', success: null }
 
   // Nominal dari setting (butuh tingkat siswa)
@@ -558,6 +566,8 @@ export async function simpanSppBulanTerpilih(
 
 export async function tandaiSppLunas(tagihanId: string) {
   const { db } = await requireAuth('keuangan-spp')
+  void db; void tagihanId
+  return { error: SPP_REGULER_DISABLED_MESSAGE, success: null }
   const rec = await db.prepare('SELECT nominal, total_diskon FROM fin_spp_tagihan WHERE id = ?').bind(tagihanId).first<any>()
   if (!rec) return { error: 'Tagihan tidak ditemukan', success: null }
   const totalDibayar = Math.max(0, (rec.nominal ?? 0) - (rec.total_diskon ?? 0))
@@ -569,6 +579,8 @@ export async function tandaiSppLunas(tagihanId: string) {
 
 export async function updateSppTagihanNominal(tagihanId: string, nominal: number, totalDibayar: number) {
   const { db } = await requireAuth('keuangan-spp')
+  void db; void tagihanId; void nominal; void totalDibayar
+  return { error: SPP_REGULER_DISABLED_MESSAGE, success: null }
   const rec = await db.prepare('SELECT total_diskon FROM fin_spp_tagihan WHERE id = ?').bind(tagihanId).first<any>()
   if (!rec) return { error: 'Tagihan tidak ditemukan', success: null }
   const status = recalcStatus(totalDibayar, rec.total_diskon ?? 0, nominal)
@@ -580,6 +592,8 @@ export async function updateSppTagihanNominal(tagihanId: string, nominal: number
 
 export async function importSppBulk(rows: { nisn?: string; nama?: string; bulan: number; tahun: number; nominal: number; total_dibayar: number }[]) {
   const { db } = await requireAuth('keuangan-spp')
+  void db; void rows
+  return { error: SPP_REGULER_DISABLED_MESSAGE, success: '0 tagihan SPP diimport', sukses: 0, gagal: [] }
   if (!rows.length) return { error: null, success: '0 data diimport', sukses: 0, gagal: [] }
 
   // 1 subrequest: load semua siswa sekaligus
@@ -618,8 +632,8 @@ export async function importSppBulk(rows: { nisn?: string; nama?: string; bulan:
   let sukses = 0; const gagal: string[] = []
 
   for (const row of rows) {
-    const siswaId = (row.nisn ? siswaNisnMap.get(row.nisn) : undefined)
-      ?? (row.nama ? siswaNamaMap.get(row.nama.toLowerCase()) : undefined)
+    const siswaId = (row.nisn ? siswaNisnMap.get(row.nisn as string) : undefined)
+      ?? (row.nama ? siswaNamaMap.get((row.nama as string).toLowerCase()) : undefined)
     if (!siswaId) { gagal.push(row.nisn ?? row.nama ?? '?'); continue }
 
     const key = `${siswaId}-${row.bulan}-${row.tahun}`
@@ -799,6 +813,9 @@ export async function catatTransaksi(payload: {
   details: Array<{ refType: string; refId: string; jumlah: number }>
 }) {
   const { db, userId } = await requireAuth('keuangan-koperasi')
+  if (payload.kategori === 'spp' || payload.details.some(d => d.refType === 'spp_tagihan')) {
+    return { error: SPP_REGULER_DISABLED_MESSAGE, success: null }
+  }
 
   const jumlahTotal = payload.details.reduce((sum, d) => sum + d.jumlah, 0)
   if (jumlahTotal <= 0) return { error: 'Jumlah pembayaran tidak valid', success: null }
@@ -1091,9 +1108,10 @@ export async function getBukuBesarSiswa(siswaId: string) {
     db.prepare('SELECT * FROM fin_janji_bayar WHERE siswa_id = ? ORDER BY tanggal_janji ASC').bind(siswaId).all<any>(),
   ])
 
-  // ── Auto-create tagihan SPP dari mulai s/d bulan ini ────────────────────
+  // SPP reguler sedang dinonaktifkan; hanya tunggakan awal yang ditagih.
+  // Blok lama dipertahankan tidak aktif agar data lama masih bisa dibaca tanpa membuat tagihan baru.
   let freshSppTagihan = sppTagihan.results ?? []
-  if (sppMulaiRow && siswa) {
+  if (false && sppMulaiRow && siswa) {
     const now = new Date()
     const nowBulan = now.getMonth() + 1
     const nowTahun = now.getFullYear()
