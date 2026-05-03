@@ -19,7 +19,7 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
   const tahun = new Date().getFullYear()
   const bulanIni = new Date().getMonth() + 1
 
-  const [dspt, sppBulanIni, koperasi, kasKeluar, transaksiTerbaru] = await Promise.all([
+  const [dspt, sppTunggakan, koperasi, kasKeluar, transaksiTerbaru] = await Promise.all([
     db.prepare(`
       SELECT
         COUNT(*) as total,
@@ -33,12 +33,13 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
 
     db.prepare(`
       SELECT
-        COUNT(*) as total_tagihan,
-        COALESCE(SUM(nominal), 0) as target,
+        COUNT(*) as total,
+        COALESCE(SUM(jumlah), 0) as target,
         COALESCE(SUM(total_dibayar), 0) as terkumpul,
-        SUM(CASE WHEN status='lunas' THEN 1 ELSE 0 END) as lunas
-      FROM fin_spp_tagihan WHERE bulan = ? AND tahun = ?
-    `).bind(bulanIni, tahun).first<any>(),
+        SUM(CASE WHEN status='lunas' THEN 1 ELSE 0 END) as lunas,
+        SUM(CASE WHEN status!='lunas' AND jumlah > total_dibayar THEN 1 ELSE 0 END) as belum_lunas
+      FROM fin_spp_saldo_awal
+    `).first<any>(),
 
     db.prepare(`
       SELECT
@@ -55,7 +56,7 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
     `).bind(`${tahun}-${String(bulanIni).padStart(2, '0')}`).first<{ total: number }>(),
 
     db.prepare(`
-      SELECT t.nomor_kuitansi, t.kategori, t.jumlah_total, t.created_at,
+      SELECT t.id, t.siswa_id, t.nomor_kuitansi, t.kategori, t.jumlah_total, t.created_at,
              s.nama_lengkap, u.nama_lengkap as petugas
       FROM fin_transaksi t
       JOIN siswa s ON s.id = t.siswa_id
@@ -66,7 +67,7 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
   ])
 
   const dsptPersen = (dspt?.total ?? 0) > 0 ? Math.round(((dspt?.lunas ?? 0) / dspt.total) * 100) : 0
-  const sppPersen  = (sppBulanIni?.total_tagihan ?? 0) > 0 ? Math.round(((sppBulanIni?.lunas ?? 0) / sppBulanIni.total_tagihan) * 100) : 0
+  const sppPersen  = (sppTunggakan?.target ?? 0) > 0 ? Math.round(((sppTunggakan?.terkumpul ?? 0) / sppTunggakan.target) * 100) : 0
   const kopPersen  = (koperasi?.total ?? 0) > 0 ? Math.round(((koperasi?.lunas ?? 0) / koperasi.total) * 100) : 0
 
   const BULAN_LABEL = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
@@ -135,7 +136,7 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
           </div>
         </div>
 
-        {/* SPP bulan ini */}
+        {/* SPP tunggakan terdahulu */}
         <div className="bg-surface border border-surface rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -144,7 +145,7 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
               </div>
               <div>
                 <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">SPP</p>
-                <p className="text-[10px] text-slate-400">{BULAN_LABEL[bulanIni]} {tahun}</p>
+                <p className="text-[10px] text-slate-400">Tunggakan terdahulu</p>
               </div>
             </div>
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${sppPersen >= 80 ? 'bg-emerald-100 text-emerald-700' : sppPersen >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
@@ -156,10 +157,10 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
           </div>
           <div className="flex justify-between text-[11px]">
             <span className="text-slate-500">Terkumpul</span>
-            <span className="font-semibold text-emerald-600">{formatRupiah(sppBulanIni?.terkumpul ?? 0)}</span>
+            <span className="font-semibold text-emerald-600">{formatRupiah(sppTunggakan?.terkumpul ?? 0)}</span>
           </div>
           <div className="flex justify-between text-[11px] text-slate-400">
-            <span>{sppBulanIni?.lunas ?? 0} dari {sppBulanIni?.total_tagihan ?? 0} tagihan lunas</span>
+            <span>{sppTunggakan?.belum_lunas ?? 0} siswa masih punya tunggakan</span>
           </div>
         </div>
 
@@ -215,7 +216,7 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
         <div className="bg-surface border border-surface rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Transaksi Terbaru</p>
-            <Link href="/dashboard/keuangan/dspt" className="text-[10px] text-slate-400 hover:text-slate-600 flex items-center gap-0.5">
+            <Link href="/dashboard/keuangan/transaksi" className="text-[10px] text-slate-400 hover:text-slate-600 flex items-center gap-0.5">
               Semua <ChevronRight className="h-3 w-3" />
             </Link>
           </div>
@@ -224,13 +225,17 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
           ) : (
             <div className="space-y-2">
               {(transaksiTerbaru.results ?? []).map((t: any) => (
-                <div key={t.nomor_kuitansi} className="flex items-center justify-between gap-2">
+                <Link
+                  key={t.id}
+                  href="/dashboard/keuangan/transaksi"
+                  className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 -mx-2 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                >
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-slate-800 dark:text-slate-100 truncate">{t.nama_lengkap}</p>
                     <p className="text-[10px] text-slate-400">{t.kategori.toUpperCase()} · {t.nomor_kuitansi}</p>
                   </div>
                   <span className="text-xs font-semibold text-emerald-600 shrink-0">{formatRupiah(t.jumlah_total)}</span>
-                </div>
+                </Link>
               ))}
             </div>
           )}
