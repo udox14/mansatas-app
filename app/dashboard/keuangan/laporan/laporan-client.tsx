@@ -14,6 +14,7 @@ import {
   Settings2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -141,6 +142,7 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
   const [tanggalAkhir, setTanggalAkhir] = useState(todayInput())
   const [kategori, setKategori] = useState('semua')
   const [search, setSearch] = useState('')
+  const [printModalOpen, setPrintModalOpen] = useState(false)
   const [judul, setJudul] = useState('Laporan Keuangan Madrasah')
   const [format, setFormat] = useState<'ringkas' | 'detail'>('ringkas')
   const [orientasi, setOrientasi] = useState<'portrait' | 'landscape'>('portrait')
@@ -235,115 +237,132 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
         }
       `}</style>
 
-      <section className="no-print grid gap-3 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-            <SummaryCard label="Pemasukan Periode" value={formatRupiah(pemasukan)} icon={ArrowUpRight} tone="emerald" />
-            <SummaryCard label="Pengeluaran Periode" value={formatRupiah(pengeluaran)} icon={ArrowDownRight} tone="rose" />
-            <SummaryCard label="Saldo Bersih" value={formatRupiah(saldo)} icon={BarChart3} tone={saldo >= 0 ? 'blue' : 'rose'} />
-            <SummaryCard label="Total Tunggakan" value={formatRupiah(totalTunggakan)} icon={AlertTriangle} tone="amber" />
-          </div>
+      <section className="no-print space-y-3">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          <SummaryCard label="Pemasukan Periode" value={formatRupiah(pemasukan)} icon={ArrowUpRight} tone="emerald" />
+          <SummaryCard label="Pengeluaran Periode" value={formatRupiah(pengeluaran)} icon={ArrowDownRight} tone="rose" />
+          <SummaryCard label="Saldo Bersih" value={formatRupiah(saldo)} icon={BarChart3} tone={saldo >= 0 ? 'blue' : 'rose'} />
+          <SummaryCard label="Total Tunggakan" value={formatRupiah(totalTunggakan)} icon={AlertTriangle} tone="amber" />
+        </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-            <div className="grid gap-2 md:grid-cols-[1fr_1fr_170px]">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold text-slate-500">Tanggal Awal</label>
-                  <Input type="date" value={tanggalAwal} onChange={event => setTanggalAwal(event.target.value)} className="h-9" />
-                </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold text-slate-500">Tanggal Akhir</label>
-                  <Input type="date" value={tanggalAkhir} onChange={event => setTanggalAkhir(event.target.value)} className="h-9" />
-                </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+          <div className="grid gap-2 xl:grid-cols-[1fr_1fr_170px_auto]">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold text-slate-500">Tanggal Awal</label>
+                <Input type="date" value={tanggalAwal} onChange={event => setTanggalAwal(event.target.value)} className="h-9" />
               </div>
               <div>
-                <label className="mb-1 block text-[11px] font-semibold text-slate-500">Cari Siswa / Kuitansi / Angkatan</label>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    value={search}
-                    onChange={event => setSearch(event.target.value)}
-                    placeholder="Cari laporan..."
-                    className="h-9 pl-8"
-                  />
-                </div>
+                <label className="mb-1 block text-[11px] font-semibold text-slate-500">Tanggal Akhir</label>
+                <Input type="date" value={tanggalAkhir} onChange={event => setTanggalAkhir(event.target.value)} className="h-9" />
               </div>
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold text-slate-500">Sumber</label>
-                <Select value={kategori} onValueChange={setKategori}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="semua">Semua Sumber</SelectItem>
-                    <SelectItem value="dspt">DSPT</SelectItem>
-                    <SelectItem value="spp">SPP Tunggakan</SelectItem>
-                    <SelectItem value="koperasi">Koperasi</SelectItem>
-                  </SelectContent>
-                </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-500">Cari Siswa / Kuitansi / Angkatan</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={search}
+                  onChange={event => setSearch(event.target.value)}
+                  placeholder="Cari laporan..."
+                  className="h-9 pl-8"
+                />
               </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-500">Sumber</label>
+              <Select value={kategori} onValueChange={setKategori}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="semua">Semua Sumber</SelectItem>
+                  <SelectItem value="dspt">DSPT</SelectItem>
+                  <SelectItem value="spp">SPP Tunggakan</SelectItem>
+                  <SelectItem value="koperasi">Koperasi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Dialog open={printModalOpen} onOpenChange={setPrintModalOpen}>
+                <DialogTrigger asChild>
+                  <Button className="h-9 w-full gap-2 text-xs xl:w-auto">
+                    <Printer className="h-4 w-4" /> Cetak Laporan
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[88vh] overflow-y-auto rounded-xl p-0 sm:max-w-lg">
+                  <DialogHeader className="border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
+                    <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+                      <Settings2 className="h-4 w-4 text-slate-500" /> Atur Cetak Laporan
+                    </DialogTitle>
+                    <p className="text-xs text-slate-500">Pilih format dan materi yang mau dicetak.</p>
+                  </DialogHeader>
+
+                  <div className="space-y-3 p-5">
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-slate-500">Judul Cetak</label>
+                      <Input value={judul} onChange={event => setJudul(event.target.value)} className="h-8 text-xs" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-slate-500">Format</label>
+                        <Select value={format} onValueChange={(value: 'ringkas' | 'detail') => setFormat(value)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ringkas">Ringkas</SelectItem>
+                            <SelectItem value="detail">Detail</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-slate-500">Kertas</label>
+                        <Select value={orientasi} onValueChange={(value: 'portrait' | 'landscape') => setOrientasi(value)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="portrait">A4 Portrait</SelectItem>
+                            <SelectItem value="landscape">A4 Landscape</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-slate-500">Kolom Tanda Tangan</label>
+                      <Input value={penandaTangan} onChange={event => setPenandaTangan(event.target.value)} className="h-8 text-xs" />
+                    </div>
+                    <div>
+                      <p className="mb-2 text-[11px] font-semibold text-slate-500">Materi Cetak</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {([
+                          ['ringkasan', 'Ringkasan'],
+                          ['arusKas', 'Arus Kas'],
+                          ['transaksi', 'Transaksi Masuk'],
+                          ['kasKeluar', 'Kas Keluar'],
+                          ['tunggakan', 'Tunggakan'],
+                          ['angkatan', 'Rekap Angkatan'],
+                        ] as const).map(([key, label]) => (
+                          <label key={key} className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-2 py-1.5 text-xs dark:border-slate-800">
+                            <input type="checkbox" checked={materi[key]} onChange={() => toggleMateri(key)} />
+                            <span>{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500 dark:bg-slate-800/60">
+                      Periode cetak mengikuti filter halaman: {periodeLabel}. Sumber: {kategori === 'semua' ? 'Semua Sumber' : (KATEGORI_LABEL[kategori] ?? kategori)}.
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4 dark:border-slate-800">
+                    <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPrintModalOpen(false)}>
+                      Batal
+                    </Button>
+                    <Button size="sm" className="h-8 gap-2 text-xs" onClick={handlePrint}>
+                      <Printer className="h-3.5 w-3.5" /> Cetak Sekarang
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </div>
-
-        <aside className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <div className="mb-3 flex items-center gap-2">
-            <Settings2 className="h-4 w-4 text-slate-500" />
-            <div>
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-50">Atur Cetak Laporan</p>
-              <p className="text-xs text-slate-500">Pilih format dan materi yang mau dicetak.</p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div>
-              <label className="mb-1 block text-[11px] font-semibold text-slate-500">Judul Cetak</label>
-              <Input value={judul} onChange={event => setJudul(event.target.value)} className="h-8 text-xs" />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold text-slate-500">Format</label>
-                <Select value={format} onValueChange={(value: 'ringkas' | 'detail') => setFormat(value)}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ringkas">Ringkas</SelectItem>
-                    <SelectItem value="detail">Detail</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="mb-1 block text-[11px] font-semibold text-slate-500">Kertas</label>
-                <Select value={orientasi} onValueChange={(value: 'portrait' | 'landscape') => setOrientasi(value)}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="portrait">A4 Portrait</SelectItem>
-                    <SelectItem value="landscape">A4 Landscape</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-semibold text-slate-500">Kolom Tanda Tangan</label>
-              <Input value={penandaTangan} onChange={event => setPenandaTangan(event.target.value)} className="h-8 text-xs" />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {([
-                ['ringkasan', 'Ringkasan'],
-                ['arusKas', 'Arus Kas'],
-                ['transaksi', 'Transaksi Masuk'],
-                ['kasKeluar', 'Kas Keluar'],
-                ['tunggakan', 'Tunggakan'],
-                ['angkatan', 'Rekap Angkatan'],
-              ] as const).map(([key, label]) => (
-                <label key={key} className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-2 py-1.5 text-xs dark:border-slate-800">
-                  <input type="checkbox" checked={materi[key]} onChange={() => toggleMateri(key)} />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-            <Button onClick={handlePrint} className="h-9 w-full gap-2 text-xs">
-              <Printer className="h-4 w-4" /> Cetak Laporan
-            </Button>
-          </div>
-        </aside>
       </section>
 
       <section className="no-print grid gap-3 lg:grid-cols-3">
