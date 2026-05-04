@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
-import { Search, ReceiptText } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Printer, Search } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -12,6 +13,7 @@ import {
 } from '@/components/ui/table'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 import { formatRupiah } from '@/lib/utils'
+import { KuitansiModal, type KuitansiData } from '../components/kuitansi-print'
 
 interface TransaksiRow {
   id: string
@@ -54,9 +56,12 @@ function formatTanggal(dateString: string) {
 }
 
 export function TransaksiClient({ initialData }: { initialData: TransaksiRow[] }) {
+  const router = useRouter()
   const [search, setSearch] = useState('')
   const [kategori, setKategori] = useState('semua')
   const [status, setStatus] = useState('aktif')
+  const [kuitansiData, setKuitansiData] = useState<KuitansiData | null>(null)
+  const [kuitansiOpen, setKuitansiOpen] = useState(false)
   const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(15)
 
   const filtered = useMemo(() => {
@@ -80,6 +85,30 @@ export function TransaksiClient({ initialData }: { initialData: TransaksiRow[] }
   const totalAktif = filtered
     .filter(row => !row.is_void)
     .reduce((sum, row) => sum + row.jumlah_total, 0)
+
+  const openDetail = (row: TransaksiRow) => {
+    router.push(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=riwayat`)
+  }
+
+  const openKuitansi = (row: TransaksiRow) => {
+    const kategoriLabel = row.kategori === 'dspt' ? 'DSPT' : row.kategori === 'spp' ? 'SPP' : 'Koperasi'
+    setKuitansiData({
+      nomorKuitansi: row.nomor_kuitansi,
+      tanggal: row.created_at,
+      kategori: kategoriLabel,
+      namaSiswa: row.nama_lengkap,
+      nisn: row.nisn ?? '-',
+      kelas: row.kelas ?? '-',
+      namaPerugas: row.nama_input ?? 'Bendahara Komite',
+      metodeBayar: row.metode_bayar === 'tunai' ? 'Tunai' : 'Transfer Bank',
+      jumlahDiserahkan: row.jumlah_total,
+      jumlahTagihan: row.jumlah_total,
+      rincianBayar: [{ label: `Pembayaran ${kategoriLabel}`, nominal: row.jumlah_total }],
+      sisaTunggakan: [],
+      isLunas: !row.is_void,
+    })
+    setKuitansiOpen(true)
+  }
 
   return (
     <div className="space-y-3 pb-8">
@@ -154,7 +183,11 @@ export function TransaksiClient({ initialData }: { initialData: TransaksiRow[] }
               </TableRow>
             )}
             {paginated.map(row => (
-              <TableRow key={row.id} className={row.is_void ? 'opacity-60' : undefined}>
+              <TableRow
+                key={row.id}
+                onClick={() => openDetail(row)}
+                className={`cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 ${row.is_void ? 'opacity-60' : ''}`}
+              >
                 <TableCell className="whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
                   {formatTanggal(row.created_at)}
                 </TableCell>
@@ -186,12 +219,20 @@ export function TransaksiClient({ initialData }: { initialData: TransaksiRow[] }
                 </TableCell>
                 <TableCell className="text-xs text-slate-400">{row.nama_input ?? '-'}</TableCell>
                 <TableCell>
-                  <Link
-                    href={`/dashboard/keuangan/siswa/${row.siswa_id}?tab=riwayat`}
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!!row.is_void}
+                    title={row.is_void ? 'Transaksi void tidak bisa dicetak' : 'Print kuitansi'}
+                    className="h-7 gap-1 px-2 text-[11px]"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openKuitansi(row)
+                    }}
                   >
-                    <ReceiptText className="h-3 w-3" /> Detail
-                  </Link>
+                    <Printer className="h-3 w-3" /> Print
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
@@ -206,6 +247,11 @@ export function TransaksiClient({ initialData }: { initialData: TransaksiRow[] }
           entityLabel="transaksi"
         />
       </div>
+      <KuitansiModal
+        data={kuitansiData}
+        open={kuitansiOpen}
+        onClose={() => { setKuitansiOpen(false); setKuitansiData(null) }}
+      />
     </div>
   )
 }
