@@ -548,7 +548,7 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, topikAll, onClose, 
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl rounded-2xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden">
+      <DialogContent className="sm:max-w-2xl h-[92dvh] max-h-[92dvh] min-h-0 rounded-2xl flex flex-col p-0 gap-0 overflow-hidden">
 
         {/* Header profil */}
         <div className="px-5 pt-5 pb-4 border-b border-surface-2 shrink-0 bg-gradient-to-r from-rose-50/60 to-white dark:from-rose-950/20 dark:to-transparent">
@@ -596,7 +596,7 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, topikAll, onClose, 
         {/* Content */}
         <ScrollArea className="flex-1 min-h-0">
           {activeTab === 'input' && (
-            <div className="px-5 py-5">
+            <div className="px-5 py-5 min-h-0">
               {canEdit ? (
                 <>
                   <div className="flex items-center gap-2 mb-5">
@@ -622,7 +622,7 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, topikAll, onClose, 
           )}
 
           {activeTab === 'riwayat' && (
-            <div className="px-5 py-4 space-y-3">
+            <div className="px-5 py-4 space-y-3 min-h-0">
               {isLoading && (
                 <div className="flex items-center justify-center py-12 gap-2 text-slate-400">
                   <Loader2 className="h-5 w-5 animate-spin" /><span className="text-sm">Memuat riwayat...</span>
