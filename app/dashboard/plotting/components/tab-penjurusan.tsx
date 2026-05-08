@@ -8,12 +8,185 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, Play, Save, CheckCircle2, ArrowRight, Filter, AlertCircle, Search, Cloud } from 'lucide-react'
+import { Loader2, Play, Save, CheckCircle2, ArrowRight, Filter, AlertCircle, Search, Cloud, BarChart3, Users } from 'lucide-react'
 import { simpanPlottingMassal, setDraftPenjurusanMassal } from '../actions'
 
 type SiswaType = { id: string; nama_lengkap: string; nisn: string; jenis_kelamin: string; kelas_lama: string; minat_jurusan?: string | null }
 type KelasType = { id: string; nama: string; kelompok: string; kapasitas: number; jumlah_siswa: number }
 type HasilPlottingType = { siswa_id: string; nama_lengkap: string; jk: string; kelas_lama: string; kelas_id: string; kelas_nama: string }
+
+// ── Palet warna per jurusan ────────────────────────────────────────────────
+const JURUSAN_COLOR: Record<string, { bg: string; bar: string; text: string; border: string }> = {
+  IPA:        { bg: 'bg-sky-50 dark:bg-sky-950/40',       bar: 'bg-sky-500',      text: 'text-sky-700 dark:text-sky-300',      border: 'border-sky-200 dark:border-sky-800' },
+  SOSHUM:     { bg: 'bg-amber-50 dark:bg-amber-950/40',   bar: 'bg-amber-500',    text: 'text-amber-700 dark:text-amber-300',  border: 'border-amber-200 dark:border-amber-800' },
+  KEAGAMAAN:  { bg: 'bg-emerald-50 dark:bg-emerald-950/40', bar: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800' },
+  IPS:        { bg: 'bg-orange-50 dark:bg-orange-950/40', bar: 'bg-orange-500',   text: 'text-orange-700 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-800' },
+  BAHASA:     { bg: 'bg-purple-50 dark:bg-purple-950/40', bar: 'bg-purple-500',   text: 'text-purple-700 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-800' },
+}
+const DEFAULT_COLOR = { bg: 'bg-slate-50 dark:bg-slate-800/50', bar: 'bg-slate-400', text: 'text-slate-600 dark:text-slate-300', border: 'border-slate-200 dark:border-slate-700' }
+
+const KUOTA_PER_KELAS = 36
+
+function StatistikSebaran({
+  siswaList, penjurusan, opsiJurusan, kelasList, selectedKelasIds,
+}: {
+  siswaList: SiswaType[]
+  penjurusan: Record<string, string>
+  opsiJurusan: string[]
+  kelasList: KelasType[]
+  selectedKelasIds: string[]
+}) {
+  const stats = useMemo(() => {
+    const map: Record<string, { total: number; L: number; P: number }> = {}
+    opsiJurusan.forEach(j => { map[j] = { total: 0, L: 0, P: 0 } })
+    siswaList.forEach(s => {
+      const jur = penjurusan[s.id]
+      if (!jur) return
+      if (!map[jur]) map[jur] = { total: 0, L: 0, P: 0 }
+      map[jur].total++
+      if (s.jenis_kelamin === 'L') map[jur].L++
+      else map[jur].P++
+    })
+    return opsiJurusan.map(j => ({ jurusan: j, ...map[j] }))
+  }, [siswaList, penjurusan, opsiJurusan])
+
+  // Kuota kelas per jurusan: dari kelas yang sudah dicentang
+  const kuotaPerJurusan = useMemo(() => {
+    const map: Record<string, { kelasCount: number; kapasitasSisa: number }> = {}
+    opsiJurusan.forEach(j => { map[j] = { kelasCount: 0, kapasitasSisa: 0 } })
+    kelasList.forEach(k => {
+      if (!selectedKelasIds.includes(k.id)) return
+      const jur = k.kelompok
+      if (!map[jur]) map[jur] = { kelasCount: 0, kapasitasSisa: 0 }
+      map[jur].kelasCount++
+      map[jur].kapasitasSisa += (k.kapasitas - k.jumlah_siswa)
+    })
+    return map
+  }, [kelasList, selectedKelasIds, opsiJurusan])
+
+  const totalSiap  = useMemo(() => Object.keys(penjurusan).length, [penjurusan])
+  const totalSiswa = siswaList.length
+  const belum      = totalSiswa - totalSiap
+  const maxCount   = Math.max(...stats.map(s => s.total), 1)
+
+  return (
+    <div className="rounded-lg border border-surface bg-surface p-4">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-md bg-violet-100 dark:bg-violet-950/50">
+            <BarChart3 className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Sebaran tiket jurusan</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Distribusi & kebutuhan kelas sebelum plotting</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+          <Users className="h-3 w-3" />
+          <span><span className="font-semibold text-slate-700 dark:text-slate-200">{totalSiap}</span>/{totalSiswa} siap</span>
+        </div>
+      </div>
+
+      {/* Bar chart per jurusan */}
+      <div className="flex flex-col gap-2">
+        {stats.map(s => {
+          const col    = JURUSAN_COLOR[s.jurusan] ?? DEFAULT_COLOR
+          const pct    = totalSiswa > 0 ? Math.round((s.total / totalSiswa) * 100) : 0
+          const barW   = maxCount > 0 ? Math.round((s.total / maxCount) * 100) : 0
+          const label  = s.jurusan === 'SOSHUM' ? 'Soshum' : s.jurusan === 'KEAGAMAAN' ? 'Keagamaan' : s.jurusan
+
+          // Kuota & status
+          const kelasPerlu    = s.total > 0 ? Math.ceil(s.total / KUOTA_PER_KELAS) : 0
+          const kuota         = kuotaPerJurusan[s.jurusan] ?? { kelasCount: 0, kapasitasSisa: 0 }
+          const selisihSiswa  = kuota.kapasitasSisa - s.total   // + = masih ada ruang, - = over
+          const adaKelas      = kuota.kelasCount > 0
+          const status: 'pas' | 'lebih' | 'kurang' | 'belum' =
+            !adaKelas          ? 'belum' :
+            selisihSiswa === 0 ? 'pas'   :
+            selisihSiswa > 0   ? 'lebih' : 'kurang'
+
+          const statusStyle = {
+            pas:    'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+            lebih:  'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+            kurang: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+            belum:  'bg-slate-100 text-slate-500 dark:bg-slate-700/40 dark:text-slate-400',
+          }[status]
+
+          const statusLabel = {
+            pas:    '✓ Pas',
+            lebih:  `+${selisihSiswa} sisa`,
+            kurang: `${selisihSiswa} kurang`,
+            belum:  'Pilih kelas',
+          }[status]
+
+          return (
+            <div key={s.jurusan} className={`rounded-md border ${col.border} ${col.bg} p-2.5`}>
+              {/* Baris 1: nama jurusan + L/P + total + % */}
+              <div className="flex items-center justify-between mb-1">
+                <span className={`text-[10px] font-bold tracking-wide uppercase ${col.text}`}>{label}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">
+                    <span className="text-sky-600 dark:text-sky-400">♂{s.L}</span>
+                    {' · '}
+                    <span className="text-pink-600 dark:text-pink-400">♀{s.P}</span>
+                  </span>
+                  <span className={`text-xs font-bold ${col.text}`}>{s.total}</span>
+                  <span className="text-[9px] text-slate-400 dark:text-slate-500">({pct}%)</span>
+                </div>
+              </div>
+              {/* Progress bar */}
+              <div className="h-1.5 w-full rounded-full bg-white/60 dark:bg-black/20 overflow-hidden mb-2">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${col.bar}`}
+                  style={{ width: `${barW}%` }}
+                />
+              </div>
+              {/* Baris 2: info kuota kelas */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1 text-[9px] text-slate-500 dark:text-slate-400">
+                  <span className="font-medium">Butuh</span>
+                  <span className={`font-bold px-1 py-0.5 rounded ${col.text} bg-white/50 dark:bg-black/20`}>
+                    {kelasPerlu} kelas
+                  </span>
+                  {adaKelas && (
+                    <>
+                      <span className="text-slate-300 dark:text-slate-600">·</span>
+                      <span>Dipilih</span>
+                      <span className="font-bold">{kuota.kelasCount} kelas</span>
+                      <span className="text-slate-300 dark:text-slate-600">(cap. {kuota.kapasitasSisa})</span>
+                    </>
+                  )}
+                </div>
+                <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${statusStyle}`}>
+                  {statusLabel}
+                </span>
+              </div>
+            </div>
+          )
+        })}
+
+        {/* Belum diset */}
+        {belum > 0 && (
+          <div className="flex items-center justify-between rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1.5">
+            <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wide">Belum diset</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-rose-700 dark:text-rose-300">{belum}</span>
+              <span className="text-[9px] text-rose-400">siswa</span>
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {totalSiap === 0 && (
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center py-1">
+            Belum ada tiket yang ditetapkan
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export function TabPenjurusan({
   siswaList, kelasList, daftarJurusan = []
@@ -310,8 +483,17 @@ export function TabPenjurusan({
         </div>
       </div>
 
-      {/* PANEL KANAN — pilih kelas + preview */}
+      {/* PANEL KANAN — statistik + pilih kelas + preview */}
       <div className="flex flex-col gap-3">
+
+        {/* === STATISTIK SEBARAN TIKET JURUSAN === */}
+        <StatistikSebaran
+          siswaList={siswaList}
+          penjurusan={penjurusan}
+          opsiJurusan={opsiJurusan}
+          kelasList={kelasList}
+          selectedKelasIds={selectedKelasIds}
+        />
 
         {/* Pilih wadah kelas */}
         <div className="rounded-lg border border-surface bg-surface p-4">
