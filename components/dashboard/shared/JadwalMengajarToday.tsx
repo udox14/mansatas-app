@@ -62,7 +62,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
 
   return (
     <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden mb-3">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3 border-b border-surface-2">
         <div className="p-1.5 rounded-md bg-emerald-50 border border-emerald-100">
           <ClipboardPen className="h-3.5 w-3.5 text-emerald-600" />
         </div>
@@ -73,20 +73,20 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
           </p>
         </div>
         {totalJadwal > 0 && (
-          <div className="shrink-0 flex items-center gap-2">
+          <div className="w-full sm:w-auto shrink-0 grid grid-cols-1 sm:flex items-stretch sm:items-center gap-2">
             {showAbsensiAction && (
               <Link href="/dashboard/kehadiran"
-                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/30 hover:bg-sky-100 dark:hover:bg-sky-900/50 border border-sky-200 dark:border-sky-800 px-2.5 py-1.5 rounded-md transition-colors"
+                className="inline-flex justify-center items-center gap-1.5 text-[11px] font-medium text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/30 hover:bg-sky-100 dark:hover:bg-sky-900/50 border border-sky-200 dark:border-sky-800 px-2.5 py-1.5 rounded-md transition-colors"
               >
                 <UserCheck className="h-3 w-3" />
                 Absensi Siswa
               </Link>
             )}
             <Link href="/dashboard/agenda"
-              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1.5 rounded-md transition-colors"
+              className="inline-flex justify-center items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1.5 rounded-md transition-colors"
             >
               <ClipboardPen className="h-3 w-3" />
-              Isi Jurnal
+              Isi Agenda
             </Link>
           </div>
         )}
