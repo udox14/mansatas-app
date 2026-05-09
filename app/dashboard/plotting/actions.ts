@@ -102,6 +102,39 @@ export async function getSiswaByTingkat(tingkat: number) {
   }))
 }
 
+export async function getSiswaLulusByRiwayatTingkat(tingkat: number) {
+  const db = await getDB()
+  const ta = await getTahunAjaranAktif()
+
+  const result = await db
+    .prepare(
+      `SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin, rk.kelas_id,
+              k.tingkat, k.kelompok, k.nomor_kelas
+       FROM siswa s
+       JOIN riwayat_kelas rk ON rk.siswa_id = s.id AND rk.tahun_ajaran_id = ?
+       JOIN kelas k ON k.id = rk.kelas_id
+       WHERE k.tingkat = ? AND s.status = 'lulus'
+       ORDER BY s.nama_lengkap ASC`
+    )
+    .bind(ta.id, tingkat)
+    .all<any>()
+
+  return (result.results ?? []).map((s: any) => ({
+    id: s.id,
+    nisn: s.nisn,
+    nama_lengkap: s.nama_lengkap,
+    jenis_kelamin: s.jenis_kelamin,
+    kelas_id: s.kelas_id,
+    kelas_lama: s.tingkat ? `${s.tingkat}-${s.nomor_kelas}` : '',
+    kelompok: s.kelompok ?? 'UMUM',
+    kelas: {
+      tingkat: s.tingkat,
+      kelompok: s.kelompok,
+      nomor_kelas: s.nomor_kelas,
+    },
+  }))
+}
+
 // ============================================================
 // 5. DRAFT PENJURUSAN
 // ============================================================
@@ -213,5 +246,53 @@ export async function prosesKelulusanMassal(siswaIds: string[]) {
     return { success: `Berhasil meluluskan ${siswaIds.length} siswa kelas 12!` }
   } catch (err: any) {
     return { error: 'Terjadi kesalahan sistem saat memproses kelulusan.' }
+  }
+}
+
+export async function batalkanKelulusanMassal(siswaIds: string[]) {
+  if (!siswaIds.length) return { error: 'Tidak ada siswa yang dipilih.' }
+
+  const db = await getDB()
+  const ta = await getTahunAjaranAktif()
+
+  try {
+    const placeholders = siswaIds.map(() => '?').join(', ')
+    const restorable = await db
+      .prepare(
+        `SELECT s.id, rk.kelas_id
+         FROM siswa s
+         JOIN riwayat_kelas rk ON rk.siswa_id = s.id AND rk.tahun_ajaran_id = ?
+         JOIN kelas k ON k.id = rk.kelas_id
+         WHERE s.id IN (${placeholders})
+           AND s.status = 'lulus'
+           AND k.tingkat = 12`
+      )
+      .bind(ta.id, ...siswaIds)
+      .all<{ id: string; kelas_id: string }>()
+
+    const rows = restorable.results ?? []
+    if (!rows.length) return { error: 'Tidak ada data riwayat kelas aktif yang bisa dipulihkan.' }
+
+    const now = new Date().toISOString()
+    const chunkSize = 100
+    const stmts = rows.map((row) =>
+      db
+        .prepare('UPDATE siswa SET status = ?, kelas_id = ?, updated_at = ? WHERE id = ?')
+        .bind('aktif', row.kelas_id, now, row.id)
+    )
+
+    for (let i = 0; i < stmts.length; i += chunkSize) {
+      await db.batch(stmts.slice(i, i + chunkSize))
+    }
+
+    revalidatePath('/dashboard/kelas')
+    revalidatePath('/dashboard/plotting')
+    revalidatePath('/dashboard/siswa')
+
+    const skipped = siswaIds.length - rows.length
+    const suffix = skipped > 0 ? ` ${skipped} siswa dilewati karena riwayat kelas aktifnya tidak ditemukan.` : ''
+    return { success: `Berhasil memulihkan ${rows.length} siswa ke kelas semula.${suffix}` }
+  } catch (err: any) {
+    return { error: 'Terjadi kesalahan sistem saat memulihkan kelulusan.' }
   }
 }
