@@ -7,6 +7,7 @@ import { getUserRoles } from '@/lib/features'
 import { getAccessibleWaliKelasClasses } from '@/lib/wali-kelas-attendance'
 import { PageHeader } from '@/components/layout/page-header'
 import { KelasBinaanDashboard } from '@/components/dashboard/KelasBinaanDashboard'
+import { KelasSelector } from './components/kelas-selector'
 
 export const metadata = { title: 'Kelas Binaan - MANSATAS App' }
 export const dynamic = 'force-dynamic'
@@ -62,6 +63,9 @@ export default async function KelasBinaanPage({
   const namaLengkap = freshUser?.nama_lengkap || (user as any).nama_lengkap || user.name || 'Pengguna'
   const namaDepan = namaLengkap.split(' ')[0]
   const avatarUrl = freshUser?.avatar_url ?? null
+  const isWaliKelasOnly =
+    roles.includes('wali_kelas') &&
+    !roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -71,24 +75,31 @@ export default async function KelasBinaanPage({
       />
 
       {kelasList.length > 1 && (
-        <div className="rounded-xl border border-surface bg-surface shadow-sm p-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Pilih Kelas</p>
-          <div className="flex flex-wrap gap-2">
-            {kelasList.map(item => (
-              <Link
-                key={item.id}
-                href={`/dashboard/kelas-binaan?kelas=${item.id}`}
-                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-                  item.id === selectedKelasId
-                    ? 'border-amber-300 bg-amber-50 text-amber-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800'
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
+        isWaliKelasOnly ? (
+          <div className="rounded-xl border border-surface bg-surface shadow-sm p-3">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">Pilih Kelas</p>
+            <div className="flex flex-wrap gap-2">
+              {kelasList.map(item => (
+                <Link
+                  key={item.id}
+                  href={`/dashboard/kelas-binaan?kelas=${item.id}`}
+                  className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                    item.id === selectedKelasId
+                      ? 'border-amber-300 bg-amber-50 text-amber-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : (
+          <KelasSelector
+            kelasList={kelasList.map(({ id, label }) => ({ id, label }))}
+            selectedKelasId={selectedKelasId}
+          />
+        )
       )}
 
       <KelasBinaanDashboard

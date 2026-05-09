@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { getDB, parseJsonCol } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getSiswaBelumAdaKelas, getKelasByTingkat, getSiswaByTingkat } from './actions'
+import { getSiswaBelumAdaKelas, getKelasByTingkat, getSiswaByTingkat, getSiswaLulusByRiwayatTingkat } from './actions'
 import { TabSiswaBaru } from './components/tab-siswa-baru'
 import { TabPenjurusan } from './components/tab-penjurusan'
 import { TabPengacakan } from './components/tab-pengacakan'
@@ -21,12 +21,12 @@ export const fetchCache = 'force-no-store'
 async function PlottingDataFetcher({ currentTab, daftarJurusan }: { currentTab: string, daftarJurusan?: string[] }) {
   const [
     siswaBaruList, kelas10List, siswa10List,
-    kelas11List, siswa11List, kelas12List, siswa12List
+    kelas11List, siswa11List, kelas12List, siswa12List, siswa12LulusList
   ] = await Promise.all([
     getSiswaBelumAdaKelas(),
     getKelasByTingkat(10), getSiswaByTingkat(10),
     getKelasByTingkat(11), getSiswaByTingkat(11),
-    getKelasByTingkat(12), getSiswaByTingkat(12)
+    getKelasByTingkat(12), getSiswaByTingkat(12), getSiswaLulusByRiwayatTingkat(12)
   ])
 
   const safeJurusan = daftarJurusan || ['MIPA', 'SOSHUM', 'KEAGAMAAN', 'UMUM']
@@ -111,7 +111,7 @@ async function PlottingDataFetcher({ currentTab, daftarJurusan }: { currentTab: 
         <TabPengacakan siswaList={siswa11List} kelasList={kelas12List} />
       </TabsContent>
       <TabsContent value="kelulusan" className="m-0 focus-visible:ring-0">
-        <TabKelulusan siswaList={siswa12List} />
+        <TabKelulusan siswaList={siswa12List} siswaLulusList={siswa12LulusList} />
       </TabsContent>
     </PlottingTabs>
   )

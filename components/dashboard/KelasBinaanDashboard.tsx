@@ -428,44 +428,68 @@ export async function KelasBinaanDashboard({
           </Link>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/40">
-              <tr className="text-left">
-                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500">Siswa</th>
-                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500">Status Hari Ini</th>
-                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500">Sumber</th>
-                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500">30 Hari</th>
-                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500">Poin</th>
-                <th className="px-4 py-3 text-[11px] font-semibold text-slate-500 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {studentRows.map(row => (
-                <tr key={row.siswa_id} className="border-t border-surface-2">
-                  <td className="px-4 py-3">
-                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{row.nama_lengkap}</p>
-                    <p className="text-[11px] text-slate-400">{row.nisn}</p>
-                  </td>
-                  <td className="px-4 py-3">
+        <div className="md:hidden p-3 space-y-2">
+          {studentRows.map(row => {
+            const detailHref = `/dashboard/siswa/${row.siswa_id}?tab=absensi&returnTo=${encodeURIComponent(kelasIdOverride ? `/dashboard/kelas-binaan?kelas=${kelas.id}` : '/dashboard/kelas-binaan')}`
+            return (
+              <Link key={row.siswa_id} href={detailHref} className="block rounded-xl border border-surface-2 bg-slate-50/80 dark:bg-slate-800/40 p-3 active:scale-[0.99] transition-transform">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{row.nama_lengkap}</p>
+                    <p className="text-[11px] text-slate-400 truncate">{row.nisn}</p>
+                  </div>
+                  <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(row.todayStatus?.status_akhir || 'BELUM_ADA_DATA')}`}>
+                    {row.todayStatus?.status_akhir === 'BELUM_ADA_DATA' ? 'Belum Ada Data' : row.todayStatus?.status_akhir || 'Belum Ada Data'}
+                  </span>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+                  <div>
+                    <p className="text-slate-400">Sumber</p>
+                    <p className="font-medium text-slate-600 dark:text-slate-300">{sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data')}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">Poin</p>
+                    <p className="font-semibold text-slate-700 dark:text-slate-200">{row.totalPoin}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-slate-400">30 Hari</p>
+                    <p className="font-medium text-slate-600 dark:text-slate-300">S {row.monthly.sakit} • I {row.monthly.izin} • A {row.monthly.alfa} • P {row.monthly.parsial}</p>
+                  </div>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+
+        <div className="hidden md:block">
+          <div className="grid grid-cols-[minmax(0,2fr)_minmax(140px,1.2fr)_minmax(120px,1fr)_minmax(160px,1.2fr)_80px] gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800/40 border-t border-surface-2 text-[11px] font-semibold text-slate-500">
+            <div>Siswa</div>
+            <div>Status Hari Ini</div>
+            <div>Sumber</div>
+            <div>30 Hari</div>
+            <div>Poin</div>
+          </div>
+          <div className="divide-y divide-surface-2">
+            {studentRows.map(row => {
+              const detailHref = `/dashboard/siswa/${row.siswa_id}?tab=absensi&returnTo=${encodeURIComponent(kelasIdOverride ? `/dashboard/kelas-binaan?kelas=${kelas.id}` : '/dashboard/kelas-binaan')}`
+              return (
+                <Link key={row.siswa_id} href={detailHref} className="grid grid-cols-[minmax(0,2fr)_minmax(140px,1.2fr)_minmax(120px,1fr)_minmax(160px,1.2fr)_80px] gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{row.nama_lengkap}</p>
+                    <p className="text-[11px] text-slate-400 truncate">{row.nisn}</p>
+                  </div>
+                  <div className="flex items-center">
                     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(row.todayStatus?.status_akhir || 'BELUM_ADA_DATA')}`}>
                       {row.todayStatus?.status_akhir === 'BELUM_ADA_DATA' ? 'Belum Ada Data' : row.todayStatus?.status_akhir || 'Belum Ada Data'}
                     </span>
-                  </td>
-                  <td className="px-4 py-3 text-[11px] text-slate-500">{sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data')}</td>
-                  <td className="px-4 py-3 text-[11px] text-slate-500">
-                    S {row.monthly.sakit} • I {row.monthly.izin} • A {row.monthly.alfa} • P {row.monthly.parsial}
-                  </td>
-                  <td className="px-4 py-3 text-[11px] font-semibold text-slate-700 dark:text-slate-200">{row.totalPoin}</td>
-                  <td className="px-4 py-3 text-right">
-                    <Link href={`/dashboard/siswa/${row.siswa_id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700">
-                      Detail <ArrowRight className="h-3 w-3" />
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                  <div className="flex items-center text-[11px] text-slate-500">{sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data')}</div>
+                  <div className="flex items-center text-[11px] text-slate-500">S {row.monthly.sakit} • I {row.monthly.izin} • A {row.monthly.alfa} • P {row.monthly.parsial}</div>
+                  <div className="flex items-center text-[11px] font-semibold text-slate-700 dark:text-slate-200">{row.totalPoin}</div>
+                </Link>
+              )
+            })}
+          </div>
         </div>
       </div>
 

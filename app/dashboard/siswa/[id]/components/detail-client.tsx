@@ -20,12 +20,13 @@ import { formatNamaKelas } from '@/lib/utils'
 import type { SanksiConfig } from '../../../kedisiplinan/actions'
 
 export function DetailSiswaClient({
-  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, keteranganWaliKelas, kelasList, currentUser, sanksiList
+  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, keteranganWaliKelas, kelasList, currentUser, sanksiList, initialTab = 'biodata'
 }: {
   siswa: any, riwayatKelas: any[], pelanggaran: any[], izinKeluar: any[], izinKelas: any[], keteranganWaliKelas: any[]
   kelasList?: any[],
   currentUser: any
   sanksiList?: SanksiConfig[]
+  initialTab?: string
 }) {
   const router = useRouter()
   const [showKeluarModal, setShowKeluarModal] = useState(false)
@@ -286,7 +287,7 @@ export function DetailSiswaClient({
       </div>
 
       {/* TABS SUPER LENGKAP */}
-      <Tabs defaultValue="biodata" className="w-full">
+      <Tabs defaultValue={initialTab} className="w-full">
         <div className="overflow-x-auto custom-scrollbar pb-2">
           {/* TAB DIPERSEDIKIT MENJADI 4 */}
           <TabsList className="bg-surface border border-surface p-0.5 flex w-max min-w-full h-auto rounded-lg">

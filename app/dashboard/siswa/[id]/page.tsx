@@ -10,8 +10,15 @@ import { getUserRoles } from '@/lib/features'
 export const metadata = { title: 'Buku Induk Siswa - MANSATAS' }
 export const dynamic = 'force-dynamic'
 
-export default async function DetailSiswaPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function DetailSiswaPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ tab?: string; returnTo?: string }>
+}) {
   const { id } = await params
+  const { tab, returnTo } = await searchParams
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
@@ -134,6 +141,10 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
 
   const rawRna = rekapNilai || {}
   const parseStr = (val: any) => { try { return val ? JSON.parse(val) : {} } catch { return {} } }
+  const allowedTabs = new Set(['biodata', 'akademik_nilai', 'disiplin', 'izin', 'absensi'])
+  const initialTab = tab && allowedTabs.has(tab) ? tab : 'biodata'
+  const backHref = returnTo && returnTo.startsWith('/dashboard/') ? returnTo : '/dashboard/siswa'
+  const backLabel = backHref.startsWith('/dashboard/kelas-binaan') ? 'Kembali ke Kelas Binaan' : 'Kembali ke Data Siswa'
 
   const siswaWithNilai = {
     ...siswa,
@@ -155,8 +166,8 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
-      <Link href="/dashboard/siswa" className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-emerald-600 transition-colors bg-surface px-4 py-2 rounded-xl shadow-sm border border-surface w-fit">
-        <ChevronLeft className="h-4 w-4" /> Kembali ke Data Siswa
+      <Link href={backHref} className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-emerald-600 transition-colors bg-surface px-4 py-2 rounded-xl shadow-sm border border-surface w-fit">
+        <ChevronLeft className="h-4 w-4" /> {backLabel}
       </Link>
 
       <DetailSiswaClient
@@ -169,6 +180,7 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
         kelasList={kelasResult.results || []}
         currentUser={{ ...user, roles: userRoles }}
         sanksiList={sanksiList}
+        initialTab={initialTab}
       />
     </div>
   )
