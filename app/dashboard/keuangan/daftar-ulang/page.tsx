@@ -18,21 +18,15 @@ async function DaftarUlangDataFetcher() {
   const allowed = await checkFeatureAccess(db, user.id, 'keuangan-dspt')
   if (!allowed) redirect('/dashboard')
 
-  const [masterItemsRes, taAktif] = await Promise.all([
-    db.prepare(
-      'SELECT * FROM fin_koperasi_master_item WHERE aktif = 1 ORDER BY urutan ASC, nama_item ASC'
-    ).all<any>(),
-    db.prepare('SELECT id, nama FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string; nama: string }>(),
-  ])
+  const taAktif = await db.prepare('SELECT id, nama FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string; nama: string }>()
 
   return (
     <>
       <PageHeader
         title="Kasir Daftar Ulang PMB"
-        description="Input DSPT + Koperasi sekaligus, cetak 2 kuitansi dalam satu dokumen"
+        description="Input pembayaran DSPT dan cetak kuitansi daftar ulang"
       />
       <DaftarUlangClient
-        masterItems={masterItemsRes.results ?? []}
         tahunAjaranId={taAktif?.id ?? ''}
         tahunAjaranNama={taAktif?.nama ?? '-'}
       />

@@ -11,24 +11,22 @@ import { Printer, Settings2, Save } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
 
 // ─── localStorage key ─────────────────────────────────────────────────────────
-const LS_KEY_KOMITE  = 'keuangan_nama_petugas_komite'
-const LS_KEY_KOPERASI = 'keuangan_nama_petugas_koperasi'
+const LS_KEY_KOMITE = 'keuangan_nama_petugas_komite'
 
 export function useNamaPerugas() {
-  const [namaKomite, setNamaKomiteState]   = useState('Bendahara Komite')
-  const [namaKoperasi, setNamaKoperasiState] = useState('Pengurus Koperasi')
+  const [namaKomite, setNamaKomiteState] = useState('Bendahara Komite')
 
   useEffect(() => {
     const k = localStorage.getItem(LS_KEY_KOMITE)
-    const p = localStorage.getItem(LS_KEY_KOPERASI)
     if (k) setNamaKomiteState(k)
-    if (p) setNamaKoperasiState(p)
   }, [])
 
-  function setNamaKomite(v: string)  { setNamaKomiteState(v);  localStorage.setItem(LS_KEY_KOMITE, v) }
-  function setNamaKoperasi(v: string) { setNamaKoperasiState(v); localStorage.setItem(LS_KEY_KOPERASI, v) }
+  function setNamaKomite(v: string) {
+    setNamaKomiteState(v)
+    localStorage.setItem(LS_KEY_KOMITE, v)
+  }
 
-  return { namaKomite, namaKoperasi, setNamaKomite, setNamaKoperasi }
+  return { namaKomite, setNamaKomite }
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -592,15 +590,13 @@ function KuitansiDuplikatPage({ data }: { data: KuitansiData }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export function NamaPerugasSettingModal() {
-  const { namaKomite, namaKoperasi, setNamaKomite, setNamaKoperasi } = useNamaPerugas()
+  const { namaKomite, setNamaKomite } = useNamaPerugas()
   const [open, setOpen] = useState(false)
-  const [formKomite, setFormKomite]   = useState(namaKomite)
-  const [formKoperasi, setFormKoperasi] = useState(namaKoperasi)
+  const [formKomite, setFormKomite] = useState(namaKomite)
   const [saved, setSaved] = useState(false)
 
   function handleSave() {
     setNamaKomite(formKomite.trim() || 'Bendahara Komite')
-    setNamaKoperasi(formKoperasi.trim() || 'Pengurus Koperasi')
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -610,7 +606,7 @@ export function NamaPerugasSettingModal() {
       <Button
         size="sm" variant="outline"
         className="h-8 text-xs gap-1.5"
-        onClick={() => { setFormKomite(namaKomite); setFormKoperasi(namaKoperasi); setOpen(true) }}
+        onClick={() => { setFormKomite(namaKomite); setOpen(true) }}
       >
         <Settings2 className="h-3.5 w-3.5" /> Nama Petugas
       </Button>
@@ -630,16 +626,6 @@ export function NamaPerugasSettingModal() {
                 className="h-9 text-sm"
               />
               <p className="text-[11px] text-slate-400">Tampil di kuitansi DSPT dan SPP</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Nama Pengurus Koperasi</Label>
-              <Input
-                value={formKoperasi}
-                onChange={e => setFormKoperasi(e.target.value)}
-                placeholder="Nama Pengurus Koperasi"
-                className="h-9 text-sm"
-              />
-              <p className="text-[11px] text-slate-400">Tampil di kuitansi Koperasi</p>
             </div>
             <div className="flex gap-2 pt-1">
               <Button variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setOpen(false)}>
@@ -676,13 +662,12 @@ export function KuitansiGandaModal({
   dspt, koperasi, open, onClose, namaKomite, namaKoperasi,
 }: KuitansiGandaModalProps) {
   const printRef = useRef<HTMLDivElement>(null)
-  const { namaKomite: storedKomite, namaKoperasi: storedKoperasi } = useNamaPerugas()
+  const { namaKomite: storedKomite } = useNamaPerugas()
 
-  const resolvedKomite   = namaKomite   ?? storedKomite
-  const resolvedKoperasi = namaKoperasi ?? storedKoperasi
+  const resolvedKomite = namaKomite ?? storedKomite
 
-  const dsptData      = dspt      ? { ...dspt,      namaPerugas: resolvedKomite   } : null
-  const koperasiData  = koperasi  ? { ...koperasi,  namaPerugas: resolvedKoperasi } : null
+  const dsptData = dspt ? { ...dspt, namaPerugas: resolvedKomite } : null
+  const koperasiData = koperasi ? { ...koperasi, namaPerugas: namaKoperasi ?? koperasi.namaPerugas } : null
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,

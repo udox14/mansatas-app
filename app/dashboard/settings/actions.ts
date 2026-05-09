@@ -2,8 +2,10 @@
 'use server'
 
 import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
+import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import type { SlotJam, PolaJam } from './types'
+import { setSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
 // ============================================================
 // TAMBAH TAHUN AJARAN
@@ -128,4 +130,47 @@ export async function getPolaJamByTA(tahun_ajaran_id: string): Promise<PolaJam[]
   const row = await db.prepare('SELECT jam_pelajaran FROM tahun_ajaran WHERE id = ?').bind(tahun_ajaran_id).first<any>()
   if (!row?.jam_pelajaran) return []
   try { return JSON.parse(row.jam_pelajaran) } catch { return [] }
+}
+
+// ============================================================
+// PENGATURAN GLOBAL
+// ============================================================
+export async function setAgendaTimeRestrictionEnabled(enabled: boolean) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<{ role: string }>()
+  if (userRow?.role !== 'super_admin') {
+    return { error: 'Hanya Super Admin yang bisa mengubah pengaturan ini.' }
+  }
+
+  await setSystemSetting(
+    SYSTEM_SETTING_KEYS.agendaTimeRestriction,
+    enabled ? '1' : '0'
+  )
+
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/agenda')
+  return { success: true }
+}
+
+export async function setAttendanceTimeRestrictionEnabled(enabled: boolean) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<{ role: string }>()
+  if (userRow?.role !== 'super_admin') {
+    return { error: 'Hanya Super Admin yang bisa mengubah pengaturan ini.' }
+  }
+
+  await setSystemSetting(
+    SYSTEM_SETTING_KEYS.attendanceTimeRestriction,
+    enabled ? '1' : '0'
+  )
+
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/kehadiran')
+  return { success: true }
 }

@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/table'
 import { CheckCircle2, Clock, XCircle, Plus, Printer, AlertTriangle, Ban, Calendar } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar, createKoperasiTagihan, setSppSaldoAwal, bayarSaldoAwalSpp } from '../../actions'
+import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar, setSppSaldoAwal, bayarSaldoAwalSpp } from '../../actions'
 import { KuitansiModal, type KuitansiData } from '../../components/kuitansi-print'
 
 const STATUS_MAP = {
@@ -31,27 +31,24 @@ const BULAN_LABEL = ['', 'Januari','Februari','Maret','April','Mei','Juni','Juli
 export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any; masterItem: any[]; tahunAjaranId?: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const defaultTab = (['dspt', 'spp', 'koperasi', 'riwayat'].includes(searchParams.get('tab') ?? ''))
+  const defaultTab = (['dspt', 'spp', 'riwayat'].includes(searchParams.get('tab') ?? ''))
     ? (searchParams.get('tab') as string)
     : 'dspt'
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
-  const [bayarModal, setBayarModal] = useState<{ type: 'dspt' | 'spp' | 'koperasi'; target?: any } | null>(null)
+  const [bayarModal, setBayarModal] = useState<{ type: 'dspt' | 'spp'; target?: any } | null>(null)
   const [diskonModal, setDiskonModal] = useState<{ type: string; targetId: string; label: string } | null>(null)
   const [voidModal, setVoidModal] = useState<string | null>(null)
   const [janjiModal, setJanjiModal] = useState<{ type: string; targetId: string } | null>(null)
   const [kuitansiData, setKuitansiData] = useState<KuitansiData | null>(null)
   const [kuitansiOpen, setKuitansiOpen] = useState(false)
-  const [buatKopModal, setBuatKopModal] = useState(false)
-  const [kopItemForm, setKopItemForm] = useState<Array<{ masterItemId: string; namaItem: string; nominal: string; checked: boolean }>>([])
-
   // Bayar form state
   const [bayarForm, setBayarForm] = useState({ jumlah: '', metode: 'tunai', selectedItems: [] as string[] })
   const [diskonForm, setDiskonForm] = useState({ jumlah: '', alasan: 'anak_guru', keterangan: '' })
   const [voidAlasan, setVoidAlasan] = useState('')
   const [janjiForm, setJanjiForm] = useState({ tanggal: '', catatan: '' })
 
-  const { siswa, dspt, sppTagihan, sppSaldoAwal, kopTagihan, kopItems, transaksi, janjiList } = data
+  const { siswa, dspt, sppTagihan, sppSaldoAwal, transaksi, janjiList } = data
 
   // Saldo Awal (tunggakan migrasi)
   const [saldoAwalModal, setSaldoAwalModal] = useState(false)
@@ -85,35 +82,9 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
     return janjiList.find((j: any) => j.target_type === type && j.target_id === id)
   }
 
-  function openBuatKoperasi() {
-    setKopItemForm(masterItem.map(m => ({
-      masterItemId: m.id,
-      namaItem: m.nama_item,
-      nominal: String(m.nominal_default),
-      checked: true,
-    })))
-    setBuatKopModal(true)
-  }
-
-  async function handleBuatKoperasi(e: React.FormEvent) {
-    e.preventDefault()
-    if (!tahunAjaranId) { setMsg('Tahun ajaran aktif tidak ditemukan'); return }
-    const items = kopItemForm.filter(i => i.checked && i.namaItem.trim()).map(i => ({
-      masterItemId: i.masterItemId,
-      namaItem: i.namaItem,
-      nominal: parseInt(i.nominal) || 0,
-    }))
-    if (!items.length) { setMsg('Pilih minimal 1 item'); return }
-    startTransition(async () => {
-      const res = await createKoperasiTagihan(siswa.id, tahunAjaranId, items)
-      setMsg(res.error ?? res.success ?? '')
-      if (!res.error) { setBuatKopModal(false); router.refresh() }
-    })
-  }
-
   function buildKuitansiData(
     nomorKuitansi: string,
-    kategori: 'dspt' | 'spp' | 'koperasi',
+    kategori: 'dspt' | 'spp',
     jumlahDiserahkan: number,
     metode: string,
     rincianBayar: KuitansiData['rincianBayar'],
@@ -125,14 +96,6 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
     if (kategori === 'dspt' && dspt) {
       const sisaDspt = dspt.nominal_target - (dspt.total_dibayar + jumlahDiserahkan) - dspt.total_diskon
       if (sisaDspt > 0) sisaTunggakan.push({ label: 'DSPT', sisa: sisaDspt })
-    } else if (kategori === 'koperasi' && kopItems) {
-      for (const item of kopItems) {
-        if (item.status !== 'lunas') {
-          const paid = bayarForm.selectedItems.includes(item.id) ? item.nominal - item.total_dibayar - item.total_diskon : 0
-          const sisa = item.nominal - item.total_dibayar - item.total_diskon - paid
-          if (sisa > 0) sisaTunggakan.push({ label: item.nama_item, sisa })
-        }
-      }
     }
 
     const kelas = siswa.tingkat
@@ -142,7 +105,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
     return {
       nomorKuitansi,
       tanggal: new Date().toISOString(),
-      kategori: kategori === 'dspt' ? 'DSPT' : kategori === 'spp' ? 'SPP' : 'Koperasi',
+      kategori: kategori === 'dspt' ? 'DSPT' : 'SPP',
       namaSiswa: siswa.nama_lengkap,
       nisn: siswa.nisn ?? '-',
       kelas,
@@ -156,10 +119,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
     }
   }
 
-  function openKuitansiRekap(
-    kategori: 'dspt' | 'spp' | 'koperasi',
-    target?: any,  // untuk SPP: baris tagihan
-  ) {
+  function openKuitansiRekap(kategori: 'dspt' | 'spp', target?: any) {
     const kelas = siswa.tingkat
       ? `Kelas ${siswa.tingkat}-${siswa.nomor_kelas}${siswa.kelompok ? ' ' + siswa.kelompok : ''}`
       : '-'
@@ -206,26 +166,6 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
         isLunas: target.status === 'lunas',
       })
       setKuitansiOpen(true)
-    } else if (kategori === 'koperasi' && kopTagihan) {
-      const sisa = kopTagihan.total_nominal - kopTagihan.total_dibayar - kopTagihan.total_diskon
-      setKuitansiData({
-        nomorKuitansi: `REKAP-KOP`,
-        tanggal: new Date().toISOString(),
-        kategori: 'Koperasi',
-        namaSiswa: siswa.nama_lengkap,
-        nisn: siswa.nisn ?? '-',
-        kelas,
-        namaPerugas: 'Bendahara Komite',
-        metodeBayar: 'Tunai',
-        jumlahDiserahkan: kopTagihan.total_dibayar,
-        jumlahTagihan: kopTagihan.total_nominal,
-        rincianBayar: kopItems.map((item: any) => ({ label: item.nama_item, nominal: item.nominal })),
-        sisaTunggakan: kopItems
-          .filter((i: any) => i.status !== 'lunas')
-          .map((i: any) => ({ label: i.nama_item, sisa: i.nominal - i.total_dibayar - i.total_diskon })),
-        isLunas: kopTagihan.status === 'lunas',
-      })
-      setKuitansiOpen(true)
     }
   }
 
@@ -233,7 +173,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
     const kelas = siswa.tingkat
       ? `Kelas ${siswa.tingkat}-${siswa.nomor_kelas}${siswa.kelompok ? ' ' + siswa.kelompok : ''}`
       : '-'
-    const kategoriLabel = trx.kategori === 'dspt' ? 'DSPT' : trx.kategori === 'spp' ? 'SPP' : 'Koperasi'
+    const kategoriLabel = trx.kategori === 'dspt' ? 'DSPT' : 'SPP'
     setKuitansiData({
       nomorKuitansi: trx.nomor_kuitansi,
       tanggal: trx.created_at,
@@ -249,9 +189,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
       sisaTunggakan: [],
       isLunas: trx.kategori === 'dspt'
         ? (dspt?.status === 'lunas')
-        : trx.kategori === 'koperasi'
-          ? (kopTagihan?.status === 'lunas')
-          : (sppTagihan.find((s: any) => s.id === trx.ref_id)?.status === 'lunas'),
+        : (sppTagihan.find((s: any) => s.id === trx.ref_id)?.status === 'lunas'),
     })
     setKuitansiOpen(true)
   }
@@ -275,17 +213,6 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
       jumlahDibayar = parseInt(bayarForm.jumlah)
       details = [{ refType: 'spp_tagihan', refId: bayarModal.target.id, jumlah: jumlahDibayar }]
       rincianBayar = [{ label: `SPP ${BULAN_LABEL[bayarModal.target.bulan]} ${bayarModal.target.tahun}`, nominal: jumlahDibayar }]
-    } else if (bayarModal.type === 'koperasi') {
-      if (!bayarForm.selectedItems.length) { setMsg('Pilih minimal 1 item'); return }
-      details = bayarForm.selectedItems.map(itemId => {
-        const item = kopItems.find((i: any) => i.id === itemId)
-        return { refType: 'koperasi_item', refId: itemId, jumlah: item?.nominal - item?.total_dibayar - item?.total_diskon }
-      })
-      rincianBayar = bayarForm.selectedItems.map(itemId => {
-        const item = kopItems.find((i: any) => i.id === itemId)
-        return { label: item?.nama_item ?? '', nominal: item?.nominal - item?.total_dibayar - item?.total_diskon }
-      })
-      jumlahDibayar = rincianBayar.reduce((s, i) => s + i.nominal, 0)
     }
 
     startTransition(async () => {
@@ -302,9 +229,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
       if (res.data?.nomorKuitansi) {
         const isLunas = bayarModal.type === 'dspt'
           ? (dspt.nominal_target - (dspt.total_dibayar + jumlahDibayar) - dspt.total_diskon) <= 0
-          : bayarModal.type === 'koperasi'
-            ? (kopTagihan?.total_nominal - (kopTagihan?.total_dibayar + jumlahDibayar) - kopTagihan?.total_diskon) <= 0
-            : (bayarModal.target?.nominal - (bayarModal.target?.total_dibayar + jumlahDibayar) - bayarModal.target?.total_diskon) <= 0
+          : (bayarModal.target?.nominal - (bayarModal.target?.total_dibayar + jumlahDibayar) - bayarModal.target?.total_diskon) <= 0
 
         setKuitansiData(buildKuitansiData(
           res.data.nomorKuitansi,
@@ -378,7 +303,6 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
         <TabsList className="h-8 text-xs">
           <TabsTrigger value="dspt" className="text-xs h-7 px-3">DSPT</TabsTrigger>
           <TabsTrigger value="spp" className="text-xs h-7 px-3">SPP</TabsTrigger>
-          <TabsTrigger value="koperasi" className="text-xs h-7 px-3">Koperasi</TabsTrigger>
           <TabsTrigger value="riwayat" className="text-xs h-7 px-3">Riwayat Transaksi</TabsTrigger>
         </TabsList>
 
@@ -613,93 +537,6 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
 
         </TabsContent>
 
-        {/* ── TAB KOPERASI ── */}
-        <TabsContent value="koperasi" className="space-y-3 mt-0">
-          {!kopTagihan ? (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-8 text-center space-y-3">
-              <p className="text-sm text-slate-400">Belum ada tagihan koperasi untuk siswa ini</p>
-              {masterItem.length > 0 && (
-                <Button size="sm" className="text-xs gap-1.5 h-8" onClick={openBuatKoperasi}>
-                  <Plus className="h-3.5 w-3.5" /> Buat Tagihan Koperasi
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Status Koperasi</p>
-                    {(() => {
-                      const s = STATUS_MAP[kopTagihan.status as keyof typeof STATUS_MAP] ?? STATUS_MAP.belum_bayar
-                      const Icon = s.icon
-                      return (
-                        <span className={`inline-flex items-center gap-1.5 text-sm font-semibold px-2.5 py-1 rounded-full ${s.cls}`}>
-                          <Icon className="h-3.5 w-3.5" />{s.label}
-                        </span>
-                      )
-                    })()}
-                  </div>
-                  <div className="flex gap-2">
-                    {kopTagihan.status !== 'lunas' && (
-                      <Button size="sm" className="h-8 text-xs gap-1.5"
-                        onClick={() => { setBayarForm(f => ({ ...f, selectedItems: [] })); setBayarModal({ type: 'koperasi' }) }}>
-                        <Plus className="h-3.5 w-3.5" /> Bayar Item
-                      </Button>
-                    )}
-                    <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
-                      onClick={() => openKuitansiRekap('koperasi')}>
-                      <Printer className="h-3.5 w-3.5" /> Cetak Kuitansi
-                    </Button>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-3 text-sm">
-                  <div><p className="text-[11px] text-slate-500 dark:text-slate-400">Total Tagihan</p><p className="font-semibold">{formatRupiah(kopTagihan.total_nominal)}</p></div>
-                  <div><p className="text-[11px] text-slate-500 dark:text-slate-400">Dibayar</p><p className="font-semibold text-emerald-600">{formatRupiah(kopTagihan.total_dibayar)}</p></div>
-                  <div><p className="text-[11px] text-slate-500 dark:text-slate-400">Sisa</p><p className={`font-bold ${(kopTagihan.total_nominal - kopTagihan.total_dibayar - kopTagihan.total_diskon) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatRupiah(kopTagihan.total_nominal - kopTagihan.total_dibayar - kopTagihan.total_diskon)}</p></div>
-                </div>
-              </div>
-
-              {/* Item breakdown */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-                <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Rincian Item</p>
-                </div>
-                <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {kopItems.map((item: any) => {
-                    const sisaItem = item.nominal - item.total_dibayar - item.total_diskon
-                    return (
-                      <div key={item.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{item.nama_item}</p>
-                          <p className="text-[11px] text-slate-400">
-                            {formatRupiah(item.nominal)} · Dibayar: {formatRupiah(item.total_dibayar)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
-                            item.status === 'lunas'
-                              ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400'
-                              : 'bg-rose-100 text-rose-700'
-                          }`}>
-                            {item.status === 'lunas' ? 'Lunas' : formatRupiah(sisaItem) + ' sisa'}
-                          </span>
-                          {sisaItem > 0 && (
-                            <Button size="sm" variant="outline" className="h-6 text-[11px] px-2"
-                              onClick={() => setDiskonModal({ type: 'koperasi_item', targetId: item.id, label: item.nama_item })}>
-                              Keringanan
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-        </TabsContent>
-
         {/* ── TAB RIWAYAT TRANSAKSI ── */}
         <TabsContent value="riwayat" className="mt-0">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
@@ -770,7 +607,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
       </Tabs>
 
       {/* ── Modal Bayar DSPT / SPP ── */}
-      <Dialog open={!!bayarModal && bayarModal.type !== 'koperasi'} onOpenChange={v => { if (!v) setBayarModal(null) }}>
+      <Dialog open={!!bayarModal} onOpenChange={v => { if (!v) setBayarModal(null) }}>
         <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
           <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
             <DialogTitle className="text-sm font-semibold">
@@ -808,73 +645,6 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
             <div className="flex gap-2 pt-1">
               <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setBayarModal(null)}>Batal</Button>
               <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}>
-                {isPending ? 'Menyimpan...' : 'Simpan & Kuitansi'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Modal Bayar Koperasi (ceklis item) ── */}
-      <Dialog open={!!bayarModal && bayarModal.type === 'koperasi'} onOpenChange={v => { if (!v) setBayarModal(null) }}>
-        <DialogContent className="sm:max-w-md rounded-xl p-0 overflow-hidden">
-          <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
-            <DialogTitle className="text-sm font-semibold">Bayar Koperasi — Pilih Item</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleBayar} className="p-5 space-y-4">
-            <div className="space-y-2">
-              {kopItems.filter((i: any) => i.status !== 'lunas').map((item: any) => {
-                const sisaItem = item.nominal - item.total_dibayar - item.total_diskon
-                const checked = bayarForm.selectedItems.includes(item.id)
-                return (
-                  <label key={item.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                    checked ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-800 dark:border-slate-700'
-                  }`}>
-                    <input type="checkbox" checked={checked}
-                      onChange={() => setBayarForm(f => ({
-                        ...f,
-                        selectedItems: checked
-                          ? f.selectedItems.filter(id => id !== item.id)
-                          : [...f.selectedItems, item.id]
-                      }))}
-                      className="rounded" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{item.nama_item}</p>
-                      <p className="text-[11px] text-slate-400">Sisa: {formatRupiah(sisaItem)}</p>
-                    </div>
-                  </label>
-                )
-              })}
-              {kopItems.filter((i: any) => i.status !== 'lunas').length === 0 && (
-                <p className="text-sm text-slate-400 text-center py-4">Semua item sudah lunas</p>
-              )}
-            </div>
-            {bayarForm.selectedItems.length > 0 && (
-              <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-sm">
-                Total bayar: <strong className="text-emerald-600">
-                  {formatRupiah(bayarForm.selectedItems.reduce((sum, id) => {
-                    const item = kopItems.find((i: any) => i.id === id)
-                    return sum + (item ? item.nominal - item.total_dibayar - item.total_diskon : 0)
-                  }, 0))}
-                </strong>
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Metode Pembayaran</Label>
-              <div className="flex gap-3">
-                {['tunai', 'transfer'].map(m => (
-                  <label key={m} className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="metode_kop" value={m} checked={bayarForm.metode === m}
-                      onChange={() => setBayarForm(f => ({ ...f, metode: m }))} />
-                    <span className="text-sm">{m === 'tunai' ? 'Tunai' : 'Transfer Bank'}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            {msg && <p className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-md">{msg}</p>}
-            <div className="flex gap-2 pt-1">
-              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setBayarModal(null)}>Batal</Button>
-              <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending || !bayarForm.selectedItems.length}>
                 {isPending ? 'Menyimpan...' : 'Simpan & Kuitansi'}
               </Button>
             </div>
@@ -971,49 +741,6 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
               <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setJanjiModal(null)}>Batal</Button>
               <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending || !janjiForm.tanggal}>
                 {isPending ? 'Menyimpan...' : 'Simpan'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Modal Buat Tagihan Koperasi ── */}
-      <Dialog open={buatKopModal} onOpenChange={v => { if (!v) setBuatKopModal(false) }}>
-        <DialogContent className="sm:max-w-md rounded-xl p-0 overflow-hidden">
-          <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
-            <DialogTitle className="text-sm font-semibold">Buat Tagihan Koperasi</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleBuatKoperasi} className="p-5 space-y-4">
-            <p className="text-xs text-slate-500 dark:text-slate-400">Centang item yang dikenakan untuk siswa ini. Nominal bisa disesuaikan.</p>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {kopItemForm.map((item, idx) => (
-                <div key={item.masterItemId} className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                  item.checked ? 'border-blue-300 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700' : 'border-slate-200 dark:border-slate-800 dark:border-slate-700'
-                }`}>
-                  <input type="checkbox" checked={item.checked}
-                    onChange={() => setKopItemForm(f => f.map((r, i) => i === idx ? { ...r, checked: !r.checked } : r))}
-                    className="rounded flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{item.namaItem}</p>
-                  </div>
-                  <Input
-                    type="number"
-                    value={item.nominal}
-                    onChange={e => setKopItemForm(f => f.map((r, i) => i === idx ? { ...r, nominal: e.target.value } : r))}
-                    className="w-32 h-7 text-xs text-right"
-                    disabled={!item.checked}
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-sm">
-              Total: <strong>{formatRupiah(kopItemForm.filter(i => i.checked).reduce((s, i) => s + (parseInt(i.nominal) || 0), 0))}</strong>
-            </div>
-            {msg && <p className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-md">{msg}</p>}
-            <div className="flex gap-2 pt-1">
-              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setBuatKopModal(false)}>Batal</Button>
-              <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}>
-                {isPending ? 'Menyimpan...' : 'Buat Tagihan'}
               </Button>
             </div>
           </form>

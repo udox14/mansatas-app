@@ -31,7 +31,6 @@ import {
   ReceiptText,
   HandCoins,
   CalendarDays,
-  ShoppingBag,
   TrendingDown,
   BarChart3,
   ClipboardCheck,
@@ -116,6 +115,13 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/kehadiran',
     icon: CalendarCheck,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'guru_piket', 'wali_kelas']
+  },
+  {
+    id: 'kelas-binaan',
+    title: 'Kelas Binaan',
+    href: '/dashboard/kelas-binaan',
+    icon: Eye,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas']
   },
   {
     id: 'rekap-absensi',
@@ -271,7 +277,7 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Kasir Daftar Ulang',
     href: '/dashboard/keuangan/daftar-ulang',
     icon: ClipboardCheck,
-    roles: ['super_admin', 'bendahara_komite', 'pengurus_koperasi'],
+    roles: ['super_admin', 'bendahara_komite'],
   },
   {
     id: 'keuangan-dspt',
@@ -286,13 +292,6 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keuangan/spp',
     icon: CalendarDays,
     roles: ['super_admin', 'bendahara_komite'],
-  },
-  {
-    id: 'keuangan-koperasi',
-    title: 'Koperasi',
-    href: '/dashboard/keuangan/koperasi',
-    icon: ShoppingBag,
-    roles: ['super_admin', 'bendahara_komite', 'pengurus_koperasi'],
   },
   {
     id: 'keuangan-kas-keluar',

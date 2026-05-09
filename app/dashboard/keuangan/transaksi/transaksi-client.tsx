@@ -36,13 +36,11 @@ interface TransaksiRow {
 const KATEGORI_LABEL: Record<string, string> = {
   dspt: 'DSPT',
   spp: 'SPP',
-  koperasi: 'Koperasi',
 }
 
 const KATEGORI_CLASS: Record<string, string> = {
   dspt: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   spp: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  koperasi: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
 }
 
 function formatTanggal(dateString: string) {
@@ -91,7 +89,7 @@ export function TransaksiClient({ initialData }: { initialData: TransaksiRow[] }
   }
 
   const openKuitansi = (row: TransaksiRow) => {
-    const kategoriLabel = row.kategori === 'dspt' ? 'DSPT' : row.kategori === 'spp' ? 'SPP' : 'Koperasi'
+    const kategoriLabel = row.kategori === 'dspt' ? 'DSPT' : 'SPP'
     setKuitansiData({
       nomorKuitansi: row.nomor_kuitansi,
       tanggal: row.created_at,
@@ -126,8 +124,8 @@ export function TransaksiClient({ initialData }: { initialData: TransaksiRow[] }
           <p className="text-sm font-bold text-blue-600">{filtered.filter(row => row.kategori === 'dspt').length} transaksi</p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">Koperasi</p>
-          <p className="text-sm font-bold text-amber-600">{filtered.filter(row => row.kategori === 'koperasi').length} transaksi</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">SPP</p>
+          <p className="text-sm font-bold text-emerald-600">{filtered.filter(row => row.kategori === 'spp').length} transaksi</p>
         </div>
       </div>
 
@@ -147,7 +145,6 @@ export function TransaksiClient({ initialData }: { initialData: TransaksiRow[] }
             <SelectItem value="semua">Semua Kategori</SelectItem>
             <SelectItem value="dspt">DSPT</SelectItem>
             <SelectItem value="spp">SPP</SelectItem>
-            <SelectItem value="koperasi">Koperasi</SelectItem>
           </SelectContent>
         </Select>
         <Select value={status} onValueChange={setStatus}>

@@ -23,6 +23,10 @@ type AbsensiDay = {
   blokHadir: number
   blokTidakHadir: number
   statusHari: string
+  statusGuru?: string
+  statusWaliKelas?: string | null
+  sumberStatus?: string
+  keteranganWaliKelas?: string | null
   detail: {
     status: string
     nama_mapel: string
@@ -447,6 +451,26 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
                             <p className="text-[10px] text-slate-400 mt-0.5">
                               {day.blokHadir}/{day.totalBlok} blok hadir
                             </p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {day.sumberStatus && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                                  {day.sumberStatus === 'guru' ? 'Guru'
+                                    : day.sumberStatus === 'wali_kelas' ? 'Wali Kelas'
+                                    : day.sumberStatus === 'koreksi_wali_kelas' ? 'Koreksi Wali'
+                                    : 'Belum ada data'}
+                                </span>
+                              )}
+                              {day.statusWaliKelas && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                  Koreksi: {day.statusWaliKelas}
+                                </span>
+                              )}
+                            </div>
+                            {day.keteranganWaliKelas && (
+                              <p className="text-[10px] text-emerald-600 mt-1 truncate">
+                                Catatan wali kelas: {day.keteranganWaliKelas}
+                              </p>
+                            )}
                           </div>
                           <StatusBadge status={day.statusHari} />
                           {hasDetail && (

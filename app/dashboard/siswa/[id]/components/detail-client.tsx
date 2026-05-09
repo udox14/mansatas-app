@@ -20,9 +20,9 @@ import { formatNamaKelas } from '@/lib/utils'
 import type { SanksiConfig } from '../../../kedisiplinan/actions'
 
 export function DetailSiswaClient({
-  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, kelasList, currentUser, sanksiList
+  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, keteranganWaliKelas, kelasList, currentUser, sanksiList
 }: {
-  siswa: any, riwayatKelas: any[], pelanggaran: any[], izinKeluar: any[], izinKelas: any[]
+  siswa: any, riwayatKelas: any[], pelanggaran: any[], izinKeluar: any[], izinKelas: any[], keteranganWaliKelas: any[]
   kelasList?: any[],
   currentUser: any
   sanksiList?: SanksiConfig[]
@@ -476,7 +476,7 @@ export function DetailSiswaClient({
 
         {/* ======================= TAB 4: PERIZINAN ======================= */}
         <TabsContent value="izin" className="mt-4 space-y-6 animate-in fade-in">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             
             {/* IZIN KELUAR KOMPLEK */}
             <div className="bg-surface rounded-lg border border-surface overflow-hidden flex flex-col h-96">
@@ -504,6 +504,33 @@ export function DetailSiswaClient({
                           </div>
                         </div>
                         <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 line-clamp-2"><span className="font-semibold text-slate-400 dark:text-slate-500">Ket:</span> {k.keterangan || '-'}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+
+            {/* KETERANGAN TIDAK HADIR SEKOLAH */}
+            <div className="bg-surface rounded-lg border border-surface overflow-hidden flex flex-col h-96">
+              <div className="p-4 border-b bg-emerald-50/50 flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-emerald-600" />
+                <h3 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">Riwayat Keterangan Tidak Hadir</h3>
+              </div>
+              <ScrollArea className="flex-1 p-4">
+                {keteranganWaliKelas.length === 0 ? <p className="text-center text-sm text-slate-400 dark:text-slate-500 mt-10">Belum ada keterangan tidak hadir dari wali kelas.</p> : (
+                  <div className="space-y-3">
+                    {keteranganWaliKelas.map(k => (
+                      <div key={k.id} className="border border-surface rounded-lg p-3 relative overflow-hidden hover:border-emerald-300 transition-colors">
+                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${k.status === 'SAKIT' ? 'bg-amber-500' : 'bg-blue-500'}`}></div>
+                        <div className="pl-3">
+                          <div className="flex justify-between items-start gap-2 mb-2">
+                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{new Date(k.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${k.status === 'SAKIT' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{k.status}</span>
+                          </div>
+                          {k.keterangan && <p className="text-xs text-slate-600 dark:text-slate-300 italic">"{k.keterangan}"</p>}
+                          <p className="text-[10px] text-slate-400 mt-2">Input oleh: {k.input_nama || '-'}</p>
+                        </div>
                       </div>
                     ))}
                   </div>

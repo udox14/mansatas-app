@@ -7,6 +7,8 @@ import { revalidatePath } from 'next/cache'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
+import { currentTimeWIB } from '@/lib/time'
+import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
 // ============================================================
 // TYPES
@@ -231,6 +233,7 @@ export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tan
 // ============================================================
 export async function simpanAbsensi(
   penugasanId: string, tanggal: string,
+  slotMulai: string, slotSelesai: string,
   jamKeMulai: number, jamKeSelesai: number, jumlahJam: number,
   dataAbsen: Array<{ siswa_id: string; status: string; catatan: string }>
 ): Promise<{ error?: string; success?: string }> {
@@ -242,6 +245,27 @@ export async function simpanAbsensi(
   const diinputOleh = effective?.realUserId || user.id
 
   const db = await getDB()
+  const attendanceTimeRestrictionEnabled = await getSystemSettingBoolean(
+    SYSTEM_SETTING_KEYS.attendanceTimeRestriction,
+    false
+  )
+
+  if (attendanceTimeRestrictionEnabled) {
+    const { hours, minutes } = currentTimeWIB()
+    const [mulaiH, mulaiM] = slotMulai.split(':').map(Number)
+    const [selesaiH, selesaiM] = slotSelesai.split(':').map(Number)
+
+    const mulaiMinutes = (mulaiH * 60 + mulaiM) - 5
+    const selesaiMinutes = selesaiH * 60 + selesaiM
+    const currentMinutes = hours * 60 + minutes
+
+    if (currentMinutes < mulaiMinutes) {
+      return { error: `Belum waktunya. Absensi bisa diisi mulai pukul ${slotMulai}.` }
+    }
+    if (currentMinutes > selesaiMinutes) {
+      return { error: `Waktu pengisian absensi sudah berakhir (batas: ${slotSelesai}).` }
+    }
+  }
 
   const toSave = dataAbsen.filter(d => d.status !== 'HADIR')
   const delStmt = db.prepare('DELETE FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?').bind(penugasanId, tanggal)
