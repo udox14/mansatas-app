@@ -81,9 +81,18 @@ export default async function AgendaPage({
 
   // Cek apakah user ini punya jadwal piket (untuk tampilkan/sembunyikan tab)
   const targetUserId = effectiveUserId || user.id
-  const piketCheck = await db.prepare(
-    'SELECT id FROM jadwal_guru_piket WHERE user_id = ? LIMIT 1'
-  ).bind(targetUserId).first<any>()
+  const piketCheck = await db.prepare(`
+    SELECT j.id
+    FROM jadwal_guru_piket j
+    WHERE j.user_id = ?
+       OR j.id IN (
+         SELECT jadwal_piket_id
+         FROM guru_ppl_mapping
+         WHERE guru_ppl_id = ?
+           AND jadwal_piket_id IS NOT NULL
+       )
+    LIMIT 1
+  `).bind(targetUserId, targetUserId).first<any>()
   const hasPiketJadwal = !!piketCheck
 
   return (

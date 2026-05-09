@@ -106,9 +106,18 @@ export async function getJadwalPiketHariIni(dateOverride?: string): Promise<{
     JOIN pengaturan_shift_piket s ON j.shift_id = s.id
     JOIN "user" u ON j.user_id = u.id
     LEFT JOIN agenda_piket ap ON ap.jadwal_id = j.id AND ap.tanggal = ?
-    WHERE j.user_id = ? AND j.hari = ?
+    WHERE j.hari = ?
+      AND (
+        j.user_id = ?
+        OR j.id IN (
+          SELECT jadwal_piket_id
+          FROM guru_ppl_mapping
+          WHERE guru_ppl_id = ?
+            AND jadwal_piket_id IS NOT NULL
+        )
+      )
     ORDER BY s.id ASC
-  `).bind(tanggal, userId, hari).all<any>()
+  `).bind(tanggal, hari, userId, userId).all<any>()
 
   const rows = result.results || []
   if (rows.length === 0) return { error: null, shifts: [], tanggal, hari }

@@ -108,9 +108,18 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
     JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
     JOIN kelas k ON pm.kelas_id = k.id
-    WHERE jm.tahun_ajaran_id = ? AND jm.hari = ? AND pm.guru_id = ?
+    WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
+      AND (
+        pm.guru_id = ?
+        OR pm.id IN (
+          SELECT DISTINCT jm2.penugasan_id
+          FROM jadwal_mengajar jm2
+          JOIN guru_ppl_mapping jpp ON jpp.jadwal_mengajar_id = jm2.id
+          WHERE jpp.guru_ppl_id = ?
+        )
+      )
     ORDER BY jm.jam_ke
-  `).bind(ta.id, hari, guruId).all<any>()).results || []
+  `).bind(ta.id, hari, guruId, guruId).all<any>()).results || []
 
   if (!rows.length) return { error: null, blocks: [], tanggal, hari, hariNama: HARI[hari] }
 
