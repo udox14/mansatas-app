@@ -76,7 +76,7 @@ export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, role
 
       <KehadiranPribadiCard userId={userId} />
 
-      <JadwalMengajarToday userId={userId} taAktif={taAktif} />
+      <JadwalMengajarToday userId={userId} taAktif={taAktif} showAbsensiAction />
 
       {/* Summary Hari Ini */}
       <div className="grid grid-cols-3 gap-3">

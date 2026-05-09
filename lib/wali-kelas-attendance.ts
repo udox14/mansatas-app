@@ -78,7 +78,7 @@ function deriveGuruStatus(totalBlok: number, records: Array<{ status: string }>)
   }
 
   if (records.length === 0) {
-    return 'HADIR'
+    return 'BELUM_ADA_DATA'
   }
 
   if (records.length < totalBlok) {
@@ -94,6 +94,16 @@ function deriveGuruStatus(totalBlok: number, records: Array<{ status: string }>)
   }
 
   return 'PARSIAL'
+}
+
+function deriveGuruStatusWithSession(
+  totalBlok: number,
+  records: Array<{ status: string }>,
+  isSubmitted: boolean
+): FinalAttendanceStatus {
+  if (totalBlok <= 0) return records.length > 0 ? 'PARSIAL' : 'BELUM_ADA_DATA'
+  if (records.length === 0) return isSubmitted ? 'HADIR' : 'BELUM_ADA_DATA'
+  return deriveGuruStatus(totalBlok, records)
 }
 
 function buildFinalStatus(guruStatus: FinalAttendanceStatus, waliStatus: 'SAKIT' | 'IZIN' | null) {
@@ -141,6 +151,19 @@ export async function getFinalAttendanceForClass(
   startDate: string,
   endDate: string
 ) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS absensi_sesi_guru (
+      id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      penugasan_id TEXT NOT NULL REFERENCES penugasan_mengajar(id) ON DELETE CASCADE,
+      tanggal      TEXT NOT NULL,
+      submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
+      diinput_oleh TEXT NOT NULL REFERENCES "user"(id),
+      created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(penugasan_id, tanggal)
+    )
+  `).run()
+
   const [kelas, siswaRes, ta] = await Promise.all([
     db.prepare(`
       SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id, u.nama_lengkap as wali_kelas_nama
@@ -164,7 +187,7 @@ export async function getFinalAttendanceForClass(
   const siswaList = siswaRes.results || []
   const dates = enumerateDates(startDate, endDate)
 
-  const [jadwalRes, absensiRes, waliRes] = await Promise.all([
+  const [jadwalRes, absensiRes, waliRes, sesiRes] = await Promise.all([
     ta?.id
       ? db.prepare(`
           SELECT jm.hari, jm.penugasan_id
@@ -187,6 +210,12 @@ export async function getFinalAttendanceForClass(
       FROM keterangan_absensi_wali_kelas kawk
       JOIN siswa s ON kawk.siswa_id = s.id
       WHERE s.kelas_id = ? AND kawk.tanggal BETWEEN ? AND ?
+    `).bind(kelasId, startDate, endDate).all<any>(),
+    db.prepare(`
+      SELECT asg.tanggal, asg.penugasan_id
+      FROM absensi_sesi_guru asg
+      JOIN penugasan_mengajar pm ON asg.penugasan_id = pm.id
+      WHERE pm.kelas_id = ? AND asg.tanggal BETWEEN ? AND ?
     `).bind(kelasId, startDate, endDate).all<any>(),
   ])
 
@@ -219,6 +248,12 @@ export async function getFinalAttendanceForClass(
     })
   }
 
+  const sesiMap = new Map<string, Set<string>>()
+  for (const row of sesiRes.results || []) {
+    if (!sesiMap.has(row.tanggal)) sesiMap.set(row.tanggal, new Set())
+    sesiMap.get(row.tanggal)!.add(row.penugasan_id)
+  }
+
   const waliMap = new Map<string, { status: 'SAKIT' | 'IZIN'; keterangan: string | null }>()
   for (const row of waliRes.results || []) {
     waliMap.set(`${row.siswa_id}__${row.tanggal}`, {
@@ -235,7 +270,9 @@ export async function getFinalAttendanceForClass(
       const totalBlok = totalBlokByHari.get(hariNum(dateObj)) || 0
       const guruRecords = guruMap.get(`${siswa.id}__${tanggal}`) || []
       const waliRecord = waliMap.get(`${siswa.id}__${tanggal}`)
-      const guruStatus = deriveGuruStatus(totalBlok, guruRecords)
+      const submittedPenugasanCount = sesiMap.get(tanggal)?.size || 0
+      const isSubmitted = totalBlok > 0 && submittedPenugasanCount >= totalBlok
+      const guruStatus = deriveGuruStatusWithSession(totalBlok, guruRecords, isSubmitted)
       const finalState = buildFinalStatus(guruStatus, waliRecord?.status ?? null)
 
       perDay.push({

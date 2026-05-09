@@ -2,14 +2,15 @@
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
-import { ClipboardPen, BookOpen, CheckCircle2, AlertCircle } from 'lucide-react'
+import { ClipboardPen, BookOpen, CheckCircle2, AlertCircle, UserCheck } from 'lucide-react'
 
 type Props = {
   userId: string
   taAktif: { id?: string; nama: string; semester: number } | null
+  showAbsensiAction?: boolean
 }
 
-export async function JadwalMengajarToday({ userId, taAktif }: Props) {
+export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction = false }: Props) {
   if (!taAktif?.id) return null
 
   const db = await getDB()
@@ -72,12 +73,22 @@ export async function JadwalMengajarToday({ userId, taAktif }: Props) {
           </p>
         </div>
         {totalJadwal > 0 && (
-          <Link href="/dashboard/agenda"
-            className="shrink-0 inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1.5 rounded-md transition-colors"
-          >
-            <ClipboardPen className="h-3 w-3" />
-            Isi Jurnal
-          </Link>
+          <div className="shrink-0 flex items-center gap-2">
+            {showAbsensiAction && (
+              <Link href="/dashboard/kehadiran"
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/30 hover:bg-sky-100 dark:hover:bg-sky-900/50 border border-sky-200 dark:border-sky-800 px-2.5 py-1.5 rounded-md transition-colors"
+              >
+                <UserCheck className="h-3 w-3" />
+                Absensi Siswa
+              </Link>
+            )}
+            <Link href="/dashboard/agenda"
+              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1.5 rounded-md transition-colors"
+            >
+              <ClipboardPen className="h-3 w-3" />
+              Isi Jurnal
+            </Link>
+          </div>
         )}
       </div>
 

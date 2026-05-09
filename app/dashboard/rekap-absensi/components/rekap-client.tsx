@@ -32,6 +32,7 @@ const ST: Record<string, { bg: string; text: string; label: string; dot: string 
   SAKIT:          { bg: 'bg-amber-50', text: 'text-amber-700', label: 'Sakit', dot: 'bg-amber-500' },
   ALFA:           { bg: 'bg-red-50', text: 'text-red-700', label: 'Alfa', dot: 'bg-red-500' },
   IZIN:           { bg: 'bg-blue-50', text: 'text-blue-700', label: 'Izin', dot: 'bg-blue-500' },
+  BELUM_ADA_DATA: { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-300', label: 'Belum Diisi', dot: 'bg-slate-400' },
 }
 
 function today() { return todayWIB() }
