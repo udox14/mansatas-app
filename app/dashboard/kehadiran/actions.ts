@@ -28,6 +28,25 @@ export type BlokMengajar = {
   tidak_hadir: number
 }
 
+async function ensureAbsensiSessionTable(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS absensi_sesi_guru (
+      id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      penugasan_id TEXT NOT NULL REFERENCES penugasan_mengajar(id) ON DELETE CASCADE,
+      tanggal      TEXT NOT NULL,
+      submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
+      diinput_oleh TEXT NOT NULL REFERENCES "user"(id),
+      created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(penugasan_id, tanggal)
+    )
+  `).run()
+  await db.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_absensi_sesi_guru_penugasan_tgl
+    ON absensi_sesi_guru(penugasan_id, tanggal)
+  `).run()
+}
+
 export type SiswaAbsensi = {
   siswa_id: string
   nama_lengkap: string
@@ -77,6 +96,7 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
   }
 
   const db = await getDB()
+  await ensureAbsensiSessionTable(db)
 
   // Gunakan dateOverride jika tersedia (admin memilih tanggal)
   // Jika tidak ada explicit override, baca dari cookie act-as-date
@@ -129,17 +149,21 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
   const kelasIds = [...new Set(rows.map((r: any) => r.kelas_id))]
   const penugasanIds = [...new Set(rows.map((r: any) => r.penugasan_id))]
 
-  const [siswaCountRes, absenCountRes] = await Promise.all([
+  const [siswaCountRes, absenCountRes, sesiRes] = await Promise.all([
     db.prepare(
       `SELECT kelas_id, COUNT(*) as cnt FROM siswa WHERE status = 'aktif' AND kelas_id IN (${kelasIds.map(() => '?').join(',')}) GROUP BY kelas_id`
     ).bind(...kelasIds).all<any>(),
     db.prepare(
       `SELECT penugasan_id, COUNT(*) as cnt FROM absensi_siswa WHERE tanggal = ? AND penugasan_id IN (${penugasanIds.map(() => '?').join(',')}) GROUP BY penugasan_id`
     ).bind(tanggal, ...penugasanIds).all<any>(),
+    db.prepare(
+      `SELECT penugasan_id FROM absensi_sesi_guru WHERE tanggal = ? AND penugasan_id IN (${penugasanIds.map(() => '?').join(',')})`
+    ).bind(tanggal, ...penugasanIds).all<any>(),
   ])
 
   const siswaCountMap = new Map((siswaCountRes.results || []).map((r: any) => [r.kelas_id, r.cnt]))
   const absenCountMap = new Map((absenCountRes.results || []).map((r: any) => [r.penugasan_id, r.cnt]))
+  const sesiSet = new Set((sesiRes.results || []).map((r: any) => r.penugasan_id))
 
   // Group per penugasan
   const grouped = new Map<string, any[]>()
@@ -162,7 +186,7 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
       kelas_id: f.kelas_id, kelas_label: formatNamaKelas(f.tingkat, f.nomor_kelas, f.kelompok),
       jam_ke_mulai: jM, jam_ke_selesai: jS, jumlah_jam: jamList.length,
       slot_mulai: sM?.mulai ?? '-', slot_selesai: sS?.selesai ?? '-',
-      sudah_absen: tidakHadir > 0, total_siswa: totalSiswa, tidak_hadir: tidakHadir,
+      sudah_absen: sesiSet.has(pid), total_siswa: totalSiswa, tidak_hadir: tidakHadir,
     })
   }
   blocks.sort((a, b) => a.jam_ke_mulai - b.jam_ke_mulai)
@@ -245,6 +269,7 @@ export async function simpanAbsensi(
   const diinputOleh = effective?.realUserId || user.id
 
   const db = await getDB()
+  await ensureAbsensiSessionTable(db)
   const attendanceTimeRestrictionEnabled = await getSystemSettingBoolean(
     SYSTEM_SETTING_KEYS.attendanceTimeRestriction,
     false
@@ -282,8 +307,17 @@ export async function simpanAbsensi(
     ).bind(penugasanId, d.siswa_id, tanggal, jamKeMulai, jamKeSelesai, jumlahJam, d.status, d.catatan || null, diinputOleh)
   )
 
+  const upsertSesiStmt = db.prepare(`
+    INSERT INTO absensi_sesi_guru (penugasan_id, tanggal, submitted_at, diinput_oleh, updated_at)
+    VALUES (?, ?, datetime('now'), ?, datetime('now'))
+    ON CONFLICT(penugasan_id, tanggal) DO UPDATE SET
+      submitted_at = excluded.submitted_at,
+      diinput_oleh = excluded.diinput_oleh,
+      updated_at = excluded.updated_at
+  `).bind(penugasanId, tanggal, diinputOleh)
+
   try {
-    const all = [delStmt, ...insStmts]
+    const all = [delStmt, ...insStmts, upsertSesiStmt]
     for (let i = 0; i < all.length; i += 100) await db.batch(all.slice(i, i + 100))
   } catch (e: any) { return { error: e.message } }
 
