@@ -33,9 +33,9 @@ function BaseCard({ title, subtitle, hadir, sakit, izin, alfa, total, telat, ico
         <div className="grid grid-cols-4 divide-x divide-slate-100 dark:divide-slate-800">
           {[
             { label: 'Hadir', val: hadir, color: 'text-emerald-600' },
-            { label: 'Sakit', val: sakit, color: 'text-amber-600'   },
-            { label: 'Izin',  val: izin,  color: 'text-blue-600'    },
-            { label: 'Alfa',  val: alfa,  color: 'text-rose-600'    },
+            { label: 'Sakit', val: sakit, color: 'text-amber-600' },
+            { label: 'Izin', val: izin, color: 'text-blue-600' },
+            { label: 'Alfa', val: alfa, color: 'text-rose-600' },
           ].map(({ label, val, color }) => (
             <div key={label} className="flex flex-col items-center gap-0.5 py-3">
               <span className={`text-xl font-bold leading-none tabular-nums ${color}`}>{val}</span>
@@ -98,7 +98,7 @@ export async function KehadiranPribadiCard({ userId }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <BaseCard
-        title="Kehadiran Mengajar (Agenda)"
+        title="Performa Kehadiran"
         subtitle={`${monthLabel} (berdasarkan blok sesi)`}
         hadir={dataGuru?.hadir ?? 0}
         sakit={dataGuru?.sakit ?? 0}
