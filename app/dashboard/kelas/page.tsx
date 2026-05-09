@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic'
 
 async function KelasDataFetcher({ userRole }: { userRole: string }) {
   const db = await getDB()
+  const kandidatWaliRoles = ['guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_tahfidz', 'guru_ppl']
 
   const [kelasResult, guruResult, taAktif] = await Promise.all([
     db.prepare(`
@@ -26,7 +27,14 @@ async function KelasDataFetcher({ userRole }: { userRole: string }) {
       GROUP BY k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.kapasitas, k.wali_kelas_id, u.nama_lengkap
       ORDER BY k.tingkat ASC, CAST(k.nomor_kelas AS INTEGER) ASC, k.kelompok ASC
     `).all<any>(),
-    db.prepare(`SELECT id, nama_lengkap FROM "user" WHERE role = 'wali_kelas' ORDER BY nama_lengkap ASC`).all<any>(),
+    db.prepare(`
+      SELECT DISTINCT u.id, u.nama_lengkap
+      FROM "user" u
+      LEFT JOIN user_roles ur ON ur.user_id = u.id
+      WHERE u.role IN (${kandidatWaliRoles.map(() => '?').join(', ')})
+         OR ur.role IN (${kandidatWaliRoles.map(() => '?').join(', ')})
+      ORDER BY u.nama_lengkap ASC
+    `).bind(...kandidatWaliRoles, ...kandidatWaliRoles).all<any>(),
     db.prepare(`SELECT daftar_jurusan FROM tahun_ajaran WHERE is_active = 1`).first<any>()
   ])
 
