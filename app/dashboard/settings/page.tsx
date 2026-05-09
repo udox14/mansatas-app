@@ -6,6 +6,7 @@ import { checkFeatureAccess } from '@/lib/features'
 import { Settings } from 'lucide-react'
 import { SettingsClient } from './components/settings-client'
 import { PageHeader } from '@/components/layout/page-header'
+import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
 export const metadata = { title: 'Pengaturan Global - MANSATAS App' }
 
@@ -54,6 +55,14 @@ export default async function SettingsPage() {
     })(),
     jam_pelajaran: normalizeJamPelajaran(ta.jam_pelajaran),
   }))
+  const agendaTimeRestrictionEnabled = await getSystemSettingBoolean(
+    SYSTEM_SETTING_KEYS.agendaTimeRestriction,
+    true
+  )
+  const attendanceTimeRestrictionEnabled = await getSystemSettingBoolean(
+    SYSTEM_SETTING_KEYS.attendanceTimeRestriction,
+    false
+  )
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -61,7 +70,11 @@ export default async function SettingsPage() {
         title="Pengaturan Sistem"
         description="Kelola kalender akademik, jurusan, dan jam pelajaran."
       />
-      <SettingsClient taData={taData} />
+      <SettingsClient
+        taData={taData}
+        agendaTimeRestrictionEnabled={agendaTimeRestrictionEnabled}
+        attendanceTimeRestrictionEnabled={attendanceTimeRestrictionEnabled}
+      />
     </div>
   )
 }

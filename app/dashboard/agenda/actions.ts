@@ -9,6 +9,7 @@ import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import { nowWIB, currentTimeWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
+import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
 // ============================================================
 // TYPES
@@ -188,6 +189,10 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
   if (!penugasanId || !materi || !tanggal) return { error: 'Materi wajib diisi.' }
 
   const db = await getDB()
+  const agendaTimeRestrictionEnabled = await getSystemSettingBoolean(
+    SYSTEM_SETTING_KEYS.agendaTimeRestriction,
+    true
+  )
 
   // Cek apakah sudah diisi
   const existing = await db.prepare(
@@ -199,7 +204,7 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
   const { hours: curH_, minutes: curM_, hhmm: currentTime } = currentTimeWIB()
 
   // BYPASS validasi waktu jika super admin Act As
-  if (!isActingAs) {
+  if (agendaTimeRestrictionEnabled && !isActingAs) {
     // Guru hanya bisa input mulai dari jam mulai sampai jam selesai bloknya
     // Toleransi: bisa mulai 5 menit sebelum jam mulai
     const [mulaiH, mulaiM] = slotMulai.split(':').map(Number)

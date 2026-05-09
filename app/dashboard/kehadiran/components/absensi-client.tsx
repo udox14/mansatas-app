@@ -92,6 +92,7 @@ export function AbsensiClient({ initialData }: Props) {
     }))
     const res = await simpanAbsensi(
       activeBlock.penugasan_id, data.tanggal,
+      activeBlock.slot_mulai, activeBlock.slot_selesai,
       activeBlock.jam_ke_mulai, activeBlock.jam_ke_selesai, activeBlock.jumlah_jam,
       dataAbsen,
     )
@@ -119,7 +120,7 @@ export function AbsensiClient({ initialData }: Props) {
     const hadir = counts.HADIR || 0
     const tidakHadir = siswaList.length - hadir
     return (
-      <div className="space-y-2">
+      <div className="space-y-2 pb-28 md:pb-20">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-white dark:bg-slate-900 border-b pb-2 -mx-1 px-1">
           <div className="flex items-center gap-2 mb-1.5">
@@ -245,7 +246,7 @@ export function AbsensiClient({ initialData }: Props) {
 
         {/* Floating Save Button */}
         {siswaList.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 z-20 p-3 bg-gradient-to-t from-white via-white dark:from-slate-900 dark:via-slate-900 to-transparent pointer-events-none">
+          <div className="fixed bottom-16 left-0 right-0 z-20 p-3 bg-gradient-to-t from-white via-white dark:from-slate-900 dark:via-slate-900 to-transparent pointer-events-none md:bottom-0">
             <div className="max-w-lg mx-auto pointer-events-auto">
               <Button
                 onClick={handleSave}

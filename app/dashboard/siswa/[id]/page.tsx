@@ -1,4 +1,3 @@
-// Lokasi: app/dashboard/siswa/[id]/page.tsx
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
@@ -17,13 +16,10 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
   if (!user) redirect('/login')
 
   const db = await getDB()
-
-  // STRICT RBAC CHECK FOR DETAIL VIEW
   const userRoles = await getUserRoles(db, user.id)
-  const isAdminTu = userRoles.some(r => ['super_admin', 'admin_tu'].includes(r))
-  const isKepsekWakamad = userRoles.some(r => ['kepsek', 'wakamad'].includes(r))
+  const isAdminTu = userRoles.some(role => ['super_admin', 'admin_tu'].includes(role))
+  const isKepsekWakamad = userRoles.some(role => ['kepsek', 'wakamad'].includes(role))
 
-  // FIX: Ganti SELECT s.* → kolom eksplisit (s.* ambil 40+ kolom tiap query)
   const siswa = await db.prepare(`
     SELECT
       s.id, s.nisn, s.nis_lokal, s.nama_lengkap, s.jenis_kelamin, s.status,
@@ -37,41 +33,49 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
       s.nama_ibu, s.nik_ibu, s.tempat_lahir_ibu, s.tanggal_lahir_ibu,
       s.status_ibu, s.pendidikan_ibu, s.pekerjaan_ibu, s.penghasilan_ibu,
       k.tingkat, k.kelompok, k.nomor_kelas
-    FROM siswa s LEFT JOIN kelas k ON s.kelas_id = k.id
+    FROM siswa s
+    LEFT JOIN kelas k ON s.kelas_id = k.id
     WHERE s.id = ?
   `).bind(id).first<any>()
 
-  if (!siswa) return (
-    <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500 dark:text-slate-400">
-      <h1 className="text-2xl font-bold mb-2">Siswa Tidak Ditemukan</h1>
-      <Link href="/dashboard/siswa" className="text-blue-600 hover:underline">Kembali ke Daftar Siswa</Link>
-    </div>
-  )
+  if (!siswa) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-slate-500 dark:text-slate-400">
+        <h1 className="text-2xl font-bold mb-2">Siswa Tidak Ditemukan</h1>
+        <Link href="/dashboard/siswa" className="text-blue-600 hover:underline">Kembali ke Daftar Siswa</Link>
+      </div>
+    )
+  }
 
-  // Verify access for Wali Kelas / Guru BK / Other roles
-  let isAuthorized = false;
+  let isAuthorized = false
   if (isAdminTu || isKepsekWakamad) {
-    isAuthorized = true;
+    isAuthorized = true
   } else if (siswa.kelas_id) {
-    // Check if user is the assigned Wali Kelas for THIS student's class
     if (userRoles.includes('wali_kelas')) {
       const isWali = await db.prepare('SELECT id FROM kelas WHERE id = ? AND wali_kelas_id = ?').bind(siswa.kelas_id, user.id).first()
       if (isWali) isAuthorized = true
     }
-    
-    // Check if user is the assigned Guru BK for THIS student's class
+
     if (!isAuthorized && userRoles.includes('guru_bk')) {
-      const isBP = await db.prepare('SELECT id FROM kelas_binaan_bk WHERE kelas_id = ? AND guru_bk_id = ?').bind(siswa.kelas_id, user.id).first()
-      if (isBP) isAuthorized = true
+      const isBk = await db.prepare('SELECT id FROM kelas_binaan_bk WHERE kelas_id = ? AND guru_bk_id = ?').bind(siswa.kelas_id, user.id).first()
+      if (isBk) isAuthorized = true
     }
   }
 
-  // Final Strict Block
   if (!isAuthorized) {
     redirect('/dashboard/siswa')
   }
 
-  const [riwayatKelas, pelanggaran, izinKeluar, izinKelas, rekapNilai, kelasResult, sanksiList] = await Promise.all([
+  const [
+    riwayatKelas,
+    pelanggaran,
+    izinKeluar,
+    izinKelas,
+    keteranganWaliKelas,
+    rekapNilai,
+    kelasResult,
+    sanksiList,
+  ] = await Promise.all([
     db.prepare(`
       SELECT rk.id, rk.created_at, k.tingkat, k.kelompok, k.nomor_kelas, ta.nama, ta.semester
       FROM riwayat_kelas rk
@@ -106,10 +110,18 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
       WHERE itk.siswa_id = ? ORDER BY itk.tanggal DESC
     `).bind(id).all<any>(),
 
-    // FIX: Ganti SELECT * → kolom spesifik
+    db.prepare(`
+      SELECT kawk.id, kawk.tanggal, kawk.status, kawk.keterangan,
+        u.nama_lengkap as input_nama
+      FROM keterangan_absensi_wali_kelas kawk
+      LEFT JOIN "user" u ON kawk.dibuat_oleh = u.id
+      WHERE kawk.siswa_id = ? ORDER BY kawk.tanggal DESC
+    `).bind(id).all<any>(),
+
     db.prepare(`
       SELECT siswa_id, nilai_smt1, nilai_smt2, nilai_smt3, nilai_smt4, nilai_smt5, nilai_smt6
-      FROM rekap_nilai_akademik WHERE siswa_id = ?
+      FROM rekap_nilai_akademik
+      WHERE siswa_id = ?
     `).bind(id).first<any>(),
 
     db.prepare(`
@@ -126,8 +138,10 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
   const siswaWithNilai = {
     ...siswa,
     kelas: siswa.tingkat ? {
-      id: siswa.kelas_id, tingkat: siswa.tingkat,
-      kelompok: siswa.kelompok, nomor_kelas: siswa.nomor_kelas
+      id: siswa.kelas_id,
+      tingkat: siswa.tingkat,
+      kelompok: siswa.kelompok,
+      nomor_kelas: siswa.nomor_kelas,
     } : null,
     rekap_nilai_akademik: {
       nilai_smt1: parseStr(rawRna.nilai_smt1),
@@ -136,7 +150,7 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
       nilai_smt4: parseStr(rawRna.nilai_smt4),
       nilai_smt5: parseStr(rawRna.nilai_smt5),
       nilai_smt6: parseStr(rawRna.nilai_smt6),
-    }
+    },
   }
 
   return (
@@ -144,14 +158,16 @@ export default async function DetailSiswaPage({ params }: { params: Promise<{ id
       <Link href="/dashboard/siswa" className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-emerald-600 transition-colors bg-surface px-4 py-2 rounded-xl shadow-sm border border-surface w-fit">
         <ChevronLeft className="h-4 w-4" /> Kembali ke Data Siswa
       </Link>
+
       <DetailSiswaClient
         siswa={siswaWithNilai}
         riwayatKelas={riwayatKelas.results || []}
         pelanggaran={pelanggaran.results || []}
         izinKeluar={izinKeluar.results || []}
         izinKelas={izinKelas.results || []}
+        keteranganWaliKelas={keteranganWaliKelas.results || []}
         kelasList={kelasResult.results || []}
-        currentUser={{...user, roles: userRoles}}
+        currentUser={{ ...user, roles: userRoles }}
         sanksiList={sanksiList}
       />
     </div>

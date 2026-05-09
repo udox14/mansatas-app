@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { submitAgendaPiket, getJadwalPiketHariIni } from '../actions-piket'
 import type { PiketShiftData } from '../actions-piket'
+import { compressAgendaImage } from './image-compression'
 
 interface AgendaPiketClientProps {
   initialData: {
@@ -22,54 +23,14 @@ interface AgendaPiketClientProps {
 }
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label: string }> = {
-  HADIR:    { bg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle2, label: 'Hadir' },
-  TELAT:    { bg: 'bg-amber-50 border-amber-200',    text: 'text-amber-700',   icon: Clock,         label: 'Telat' },
-  ALFA:     { bg: 'bg-red-50 border-red-200',        text: 'text-red-700',     icon: XCircle,       label: 'Alfa' },
-  SAKIT:    { bg: 'bg-blue-50 border-blue-200',      text: 'text-blue-700',    icon: AlertTriangle, label: 'Sakit' },
-  IZIN:     { bg: 'bg-sky-50 border-sky-200',        text: 'text-sky-700',     icon: AlertTriangle, label: 'Izin' },
+  HADIR: { bg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle2, label: 'Hadir' },
+  TELAT: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', icon: Clock, label: 'Telat' },
+  ALFA: { bg: 'bg-red-50 border-red-200', text: 'text-red-700', icon: XCircle, label: 'Alfa' },
+  SAKIT: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', icon: AlertTriangle, label: 'Sakit' },
+  IZIN: { bg: 'bg-sky-50 border-sky-200', text: 'text-sky-700', icon: AlertTriangle, label: 'Izin' },
 }
 
 const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
-
-// ============================================================
-// COMPRESS IMAGE — target < 500KB, WebP preferred
-// ============================================================
-async function compressImage(file: File, maxWidth = 1280, quality = 0.75): Promise<File> {
-  return new Promise((resolve) => {
-    const img = new window.Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      let w = img.width
-      let h = img.height
-      if (w > maxWidth) { h = Math.round(h * (maxWidth / w)); w = maxWidth }
-      const canvas = document.createElement('canvas')
-      canvas.width = w; canvas.height = h
-      const ctx = canvas.getContext('2d')!
-      ctx.drawImage(img, 0, 0, w, h)
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) { resolve(file); return }
-          const compressed = new File([blob], file.name.replace(/\.\w+$/, '.webp'), { type: 'image/webp' })
-          if (compressed.size > 1024 * 1024 && quality > 0.3) {
-            canvas.toBlob(
-              (blob2) => {
-                if (!blob2) { resolve(compressed); return }
-                resolve(new File([blob2], file.name.replace(/\.\w+$/, '.webp'), { type: 'image/webp' }))
-              },
-              'image/webp', 0.4
-            )
-          } else {
-            resolve(compressed)
-          }
-        },
-        'image/webp', quality
-      )
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
-    img.src = url
-  })
-}
 
 export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPiketClientProps) {
   const [data, setData] = useState(initialData)
@@ -93,7 +54,7 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
     const file = e.target.files?.[0]
     if (!file) return
     setPesan(null)
-    const compressed = await compressImage(file)
+    const compressed = await compressAgendaImage(file)
     setFotoFile(compressed)
     setFotoPreview(URL.createObjectURL(compressed))
   }, [])
@@ -103,7 +64,9 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
       setPesan({ tipe: 'error', teks: 'Foto wajib diambil sebagai bukti kehadiran.' })
       return
     }
-    setIsSubmitting(true); setPesan(null)
+
+    setIsSubmitting(true)
+    setPesan(null)
 
     const fd = new FormData()
     fd.append('jadwal_id', shift.jadwal_id)
@@ -118,7 +81,9 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
       setPesan({ tipe: 'error', teks: result.error })
     } else {
       setPesan({ tipe: 'sukses', teks: result.success || 'Berhasil!' })
-      setFotoFile(null); setFotoPreview(null); setExpandedShift(null)
+      setFotoFile(null)
+      setFotoPreview(null)
+      setExpandedShift(null)
       handleRefresh()
     }
     setIsSubmitting(false)
@@ -139,7 +104,7 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
     return (
       <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-10 text-center">
         <ShieldCheck className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-        <p className="text-sm text-slate-500 dark:text-slate-400">Hari Minggu — tidak ada jadwal piket.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Hari Minggu - tidak ada jadwal piket.</p>
       </div>
     )
   }
@@ -155,7 +120,6 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
 
   return (
     <div className="space-y-3">
-      {/* Header Info */}
       <div className="flex items-center justify-between rounded-lg border bg-white dark:bg-slate-900 px-4 py-3">
         <div>
           <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -172,14 +136,12 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
         </Button>
       </div>
 
-      {/* Pesan global */}
       {pesan && (
         <div className={`rounded-lg border px-4 py-3 text-sm ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
           {pesan.teks}
         </div>
       )}
 
-      {/* Shift Cards */}
       {shifts.map((shift) => {
         const isExpanded = expandedShift === shift.jadwal_id
         const style = STATUS_STYLE[shift.status || 'ALFA'] || STATUS_STYLE.ALFA
@@ -187,7 +149,6 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
 
         return (
           <div key={shift.jadwal_id} className="rounded-lg border bg-white dark:bg-slate-900 overflow-hidden">
-            {/* Card Header */}
             <div className="px-4 py-3 flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -199,7 +160,7 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Jam ke-{shift.jam_mulai} s/d {shift.jam_selesai}
                   {' '}·{' '}
-                  {shift.slot_mulai !== '??:??' ? `${shift.slot_mulai} — ${shift.slot_selesai}` : 'Waktu belum dikonfigurasi'}
+                  {shift.slot_mulai !== '??:??' ? `${shift.slot_mulai} - ${shift.slot_selesai}` : 'Waktu belum dikonfigurasi'}
                 </p>
               </div>
 
@@ -222,7 +183,9 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
                   size="sm"
                   onClick={() => {
                     setExpandedShift(isExpanded ? null : shift.jadwal_id)
-                    setFotoFile(null); setFotoPreview(null); setPesan(null)
+                    setFotoFile(null)
+                    setFotoPreview(null)
+                    setPesan(null)
                   }}
                   className="bg-teal-600 hover:bg-teal-700 text-white text-xs"
                 >
@@ -232,7 +195,6 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
               )}
             </div>
 
-            {/* Preview foto jika sudah isi */}
             {shift.sudah_isi && shift.foto_url && (
               <div className="border-t px-4 pb-3 pt-2">
                 <p className="text-[11px] text-slate-400 mb-1.5">Foto Kehadiran</p>
@@ -244,10 +206,8 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
               </div>
             )}
 
-            {/* Expanded Form */}
             {isExpanded && !shift.sudah_isi && (
               <div className="border-t bg-slate-50 dark:bg-slate-800/50 px-4 py-4 space-y-4">
-                {/* Info shift (readonly) */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs text-slate-500 dark:text-slate-400">Shift</Label>
@@ -256,12 +216,11 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
                   <div>
                     <Label className="text-xs text-slate-500 dark:text-slate-400">Waktu</Label>
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      {shift.slot_mulai !== '??:??' ? `${shift.slot_mulai} — ${shift.slot_selesai}` : `Jam ke-${shift.jam_mulai} s/d ${shift.jam_selesai}`}
+                      {shift.slot_mulai !== '??:??' ? `${shift.slot_mulai} - ${shift.slot_selesai}` : `Jam ke-${shift.jam_mulai} s/d ${shift.jam_selesai}`}
                     </p>
                   </div>
                 </div>
 
-                {/* Foto (camera only) */}
                 <div>
                   <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">
                     Foto Kehadiran <span className="text-red-500">*</span>
@@ -303,19 +262,16 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
                   />
                 </div>
 
-                {/* Waktu otomatis — info */}
                 <div className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 rounded-lg px-3 py-2">
-                  ⏱ Waktu submit akan dicatat otomatis saat Anda klik kirim.
+                  Waktu submit akan dicatat otomatis saat Anda klik kirim.
                 </div>
 
-                {/* Notice act-as */}
                 {isActingAs && (
                   <div className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    ⚠️ Input atas nama guru. Validasi waktu di-skip, foto opsional.
+                    Input atas nama guru. Validasi waktu di-skip, foto opsional.
                   </div>
                 )}
 
-                {/* Submit */}
                 <Button
                   onClick={() => handleSubmit(shift)}
                   disabled={isSubmitting || (!fotoFile && !isActingAs)}

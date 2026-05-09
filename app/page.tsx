@@ -55,7 +55,7 @@ const workstreams = [
   },
   {
     title: 'Keuangan dan layanan',
-    description: 'SPP, DSPT, daftar ulang, koperasi, dan laporan kas hadir dengan alur yang jelas untuk petugas.',
+    description: 'SPP, DSPT, daftar ulang, dan laporan kas hadir dengan alur yang jelas untuk petugas.',
     icon: PieChart,
   },
 ]
@@ -100,8 +100,8 @@ const featureGroups = [
   },
   {
     title: 'Keuangan',
-    summary: 'Riwayat transaksi, DSPT, SPP tunggakan, daftar ulang, koperasi, kas keluar, dan laporan.',
-    ids: ['keuangan-transaksi', 'keuangan-daftar-ulang', 'keuangan-dspt', 'keuangan-spp', 'keuangan-koperasi', 'keuangan-kas-keluar', 'keuangan-laporan'],
+    summary: 'Riwayat transaksi, DSPT, SPP tunggakan, daftar ulang, kas keluar, dan laporan.',
+    ids: ['keuangan-transaksi', 'keuangan-daftar-ulang', 'keuangan-dspt', 'keuangan-spp', 'keuangan-kas-keluar', 'keuangan-laporan'],
   },
   {
     title: 'Sistem & notifikasi',
@@ -146,10 +146,9 @@ const featureDescriptions: Record<string, string> = {
   'kelola-ppl': 'Menghubungkan guru PPL dengan guru utama, jadwal mengajar, dan jadwal piket agar akses tugas PPL sesuai penugasan.',
   'buku-tamu': 'Mencatat kunjungan tamu individu atau instansi, termasuk foto, tujuan kunjungan, daftar tamu hari ini, dan monitoring kunjungan.',
   'keuangan-transaksi': 'Menampilkan riwayat seluruh transaksi keuangan dari berbagai sumber, diurutkan dari transaksi terbaru.',
-  'keuangan-daftar-ulang': 'Kasir untuk proses daftar ulang, pembayaran DSPT dan koperasi, pemberian diskon, transaksi, dan cetak kuitansi.',
+  'keuangan-daftar-ulang': 'Kasir untuk proses daftar ulang, pembayaran DSPT, pemberian diskon, transaksi, dan cetak kuitansi.',
   'keuangan-dspt': 'Mengatur target DSPT, pembayaran, diskon, status pelunasan, import data, dan nominal massal per angkatan.',
   'keuangan-spp': 'Menampilkan dan menagih SPP hanya untuk siswa yang masih memiliki tunggakan terdahulu.',
-  'keuangan-koperasi': 'Mengatur item koperasi, membuat tagihan, mencatat pembayaran, memberi diskon, dan melihat sisa tagihan.',
   'keuangan-kas-keluar': 'Mencatat pengeluaran kas madrasah berdasarkan kategori seperti operasional, pemeliharaan, kegiatan siswa, dan administrasi.',
   'keuangan-laporan': 'Menyediakan laporan keuangan dari transaksi, tagihan, pembayaran, kas keluar, dan rekap dalam periode tertentu.',
   settings: 'Tempat mengatur tahun ajaran, jurusan, pola jam pelajaran, tahun aktif, dan konfigurasi dasar aplikasi.',

@@ -3,7 +3,6 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Camera, CheckCircle2, Clock, AlertTriangle, XCircle,
@@ -11,6 +10,7 @@ import {
 } from 'lucide-react'
 import { submitAgenda, getJadwalGuruHariIni } from '../actions'
 import type { SlotJam } from '@/app/dashboard/settings/types'
+import { compressAgendaImage } from './image-compression'
 
 type JadwalBlock = {
   penugasan_id: string
@@ -50,47 +50,6 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label:
 
 const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 
-// ============================================================
-// COMPRESS IMAGE — target < 500KB, WebP preferred
-// ============================================================
-async function compressImage(file: File, maxWidth = 1280, quality = 0.7): Promise<File> {
-  return new Promise((resolve) => {
-    const img = new window.Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      let w = img.width
-      let h = img.height
-      if (w > maxWidth) { h = Math.round(h * (maxWidth / w)); w = maxWidth }
-      const canvas = document.createElement('canvas')
-      canvas.width = w; canvas.height = h
-      const ctx = canvas.getContext('2d')!
-      ctx.drawImage(img, 0, 0, w, h)
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) { resolve(file); return }
-          const compressed = new File([blob], file.name.replace(/\.\w+$/, '.webp'), { type: 'image/webp' })
-          // Jika masih > 1MB, compress lagi dengan quality lebih rendah
-          if (compressed.size > 1024 * 1024 && quality > 0.3) {
-            canvas.toBlob(
-              (blob2) => {
-                if (!blob2) { resolve(compressed); return }
-                resolve(new File([blob2], file.name.replace(/\.\w+$/, '.webp'), { type: 'image/webp' }))
-              },
-              'image/webp', 0.4
-            )
-          } else {
-            resolve(compressed)
-          }
-        },
-        'image/webp', quality
-      )
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
-    img.src = url
-  })
-}
-
 export function AgendaClient({ initialData, userRole, isActingAs = false }: AgendaClientProps) {
   const [data, setData] = useState(initialData)
   const [expandedBlock, setExpandedBlock] = useState<string | null>(null)
@@ -114,18 +73,17 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
     const file = e.target.files?.[0]
     if (!file) return
     setPesan(null)
-    // Auto compress
-    const compressed = await compressImage(file)
+    const compressed = await compressAgendaImage(file)
     setFotoFile(compressed)
     setFotoPreview(URL.createObjectURL(compressed))
   }, [])
 
   const handleSubmit = async (block: JadwalBlock) => {
     if (!materi.trim()) { setPesan({ tipe: 'error', teks: 'Materi wajib diisi.' }); return }
-    // Foto wajib hanya jika bukan act-as (admin tidak perlu foto)
     if (!fotoFile && !isActingAs) { setPesan({ tipe: 'error', teks: 'Foto wajib diambil.' }); return }
 
-    setIsSubmitting(true); setPesan(null)
+    setIsSubmitting(true)
+    setPesan(null)
 
     const fd = new FormData()
     fd.append('penugasan_id', block.penugasan_id)
@@ -142,7 +100,10 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
       setPesan({ tipe: 'error', teks: result.error })
     } else {
       setPesan({ tipe: 'sukses', teks: result.success || 'Berhasil!' })
-      setMateri(''); setFotoFile(null); setFotoPreview(null); setExpandedBlock(null)
+      setMateri('')
+      setFotoFile(null)
+      setFotoPreview(null)
+      setExpandedBlock(null)
       handleRefresh()
     }
     setIsSubmitting(false)
@@ -163,7 +124,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
     return (
       <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-10 text-center">
         <BookOpen className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-        <p className="text-sm text-slate-500 dark:text-slate-400">Hari Minggu — tidak ada jadwal mengajar.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Hari Minggu - tidak ada jadwal mengajar.</p>
       </div>
     )
   }
@@ -179,7 +140,6 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
 
   return (
     <div className="space-y-3">
-      {/* Header Info */}
       <div className="flex items-center justify-between rounded-lg border bg-white dark:bg-slate-900 px-4 py-3">
         <div>
           <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -193,14 +153,12 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
         </Button>
       </div>
 
-      {/* Pesan global */}
       {pesan && (
         <div className={`rounded-lg border px-4 py-3 text-sm ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
           {pesan.teks}
         </div>
       )}
 
-      {/* Block Cards */}
       {blocks.map((block) => {
         const isExpanded = expandedBlock === block.penugasan_id
         const style = STATUS_STYLE[block.status || 'ALFA'] || STATUS_STYLE.ALFA
@@ -208,7 +166,6 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
 
         return (
           <div key={block.penugasan_id} className="rounded-lg border bg-white dark:bg-slate-900 overflow-hidden">
-            {/* Card Header */}
             <div className="px-4 py-3 flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -219,7 +176,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   {block.jam_ke_mulai === block.jam_ke_selesai
                     ? `Jam ke-${block.jam_ke_mulai}`
                     : `Jam ke-${block.jam_ke_mulai} s/d ${block.jam_ke_selesai}`}
-                  {' '}&middot; {block.slot_mulai} — {block.slot_selesai}
+                  {' '}&middot; {block.slot_mulai} - {block.slot_selesai}
                 </p>
               </div>
 
@@ -233,7 +190,10 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   size="sm"
                   onClick={() => {
                     setExpandedBlock(isExpanded ? null : block.penugasan_id)
-                    setMateri(''); setFotoFile(null); setFotoPreview(null); setPesan(null)
+                    setMateri('')
+                    setFotoFile(null)
+                    setFotoPreview(null)
+                    setPesan(null)
                   }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
                 >
@@ -243,10 +203,8 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
               )}
             </div>
 
-            {/* Expanded Form */}
             {isExpanded && !block.sudah_isi && (
               <div className="border-t bg-slate-50 dark:bg-slate-800/50 px-4 py-4 space-y-4">
-                {/* Info auto-fill (readonly) */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs text-slate-500 dark:text-slate-400">Mata Pelajaran</Label>
@@ -266,11 +224,10 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   </div>
                   <div>
                     <Label className="text-xs text-slate-500 dark:text-slate-400">Waktu</Label>
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{block.slot_mulai} — {block.slot_selesai}</p>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{block.slot_mulai} - {block.slot_selesai}</p>
                   </div>
                 </div>
 
-                {/* Materi */}
                 <div>
                   <Label htmlFor="materi" className="text-xs text-slate-600 dark:text-slate-400 font-medium">
                     Materi Pelajaran <span className="text-red-500">*</span>
@@ -285,7 +242,6 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   />
                 </div>
 
-                {/* Foto (camera only) — opsional saat act-as */}
                 <div>
                   <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">
                     Foto Kegiatan {!isActingAs && <span className="text-red-500">*</span>}
@@ -315,7 +271,6 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                       <span className="text-sm text-slate-500 dark:text-slate-400">Ketuk untuk membuka kamera</span>
                     </button>
                   )}
-                  {/* Hidden input — camera only via capture attribute */}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -326,14 +281,12 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   />
                 </div>
 
-                {/* Notice act-as */}
                 {isActingAs && (
                   <div className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
-                    ⚠️ Input atas nama guru. Validasi waktu di-skip, foto opsional.
+                    Input atas nama guru. Validasi waktu di-skip, foto opsional.
                   </div>
                 )}
 
-                {/* Submit */}
                 <Button
                   onClick={() => handleSubmit(block)}
                   disabled={isSubmitting || !materi.trim() || (!fotoFile && !isActingAs)}

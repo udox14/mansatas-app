@@ -166,26 +166,6 @@ async function LaporanDataFetcher() {
         LEFT JOIN kelas k ON k.id = s.kelas_id
         WHERE max(sp.jumlah - sp.total_dibayar, 0) > 0
 
-        UNION ALL
-
-        SELECT
-          'koperasi' as jenis,
-          kt.id as id,
-          s.id as siswa_id,
-          s.nama_lengkap,
-          s.nisn,
-          s.tahun_masuk,
-          COALESCE(k.tingkat || '-' || k.nomor_kelas || ' ' || k.kelompok, '-') as kelas,
-          kt.total_nominal as nominal,
-          kt.total_dibayar as dibayar,
-          kt.total_diskon as diskon,
-          max(kt.total_nominal - kt.total_dibayar - kt.total_diskon, 0) as sisa,
-          kt.status,
-          kt.updated_at
-        FROM fin_koperasi_tagihan kt
-        JOIN siswa s ON s.id = kt.siswa_id
-        LEFT JOIN kelas k ON k.id = s.kelas_id
-        WHERE max(kt.total_nominal - kt.total_dibayar - kt.total_diskon, 0) > 0
       )
       ORDER BY sisa DESC, nama_lengkap ASC
     `).all<TunggakanRow>(),

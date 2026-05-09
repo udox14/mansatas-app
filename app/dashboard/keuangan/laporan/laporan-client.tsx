@@ -93,13 +93,11 @@ interface LaporanClientProps {
 const KATEGORI_LABEL: Record<string, string> = {
   dspt: 'DSPT',
   spp: 'SPP Tunggakan',
-  koperasi: 'Koperasi',
 }
 
 const TUNGGAKAN_LABEL: Record<string, string> = {
   dspt: 'DSPT',
   spp_tunggakan_awal: 'SPP Tunggakan Terdahulu',
-  koperasi: 'Koperasi',
 }
 
 function todayInput() {
@@ -203,7 +201,7 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
   const saldo = pemasukan - pengeluaran
   const totalTunggakan = sumBy(tunggakanFiltered, row => row.sisa)
 
-  const kategoriSummary = ['dspt', 'spp', 'koperasi'].map(key => ({
+  const kategoriSummary = ['dspt', 'spp'].map(key => ({
     key,
     label: KATEGORI_LABEL[key],
     total: sumBy(transaksiAktif.filter(row => row.kategori === key), row => row.jumlah_total),
@@ -277,7 +275,6 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
                   <SelectItem value="semua">Semua Sumber</SelectItem>
                   <SelectItem value="dspt">DSPT</SelectItem>
                   <SelectItem value="spp">SPP Tunggakan</SelectItem>
-                  <SelectItem value="koperasi">Koperasi</SelectItem>
                 </SelectContent>
               </Select>
             </div>

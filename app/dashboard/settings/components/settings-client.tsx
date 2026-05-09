@@ -16,7 +16,8 @@ import {
 } from 'lucide-react'
 import {
   tambahTahunAjaran, setAktifTahunAjaran, hapusTahunAjaran,
-  simpanDaftarJurusan, simpanJamPelajaran
+  simpanDaftarJurusan, simpanJamPelajaran,
+  setAgendaTimeRestrictionEnabled, setAttendanceTimeRestrictionEnabled
 } from '../actions'
 import { DEFAULT_POLA_JAM } from '../types'
 import type { PolaJam, SlotJam } from '../types'
@@ -350,7 +351,17 @@ function PolaJamEditor({ value, onChange }: { value: PolaJam[]; onChange: (v: Po
 }
 
 // ── MAIN ────────────────────────────────────────────────────────────────
-export function SettingsClient({ taData }: { taData: TAProps[] }) {
+export function SettingsClient({
+  taData,
+  agendaTimeRestrictionEnabled,
+  attendanceTimeRestrictionEnabled,
+}: {
+  taData: TAProps[]
+  agendaTimeRestrictionEnabled: boolean
+  attendanceTimeRestrictionEnabled: boolean
+}) {
+  const [agendaTimeRestricted, setAgendaTimeRestricted] = useState(agendaTimeRestrictionEnabled)
+  const [attendanceTimeRestricted, setAttendanceTimeRestricted] = useState(attendanceTimeRestrictionEnabled)
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const [state, formAction] = useActionState(tambahTahunAjaran, initialState)
@@ -370,6 +381,8 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
   const [editingJamTA, setEditingJamTA] = useState<TAProps | null>(null)
   const [editPolaJam, setEditPolaJam] = useState<PolaJam[]>([])
   const [isSavingJam, setIsSavingJam] = useState(false)
+  const [isSavingAgendaSetting, setIsSavingAgendaSetting] = useState(false)
+  const [isSavingAttendanceSetting, setIsSavingAttendanceSetting] = useState(false)
 
   const addJurusan = (isEdit: boolean) => {
     const input = isEdit ? editJurusanInput : tambahJurusanInput
@@ -439,6 +452,30 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
     setIsPending(false)
   }
 
+  const handleAgendaTimeRestrictionToggle = async () => {
+    const nextValue = !agendaTimeRestricted
+    setAgendaTimeRestricted(nextValue)
+    setIsSavingAgendaSetting(true)
+    const res = await setAgendaTimeRestrictionEnabled(nextValue)
+    setIsSavingAgendaSetting(false)
+    if (res?.error) {
+      setAgendaTimeRestricted(!nextValue)
+      alert(res.error)
+    }
+  }
+
+  const handleAttendanceTimeRestrictionToggle = async () => {
+    const nextValue = !attendanceTimeRestricted
+    setAttendanceTimeRestricted(nextValue)
+    setIsSavingAttendanceSetting(true)
+    const res = await setAttendanceTimeRestrictionEnabled(nextValue)
+    setIsSavingAttendanceSetting(false)
+    if (res?.error) {
+      setAttendanceTimeRestricted(!nextValue)
+      alert(res.error)
+    }
+  }
+
   // Summary jam untuk card TA
   const getJamSummary = (pola: PolaJam[]) => {
     if (!pola || pola.length === 0) return null
@@ -449,6 +486,67 @@ export function SettingsClient({ taData }: { taData: TAProps[] }) {
 
   return (
     <div className="space-y-4">
+      <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-surface-2">
+          <div>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Perilaku Input Guru</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Atur apakah agenda dan absensi siswa mengikuti batas waktu jam pelajaran.</p>
+          </div>
+        </div>
+        <div className="px-5 py-4 flex items-start justify-between gap-4 border-b border-surface-2">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Batasi sesuai jam pelajaran</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Jika aktif, agenda hanya bisa diisi saat slot pelajaran berlangsung. Jika nonaktif, guru bisa input di luar jam mengajar.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleAgendaTimeRestrictionToggle}
+            disabled={isSavingAgendaSetting}
+            className={cn(
+              'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors',
+              agendaTimeRestricted ? 'bg-emerald-500 border-emerald-500' : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700',
+              isSavingAgendaSetting && 'opacity-60 cursor-wait'
+            )}
+            aria-pressed={agendaTimeRestricted}
+          >
+            <span
+              className={cn(
+                'inline-block h-5 w-5 transform rounded-full bg-white transition-transform',
+                agendaTimeRestricted ? 'translate-x-6' : 'translate-x-1'
+              )}
+            />
+          </button>
+        </div>
+        <div className="px-5 py-4 flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Batasi absensi siswa sesuai jam pelajaran</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Jika aktif, absensi hanya bisa disimpan saat slot pelajaran berlangsung. Jika nonaktif, guru bisa input absensi di luar jam mengajar.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleAttendanceTimeRestrictionToggle}
+            disabled={isSavingAttendanceSetting}
+            className={cn(
+              'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors',
+              attendanceTimeRestricted ? 'bg-emerald-500 border-emerald-500' : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700',
+              isSavingAttendanceSetting && 'opacity-60 cursor-wait'
+            )}
+            aria-pressed={attendanceTimeRestricted}
+          >
+            <span
+              className={cn(
+                'inline-block h-5 w-5 transform rounded-full bg-white transition-transform',
+                attendanceTimeRestricted ? 'translate-x-6' : 'translate-x-1'
+              )}
+            />
+          </button>
+        </div>
+      </div>
+
       <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
 
         {/* HEADER */}

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { WelcomeStrip } from './shared/WelcomeStrip'
 import {
-  Landmark, FileText, ShoppingBag, TrendingDown,
+  Landmark, FileText, TrendingDown,
   ChevronRight, TrendingUp, AlertCircle, CheckCircle2, Clock,
 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
@@ -19,7 +19,7 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
   const tahun = new Date().getFullYear()
   const bulanIni = new Date().getMonth() + 1
 
-  const [dspt, sppTunggakan, koperasi, kasKeluar, transaksiTerbaru] = await Promise.all([
+  const [dspt, sppTunggakan, kasKeluar, transaksiTerbaru] = await Promise.all([
     db.prepare(`
       SELECT
         COUNT(*) as total,
@@ -42,15 +42,6 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
     `).first<any>(),
 
     db.prepare(`
-      SELECT
-        COUNT(*) as total,
-        COALESCE(SUM(total_nominal), 0) as target,
-        COALESCE(SUM(total_dibayar), 0) as terkumpul,
-        SUM(CASE WHEN status='lunas' THEN 1 ELSE 0 END) as lunas
-      FROM fin_koperasi_tagihan
-    `).first<any>(),
-
-    db.prepare(`
       SELECT COALESCE(SUM(jumlah), 0) as total
       FROM fin_kas_keluar WHERE strftime('%Y-%m', tanggal) = ?
     `).bind(`${tahun}-${String(bulanIni).padStart(2, '0')}`).first<{ total: number }>(),
@@ -68,14 +59,11 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
 
   const dsptPersen = (dspt?.total ?? 0) > 0 ? Math.round(((dspt?.lunas ?? 0) / dspt.total) * 100) : 0
   const sppPersen  = (sppTunggakan?.target ?? 0) > 0 ? Math.round(((sppTunggakan?.terkumpul ?? 0) / sppTunggakan.target) * 100) : 0
-  const kopPersen  = (koperasi?.total ?? 0) > 0 ? Math.round(((koperasi?.lunas ?? 0) / koperasi.total) * 100) : 0
-
   const BULAN_LABEL = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
   const quickLinks = [
     { href: '/dashboard/keuangan/dspt',       label: 'DSPT',       icon: Landmark,     color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' },
     { href: '/dashboard/keuangan/spp',        label: 'SPP',        icon: FileText,     color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' },
-    { href: '/dashboard/keuangan/koperasi',   label: 'Koperasi',   icon: ShoppingBag,  color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' },
     { href: '/dashboard/keuangan/kas-keluar', label: 'Kas Keluar', icon: TrendingDown, color: 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' },
     { href: '/dashboard/keuangan/laporan',    label: 'Laporan',    icon: TrendingUp,   color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20' },
   ]
@@ -86,7 +74,7 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
         roleLabel={roleLabel} roleColor={roleColor} taAktif={taAktif} sapaan={sapaan} />
 
       {/* Quick Links */}
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-4 gap-2">
         {quickLinks.map(({ href, label, icon: Icon, color }) => (
           <Link key={href} href={href}
             className="flex flex-col items-center gap-1.5 bg-surface border border-surface rounded-xl py-3 px-2 hover:bg-surface-2 transition-colors">
@@ -99,7 +87,7 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* DSPT */}
         <div className="bg-surface border border-surface rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
@@ -164,33 +152,6 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
           </div>
         </div>
 
-        {/* Koperasi */}
-        <div className="bg-surface border border-surface rounded-xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
-                <ShoppingBag className="h-4 w-4 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Koperasi</p>
-                <p className="text-[10px] text-slate-400">Keseluruhan</p>
-              </div>
-            </div>
-            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${kopPersen >= 80 ? 'bg-emerald-100 text-emerald-700' : kopPersen >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
-              {kopPersen}%
-            </span>
-          </div>
-          <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full">
-            <div className="h-1.5 bg-amber-500 rounded-full transition-all" style={{ width: `${kopPersen}%` }} />
-          </div>
-          <div className="flex justify-between text-[11px]">
-            <span className="text-slate-500">Terkumpul</span>
-            <span className="font-semibold text-amber-600">{formatRupiah(koperasi?.terkumpul ?? 0)}</span>
-          </div>
-          <div className="flex justify-between text-[11px] text-slate-400">
-            <span>{koperasi?.lunas ?? 0} dari {koperasi?.total ?? 0} siswa lunas</span>
-          </div>
-        </div>
       </div>
 
       {/* Kas Keluar bulan ini + Transaksi terbaru */}

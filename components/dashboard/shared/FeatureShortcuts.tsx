@@ -12,6 +12,7 @@ const SHORTCUT_META: Record<string, { desc: string; bg: string; color: string }>
   'akademik-nilai': { desc: 'Rekap capaian siswa', bg: 'bg-emerald-50 dark:bg-emerald-900/30', color: 'text-emerald-600 dark:text-emerald-400' },
   guru: { desc: 'Data guru & pegawai', bg: 'bg-emerald-50 dark:bg-emerald-900/30', color: 'text-emerald-600 dark:text-emerald-400' },
   kehadiran: { desc: 'Input absensi kelas', bg: 'bg-blue-50 dark:bg-blue-900/30', color: 'text-blue-600 dark:text-blue-400' },
+  'kelas-binaan': { desc: 'Panel kendali siswa binaan', bg: 'bg-amber-50 dark:bg-amber-900/30', color: 'text-amber-600 dark:text-amber-400' },
   'rekap-absensi': { desc: 'Laporan kehadiran', bg: 'bg-emerald-50 dark:bg-emerald-900/30', color: 'text-emerald-600 dark:text-emerald-400' },
   agenda: { desc: 'Input jurnal mengajar', bg: 'bg-emerald-50 dark:bg-emerald-900/30', color: 'text-emerald-600 dark:text-emerald-400' },
   penugasan: { desc: 'Delegasi kelas', bg: 'bg-purple-50 dark:bg-purple-900/30', color: 'text-purple-600 dark:text-purple-400' },

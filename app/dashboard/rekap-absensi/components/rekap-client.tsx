@@ -28,6 +28,7 @@ interface Props { filterOptions: FilterOpt }
 const ST: Record<string, { bg: string; text: string; label: string; dot: string }> = {
   HADIR:          { bg: 'bg-emerald-50 dark:bg-emerald-950/50', text: 'text-emerald-700 dark:text-emerald-400', label: 'Hadir', dot: 'bg-emerald-500' },
   'HADIR PARSIAL':{ bg: 'bg-yellow-50', text: 'text-yellow-700', label: 'Hadir Parsial', dot: 'bg-yellow-500' },
+  PARSIAL:        { bg: 'bg-yellow-50', text: 'text-yellow-700', label: 'Parsial', dot: 'bg-yellow-500' },
   SAKIT:          { bg: 'bg-amber-50', text: 'text-amber-700', label: 'Sakit', dot: 'bg-amber-500' },
   ALFA:           { bg: 'bg-red-50', text: 'text-red-700', label: 'Alfa', dot: 'bg-red-500' },
   IZIN:           { bg: 'bg-blue-50', text: 'text-blue-700', label: 'Izin', dot: 'bg-blue-500' },
@@ -135,6 +136,7 @@ function TabKelas() {
                     {k.sakit > 0 && <span className="text-amber-600">S:{k.sakit}</span>}
                     {k.alfa > 0 && <span className="text-red-600">A:{k.alfa}</span>}
                     {k.izin > 0 && <span className="text-blue-600">I:{k.izin}</span>}
+                    {k.parsial > 0 && <span className="text-violet-600">P:{k.parsial}</span>}
                   </div>
                 </button>
               )

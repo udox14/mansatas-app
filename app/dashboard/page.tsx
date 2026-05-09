@@ -7,7 +7,7 @@ import { SuperAdminDashboard } from '@/components/dashboard/SuperAdminDashboard'
 import { KepsekDashboard }     from '@/components/dashboard/KepsekDashboard'
 import { WakamadDashboard }    from '@/components/dashboard/WakamadDashboard'
 import { GuruDashboard }       from '@/components/dashboard/GuruDashboard'
-import { WaliKelasDashboard }  from '@/components/dashboard/WaliKelasDashboard'
+import { KelasBinaanDashboard }  from '@/components/dashboard/KelasBinaanDashboard'
 import { GuruBKDashboard }     from '@/components/dashboard/GuruBKDashboard'
 import { GuruPiketDashboard }  from '@/components/dashboard/GuruPiketDashboard'
 import { ResepsionisDashboard } from '@/components/dashboard/ResepsionisDashboard'
@@ -98,7 +98,7 @@ export default async function DashboardPage() {
       return <WakamadDashboard {...commonProps} />
 
     case 'wali_kelas':
-      return <WaliKelasDashboard {...commonProps} />
+      return <KelasBinaanDashboard {...commonProps} />
 
     case 'guru_bk':
       return <GuruBKDashboard {...commonProps} />

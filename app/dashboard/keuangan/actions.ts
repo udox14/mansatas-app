@@ -808,11 +808,11 @@ export async function generateKoperasiTagihanBulk(tahunAjaranId: string) {
 
 export async function catatTransaksi(payload: {
   siswaId: string
-  kategori: 'dspt' | 'spp' | 'koperasi'
+  kategori: 'dspt' | 'spp'
   metodeBayar: 'tunai' | 'transfer'
   details: Array<{ refType: string; refId: string; jumlah: number }>
 }) {
-  const { db, userId } = await requireAuth('keuangan-koperasi')
+  const { db, userId } = await requireAuth('keuangan-dspt')
   if (payload.kategori === 'spp' || payload.details.some(d => d.refType === 'spp_tagihan')) {
     return { error: SPP_REGULER_DISABLED_MESSAGE, success: null }
   }
@@ -909,7 +909,7 @@ export async function voidTransaksi(transaksiId: string, alasan: string) {
 
 export async function beriDiskon(payload: {
   siswaId: string
-  targetType: 'dspt' | 'spp_tagihan' | 'koperasi_item'
+  targetType: 'dspt' | 'spp_tagihan'
   targetId: string
   jumlah: number
   alasan: string
@@ -1071,7 +1071,7 @@ export async function getDashboardStats(tahunAjaran?: string) {
 export async function getBukuBesarSiswa(siswaId: string) {
   const { db } = await requireAuth('keuangan-dspt')
 
-  const [siswa, dspt, sppTagihan, sppMulaiRow, sppSaldoAwal, kopTagihan, transaksi, janjiList] = await Promise.all([
+  const [siswa, dspt, sppTagihan, sppMulaiRow, sppSaldoAwal, transaksi, janjiList] = await Promise.all([
     db.prepare(`
       SELECT s.*, k.tingkat, k.nomor_kelas, k.kelompok
       FROM siswa s
@@ -1091,13 +1091,6 @@ export async function getBukuBesarSiswa(siswaId: string) {
       LIMIT 1
     `).bind(siswaId, siswaId).first<any>(),
     db.prepare('SELECT * FROM fin_spp_saldo_awal WHERE siswa_id = ?').bind(siswaId).first<any>(),
-    db.prepare(`
-      SELECT t.*, GROUP_CONCAT(i.nama_item, ', ') as item_names
-      FROM fin_koperasi_tagihan t
-      LEFT JOIN fin_koperasi_tagihan_item i ON i.tagihan_id = t.id
-      WHERE t.siswa_id = ?
-      GROUP BY t.id
-    `).bind(siswaId).first<any>(),
     db.prepare(`
       SELECT t.*, u.nama_lengkap as nama_input
       FROM fin_transaksi t
@@ -1153,22 +1146,14 @@ export async function getBukuBesarSiswa(siswaId: string) {
     }
   }
 
-  let kopItems: any[] = []
-  if (kopTagihan) {
-    const items = await db.prepare(
-      'SELECT * FROM fin_koperasi_tagihan_item WHERE tagihan_id = ? ORDER BY nama_item ASC'
-    ).bind(kopTagihan.id).all<any>()
-    kopItems = items.results ?? []
-  }
-
   return {
     siswa,
     dspt,
     sppTagihan: freshSppTagihan,
     sppMulai: sppMulaiRow ?? null,
     sppSaldoAwal: sppSaldoAwal ?? null,
-    kopTagihan,
-    kopItems,
+    kopTagihan: null,
+    kopItems: [],
     transaksi: transaksi.results ?? [],
     janjiList: janjiList.results ?? [],
     error: null,
@@ -1229,7 +1214,6 @@ function refTypeToTable(refType: string): string | null {
   switch (refType) {
     case 'dspt': return 'fin_dspt'
     case 'spp_tagihan': return 'fin_spp_tagihan'
-    case 'koperasi_item': return 'fin_koperasi_tagihan_item'
     default: return null
   }
 }
@@ -1249,9 +1233,7 @@ async function recalcTagihanStatus(db: D1Database, details: Array<{ refType: str
   }
 
   const updateStmts: D1PreparedStatement[] = []
-  const kopItemIds: string[] = byType.get('koperasi_item') ?? []
-
-  // 1 subrequest per tipe (max 3 tipe: dspt, spp_tagihan, koperasi_item)
+  // 1 subrequest per tipe (max 2 tipe: dspt, spp_tagihan)
   for (const [refType, ids] of byType) {
     const tabel = refTypeToTable(refType)
     if (!tabel) continue
@@ -1270,33 +1252,5 @@ async function recalcTagihanStatus(db: D1Database, details: Array<{ refType: str
   // 1 subrequest: batch semua status update sekaligus
   if (updateStmts.length) await db.batch(updateStmts)
 
-  // Recalc header koperasi (jika ada koperasi_item)
-  if (kopItemIds.length) {
-    const ph = kopItemIds.map(() => '?').join(',')
-    // 1 subrequest: ambil tagihan_ids
-    const itemsRes = await db.prepare(
-      `SELECT DISTINCT tagihan_id FROM fin_koperasi_tagihan_item WHERE id IN (${ph})`
-    ).bind(...kopItemIds).all<{ tagihan_id: string }>()
-    const tagIds = (itemsRes.results ?? []).map(r => r.tagihan_id)
-    if (tagIds.length) {
-      // 1 subrequest: aggregate semua header sekaligus
-      const ph2 = tagIds.map(() => '?').join(',')
-      const aggRes = await db.prepare(`
-        SELECT tagihan_id,
-          SUM(total_dibayar) as td, SUM(total_diskon) as tdk, SUM(nominal) as nom
-        FROM fin_koperasi_tagihan_item WHERE tagihan_id IN (${ph2})
-        GROUP BY tagihan_id
-      `).bind(...tagIds).all<any>()
-      const headerStmts = (aggRes.results ?? []).map((agg: any) =>
-        db.prepare(`
-          UPDATE fin_koperasi_tagihan
-          SET total_dibayar=?, total_diskon=?, status=?, updated_at=datetime('now')
-          WHERE id=?
-        `).bind(agg.td ?? 0, agg.tdk ?? 0, recalcStatus(agg.td ?? 0, agg.tdk ?? 0, agg.nom ?? 0), agg.tagihan_id)
-      )
-      // 1 subrequest: batch semua header update
-      if (headerStmts.length) await db.batch(headerStmts)
-    }
-  }
-  // Total: max 7 subrequests, vs sebelumnya O(n*5)
+  // Total: max 3 subrequests
 }

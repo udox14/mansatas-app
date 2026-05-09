@@ -5,7 +5,7 @@ import { getDB } from '@/utils/db'
 import { checkFeatureAccess } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
-import { getBukuBesarSiswa, getMasterItemKoperasi } from '../../actions'
+import { getBukuBesarSiswa } from '../../actions'
 import { BukuBesarClient } from './buku-besar-client'
 import { BackButton } from './back-button'
 
@@ -15,9 +15,8 @@ export const metadata = { title: 'Buku Besar Siswa | Keuangan MANSATAS' }
 async function BukuBesarDataFetcher({ id }: { id: string }) {
   const db = await getDB()
 
-  const [data, { data: masterItem }, tahunAjaran] = await Promise.all([
+  const [data, tahunAjaran] = await Promise.all([
     getBukuBesarSiswa(id),
-    getMasterItemKoperasi(),
     db.prepare("SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1").first<{ id: string }>(),
   ])
 
@@ -29,7 +28,7 @@ async function BukuBesarDataFetcher({ id }: { id: string }) {
         title={data.siswa.nama_lengkap}
         description={`NISN: ${data.siswa.nisn ?? '-'} · ${data.siswa.tingkat ? `Kelas ${data.siswa.tingkat}-${data.siswa.nomor_kelas}${data.siswa.kelompok ? ' ' + data.siswa.kelompok : ''}` : '-'} · Angkatan ${data.siswa.tahun_masuk ?? '-'}`}
       />
-      <BukuBesarClient data={data} masterItem={masterItem} tahunAjaranId={tahunAjaran?.id} />
+      <BukuBesarClient data={data} masterItem={[]} tahunAjaranId={tahunAjaran?.id} />
     </>
   )
 }
@@ -41,7 +40,6 @@ export default async function BukuBesarPage({ params }: { params: Promise<{ id: 
   const db = await getDB()
   const allowed = await checkFeatureAccess(db, session.user.id, 'keuangan-dspt')
     || await checkFeatureAccess(db, session.user.id, 'keuangan-spp')
-    || await checkFeatureAccess(db, session.user.id, 'keuangan-koperasi')
   if (!allowed) redirect('/dashboard')
 
   return (
