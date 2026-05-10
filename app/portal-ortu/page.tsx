@@ -356,7 +356,7 @@ export default async function PortalOrtuPage() {
     { label: 'Semester 5', value: avgSemester(nilaiRekap?.nilai_smt5) },
     { label: 'Semester 6', value: avgSemester(nilaiRekap?.nilai_smt6) },
   ]
-  const semesterNumeric = semesters.map(s => Number(s.value)).filter(v => !Number.isNaN(v))
+  const semesterNumeric = semesters.map(s => s.value).filter(v => v !== null && v !== undefined && v !== '').map(Number).filter(v => !Number.isNaN(v))
   const semesterAvg = semesterNumeric.length ? Number((semesterNumeric.reduce((a, b) => a + b, 0) / semesterNumeric.length).toFixed(1)) : null
 
   const jamMap = parseJamPelajaran(taAktif?.jam_pelajaran)

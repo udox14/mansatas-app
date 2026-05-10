@@ -24,8 +24,8 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
 
   return (
     <div className="space-y-4">
-      {/* Day Selector - Chunky Pills */}
-      <div className="flex overflow-x-auto no-scrollbar gap-2 pb-2">
+      {/* Segmented Controls Style */}
+      <div className="flex overflow-x-auto no-scrollbar gap-1 bg-slate-100 p-1 rounded-xl">
         {[1, 2, 3, 4, 5, 6].map((d) => {
           const isActive = active === String(d)
           return (
@@ -33,10 +33,10 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
               key={d}
               type="button"
               onClick={() => setActive(String(d))}
-              className={`shrink-0 px-5 py-3 text-[14px] font-black whitespace-nowrap rounded-[20px] transition-all border-2 border-b-[4px] ${
+              className={`flex-1 shrink-0 px-4 py-2 text-[13px] font-medium whitespace-nowrap rounded-lg transition-all ${
                 isActive 
-                  ? 'bg-sky-400 border-sky-500 text-white shadow-sm translate-y-0.5 border-b-2' 
-                  : 'bg-white border-slate-200 text-slate-500 hover:border-sky-300 hover:text-sky-600'
+                  ? 'bg-white text-slate-900 shadow-sm' 
+                  : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               {DAY_LABEL[d]}
@@ -48,25 +48,20 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
       {/* Schedule List */}
       <div className="space-y-3">
         {rows.length === 0 ? (
-          <div className="bg-slate-100 rounded-[28px] border-2 border-dashed border-slate-300 p-8 flex flex-col items-center justify-center text-center">
-            <span className="text-4xl mb-2">🌴</span>
-            <p className="text-lg font-black text-slate-500">Tidak ada jadwal</p>
-            <p className="text-sm font-bold text-slate-400 mt-1">Hari ini libur, yeay!</p>
+          <div className="bg-white rounded-xl border border-slate-200 border-dashed p-8 text-center">
+            <p className="text-sm font-medium text-slate-500">Tidak ada jadwal</p>
           </div>
         ) : rows.map((j, idx) => (
-          <div key={`${active}-${idx}`} className="rounded-[28px] border-2 border-b-[4px] border-sky-200 bg-sky-50 p-5 flex items-stretch gap-4 relative overflow-hidden group hover:border-sky-300 transition-colors">
+          <div key={`${active}-${idx}`} className="bg-white rounded-xl border border-slate-200 p-4 flex items-stretch gap-4 shadow-sm hover:border-slate-300 transition-colors">
             {/* Time Badge */}
-            <div className="flex flex-col items-center justify-center bg-white border-2 border-sky-100 rounded-[18px] px-3 py-2 min-w-[70px] shrink-0 text-center">
-              <span className="text-sky-400 font-black text-[10px] uppercase tracking-widest border-b-2 border-sky-100 pb-1 mb-1 w-full">Jam {j.jam_ke}</span>
-              <span className="text-sky-900 font-black text-[12px]">{j.waktu.split(' - ')[0]}</span>
+            <div className="flex flex-col items-center justify-center bg-slate-50 rounded-lg px-3 py-2 min-w-[70px] shrink-0 border border-slate-100">
+              <span className="text-slate-400 font-semibold text-[10px] uppercase tracking-wider mb-0.5">Jam {j.jam_ke}</span>
+              <span className="text-slate-700 font-semibold text-[12px]">{j.waktu.split(' - ')[0]}</span>
             </div>
             
-            <div className="flex flex-col justify-center flex-1 py-1">
-              <h3 className="text-lg font-black text-slate-800 leading-tight">{j.mapel}</h3>
-              <p className="text-[13px] font-bold text-slate-500 mt-1 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 bg-sky-400 rounded-full inline-block" />
-                {j.guru}
-              </p>
+            <div className="flex flex-col justify-center flex-1">
+              <h3 className="text-sm font-semibold text-slate-800">{j.mapel}</h3>
+              <p className="text-xs text-slate-500 mt-1">{j.guru}</p>
             </div>
           </div>
         ))}
