@@ -22,7 +22,7 @@ export default function ParentLoginClient() {
         credentials: 'include',
       })
       if (!res.ok) {
-        setError('NISN atau tanggal lahir tidak sesuai. Gunakan format DDMMYYYY.')
+        setError('NISN atau password tidak sesuai.')
         setPending(false)
         return
       }
@@ -37,7 +37,7 @@ export default function ParentLoginClient() {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <h1 className="text-lg font-bold text-slate-900">Portal Orang Tua</h1>
-        <p className="mt-1 text-xs text-slate-500">Masuk dengan NISN dan tanggal lahir siswa (DDMMYYYY).</p>
+        <p className="mt-1 text-xs text-slate-500">Masuk dengan NISN. Password default awal: NISN (bisa diganti setelah login).</p>
 
         <form onSubmit={onSubmit} className="mt-4 space-y-3">
           {error && (
@@ -62,14 +62,14 @@ export default function ParentLoginClient() {
           </div>
 
           <div>
-            <label className="text-[11px] font-semibold text-slate-600">Tanggal Lahir (DDMMYYYY)</label>
+            <label className="text-[11px] font-semibold text-slate-600">Password</label>
             <div className="relative mt-1">
               <CalendarDays className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <input
                 value={password}
                 onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 8))}
                 className="h-9 w-full rounded-md border border-slate-200 bg-slate-50 pl-8 pr-3 text-sm"
-                placeholder="Contoh: 17082009"
+                placeholder="Password default: NISN"
                 required
               />
             </div>
@@ -91,4 +91,3 @@ export default function ParentLoginClient() {
     </div>
   )
 }
-

@@ -3,6 +3,8 @@
 import { getDB } from '@/utils/db'
 import { getAppSession } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
+import { createAuth } from '@/utils/auth'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 type SummonResponse = 'hadir' | 'reschedule'
 
@@ -111,3 +113,44 @@ export async function markParentNotificationRead(notificationId: string) {
   return { success: true }
 }
 
+export async function changeOwnParentPassword(payload: {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}) {
+  const session = await requireParentSession()
+  const currentPassword = String(payload.currentPassword || '').trim()
+  const newPassword = String(payload.newPassword || '').trim()
+  const confirmPassword = String(payload.confirmPassword || '').trim()
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return { error: 'Semua field password wajib diisi.' }
+  }
+  if (newPassword.length < 6) {
+    return { error: 'Password baru minimal 6 karakter.' }
+  }
+  if (newPassword !== confirmPassword) {
+    return { error: 'Konfirmasi password tidak sama.' }
+  }
+
+  const { env } = await getCloudflareContext({ async: true })
+  const auth = createAuth(env.DB)
+
+  // Verifikasi password lama via sign-in parent
+  try {
+    await auth.api.signInParent({
+      body: { nisn: session.user.nisn, password: currentPassword },
+      asResponse: false,
+    })
+  } catch {
+    return { error: 'Password saat ini salah.' }
+  }
+
+  await auth.api.changeParentPassword({
+    siswaId: session.user.siswa_id,
+    newPassword,
+  })
+
+  revalidatePath('/portal-ortu')
+  return { success: 'Password berhasil diperbarui.' }
+}
