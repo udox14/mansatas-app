@@ -11,6 +11,7 @@ import {
   loadSiswaUntukIzin, simpanIzinWaliKelasBatch,
   type SiswaIzinWaliKelas, type KelasIzin, type AlasanIzin, type AlasanIzinRow,
 } from '../actions'
+import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 interface Props {
   kelasList: KelasIzin[]
@@ -177,11 +178,7 @@ export function IzinWaliKelasClient({ kelasList, alasanList }: Props) {
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <div className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
-                          {s.foto_url
-                            ? <img src={s.foto_url} alt="" className="h-full w-full object-cover" />
-                            : <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{s.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
-                        </div>
+                        <AvatarSiswa fotoUrl={s.foto_url} nama={s.nama_lengkap} size="md" />
                         <div className="min-w-0">
                           <p className="text-[13px] font-medium text-slate-800 dark:text-slate-100 truncate leading-tight">{s.nama_lengkap}</p>
                           <p className="text-[10px] text-slate-400">{s.nisn}</p>

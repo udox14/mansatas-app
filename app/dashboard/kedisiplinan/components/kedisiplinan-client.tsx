@@ -17,6 +17,7 @@ import { FormModal } from './form-modal'
 import { MasterModal } from './master-modal'
 import { hapusPelanggaran, hapusMasterPelanggaran, importMasterPelanggaranMassal, type SanksiConfig } from '../actions'
 import { cn } from '@/lib/utils'
+import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 // ── Sanksi helpers ──────────────────────────────────────────
 function getSanksiForPoin(poin: number, sanksiList: SanksiConfig[]): SanksiConfig | null {
@@ -65,11 +66,7 @@ function DetailKasusModal({
         {/* Header */}
         <DialogHeader className="px-5 pt-5 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white font-black text-base shrink-0 overflow-hidden">
-              {group.siswa.foto_url
-                ? <img src={group.siswa.foto_url} alt="" className="h-full w-full object-cover" />
-                : group.siswa.nama_lengkap?.charAt(0)?.toUpperCase()}
-            </div>
+            <AvatarSiswa fotoUrl={group.siswa.foto_url} nama={group.siswa.nama_lengkap || '?'} size="md" className="h-10 w-10 bg-gradient-to-br from-rose-400 to-pink-500 text-white font-black text-base" />
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-snug">
                 {group.siswa.nama_lengkap}
@@ -413,11 +410,7 @@ export function KedisiplinanClient({
                         className="w-full bg-surface border border-surface rounded-xl px-4 py-3 flex items-center gap-3 hover:border-rose-200 dark:hover:border-rose-800 hover:bg-rose-50/20 dark:hover:bg-rose-900/10 transition-all text-left group"
                       >
                         {/* Avatar */}
-                        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 flex items-center justify-center text-white font-black text-sm shrink-0 overflow-hidden">
-                          {group.siswa.foto_url
-                            ? <img src={group.siswa.foto_url} alt="" className="h-full w-full object-cover" />
-                            : (group.siswa.nama_lengkap?.charAt(0)?.toUpperCase() || '?')}
-                        </div>
+                        <AvatarSiswa fotoUrl={group.siswa.foto_url} nama={group.siswa.nama_lengkap || '?'} size="md" className="bg-gradient-to-br from-rose-400 to-pink-500 text-white font-black" />
 
                         {/* Info */}
                         <div className="flex-1 min-w-0">
