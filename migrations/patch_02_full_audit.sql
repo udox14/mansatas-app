@@ -78,7 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_dtk_delegasi ON delegasi_tugas_kelas(delegasi_id)
 
 
 -- ── guru_ppl_mapping ──
--- Code expect: guru_ppl_id, guru_utama_id, jadwal_mengajar_id, jadwal_piket_id, pu_kelas_id
+-- Code expect: guru_ppl_id, guru_utama_id, jadwal_mengajar_id, jadwal_piket_id
 DROP TABLE IF EXISTS guru_ppl_mapping;
 CREATE TABLE guru_ppl_mapping (
   id                  TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
@@ -86,7 +86,6 @@ CREATE TABLE guru_ppl_mapping (
   guru_utama_id       TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
   jadwal_mengajar_id  TEXT,
   jadwal_piket_id     TEXT,
-  pu_kelas_id         TEXT,
   created_at          TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_guru_ppl_ppl ON guru_ppl_mapping(guru_ppl_id);

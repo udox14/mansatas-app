@@ -109,11 +109,18 @@ export async function hapusJadwalPiket(id: string): Promise<{ error?: string, su
     return { error: 'Tidak memiliki akses' }
   }
 
+  // Bersihkan relasi turunan lebih dulu agar tidak bergantung penuh pada
+  // cascade FK di environment yang schema PU-nya belum lengkap.
+  await db.prepare('DELETE FROM agenda_piket WHERE jadwal_id = ?').bind(id).run()
+  await db.prepare('DELETE FROM guru_ppl_mapping WHERE jadwal_piket_id = ?').bind(id).run()
+
   const res = await dbDelete(db, 'jadwal_guru_piket', { id })
   if (res.error) return { error: res.error }
 
   revalidatePath('/dashboard/jadwal-piket')
   revalidatePath('/dashboard/penugasan')
+  revalidatePath('/dashboard/kelola-ppl')
+  revalidatePath('/dashboard/agenda')
   return { success: 'Jadwal dihapus.' }
 }
 
