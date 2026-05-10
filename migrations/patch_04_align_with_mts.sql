@@ -246,6 +246,9 @@ CREATE TABLE pengaturan_shift_piket (
   jam_selesai  INTEGER NOT NULL,
   updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
+INSERT OR IGNORE INTO pengaturan_shift_piket (id, nama_shift, jam_mulai, jam_selesai) VALUES
+  (1, 'Shift 1', 1, 5),
+  (2, 'Shift 2', 6, 99);
 
 -- ── pengaturan_tunjangan ──
 DROP TABLE IF EXISTS pengaturan_tunjangan;

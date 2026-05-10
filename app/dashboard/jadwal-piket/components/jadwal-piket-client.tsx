@@ -26,7 +26,7 @@ export function JadwalPiketClient({
 
   // Form Tambah
   const [selHari, setSelHari] = useState('1')
-  const [selShift, setSelShift] = useState('1')
+  const [selShift, setSelShift] = useState(data.shifts[0]?.id?.toString() ?? '')
   const [selUser, setSelUser] = useState('')
 
   // Settings Form
@@ -34,6 +34,7 @@ export function JadwalPiketClient({
 
   async function handleTambah() {
     if (!selUser) return setPesan({ tipe: 'error', teks: 'Pilih guru terlebih dahulu.' })
+    if (!selShift) return setPesan({ tipe: 'error', teks: 'Shift piket belum tersedia. Simpan pengaturan shift dulu.' })
     setIsSubmitting(true)
     setPesan(null)
     const res = await tambahJadwalPiket(selUser, parseInt(selHari), parseInt(selShift))
@@ -135,7 +136,7 @@ export function JadwalPiketClient({
                 </div>
                 <div className="space-y-1.5 w-full md:w-32">
                   <Label>Shift</Label>
-                  <Select value={selShift} onValueChange={setSelShift} disabled={selHari === '5'}>
+                  <Select value={selShift} onValueChange={setSelShift} disabled={selHari === '5' || shifts.length === 0}>
                     <SelectTrigger>
                       <SelectValue placeholder="Shift" />
                     </SelectTrigger>
@@ -146,9 +147,10 @@ export function JadwalPiketClient({
                     </SelectContent>
                   </Select>
                   {selHari === '5' && <p className="text-[10px] text-gray-500">Jumat maks shift 1</p>}
+                  {shifts.length === 0 && <p className="text-[10px] text-red-500">Shift belum tersedia.</p>}
                 </div>
                 <div className="w-full md:w-auto">
-                  <Button onClick={handleTambah} disabled={isSubmitting} className="w-full bg-violet-600 hover:bg-violet-700">
+                  <Button onClick={handleTambah} disabled={isSubmitting || shifts.length === 0} className="w-full bg-violet-600 hover:bg-violet-700">
                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />} Tambah
                   </Button>
                 </div>
