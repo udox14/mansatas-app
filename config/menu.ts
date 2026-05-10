@@ -337,6 +337,13 @@ export const MENU_ITEMS: MenuItem[] = [
     roles: ['super_admin']
   },
   {
+    id: 'pengumuman-ortu',
+    title: 'Pengumuman Ortu',
+    href: '/dashboard/pengumuman-ortu',
+    icon: Megaphone,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas']
+  },
+  {
     id: 'portal-ortu',
     title: 'Portal Orang Tua',
     href: '/portal-ortu',

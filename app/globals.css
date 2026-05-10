@@ -175,7 +175,10 @@
 /* Base Styles untuk App Shell / Layout Sticky */
 html, body {
   height: 100%;
-  overflow: hidden; /* Mencegah scroll ganda di body utama */
+  overflow-x: hidden;
+}
+body {
+  overflow-y: auto;
 }
 
 /* Print styles for Surat (F4 / Folio paper) */
