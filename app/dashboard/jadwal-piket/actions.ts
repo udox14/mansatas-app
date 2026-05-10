@@ -34,6 +34,16 @@ async function ensureDefaultShiftPiket(db: D1Database) {
   }
 }
 
+async function tableExists(db: D1Database, tableName: string) {
+  const row = await db.prepare(`
+    SELECT name
+    FROM sqlite_master
+    WHERE type = 'table' AND name = ?
+    LIMIT 1
+  `).bind(tableName).first<{ name: string }>()
+  return Boolean(row)
+}
+
 export async function getJadwalPiketData(): Promise<{
   shifts: ShiftPiket[]
   jadwal: JadwalPiket[]
@@ -102,26 +112,39 @@ export async function tambahJadwalPiket(user_id: string, hari: number, shift_id:
 }
 
 export async function hapusJadwalPiket(id: string): Promise<{ error?: string, success?: string }> {
-  const user = await getCurrentUser()
-  if (!user) return { error: 'Unauthorized' }
-  const db = await getDB()
-  if (!(await checkFeatureAccess(db, user.id, 'jadwal-piket'))) {
-    return { error: 'Tidak memiliki akses' }
+  try {
+    const user = await getCurrentUser()
+    if (!user) return { error: 'Unauthorized' }
+    const db = await getDB()
+    if (!(await checkFeatureAccess(db, user.id, 'jadwal-piket'))) {
+      return { error: 'Tidak memiliki akses' }
+    }
+
+    const [hasAgendaPiket, hasGuruPplMapping] = await Promise.all([
+      tableExists(db, 'agenda_piket'),
+      tableExists(db, 'guru_ppl_mapping'),
+    ])
+
+    // Bersihkan relasi turunan lebih dulu agar tidak bergantung penuh pada
+    // cascade FK di environment yang schema-nya belum lengkap.
+    if (hasAgendaPiket) {
+      await db.prepare('DELETE FROM agenda_piket WHERE jadwal_id = ?').bind(id).run()
+    }
+    if (hasGuruPplMapping) {
+      await db.prepare('DELETE FROM guru_ppl_mapping WHERE jadwal_piket_id = ?').bind(id).run()
+    }
+
+    const res = await dbDelete(db, 'jadwal_guru_piket', { id })
+    if (res.error) return { error: res.error }
+
+    revalidatePath('/dashboard/jadwal-piket')
+    revalidatePath('/dashboard/penugasan')
+    revalidatePath('/dashboard/kelola-ppl')
+    revalidatePath('/dashboard/agenda')
+    return { success: 'Jadwal dihapus.' }
+  } catch (error: any) {
+    return { error: error?.message || 'Gagal menghapus jadwal piket.' }
   }
-
-  // Bersihkan relasi turunan lebih dulu agar tidak bergantung penuh pada
-  // cascade FK di environment yang schema PU-nya belum lengkap.
-  await db.prepare('DELETE FROM agenda_piket WHERE jadwal_id = ?').bind(id).run()
-  await db.prepare('DELETE FROM guru_ppl_mapping WHERE jadwal_piket_id = ?').bind(id).run()
-
-  const res = await dbDelete(db, 'jadwal_guru_piket', { id })
-  if (res.error) return { error: res.error }
-
-  revalidatePath('/dashboard/jadwal-piket')
-  revalidatePath('/dashboard/penugasan')
-  revalidatePath('/dashboard/kelola-ppl')
-  revalidatePath('/dashboard/agenda')
-  return { success: 'Jadwal dihapus.' }
 }
 
 export async function simpanPengaturanShift(data: Array<{ id: number, jam_mulai: number, jam_selesai: number }>): Promise<{ error?: string, success?: string }> {

@@ -35,49 +35,64 @@ export function JadwalPiketClient({
   async function handleTambah() {
     if (!selUser) return setPesan({ tipe: 'error', teks: 'Pilih guru terlebih dahulu.' })
     if (!selShift) return setPesan({ tipe: 'error', teks: 'Shift piket belum tersedia. Simpan pengaturan shift dulu.' })
-    setIsSubmitting(true)
-    setPesan(null)
-    const res = await tambahJadwalPiket(selUser, parseInt(selHari), parseInt(selShift))
-    setIsSubmitting(false)
-    if (res.error) setPesan({ tipe: 'error', teks: res.error })
-    else {
-      setPesan({ tipe: 'sukses', teks: res.success || 'Tersimpan.' })
-      // Update local state optimistic/reload
-      const guru = guruList.find(g => g.id === selUser)
-      if (guru) {
-        setJadwal(prev => [...prev, {
-          id: Math.random().toString(), // temp ID
-          user_id: selUser,
-          hari: parseInt(selHari),
-          shift_id: parseInt(selShift),
-          nama_lengkap: guru.nama
-        }])
+    try {
+      setIsSubmitting(true)
+      setPesan(null)
+      const res = await tambahJadwalPiket(selUser, parseInt(selHari), parseInt(selShift))
+      if (res.error) setPesan({ tipe: 'error', teks: res.error })
+      else {
+        setPesan({ tipe: 'sukses', teks: res.success || 'Tersimpan.' })
+        // Update local state optimistic/reload
+        const guru = guruList.find(g => g.id === selUser)
+        if (guru) {
+          setJadwal(prev => [...prev, {
+            id: Math.random().toString(), // temp ID
+            user_id: selUser,
+            hari: parseInt(selHari),
+            shift_id: parseInt(selShift),
+            nama_lengkap: guru.nama
+          }])
+        }
       }
+    } catch (error: any) {
+      setPesan({ tipe: 'error', teks: error?.message || 'Gagal menambah jadwal piket.' })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   async function handleHapus(id: string) {
     if (!confirm('Hapus jadwal ini?')) return
-    setIsSubmitting(true)
-    setPesan(null)
-    const res = await hapusJadwalPiket(id)
-    setIsSubmitting(false)
-    if (res.error) setPesan({ tipe: 'error', teks: res.error })
-    else {
-      setPesan({ tipe: 'sukses', teks: res.success || 'Dihapus.' })
-      setJadwal(prev => prev.filter(j => j.id !== id))
+    try {
+      setIsSubmitting(true)
+      setPesan(null)
+      const res = await hapusJadwalPiket(id)
+      if (res.error) setPesan({ tipe: 'error', teks: res.error })
+      else {
+        setPesan({ tipe: 'sukses', teks: res.success || 'Dihapus.' })
+        setJadwal(prev => prev.filter(j => j.id !== id))
+      }
+    } catch (error: any) {
+      setPesan({ tipe: 'error', teks: error?.message || 'Gagal menghapus jadwal piket.' })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   async function handleSaveShift() {
-    setIsSubmitting(true)
-    setPesan(null)
-    const res = await simpanPengaturanShift(settingShift)
-    setIsSubmitting(false)
-    if (res.error) setPesan({ tipe: 'error', teks: res.error })
-    else {
-      setPesan({ tipe: 'sukses', teks: res.success || 'Tersimpan.' })
-      setShifts([...settingShift])
+    try {
+      setIsSubmitting(true)
+      setPesan(null)
+      const res = await simpanPengaturanShift(settingShift)
+      if (res.error) setPesan({ tipe: 'error', teks: res.error })
+      else {
+        setPesan({ tipe: 'sukses', teks: res.success || 'Tersimpan.' })
+        setShifts([...settingShift])
+      }
+    } catch (error: any) {
+      setPesan({ tipe: 'error', teks: error?.message || 'Gagal menyimpan pengaturan shift.' })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
