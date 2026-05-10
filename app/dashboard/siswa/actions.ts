@@ -225,19 +225,20 @@ export async function uploadFotoSiswaAction(siswaId: string, formData: FormData)
 
   const { url, error: uploadError } = await uploadFotoSiswa(siswaId, file)
   if (uploadError || !url) return { error: uploadError || 'Upload gagal' }
+  const versionedUrl = `${url}?v=${Date.now()}`
 
   const db = await getDB()
   const result = await dbUpdate(
     db,
     'siswa',
-    { foto_url: url, updated_at: new Date().toISOString() },
+    { foto_url: versionedUrl, updated_at: new Date().toISOString() },
     { id: siswaId }
   )
   if (result.error) return { error: result.error }
 
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${siswaId}`)
-  return { success: 'Foto berhasil diperbarui!', url }
+  return { success: 'Foto berhasil diperbarui!', url: versionedUrl }
 }
 
 // ============================================================

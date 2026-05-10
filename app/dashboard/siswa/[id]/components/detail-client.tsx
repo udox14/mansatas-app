@@ -202,15 +202,17 @@ export function DetailSiswaClient({
       />
 
       {/* HEADER PROFIL */}
-      <div className="bg-surface rounded-xl p-4 border border-surface shadow-sm flex flex-col md:flex-row items-center md:items-start gap-6 relative overflow-hidden">
-        {/* Dekorasi Latar */}
-        <div className="absolute right-0 top-0 w-64 h-64 bg-emerald-50 dark:bg-emerald-950/50 rounded-full blur-3xl -z-0 opacity-50"></div>
-        <div className="absolute left-0 bottom-0 w-32 h-32 bg-blue-50 rounded-full blur-2xl -z-0 opacity-50"></div>
-        
+      <div className="bg-surface rounded-xl p-5 sm:p-6 border border-surface shadow-sm flex flex-col lg:flex-row items-center lg:items-start gap-5 sm:gap-6">
         {/* FOTO PROFIL / INISIAL */}
         <div className="relative z-10 shrink-0">
-          <div className={`h-20 w-20 rounded-full bg-gradient-to-br ${getAvatarColor(siswa.nama_lengkap)} shadow-lg flex items-center justify-center text-2xl font-black text-white border-4 border-white`}>
-            {siswa.nama_lengkap.charAt(0).toUpperCase()}
+          <div className="h-44 w-32 sm:h-48 sm:w-36 rounded-xl overflow-hidden border-2 border-white shadow-lg bg-surface-3">
+            {siswa.foto_url ? (
+              <img src={siswa.foto_url} alt={siswa.nama_lengkap} className="h-full w-full object-cover" />
+            ) : (
+              <div className={`h-full w-full bg-gradient-to-br ${getAvatarColor(siswa.nama_lengkap)} flex items-center justify-center text-4xl font-black text-white`}>
+                {siswa.nama_lengkap.charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
           {activeSanksi && activeSanksi.urutan >= 3 && (
             <div className="absolute -bottom-2 -right-2 bg-rose-500 text-white p-2 rounded-full shadow-lg border-2 border-white animate-bounce" title="Siswa dalam pengawasan khusus">
@@ -220,15 +222,15 @@ export function DetailSiswaClient({
         </div>
 
         {/* INFO UTAMA */}
-        <div className="relative z-10 flex-1 text-center md:text-left space-y-2 w-full">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="relative z-10 flex-1 text-center lg:text-left space-y-3 w-full">
+          <div className="flex flex-col gap-3">
             <div>
               <h1 className="text-lg font-bold text-slate-900 dark:text-slate-50 tracking-tight">{siswa.nama_lengkap}</h1>
               <p className="text-sm font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono mt-1">NISN: {siswa.nisn} {siswa.nis_lokal && `• NIS: ${siswa.nis_lokal}`}</p>
             </div>
             
             {/* BADGES + TOMBOL EDIT */}
-            <div className="flex flex-wrap justify-center md:justify-end gap-2 items-center">
+            <div className="flex flex-wrap justify-center lg:justify-start gap-2 items-center">
               <div className="flex flex-col items-center gap-0.5">
                 <span className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide border ${siswa.status === 'aktif' ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : siswa.status === 'lulus' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-rose-100 text-rose-800 border-rose-200'}`}>
                   {siswa.status}
@@ -251,7 +253,7 @@ export function DetailSiswaClient({
                 onClick={() => setIsEditOpen(true)}
                 size="sm"
                 variant="outline"
-                className="h-8 px-3 text-xs font-semibold border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300 gap-1.5"
+                className="h-9 px-3 text-xs font-semibold border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300 gap-1.5"
               >
                 <Pencil className="h-3.5 w-3.5" /> Edit Biodata
               </Button>
@@ -260,7 +262,7 @@ export function DetailSiswaClient({
                   onClick={() => setShowKeluarModal(true)}
                   size="sm"
                   variant="outline"
-                  className="h-8 px-3 text-xs font-semibold border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 gap-1.5"
+                  className="h-9 px-3 text-xs font-semibold border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 gap-1.5"
                 >
                   <LogOut className="h-3.5 w-3.5" /> Tandai Keluar
                 </Button>
@@ -270,7 +272,7 @@ export function DetailSiswaClient({
                   onClick={() => setShowBatalkanModal(true)}
                   size="sm"
                   variant="outline"
-                  className="h-8 px-3 text-xs font-semibold border-amber-200 text-amber-600 hover:bg-amber-50 gap-1.5"
+                  className="h-9 px-3 text-xs font-semibold border-amber-200 text-amber-600 hover:bg-amber-50 gap-1.5"
                 >
                   <RotateCcw className="h-3.5 w-3.5" /> Batalkan Keluar
                 </Button>
@@ -278,7 +280,7 @@ export function DetailSiswaClient({
             </div>
           </div>
           
-          <p className="text-sm font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 flex justify-center md:justify-start items-center gap-2 pt-2">
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 flex justify-center lg:justify-start items-center gap-2 pt-1">
             <User className="h-4 w-4 text-slate-400 dark:text-slate-500" /> {siswa.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}
             <span className="text-slate-300 dark:text-slate-600">|</span>
             <Phone className="h-4 w-4 text-slate-400 dark:text-slate-500" /> {siswa.nomor_whatsapp || 'Belum ada nomor WA'}
@@ -288,17 +290,17 @@ export function DetailSiswaClient({
 
       {/* TABS SUPER LENGKAP */}
       <Tabs defaultValue={initialTab} className="w-full">
-        <div className="overflow-x-auto custom-scrollbar pb-2">
+        <div className="pb-2">
           {/* TAB DIPERSEDIKIT MENJADI 4 */}
-          <TabsList className="bg-surface border border-surface p-0.5 flex w-max min-w-full h-auto rounded-lg">
-            <TabsTrigger value="biodata" className="py-2 px-3 rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-xs font-medium flex-1 gap-1.5"><User className="h-4 w-4"/> Biodata Lengkap</TabsTrigger>
-            <TabsTrigger value="akademik_nilai" className="py-2 px-3 rounded-md data-[state=active]:bg-indigo-600 data-[state=active]:text-white text-xs font-medium flex-1 gap-1.5"><GraduationCap className="h-4 w-4"/> Akademik & Nilai</TabsTrigger>
-            <TabsTrigger value="disiplin" className="py-2 px-3 rounded-md data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs font-medium flex-1 gap-1.5 relative">
+          <TabsList className="bg-surface border border-surface p-1 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 w-full h-auto rounded-lg gap-1">
+            <TabsTrigger value="biodata" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><User className="h-4 w-4"/> Biodata Lengkap</TabsTrigger>
+            <TabsTrigger value="akademik_nilai" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-indigo-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><GraduationCap className="h-4 w-4"/> Akademik & Nilai</TabsTrigger>
+            <TabsTrigger value="disiplin" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs font-medium gap-1.5 relative">
               <ShieldAlert className="h-4 w-4"/> Tata Tertib
               {totalPoin > 0 && <span className="absolute top-1 right-2 h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>}
             </TabsTrigger>
-            <TabsTrigger value="izin" className="py-2 px-3 rounded-md data-[state=active]:bg-orange-500 data-[state=active]:text-white text-xs font-medium flex-1 gap-1.5"><DoorOpen className="h-4 w-4"/> Perizinan</TabsTrigger>
-            <TabsTrigger value="absensi" className="py-2 px-3 rounded-md data-[state=active]:bg-cyan-600 data-[state=active]:text-white text-xs font-medium flex-1 gap-1.5"><CalendarSearch className="h-4 w-4"/> Rekap Absensi</TabsTrigger>
+            <TabsTrigger value="izin" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-orange-500 data-[state=active]:text-white text-xs font-medium gap-1.5"><DoorOpen className="h-4 w-4"/> Perizinan</TabsTrigger>
+            <TabsTrigger value="absensi" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-cyan-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><CalendarSearch className="h-4 w-4"/> Rekap Absensi</TabsTrigger>
           </TabsList>
         </div>
 
@@ -596,3 +598,4 @@ export function DetailSiswaClient({
     </div>
   )
 }
+

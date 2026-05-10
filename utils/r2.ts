@@ -24,14 +24,16 @@ async function getR2(): Promise<R2Bucket> {
 
 // Ekstrak R2 key dari URL (mendukung format lama r2.dev dan format baru /api/media/)
 function urlToKey(publicUrl: string): string | null {
+  const cleanUrl = publicUrl.split('?')[0]
+
   // Format baru: /api/media/folder/file.jpg
-  if (publicUrl.startsWith('/api/media/')) {
-    return publicUrl.replace('/api/media/', '')
+  if (cleanUrl.startsWith('/api/media/')) {
+    return cleanUrl.replace('/api/media/', '')
   }
   // Format lama: https://pub-xxx.r2.dev/folder/file.jpg (backward compat)
   const baseUrl = process.env.R2_PUBLIC_URL
-  if (baseUrl && publicUrl.startsWith(baseUrl)) {
-    return publicUrl.replace(`${baseUrl}/`, '')
+  if (baseUrl && cleanUrl.startsWith(baseUrl)) {
+    return cleanUrl.replace(`${baseUrl}/`, '')
   }
   return null
 }
@@ -137,4 +139,3 @@ export async function uploadFotoSarpras(file: File) {
   const fileName = `aset_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`
   return uploadToR2(file, 'sarpras', fileName)
 }
-

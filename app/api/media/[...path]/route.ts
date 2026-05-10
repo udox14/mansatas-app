@@ -12,6 +12,10 @@ export async function GET(
   try {
     const { path } = await params
     const key = path.join('/')
+    const isMutableProfilePhoto = key.startsWith('foto_siswa/') || key.startsWith('avatars/')
+    const cacheControl = isMutableProfilePhoto
+      ? 'public, max-age=0, must-revalidate'
+      : 'public, max-age=31536000, immutable'
 
     if (!key) {
       return NextResponse.json({ error: 'Path required' }, { status: 400 })
@@ -33,7 +37,7 @@ export async function GET(
         status: 304,
         headers: {
           'ETag': object.etag,
-          'Cache-Control': 'public, max-age=31536000, immutable',
+          'Cache-Control': cacheControl,
         },
       })
     }
@@ -45,7 +49,7 @@ export async function GET(
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Cache-Control': cacheControl,
         'ETag': object.etag,
       },
     })
