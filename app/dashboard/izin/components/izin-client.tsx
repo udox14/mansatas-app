@@ -15,17 +15,7 @@ import { Search, Loader2, DoorOpen, UserX, AlertCircle, CheckCircle2, Trash2, Lo
 import { tambahIzinKeluar, tandaiSudahKembali, tambahIzinKelas, hapusIzinKeluar, hapusIzinKelas, searchSiswaIzin, type AlasanIzinRow } from '../actions'
 import { KelolaAlasanModal } from './kelola-alasan-modal'
 import { cn, formatNamaKelas } from '@/lib/utils'
-
-function AvatarSiswa({ fotoUrl, nama, size = 'sm' }: { fotoUrl?: string | null; nama: string; size?: 'sm' | 'md' }) {
-  const cls = size === 'sm' ? 'h-7 w-7 text-[10px]' : 'h-9 w-9 text-sm'
-  return (
-    <div className={cn('rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden', cls)}>
-      {fotoUrl
-        ? <img src={fotoUrl} alt="" className="h-full w-full object-cover" />
-        : <span className="font-bold text-slate-500 dark:text-slate-400">{nama?.charAt(0)?.toUpperCase() || '?'}</span>}
-    </div>
-  )
-}
+import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 const initialFormState = { error: null as string | null, success: null as string | null }
 
@@ -138,6 +128,19 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole, ini
           ))}
         </div>
       )}
+      {selectedSiswaId && (() => {
+        const selected = siswaResults.find(s => s.id === selectedSiswaId)
+        if (!selected) return null
+        return (
+          <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 flex flex-col items-center gap-2">
+            <AvatarSiswa fotoUrl={selected.foto_url} nama={selected.nama_lengkap} size="xl" className="shadow-sm border border-slate-200 dark:border-slate-700" />
+            <div className="text-center">
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{selected.nama_lengkap}</p>
+              <p className="text-[11px] text-slate-500">{selected.kelas ? formatNamaKelas(selected.kelas.tingkat, selected.kelas.nomor_kelas, selected.kelas.kelompok) : ''} · {selected.nisn}</p>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 

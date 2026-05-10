@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Loader2, Camera, AlertCircle, CheckCircle2, Search, ShieldAlert } from 'lucide-react'
 import { simpanPelanggaran, searchSiswa } from '../actions'
 import { todayWIB } from '@/lib/time'
+import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 const initialState = null as any
 
@@ -177,17 +178,26 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
                     <div key={s.id} onMouseDown={e => e.preventDefault()}
                       onClick={() => { setSelectedSiswaId(s.id); setSearchSiswaQuery(s.nama_lengkap); setShowSiswaDropdown(false) }}
                       className="px-3 py-2 hover:bg-rose-50 cursor-pointer border-b border-slate-50 flex items-center gap-2.5">
-                      <div className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
-                        {s.foto_url
-                          ? <img src={s.foto_url} alt="" className="h-full w-full object-cover" />
-                          : <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{s.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
-                      </div>
+                      <AvatarSiswa fotoUrl={s.foto_url} nama={s.nama_lengkap} size="sm" />
                       <span className="text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 flex-1 min-w-0 truncate">{s.nama_lengkap}</span>
                       <span className="text-[10px] font-bold bg-surface-3 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-400 dark:text-slate-500 shrink-0 ml-2">{s.kelas}</span>
                     </div>
                   ))}
               </div>
             )}
+            {selectedSiswaId && (() => {
+              const selected = siswaResults.find(s => s.id === selectedSiswaId)
+              if (!selected) return null
+              return (
+                <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 flex flex-col items-center gap-2">
+                  <AvatarSiswa fotoUrl={selected.foto_url} nama={selected.nama_lengkap} size="xl" className="shadow-sm border border-slate-200 dark:border-slate-700" />
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">{selected.nama_lengkap}</p>
+                    <p className="text-[11px] text-slate-500">Kelas {selected.kelas}</p>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
 
           <div className="space-y-1.5 relative">
