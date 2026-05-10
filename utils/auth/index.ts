@@ -344,7 +344,7 @@ export function createAuth(db: D1Database) {
           if (opts.asResponse) return new Response('Invalid NISN', { status: 400 })
           throw new Error('Invalid NISN')
         }
-        if (!/^\d{8}$/.test(password)) {
+        if (!/^\d{6,20}$/.test(password)) {
           if (opts.asResponse) return new Response('Invalid password format', { status: 400 })
           throw new Error('Invalid password format')
         }
