@@ -14,7 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Search, UserPlus, Trash2, ShieldAlert, Loader2, Mail, FileSpreadsheet,
-  Download, KeyRound, Pencil, AlertCircle, Users, CheckCircle2,
+  Download, KeyRound, Pencil, AlertCircle, Users, CheckCircle2, FileText,
   PlusCircle, X, Shield, SlidersHorizontal, Check, Camera, LayoutGrid, List
 } from 'lucide-react'
 import {
@@ -31,6 +31,14 @@ type MasterRoleType = { value: string; label: string; is_custom: number }
 type ProfilType = {
   id: string, nama_lengkap: string, role: string, roles: string[], email: string,
   avatar_url?: string | null,
+}
+
+type ExportRow = {
+  no: number
+  nama_lengkap: string
+  email: string
+  role_utama: string
+  semua_role: string
 }
 
 const compressImage = async (file: File): Promise<File> => {
@@ -108,6 +116,13 @@ const getAvatarColor = (name: string) => {
   return colors[(name.charCodeAt(0) || 0) % colors.length]
 }
 
+const escapeHtml = (value: string) => value
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#39;')
+
 export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
   initialData: ProfilType[], masterRoles?: MasterRoleType[]
 }) {
@@ -143,6 +158,14 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
     const matchRole = filterRole === 'ALL' || p.roles.includes(filterRole) || p.role === filterRole
     return matchSearch && matchRole
   })
+
+  const exportRows: ExportRow[] = filteredData.map((p, index) => ({
+    no: index + 1,
+    nama_lengkap: p.nama_lengkap,
+    email: p.email,
+    role_utama: getRoleLabel(p.role),
+    semua_role: (p.roles?.length ? p.roles : [p.role]).map(getRoleLabel).join(', ')
+  }))
 
   const dynamicItemsPerPage = viewMode === 'gallery' ? 24 : itemsPerPage
   const totalPages = Math.ceil(filteredData.length / dynamicItemsPerPage)
@@ -252,6 +275,210 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Data_Pegawai')
     XLSX.writeFile(wb, 'Template_Import_Pegawai.xlsx')
+  }
+
+  const handleExportExcel = () => {
+    const XLSX = (window as any).XLSX
+    if (!XLSX) return alert('Library Excel belum siap.')
+    if (exportRows.length === 0) return alert('Tidak ada data untuk diexport.')
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows.map(row => ({
+      NO: row.no,
+      NAMA_LENGKAP: row.nama_lengkap,
+      EMAIL: row.email,
+      ROLE_UTAMA: row.role_utama,
+      SEMUA_ROLE: row.semua_role,
+    })))
+
+    worksheet['!cols'] = [
+      { wch: 6 },
+      { wch: 32 },
+      { wch: 34 },
+      { wch: 20 },
+      { wch: 34 },
+    ]
+    worksheet['!autofilter'] = { ref: `A1:E${Math.max(exportRows.length + 1, 2)}` }
+
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Akun Guru Pegawai')
+    XLSX.writeFile(workbook, 'Akun_Guru_Pegawai.xlsx')
+  }
+
+  const handleExportPdf = () => {
+    if (exportRows.length === 0) return alert('Tidak ada data untuk diexport.')
+
+    const activeRoleLabel = filterRole === 'ALL' ? 'Semua role' : getRoleLabel(filterRole)
+    const searchLabel = searchTerm.trim() || '-'
+    const printedAt = new Intl.DateTimeFormat('id-ID', {
+      dateStyle: 'full',
+      timeStyle: 'short',
+    }).format(new Date())
+
+    const rowsHtml = exportRows.map(row => `
+      <tr>
+        <td>${row.no}</td>
+        <td>${escapeHtml(row.nama_lengkap)}</td>
+        <td>${escapeHtml(row.email)}</td>
+        <td>${escapeHtml(row.role_utama)}</td>
+        <td>${escapeHtml(row.semua_role)}</td>
+      </tr>
+    `).join('')
+
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1200,height=800')
+    if (!printWindow) {
+      alert('Popup export PDF diblokir browser.')
+      return
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="id">
+        <head>
+          <meta charset="utf-8" />
+          <title>Export Akun Guru & Pegawai</title>
+          <style>
+            @page { size: A4 landscape; margin: 10mm; }
+            * { box-sizing: border-box; }
+            body {
+              font-family: Arial, Helvetica, sans-serif;
+              color: #0f172a;
+              margin: 0;
+              font-size: 10px;
+              line-height: 1.35;
+            }
+            .sheet {
+              width: 100%;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+              gap: 16px;
+              margin-bottom: 8px;
+              padding-bottom: 8px;
+              border-bottom: 1px solid #cbd5e1;
+            }
+            .title {
+              font-size: 15px;
+              font-weight: 700;
+              margin: 0 0 4px 0;
+            }
+            .subtitle {
+              margin: 0;
+              color: #475569;
+            }
+            .meta {
+              display: grid;
+              grid-template-columns: repeat(3, minmax(0, 1fr));
+              gap: 6px;
+              margin-bottom: 10px;
+            }
+            .meta-card {
+              border: 1px solid #cbd5e1;
+              padding: 6px 8px;
+              border-radius: 6px;
+              background: #f8fafc;
+            }
+            .meta-label {
+              display: block;
+              font-size: 9px;
+              text-transform: uppercase;
+              letter-spacing: .04em;
+              color: #64748b;
+              margin-bottom: 2px;
+            }
+            .meta-value {
+              font-size: 10px;
+              font-weight: 600;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+            }
+            th, td {
+              border: 1px solid #cbd5e1;
+              padding: 4px 6px;
+              text-align: left;
+              vertical-align: top;
+              word-break: break-word;
+            }
+            th {
+              background: #e2e8f0;
+              font-size: 9.5px;
+              text-transform: uppercase;
+              letter-spacing: .03em;
+            }
+            tbody tr:nth-child(even) {
+              background: #f8fafc;
+            }
+            .col-no { width: 5%; text-align: center; }
+            .col-nama { width: 25%; }
+            .col-email { width: 28%; }
+            .col-role { width: 16%; }
+            .col-semua-role { width: 26%; }
+            .footer {
+              margin-top: 8px;
+              color: #64748b;
+              font-size: 9px;
+            }
+            @media print {
+              .print-controls { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="header">
+              <div>
+                <h1 class="title">Data Akun Guru & Pegawai</h1>
+                <p class="subtitle">Format ringkas untuk arsip dan cetak hemat kertas.</p>
+              </div>
+              <div class="subtitle">Dicetak: ${escapeHtml(printedAt)}</div>
+            </div>
+
+            <div class="meta">
+              <div class="meta-card">
+                <span class="meta-label">Total Data</span>
+                <span class="meta-value">${exportRows.length} pegawai</span>
+              </div>
+              <div class="meta-card">
+                <span class="meta-label">Filter Role</span>
+                <span class="meta-value">${escapeHtml(activeRoleLabel)}</span>
+              </div>
+              <div class="meta-card">
+                <span class="meta-label">Pencarian</span>
+                <span class="meta-value">${escapeHtml(searchLabel)}</span>
+              </div>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th class="col-no">No</th>
+                  <th class="col-nama">Nama Lengkap</th>
+                  <th class="col-email">Email</th>
+                  <th class="col-role">Role Utama</th>
+                  <th class="col-semua-role">Semua Role</th>
+                </tr>
+              </thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+
+            <div class="footer">
+              Export dibuat dari halaman Guru & Pegawai berdasarkan filter aktif.
+            </div>
+          </div>
+          <script>
+            window.onload = () => {
+              window.print();
+              window.onafterprint = () => window.close();
+            };
+          </script>
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -438,6 +665,12 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
           </Select>
 
           <div className="flex gap-2 ml-auto">
+            <Button variant="outline" size="sm" className="h-8 text-xs rounded-md" onClick={handleExportExcel}>
+              <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Excel
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs rounded-md" onClick={handleExportPdf}>
+              <FileText className="h-3.5 w-3.5 mr-1" /> PDF
+            </Button>
             {/* Import Dialog */}
             <Dialog>
               <DialogTrigger asChild>
