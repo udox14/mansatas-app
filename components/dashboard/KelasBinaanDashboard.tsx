@@ -293,6 +293,7 @@ export async function KelasBinaanDashboard({
       siswa_id: siswa.id,
       nama_lengkap: siswa.nama_lengkap,
       nisn: siswa.nisn,
+      foto_url: siswa.foto_url ?? null,
       todayStatus,
       monthly,
       totalPoin: pelanggaran?.total_poin ?? 0,
@@ -491,6 +492,11 @@ export async function KelasBinaanDashboard({
             ) : (
               tidakMasukHariIni.slice(0, 6).map(row => (
                 <Link key={row.siswa_id} href={`/dashboard/siswa/${row.siswa_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                  <div className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
+                    {row.foto_url
+                      ? <img src={row.foto_url} alt="" className="h-full w-full object-cover" />
+                      : <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{row.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
+                  </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{row.nama_lengkap}</p>
                     <p className="text-[10px] text-slate-400">{sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data')}</p>
@@ -520,6 +526,11 @@ export async function KelasBinaanDashboard({
             ) : (
               perluPerhatian.map(row => (
                 <Link key={row.siswa_id} href={`/dashboard/siswa/${row.siswa_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                  <div className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
+                    {row.foto_url
+                      ? <img src={row.foto_url} alt="" className="h-full w-full object-cover" />
+                      : <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{row.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
+                  </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{row.nama_lengkap}</p>
                     <p className="text-[10px] text-slate-400">Alfa 30 hari: {row.monthly.alfa} • Poin: {row.totalPoin}</p>
@@ -605,9 +616,16 @@ export async function KelasBinaanDashboard({
             return (
               <Link key={row.siswa_id} href={detailHref} className="block rounded-xl border border-surface-2 bg-slate-50/80 dark:bg-slate-800/40 p-3 active:scale-[0.99] transition-transform">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{row.nama_lengkap}</p>
-                    <p className="text-[11px] text-slate-400 truncate">{row.nisn}</p>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
+                      {row.foto_url
+                        ? <img src={row.foto_url} alt="" className="h-full w-full object-cover" />
+                        : <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{row.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{row.nama_lengkap}</p>
+                      <p className="text-[11px] text-slate-400 truncate">{row.nisn}</p>
+                    </div>
                   </div>
                   <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(row.todayStatus?.status_akhir || 'BELUM_ADA_DATA')}`}>
                     {row.todayStatus?.status_akhir === 'BELUM_ADA_DATA' ? 'Belum Ada Data' : row.todayStatus?.status_akhir || 'Belum Ada Data'}
@@ -672,10 +690,17 @@ export async function KelasBinaanDashboard({
               const detailHref = `/dashboard/siswa/${row.siswa_id}?tab=absensi&returnTo=${encodeURIComponent(kelasIdOverride ? `/dashboard/kelas-binaan?kelas=${kelas.id}` : '/dashboard/kelas-binaan')}`
               return (
                 <div key={row.siswa_id} className="grid grid-cols-[minmax(0,1.8fr)_minmax(140px,1fr)_minmax(170px,1fr)_minmax(160px,1fr)_80px_minmax(220px,1.4fr)] gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                  <div className="min-w-0">
-                    <Link href={detailHref} className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate block hover:underline">{row.nama_lengkap}</Link>
-                    <p className="text-[11px] text-slate-400 truncate">{row.nisn}</p>
-                    {row.timeline ? <p className="text-[10px] text-slate-500 truncate mt-0.5">{row.timeline.content}</p> : null}
+                  <div className="min-w-0 flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
+                      {row.foto_url
+                        ? <img src={row.foto_url} alt="" className="h-full w-full object-cover" />
+                        : <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{row.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
+                    </div>
+                    <div className="min-w-0">
+                      <Link href={detailHref} className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate block hover:underline">{row.nama_lengkap}</Link>
+                      <p className="text-[11px] text-slate-400 truncate">{row.nisn}</p>
+                      {row.timeline ? <p className="text-[10px] text-slate-500 truncate mt-0.5">{row.timeline.content}</p> : null}
+                    </div>
                   </div>
                   <div className="flex items-center">
                     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(row.todayStatus?.status_akhir || 'BELUM_ADA_DATA')}`}>

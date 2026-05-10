@@ -20,7 +20,7 @@ async function IzinDataFetcher({ currentUserRole, alasanList }: { currentUserRol
   const [keluarResult, kelasResult] = await Promise.all([
     db.prepare(`
       SELECT ik.id, ik.waktu_keluar, ik.waktu_kembali, ik.status, ik.keterangan,
-        s.nama_lengkap as siswa_nama, k.tingkat, k.nomor_kelas, u.nama_lengkap as pelapor_nama
+        s.nama_lengkap as siswa_nama, s.foto_url as siswa_foto, k.tingkat, k.nomor_kelas, u.nama_lengkap as pelapor_nama
       FROM izin_keluar_komplek ik
       JOIN siswa s ON ik.siswa_id = s.id
       LEFT JOIN kelas k ON s.kelas_id = k.id
@@ -31,7 +31,7 @@ async function IzinDataFetcher({ currentUserRole, alasanList }: { currentUserRol
     `).bind(today).all<any>(),
     db.prepare(`
       SELECT itk.id, itk.tanggal, itk.jam_pelajaran, itk.alasan, itk.keterangan,
-        s.nama_lengkap as siswa_nama, k.tingkat, k.nomor_kelas, u.nama_lengkap as pelapor_nama
+        s.nama_lengkap as siswa_nama, s.foto_url as siswa_foto, k.tingkat, k.nomor_kelas, u.nama_lengkap as pelapor_nama
       FROM izin_tidak_masuk_kelas itk
       JOIN siswa s ON itk.siswa_id = s.id
       LEFT JOIN kelas k ON s.kelas_id = k.id
@@ -42,12 +42,12 @@ async function IzinDataFetcher({ currentUserRole, alasanList }: { currentUserRol
   ])
 
   const filteredKeluar = (keluarResult.results || [])
-    .map((k: any) => ({ ...k, siswa: { nama_lengkap: k.siswa_nama, kelas: k.tingkat ? { tingkat: k.tingkat, nomor_kelas: k.nomor_kelas } : null }, pelapor: { nama_lengkap: k.pelapor_nama } }))
+    .map((k: any) => ({ ...k, siswa: { nama_lengkap: k.siswa_nama, foto_url: k.siswa_foto ?? null, kelas: k.tingkat ? { tingkat: k.tingkat, nomor_kelas: k.nomor_kelas } : null }, pelapor: { nama_lengkap: k.pelapor_nama } }))
 
   const formattedIzinKelas = (kelasResult.results || []).map((itk: any) => ({
     ...itk,
     jam_pelajaran: parseJsonCol(itk.jam_pelajaran, null) ?? itk.jam_pelajaran,
-    siswa: { nama_lengkap: itk.siswa_nama, kelas: itk.tingkat ? { tingkat: itk.tingkat, nomor_kelas: itk.nomor_kelas } : null },
+    siswa: { nama_lengkap: itk.siswa_nama, foto_url: itk.siswa_foto ?? null, kelas: itk.tingkat ? { tingkat: itk.tingkat, nomor_kelas: itk.nomor_kelas } : null },
     pelapor: { nama_lengkap: itk.pelapor_nama }
   }))
 

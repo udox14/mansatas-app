@@ -71,6 +71,7 @@ export type SiswaIzinWaliKelas = {
   siswa_id: string
   nama_lengkap: string
   nisn: string
+  foto_url: string | null
   izin_id: string | null
   alasan: AlasanIzin | null
   keterangan: string
@@ -131,7 +132,7 @@ export async function loadSiswaUntukIzin(kelasId: string, tanggal: string): Prom
 
   const [siswaRes, izinRes] = await Promise.all([
     db.prepare(
-      `SELECT id, nama_lengkap, nisn FROM siswa WHERE kelas_id = ? AND status = 'aktif' ORDER BY nama_lengkap`
+      `SELECT id, nama_lengkap, nisn, foto_url FROM siswa WHERE kelas_id = ? AND status = 'aktif' ORDER BY nama_lengkap`
     ).bind(kelasId).all<any>(),
     db.prepare(
       `SELECT id, siswa_id, alasan, keterangan FROM izin_tidak_masuk_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`
@@ -154,6 +155,7 @@ export async function loadSiswaUntukIzin(kelasId: string, tanggal: string): Prom
         siswa_id: s.id,
         nama_lengkap: s.nama_lengkap,
         nisn: s.nisn,
+        foto_url: s.foto_url ?? null,
         izin_id: iz?.id || null,
         alasan: (iz?.alasan as AlasanIzin) || null,
         keterangan: iz?.keterangan || '',
@@ -230,7 +232,7 @@ export async function searchSiswaIzin(query: string) {
 
   const result = await db
     .prepare(
-      `SELECT s.id, s.nama_lengkap, s.nisn, k.tingkat, k.nomor_kelas
+      `SELECT s.id, s.nama_lengkap, s.nisn, s.foto_url, k.tingkat, k.nomor_kelas
        FROM siswa s
        LEFT JOIN kelas k ON s.kelas_id = k.id
        WHERE s.status = 'aktif' AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)
@@ -244,6 +246,7 @@ export async function searchSiswaIzin(query: string) {
     id: s.id,
     nama_lengkap: s.nama_lengkap,
     nisn: s.nisn,
+    foto_url: s.foto_url ?? null,
     kelas: s.tingkat ? { tingkat: s.tingkat, nomor_kelas: s.nomor_kelas } : null,
   }))
 }

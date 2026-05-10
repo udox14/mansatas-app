@@ -12,10 +12,10 @@ export async function GET(
   try {
     const { path } = await params
     const key = path.join('/')
-    const isMutableProfilePhoto = key.startsWith('foto_siswa/') || key.startsWith('avatars/')
-    const cacheControl = isMutableProfilePhoto
-      ? 'public, max-age=0, must-revalidate'
-      : 'public, max-age=31536000, immutable'
+    // Semua file dikunci cache-nya selama 1 tahun (immutable).
+    // Saat foto di-update, URL-nya menggunakan parameter versi (?v=timestamp),
+    // jadi browser akan otomatis unduh versi baru. Ini menghemat operasi Class B R2.
+    const cacheControl = 'public, max-age=31536000, immutable'
 
     if (!key) {
       return NextResponse.json({ error: 'Path required' }, { status: 400 })

@@ -51,6 +51,7 @@ export type SiswaAbsensi = {
   siswa_id: string
   nama_lengkap: string
   nisn: string
+  foto_url: string | null
   status: 'HADIR' | 'SAKIT' | 'ALFA' | 'IZIN'
   catatan: string
   ada_izin: boolean
@@ -204,7 +205,7 @@ export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tan
   const db = await getDB()
 
   const [siswaRes, absensiRes, izinRes, waliKelasRes] = await Promise.all([
-    db.prepare(`SELECT id, nama_lengkap, nisn FROM siswa WHERE kelas_id = ? AND status = 'aktif' ORDER BY nama_lengkap`).bind(kelasId).all<any>(),
+    db.prepare(`SELECT id, nama_lengkap, nisn, foto_url FROM siswa WHERE kelas_id = ? AND status = 'aktif' ORDER BY nama_lengkap`).bind(kelasId).all<any>(),
     db.prepare(`SELECT siswa_id, status, catatan FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?`).bind(penugasanId, tanggal).all<any>(),
     db.prepare(`SELECT siswa_id, alasan FROM izin_tidak_masuk_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(tanggal, kelasId).all<any>(),
     db.prepare(`SELECT siswa_id, status, keterangan FROM keterangan_absensi_wali_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(tanggal, kelasId).all<any>(),
@@ -242,7 +243,7 @@ export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tan
       }
 
       return {
-        siswa_id: s.id, nama_lengkap: s.nama_lengkap, nisn: s.nisn,
+        siswa_id: s.id, nama_lengkap: s.nama_lengkap, nisn: s.nisn, foto_url: s.foto_url ?? null,
         status, catatan,
         ada_izin: adaIzin, alasan_izin: izinMap.get(s.id) || '',
         keterangan_wali_kelas: wali ? (wali.keterangan || wali.status) : null,
