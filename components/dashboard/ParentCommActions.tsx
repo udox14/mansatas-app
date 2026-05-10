@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { BellRing, MessageCircle, PhoneCall } from 'lucide-react'
-import { createParentSummonFromKelasBinaan } from '@/app/dashboard/kelas-binaan/actions'
+import { cancelLatestParentSummonFromKelasBinaan, createParentSummonFromKelasBinaan } from '@/app/dashboard/kelas-binaan/actions'
 
 function normalizeWa(raw: string | null | undefined) {
   const digits = String(raw || '').replace(/\D/g, '')
@@ -16,11 +16,12 @@ type Props = {
   kelasId: string
   namaKelas: string
   namaSiswa: string
+  summonStatus?: string | null
   phone?: string | null
   compact?: boolean
 }
 
-export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, phone, compact = false }: Props) {
+export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, summonStatus = null, phone, compact = false }: Props) {
   const [isPending, startTransition] = useTransition()
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null)
   const wa = normalizeWa(phone)
@@ -42,6 +43,19 @@ export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, phon
       const res = await createParentSummonFromKelasBinaan(fd)
       if ((res as any).error) setToast({ text: (res as any).error, error: true })
       else setToast({ text: (res as any).success || 'Pemanggilan berhasil dibuat.' })
+      setTimeout(() => setToast(null), 2200)
+    })
+  }
+
+  const onCancelSummon = () => {
+    startTransition(async () => {
+      const fd = new FormData()
+      fd.set('siswa_id', siswaId)
+      fd.set('kelas_id', kelasId)
+      fd.set('note', 'Pemanggilan dibatalkan oleh wali kelas.')
+      const res = await cancelLatestParentSummonFromKelasBinaan(fd)
+      if ((res as any).error) setToast({ text: (res as any).error, error: true })
+      else setToast({ text: (res as any).success || 'Pemanggilan dibatalkan.' })
       setTimeout(() => setToast(null), 2200)
     })
   }
@@ -97,10 +111,24 @@ export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, phon
         >
           <BellRing className="h-3 w-3" /> {isPending ? 'Memproses...' : 'Pemanggilan'}
         </button>
+        {['terkirim', 'reschedule_diminta', 'dikonfirmasi'].includes(String(summonStatus || '')) ? (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onCancelSummon()
+            }}
+            className={`${btnCls} border-rose-200 bg-rose-50 text-rose-700 disabled:opacity-60`}
+          >
+            Batalkan
+          </button>
+        ) : null}
       </div>
 
       {toast ? (
-        <div className={`fixed bottom-4 right-4 z-[80] rounded-md px-3 py-2 text-xs font-semibold shadow ${toast.error ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'}`}>
+        <div className={`fixed top-4 right-4 z-[80] rounded-md px-3 py-2 text-xs font-semibold shadow ${toast.error ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'}`}>
           {toast.text}
         </div>
       ) : null}

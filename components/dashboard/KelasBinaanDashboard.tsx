@@ -649,6 +649,7 @@ export async function KelasBinaanDashboard({
                     kelasId={kelas.id}
                     namaKelas={namaKelas}
                     namaSiswa={row.nama_lengkap}
+                    summonStatus={row.komunikasi.summonStatus}
                     phone={row.phone}
                   />
                 </div>
@@ -693,6 +694,7 @@ export async function KelasBinaanDashboard({
                       kelasId={kelas.id}
                       namaKelas={namaKelas}
                       namaSiswa={row.nama_lengkap}
+                      summonStatus={row.komunikasi.summonStatus}
                       phone={row.phone}
                       compact
                     />

@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, ArrowRight, CalendarDays, Loader2, UserSquare2 } from 'lucide-react'
+import { AlertCircle, ArrowRight, CalendarDays, Eye, EyeOff, Loader2, UserSquare2 } from 'lucide-react'
 
 export default function ParentLoginClient() {
   const [nisn, setNisn] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -66,12 +67,20 @@ export default function ParentLoginClient() {
             <div className="relative mt-1">
               <CalendarDays className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <input
+                type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                className="h-9 w-full rounded-md border border-slate-200 bg-slate-50 pl-8 pr-3 text-sm"
+                onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 20))}
+                className="h-9 w-full rounded-md border border-slate-200 bg-slate-50 pl-8 pr-9 text-sm"
                 placeholder="Password default: NISN"
                 required
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
             </div>
           </div>
 

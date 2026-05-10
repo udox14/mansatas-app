@@ -122,3 +122,56 @@ export async function createParentSummonFromKelasBinaan(formData: FormData) {
   return { success: 'Pemanggilan orang tua berhasil dibuat.' }
 }
 
+export async function cancelLatestParentSummonFromKelasBinaan(formData: FormData) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  await ensureParentCommunicationTables(db)
+  const roles = await getUserRoles(db, user.id)
+
+  const siswaId = String(formData.get('siswa_id') || '').trim()
+  const kelasId = String(formData.get('kelas_id') || '').trim()
+  const note = String(formData.get('note') || 'Pemanggilan dibatalkan oleh wali kelas.').trim()
+
+  if (!siswaId) return { error: 'Siswa tidak valid.' }
+  const allowed = await canAccessStudentClass(db, user.id, siswaId, roles)
+  if (!allowed) return { error: 'Akses ditolak.' }
+
+  const latest = await db.prepare(`
+    SELECT id, status
+    FROM parent_summons
+    WHERE siswa_id = ?
+    ORDER BY created_at DESC
+    LIMIT 1
+  `).bind(siswaId).first<{ id: string; status: string }>()
+
+  if (!latest) return { error: 'Belum ada pemanggilan untuk dibatalkan.' }
+  if (latest.status === 'dibatalkan') return { error: 'Pemanggilan terbaru sudah dibatalkan.' }
+  if (latest.status === 'selesai') return { error: 'Pemanggilan sudah selesai dan tidak bisa dibatalkan.' }
+
+  await db.prepare(`
+    UPDATE parent_summons
+    SET status = 'dibatalkan', updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(latest.id).run()
+
+  await db.prepare(`
+    INSERT INTO parent_notifications (siswa_id, type, title, message, source_ref, level)
+    VALUES (?, 'pemanggilan_batal', 'Pemanggilan Dibatalkan', ?, ?, 'info')
+  `).bind(
+    siswaId,
+    note,
+    `cancel:${latest.id}`
+  ).run()
+
+  await db.prepare(`
+    INSERT INTO parent_thread_notes (siswa_id, actor_type, actor_id, note_type, content)
+    VALUES (?, 'wali_kelas', ?, 'pemanggilan_batal', ?)
+  `).bind(siswaId, user.id, note).run()
+
+  revalidatePath('/dashboard/kelas-binaan')
+  if (kelasId) revalidatePath(`/dashboard/kelas-binaan?kelas=${kelasId}`)
+  revalidatePath('/portal-ortu')
+  return { success: 'Pemanggilan terbaru berhasil dibatalkan.' }
+}
