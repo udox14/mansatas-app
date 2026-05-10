@@ -17,35 +17,32 @@ export async function sendPushNotification(
   try {
     const db = await getDB();
     
-    // Query dasar
-    let query = `SELECT endpoint, p256dh, auth FROM web_push_subscriptions`;
+    let query: string;
     let bindings: any[] = [];
-    let conditions: string[] = [];
 
     if (target.userId) {
-      conditions.push(`LOWER(user_id) = LOWER(?)`);
-      bindings.push(target.userId);
+      query = `SELECT endpoint, p256dh, auth FROM web_push_subscriptions WHERE LOWER(user_id) = LOWER(?)`;
+      bindings = [target.userId];
     } else if (target.userIds && target.userIds.length > 0) {
-      // Kirim ke daftar user spesifik
       const placeholders = target.userIds.map(() => '?').join(',');
       query = `SELECT wp.endpoint, wp.p256dh, wp.auth FROM web_push_subscriptions wp WHERE LOWER(wp.user_id) IN (${placeholders})`;
       bindings = target.userIds.map(id => id.toLowerCase());
     } else if (target.role) {
       query = `
-        SELECT wp.endpoint, wp.p256dh, wp.auth 
+        SELECT wp.endpoint, wp.p256dh, wp.auth
         FROM web_push_subscriptions wp
-        JOIN "user" u ON wp.user_id = u.id
-        WHERE (u.id IN (SELECT user_id FROM user_roles WHERE LOWER(role) = LOWER(?)) OR LOWER(u.role) = LOWER(?))
+        JOIN "user" u ON LOWER(wp.user_id) = LOWER(u.id)
+        WHERE (
+          LOWER(u.role) = LOWER(?)
+          OR u.id IN (SELECT user_id FROM user_roles WHERE LOWER(role) = LOWER(?))
+        )
       `;
-      bindings.push(target.role, target.role);
+      bindings = [target.role, target.role];
     } else if (target.all) {
-      // all users
+      query = `SELECT endpoint, p256dh, auth FROM web_push_subscriptions`;
+      bindings = [];
     } else {
       return { success: false, message: "No target specified" };
-    }
-
-    if (conditions.length > 0) {
-      query += ` WHERE ` + conditions.join(' AND ');
     }
 
     const dbResult = await db.prepare(query).bind(...bindings).all();
