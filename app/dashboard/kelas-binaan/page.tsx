@@ -31,9 +31,9 @@ const ROLE_LABEL: Record<string, string> = {
 export default async function KelasBinaanPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kelas?: string }>
+  searchParams: Promise<{ kelas?: string; risiko?: string }>
 }) {
-  const { kelas: kelasId } = await searchParams
+  const { kelas: kelasId, risiko } = await searchParams
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
@@ -112,7 +112,9 @@ export default async function KelasBinaanPage({
         sapaan={sapaan}
         taAktif={taAktif ?? null}
         kelasIdOverride={selectedKelasId}
+        riskFilter={risiko || 'all'}
         showWelcome={false}
+        showTopCards={false}
         showFeatureShortcuts={false}
       />
     </div>

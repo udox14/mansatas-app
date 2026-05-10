@@ -84,6 +84,21 @@ export type AuthSession = {
   expiresAt: string
 }
 
+export type ParentAuthUser = {
+  type: 'parent'
+  siswa_id: string
+  nisn: string
+  nama_lengkap: string
+}
+
+export type ParentAuthSession = {
+  id: string
+  token: string
+  siswaId: string
+  nisn: string
+  expiresAt: string
+}
+
 // ============================================================
 // HELPER: extract token dari cookie header
 // ============================================================
@@ -125,6 +140,62 @@ function mapUser(row: any): AuthUser {
     banReason: row.banReason || null,
     banExpires: row.banExpires || null,
   }
+}
+
+function normalizeDateToDdMmYyyy(value: string | null | undefined): string | null {
+  if (!value) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length === 8) {
+    // DDMMYYYY
+    if (/^\d{2}\d{2}\d{4}$/.test(digits)) {
+      const dd = digits.slice(0, 2)
+      const mm = digits.slice(2, 4)
+      const yyyy = digits.slice(4, 8)
+      if (Number(dd) >= 1 && Number(dd) <= 31 && Number(mm) >= 1 && Number(mm) <= 12) {
+        return `${dd}${mm}${yyyy}`
+      }
+    }
+    // YYYYMMDD
+    const yyyy = digits.slice(0, 4)
+    const mm = digits.slice(4, 6)
+    const dd = digits.slice(6, 8)
+    if (Number(dd) >= 1 && Number(dd) <= 31 && Number(mm) >= 1 && Number(mm) <= 12) {
+      return `${dd}${mm}${yyyy}`
+    }
+  }
+
+  // YYYY-MM-DD
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (iso) {
+    const [, y, m, d] = iso
+    return `${d}${m}${y}`
+  }
+
+  // DD/MM/YYYY or DD-MM-YYYY
+  const local = raw.match(/^(\d{2})[/-](\d{2})[/-](\d{4})$/)
+  if (local) {
+    const [, d, m, y] = local
+    return `${d}${m}${y}`
+  }
+
+  return null
+}
+
+async function ensureParentSessionTable(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS parent_session (
+      id TEXT PRIMARY KEY,
+      token TEXT NOT NULL UNIQUE,
+      siswa_id TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
+      nisn TEXT NOT NULL,
+      expiresAt TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    )
+  `).run()
 }
 
 // ============================================================
@@ -219,6 +290,8 @@ export function createAuth(db: D1Database) {
         const token = extractToken(opts.headers)
         if (token) {
           await db.prepare('DELETE FROM session WHERE token = ?').bind(token).run()
+          await ensureParentSessionTable(db)
+          await db.prepare('DELETE FROM parent_session WHERE token = ?').bind(token).run()
         }
       },
 
@@ -246,6 +319,116 @@ export function createAuth(db: D1Database) {
         return {
           user: mapUser(row),
           session: { id: row.sid, token: row.token, userId: row.userId, expiresAt: row.expiresAt },
+        }
+      },
+
+      // ---- SIGN IN PARENT (NISN + tanggal lahir siswa) ----
+      async signInParent(opts: {
+        body: { nisn: string; password: string }
+        asResponse?: boolean
+      }) {
+        const nisn = String(opts.body.nisn || '').trim()
+        const password = String(opts.body.password || '').trim()
+
+        if (!/^\d{6,20}$/.test(nisn)) {
+          if (opts.asResponse) return new Response('Invalid NISN', { status: 400 })
+          throw new Error('Invalid NISN')
+        }
+        if (!/^\d{8}$/.test(password)) {
+          if (opts.asResponse) return new Response('Invalid password format', { status: 400 })
+          throw new Error('Invalid password format')
+        }
+
+        const siswa = await db.prepare(
+          `SELECT id, nisn, nama_lengkap, tanggal_lahir, status FROM siswa WHERE nisn = ? LIMIT 1`
+        ).bind(nisn).first<any>()
+
+        if (!siswa) {
+          if (opts.asResponse) return new Response('Invalid credentials', { status: 401 })
+          throw new Error('Invalid credentials')
+        }
+        if (siswa.status && siswa.status !== 'aktif') {
+          if (opts.asResponse) return new Response('Invalid credentials', { status: 401 })
+          throw new Error('Invalid credentials')
+        }
+
+        const normalizedDob = normalizeDateToDdMmYyyy(siswa.tanggal_lahir)
+        if (!normalizedDob || normalizedDob !== password) {
+          if (opts.asResponse) return new Response('Invalid credentials', { status: 401 })
+          throw new Error('Invalid credentials')
+        }
+
+        await ensureParentSessionTable(db)
+        const token = generateToken()
+        const sessionId = crypto.randomUUID()
+        const now = new Date().toISOString()
+        const expiresAt = getExpiresAt()
+        await db.prepare(
+          `INSERT INTO parent_session (id, token, siswa_id, nisn, expiresAt, createdAt, updatedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
+        ).bind(sessionId, token, siswa.id, siswa.nisn, expiresAt, now, now).run()
+
+        const maxAge = SESSION_EXPIRY_DAYS * 24 * 60 * 60
+        const setCookie = buildSetCookie(token, maxAge)
+        const payload = {
+          user: {
+            type: 'parent' as const,
+            siswa_id: siswa.id,
+            nisn: siswa.nisn,
+            nama_lengkap: siswa.nama_lengkap,
+          },
+          session: {
+            id: sessionId,
+            token,
+            siswaId: siswa.id,
+            nisn: siswa.nisn,
+            expiresAt,
+          },
+        }
+
+        if (opts.asResponse) {
+          return new Response(JSON.stringify(payload), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json', 'Set-Cookie': setCookie },
+          })
+        }
+
+        return { ...payload, setCookie }
+      },
+
+      // ---- GET PARENT SESSION ----
+      async getParentSession(opts: { headers: Headers }): Promise<{ user: ParentAuthUser; session: ParentAuthSession } | null> {
+        const token = extractToken(opts.headers)
+        if (!token) return null
+
+        await ensureParentSessionTable(db)
+        const row = await db.prepare(
+          `SELECT ps.id as sid, ps.token, ps.siswa_id, ps.nisn, ps.expiresAt, s.nama_lengkap
+           FROM parent_session ps
+           JOIN siswa s ON s.id = ps.siswa_id
+           WHERE ps.token = ?`
+        ).bind(token).first<any>()
+
+        if (!row) return null
+        if (new Date(row.expiresAt) < new Date()) {
+          await db.prepare('DELETE FROM parent_session WHERE token = ?').bind(token).run()
+          return null
+        }
+
+        return {
+          user: {
+            type: 'parent',
+            siswa_id: row.siswa_id,
+            nisn: row.nisn,
+            nama_lengkap: row.nama_lengkap,
+          },
+          session: {
+            id: row.sid,
+            token: row.token,
+            siswaId: row.siswa_id,
+            nisn: row.nisn,
+            expiresAt: row.expiresAt,
+          },
         }
       },
 

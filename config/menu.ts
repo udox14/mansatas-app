@@ -335,6 +335,13 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/settings/jadwal-notif',
     icon: AlarmClock,
     roles: ['super_admin']
+  },
+  {
+    id: 'portal-ortu',
+    title: 'Portal Orang Tua',
+    href: '/portal-ortu',
+    icon: BookUser,
+    roles: ['orang_tua']
   }
 ]
 
@@ -356,6 +363,7 @@ export const ALL_ROLES = [
   { value: 'operator', label: 'Operator EMIS' },
   { value: 'bendahara_komite', label: 'Bendahara Komite' },
   { value: 'pengurus_koperasi', label: 'Pengurus Koperasi' },
+  { value: 'orang_tua', label: 'Orang Tua Siswa' },
 ] as const
 
 export type RoleValue = typeof ALL_ROLES[number]['value']

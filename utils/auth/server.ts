@@ -4,6 +4,7 @@
 import { headers } from 'next/headers'
 import { createAuth } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import type { AuthSession, AuthUser, ParentAuthSession, ParentAuthUser } from '@/utils/auth'
 
 // Ambil instance auth dengan D1 binding
 async function getAuth() {
@@ -17,6 +18,24 @@ export async function getSession() {
   const headersList = await headers()
   const session = await auth.api.getSession({ headers: headersList })
   return session
+}
+
+export async function getParentSession() {
+  const auth = await getAuth()
+  const headersList = await headers()
+  const session = await auth.api.getParentSession({ headers: headersList })
+  return session
+}
+
+export type AppSession =
+  | { kind: 'staff'; user: AuthUser; session: AuthSession }
+  | { kind: 'parent'; user: ParentAuthUser; session: ParentAuthSession }
+
+export async function getAppSession(): Promise<AppSession | null> {
+  const [staff, parent] = await Promise.all([getSession(), getParentSession()])
+  if (staff?.user) return { kind: 'staff', user: staff.user, session: staff.session }
+  if (parent?.user) return { kind: 'parent', user: parent.user, session: parent.session }
+  return null
 }
 
 // Ambil user aktif

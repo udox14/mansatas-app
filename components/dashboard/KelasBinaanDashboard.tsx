@@ -3,6 +3,7 @@ import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 import { getFinalAttendanceForClass } from '@/lib/wali-kelas-attendance'
+import { ParentCommActions } from './ParentCommActions'
 import { WelcomeStrip } from './shared/WelcomeStrip'
 import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
@@ -31,7 +32,9 @@ type Props = {
   sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
   kelasIdOverride?: string | null
+  riskFilter?: string
   showWelcome?: boolean
+  showTopCards?: boolean
   showFeatureShortcuts?: boolean
 }
 
@@ -51,6 +54,15 @@ function sourceLabel(source: string) {
   return 'Belum Ada Data'
 }
 
+function summonStatusLabel(status: string | null) {
+  if (!status) return 'Belum ada'
+  if (status === 'terkirim') return 'Terkirim'
+  if (status === 'dikonfirmasi') return 'Dikonfirmasi'
+  if (status === 'reschedule_diminta') return 'Minta jadwal ulang'
+  if (status === 'selesai') return 'Selesai'
+  return status
+}
+
 export async function KelasBinaanDashboard({
   userId,
   nama,
@@ -61,7 +73,9 @@ export async function KelasBinaanDashboard({
   sapaan,
   taAktif,
   kelasIdOverride = null,
+  riskFilter = 'all',
   showWelcome = true,
+  showTopCards = true,
   showFeatureShortcuts = true,
 }: Props) {
   const db = await getDB()
@@ -112,7 +126,53 @@ export async function KelasBinaanDashboard({
     )
   }
 
-  const [snapshot30, topPelanggaran, agendaTerbaru, izinPembelajaranHariIni] = await Promise.all([
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS parent_notifications (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      siswa_id TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      source_ref TEXT,
+      level TEXT NOT NULL DEFAULT 'info',
+      is_read INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(siswa_id, type, source_ref)
+    )
+  `).run()
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS parent_summons (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      siswa_id TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
+      source_ref TEXT,
+      reason TEXT NOT NULL,
+      event_date TEXT,
+      event_time TEXT,
+      location TEXT,
+      note TEXT,
+      status TEXT NOT NULL DEFAULT 'terkirim',
+      parent_response TEXT,
+      parent_response_note TEXT,
+      parent_responded_at TEXT,
+      created_by TEXT REFERENCES "user"(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(siswa_id, source_ref)
+    )
+  `).run()
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS parent_thread_notes (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      siswa_id TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
+      actor_type TEXT NOT NULL,
+      actor_id TEXT,
+      note_type TEXT NOT NULL DEFAULT 'tindak_lanjut',
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `).run()
+
+  const [snapshot30, topPelanggaran, agendaTerbaru, izinPembelajaranHariIni, komunikasiStatusRaw, komunikasiTimelineRaw] = await Promise.all([
     getFinalAttendanceForClass(db, kelas.id, start30Str, today),
     db.prepare(`
       SELECT sp.siswa_id, s.nama_lengkap, s.nisn, SUM(mp.poin) as total_poin, COUNT(*) as jumlah_kasus
@@ -138,7 +198,54 @@ export async function KelasBinaanDashboard({
       JOIN siswa s ON itk.siswa_id = s.id
       WHERE s.kelas_id = ? AND itk.tanggal = ?
     `).bind(kelas.id, today).first<{ total: number }>(),
+    db.prepare(`
+      SELECT s.id AS siswa_id,
+             COALESCE(pn.unread_count, 0) AS unread_count,
+             ps.status AS summon_status
+      FROM siswa s
+      LEFT JOIN (
+        SELECT siswa_id, COUNT(*) AS unread_count
+        FROM parent_notifications
+        WHERE is_read = 0
+        GROUP BY siswa_id
+      ) pn ON pn.siswa_id = s.id
+      LEFT JOIN (
+        SELECT p1.siswa_id, p1.status
+        FROM parent_summons p1
+        JOIN (
+          SELECT siswa_id, MAX(created_at) AS max_created
+          FROM parent_summons
+          GROUP BY siswa_id
+        ) p2 ON p2.siswa_id = p1.siswa_id AND p2.max_created = p1.created_at
+      ) ps ON ps.siswa_id = s.id
+      WHERE s.kelas_id = ? AND s.status = 'aktif'
+    `).bind(kelas.id).all<any>().then(res => res.results || []),
+    db.prepare(`
+      SELECT ptn.siswa_id, ptn.note_type, ptn.content, ptn.created_at
+      FROM parent_thread_notes ptn
+      JOIN siswa s ON s.id = ptn.siswa_id
+      WHERE s.kelas_id = ? AND s.status = 'aktif'
+      ORDER BY ptn.created_at DESC
+    `).bind(kelas.id).all<any>().then(res => res.results || []),
   ])
+
+  let studentContacts: Record<string, { phone: string | null }> = {}
+  try {
+    const contactRows = await db.prepare(`
+      SELECT s.id AS siswa_id, COALESCE(sp.no_hp_wali, s.nomor_whatsapp) AS phone
+      FROM siswa s
+      LEFT JOIN siswa_ppdb sp ON sp.siswa_id = s.id
+      WHERE s.kelas_id = ? AND s.status = 'aktif'
+    `).bind(kelas.id).all<any>()
+    studentContacts = Object.fromEntries((contactRows.results || []).map((r: any) => [r.siswa_id, { phone: r.phone || null }]))
+  } catch {
+    const contactRows = await db.prepare(`
+      SELECT s.id AS siswa_id, s.nomor_whatsapp AS phone
+      FROM siswa s
+      WHERE s.kelas_id = ? AND s.status = 'aktif'
+    `).bind(kelas.id).all<any>()
+    studentContacts = Object.fromEntries((contactRows.results || []).map((r: any) => [r.siswa_id, { phone: r.phone || null }]))
+  }
 
   const jumlahSiswa = snapshot30?.siswa.length ?? 0
   const todayRows = snapshot30?.siswa.map(siswa => snapshot30.statusByStudent.get(siswa.id)?.find(row => row.tanggal === today)).filter(Boolean) ?? []
@@ -150,6 +257,25 @@ export async function KelasBinaanDashboard({
     alfa: 0,
     parsial: 0,
     belumAdaData: 0,
+  }
+
+  const komunikasiMap = new Map<string, { unread: number; summonStatus: string | null }>()
+  for (const row of komunikasiStatusRaw || []) {
+    komunikasiMap.set(row.siswa_id, {
+      unread: Number(row.unread_count || 0),
+      summonStatus: row.summon_status || null,
+    })
+  }
+
+  const timelineMap = new Map<string, { note_type: string; content: string; created_at: string }>()
+  for (const row of komunikasiTimelineRaw || []) {
+    if (!timelineMap.has(row.siswa_id)) {
+      timelineMap.set(row.siswa_id, {
+        note_type: row.note_type,
+        content: row.content,
+        created_at: row.created_at,
+      })
+    }
   }
 
   const studentRows = snapshot30?.siswa.map(siswa => {
@@ -171,8 +297,20 @@ export async function KelasBinaanDashboard({
       monthly,
       totalPoin: pelanggaran?.total_poin ?? 0,
       jumlahKasus: pelanggaran?.jumlah_kasus ?? 0,
+      komunikasi: komunikasiMap.get(siswa.id) || { unread: 0, summonStatus: null },
+      timeline: timelineMap.get(siswa.id) || null,
+      phone: studentContacts[siswa.id]?.phone || null,
     }
   }) || []
+
+  const filteredStudentRows = studentRows.filter(row => {
+    if (riskFilter === 'all') return true
+    if (riskFilter === 'high') return row.monthly.alfa >= 2 || row.totalPoin >= 25 || row.komunikasi.summonStatus === 'terkirim'
+    if (riskFilter === 'pending_comm') return row.komunikasi.unread > 0 || row.komunikasi.summonStatus === 'terkirim' || row.komunikasi.summonStatus === 'reschedule_diminta'
+    if (riskFilter === 'alfa') return row.monthly.alfa >= 1 || (row.todayStatus && row.todayStatus.status_akhir === 'ALFA')
+    if (riskFilter === 'point') return row.totalPoin >= 25
+    return true
+  })
 
   for (const row of todayRows) {
     if (row?.status_akhir === 'SAKIT') todaySummary.sakit++
@@ -232,8 +370,12 @@ export async function KelasBinaanDashboard({
         />
       )}
 
-      <KehadiranPribadiCard userId={userId} />
-      <JadwalMengajarToday userId={userId} taAktif={taAktif} />
+      {showTopCards && (
+        <>
+          <KehadiranPribadiCard userId={userId} />
+          <JadwalMengajarToday userId={userId} taAktif={taAktif} />
+        </>
+      )}
 
       <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-gradient-to-br from-amber-50 via-amber-50/70 to-white dark:from-amber-900/20 dark:to-transparent shadow-sm px-5 py-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-center">
@@ -421,15 +563,44 @@ export async function KelasBinaanDashboard({
           </div>
           <div className="flex-1">
             <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Daftar Siswa Binaan</p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500">Status harian akhir, sumber data, rekap 30 hari, dan poin kedisiplinan</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500">Status harian, komunikasi orang tua, rekap 30 hari, poin, dan aksi tindak lanjut</p>
           </div>
           <Link href="/dashboard/siswa" className="text-[11px] text-slate-400 hover:text-slate-600 flex items-center gap-1">
             Data siswa <ArrowRight className="h-3 w-3" />
           </Link>
         </div>
 
+        <div className="px-4 py-2 border-b border-surface-2 flex flex-wrap gap-2">
+          {[
+            { key: 'all', label: 'Semua' },
+            { key: 'high', label: 'Risiko Tinggi' },
+            { key: 'pending_comm', label: 'Komunikasi Pending' },
+            { key: 'alfa', label: 'Fokus Alfa' },
+            { key: 'point', label: 'Fokus Poin' },
+          ].map(item => {
+            const href = kelasIdOverride
+              ? `/dashboard/kelas-binaan?kelas=${kelas.id}&risiko=${item.key}`
+              : `/dashboard/kelas-binaan?risiko=${item.key}`
+            const active = riskFilter === item.key
+            return (
+              <Link
+                key={item.key}
+                href={href}
+                className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
+                  active
+                    ? 'border-amber-300 bg-amber-50 text-amber-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                {item.label}
+              </Link>
+            )
+          })}
+          <span className="ml-auto text-[10px] text-slate-400 self-center">{filteredStudentRows.length} siswa</span>
+        </div>
+
         <div className="md:hidden p-3 space-y-2">
-          {studentRows.map(row => {
+          {filteredStudentRows.map(row => {
             const detailHref = `/dashboard/siswa/${row.siswa_id}?tab=absensi&returnTo=${encodeURIComponent(kelasIdOverride ? `/dashboard/kelas-binaan?kelas=${kelas.id}` : '/dashboard/kelas-binaan')}`
             return (
               <Link key={row.siswa_id} href={detailHref} className="block rounded-xl border border-surface-2 bg-slate-50/80 dark:bg-slate-800/40 p-3 active:scale-[0.99] transition-transform">
@@ -451,10 +622,35 @@ export async function KelasBinaanDashboard({
                     <p className="text-slate-400">Poin</p>
                     <p className="font-semibold text-slate-700 dark:text-slate-200">{row.totalPoin}</p>
                   </div>
+                  <div>
+                    <p className="text-slate-400">Komunikasi</p>
+                    <p className="font-medium text-slate-600 dark:text-slate-300">
+                      {row.komunikasi.unread > 0 ? `${row.komunikasi.unread} belum dibaca` : 'Terbaca'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-slate-400">Pemanggilan</p>
+                    <p className="font-medium text-slate-600 dark:text-slate-300">{summonStatusLabel(row.komunikasi.summonStatus)}</p>
+                  </div>
                   <div className="col-span-2">
                     <p className="text-slate-400">30 Hari</p>
                     <p className="font-medium text-slate-600 dark:text-slate-300">S {row.monthly.sakit} • I {row.monthly.izin} • A {row.monthly.alfa} • P {row.monthly.parsial}</p>
                   </div>
+                  {row.timeline ? (
+                    <div className="col-span-2">
+                      <p className="text-slate-400">Timeline Terakhir</p>
+                      <p className="font-medium text-slate-600 dark:text-slate-300 line-clamp-2">{row.timeline.content}</p>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <ParentCommActions
+                    siswaId={row.siswa_id}
+                    kelasId={kelas.id}
+                    namaKelas={namaKelas}
+                    namaSiswa={row.nama_lengkap}
+                    phone={row.phone}
+                  />
                 </div>
               </Link>
             )
@@ -462,31 +658,46 @@ export async function KelasBinaanDashboard({
         </div>
 
         <div className="hidden md:block">
-          <div className="grid grid-cols-[minmax(0,2fr)_minmax(140px,1.2fr)_minmax(120px,1fr)_minmax(160px,1.2fr)_80px] gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800/40 border-t border-surface-2 text-[11px] font-semibold text-slate-500">
+          <div className="grid grid-cols-[minmax(0,1.8fr)_minmax(140px,1fr)_minmax(170px,1fr)_minmax(160px,1fr)_80px_minmax(220px,1.4fr)] gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800/40 border-t border-surface-2 text-[11px] font-semibold text-slate-500">
             <div>Siswa</div>
             <div>Status Hari Ini</div>
-            <div>Sumber</div>
+            <div>Komunikasi Ortu</div>
             <div>30 Hari</div>
             <div>Poin</div>
+            <div>Aksi Wali Kelas</div>
           </div>
           <div className="divide-y divide-surface-2">
-            {studentRows.map(row => {
+            {filteredStudentRows.map(row => {
               const detailHref = `/dashboard/siswa/${row.siswa_id}?tab=absensi&returnTo=${encodeURIComponent(kelasIdOverride ? `/dashboard/kelas-binaan?kelas=${kelas.id}` : '/dashboard/kelas-binaan')}`
               return (
-                <Link key={row.siswa_id} href={detailHref} className="grid grid-cols-[minmax(0,2fr)_minmax(140px,1.2fr)_minmax(120px,1fr)_minmax(160px,1.2fr)_80px] gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                <div key={row.siswa_id} className="grid grid-cols-[minmax(0,1.8fr)_minmax(140px,1fr)_minmax(170px,1fr)_minmax(160px,1fr)_80px_minmax(220px,1.4fr)] gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{row.nama_lengkap}</p>
+                    <Link href={detailHref} className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate block hover:underline">{row.nama_lengkap}</Link>
                     <p className="text-[11px] text-slate-400 truncate">{row.nisn}</p>
+                    {row.timeline ? <p className="text-[10px] text-slate-500 truncate mt-0.5">{row.timeline.content}</p> : null}
                   </div>
                   <div className="flex items-center">
                     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(row.todayStatus?.status_akhir || 'BELUM_ADA_DATA')}`}>
                       {row.todayStatus?.status_akhir === 'BELUM_ADA_DATA' ? 'Belum Ada Data' : row.todayStatus?.status_akhir || 'Belum Ada Data'}
                     </span>
                   </div>
-                  <div className="flex items-center text-[11px] text-slate-500">{sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data')}</div>
+                  <div className="flex flex-col justify-center text-[11px] text-slate-500">
+                    <span>{row.komunikasi.unread > 0 ? `${row.komunikasi.unread} belum dibaca` : 'Terbaca'}</span>
+                    <span className="text-[10px] text-slate-400">Pemanggilan: {summonStatusLabel(row.komunikasi.summonStatus)}</span>
+                  </div>
                   <div className="flex items-center text-[11px] text-slate-500">S {row.monthly.sakit} • I {row.monthly.izin} • A {row.monthly.alfa} • P {row.monthly.parsial}</div>
                   <div className="flex items-center text-[11px] font-semibold text-slate-700 dark:text-slate-200">{row.totalPoin}</div>
-                </Link>
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    <ParentCommActions
+                      siswaId={row.siswa_id}
+                      kelasId={kelas.id}
+                      namaKelas={namaKelas}
+                      namaSiswa={row.nama_lengkap}
+                      phone={row.phone}
+                      compact
+                    />
+                  </div>
+                </div>
               )
             })}
           </div>
