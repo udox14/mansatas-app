@@ -73,6 +73,22 @@ export default async function DetailSiswaPage({
     redirect('/dashboard/siswa')
   }
 
+  const safeFirst = async <T,>(query: string, ...binds: any[]): Promise<T | null> => {
+    try {
+      return await db.prepare(query).bind(...binds).first<T>()
+    } catch {
+      return null
+    }
+  }
+  const safeAll = async <T,>(query: string, ...binds: any[]): Promise<{ results: T[] }> => {
+    try {
+      const res = await db.prepare(query).bind(...binds).all<T>()
+      return { results: (res.results || []) as T[] }
+    } catch {
+      return { results: [] }
+    }
+  }
+
   const [
     riwayatKelas,
     pelanggaran,
@@ -134,27 +150,27 @@ export default async function DetailSiswaPage({
       WHERE siswa_id = ?
     `).bind(id).first<any>(),
 
-    db.prepare(`
+    safeFirst<any>(`
       SELECT id, nominal_target, total_dibayar, total_diskon, status, updated_at
       FROM fin_dspt
       WHERE siswa_id = ?
       LIMIT 1
-    `).bind(id).first<any>(),
+    `, id),
 
-    db.prepare(`
+    safeFirst<any>(`
       SELECT id, jumlah, total_dibayar, status, keterangan, updated_at
       FROM fin_spp_saldo_awal
       WHERE siswa_id = ?
       LIMIT 1
-    `).bind(id).first<any>(),
+    `, id),
 
-    db.prepare(`
+    safeAll<any>(`
       SELECT id, nomor_kuitansi, kategori, metode_bayar, jumlah_total, created_at, is_void, void_reason
       FROM fin_transaksi
       WHERE siswa_id = ?
       ORDER BY created_at DESC
       LIMIT 15
-    `).bind(id).all<any>(),
+    `, id),
 
     db.prepare(`
       SELECT id, tingkat, nomor_kelas, kelompok
