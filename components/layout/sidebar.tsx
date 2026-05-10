@@ -29,7 +29,7 @@ const MENU_GROUPS = [
   { label: 'Kesiswaan & BK', hrefs: ['/dashboard/kelas-binaan', '/dashboard/rekap-absensi', '/dashboard/keterangan-absensi', '/dashboard/jadwal-piket', '/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes', '/dashboard/tka', '/dashboard/penerimaan-pt'] },
   { label: 'Administrasi & HR', hrefs: ['/dashboard/surat', '/dashboard/rapat', '/dashboard/sarpras', '/dashboard/kelola-ppl', '/dashboard/buku-tamu'] },
   { label: 'Keuangan', hrefs: ['/dashboard/keuangan/daftar-ulang', '/dashboard/keuangan/transaksi', '/dashboard/keuangan/dspt', '/dashboard/keuangan/spp', '/dashboard/keuangan/kas-keluar', '/dashboard/keuangan/laporan'] },
-  { label: 'Sistem', hrefs: ['/dashboard/settings', '/dashboard/settings/notifications', '/dashboard/settings/jadwal-notif', '/dashboard/settings/fitur'] },
+  { label: 'Sistem', hrefs: ['/dashboard/settings', '/dashboard/settings/notifications', '/dashboard/settings/jadwal-notif', '/dashboard/settings/fitur', '/dashboard/pengumuman-ortu'] },
 ]
 
 function getActiveMenu(pathname: string, menuItems: typeof MENU_ITEMS) {
