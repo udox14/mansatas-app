@@ -48,7 +48,15 @@ export async function getRoleFeatures(db: D1Database, roles: string[]): Promise<
     `SELECT DISTINCT feature_id FROM role_features WHERE role IN (${placeholders})`
   ).bind(...roles).all<{ feature_id: string }>()
 
-  return new Set(result.results?.map(r => r.feature_id) ?? [])
+  const dbFeatures = new Set(result.results?.map(r => r.feature_id) ?? [])
+  if (dbFeatures.size > 0) return dbFeatures
+
+  // Fallback: jika seed role_features belum up-to-date, pakai mapping default dari config/menu.ts
+  const fallback = new Set<string>()
+  for (const item of MENU_ITEMS) {
+    if (item.roles.some(role => roles.includes(role))) fallback.add(item.id)
+  }
+  return fallback
 }
 
 /**

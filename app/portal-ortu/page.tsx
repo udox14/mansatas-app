@@ -197,6 +197,16 @@ export default async function PortalOrtuPage() {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `).run()
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS parent_announcement_targets (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      announcement_id TEXT NOT NULL REFERENCES parent_announcements(id) ON DELETE CASCADE,
+      target_type TEXT NOT NULL,
+      kelas_id TEXT REFERENCES kelas(id) ON DELETE CASCADE,
+      tingkat INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `).run()
 
   const [
     pengumumanRows,
@@ -216,18 +226,28 @@ export default async function PortalOrtuPage() {
     taAktif,
   ] = await Promise.all([
     db.prepare(`
-      SELECT id, title, body, publish_at
-      FROM parent_announcements
-      WHERE is_active = 1
-        AND datetime(publish_at) <= datetime('now')
-        AND (expires_at IS NULL OR datetime(expires_at) >= datetime('now'))
+      SELECT pa.id, pa.title, pa.body, pa.publish_at, u.nama_lengkap AS pengirim
+      FROM parent_announcements pa
+      LEFT JOIN "user" u ON u.id = pa.created_by
+      WHERE pa.is_active = 1
+        AND datetime(pa.publish_at) <= datetime('now')
+        AND (pa.expires_at IS NULL OR datetime(pa.expires_at) >= datetime('now'))
         AND (
-          target_scope = 'all'
-          OR (target_scope = 'kelas' AND kelas_id = ?)
+          pa.target_scope = 'all'
+          OR (pa.target_scope = 'kelas' AND pa.kelas_id = ?)
+          OR EXISTS (
+            SELECT 1
+            FROM parent_announcement_targets pat
+            WHERE pat.announcement_id = pa.id
+              AND (
+                (pat.target_type = 'kelas' AND pat.kelas_id = ?)
+                OR (pat.target_type = 'angkatan' AND pat.tingkat = ?)
+              )
+          )
         )
       ORDER BY publish_at DESC
       LIMIT 5
-    `).bind(profil.kelas_id || null).all<any>(),
+    `).bind(profil.kelas_id || null, profil.kelas_id || null, Number(profil.tingkat || 0)).all<any>(),
     db.prepare(`
       SELECT
         SUM(CASE WHEN status = 'HADIR' THEN 1 ELSE 0 END) AS hadir,

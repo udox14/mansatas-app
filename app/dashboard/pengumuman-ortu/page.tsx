@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
-import { checkFeatureAccess } from '@/lib/features'
+import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { createParentAnnouncement, deleteParentAnnouncement, toggleParentAnnouncement } from './actions'
+import { KelasMultiSelect } from './kelas-multi-select'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,17 @@ async function ensureTable(db: D1Database) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `).run()
+
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS parent_announcement_targets (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      announcement_id TEXT NOT NULL REFERENCES parent_announcements(id) ON DELETE CASCADE,
+      target_type TEXT NOT NULL,
+      kelas_id TEXT REFERENCES kelas(id) ON DELETE CASCADE,
+      tingkat INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `).run()
 }
 
 export default async function PengumumanOrtuPage() {
@@ -32,21 +44,42 @@ export default async function PengumumanOrtuPage() {
   const allowed = await checkFeatureAccess(db, user.id, 'pengumuman-ortu')
   if (!allowed) redirect('/dashboard')
 
+  const roles = await getUserRoles(db, user.id)
+  const isWaliOnly = roles.includes('wali_kelas') && !roles.some(r => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(r))
+
   await ensureTable(db)
 
-  const [rows, kelasRows] = await Promise.all([
+  const [rows, kelasRows, angkatanRows] = await Promise.all([
     db.prepare(`
       SELECT pa.id, pa.title, pa.body, pa.target_scope, pa.kelas_id, pa.is_active, pa.publish_at, pa.expires_at, pa.created_at,
-             k.tingkat, k.nomor_kelas, k.kelompok
+             k.tingkat, k.nomor_kelas, k.kelompok, u.nama_lengkap AS pengirim,
+             (
+               SELECT GROUP_CONCAT(k2.tingkat || '-' || k2.nomor_kelas || CASE WHEN k2.kelompok IS NOT NULL AND k2.kelompok <> '' THEN ' ' || k2.kelompok ELSE '' END, ', ')
+               FROM parent_announcement_targets pat2
+               JOIN kelas k2 ON k2.id = pat2.kelas_id
+               WHERE pat2.announcement_id = pa.id AND pat2.target_type = 'kelas'
+             ) AS target_kelas_labels,
+             (
+               SELECT GROUP_CONCAT(DISTINCT pat3.tingkat)
+               FROM parent_announcement_targets pat3
+               WHERE pat3.announcement_id = pa.id AND pat3.target_type = 'angkatan'
+             ) AS target_angkatan_labels
       FROM parent_announcements pa
       LEFT JOIN kelas k ON k.id = pa.kelas_id
+      LEFT JOIN "user" u ON u.id = pa.created_by
       ORDER BY pa.created_at DESC
       LIMIT 100
     `).all<any>(),
     db.prepare(`
       SELECT id, tingkat, nomor_kelas, kelompok
       FROM kelas
+      ${isWaliOnly ? 'WHERE wali_kelas_id = ?' : ''}
       ORDER BY tingkat, kelompok, CAST(nomor_kelas AS INTEGER)
+    `).bind(...(isWaliOnly ? [user.id] : [])).all<any>(),
+    db.prepare(`
+      SELECT DISTINCT tingkat
+      FROM kelas
+      ORDER BY tingkat ASC
     `).all<any>(),
   ])
 
@@ -70,17 +103,22 @@ export default async function PengumumanOrtuPage() {
           </div>
           <div>
             <label className="text-xs text-slate-600">Target</label>
-            <select name="target_scope" defaultValue="all" className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm">
-              <option value="all">Semua Orang Tua</option>
+            <select name="target_scope" defaultValue={isWaliOnly ? 'kelas' : 'all'} className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm">
+              {!isWaliOnly ? <option value="all">Semua Orang Tua</option> : null}
               <option value="kelas">Kelas Tertentu</option>
+              {!isWaliOnly ? <option value="angkatan">Satu Angkatan</option> : null}
             </select>
           </div>
           <div>
-            <label className="text-xs text-slate-600">Kelas (jika target kelas)</label>
-            <select name="kelas_id" className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm">
-              <option value="">Pilih kelas</option>
-              {(kelasRows.results || []).map((k: any) => (
-                <option key={k.id} value={k.id}>{k.tingkat}-{k.nomor_kelas}{k.kelompok ? ` ${k.kelompok}` : ''}</option>
+            <label className="text-xs text-slate-600">Pilih Kelas (bisa lebih dari satu)</label>
+            <KelasMultiSelect kelasRows={(kelasRows.results || []) as any[]} />
+          </div>
+          <div>
+            <label className="text-xs text-slate-600">Pilih Angkatan (jika target angkatan)</label>
+            <select name="tingkat" className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm">
+              <option value="">Pilih angkatan</option>
+              {(angkatanRows.results || []).map((a: any) => (
+                <option key={a.tingkat} value={a.tingkat}>Angkatan Kelas {a.tingkat}</option>
               ))}
             </select>
           </div>
@@ -115,8 +153,15 @@ export default async function PengumumanOrtuPage() {
               </div>
               <p className="mt-1 text-xs text-slate-600 whitespace-pre-line">{r.body}</p>
               <p className="mt-1 text-[11px] text-slate-500">
-                Target: {r.target_scope === 'kelas' ? `Kelas ${r.tingkat}-${r.nomor_kelas}${r.kelompok ? ` ${r.kelompok}` : ''}` : 'Semua orang tua'} · Publish: {r.publish_at}{r.expires_at ? ` · Expire: ${r.expires_at}` : ''}
+                Target: {
+                  r.target_scope === 'kelas'
+                    ? (r.target_kelas_labels || (r.tingkat ? `Kelas ${r.tingkat}-${r.nomor_kelas}${r.kelompok ? ` ${r.kelompok}` : ''}` : '-'))
+                    : r.target_scope === 'angkatan'
+                      ? `Angkatan Kelas ${r.target_angkatan_labels || '-'}`
+                      : 'Semua orang tua'
+                } · Publish: {r.publish_at}{r.expires_at ? ` · Expire: ${r.expires_at}` : ''}
               </p>
+              <p className="mt-1 text-[11px] text-slate-500">Pengirim: {r.pengirim || '-'}</p>
               <div className="mt-2 flex gap-2">
                 <form action={toggleParentAnnouncement}>
                   <input type="hidden" name="id" value={r.id} />
