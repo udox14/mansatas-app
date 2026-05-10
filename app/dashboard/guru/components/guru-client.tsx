@@ -37,8 +37,7 @@ type ExportRow = {
   no: number
   nama_lengkap: string
   email: string
-  role_utama: string
-  semua_role: string
+  roles: string
 }
 
 const compressImage = async (file: File): Promise<File> => {
@@ -138,6 +137,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
   const [importLogs, setImportLogs] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<'table' | 'gallery'>('table')
   const [uploadingId, setUploadingId] = useState<string | null>(null)
+  const [exportScope, setExportScope] = useState<'filtered' | 'all'>('filtered')
 
   // Multi-role modal
   const [roleModalUser, setRoleModalUser] = useState<ProfilType | null>(null)
@@ -159,12 +159,13 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
     return matchSearch && matchRole
   })
 
-  const exportRows: ExportRow[] = filteredData.map((p, index) => ({
+  const exportSource = exportScope === 'all' ? initialData : filteredData
+
+  const exportRows: ExportRow[] = exportSource.map((p, index) => ({
     no: index + 1,
     nama_lengkap: p.nama_lengkap,
     email: p.email,
-    role_utama: getRoleLabel(p.role),
-    semua_role: (p.roles?.length ? p.roles : [p.role]).map(getRoleLabel).join(', ')
+    roles: (p.roles?.length ? p.roles : [p.role]).map(getRoleLabel).join(', ')
   }))
 
   const dynamicItemsPerPage = viewMode === 'gallery' ? 24 : itemsPerPage
@@ -286,18 +287,16 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
       NO: row.no,
       NAMA_LENGKAP: row.nama_lengkap,
       EMAIL: row.email,
-      ROLE_UTAMA: row.role_utama,
-      SEMUA_ROLE: row.semua_role,
+      ROLE: row.roles,
     })))
 
     worksheet['!cols'] = [
       { wch: 6 },
       { wch: 32 },
       { wch: 34 },
-      { wch: 20 },
       { wch: 34 },
     ]
-    worksheet['!autofilter'] = { ref: `A1:E${Math.max(exportRows.length + 1, 2)}` }
+    worksheet['!autofilter'] = { ref: `A1:D${Math.max(exportRows.length + 1, 2)}` }
 
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Akun Guru Pegawai')
@@ -307,8 +306,9 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
   const handleExportPdf = () => {
     if (exportRows.length === 0) return alert('Tidak ada data untuk diexport.')
 
-    const activeRoleLabel = filterRole === 'ALL' ? 'Semua role' : getRoleLabel(filterRole)
-    const searchLabel = searchTerm.trim() || '-'
+    const scopeLabel = exportScope === 'all' ? 'Semua data' : 'Data terfilter'
+    const activeRoleLabel = exportScope === 'all' ? 'Semua role' : (filterRole === 'ALL' ? 'Semua role' : getRoleLabel(filterRole))
+    const searchLabel = exportScope === 'all' ? '-' : (searchTerm.trim() || '-')
     const printedAt = new Intl.DateTimeFormat('id-ID', {
       dateStyle: 'full',
       timeStyle: 'short',
@@ -319,8 +319,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
         <td>${row.no}</td>
         <td>${escapeHtml(row.nama_lengkap)}</td>
         <td>${escapeHtml(row.email)}</td>
-        <td>${escapeHtml(row.role_utama)}</td>
-        <td>${escapeHtml(row.semua_role)}</td>
+        <td>${escapeHtml(row.roles)}</td>
       </tr>
     `).join('')
 
@@ -369,7 +368,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
             }
             .meta {
               display: grid;
-              grid-template-columns: repeat(3, minmax(0, 1fr));
+              grid-template-columns: repeat(4, minmax(0, 1fr));
               gap: 6px;
               margin-bottom: 10px;
             }
@@ -415,8 +414,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
             .col-no { width: 5%; text-align: center; }
             .col-nama { width: 25%; }
             .col-email { width: 28%; }
-            .col-role { width: 16%; }
-            .col-semua-role { width: 26%; }
+            .col-role { width: 33%; }
             .footer {
               margin-top: 8px;
               color: #64748b;
@@ -443,6 +441,10 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                 <span class="meta-value">${exportRows.length} pegawai</span>
               </div>
               <div class="meta-card">
+                <span class="meta-label">Mode Export</span>
+                <span class="meta-value">${escapeHtml(scopeLabel)}</span>
+              </div>
+              <div class="meta-card">
                 <span class="meta-label">Filter Role</span>
                 <span class="meta-value">${escapeHtml(activeRoleLabel)}</span>
               </div>
@@ -458,8 +460,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                   <th class="col-no">No</th>
                   <th class="col-nama">Nama Lengkap</th>
                   <th class="col-email">Email</th>
-                  <th class="col-role">Role Utama</th>
-                  <th class="col-semua-role">Semua Role</th>
+                  <th class="col-role">Role</th>
                 </tr>
               </thead>
               <tbody>${rowsHtml}</tbody>
@@ -664,6 +665,13 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
             </SelectContent>
           </Select>
 
+          <Select value={exportScope} onValueChange={(val: 'filtered' | 'all') => setExportScope(val)}>
+            <SelectTrigger className="h-8 w-36 sm:w-40 text-xs rounded-md shrink-0"><SelectValue placeholder="Mode Export" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="filtered">Data Terfilter</SelectItem>
+              <SelectItem value="all">Semua Data</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="flex gap-2 ml-auto">
             <Button variant="outline" size="sm" className="h-8 text-xs rounded-md" onClick={handleExportExcel}>
               <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Excel
@@ -940,3 +948,4 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
     </>
   )
 }
+

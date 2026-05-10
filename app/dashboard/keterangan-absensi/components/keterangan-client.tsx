@@ -90,7 +90,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
   const jumlahDitandai = siswaList.filter(s => s.status !== null).length
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-40 md:pb-24">
       {/* Filter: Kelas & Tanggal */}
       <div className="rounded-lg border bg-white dark:bg-slate-900 p-4 space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -254,7 +254,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
 
       {/* Floating Save */}
       {hasLoaded && siswaList.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-20 p-3 bg-gradient-to-t from-white via-white dark:from-slate-900 dark:via-slate-900 to-transparent pointer-events-none">
+        <div className="fixed left-0 right-0 bottom-[calc(72px+env(safe-area-inset-bottom))] md:bottom-0 z-20 p-3 bg-gradient-to-t from-white via-white dark:from-slate-900 dark:via-slate-900 to-transparent pointer-events-none">
           <div className="max-w-lg mx-auto pointer-events-auto">
             <Button
               onClick={handleSave}

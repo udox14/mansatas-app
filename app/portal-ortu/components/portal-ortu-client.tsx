@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, XCircle, AlertTriangle, ShieldAlert, ChevronRight } from 'lucide-react'
+import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, XCircle, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText } from 'lucide-react'
 import { MobileBottomNav } from './mobile-bottom-nav'
 import { ScheduleTabs } from './schedule-tabs'
 import { ChangePasswordForm } from './change-password-form'
 import { SummonResponseForm } from './summon-response-form'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { markParentNotificationRead } from '../actions'
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
@@ -182,7 +183,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             </div>
           ))}
 
-          {(notifications.results || []).map((n: any) => (
+          {(notifications.results || []).filter((n: any) => !n.is_read).map((n: any) => (
              <StandardCard key={n.id} className={`border-l-4 ${n.level === 'critical' ? 'border-l-rose-500' : n.level === 'warning' ? 'border-l-amber-500' : 'border-l-sky-500'}`}>
                <div className="flex gap-4">
                  <div className={`mt-0.5 shrink-0 p-2 rounded-lg ${
@@ -190,10 +191,17 @@ export function PortalOrtuClient({ data }: { data: any }) {
                  }`}>
                    <Bell className="h-4 w-4" />
                  </div>
-                 <div>
+                 <div className="flex-1">
                    <h3 className="text-sm font-semibold text-slate-800">{n.title}</h3>
                    <p className="text-sm text-slate-600 mt-1">{n.message}</p>
                  </div>
+                 <form action={async () => {
+                   await markParentNotificationRead(n.id)
+                 }}>
+                   <button type="submit" className="text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 hover:bg-slate-100 rounded-full p-2" title="Tandai sudah dibaca">
+                     <CheckCircle2 className="w-5 h-5" />
+                   </button>
+                 </form>
                </div>
              </StandardCard>
           ))}
@@ -220,6 +228,33 @@ export function PortalOrtuClient({ data }: { data: any }) {
           ))}
         </div>
       </div>
+
+      {/* Riwayat Komunikasi & Tindak Lanjut */}
+      {(notes.results || []).length > 0 && (
+        <div className="pt-2">
+          <div className="flex items-center justify-between mb-3 ml-1">
+            <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">Riwayat Tindak Lanjut</h2>
+          </div>
+          
+          <div className="space-y-3">
+            {(notes.results || []).map((note: any) => (
+              <StandardCard key={note.id} className="flex gap-4 items-start">
+                <div className={`p-2 rounded-lg shrink-0 ${note.actor_type === 'orang_tua' ? 'bg-indigo-50 text-indigo-600' : 'bg-sky-50 text-sky-600'}`}>
+                  <MessageSquareText className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-sm font-semibold text-slate-800">{note.actor_type === 'orang_tua' ? 'Anda (Orang Tua)' : 'Pihak Sekolah'}</h3>
+                    <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md uppercase">{note.note_type.replace('_', ' ')}</span>
+                  </div>
+                  <p className="text-sm text-slate-600 leading-relaxed">{note.content}</p>
+                  <p className="text-[11px] text-slate-400 mt-2">{note.created_at}</p>
+                </div>
+              </StandardCard>
+            ))}
+          </div>
+        </div>
+      )}
     </motion.div>
   )
 
@@ -407,7 +442,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             <div className="flex justify-between items-center">
               <span className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                  <span className="p-1.5 bg-slate-100 rounded-md"><Wallet className="w-4 h-4 text-slate-600" /></span>
-                 Dana Sumbangan Pendidikan (DSPT)
+                 DSPT
               </span>
             </div>
             
@@ -431,19 +466,23 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
         {/* SPP Card */}
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm relative overflow-hidden">
-          <div className="relative z-10 flex flex-col h-full justify-between gap-6">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-semibold text-slate-800">SPP Bulanan</span>
-              <span className="text-[10px] font-medium bg-slate-100 text-slate-600 px-2 py-1 rounded uppercase tracking-wide">Tahun Berjalan</span>
+          <div className="relative z-10 flex flex-col h-full justify-between gap-4">
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-sm font-semibold text-slate-800">Tunggakan SPP</span>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Keterangan: Sekolah sudah tidak memberlakukan SPP bulanan. Tunggakan ini hanya berlaku untuk siswa yang sudah bersekolah di sini sebelum kebijakan SPP dihapuskan.
+              </p>
             </div>
             
             <div className="flex items-end justify-between bg-slate-50 border border-slate-100 p-4 rounded-xl">
               <div>
-                <p className="text-slate-500 text-[10px] font-medium uppercase tracking-wide mb-1">Total Tagihan</p>
+                <p className="text-slate-500 text-[10px] font-medium uppercase tracking-wide mb-1">Total Tagihan Awal</p>
                 <p className="text-lg font-bold text-slate-800">Rp {rupiah(sppNominal)}</p>
               </div>
               <div className="text-right">
-                <p className="text-slate-500 text-[10px] font-medium uppercase tracking-wide mb-1">Sisa</p>
+                <p className="text-slate-500 text-[10px] font-medium uppercase tracking-wide mb-1">Sisa Tunggakan</p>
                 <p className="text-xl font-bold text-rose-600">Rp {rupiah(sppSisa)}</p>
               </div>
             </div>
