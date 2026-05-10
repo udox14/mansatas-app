@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
-import { currentTimeWIB } from '@/lib/time'
+import { currentTimeWIB, todayWIB, nowWIB } from '@/lib/time'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
 // ============================================================
@@ -111,8 +111,9 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
     const day = d.getDay()
     hari = day === 0 ? 7 : day
   } else {
-    const now = new Date()
-    tanggal = now.toISOString().split('T')[0]
+    // Gunakan WIB (UTC+7) agar tanggal & hari tidak terbalik di dini hari
+    const now = nowWIB()
+    tanggal = todayWIB()
     hari = hariNum(now)
   }
 
