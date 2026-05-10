@@ -16,6 +16,7 @@ function rupiah(v: number) {
 
 export function PortalOrtuClient({ data }: { data: any }) {
   const [activeTab, setActiveTab] = useState('beranda')
+  const [hiddenNotifications, setHiddenNotifications] = useState<Set<string>>(new Set())
 
   const {
     profil,
@@ -53,7 +54,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
   const renderBeranda = () => {
     const activeSummons = (summons.results || []).filter((s: any) => s.status === 'terkirim' && !s.parent_response)
-    const activeNotifications = (notifications.results || []).filter((n: any) => !n.is_read)
+    const activeNotifications = (notifications.results || []).filter((n: any) => !n.is_read && !hiddenNotifications.has(n.id))
 
     return (
       <motion.div
@@ -227,17 +228,20 @@ export function PortalOrtuClient({ data }: { data: any }) {
                    }`}>
                      <Bell className="h-4 w-4" />
                    </div>
-                   <div className="flex-1">
+                   <div className="flex-1 pr-2">
                      <h3 className="text-sm font-semibold text-slate-800">{n.title}</h3>
                      <p className="text-sm text-slate-600 mt-1">{n.message}</p>
                    </div>
-                   <form action={async () => {
-                     await markParentNotificationRead(n.id)
-                   }}>
-                     <button type="submit" className="text-slate-400 hover:text-slate-600 transition-colors bg-slate-50 hover:bg-slate-100 rounded-full p-2" title="Tandai sudah dibaca">
-                       <CheckCircle2 className="w-5 h-5" />
-                     </button>
-                   </form>
+                   <button 
+                     type="button"
+                     onClick={() => {
+                       setHiddenNotifications(prev => new Set(prev).add(n.id))
+                       markParentNotificationRead(n.id)
+                     }}
+                     className="text-[10px] font-bold text-slate-500 hover:text-slate-800 uppercase tracking-wide bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors shrink-0" 
+                   >
+                     Tandai Selesai
+                   </button>
                  </div>
                </StandardCard>
             ))}

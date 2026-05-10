@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { createParentAnnouncement, deleteParentAnnouncement, toggleParentAnnouncement } from './actions'
-import { KelasMultiSelect } from './kelas-multi-select'
+import { CreatePengumumanModal } from './create-modal'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,93 +85,60 @@ export default async function PengumumanOrtuPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Pengumuman Portal Ortu</h1>
-        <p className="text-xs text-slate-500">Kelola pengumuman yang tampil di beranda portal orang tua.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Pengumuman Portal Ortu</h1>
+          <p className="text-xs text-slate-500">Kelola pengumuman yang tampil di beranda portal orang tua.</p>
+        </div>
+        <CreatePengumumanModal 
+          isWaliOnly={isWaliOnly} 
+          kelasRows={kelasRows.results || []} 
+          angkatanRows={angkatanRows.results || []} 
+        />
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-slate-800">Buat Pengumuman</h2>
-        <form action={createParentAnnouncement} className="mt-3 grid gap-3 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <label className="text-xs text-slate-600">Judul</label>
-            <input name="title" required className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm" />
-          </div>
-          <div className="md:col-span-2">
-            <label className="text-xs text-slate-600">Isi</label>
-            <textarea name="body" required rows={4} className="mt-1 w-full rounded-md border border-slate-200 px-3 py-2 text-sm" />
-          </div>
-          <div>
-            <label className="text-xs text-slate-600">Target</label>
-            <select name="target_scope" defaultValue={isWaliOnly ? 'kelas' : 'all'} className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm">
-              {!isWaliOnly ? <option value="all">Semua Orang Tua</option> : null}
-              <option value="kelas">Kelas Tertentu</option>
-              {!isWaliOnly ? <option value="angkatan">Satu Angkatan</option> : null}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-slate-600">Pilih Kelas (bisa lebih dari satu)</label>
-            <KelasMultiSelect kelasRows={(kelasRows.results || []) as any[]} />
-          </div>
-          <div>
-            <label className="text-xs text-slate-600">Pilih Angkatan (jika target angkatan)</label>
-            <select name="tingkat" className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm">
-              <option value="">Pilih angkatan</option>
-              {(angkatanRows.results || []).map((a: any) => (
-                <option key={a.tingkat} value={a.tingkat}>Angkatan Kelas {a.tingkat}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-slate-600">Publish At (opsional)</label>
-            <input name="publish_at" placeholder="YYYY-MM-DD HH:MM:SS" className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm" />
-          </div>
-          <div>
-            <label className="text-xs text-slate-600">Expire At (opsional)</label>
-            <input name="expires_at" placeholder="YYYY-MM-DD HH:MM:SS" className="mt-1 h-9 w-full rounded-md border border-slate-200 px-3 text-sm" />
-          </div>
-          <div className="md:col-span-2">
-            <button className="h-9 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700">
-              Simpan Pengumuman
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-slate-800">Daftar Pengumuman</h2>
-        <div className="mt-3 space-y-2">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Daftar Pengumuman</h2>
+        <div className="mt-4 space-y-3">
           {(rows.results || []).length === 0 ? (
-            <p className="text-xs text-slate-500">Belum ada pengumuman.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Belum ada pengumuman.</p>
           ) : (rows.results || []).map((r: any) => (
-            <div key={r.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div key={r.id} className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-800/50">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-slate-800">{r.title}</p>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${Number(r.is_active) === 1 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{r.title}</p>
+                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${Number(r.is_active) === 1 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
                   {Number(r.is_active) === 1 ? 'Aktif' : 'Nonaktif'}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-slate-600 whitespace-pre-line">{r.body}</p>
-              <p className="mt-1 text-[11px] text-slate-500">
-                Target: {
-                  r.target_scope === 'kelas'
-                    ? (r.target_kelas_labels || (r.tingkat ? `Kelas ${r.tingkat}-${r.nomor_kelas}${r.kelompok ? ` ${r.kelompok}` : ''}` : '-'))
-                    : r.target_scope === 'angkatan'
-                      ? `Angkatan Kelas ${r.target_angkatan_labels || '-'}`
-                      : 'Semua orang tua'
-                } · Publish: {r.publish_at}{r.expires_at ? ` · Expire: ${r.expires_at}` : ''}
-              </p>
-              <p className="mt-1 text-[11px] text-slate-500">Pengirim: {r.pengirim || '-'}</p>
-              <div className="mt-2 flex gap-2">
+              <p className="mt-2 text-sm text-slate-600 whitespace-pre-line dark:text-slate-300">{r.body}</p>
+              
+              <div className="mt-3 flex flex-col gap-1.5 rounded-md bg-slate-100/50 p-2.5 dark:bg-slate-800/30">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  <span className="font-medium text-slate-700 dark:text-slate-300">Target:</span> {
+                    r.target_scope === 'kelas'
+                      ? (r.target_kelas_labels || (r.tingkat ? `Kelas ${r.tingkat}-${r.nomor_kelas}${r.kelompok ? ` ${r.kelompok}` : ''}` : '-'))
+                      : r.target_scope === 'angkatan'
+                        ? `Angkatan Kelas ${r.target_angkatan_labels || '-'}`
+                        : 'Semua orang tua'
+                  }
+                </p>
+                <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400">
+                  <p><span className="font-medium text-slate-700 dark:text-slate-300">Publish:</span> {r.publish_at}</p>
+                  {r.expires_at && <p><span className="font-medium text-slate-700 dark:text-slate-300">Expire:</span> {r.expires_at}</p>}
+                  <p><span className="font-medium text-slate-700 dark:text-slate-300">Pengirim:</span> {r.pengirim || '-'}</p>
+                </div>
+              </div>
+
+              <div className="mt-3 flex gap-2">
                 <form action={toggleParentAnnouncement}>
                   <input type="hidden" name="id" value={r.id} />
-                  <button className="h-8 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700">
+                  <button className="h-8 rounded-md border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors">
                     {Number(r.is_active) === 1 ? 'Nonaktifkan' : 'Aktifkan'}
                   </button>
                 </form>
                 <form action={deleteParentAnnouncement}>
                   <input type="hidden" name="id" value={r.id} />
-                  <button className="h-8 rounded-md border border-rose-300 bg-rose-50 px-3 text-xs font-semibold text-rose-700">
+                  <button className="h-8 rounded-md border border-rose-200 bg-rose-50 px-3 text-xs font-medium text-rose-700 hover:bg-rose-100 dark:border-rose-900/30 dark:bg-rose-950/20 dark:text-rose-400 dark:hover:bg-rose-900/50 transition-colors">
                     Hapus
                   </button>
                 </form>
