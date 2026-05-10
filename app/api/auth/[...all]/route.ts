@@ -53,6 +53,21 @@ export async function POST(request: Request) {
     return res
   }
 
+  // POST /api/auth/parent/sign-in
+  if (pathname.endsWith('/parent/sign-in')) {
+    try {
+      const body = await request.json()
+      const auth = await getAuth()
+      const res = await auth.api.signInParent({
+        body: { nisn: body.nisn, password: body.password },
+        asResponse: true,
+      })
+      return res as Response
+    } catch (e: any) {
+      return NextResponse.json({ error: e.message }, { status: 401 })
+    }
+  }
+
   return NextResponse.json({ error: 'Not found' }, { status: 404 })
 }
 
@@ -64,6 +79,14 @@ export async function GET(request: Request) {
   if (pathname.endsWith('/get-session')) {
     const auth = await getAuth()
     const session = await auth.api.getSession({ headers: request.headers })
+    if (!session) return NextResponse.json(null, { status: 401 })
+    return NextResponse.json(session)
+  }
+
+  // GET /api/auth/parent/get-session
+  if (pathname.endsWith('/parent/get-session')) {
+    const auth = await getAuth()
+    const session = await auth.api.getParentSession({ headers: request.headers })
     if (!session) return NextResponse.json(null, { status: 401 })
     return NextResponse.json(session)
   }

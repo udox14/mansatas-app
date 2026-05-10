@@ -588,75 +588,126 @@ export function DetailSiswaClient({
 
             return (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
-                    <div className="flex items-center gap-2 text-blue-700 mb-2">
-                      <Landmark className="h-4 w-4" />
-                      <p className="text-xs font-bold uppercase tracking-wider">DSPT</p>
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                  <div className="bg-surface rounded-lg border border-surface overflow-hidden flex flex-col h-80">
+                    <div className="p-4 border-b bg-blue-50/60 flex items-center gap-2">
+                      <Landmark className="h-5 w-5 text-blue-600" />
+                      <h3 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">DSPT</h3>
                     </div>
-                    <p className="text-xs text-slate-500">Target</p>
-                    <p className="text-base font-black text-slate-800">{formatRupiah(dsptTarget)}</p>
-                    <p className="text-xs text-slate-500 mt-2">Sisa</p>
-                    <p className={`text-sm font-bold ${dsptSisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatRupiah(dsptSisa)}</p>
-                  </div>
-
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-                    <div className="flex items-center gap-2 text-amber-700 mb-2">
-                      <Wallet className="h-4 w-4" />
-                      <p className="text-xs font-bold uppercase tracking-wider">SPP Tunggakan Awal</p>
-                    </div>
-                    <p className="text-xs text-slate-500">Total Tunggakan</p>
-                    <p className="text-base font-black text-slate-800">{formatRupiah(sppTotal)}</p>
-                    <p className="text-xs text-slate-500 mt-2">Sisa</p>
-                    <p className={`text-sm font-bold ${sppSisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatRupiah(sppSisa)}</p>
-                  </div>
-
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
-                    <div className="flex items-center gap-2 text-emerald-700 mb-2">
-                      <Receipt className="h-4 w-4" />
-                      <p className="text-xs font-bold uppercase tracking-wider">Transaksi</p>
-                    </div>
-                    <p className="text-xs text-slate-500">Total Pembayaran Sah</p>
-                    <p className="text-base font-black text-slate-800">{formatRupiah(totalPembayaran)}</p>
-                    <p className="text-xs text-slate-500 mt-2">Jumlah Transaksi</p>
-                    <p className="text-sm font-bold text-slate-700">{trxAktif.length} transaksi</p>
-                  </div>
-                </div>
-
-                <div className="bg-surface rounded-lg border border-surface overflow-hidden">
-                  <div className="px-4 py-3 border-b border-surface-2 flex items-center justify-between">
-                    <p className="text-sm font-bold text-slate-700">Riwayat Transaksi Terakhir</p>
-                    <Link href={`/dashboard/keuangan/siswa/${siswa.id}?tab=riwayat`} className="text-xs font-semibold text-emerald-700 hover:underline">
-                      Buka Detail Keuangan
-                    </Link>
-                  </div>
-                  {transaksi.length === 0 ? (
-                    <div className="py-10 text-center text-sm text-slate-400">Belum ada transaksi keuangan untuk siswa ini.</div>
-                  ) : (
-                    <div className="divide-y divide-surface-2">
-                      {transaksi.slice(0, 8).map((t: any) => (
-                        <div key={t.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold text-slate-700 truncate">
-                              {t.nomor_kuitansi || '-'} · {String(t.kategori || '-').toUpperCase()}
-                            </p>
-                            <p className="text-[11px] text-slate-400">
-                              {new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} · {t.metode_bayar === 'tunai' ? 'Tunai' : 'Transfer'}
-                            </p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className={`text-xs font-bold ${t.is_void ? 'text-slate-400 line-through' : 'text-emerald-700'}`}>
-                              {formatRupiah(t.jumlah_total || 0)}
-                            </p>
-                            <p className={`text-[10px] font-semibold ${t.is_void ? 'text-rose-500' : 'text-emerald-600'}`}>
-                              {t.is_void ? 'VOID' : 'SAH'}
-                            </p>
-                          </div>
+                    <div className="p-4 space-y-3 text-sm">
+                      <div className="bg-surface-2 rounded-lg border border-surface-2 p-3">
+                        <p className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Target</p>
+                        <p className="text-lg font-black text-slate-800 mt-1">{formatRupiah(dsptTarget)}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5">
+                          <p className="text-[10px] uppercase text-emerald-700 font-bold">Terpenuhi</p>
+                          <p className="text-sm font-bold text-emerald-700 mt-1">{formatRupiah(dsptTerbayar)}</p>
                         </div>
-                      ))}
+                        <div className="rounded-lg border border-rose-200 bg-rose-50 p-2.5">
+                          <p className="text-[10px] uppercase text-rose-700 font-bold">Sisa</p>
+                          <p className="text-sm font-bold text-rose-700 mt-1">{formatRupiah(dsptSisa)}</p>
+                        </div>
+                      </div>
+                      <div className="pt-1">
+                        <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500 rounded-full transition-all"
+                            style={{ width: `${dsptTarget > 0 ? Math.min(100, Math.round((dsptTerbayar / dsptTarget) * 100)) : 0}%` }}
+                          />
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          {dsptTarget > 0 ? Math.min(100, Math.round((dsptTerbayar / dsptTarget) * 100)) : 0}% terpenuhi
+                        </p>
+                      </div>
                     </div>
-                  )}
+                  </div>
+
+                  <div className="bg-surface rounded-lg border border-surface overflow-hidden flex flex-col h-80">
+                    <div className="p-4 border-b bg-amber-50/60 flex items-center gap-2">
+                      <Wallet className="h-5 w-5 text-amber-600" />
+                      <h3 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">SPP Tunggakan Awal</h3>
+                    </div>
+                    <div className="p-4 space-y-3 text-sm">
+                      <div className="bg-surface-2 rounded-lg border border-surface-2 p-3">
+                        <p className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">Total Tunggakan</p>
+                        <p className="text-lg font-black text-slate-800 mt-1">{formatRupiah(sppTotal)}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5">
+                          <p className="text-[10px] uppercase text-emerald-700 font-bold">Dibayar</p>
+                          <p className="text-sm font-bold text-emerald-700 mt-1">{formatRupiah(sppDibayar)}</p>
+                        </div>
+                        <div className="rounded-lg border border-rose-200 bg-rose-50 p-2.5">
+                          <p className="text-[10px] uppercase text-rose-700 font-bold">Sisa</p>
+                          <p className="text-sm font-bold text-rose-700 mt-1">{formatRupiah(sppSisa)}</p>
+                        </div>
+                      </div>
+                      <div className="pt-1">
+                        <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-amber-500 rounded-full transition-all"
+                            style={{ width: `${sppTotal > 0 ? Math.min(100, Math.round((sppDibayar / sppTotal) * 100)) : 0}%` }}
+                          />
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          {sppTotal > 0 ? Math.min(100, Math.round((sppDibayar / sppTotal) * 100)) : 0}% terbayar
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-surface rounded-lg border border-surface overflow-hidden flex flex-col h-80">
+                    <div className="p-4 border-b bg-emerald-50/60 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Receipt className="h-5 w-5 text-emerald-600" />
+                        <h3 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">Riwayat Transaksi</h3>
+                      </div>
+                      <Link href={`/dashboard/keuangan/siswa/${siswa.id}?tab=riwayat`} className="text-[11px] font-semibold text-emerald-700 hover:underline">
+                        Buka Detail Keuangan
+                      </Link>
+                    </div>
+                    <div className="px-4 pt-3 pb-2">
+                      <p className="text-[11px] text-slate-500">
+                        Total pembayaran sah: <span className="font-bold text-emerald-700">{formatRupiah(totalPembayaran)}</span> · {trxAktif.length} transaksi
+                      </p>
+                    </div>
+                    <ScrollArea className="flex-1 px-4 pb-3">
+                      {transaksi.length === 0 ? (
+                        <div className="py-10 text-center text-sm text-slate-400">Belum ada transaksi keuangan untuk siswa ini.</div>
+                      ) : (
+                        <div className="space-y-2">
+                          {transaksi.slice(0, 8).map((t: any) => (
+                            <div key={t.id} className="border border-surface rounded-lg p-2.5 flex items-center justify-between gap-3 hover:border-emerald-200 transition-colors">
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-slate-700 truncate">
+                                  {t.nomor_kuitansi || '-'} · {String(t.kategori || '-').toUpperCase()}
+                                </p>
+                                <p className="text-[11px] text-slate-400">
+                                  {new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} · {t.metode_bayar === 'tunai' ? 'Tunai' : 'Transfer'}
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className={`text-xs font-bold ${t.is_void ? 'text-slate-400 line-through' : 'text-emerald-700'}`}>
+                                  {formatRupiah(t.jumlah_total || 0)}
+                                </p>
+                                <p className={`text-[10px] font-semibold ${t.is_void ? 'text-rose-500' : 'text-emerald-600'}`}>
+                                  {t.is_void ? 'VOID' : 'SAH'}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </ScrollArea>
+                  </div>
                 </div>
+
+                {!dspt && !sppAwal && transaksi.length === 0 && (
+                  <div className="text-center py-8 bg-surface border border-dashed border-surface rounded-xl text-slate-400 text-sm">
+                    Data keuangan siswa ini belum tersedia.
+                  </div>
+                )}
               </>
             )
           })()}
