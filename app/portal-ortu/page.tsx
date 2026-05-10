@@ -1,11 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getAppSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
-import { SummonResponseForm } from './components/summon-response-form'
-import { ChangePasswordForm } from './components/change-password-form'
-import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet } from 'lucide-react'
-import { MobileBottomNav } from './components/mobile-bottom-nav'
-import { ScheduleTabs } from './components/schedule-tabs'
+import { PortalOrtuClient } from './components/portal-ortu-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -174,7 +170,7 @@ export default async function PortalOrtuPage() {
   await seedParentCommunication(db, siswaId)
 
   const profil = await db.prepare(`
-    SELECT s.id, s.nisn, s.nama_lengkap, s.status, s.kelas_id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
+    SELECT s.id, s.nisn, s.nama_lengkap, s.status, s.foto_url, s.kelas_id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
     FROM siswa s
     LEFT JOIN kelas k ON k.id = s.kelas_id
     WHERE s.id = ?
@@ -393,261 +389,31 @@ export default async function PortalOrtuPage() {
   const waUrl = waliPhone ? `https://wa.me/${waliPhone}` : null
   const jadwalObject = Object.fromEntries(Array.from(jadwalByDay.entries()))
 
-  return (
-    <div className="min-h-screen bg-[#FAFAFA] text-slate-900 [font-family:'Plus_Jakarta_Sans',ui-sans-serif,system-ui]">
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&family=Quicksand:wght@500;600;700&display=swap');`}</style>
-      <aside className="hidden md:flex fixed left-0 top-0 h-screen w-64 border-r border-slate-200 bg-white z-40 flex-col p-6">
-        <h2 className="text-2xl font-bold text-emerald-800 [font-family:'Quicksand',ui-sans-serif]">Parent Portal</h2>
-        <nav className="mt-8 space-y-2 text-sm">
-          <a href="#beranda" className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 font-semibold text-emerald-800"><House className="h-4 w-4" /> Home</a>
-          <a href="#jadwal" className="flex items-center gap-2 rounded-xl px-3 py-2 text-slate-600 hover:bg-slate-100"><CalendarDays className="h-4 w-4" /> Schedule</a>
-          <a href="#kehadiran" className="flex items-center gap-2 rounded-xl px-3 py-2 text-slate-600 hover:bg-slate-100"><BookOpenCheck className="h-4 w-4" /> Attendance</a>
-          <a href="#nilai" className="flex items-center gap-2 rounded-xl px-3 py-2 text-slate-600 hover:bg-slate-100"><GraduationCap className="h-4 w-4" /> Grades</a>
-          <a href="#keuangan" className="flex items-center gap-2 rounded-xl px-3 py-2 text-slate-600 hover:bg-slate-100"><Wallet className="h-4 w-4" /> Finance</a>
-        </nav>
-      </aside>
+  const data = {
+    profil,
+    kelasLabel,
+    waliKelasRow,
+    waUrl,
+    pengumumanRows,
+    absensiRekap,
+    absensiTerbaru,
+    disiplinRekap,
+    disiplinRiwayat,
+    semesters,
+    semesterAvg,
+    dsptTarget,
+    dsptBayar,
+    dsptDiskon,
+    dsptSisa,
+    sppNominal,
+    sppBayar,
+    sppSisa,
+    transaksiTerbaru,
+    notifications,
+    summons,
+    notes,
+    jadwalObject,
+  }
 
-      <main className="md:ml-64 min-h-screen">
-        <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/90 backdrop-blur px-4 py-3 sm:px-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 font-bold">
-              {String(profil.nama_lengkap || 'S').slice(0, 1)}
-            </div>
-            <p className="text-lg font-semibold [font-family:'Quicksand',ui-sans-serif] md:hidden">Parent Portal</p>
-          </div>
-          <button className="relative h-10 w-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-600">
-            <Bell className="h-5 w-5" />
-            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-rose-500" />
-          </button>
-        </header>
-
-      <div id="beranda" className="mx-auto max-w-6xl px-4 py-6 sm:py-8 space-y-5 pb-24 sm:pb-8">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold text-emerald-700">Portal Orang Tua</p>
-            <h1 className="text-lg font-bold text-slate-900">{profil.nama_lengkap}</h1>
-            <p className="text-sm text-slate-600">NISN {profil.nisn} · Kelas {kelasLabel} · Status {profil.status}</p>
-          </div>
-          <form action="/api/auth/sign-out" method="post">
-            <button className="h-9 rounded-md border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100">Keluar</button>
-          </form>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-bold text-emerald-800">Kontak Wali Kelas</h2>
-          <p className="text-xs text-emerald-700 mt-1">PIC utama komunikasi akademik dan kedisiplinan anak adalah wali kelas.</p>
-          <p className="text-sm font-semibold text-emerald-900 mt-2">{waliKelasRow?.nama_lengkap || 'Belum ditetapkan'}</p>
-          <div className="mt-3">
-            {waUrl ? (
-              <a href={waUrl} target="_blank" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-slate-50 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100">
-                <MessageCircle className="h-3.5 w-3.5" /> Message
-              </a>
-            ) : (
-              <p className="text-xs text-emerald-700">Nomor kontak wali kelas belum tersedia.</p>
-            )}
-          </div>
-        </div>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-bold text-slate-900 [font-family:'Quicksand',ui-sans-serif]">Pengumuman Sekolah</h2>
-          <p className="text-xs text-slate-500 mt-1">Informasi resmi untuk orang tua.</p>
-          <div className="mt-3 space-y-2">
-            {(pengumumanRows.results || []).length === 0 ? (
-              <p className="text-xs text-slate-500">Belum ada pengumuman aktif.</p>
-            ) : (pengumumanRows.results || []).map((item: any) => (
-              <div key={item.id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                <p className="text-xs font-semibold text-slate-800">{item.title}</p>
-                <p className="text-xs text-slate-600 whitespace-pre-line mt-0.5">{item.body}</p>
-                <p className="text-[10px] text-slate-400 mt-1">{item.publish_at}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <ChangePasswordForm />
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs text-slate-500">Hadir</p>
-            <p className="text-xl font-bold text-slate-900">{absensiRekap?.hadir || 0}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs text-slate-500">Sakit / Izin</p>
-            <p className="text-xl font-bold text-slate-900">{(absensiRekap?.sakit || 0) + (absensiRekap?.izin || 0)}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs text-slate-500">Alfa</p>
-            <p className="text-xl font-bold text-rose-700">{absensiRekap?.alfa || 0}</p>
-          </div>
-          <div className="rounded-2xl border border-emerald-700 bg-emerald-800 p-4 shadow-sm">
-            <p className="text-xs text-slate-500">Poin Kedisiplinan</p>
-            <p className="text-xl font-bold text-white">{disiplinRekap?.total_poin || 0}</p>
-          </div>
-        </div>
-
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-sm font-bold text-slate-900">Notifikasi Orang Tua</h2>
-            <div className="mt-3 space-y-2">
-              {(notifications.results || []).length === 0 ? (
-                <p className="text-xs text-slate-500">Belum ada notifikasi.</p>
-              ) : (notifications.results || []).map((n: any) => (
-                <div key={n.id} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-                  <p className="text-xs font-semibold text-slate-700">{n.title}</p>
-                  <p className="text-xs text-slate-500">{n.message}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">{n.created_at}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-sm font-bold text-slate-900">Pemanggilan Orang Tua</h2>
-            <div className="mt-3 space-y-2">
-              {(summons.results || []).length === 0 ? (
-                <p className="text-xs text-slate-500">Belum ada data pemanggilan.</p>
-              ) : (summons.results || []).map((s: any) => (
-                <div key={s.id} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-                  <p className="text-xs font-semibold text-slate-700">{s.reason}</p>
-                  <p className="text-xs text-slate-500">
-                    {s.event_date || '-'} {s.event_time || ''} {s.location ? `· ${s.location}` : ''} · Status: {s.status}
-                  </p>
-                  {s.note ? <p className="text-xs text-slate-600 mt-1">{s.note}</p> : null}
-                  <SummonResponseForm summonId={s.id} status={s.status} />
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <section id="jadwal" className="space-y-3">
-          <h2 className="text-sm font-bold text-slate-900">Jadwal Pelajaran Mingguan</h2>
-          <p className="text-xs text-slate-500 mt-1">Berikut jadwal harian anak beserta guru pengampu.</p>
-          <ScheduleTabs jadwalByDay={jadwalObject as any} />
-        </section>
-
-        <section className="hidden rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="text-sm font-bold text-slate-900">Jadwal Pelajaran Mingguan</h2>
-          <p className="text-xs text-slate-500 mt-1">Berikut jadwal harian anak beserta guru pengampu.</p>
-          <div className="mt-3 grid gap-3 lg:grid-cols-3">
-            {[1, 2, 3, 4, 5, 6].map((d) => (
-              <div key={d} className="rounded-md border border-slate-100 bg-slate-50 p-3">
-                <p className="text-xs font-semibold text-slate-700">{DAY_LABEL[d]}</p>
-                <div className="mt-2 space-y-1.5">
-                  {(jadwalByDay.get(d) || []).length === 0 ? (
-                    <p className="text-xs text-slate-400">Tidak ada jadwal.</p>
-                  ) : (jadwalByDay.get(d) || []).map((j: any, idx: number) => (
-                    <div key={`${d}-${idx}`} className="rounded border border-slate-100 bg-white px-2 py-1.5">
-                      <p className="text-[11px] font-semibold text-slate-700">Jam {j.jam_ke} · {j.waktu}</p>
-                      <p className="text-[11px] text-slate-600">{j.mapel}</p>
-                      <p className="text-[10px] text-slate-500">{j.guru}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <div id="kehadiran" className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-sm font-bold text-slate-900">Riwayat Absensi Terbaru</h2>
-            <div className="mt-3 space-y-2">
-              {(absensiTerbaru.results || []).length === 0 ? (
-                <p className="text-xs text-slate-500">Belum ada data absensi.</p>
-              ) : (absensiTerbaru.results || []).map((r: any, i: number) => (
-                <div key={`${r.tanggal}-${i}`} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-                  <p className="text-xs font-semibold text-slate-700">{r.tanggal} · {r.status}</p>
-                  {r.catatan ? <p className="text-xs text-slate-500">{r.catatan}</p> : null}
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section id="nilai" className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-sm font-bold text-slate-900">Ringkasan Nilai</h2>
-            <div className="mt-3 mb-3 rounded-xl border border-slate-100 bg-slate-50 p-3 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] text-slate-500">Rata-rata Semester</p>
-                <p className="text-lg font-bold text-slate-900">{semesterAvg ?? '-'}{semesterAvg ? <span className="ml-1 text-xs text-emerald-700">/100</span> : null}</p>
-              </div>
-              <div className="relative h-14 w-14">
-                <svg className="h-14 w-14 -rotate-90" viewBox="0 0 36 36">
-                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-200" />
-                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="2" className="text-emerald-700" strokeDasharray={`${Math.max(0, Math.min(100, semesterAvg || 0))}, 100`} />
-                </svg>
-                <span className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold text-slate-700">{semesterAvg ?? '-'}</span>
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {semesters.map((s) => (
-                <div key={s.label} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-                  <p className="text-xs text-slate-500">{s.label}</p>
-                  <p className="text-sm font-semibold text-slate-900">{s.value ?? '-'}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <section className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-sm font-bold text-slate-900">Riwayat Kedisiplinan</h2>
-            <p className="text-xs text-slate-500 mt-1">Total kasus: {disiplinRekap?.total_kasus || 0}</p>
-            <div className="mt-3 space-y-2">
-              {(disiplinRiwayat.results || []).length === 0 ? (
-                <p className="text-xs text-slate-500">Belum ada catatan pelanggaran.</p>
-              ) : (disiplinRiwayat.results || []).map((r: any, i: number) => (
-                <div key={`${r.tanggal}-${i}`} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-                  <p className="text-xs font-semibold text-slate-700">{r.tanggal} · {r.nama_pelanggaran} ({r.poin} poin)</p>
-                  <p className="text-xs text-slate-500">{r.kategori}{r.keterangan ? ` · ${r.keterangan}` : ''}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section id="keuangan" className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="text-sm font-bold text-slate-900">Ringkasan Keuangan</h2>
-            <div className="mt-3 grid gap-2">
-              <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-                <p className="text-xs text-slate-500">DSPT</p>
-                <p className="text-xs text-slate-700">Target Rp {rupiah(dsptTarget)} · Terbayar Rp {rupiah(dsptBayar + dsptDiskon)} · Sisa Rp {rupiah(dsptSisa)}</p>
-              </div>
-              <div className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-                <p className="text-xs text-slate-500">SPP</p>
-                <p className="text-xs text-slate-700">Tagihan Rp {rupiah(sppNominal)} · Terbayar Rp {rupiah(sppBayar)} · Sisa Rp {rupiah(sppSisa)}</p>
-              </div>
-            </div>
-            <div className="mt-3 space-y-2">
-              {(transaksiTerbaru.results || []).length === 0 ? (
-                <p className="text-xs text-slate-500">Belum ada transaksi.</p>
-              ) : (transaksiTerbaru.results || []).map((t: any, i: number) => (
-                <div key={`${t.nomor_kuitansi}-${i}`} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-                  <p className="text-xs font-semibold text-slate-700">{t.nomor_kuitansi || '-'} · Rp {rupiah(Number(t.jumlah_total || 0))}</p>
-                  <p className="text-xs text-slate-500">{t.kategori} · {t.metode_bayar} · {t.created_at}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <section className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="text-sm font-bold text-slate-900">Catatan Tindak Lanjut</h2>
-          <div className="mt-3 space-y-2">
-            {(notes.results || []).length === 0 ? (
-              <p className="text-xs text-slate-500">Belum ada catatan.</p>
-            ) : (notes.results || []).map((n: any, i: number) => (
-              <div key={`${n.created_at}-${i}`} className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
-                <p className="text-xs font-semibold text-slate-700">{n.actor_type} · {n.note_type}</p>
-                <p className="text-xs text-slate-600">{n.content}</p>
-                <p className="text-[10px] text-slate-400 mt-1">{n.created_at}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-      </main>
-      <MobileBottomNav />
-    </div>
-  )
+  return <PortalOrtuClient data={data} />
 }
