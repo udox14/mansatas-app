@@ -359,10 +359,25 @@ export default async function PortalOrtuPage() {
   const semesterNumeric = semesters.map(s => s.value).filter(v => v !== null && v !== undefined && v !== '').map(Number).filter(v => !Number.isNaN(v))
   const semesterAvg = semesterNumeric.length ? Number((semesterNumeric.reduce((a, b) => a + b, 0) / semesterNumeric.length).toFixed(1)) : null
 
+  const todayRaw = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+  const todayDayMap = new Date(todayRaw).getDay()
+  const todayDay = todayDayMap === 0 ? 7 : todayDayMap
+
+  const todayAbsensiRows = await db.prepare(`
+    SELECT penugasan_id, status, catatan
+    FROM absensi_siswa
+    WHERE siswa_id = ? AND tanggal = ?
+  `).bind(siswaId, todayRaw).all()
+  
+  const todayAbsensiMap = new Map()
+  for (const row of todayAbsensiRows.results || []) {
+    todayAbsensiMap.set(row.penugasan_id, { status: row.status, catatan: row.catatan })
+  }
+
   const jamMap = parseJamPelajaran(taAktif?.jam_pelajaran)
   const jadwalRows = profil.kelas_id
     ? await db.prepare(`
-      SELECT jm.hari, jm.jam_ke, mp.nama_mapel, u.nama_lengkap AS guru_nama
+      SELECT jm.hari, jm.jam_ke, mp.nama_mapel, u.nama_lengkap AS guru_nama, pm.id AS penugasan_id
       FROM jadwal_mengajar jm
       JOIN penugasan_mengajar pm ON pm.id = jm.penugasan_id
       JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
@@ -377,11 +392,23 @@ export default async function PortalOrtuPage() {
     const hari = Number(row.hari)
     if (!jadwalByDay.has(hari)) jadwalByDay.set(hari, [])
     const slot = jamMap.get(hari)?.get(Number(row.jam_ke))
+    let absensi = null
+    if (hari === todayDay) {
+      const absRecord = todayAbsensiMap.get(row.penugasan_id)
+      if (absRecord) {
+        absensi = absRecord
+      } else {
+        absensi = { status: 'HADIR', catatan: null }
+      }
+    }
+
     jadwalByDay.get(hari)!.push({
       jam_ke: row.jam_ke,
       waktu: slot ? `${slot.mulai} - ${slot.selesai}` : '-',
       mapel: row.nama_mapel,
       guru: row.guru_nama || '-',
+      absensi,
+      isToday: hari === todayDay
     })
   }
 
