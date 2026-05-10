@@ -350,7 +350,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                       )}
                     >
                       {/* Avatar */}
-                      <div className="h-11 w-11 shrink-0 rounded-xl overflow-hidden bg-surface-3">
+                      <div className="h-14 w-[42px] shrink-0 rounded-md overflow-hidden bg-surface-3 border border-surface-2">
                         {s.foto_url
                           ? <img src={s.foto_url} className="w-full h-full object-cover" alt="" />
                           : <div className={`w-full h-full bg-gradient-to-br ${getAvatarColor(s.nama_lengkap)} flex items-center justify-center text-lg font-bold text-white`}>
@@ -438,7 +438,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                         >
                           <TableCell className="px-4 py-2.5">
                             <div className="flex items-center gap-3">
-                              <div className="h-8 w-8 shrink-0 rounded-md overflow-hidden bg-surface-3">
+                              <div className="h-12 w-9 shrink-0 rounded-md overflow-hidden bg-surface-3 border border-surface-2">
                                 {s.foto_url
                                   ? <img src={s.foto_url} className="w-full h-full object-cover" alt="" />
                                   : <div className={`w-full h-full bg-gradient-to-br ${getAvatarColor(s.nama_lengkap)} flex items-center justify-center text-xs font-bold text-white`}>
@@ -594,7 +594,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                           className="hover:bg-surface-2 cursor-pointer transition-colors">
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-2.5">
-                              <div className="h-7 w-7 rounded-full bg-rose-100 flex items-center justify-center shrink-0 overflow-hidden">
+                              <div className="h-12 w-9 rounded-md bg-rose-100 flex items-center justify-center shrink-0 overflow-hidden border border-rose-200">
                                 {s.foto_url
                                   ? <img src={s.foto_url} alt="" className="h-full w-full object-cover" />
                                   : <span className="text-[10px] font-bold text-rose-600">{s.nama_lengkap?.charAt(0)}</span>}
@@ -631,7 +631,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                     <div key={s.id}
                       onClick={() => window.location.href = `/dashboard/siswa/${s.id}`}
                       className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 cursor-pointer transition-colors">
-                      <div className="h-9 w-9 rounded-full bg-rose-100 flex items-center justify-center shrink-0 overflow-hidden">
+                      <div className="h-14 w-[42px] rounded-md bg-rose-100 flex items-center justify-center shrink-0 overflow-hidden border border-rose-200">
                         {s.foto_url
                           ? <img src={s.foto_url} alt="" className="h-full w-full object-cover" />
                           : <span className="text-xs font-bold text-rose-600">{s.nama_lengkap?.charAt(0)}</span>}

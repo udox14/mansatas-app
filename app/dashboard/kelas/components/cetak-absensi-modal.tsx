@@ -111,6 +111,15 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
     `,
   })
 
+  const handlePrintAction = () => {
+    if (isMobile) {
+      setOpen(false)
+      setTimeout(() => handlePrint(), 250)
+      return
+    }
+    handlePrint()
+  }
+
   const previewLabel = (() => {
     if (previewDataList.length === 0) return null
     if (previewDataList.length === 1) {
@@ -131,6 +140,15 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
 
   return (
     <>
+      <style>{`
+        @media print {
+          [data-radix-dialog-overlay],
+          [data-radix-dialog-content] {
+            display: none !important;
+            visibility: hidden !important;
+          }
+        }
+      `}</style>
       <Button
         variant="outline"
         size="sm"
@@ -252,7 +270,7 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
                 {/* Tombol cetak */}
                 <div className="mt-auto pt-2 space-y-1.5">
                   <Button
-                    onClick={() => handlePrint()}
+                    onClick={handlePrintAction}
                     disabled={previewDataList.length === 0 || isLoading}
                     className="w-full h-9 text-xs gap-2 bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40"
                   >
