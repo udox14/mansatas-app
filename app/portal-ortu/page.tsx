@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAppSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { SummonResponseForm } from './components/summon-response-form'
+import { ChangePasswordForm } from './components/change-password-form'
 
 export const dynamic = 'force-dynamic'
 
@@ -387,6 +388,8 @@ export default async function PortalOrtuPage() {
           </div>
         </div>
 
+        <ChangePasswordForm />
+
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-xs text-slate-500">Hadir</p>
@@ -551,4 +554,3 @@ export default async function PortalOrtuPage() {
     </div>
   )
 }
-

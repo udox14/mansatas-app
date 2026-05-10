@@ -198,6 +198,16 @@ async function ensureParentSessionTable(db: D1Database) {
   `).run()
 }
 
+async function ensureParentCredentialTable(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS parent_credentials (
+      siswa_id TEXT PRIMARY KEY REFERENCES siswa(id) ON DELETE CASCADE,
+      password_hash TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `).run()
+}
+
 // ============================================================
 // CREATE AUTH — main factory
 // ============================================================
@@ -352,8 +362,19 @@ export function createAuth(db: D1Database) {
           throw new Error('Invalid credentials')
         }
 
-        const normalizedDob = normalizeDateToDdMmYyyy(siswa.tanggal_lahir)
-        if (!normalizedDob || normalizedDob !== password) {
+        await ensureParentCredentialTable(db)
+        const credential = await db.prepare(
+          `SELECT password_hash FROM parent_credentials WHERE siswa_id = ? LIMIT 1`
+        ).bind(siswa.id).first<{ password_hash: string }>()
+
+        // Tahap 1: fallback default NISN jika belum punya password custom
+        let valid = false
+        if (credential?.password_hash) {
+          valid = await verifyPassword(credential.password_hash, password)
+        } else {
+          valid = password === siswa.nisn
+        }
+        if (!valid) {
           if (opts.asResponse) return new Response('Invalid credentials', { status: 401 })
           throw new Error('Invalid credentials')
         }
@@ -430,6 +451,18 @@ export function createAuth(db: D1Database) {
             expiresAt: row.expiresAt,
           },
         }
+      },
+
+      async changeParentPassword(opts: { siswaId: string; newPassword: string }) {
+        await ensureParentCredentialTable(db)
+        const passwordHash = await hashPassword(opts.newPassword)
+        await db.prepare(`
+          INSERT INTO parent_credentials (siswa_id, password_hash, updated_at)
+          VALUES (?, ?, datetime('now'))
+          ON CONFLICT(siswa_id) DO UPDATE SET
+            password_hash = excluded.password_hash,
+            updated_at = excluded.updated_at
+        `).bind(opts.siswaId, passwordHash).run()
       },
 
       // ---- CHANGE PASSWORD (pengganti admin plugin setUserData) ----

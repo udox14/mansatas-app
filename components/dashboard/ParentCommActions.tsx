@@ -46,6 +46,10 @@ export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, phon
     })
   }
 
+  const openWa = (url: string) => {
+    if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
   const btnCls = compact
     ? 'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold'
     : 'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold'
@@ -55,20 +59,28 @@ export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, phon
       <div className="flex flex-wrap gap-1.5 items-center" onClick={(e) => e.stopPropagation()}>
         {wa ? (
           <>
-            <a
-              href={`https://wa.me/${wa}?text=${encodeURIComponent(templates.warning)}`}
-              target="_blank"
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                openWa(`https://wa.me/${wa}?text=${encodeURIComponent(templates.warning)}`)
+              }}
               className={`${btnCls} border-emerald-200 bg-emerald-50 text-emerald-700`}
             >
               <MessageCircle className="h-3 w-3" /> WA Peringatan
-            </a>
-            <a
-              href={`https://wa.me/${wa}?text=${encodeURIComponent(templates.summon)}`}
-              target="_blank"
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                openWa(`https://wa.me/${wa}?text=${encodeURIComponent(templates.summon)}`)
+              }}
               className={`${btnCls} border-blue-200 bg-blue-50 text-blue-700`}
             >
               <PhoneCall className="h-3 w-3" /> WA Panggilan
-            </a>
+            </button>
           </>
         ) : (
           <span className="text-[10px] text-slate-400">No WA belum ada</span>
@@ -76,7 +88,11 @@ export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, phon
         <button
           type="button"
           disabled={isPending}
-          onClick={onSummon}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onSummon()
+          }}
           className={`${btnCls} border-amber-200 bg-amber-50 text-amber-700 disabled:opacity-60`}
         >
           <BellRing className="h-3 w-3" /> {isPending ? 'Memproses...' : 'Pemanggilan'}
@@ -91,4 +107,3 @@ export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, phon
     </>
   )
 }
-
