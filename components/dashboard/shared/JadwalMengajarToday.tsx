@@ -63,14 +63,16 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
   return (
     <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden mb-3">
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3 border-b border-surface-2">
-        <div className="p-1.5 rounded-md bg-emerald-50 border border-emerald-100">
-          <ClipboardPen className="h-3.5 w-3.5 text-emerald-600" />
-        </div>
-        <div className="flex-1">
-          <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Jadwal Mengajar Hari Ini</p>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500">
-            {totalJadwal === 0 ? 'Tidak ada jadwal hari ini' : `${totalJadwal} kelas · ${sudahIsiAgenda} agenda terisi`}
-          </p>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="p-1.5 rounded-md bg-emerald-50 border border-emerald-100 shrink-0">
+            <ClipboardPen className="h-3.5 w-3.5 text-emerald-600" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Jadwal Mengajar Hari Ini</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500">
+              {totalJadwal === 0 ? 'Tidak ada jadwal hari ini' : `${totalJadwal} kelas · ${sudahIsiAgenda} agenda terisi`}
+            </p>
+          </div>
         </div>
         {totalJadwal > 0 && (
           <div className="w-full sm:w-auto shrink-0 grid grid-cols-1 sm:flex items-stretch sm:items-center gap-2">

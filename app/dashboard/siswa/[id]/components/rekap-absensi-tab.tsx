@@ -68,6 +68,7 @@ function StatusBadge({ status }: { status: string }) {
 // KOMPONEN UTAMA
 // ============================================================
 export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: { nama_lengkap: string; nisn?: string; nis_lokal?: string; kelas?: { tingkat: number; nomor_kelas: number; kelompok: string } } }) {
+  const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
   // Default: 1 bulan ke belakang
   const [tglMulai, setTglMulai] = useState(() => { const d = nowWIB(); d.setUTCDate(1); return d.toISOString().split('T')[0] })
   const [tglSelesai, setTglSelesai] = useState(() => todayWIB())
@@ -285,12 +286,15 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
 </div>
 </body></html>`
 
-    const w = window.open('', '_blank')
+    let w = window.open('', '_blank')
+    if (!w && isMobile) {
+      w = window.open('', '_self')
+    }
     if (!w) return
     w.document.write(html)
     w.document.close()
     w.focus()
-    setTimeout(() => w.print(), 400)
+    setTimeout(() => w.print(), 600)
     setShowPrintDialog(false)
   }
 
@@ -590,7 +594,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
               onClick={() => handlePrint(printFilter)}
               className="bg-cyan-600 hover:bg-cyan-700 text-white gap-2"
             >
-              <Printer className="h-4 w-4" /> Cetak Sekarang
+              <Printer className="h-4 w-4" /> {isMobile ? 'Simpan PDF' : 'Cetak Sekarang'}
             </Button>
           </DialogFooter>
         </DialogContent>

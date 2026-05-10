@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { useReactToPrint } from 'react-to-print'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -495,6 +496,7 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
   const [data, setData] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
+  const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
 
   const handleLoad = async () => {
     setIsLoading(true)
@@ -504,37 +506,16 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
     setIsLoading(false)
   }
 
-  const handlePrint = () => {
-    if (!printRef.current) return
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) return
-    printWindow.document.write(`
-      <!DOCTYPE html><html><head><title>Laporan Agenda Guru</title>
-      <style>
-        body { font-family: 'Times New Roman', serif; font-size: 11px; margin: 0; padding: 0; color: #333; }
-        .page { padding: 20mm; }
-        .kop-img { width: 100%; display: block; margin-bottom: 10px; }
-        h2 { font-size: 14px; margin: 10px 0 4px; text-align: center; text-transform: uppercase; }
-        .sub { font-size: 11px; color: #666; margin-bottom: 12px; text-align: center; }
-        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-        th, td { border: 1px solid #000; padding: 4px 6px; text-align: left; font-size: 10px; }
-        th { background: #f5f5f5; font-weight: 600; text-align: center; }
-        .status-tepat { color: #059669; } .status-telat { color: #d97706; }
-        .status-alfa { color: #dc2626; } .status-sakit { color: #2563eb; } .status-izin { color: #0284c7; }
-        @media print { 
-          @page { size: 215mm 330mm; margin: 0; }
-          body { -webkit-print-color-adjust: exact; }
-        }
-      </style></head><body>
-      <div class="page">
-        <img src="/kopsurat.png" class="kop-img" />
-        ${printRef.current.innerHTML}
-      </div>
-      </body></html>
-    `)
-    printWindow.document.close()
-    printWindow.print()
-  }
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `laporan_agenda_guru_${tglMulai}_${tglSelesai}`,
+    pageStyle: `
+      @page { size: 215mm 330mm; margin: 0; }
+      @media print {
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      }
+    `,
+  })
 
   const guruNamaMap = new Map(filterOptions.guru.map(g => [g.id, g.nama]))
 
@@ -565,8 +546,8 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
             Muat Data
           </Button>
           {data.length > 0 && (
-            <Button onClick={handlePrint} size="sm" variant="outline">
-              <Printer className="h-4 w-4 mr-1.5" /> Cetak
+            <Button onClick={() => handlePrint()} size="sm" variant="outline">
+              <Printer className="h-4 w-4 mr-1.5" /> {isMobile ? 'Simpan PDF' : 'Cetak'}
             </Button>
           )}
         </div>

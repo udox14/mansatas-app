@@ -1084,6 +1084,7 @@ function exportCSV(rows: PenerimaanRow[], taName: string, dynamicJalurList: type
 }
 
 function exportPDF(rows: PenerimaanRow[], taName: string, dynamicJalurList: typeof JALUR_LIST) {
+  const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
   const grouped = dynamicJalurList.map(j => ({
     ...j, rows: rows.filter(r => r.jalur === j.value)
   })).filter(j => j.rows.length > 0)
@@ -1136,12 +1137,15 @@ ${grouped.map(j => `
 </div>`).join('')}
 </body></html>`
 
-  const win = window.open('', '_blank')
+  let win = window.open('', '_blank')
+  if (!win && isMobile) {
+    win = window.open('', '_self')
+  }
   if (!win) return
   win.document.write(html)
   win.document.close()
   win.focus()
-  setTimeout(() => { win.print() }, 400)
+  setTimeout(() => { win.print() }, 700)
 }
 
 // ── Modal Import Excel ─────────────────────────────────────────────────
@@ -1500,6 +1504,7 @@ export function PenerimaanPTClient({
   taAktif: { id: string; nama: string; semester: number } | null
   userRole: string
 }) {
+  const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
   const [dynamicJalurList, setDynamicJalurList] = useState(JALUR_LIST)
   const [isExporting, setIsExporting] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
@@ -1554,7 +1559,7 @@ export function PenerimaanPTClient({
           <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={isExporting}
             className="h-8 text-xs gap-1.5 border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg">
             {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FilePdf className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">Export PDF</span>
+            <span className="hidden sm:inline">{isMobile ? 'Simpan PDF' : 'Export PDF'}</span>
           </Button>
         </div>
       </div>

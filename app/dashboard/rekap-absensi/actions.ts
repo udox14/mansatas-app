@@ -22,25 +22,71 @@ function hariNum(d: Date): number {
 
 const HARI = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 
+type RekapScope = {
+  isAdmin: boolean
+  allowedClassIds: string[]
+}
+
+async function getRekapScope(db: D1Database, userId: string) : Promise<RekapScope> {
+  const roles = await getUserRoles(db, userId)
+  const isAdmin = roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
+  if (isAdmin) return { isAdmin: true, allowedClassIds: [] }
+
+  const isGuruBk = roles.includes('guru_bk')
+  if (isGuruBk) {
+    const taAktif = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
+    if (!taAktif?.id) return { isAdmin: false, allowedClassIds: [] }
+
+    const bkRows = await db.prepare(`
+      SELECT DISTINCT kelas_id
+      FROM kelas_binaan_bk
+      WHERE guru_bk_id = ? AND tahun_ajaran_id = ?
+    `).bind(userId, taAktif.id).all<{ kelas_id: string }>()
+
+    return {
+      isAdmin: false,
+      allowedClassIds: (bkRows.results || []).map(row => row.kelas_id).filter(Boolean),
+    }
+  }
+
+  const waliKelas = await getAccessibleWaliKelasClasses(db, userId, roles)
+  const waliClassIds = new Set(waliKelas.map(k => k.id))
+
+  const guruRes = await db.prepare(`
+    SELECT DISTINCT kelas_id
+    FROM penugasan_mengajar
+    WHERE guru_id = ?
+  `).bind(userId).all<{ kelas_id: string }>()
+
+  for (const row of guruRes.results || []) {
+    if (row.kelas_id) waliClassIds.add(row.kelas_id)
+  }
+
+  return { isAdmin: false, allowedClassIds: Array.from(waliClassIds) }
+}
+
 export async function getRekapFilterOptions() {
   const db = await getDB()
   const user = await getCurrentUser()
   if (!user) return { kelas: [], siswa: [] }
 
-  const roles = await getUserRoles(db, user.id)
-  const isWaliOnly = roles.includes('wali_kelas') &&
-    !roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
+  const scope = await getRekapScope(db, user.id)
 
   let kelasRows: any[] = []
   let siswaRows: any[] = []
 
-  if (isWaliOnly) {
-    const kelasAkses = await getAccessibleWaliKelasClasses(db, user.id, roles)
-    kelasRows = kelasAkses
-
-    if (kelasAkses.length > 0) {
-      const kelasIds = kelasAkses.map(item => item.id)
+  if (!scope.isAdmin) {
+    if (scope.allowedClassIds.length > 0) {
+      const kelasIds = scope.allowedClassIds
       const placeholders = kelasIds.map(() => '?').join(',')
+      const kelasRes = await db.prepare(`
+        SELECT id, tingkat, nomor_kelas, kelompok
+        FROM kelas
+        WHERE id IN (${placeholders})
+        ORDER BY tingkat, kelompok, nomor_kelas
+      `).bind(...kelasIds).all<any>()
+      kelasRows = kelasRes.results || []
+
       const siswaRes = await db.prepare(`
         SELECT s.id, s.nama_lengkap, s.nisn, k.tingkat, k.nomor_kelas, k.kelompok
         FROM siswa s
@@ -82,6 +128,19 @@ export async function getRekapFilterOptions() {
 
 export async function getAbsensiPerSiswa(siswaId: string, tglMulai: string, tglSelesai: string) {
   const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized', data: [] }
+
+  const scope = await getRekapScope(db, user.id)
+  if (!scope.isAdmin) {
+    const siswaCheck = await db.prepare(`
+      SELECT kelas_id FROM siswa WHERE id = ?
+    `).bind(siswaId).first<{ kelas_id: string }>()
+    if (!siswaCheck?.kelas_id || !scope.allowedClassIds.includes(siswaCheck.kelas_id)) {
+      return { error: 'Anda tidak punya akses ke data siswa ini.', data: [] }
+    }
+  }
+
   const result = await getFinalAttendanceForStudent(db, siswaId, tglMulai, tglSelesai)
   if (!result) return { error: 'Siswa tidak ditemukan', data: [] }
 
@@ -133,8 +192,32 @@ export async function getAbsensiPerKelas(tanggal: string) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', data: [] }
 
-  const roles = await getUserRoles(db, user.id)
-  const kelasList = await getAccessibleWaliKelasClasses(db, user.id, roles)
+  const scope = await getRekapScope(db, user.id)
+  let kelasList: any[] = []
+  if (scope.isAdmin) {
+    const rows = await db.prepare(`
+      SELECT id, tingkat, nomor_kelas, kelompok
+      FROM kelas
+      ORDER BY tingkat, kelompok, CAST(nomor_kelas AS INTEGER)
+    `).all<any>()
+    kelasList = (rows.results || []).map((k: any) => ({
+      ...k,
+      label: formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok),
+    }))
+  } else if (scope.allowedClassIds.length > 0) {
+    const placeholders = scope.allowedClassIds.map(() => '?').join(',')
+    const rows = await db.prepare(`
+      SELECT id, tingkat, nomor_kelas, kelompok
+      FROM kelas
+      WHERE id IN (${placeholders})
+      ORDER BY tingkat, kelompok, CAST(nomor_kelas AS INTEGER)
+    `).bind(...scope.allowedClassIds).all<any>()
+    kelasList = (rows.results || []).map((k: any) => ({
+      ...k,
+      label: formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok),
+    }))
+  }
+
   const data: any[] = []
 
   for (const kelas of kelasList) {
@@ -177,6 +260,12 @@ export async function getAbsensiPerKelas(tanggal: string) {
 
 export async function getDetailKelasHarian(kelasId: string, tanggal: string) {
   const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return []
+
+  const scope = await getRekapScope(db, user.id)
+  if (!scope.isAdmin && !scope.allowedClassIds.includes(kelasId)) return []
+
   const classData = await getFinalAttendanceForClass(db, kelasId, tanggal, tanggal)
   if (!classData) return []
 
@@ -202,6 +291,10 @@ export async function getDetailKelasHarian(kelasId: string, tanggal: string) {
 
 export async function getAbsensiPerJam(tanggal: string) {
   const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized', data: [], slots: [] }
+
+  const scope = await getRekapScope(db, user.id)
   const ta = await db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
   if (!ta) return { error: 'Tahun ajaran belum diatur', data: [], slots: [] }
 
@@ -210,7 +303,7 @@ export async function getAbsensiPerJam(tanggal: string) {
 
   const slots = getSlotsHari(ta.jam_pelajaran || '[]', hari)
 
-  const res = await db.prepare(`
+  let sql = `
     SELECT ab.jam_ke_mulai, ab.jam_ke_selesai, ab.siswa_id, ab.status,
       s.nama_lengkap, mp.nama_mapel, k.tingkat, k.nomor_kelas, k.kelompok
     FROM absensi_siswa ab
@@ -219,8 +312,16 @@ export async function getAbsensiPerJam(tanggal: string) {
     JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
     JOIN kelas k ON pm.kelas_id = k.id
     WHERE ab.tanggal = ?
-    ORDER BY ab.jam_ke_mulai, s.nama_lengkap
-  `).bind(tanggal).all<any>()
+  `
+  const params: unknown[] = [tanggal]
+  if (!scope.isAdmin) {
+    if (scope.allowedClassIds.length === 0) return { error: null, data: [], slots, hariNama: HARI[hari] }
+    const placeholders = scope.allowedClassIds.map(() => '?').join(',')
+    sql += ` AND pm.kelas_id IN (${placeholders})`
+    params.push(...scope.allowedClassIds)
+  }
+  sql += ' ORDER BY ab.jam_ke_mulai, s.nama_lengkap'
+  const res = await db.prepare(sql).bind(...params).all<any>()
 
   const jamMap = new Map<number, any[]>()
   for (const row of res.results || []) {
@@ -252,6 +353,10 @@ export async function getDataCetakAbsensi(params: {
   statusFilter?: string
 }) {
   const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return []
+  const scope = await getRekapScope(db, user.id)
+
   let sql = `
     SELECT ab.tanggal, ab.jam_ke_mulai, ab.jam_ke_selesai, ab.jumlah_jam, ab.status, ab.catatan,
       s.nama_lengkap, s.nisn, mp.nama_mapel, u.nama_lengkap as guru_nama,
@@ -265,6 +370,13 @@ export async function getDataCetakAbsensi(params: {
     WHERE ab.tanggal BETWEEN ? AND ?
   `
   const p: unknown[] = [params.tglMulai, params.tglSelesai]
+
+  if (!scope.isAdmin) {
+    if (scope.allowedClassIds.length === 0) return []
+    const placeholders = scope.allowedClassIds.map(() => '?').join(',')
+    sql += ` AND pm.kelas_id IN (${placeholders})`
+    p.push(...scope.allowedClassIds)
+  }
 
   if (params.kelasId) { sql += ' AND pm.kelas_id = ?'; p.push(params.kelasId) }
   if (params.siswaId) { sql += ' AND ab.siswa_id = ?'; p.push(params.siswaId) }
