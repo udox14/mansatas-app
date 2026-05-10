@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   // Auth check
   const authHeader = req.headers.get('Authorization')
   const isCron = req.headers.get('cf-cron') !== null // Cloudflare internal header
-  if (!isCron && authHeader !== `Bearer ${process.env.CRON_SECRET || 'mansatas-cron'}`) {
+  if (!isCron && authHeader !== `Bearer ${process.env.CRON_SECRET || 'mansatas-cron-xB2kLp9QrT'}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -275,7 +275,7 @@ export function AsetTab({ aset: initialAset, kategori, options }: AsetTabProps) 
             
             <div className="judul-p">
               <h2>Buku Inventaris (Sarana & Prasarana)</h2>
-              <p>MTS KH. A. WAHAB MUHSIN SUKAHIDENG<br/>Dicetak pada: {new Date().toLocaleDateString('id-ID')}</p>
+              <p>MAN 1 TASIKMALAYA<br/>Dicetak pada: {new Date().toLocaleDateString('id-ID')}</p>
             </div>
             
             <table className="w-full text-xs text-left border-collapse border border-black printable-table">

@@ -50,7 +50,7 @@ export async function getDataForSurat() {
 // ============================================================
 function formatNomorSurat(nomorUrutLokal: string, bulan: number, tahun: number): string {
   const bulanRomawi = BULAN_ROMAWI[bulan] || String(bulan)
-  return `${nomorUrutLokal}/Mts.10.06.696/PP.00.5/${bulanRomawi}/${tahun}`
+  return `${nomorUrutLokal}/Man.10.06/PP.00.5/${bulanRomawi}/${tahun}`
 }
 
 // ============================================================

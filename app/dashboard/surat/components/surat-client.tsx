@@ -216,7 +216,7 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
     const blnRomawi = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'][d.getMonth() + 1]
     const tahun = d.getFullYear()
     const pfx = formData.nomor_urut_manual || '___'
-    const defaultNomor = `${pfx}/Mts.10.06.696/PP.00.5/${blnRomawi}/${tahun}`
+    const defaultNomor = `${pfx}/Man.10.06/PP.00.5/${blnRomawi}/${tahun}`
 
     const base: Record<string, any> = { ...formData, nomor_surat: saveResult?.nomor_surat || defaultNomor }
     if (selectedSiswa) base.siswa = selectedSiswa
@@ -302,7 +302,7 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
       <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
         <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg mb-2">
            <Field label="No. Surat (Hanya Bagian Depan)" field="nomor_urut_manual" formData={formData} onChange={updateField} placeholder="Cth: 025 (Wajib Diisi)" />
-           <p className="text-[10px] text-amber-700/80 mt-1 italic">* Format bawaan otomatis: .../Mts.10.06.696/PP.00.5/Bulan/Tahun</p>
+           <p className="text-[10px] text-amber-700/80 mt-1 italic">* Format bawaan otomatis: .../Man.10.06/PP.00.5/Bulan/Tahun</p>
         </div>
 
         {config.needsSiswa && (
