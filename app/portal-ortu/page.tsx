@@ -11,6 +11,11 @@ function rupiah(v: number) {
 
 type SlotJam = { id: number; mulai: string; selesai: string }
 type PolaJam = { hari: number[]; slots: SlotJam[] }
+type TodayAbsensiRow = {
+  penugasan_id: string
+  status: string
+  catatan: string | null
+}
 const DAY_LABEL: Record<number, string> = {
   1: 'Senin',
   2: 'Selasa',
@@ -367,9 +372,9 @@ export default async function PortalOrtuPage() {
     SELECT penugasan_id, status, catatan
     FROM absensi_siswa
     WHERE siswa_id = ? AND tanggal = ?
-  `).bind(siswaId, todayRaw).all()
+  `).bind(siswaId, todayRaw).all<TodayAbsensiRow>()
   
-  const todayAbsensiMap = new Map()
+  const todayAbsensiMap = new Map<string, { status: string; catatan: string | null }>()
   for (const row of todayAbsensiRows.results || []) {
     todayAbsensiMap.set(row.penugasan_id, { status: row.status, catatan: row.catatan })
   }
