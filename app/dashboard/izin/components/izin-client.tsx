@@ -93,10 +93,9 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole, ini
 
   const formatTime = (iso: string) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
 
-  // Autocomplete component (reusable)
-  const SiswaAutocomplete = () => (
+  const renderSiswaAutocomplete = () => (
     <div className="space-y-1.5 relative">
-      <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Cari Siswa <span className="text-rose-500">*</span></Label>
+      <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Cari Siswa <span className="text-rose-500">*</span></Label>
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
         <Input
@@ -105,7 +104,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole, ini
           onChange={e => handleSiswaSearch(e.target.value)}
           onFocus={() => setShowSiswaDropdown(true)}
           onBlur={() => setTimeout(() => setShowSiswaDropdown(false), 200)}
-          className={cn("pl-8 h-9 text-sm rounded-lg", selectedSiswaId ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/50/40' : '')}
+          className={cn("pl-8 h-9 text-sm rounded-lg", selectedSiswaId ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/50' : '')}
         />
         {isSearching && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-slate-400 dark:text-slate-500" />}
       </div>
@@ -159,7 +158,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole, ini
             {stateKeluar?.error && <div className="p-2.5 text-xs text-rose-600 bg-rose-50 rounded-lg border border-rose-200 flex gap-1.5"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{stateKeluar.error}</div>}
             {stateKeluar?.success && <div className="p-2.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-200 dark:border-emerald-800 flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{stateKeluar.success}</div>}
             <input type="hidden" name="siswa_id" value={selectedSiswaId} />
-            <SiswaAutocomplete />
+            {renderSiswaAutocomplete()}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Keterangan / Tujuan (Opsional)</Label>
               <Input name="keterangan" placeholder="Contoh: Beli alat tulis..." className="h-9 text-sm rounded-lg" />
@@ -186,7 +185,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole, ini
             {stateKelas?.success && <div className="p-2.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{stateKelas.success}</div>}
             <input type="hidden" name="siswa_id" value={selectedSiswaId} />
             {selectedJam.map(jam => <input key={jam} type="hidden" name="jam_pelajaran" value={jam} />)}
-            <SiswaAutocomplete />
+            {renderSiswaAutocomplete()}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Jam Pelajaran <span className="text-rose-500">*</span></Label>
