@@ -288,6 +288,7 @@ function generateLaporanRingkasan(
 // ─── Modal Component ──────────────────────────────────────────────────────────
 
 export function CetakLaporanModal({ isOpen, onClose, type, siswaId, siswaNama, kelasList }: Props) {
+  const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
   const [tandaTangan, setTandaTangan] = useState(true)
   const [namaGuru, setNamaGuru] = useState('')
   const [urutan, setUrutan] = useState<'nama' | 'hafalan'>('nama')
@@ -318,7 +319,10 @@ export function CetakLaporanModal({ isOpen, onClose, type, siswaId, siswaNama, k
         html = generateLaporanRingkasan(data, { tandaTangan, namaGuru, urutan, type }, baseUrl)
       }
 
-      const pw = window.open('', '_blank', 'width=850,height=950')
+      let pw = window.open('', '_blank', 'width=850,height=950')
+      if (!pw && isMobile) {
+        pw = window.open('', '_self')
+      }
       if (pw) {
         pw.document.open()
         pw.document.write(html)
@@ -411,7 +415,7 @@ export function CetakLaporanModal({ isOpen, onClose, type, siswaId, siswaNama, k
             disabled={isLoading}
             className="gap-2 bg-emerald-600 hover:bg-emerald-700"
           >
-            {isLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Memproses...</> : <><Printer className="h-4 w-4" /> Cetak</>}
+            {isLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Memproses...</> : <><Printer className="h-4 w-4" /> {isMobile ? 'Simpan PDF' : 'Cetak'}</>}
           </Button>
         </DialogFooter>
       </DialogContent>

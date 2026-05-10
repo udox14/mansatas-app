@@ -136,6 +136,7 @@ function sumBy<T>(rows: T[], picker: (row: T) => number) {
 }
 
 export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }: LaporanClientProps) {
+  const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
   const [tanggalAwal, setTanggalAwal] = useState(firstDayOfMonthInput())
   const [tanggalAkhir, setTanggalAkhir] = useState(todayInput())
   const [kategori, setKategori] = useState('semua')
@@ -282,7 +283,7 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
               <Dialog open={printModalOpen} onOpenChange={setPrintModalOpen}>
                 <DialogTrigger asChild>
                   <Button className="h-9 w-full gap-2 text-xs xl:w-auto">
-                    <Printer className="h-4 w-4" /> Cetak Laporan
+                    <Printer className="h-4 w-4" /> {isMobile ? 'Simpan PDF' : 'Cetak Laporan'}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-h-[88vh] overflow-y-auto rounded-xl p-0 sm:max-w-lg">
@@ -352,7 +353,7 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
                       Batal
                     </Button>
                     <Button size="sm" className="h-8 gap-2 text-xs" onClick={handlePrint}>
-                      <Printer className="h-3.5 w-3.5" /> Cetak Sekarang
+                      <Printer className="h-3.5 w-3.5" /> {isMobile ? 'Simpan PDF' : 'Cetak Sekarang'}
                     </Button>
                   </div>
                 </DialogContent>

@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { useReactToPrint } from 'react-to-print'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -38,6 +39,15 @@ const ST: Record<string, { bg: string; text: string; label: string; dot: string 
 function today() { return todayWIB() }
 function fmtTgl(t: string) { return new Date(t + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) }
 function fmtTglFull(t: string) { return new Date(t + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) }
+function shiftDateISO(isoDate: string, offsetDays: number) {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  dt.setUTCDate(dt.getUTCDate() + offsetDays)
+  const yy = dt.getUTCFullYear()
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getUTCDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}
 
 function StatusBadge({ status }: { status: string }) {
   const s = ST[status] || ST.ALFA
@@ -90,8 +100,7 @@ function TabKelas() {
   }
 
   const nav = (off: number) => {
-    const d = new Date(tanggal + 'T00:00:00'); d.setDate(d.getDate() + off)
-    setTanggal(d.toISOString().split('T')[0])
+    setTanggal(prev => shiftDateISO(prev, off))
   }
 
   // Group by tingkat
@@ -103,14 +112,18 @@ function TabKelas() {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-3 flex items-center gap-2 flex-wrap">
-        <Button variant="outline" size="sm" onClick={() => nav(-1)} className="px-2"><ChevronLeft className="h-4 w-4" /></Button>
-        <Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="w-[160px] h-9 text-sm" />
-        <Button variant="outline" size="sm" onClick={() => nav(1)} className="px-2"><ChevronRight className="h-4 w-4" /></Button>
-        <Button variant="outline" size="sm" onClick={() => setTanggal(today())} className="text-xs">Hari Ini</Button>
-        <Button onClick={search} disabled={loading} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white ml-auto">
+      <div className="rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-3 space-y-2">
+        <div className="grid grid-cols-[36px_1fr_36px] gap-2 items-center">
+          <Button variant="outline" size="sm" onClick={() => nav(-1)} className="h-9 w-9 p-0"><ChevronLeft className="h-4 w-4" /></Button>
+          <Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="w-full h-9 text-sm" />
+          <Button variant="outline" size="sm" onClick={() => nav(1)} className="h-9 w-9 p-0"><ChevronRight className="h-4 w-4" /></Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setTanggal(today())} className="text-xs h-9">Hari Ini</Button>
+          <Button onClick={search} disabled={loading} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white h-9 ml-auto">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Search className="h-4 w-4 mr-1" />Tampilkan</>}
-        </Button>
+          </Button>
+        </div>
       </div>
 
       {data.length > 0 && <p className="text-xs text-slate-500 dark:text-slate-400 px-1">{fmtTglFull(tanggal)}</p>}
@@ -277,8 +290,7 @@ function TabJam() {
   const [detailJam, setDetailJam] = useState<any>(null)
 
   const nav = (off: number) => {
-    const d = new Date(tanggal + 'T00:00:00'); d.setDate(d.getDate() + off)
-    setTanggal(d.toISOString().split('T')[0])
+    setTanggal(prev => shiftDateISO(prev, off))
   }
 
   const search = async () => {
@@ -290,14 +302,18 @@ function TabJam() {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-3 flex items-center gap-2 flex-wrap">
-        <Button variant="outline" size="sm" onClick={() => nav(-1)} className="px-2"><ChevronLeft className="h-4 w-4" /></Button>
-        <Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="w-[160px] h-9 text-sm" />
-        <Button variant="outline" size="sm" onClick={() => nav(1)} className="px-2"><ChevronRight className="h-4 w-4" /></Button>
-        <Button variant="outline" size="sm" onClick={() => setTanggal(today())} className="text-xs">Hari Ini</Button>
-        <Button onClick={search} disabled={loading} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white ml-auto">
+      <div className="rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 p-3 space-y-2">
+        <div className="grid grid-cols-[36px_1fr_36px] gap-2 items-center">
+          <Button variant="outline" size="sm" onClick={() => nav(-1)} className="h-9 w-9 p-0"><ChevronLeft className="h-4 w-4" /></Button>
+          <Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="w-full h-9 text-sm" />
+          <Button variant="outline" size="sm" onClick={() => nav(1)} className="h-9 w-9 p-0"><ChevronRight className="h-4 w-4" /></Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setTanggal(today())} className="text-xs h-9">Hari Ini</Button>
+          <Button onClick={search} disabled={loading} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white h-9 ml-auto">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Search className="h-4 w-4 mr-1" />Tampilkan</>}
-        </Button>
+          </Button>
+        </div>
       </div>
 
       {data.length > 0 && <p className="text-xs text-slate-500 dark:text-slate-400 px-1">{hariNama}, {fmtTglFull(tanggal)}</p>}
@@ -350,6 +366,7 @@ function TabCetak({ filterOptions }: { filterOptions: FilterOpt }) {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
+  const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
 
   const filteredSiswa = searchQ.length >= 2
     ? filterOptions.siswa.filter((s: any) => s.nama.toLowerCase().includes(searchQ.toLowerCase()) || s.nisn.includes(searchQ)).slice(0, 20)
@@ -366,18 +383,17 @@ function TabCetak({ filterOptions }: { filterOptions: FilterOpt }) {
     setLoading(false)
   }
 
-  const handlePrint = () => {
-    if (!printRef.current) return
-    const w = window.open('', '_blank')
-    if (!w) return
-    w.document.write(`<!DOCTYPE html><html><head><title>Rekap Absensi</title>
-      <style>body{font-family:'Segoe UI',sans-serif;font-size:11px;margin:20px;color:#333}
-      h2{font-size:14px;margin-bottom:4px}table{width:100%;border-collapse:collapse;margin-top:8px}
-      th,td{border:1px solid #ddd;padding:4px 6px;text-align:left;font-size:10px}
-      th{background:#f5f5f5;font-weight:600}.s-sakit{color:#d97706}.s-alfa{color:#dc2626}.s-izin{color:#2563eb}
-      @media print{body{margin:10mm}}</style></head><body>${printRef.current.innerHTML}</body></html>`)
-    w.document.close(); w.print()
-  }
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `rekap_absensi_${tglMulai}_${tglSelesai}`,
+    pageStyle: `
+      @page { size: A4 portrait; margin: 10mm; }
+      @media print {
+        html, body { background: #fff !important; }
+        .print-only { display: block !important; }
+      }
+    `,
+  })
 
   const handleExcel = () => {
     if (!printRef.current) return
@@ -440,17 +456,22 @@ function TabCetak({ filterOptions }: { filterOptions: FilterOpt }) {
             </Select>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button onClick={search} disabled={loading} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Search className="h-4 w-4 mr-1" />Muat Data</>}
           </Button>
-          {data.length > 0 && (
-            <>
-              <Button onClick={handlePrint} size="sm" variant="outline"><Printer className="h-4 w-4 mr-1" />Cetak PDF</Button>
-              <Button onClick={handleExcel} size="sm" variant="outline"><FileSpreadsheet className="h-4 w-4 mr-1" />Excel</Button>
-            </>
-          )}
+          <Button onClick={() => handlePrint()} disabled={loading || data.length === 0} size="sm" variant="outline">
+            <Printer className="h-4 w-4 mr-1" />{isMobile ? 'Simpan PDF' : 'Cetak PDF'}
+          </Button>
+          <Button onClick={handleExcel} disabled={loading || data.length === 0} size="sm" variant="outline">
+            <FileSpreadsheet className="h-4 w-4 mr-1" />Excel
+          </Button>
         </div>
+        {!loading && data.length === 0 && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
+            Belum ada data untuk dicetak. Klik <strong>Muat Data</strong> dulu atau ubah filter tanggal/kelas/status.
+          </p>
+        )}
       </div>
 
       {data.length > 0 && (

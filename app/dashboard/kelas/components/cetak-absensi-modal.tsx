@@ -25,6 +25,7 @@ interface CetakAbsensiModalProps {
 }
 
 export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
+  const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
   const [open, setOpen] = useState(false)
   const [filterMode, setFilterMode] = useState<FilterMode>('satu')
   const [selectedKelasId, setSelectedKelasId] = useState<string>('')
@@ -258,7 +259,9 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
                     {isLoading
                       ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Memuat...</>
                       : <><Printer className="h-3.5 w-3.5" />
-                          {previewDataList.length > 1 ? `Cetak ${previewDataList.length} Halaman` : 'Cetak Sekarang'}
+                          {previewDataList.length > 1
+                            ? (isMobile ? `Simpan PDF ${previewDataList.length} Halaman` : `Cetak ${previewDataList.length} Halaman`)
+                            : (isMobile ? 'Simpan PDF' : 'Cetak Sekarang')}
                         </>
                     }
                   </Button>
@@ -301,19 +304,6 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
                 {/* Preview */}
                 {previewDataList.length > 0 && !isLoading && (
                   <div className="space-y-6">
-                    {/* Hidden print targets */}
-                    <div className="sr-only">
-                      <div ref={printRef}>
-                        {previewDataList.map((data, idx) => (
-                          <BlankoAbsensiTemplate
-                            key={data.kelas.id}
-                            data={data}
-                            tanggalCetak={tanggalCetak}
-                            pageBreak={idx > 0}
-                          />
-                        ))}
-                      </div>
-                    </div>
 
                     {/* Visible preview — scale down agar pas di layar */}
                     {previewDataList.map((data, idx) => (
@@ -345,6 +335,21 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
           </DialogPrimitive.Content>
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>
+      <div
+        id="kelas-absensi-print-root"
+        ref={printRef}
+        className="absolute -left-[100000px] top-0 print:static print:left-auto"
+      >
+        {previewDataList.map((data, idx) => (
+          <BlankoAbsensiTemplate
+            key={data.kelas.id}
+            data={data}
+            tanggalCetak={tanggalCetak}
+            pageBreak={idx > 0}
+          />
+        ))}
+      </div>
     </>
   )
 }
+
