@@ -3,6 +3,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -11,7 +12,7 @@ import {
   User, GraduationCap, ShieldAlert, DoorOpen, LineChart, 
   MapPin, Phone, Users, CheckCircle2, History, AlertTriangle, 
   Image as ImageIcon, ChevronDown, ChevronUp, BookOpen, Pencil,
-  LogOut, RotateCcw, CalendarSearch, ShieldCheck
+  LogOut, RotateCcw, CalendarSearch, ShieldCheck, Wallet, Receipt, Landmark
 } from 'lucide-react'
 import { EditSiswaModal } from '../../components/edit-modal'
 import { TandaiKeluarModal, BatalkanKeluarModal } from './tandai-keluar-modal'
@@ -20,9 +21,10 @@ import { formatNamaKelas } from '@/lib/utils'
 import type { SanksiConfig } from '../../../kedisiplinan/actions'
 
 export function DetailSiswaClient({
-  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, keteranganWaliKelas, kelasList, currentUser, sanksiList, initialTab = 'biodata'
+  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, keteranganWaliKelas, keuangan, kelasList, currentUser, sanksiList, initialTab = 'biodata'
 }: {
   siswa: any, riwayatKelas: any[], pelanggaran: any[], izinKeluar: any[], izinKelas: any[], keteranganWaliKelas: any[]
+  keuangan?: { dspt: any | null; sppSaldoAwal: any | null; transaksi: any[] }
   kelasList?: any[],
   currentUser: any
   sanksiList?: SanksiConfig[]
@@ -56,6 +58,9 @@ export function DetailSiswaClient({
     const sorted = [...sanksiList].sort((a, b) => a.poin_minimal - b.poin_minimal)
     return sorted.find(s => s.poin_minimal > totalPoin) ?? null
   }, [totalPoin, sanksiList])
+
+  const formatRupiah = (n: number) =>
+    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n || 0)
 
   // 2. Format Kelas Saat Ini
   const namaKelasSekarang = siswa.kelas 
@@ -301,6 +306,7 @@ export function DetailSiswaClient({
             </TabsTrigger>
             <TabsTrigger value="izin" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-orange-500 data-[state=active]:text-white text-xs font-medium gap-1.5"><DoorOpen className="h-4 w-4"/> Perizinan</TabsTrigger>
             <TabsTrigger value="absensi" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-cyan-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><CalendarSearch className="h-4 w-4"/> Rekap Absensi</TabsTrigger>
+            <TabsTrigger value="keuangan" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-emerald-700 data-[state=active]:text-white text-xs font-medium gap-1.5"><Wallet className="h-4 w-4"/> Keuangan</TabsTrigger>
           </TabsList>
         </div>
 
@@ -370,19 +376,6 @@ export function DetailSiswaClient({
         {/* ======================= TAB 2: AKADEMIK & NILAI (GABUNGAN BARU) ======================= */}
         <TabsContent value="akademik_nilai" className="mt-4 animate-in fade-in">
           <div className="w-full space-y-2">
-            
-            <div className="flex flex-col sm:flex-row justify-between sm:items-end mb-6 gap-2">
-              <div>
-                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 flex items-center gap-2">
-                  <LineChart className="text-indigo-600 h-6 w-6"/> Histori Penempatan & Nilai
-                </h3>
-                <p className="text-slate-500 dark:text-slate-400 dark:text-slate-500 text-sm mt-1">Klik pada masing-masing tingkat kelas untuk melihat rekapitulasi nilai semester.</p>
-              </div>
-              <div className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-lg shadow-sm w-fit">
-                Berdasarkan Data RDM
-              </div>
-            </div>
-
             {/* RENDER ACCORDION UNTUK KELAS 10, 11, 12 */}
             {renderAccordionItem(10, 'Kelas 10', 'Semester 1', 'nilai_smt1', 'Semester 2', 'nilai_smt2', mapels10)}
             {renderAccordionItem(11, 'Kelas 11', 'Semester 3', 'nilai_smt3', 'Semester 4', 'nilai_smt4', mapels11)}
@@ -576,6 +569,97 @@ export function DetailSiswaClient({
         {/* ======================= TAB 5: REKAP ABSENSI ======================= */}
         <TabsContent value="absensi" className="mt-4 animate-in fade-in">
           <RekapAbsensiTab siswaId={siswa.id} siswa={siswa} />
+        </TabsContent>
+
+        {/* ======================= TAB 6: KEUANGAN ======================= */}
+        <TabsContent value="keuangan" className="mt-4 space-y-4 animate-in fade-in">
+          {(() => {
+            const dspt = keuangan?.dspt
+            const sppAwal = keuangan?.sppSaldoAwal
+            const transaksi = keuangan?.transaksi || []
+            const dsptTarget = dspt?.nominal_target || 0
+            const dsptTerbayar = (dspt?.total_dibayar || 0) + (dspt?.total_diskon || 0)
+            const dsptSisa = Math.max(0, dsptTarget - dsptTerbayar)
+            const sppTotal = sppAwal?.jumlah || 0
+            const sppDibayar = sppAwal?.total_dibayar || 0
+            const sppSisa = Math.max(0, sppTotal - sppDibayar)
+            const trxAktif = transaksi.filter((t: any) => !t.is_void)
+            const totalPembayaran = trxAktif.reduce((acc: number, t: any) => acc + (t.jumlah_total || 0), 0)
+
+            return (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
+                    <div className="flex items-center gap-2 text-blue-700 mb-2">
+                      <Landmark className="h-4 w-4" />
+                      <p className="text-xs font-bold uppercase tracking-wider">DSPT</p>
+                    </div>
+                    <p className="text-xs text-slate-500">Target</p>
+                    <p className="text-base font-black text-slate-800">{formatRupiah(dsptTarget)}</p>
+                    <p className="text-xs text-slate-500 mt-2">Sisa</p>
+                    <p className={`text-sm font-bold ${dsptSisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatRupiah(dsptSisa)}</p>
+                  </div>
+
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                    <div className="flex items-center gap-2 text-amber-700 mb-2">
+                      <Wallet className="h-4 w-4" />
+                      <p className="text-xs font-bold uppercase tracking-wider">SPP Tunggakan Awal</p>
+                    </div>
+                    <p className="text-xs text-slate-500">Total Tunggakan</p>
+                    <p className="text-base font-black text-slate-800">{formatRupiah(sppTotal)}</p>
+                    <p className="text-xs text-slate-500 mt-2">Sisa</p>
+                    <p className={`text-sm font-bold ${sppSisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatRupiah(sppSisa)}</p>
+                  </div>
+
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+                    <div className="flex items-center gap-2 text-emerald-700 mb-2">
+                      <Receipt className="h-4 w-4" />
+                      <p className="text-xs font-bold uppercase tracking-wider">Transaksi</p>
+                    </div>
+                    <p className="text-xs text-slate-500">Total Pembayaran Sah</p>
+                    <p className="text-base font-black text-slate-800">{formatRupiah(totalPembayaran)}</p>
+                    <p className="text-xs text-slate-500 mt-2">Jumlah Transaksi</p>
+                    <p className="text-sm font-bold text-slate-700">{trxAktif.length} transaksi</p>
+                  </div>
+                </div>
+
+                <div className="bg-surface rounded-lg border border-surface overflow-hidden">
+                  <div className="px-4 py-3 border-b border-surface-2 flex items-center justify-between">
+                    <p className="text-sm font-bold text-slate-700">Riwayat Transaksi Terakhir</p>
+                    <Link href={`/dashboard/keuangan/siswa/${siswa.id}?tab=riwayat`} className="text-xs font-semibold text-emerald-700 hover:underline">
+                      Buka Detail Keuangan
+                    </Link>
+                  </div>
+                  {transaksi.length === 0 ? (
+                    <div className="py-10 text-center text-sm text-slate-400">Belum ada transaksi keuangan untuk siswa ini.</div>
+                  ) : (
+                    <div className="divide-y divide-surface-2">
+                      {transaksi.slice(0, 8).map((t: any) => (
+                        <div key={t.id} className="px-4 py-2.5 flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-700 truncate">
+                              {t.nomor_kuitansi || '-'} · {String(t.kategori || '-').toUpperCase()}
+                            </p>
+                            <p className="text-[11px] text-slate-400">
+                              {new Date(t.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })} · {t.metode_bayar === 'tunai' ? 'Tunai' : 'Transfer'}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className={`text-xs font-bold ${t.is_void ? 'text-slate-400 line-through' : 'text-emerald-700'}`}>
+                              {formatRupiah(t.jumlah_total || 0)}
+                            </p>
+                            <p className={`text-[10px] font-semibold ${t.is_void ? 'text-rose-500' : 'text-emerald-600'}`}>
+                              {t.is_void ? 'VOID' : 'SAH'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )
+          })()}
         </TabsContent>
 
       </Tabs>

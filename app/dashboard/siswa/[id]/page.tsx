@@ -80,6 +80,9 @@ export default async function DetailSiswaPage({
     izinKelas,
     keteranganWaliKelas,
     rekapNilai,
+    dsptKeuangan,
+    sppSaldoAwalKeuangan,
+    transaksiKeuangan,
     kelasResult,
     sanksiList,
   ] = await Promise.all([
@@ -132,6 +135,28 @@ export default async function DetailSiswaPage({
     `).bind(id).first<any>(),
 
     db.prepare(`
+      SELECT id, nominal_target, total_dibayar, total_diskon, status, updated_at
+      FROM fin_dspt
+      WHERE siswa_id = ?
+      LIMIT 1
+    `).bind(id).first<any>(),
+
+    db.prepare(`
+      SELECT id, jumlah, total_dibayar, status, keterangan, updated_at
+      FROM fin_spp_saldo_awal
+      WHERE siswa_id = ?
+      LIMIT 1
+    `).bind(id).first<any>(),
+
+    db.prepare(`
+      SELECT id, nomor_kuitansi, kategori, metode_bayar, jumlah_total, created_at, is_void, void_reason
+      FROM fin_transaksi
+      WHERE siswa_id = ?
+      ORDER BY created_at DESC
+      LIMIT 15
+    `).bind(id).all<any>(),
+
+    db.prepare(`
       SELECT id, tingkat, nomor_kelas, kelompok
       FROM kelas ORDER BY tingkat ASC, kelompok ASC, nomor_kelas ASC
     `).all<any>(),
@@ -141,7 +166,7 @@ export default async function DetailSiswaPage({
 
   const rawRna = rekapNilai || {}
   const parseStr = (val: any) => { try { return val ? JSON.parse(val) : {} } catch { return {} } }
-  const allowedTabs = new Set(['biodata', 'akademik_nilai', 'disiplin', 'izin', 'absensi'])
+  const allowedTabs = new Set(['biodata', 'akademik_nilai', 'disiplin', 'izin', 'absensi', 'keuangan'])
   const initialTab = tab && allowedTabs.has(tab) ? tab : 'biodata'
   const backHref = returnTo && returnTo.startsWith('/dashboard/') ? returnTo : '/dashboard/siswa'
   const backLabel = backHref.startsWith('/dashboard/kelas-binaan') ? 'Kembali ke Kelas Binaan' : 'Kembali ke Data Siswa'
@@ -177,6 +202,11 @@ export default async function DetailSiswaPage({
         izinKeluar={izinKeluar.results || []}
         izinKelas={izinKelas.results || []}
         keteranganWaliKelas={keteranganWaliKelas.results || []}
+        keuangan={{
+          dspt: dsptKeuangan || null,
+          sppSaldoAwal: sppSaldoAwalKeuangan || null,
+          transaksi: transaksiKeuangan.results || [],
+        }}
         kelasList={kelasResult.results || []}
         currentUser={{ ...user, roles: userRoles }}
         sanksiList={sanksiList}
