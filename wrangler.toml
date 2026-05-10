@@ -31,6 +31,9 @@ BETTER_AUTH_SECRET = "Kfa9zVehGtjD2ARODz5GX9C0wbxO756J3bssf6nyTOk="
 BETTER_AUTH_URL = "https://mansatas-app.drudox.workers.dev"
 R2_PUBLIC_URL = "https://pub-84873e7206c44c4ba6e4aa405b6a8192.r2.dev"
 CRON_SECRET = "mansatas-cron-xB2kLp9QrT"
+NEXT_PUBLIC_VAPID_PUBLIC_KEY = "BPj5xZsgd-QqffKK47tIMInXKIagV0PRpUADJ1dqlwbZM810kV2lWMqWBaLP3dZ6zO5Fwf7Isp1SefqN7Qmk6z4"
+VAPID_PRIVATE_KEY = "Evez4lvrS64K4zzy5kpbTR5l21Lwq87UlhO5i03sVlM"
+VAPID_SUBJECT = "mailto:admin@man1tasikmalaya.sch.id"
 
 [triggers]
 crons = ["* * * * *"] # Setiap menit — handler cek jadwal_notifikasi di DB
