@@ -38,6 +38,7 @@ type StudentRow = {
   id: string
   nama_lengkap: string
   nisn: string
+  foto_url: string | null
 }
 
 type ClassRow = {
@@ -172,7 +173,7 @@ export async function getFinalAttendanceForClass(
       WHERE k.id = ?
     `).bind(kelasId).first<ClassRow>(),
     db.prepare(`
-      SELECT id, nama_lengkap, nisn
+      SELECT id, nama_lengkap, nisn, foto_url
       FROM siswa
       WHERE kelas_id = ? AND status = 'aktif'
       ORDER BY nama_lengkap

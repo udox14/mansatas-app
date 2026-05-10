@@ -176,6 +176,13 @@ export function AbsensiClient({ initialData }: Props) {
                 {/* Number */}
                 <span className="text-[10px] text-slate-400 w-5 text-center shrink-0">{idx + 1}</span>
 
+                {/* Avatar */}
+                <div className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
+                  {s.foto_url
+                    ? <img src={s.foto_url} alt="" className="h-full w-full object-cover" />
+                    : <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{s.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
+                </div>
+
                 {/* Name + info */}
                 <div className="flex-1 min-w-0">
                   <p className="text-[13px] font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate leading-tight">{s.nama_lengkap}</p>

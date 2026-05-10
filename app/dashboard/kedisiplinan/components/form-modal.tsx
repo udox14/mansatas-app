@@ -60,7 +60,7 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
   const [searchSiswaQuery, setSearchSiswaQuery] = useState('')
   const [selectedSiswaId, setSelectedSiswaId] = useState('')
   const [showSiswaDropdown, setShowSiswaDropdown] = useState(false)
-  const [siswaResults, setSiswaResults] = useState<{ id: string; nama_lengkap: string; kelas: string }[]>([])
+  const [siswaResults, setSiswaResults] = useState<{ id: string; nama_lengkap: string; foto_url: string | null; kelas: string }[]>([])
   const [isSearchingSiswa, setIsSearchingSiswa] = useState(false)
   const siswaDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -176,8 +176,13 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
                   : siswaResults.map(s => (
                     <div key={s.id} onMouseDown={e => e.preventDefault()}
                       onClick={() => { setSelectedSiswaId(s.id); setSearchSiswaQuery(s.nama_lengkap); setShowSiswaDropdown(false) }}
-                      className="px-3 py-2 hover:bg-rose-50 cursor-pointer border-b border-slate-50 flex justify-between items-center">
-                      <span className="text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100">{s.nama_lengkap}</span>
+                      className="px-3 py-2 hover:bg-rose-50 cursor-pointer border-b border-slate-50 flex items-center gap-2.5">
+                      <div className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
+                        {s.foto_url
+                          ? <img src={s.foto_url} alt="" className="h-full w-full object-cover" />
+                          : <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{s.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
+                      </div>
+                      <span className="text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 flex-1 min-w-0 truncate">{s.nama_lengkap}</span>
                       <span className="text-[10px] font-bold bg-surface-3 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-400 dark:text-slate-500 shrink-0 ml-2">{s.kelas}</span>
                     </div>
                   ))}

@@ -19,7 +19,7 @@ export async function searchSiswa(query: string) {
 
   const result = await db
     .prepare(
-      `SELECT s.id, s.nama_lengkap, s.nisn, k.tingkat, k.nomor_kelas, k.kelompok
+      `SELECT s.id, s.nama_lengkap, s.nisn, s.foto_url, k.tingkat, k.nomor_kelas, k.kelompok
        FROM siswa s
        LEFT JOIN kelas k ON s.kelas_id = k.id
        WHERE s.status = 'aktif' AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)
@@ -33,6 +33,7 @@ export async function searchSiswa(query: string) {
     id: s.id,
     nama_lengkap: s.nama_lengkap,
     nisn: s.nisn,
+    foto_url: s.foto_url ?? null,
     kelas: s.tingkat
       ? `${s.tingkat}-${s.nomor_kelas}`
       : 'Tanpa Kelas',
