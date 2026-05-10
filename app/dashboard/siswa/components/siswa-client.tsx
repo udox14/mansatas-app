@@ -17,24 +17,78 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { formatNamaKelas, cn } from '@/lib/utils'
 
 const compressImage = async (file: File): Promise<File> => {
+  const TARGET_MAX_BYTES = 300 * 1024 // 300KB
+  const MIN_QUALITY = 0.5
+  const QUALITY_STEPS = [0.84, 0.78, 0.72, 0.66, 0.6, 0.55, 0.5]
+
+  const toBlob = (canvas: HTMLCanvasElement, quality: number) =>
+    new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality))
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.readAsDataURL(file)
     reader.onload = (event) => {
       const img = new Image()
       img.src = event.target?.result as string
-      img.onload = () => {
+      img.onload = async () => {
         const canvas = document.createElement('canvas')
-        const MAX_SIZE = 800
-        let width = img.width, height = img.height
-        if (width > height && width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE }
-        else if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE }
-        canvas.width = width; canvas.height = height
-        canvas.getContext('2d')?.drawImage(img, 0, 0, width, height)
-        canvas.toBlob(blob => {
-          if (blob) resolve(new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', { type: 'image/jpeg' }))
-          else resolve(file)
-        }, 'image/jpeg', 0.8)
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return resolve(file)
+
+        const MAX_SIZE = 1000
+        let width = img.width
+        let height = img.height
+        if (width > height && width > MAX_SIZE) {
+          height *= MAX_SIZE / width
+          width = MAX_SIZE
+        } else if (height > MAX_SIZE) {
+          width *= MAX_SIZE / height
+          height = MAX_SIZE
+        }
+
+        const draw = (w: number, h: number) => {
+          canvas.width = Math.max(1, Math.round(w))
+          canvas.height = Math.max(1, Math.round(h))
+          ctx.clearRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        }
+
+        let bestBlob: Blob | null = null
+        let currentWidth = width
+        let currentHeight = height
+
+        for (let scaleAttempt = 0; scaleAttempt < 4; scaleAttempt++) {
+          draw(currentWidth, currentHeight)
+
+          for (const q of QUALITY_STEPS) {
+            const blob = await toBlob(canvas, q)
+            if (!blob) continue
+            bestBlob = blob
+            if (blob.size <= TARGET_MAX_BYTES) {
+              return resolve(
+                new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', { type: 'image/jpeg' })
+              )
+            }
+          }
+
+          // Jika belum masuk target, turunkan dimensi 12% dan ulangi
+          currentWidth *= 0.88
+          currentHeight *= 0.88
+        }
+
+        if (bestBlob && bestBlob.size <= TARGET_MAX_BYTES * 1.15) {
+          return resolve(
+            new File([bestBlob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', { type: 'image/jpeg' })
+          )
+        }
+
+        const finalBlob = await toBlob(canvas, MIN_QUALITY)
+        if (finalBlob) {
+          return resolve(
+            new File([finalBlob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', { type: 'image/jpeg' })
+          )
+        }
+        resolve(file)
       }
       img.onerror = reject
     }

@@ -319,38 +319,36 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
             <CalendarSearch className="h-5 w-5 text-cyan-600" />
             <h3 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 text-sm">Rekap Absensi Harian</h3>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3 items-end">
-            <div className="flex-1 flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1fr,1fr,auto] gap-3 items-end">
+            <div className="w-full">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
                   Tanggal Mulai
-                </label>
-                <input
-                  type="date"
-                  value={tglMulai}
-                  max={tglSelesai}
-                  onChange={e => setTglMulai(e.target.value)}
-                  className="w-full border border-surface rounded-lg px-3 py-1.5 text-sm font-medium bg-surface-2 text-slate-700 dark:text-slate-300 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Tanggal Selesai
-                </label>
-                <input
-                  type="date"
-                  value={tglSelesai}
-                  min={tglMulai}
-                  onChange={e => setTglSelesai(e.target.value)}
-                  className="w-full border border-surface rounded-lg px-3 py-1.5 text-sm font-medium bg-surface-2 text-slate-700 dark:text-slate-300 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
-                />
-              </div>
+              </label>
+              <input
+                type="date"
+                value={tglMulai}
+                max={tglSelesai}
+                onChange={e => setTglMulai(e.target.value)}
+                className="w-full h-10 border border-surface rounded-lg px-3 text-sm font-medium bg-surface-2 text-slate-700 dark:text-slate-300 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+              />
             </div>
-            <div className="flex gap-2 shrink-0">
+            <div className="w-full">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Tanggal Selesai
+              </label>
+              <input
+                type="date"
+                value={tglSelesai}
+                min={tglMulai}
+                onChange={e => setTglSelesai(e.target.value)}
+                className="w-full h-10 border border-surface rounded-lg px-3 text-sm font-medium bg-surface-2 text-slate-700 dark:text-slate-300 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400"
+              />
+            </div>
+            <div className="flex gap-2 w-full xl:w-auto">
               <Button
                 onClick={handleLoad}
                 disabled={loading}
-                className="h-9 px-5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-sm gap-2 shadow-sm"
+                className="h-10 flex-1 xl:flex-none px-5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-sm gap-2 shadow-sm"
               >
                 {loading
                   ? <><Loader2 className="h-4 w-4 animate-spin" /> Memuat...</>
@@ -366,7 +364,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
                     setShowPrintDialog(true)
                   }}
                   variant="outline"
-                  className="h-9 px-4 text-sm font-bold gap-2 border-cyan-300 text-cyan-700 hover:bg-cyan-50"
+                  className="h-10 flex-1 xl:flex-none px-4 text-sm font-bold gap-2 border-cyan-300 text-cyan-700 hover:bg-cyan-50"
                 >
                   <Printer className="h-4 w-4" /> Cetak Laporan
                 </Button>
