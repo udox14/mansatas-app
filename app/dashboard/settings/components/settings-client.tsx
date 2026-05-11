@@ -17,7 +17,7 @@ import {
 import {
   tambahTahunAjaran, setAktifTahunAjaran, hapusTahunAjaran,
   simpanDaftarJurusan, simpanJamPelajaran,
-  setAgendaTimeRestrictionEnabled, setAttendanceTimeRestrictionEnabled
+  setAgendaTimeRestrictionEnabled, setAgendaLateSetting, setAttendanceTimeRestrictionEnabled
 } from '../actions'
 import { DEFAULT_POLA_JAM } from '../types'
 import type { PolaJam, SlotJam } from '../types'
@@ -354,13 +354,19 @@ function PolaJamEditor({ value, onChange }: { value: PolaJam[]; onChange: (v: Po
 export function SettingsClient({
   taData,
   agendaTimeRestrictionEnabled,
+  agendaLateEnabled,
+  agendaLateThresholdMinutes,
   attendanceTimeRestrictionEnabled,
 }: {
   taData: TAProps[]
   agendaTimeRestrictionEnabled: boolean
+  agendaLateEnabled: boolean
+  agendaLateThresholdMinutes: number
   attendanceTimeRestrictionEnabled: boolean
 }) {
   const [agendaTimeRestricted, setAgendaTimeRestricted] = useState(agendaTimeRestrictionEnabled)
+  const [agendaLateActive, setAgendaLateActive] = useState(agendaLateEnabled)
+  const [agendaLateMinutes, setAgendaLateMinutes] = useState(String(agendaLateThresholdMinutes))
   const [attendanceTimeRestricted, setAttendanceTimeRestricted] = useState(attendanceTimeRestrictionEnabled)
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
@@ -382,6 +388,7 @@ export function SettingsClient({
   const [editPolaJam, setEditPolaJam] = useState<PolaJam[]>([])
   const [isSavingJam, setIsSavingJam] = useState(false)
   const [isSavingAgendaSetting, setIsSavingAgendaSetting] = useState(false)
+  const [isSavingAgendaLateSetting, setIsSavingAgendaLateSetting] = useState(false)
   const [isSavingAttendanceSetting, setIsSavingAttendanceSetting] = useState(false)
 
   const addJurusan = (isEdit: boolean) => {
@@ -464,6 +471,20 @@ export function SettingsClient({
     }
   }
 
+  const handleSaveAgendaLateSetting = async () => {
+    const minutes = Number(agendaLateMinutes)
+    if (!Number.isFinite(minutes) || minutes < 0) {
+      alert('Batas telat harus berupa angka 0 menit atau lebih.')
+      return
+    }
+
+    setIsSavingAgendaLateSetting(true)
+    const res = await setAgendaLateSetting(agendaLateActive, minutes)
+    setIsSavingAgendaLateSetting(false)
+    if (res?.error) alert(res.error)
+    else alert('Pengaturan batas telat agenda berhasil disimpan.')
+  }
+
   const handleAttendanceTimeRestrictionToggle = async () => {
     const nextValue = !attendanceTimeRestricted
     setAttendanceTimeRestricted(nextValue)
@@ -518,6 +539,60 @@ export function SettingsClient({
               )}
             />
           </button>
+        </div>
+        <div className="px-5 py-4 border-b border-surface-2">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Status telat agenda</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Jika aktif, agenda yang diisi melewati batas menit dari jam mulai akan ditandai Telat. Jika nonaktif, agenda yang berhasil disimpan tetap Tepat Waktu.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAgendaLateActive(v => !v)}
+              disabled={isSavingAgendaLateSetting}
+              className={cn(
+                'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors',
+                agendaLateActive ? 'bg-amber-500 border-amber-500' : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700',
+                isSavingAgendaLateSetting && 'opacity-60 cursor-wait'
+              )}
+              aria-pressed={agendaLateActive}
+            >
+              <span
+                className={cn(
+                  'inline-block h-5 w-5 transform rounded-full bg-white transition-transform',
+                  agendaLateActive ? 'translate-x-6' : 'translate-x-1'
+                )}
+              />
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-col sm:flex-row sm:items-end gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Batas dianggap telat</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  max={240}
+                  value={agendaLateMinutes}
+                  onChange={e => setAgendaLateMinutes(e.target.value)}
+                  disabled={!agendaLateActive || isSavingAgendaLateSetting}
+                  className="h-9 w-28 rounded-lg bg-surface-2 text-sm"
+                />
+                <span className="text-xs text-slate-500 dark:text-slate-400">menit setelah jam mulai</span>
+              </div>
+            </div>
+            <Button
+              type="button"
+              onClick={handleSaveAgendaLateSetting}
+              disabled={isSavingAgendaLateSetting}
+              className="h-9 text-xs gap-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg"
+            >
+              {isSavingAgendaLateSetting ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Menyimpan...</> : 'Simpan Batas Telat'}
+            </Button>
+          </div>
         </div>
         <div className="px-5 py-4 flex items-start justify-between gap-4">
           <div className="space-y-1">

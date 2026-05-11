@@ -6,7 +6,7 @@ import { checkFeatureAccess } from '@/lib/features'
 import { Settings } from 'lucide-react'
 import { SettingsClient } from './components/settings-client'
 import { PageHeader } from '@/components/layout/page-header'
-import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
 export const metadata = { title: 'Pengaturan Global - MANSATAS App' }
 
@@ -59,6 +59,14 @@ export default async function SettingsPage() {
     SYSTEM_SETTING_KEYS.agendaTimeRestriction,
     true
   )
+  const agendaLateEnabled = await getSystemSettingBoolean(
+    SYSTEM_SETTING_KEYS.agendaLateEnabled,
+    true
+  )
+  const agendaLateThresholdMinutes = await getSystemSettingNumber(
+    SYSTEM_SETTING_KEYS.agendaLateThresholdMinutes,
+    10
+  )
   const attendanceTimeRestrictionEnabled = await getSystemSettingBoolean(
     SYSTEM_SETTING_KEYS.attendanceTimeRestriction,
     false
@@ -73,6 +81,8 @@ export default async function SettingsPage() {
       <SettingsClient
         taData={taData}
         agendaTimeRestrictionEnabled={agendaTimeRestrictionEnabled}
+        agendaLateEnabled={agendaLateEnabled}
+        agendaLateThresholdMinutes={agendaLateThresholdMinutes}
         attendanceTimeRestrictionEnabled={attendanceTimeRestrictionEnabled}
       />
     </div>

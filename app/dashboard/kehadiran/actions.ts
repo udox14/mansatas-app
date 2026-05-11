@@ -296,19 +296,6 @@ export async function simpanAbsensi(
 
   const toSave = dataAbsen.filter(d => d.status !== 'HADIR')
   const delStmt = db.prepare('DELETE FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?').bind(penugasanId, tanggal)
-
-  if (toSave.length === 0) {
-    try { await delStmt.run() } catch (e: any) { return { error: e.message } }
-    revalidatePath('/dashboard/kehadiran')
-    return { success: 'Absensi disimpan! Semua siswa HADIR.' }
-  }
-
-  const insStmts = toSave.map(d =>
-    db.prepare(
-      `INSERT INTO absensi_siswa (penugasan_id,siswa_id,tanggal,jam_ke_mulai,jam_ke_selesai,jumlah_jam,status,catatan,diinput_oleh) VALUES (?,?,?,?,?,?,?,?,?)`
-    ).bind(penugasanId, d.siswa_id, tanggal, jamKeMulai, jamKeSelesai, jumlahJam, d.status, d.catatan || null, diinputOleh)
-  )
-
   const upsertSesiStmt = db.prepare(`
     INSERT INTO absensi_sesi_guru (penugasan_id, tanggal, submitted_at, diinput_oleh, updated_at)
     VALUES (?, ?, datetime('now'), ?, datetime('now'))
@@ -318,11 +305,25 @@ export async function simpanAbsensi(
       updated_at = excluded.updated_at
   `).bind(penugasanId, tanggal, diinputOleh)
 
+  if (toSave.length === 0) {
+    try { await db.batch([delStmt, upsertSesiStmt]) } catch (e: any) { return { error: e.message } }
+    revalidatePath('/dashboard/kehadiran')
+    revalidatePath('/dashboard/rekap-absensi')
+    return { success: 'Absensi disimpan! Semua siswa HADIR.' }
+  }
+
+  const insStmts = toSave.map(d =>
+    db.prepare(
+      `INSERT INTO absensi_siswa (penugasan_id,siswa_id,tanggal,jam_ke_mulai,jam_ke_selesai,jumlah_jam,status,catatan,diinput_oleh) VALUES (?,?,?,?,?,?,?,?,?)`
+    ).bind(penugasanId, d.siswa_id, tanggal, jamKeMulai, jamKeSelesai, jumlahJam, d.status, d.catatan || null, diinputOleh)
+  )
+
   try {
     const all = [delStmt, ...insStmts, upsertSesiStmt]
     for (let i = 0; i < all.length; i += 100) await db.batch(all.slice(i, i + 100))
   } catch (e: any) { return { error: e.message } }
 
   revalidatePath('/dashboard/kehadiran')
+  revalidatePath('/dashboard/rekap-absensi')
   return { success: `Absensi disimpan! ${toSave.length} siswa tidak hadir.` }
 }
