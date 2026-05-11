@@ -2,7 +2,7 @@
 // Service Worker MANSATAS PWA
 // Strategy: cache-first untuk static assets, network-first untuk halaman
 
-const CACHE_NAME = 'mansatas-v2'
+const CACHE_NAME = 'mansatas-v3'
 const STATIC_ASSETS = [
   '/manifest.json',
   '/favicon-16x16.png',
