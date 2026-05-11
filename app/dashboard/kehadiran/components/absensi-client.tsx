@@ -122,7 +122,7 @@ export function AbsensiClient({ initialData }: Props) {
     return (
       <div className="space-y-2 pb-28 md:pb-20">
         {/* Header */}
-        <div className="sticky top-12 md:top-0 z-10 bg-white dark:bg-slate-900 border-b pb-2 -mx-1 px-1">
+        <div className="sticky top-0 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b pb-3 -mx-3 sm:-mx-4 md:-mx-5 -mt-3 sm:-mt-4 md:-mt-5 mb-4 px-3 sm:px-4 md:px-5 pt-3 sm:pt-4 md:pt-5 shadow-sm transition-all">
           <div className="flex items-center gap-2 mb-1.5">
             <button onClick={closeBlock} className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800/80 dark:hover:bg-slate-800">
               <ArrowLeft className="h-4 w-4 text-slate-500 dark:text-slate-400" />

@@ -35,8 +35,13 @@ export type PiketShiftData = {
 // ============================================================
 function getPolaHariIni(polaJamRaw: string, hari: number): SlotJam[] {
   let polaList: PolaJam[] = []
-  try { polaList = JSON.parse(polaJamRaw) } catch { return [] }
-  const pola = polaList.find(p => p.hari.includes(hari))
+  try {
+    const parsed = JSON.parse(polaJamRaw)
+    polaList = Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+  const pola = polaList.find(p => p && Array.isArray(p.hari) && p.hari.includes(hari))
   return pola?.slots ?? []
 }
 
@@ -56,95 +61,101 @@ export async function getJadwalPiketHariIni(dateOverride?: string): Promise<{
   tanggal: string
   hari: number
 }> {
-  const user = await getCurrentUser()
-  if (!user) return { error: 'Unauthorized', shifts: [], tanggal: '', hari: 0 }
+  try {
+    const user = await getCurrentUser()
+    if (!user) return { error: 'Unauthorized', shifts: [], tanggal: '', hari: 0 }
 
-  // Cek act-as
-  const effective = await getEffectiveUser()
-  const userId = effective?.isActingAs ? effective.effectiveUserId : user.id
+    // Cek act-as
+    const effective = await getEffectiveUser()
+    const userId = effective?.isActingAs ? effective.effectiveUserId : user.id
 
-  const db = await getDB()
+    const db = await getDB()
 
-  // Resolusi tanggal
-  let tanggal: string
-  let hari: number
-  const resolvedDateOverride = dateOverride || (await getActAsDate()) || null
-  if (resolvedDateOverride && /^\d{4}-\d{2}-\d{2}$/.test(resolvedDateOverride)) {
-    tanggal = resolvedDateOverride
-    const d = new Date(resolvedDateOverride + 'T00:00:00')
-    const day = d.getDay()
-    hari = day === 0 ? 7 : day
-  } else {
-    const now = nowWIB()
-    tanggal = now.toISOString().split('T')[0]
-    hari = getHariNumber(now)
-  }
-
-  if (hari === 7) return { error: null, shifts: [], tanggal, hari }
-
-  // Ambil TA aktif untuk resolve slot jam
-  const ta = await db.prepare(
-    'SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1'
-  ).first<any>()
-  const slots: SlotJam[] = ta ? getPolaHariIni(ta.jam_pelajaran || '[]', hari) : []
-
-  // Query jadwal piket user hari ini + cek agenda_piket existing
-  const result = await db.prepare(`
-    SELECT
-      j.id as jadwal_id,
-      j.user_id,
-      u.nama_lengkap as guru_nama,
-      s.id as shift_id,
-      s.nama_shift,
-      s.jam_mulai,
-      s.jam_selesai,
-      ap.id as agenda_id,
-      ap.status as agenda_status,
-      ap.foto_url,
-      ap.waktu_submit
-    FROM jadwal_guru_piket j
-    JOIN pengaturan_shift_piket s ON j.shift_id = s.id
-    JOIN "user" u ON j.user_id = u.id
-    LEFT JOIN agenda_piket ap ON ap.jadwal_id = j.id AND ap.tanggal = ?
-    WHERE j.hari = ?
-      AND (
-        j.user_id = ?
-        OR j.id IN (
-          SELECT jadwal_piket_id
-          FROM guru_ppl_mapping
-          WHERE guru_ppl_id = ?
-            AND jadwal_piket_id IS NOT NULL
-        )
-      )
-    ORDER BY s.id ASC
-  `).bind(tanggal, hari, userId, userId).all<any>()
-
-  const rows = result.results || []
-  if (rows.length === 0) return { error: null, shifts: [], tanggal, hari }
-
-  const shiftData: PiketShiftData[] = rows.map(r => {
-    const slotMulai = slots.find(s => s.id === r.jam_mulai)
-    const slotSelesai = slots.find(s => s.id === r.jam_selesai)
-    return {
-      jadwal_id: r.jadwal_id,
-      user_id: r.user_id,
-      guru_nama: r.guru_nama,
-      shift_id: r.shift_id,
-      shift_nama: r.nama_shift,
-      jam_mulai: r.jam_mulai,
-      jam_selesai: r.jam_selesai,
-      slot_mulai: slotMulai?.mulai ?? '??:??',
-      slot_selesai: slotSelesai?.selesai ?? '??:??',
-      hari,
-      sudah_isi: !!r.agenda_id,
-      agenda_id: r.agenda_id ?? undefined,
-      status: r.agenda_status ?? undefined,
-      foto_url: r.foto_url ?? undefined,
-      waktu_submit: r.waktu_submit ?? undefined,
+    // Resolusi tanggal
+    let tanggal: string
+    let hari: number
+    const resolvedDateOverride = dateOverride || (await getActAsDate()) || null
+    if (resolvedDateOverride && /^\d{4}-\d{2}-\d{2}$/.test(resolvedDateOverride)) {
+      tanggal = resolvedDateOverride
+      const d = new Date(resolvedDateOverride + 'T00:00:00')
+      const day = d.getDay()
+      hari = day === 0 ? 7 : day
+    } else {
+      const now = nowWIB()
+      tanggal = now.toISOString().split('T')[0]
+      hari = getHariNumber(now)
     }
-  })
 
-  return { error: null, shifts: shiftData, tanggal, hari }
+    if (hari === 7) return { error: null, shifts: [], tanggal, hari }
+
+    // Ambil TA aktif untuk resolve slot jam
+    const ta = await db.prepare(
+      'SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1'
+    ).first<any>()
+    const slots: SlotJam[] = ta ? getPolaHariIni(ta.jam_pelajaran || '[]', hari) : []
+
+    // Query jadwal piket user hari ini + cek agenda_piket existing
+    // FIX: Tambahkan ap.user_id = ? agar guru & PPL yg satu shift tidak bentrok datanya
+    const result = await db.prepare(`
+      SELECT
+        j.id as jadwal_id,
+        j.user_id,
+        u.nama_lengkap as guru_nama,
+        s.id as shift_id,
+        s.nama_shift,
+        s.jam_mulai,
+        s.jam_selesai,
+        ap.id as agenda_id,
+        ap.status as agenda_status,
+        ap.foto_url,
+        ap.waktu_submit
+      FROM jadwal_guru_piket j
+      JOIN pengaturan_shift_piket s ON j.shift_id = s.id
+      JOIN "user" u ON j.user_id = u.id
+      LEFT JOIN agenda_piket ap ON ap.jadwal_id = j.id AND ap.tanggal = ? AND ap.user_id = ?
+      WHERE j.hari = ?
+        AND (
+          j.user_id = ?
+          OR j.id IN (
+            SELECT jadwal_piket_id
+            FROM guru_ppl_mapping
+            WHERE guru_ppl_id = ?
+              AND jadwal_piket_id IS NOT NULL
+          )
+        )
+      ORDER BY s.id ASC
+    `).bind(tanggal, userId, hari, userId, userId).all<any>()
+
+    const rows = result.results || []
+    if (rows.length === 0) return { error: null, shifts: [], tanggal, hari }
+
+    const shiftData: PiketShiftData[] = rows.map(r => {
+      const slotMulai = slots.find(s => s.id === r.jam_mulai)
+      const slotSelesai = slots.find(s => s.id === r.jam_selesai)
+      return {
+        jadwal_id: r.jadwal_id,
+        user_id: r.user_id,
+        guru_nama: r.guru_nama,
+        shift_id: r.shift_id,
+        shift_nama: r.nama_shift,
+        jam_mulai: r.jam_mulai,
+        jam_selesai: r.jam_selesai,
+        slot_mulai: slotMulai?.mulai ?? '??:??',
+        slot_selesai: slotSelesai?.selesai ?? '??:??',
+        hari,
+        sudah_isi: !!r.agenda_id,
+        agenda_id: r.agenda_id ?? undefined,
+        status: r.agenda_status ?? undefined,
+        foto_url: r.foto_url ?? undefined,
+        waktu_submit: r.waktu_submit ?? undefined,
+      }
+    })
+
+    return { error: null, shifts: shiftData, tanggal, hari }
+  } catch (e: any) {
+    console.error('[getJadwalPiketHariIni] Error:', e)
+    return { error: e.message || 'Gagal memuat jadwal piket', shifts: [], tanggal: '', hari: 0 }
+  }
 }
 
 // ============================================================
