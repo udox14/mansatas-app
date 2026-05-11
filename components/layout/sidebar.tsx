@@ -24,7 +24,7 @@ const MENU_GROUPS = [
   { label: 'Utama', hrefs: ['/dashboard'] },
   { label: 'Data Master', hrefs: ['/dashboard/siswa', '/dashboard/guru', '/dashboard/kelas', '/dashboard/plotting'] },
   { label: 'Tugas Harian Guru', hrefs: ['/dashboard/agenda', '/dashboard/kehadiran', '/dashboard/nilai-harian', '/dashboard/penugasan'] },
-  { label: 'Monitoring Akademik', hrefs: ['/dashboard/akademik', '/dashboard/akademik/nilai', '/dashboard/monitoring-agenda', '/dashboard/monitoring-penugasan', '/dashboard/analitik'] },
+  { label: 'Monitoring Akademik', hrefs: ['/dashboard/akademik', '/dashboard/akademik/nilai', '/dashboard/kalender-pendidikan', '/dashboard/monitoring-agenda', '/dashboard/monitoring-penugasan', '/dashboard/analitik'] },
   { label: 'Program Khusus', hrefs: ['/dashboard/tahfidz'] },
   { label: 'Kesiswaan & BK', hrefs: ['/dashboard/kelas-binaan', '/dashboard/rekap-absensi', '/dashboard/keterangan-absensi', '/dashboard/jadwal-piket', '/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes', '/dashboard/tka', '/dashboard/penerimaan-pt'] },
   { label: 'Administrasi & HR', hrefs: ['/dashboard/surat', '/dashboard/rapat', '/dashboard/sarpras', '/dashboard/kelola-ppl', '/dashboard/buku-tamu'] },

@@ -33,6 +33,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
   const [hasLoaded, setHasLoaded] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
   const [pesan, setPesan] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null)
+  const [calendarInfo, setCalendarInfo] = useState('')
   const [expandedNote, setExpandedNote] = useState<string | null>(null)
 
   const selectedKelas = kelasList.find(k => k.kelas_id === selectedKelasId)
@@ -43,7 +44,10 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
     setHasChanges(false)
     const res = await loadSiswaKeterangan(kelasId, tgl)
     if (res.error) setPesan({ tipe: 'error', teks: res.error })
-    else setSiswaList(res.siswa)
+    else {
+      setSiswaList(res.siswa)
+      setCalendarInfo(res.calendarStatus && !res.calendarStatus.isEffective ? `Tanggal ini tidak efektif pembelajaran: ${res.calendarStatus.reason || 'keterangan tidak wajib diisi.'}` : '')
+    }
     setIsLoading(false)
     setHasLoaded(true)
   }, [])
@@ -52,12 +56,14 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
     setSelectedKelasId(kelasId)
     setHasLoaded(false)
     setSiswaList([])
+    setCalendarInfo('')
   }
 
   const handleTanggalChange = (tgl: string) => {
     setTanggal(tgl)
     setHasLoaded(false)
     setSiswaList([])
+    setCalendarInfo('')
   }
 
   const setStatus = (siswaId: string, status: 'SAKIT' | 'IZIN' | null) => {
@@ -137,6 +143,12 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
       {pesan && (
         <div className={`rounded-lg border px-3 py-2 text-xs ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
           {pesan.teks}
+        </div>
+      )}
+
+      {calendarInfo && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {calendarInfo}
         </div>
       )}
 

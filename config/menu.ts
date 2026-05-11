@@ -94,6 +94,13 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: FileSpreadsheet,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad']
   },
+  {
+    id: 'kalender-pendidikan',
+    title: 'Kalender Pendidikan',
+    href: '/dashboard/kalender-pendidikan',
+    icon: CalendarDays,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad']
+  },
 
   {
     id: 'tahfidz',

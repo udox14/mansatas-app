@@ -9,6 +9,7 @@ import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { currentTimeWIB, todayWIB, nowWIB } from '@/lib/time'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 
 // ============================================================
 // TYPES
@@ -82,6 +83,7 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
   tanggal: string
   hari: number
   hariNama: string
+  calendarStatus?: { isEffective: boolean; reason: string | null; category: string | null }
 }> {
   const HARI = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
   const user = await getCurrentUser()
@@ -118,6 +120,22 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
   }
 
   if (hari === 7) return { error: null, blocks: [], tanggal, hari, hariNama: 'Minggu' }
+
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) {
+    return {
+      error: null,
+      blocks: [],
+      tanggal,
+      hari,
+      hariNama: HARI[hari],
+      calendarStatus: {
+        isEffective: false,
+        reason: calendarStatus.reason,
+        category: calendarStatus.category,
+      },
+    }
+  }
 
   const ta = await db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
   if (!ta) return { error: 'Tahun ajaran aktif belum diatur', blocks: [], tanggal, hari, hariNama: HARI[hari] }
@@ -272,6 +290,10 @@ export async function simpanAbsensi(
 
   const db = await getDB()
   await ensureAbsensiSessionTable(db)
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) {
+    return { error: `Tanggal ini tidak efektif pembelajaran${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}. Absensi tidak perlu disimpan.` }
+  }
   const attendanceTimeRestrictionEnabled = await getSystemSettingBoolean(
     SYSTEM_SETTING_KEYS.attendanceTimeRestriction,
     false

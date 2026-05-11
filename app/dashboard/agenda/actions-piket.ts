@@ -8,6 +8,7 @@ import { uploadToR2 } from '@/utils/r2'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import { nowWIB, currentTimeWIB, todayWIB } from '@/lib/time'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
+import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 
 // ============================================================
 // TYPES
@@ -60,6 +61,7 @@ export async function getJadwalPiketHariIni(dateOverride?: string): Promise<{
   shifts: PiketShiftData[]
   tanggal: string
   hari: number
+  calendarStatus?: { isEffective: boolean; reason: string | null; category: string | null }
 }> {
   try {
     const user = await getCurrentUser()
@@ -87,6 +89,21 @@ export async function getJadwalPiketHariIni(dateOverride?: string): Promise<{
     }
 
     if (hari === 7) return { error: null, shifts: [], tanggal, hari }
+
+    const calendarStatus = await getKalenderDateStatus(db, tanggal)
+    if (!calendarStatus.isEffective) {
+      return {
+        error: null,
+        shifts: [],
+        tanggal,
+        hari,
+        calendarStatus: {
+          isEffective: false,
+          reason: calendarStatus.reason,
+          category: calendarStatus.category,
+        },
+      }
+    }
 
     // Ambil TA aktif untuk resolve slot jam
     const ta = await db.prepare(
@@ -183,6 +200,10 @@ export async function submitAgendaPiket(formData: FormData): Promise<{ error?: s
   if (!foto || foto.size === 0) return { error: 'Foto wajib diambil sebagai bukti kehadiran.' }
 
   const db = await getDB()
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) {
+    return { error: `Tanggal ini tidak efektif pembelajaran${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}. Agenda piket tidak perlu disimpan.` }
+  }
 
   // Cek apakah sudah diisi
   const existing = await db.prepare(

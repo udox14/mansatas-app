@@ -2,7 +2,8 @@
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
-import { ClipboardPen, BookOpen, CheckCircle2, AlertCircle, UserCheck } from 'lucide-react'
+import { ClipboardPen, BookOpen, CheckCircle2, AlertCircle, UserCheck, CalendarDays } from 'lucide-react'
+import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 
 export type JadwalMengajarTodayProps = {
   userId: string
@@ -24,6 +25,22 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
   const today = todayWIB()
   const d = new Date(today + 'T00:00:00')
   const hariIni = d.getDay() === 0 ? 7 : d.getDay()
+  const calendarStatus = await getKalenderDateStatus(db, today)
+  if (!calendarStatus.isEffective) {
+    return (
+      <div className="rounded-xl border border-rose-200 bg-rose-50 shadow-sm overflow-hidden mb-3">
+        <div className="flex items-center gap-3 px-4 py-4">
+          <div className="p-1.5 rounded-md bg-white border border-rose-100 shrink-0">
+            <CalendarDays className="h-4 w-4 text-rose-500" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-rose-800">Hari ini tidak efektif pembelajaran</p>
+            <p className="text-[11px] text-rose-600">{calendarStatus.reason || 'Tidak ada kewajiban absensi dan agenda hari ini.'}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const taRow = await db.prepare('SELECT jam_pelajaran FROM tahun_ajaran WHERE id = ?').bind(taAktif.id).first<any>()
   

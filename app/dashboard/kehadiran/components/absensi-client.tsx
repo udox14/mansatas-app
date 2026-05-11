@@ -20,6 +20,7 @@ interface Props {
     tanggal: string
     hari: number
     hariNama: string
+    calendarStatus?: { isEffective: boolean; reason: string | null; category: string | null }
   }
 }
 
@@ -101,7 +102,7 @@ export function AbsensiClient({ initialData }: Props) {
     setIsSaving(false)
   }
 
-  const { blocks, tanggal, hariNama, error } = data
+  const { blocks, tanggal, hariNama, error, calendarStatus } = data
 
   // Counts
   const counts = siswaList.reduce((acc, s) => {
@@ -115,6 +116,14 @@ export function AbsensiClient({ initialData }: Props) {
     </div>
   )
 
+  if (calendarStatus && !calendarStatus.isEffective) return (
+    <div className="rounded-lg border border-dashed border-rose-200 bg-rose-50 p-10 text-center">
+      <BookOpen className="h-10 w-10 text-rose-300 mx-auto mb-3" />
+      <p className="text-sm font-semibold text-rose-700">Tanggal ini tidak efektif pembelajaran.</p>
+      <p className="mt-1 text-xs text-rose-600">{calendarStatus.reason || 'Tidak ada kewajiban absensi siswa.'}</p>
+    </div>
+  )
+
   // ── VIEW: DAFTAR SISWA (ABSENSI) ──
   if (activeBlock) {
     const hadir = counts.HADIR || 0
@@ -122,31 +131,36 @@ export function AbsensiClient({ initialData }: Props) {
     return (
       <div className="space-y-2 pb-28 md:pb-20">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b pb-3 -mx-3 sm:-mx-4 md:-mx-5 -mt-3 sm:-mt-4 md:-mt-5 mb-4 px-3 sm:px-4 md:px-5 pt-3 sm:pt-4 md:pt-5 shadow-sm transition-all">
-          <div className="flex items-center gap-2 mb-1.5">
-            <button onClick={closeBlock} className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800/80 dark:hover:bg-slate-800">
-              <ArrowLeft className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+        <div className="sticky -top-3 sm:-top-4 md:-top-5 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 pb-3 -mx-3 sm:-mx-4 md:-mx-5 -mt-3 sm:-mt-4 md:-mt-5 mb-4 px-3 sm:px-4 md:px-5 pt-3 sm:pt-4 md:pt-5 shadow-sm transition-all">
+          <div className="flex items-start gap-3">
+            <button
+              onClick={closeBlock}
+              className="mt-0.5 h-8 w-8 shrink-0 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-center text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+              aria-label="Kembali"
+            >
+              <ArrowLeft className="h-4 w-4" />
             </button>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{activeBlock.mapel_nama}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-snug break-words">{activeBlock.mapel_nama}</p>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 {activeBlock.kelas_label} &middot; Jam {activeBlock.jam_ke_mulai === activeBlock.jam_ke_selesai ? activeBlock.jam_ke_mulai : `${activeBlock.jam_ke_mulai}-${activeBlock.jam_ke_selesai}`} ({activeBlock.slot_mulai}—{activeBlock.slot_selesai})
               </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] px-2 py-1 rounded-md bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-semibold">Hadir {hadir}</span>
+                {tidakHadir > 0 && (
+                  <span className="text-[10px] px-2 py-1 rounded-md bg-rose-100 text-rose-700 font-semibold">Tidak hadir {tidakHadir}</span>
+                )}
+                {(counts.SAKIT || 0) > 0 && <span className="text-[10px] px-2 py-1 rounded-md bg-amber-100 text-amber-700 font-medium">Sakit {counts.SAKIT}</span>}
+                {(counts.ALFA || 0) > 0 && <span className="text-[10px] px-2 py-1 rounded-md bg-red-100 text-red-700 font-medium">Alfa {counts.ALFA}</span>}
+                {(counts.IZIN || 0) > 0 && <span className="text-[10px] px-2 py-1 rounded-md bg-blue-100 text-blue-700 font-medium">Izin {counts.IZIN}</span>}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <button onClick={() => { setSiswaList(prev => prev.map(s => ({ ...s, status: 'HADIR' }))); setHasChanges(true) }}
+                  className="text-[10px] px-2.5 py-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 font-semibold">Semua Hadir</button>
+                <button onClick={() => { setSiswaList(prev => prev.map(s => ({ ...s, status: 'ALFA' }))); setHasChanges(true) }}
+                  className="text-[10px] px-2.5 py-1 rounded-md bg-white dark:bg-slate-900 border border-red-200 text-red-700 hover:bg-red-50 font-semibold">Semua Alfa</button>
+              </div>
             </div>
-          </div>
-          {/* Quick stats */}
-          <div className="flex gap-1.5 flex-wrap">
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-medium">Hadir: {hadir}</span>
-            {(counts.SAKIT || 0) > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Sakit: {counts.SAKIT}</span>}
-            {(counts.ALFA || 0) > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Alfa: {counts.ALFA}</span>}
-            {(counts.IZIN || 0) > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">Izin: {counts.IZIN}</span>}
-          </div>
-          {/* Bulk actions */}
-          <div className="flex gap-1.5 mt-2">
-            <button onClick={() => { setSiswaList(prev => prev.map(s => ({ ...s, status: 'HADIR' }))); setHasChanges(true) }}
-              className="text-[10px] px-2 py-1 rounded bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-200 font-medium">Semua Hadir</button>
-            <button onClick={() => { setSiswaList(prev => prev.map(s => ({ ...s, status: 'ALFA' }))); setHasChanges(true) }}
-              className="text-[10px] px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 font-medium">Semua Alfa</button>
           </div>
         </div>
 

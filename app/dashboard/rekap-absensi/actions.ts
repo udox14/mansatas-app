@@ -10,6 +10,7 @@ import {
   getFinalAttendanceForStudent,
 } from '@/lib/wali-kelas-attendance'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
+import { getEffectiveDatesInRange, getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 
 function getSlotsHari(raw: string, hari: number): SlotJam[] {
   try { return (JSON.parse(raw) as PolaJam[]).find(p => p.hari.includes(hari))?.slots ?? [] } catch { return [] }
@@ -192,6 +193,19 @@ export async function getAbsensiPerKelas(tanggal: string) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', data: [] }
 
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) {
+    return {
+      error: null,
+      data: [],
+      calendarStatus: {
+        isEffective: false,
+        reason: calendarStatus.reason,
+        category: calendarStatus.category,
+      },
+    }
+  }
+
   const scope = await getRekapScope(db, user.id)
   let kelasList: any[] = []
   if (scope.isAdmin) {
@@ -263,6 +277,9 @@ export async function getDetailKelasHarian(kelasId: string, tanggal: string) {
   const user = await getCurrentUser()
   if (!user) return []
 
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) return []
+
   const scope = await getRekapScope(db, user.id)
   if (!scope.isAdmin && !scope.allowedClassIds.includes(kelasId)) return []
 
@@ -300,6 +317,21 @@ export async function getAbsensiPerJam(tanggal: string) {
 
   const hari = hariNum(new Date(tanggal + 'T00:00:00'))
   if (hari === 7) return { error: null, data: [], slots: [], hariNama: 'Minggu' }
+
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) {
+    return {
+      error: null,
+      data: [],
+      slots: [],
+      hariNama: HARI[hari],
+      calendarStatus: {
+        isEffective: false,
+        reason: calendarStatus.reason,
+        category: calendarStatus.category,
+      },
+    }
+  }
 
   const slots = getSlotsHari(ta.jam_pelajaran || '[]', hari)
 
@@ -356,6 +388,8 @@ export async function getDataCetakAbsensi(params: {
   const user = await getCurrentUser()
   if (!user) return []
   const scope = await getRekapScope(db, user.id)
+  const effectiveDates = await getEffectiveDatesInRange(db, params.tglMulai, params.tglSelesai)
+  if (effectiveDates.length === 0) return []
 
   let sql = `
     SELECT ab.tanggal, ab.jam_ke_mulai, ab.jam_ke_selesai, ab.jumlah_jam, ab.status, ab.catatan,
@@ -368,8 +402,9 @@ export async function getDataCetakAbsensi(params: {
     JOIN "user" u ON pm.guru_id = u.id
     JOIN kelas k ON pm.kelas_id = k.id
     WHERE ab.tanggal BETWEEN ? AND ?
+      AND ab.tanggal IN (${effectiveDates.map(() => '?').join(',')})
   `
-  const p: unknown[] = [params.tglMulai, params.tglSelesai]
+  const p: unknown[] = [params.tglMulai, params.tglSelesai, ...effectiveDates]
 
   if (!scope.isAdmin) {
     if (scope.allowedClassIds.length === 0) return []

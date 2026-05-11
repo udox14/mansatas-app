@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
+import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 
 export type SiswaKeterangan = {
   siswa_id: string
@@ -62,12 +63,14 @@ export async function getKelasBinaan(): Promise<{ error: string | null; kelas: K
 export async function loadSiswaKeterangan(kelasId: string, tanggal: string): Promise<{
   error: string | null
   siswa: SiswaKeterangan[]
+  calendarStatus?: { isEffective: boolean; reason: string | null; category: string | null }
 }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', siswa: [] }
 
   const db = await getDB()
   const roles = await getUserRoles(db, user.id)
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
 
   // Validasi: wali_kelas hanya boleh akses kelas binaannya
   if (!roles.includes('super_admin') && !roles.includes('admin_tu') && !roles.includes('kepsek') && !roles.includes('wakamad')) {
@@ -93,6 +96,11 @@ export async function loadSiswaKeterangan(kelasId: string, tanggal: string): Pro
 
   return {
     error: null,
+    calendarStatus: {
+      isEffective: calendarStatus.isEffective,
+      reason: calendarStatus.reason,
+      category: calendarStatus.category,
+    },
     siswa: (siswaRes.results || []).map((s: any) => {
       const ket = ketMap.get(s.id)
       return {

@@ -83,11 +83,13 @@ function TabKelas() {
   const [loading, setLoading] = useState(false)
   const [detailKelas, setDetailKelas] = useState<{ label: string; data: any[] } | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [info, setInfo] = useState('')
 
   const search = async () => {
     setLoading(true)
     const r = await getAbsensiPerKelas(tanggal)
     setData(r.data || [])
+    setInfo((r as any).calendarStatus && !(r as any).calendarStatus.isEffective ? `Tanggal ini tidak efektif pembelajaran: ${(r as any).calendarStatus.reason || 'tidak dihitung dalam rekap.'}` : '')
     setLoading(false)
   }
 
@@ -127,6 +129,7 @@ function TabKelas() {
       </div>
 
       {data.length > 0 && <p className="text-xs text-slate-500 dark:text-slate-400 px-1">{fmtTglFull(tanggal)}</p>}
+      {info && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{info}</p>}
 
       {Array.from(grouped.entries()).map(([tingkat, items]) => (
         <div key={tingkat}>
@@ -288,6 +291,7 @@ function TabJam() {
   const [hariNama, setHariNama] = useState('')
   const [loading, setLoading] = useState(false)
   const [detailJam, setDetailJam] = useState<any>(null)
+  const [info, setInfo] = useState('')
 
   const nav = (off: number) => {
     setTanggal(prev => shiftDateISO(prev, off))
@@ -297,6 +301,7 @@ function TabJam() {
     setLoading(true)
     const r = await getAbsensiPerJam(tanggal)
     setData(r.data || []); setHariNama(r.hariNama || '')
+    setInfo((r as any).calendarStatus && !(r as any).calendarStatus.isEffective ? `Tanggal ini tidak efektif pembelajaran: ${(r as any).calendarStatus.reason || 'tidak dihitung dalam rekap.'}` : '')
     setLoading(false)
   }
 
@@ -317,6 +322,7 @@ function TabJam() {
       </div>
 
       {data.length > 0 && <p className="text-xs text-slate-500 dark:text-slate-400 px-1">{hariNama}, {fmtTglFull(tanggal)}</p>}
+      {info && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{info}</p>}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
         {data.map((jam: any) => (

@@ -95,7 +95,13 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
     setIsLoading(true); setPesan(null)
     const result = await getMonitoringHarian(tanggal, filterMode, filterMode !== 'semua' ? filterId : undefined)
     if (result.error) setPesan({ tipe: 'error', teks: result.error })
-    else { setData(result.data || []); setHariNama(result.hariNama || '') }
+    else {
+      setData(result.data || [])
+      setHariNama(result.hariNama || '')
+      if ((result as any).calendarStatus && !(result as any).calendarStatus.isEffective) {
+        setPesan({ tipe: 'sukses', teks: `Tanggal ini tidak efektif pembelajaran: ${(result as any).calendarStatus.reason || 'tidak ada kewajiban agenda.'}` })
+      }
+    }
     setIsLoading(false)
   }
 
@@ -637,7 +643,13 @@ function TabMonitoringPiket() {
     setIsLoading(true); setPesan(null)
     const result = await getMonitoringPiketHarian(tanggal)
     if (result.error) setPesan({ tipe: 'error', teks: result.error })
-    else { setData(result.data || []); setHariNama(result.hariNama || '') }
+    else {
+      setData(result.data || [])
+      setHariNama(result.hariNama || '')
+      if ((result as any).calendarStatus && !(result as any).calendarStatus.isEffective) {
+        setPesan({ tipe: 'sukses', teks: `Tanggal ini tidak efektif pembelajaran: ${(result as any).calendarStatus.reason || 'tidak ada kewajiban piket.'}` })
+      }
+    }
     setIsLoading(false)
   }
 
