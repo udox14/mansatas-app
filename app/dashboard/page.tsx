@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { nowWIB } from '@/lib/time'
+import { getUserRoles } from '@/lib/features'
 import { SuperAdminDashboard } from '@/components/dashboard/SuperAdminDashboard'
 import { KepsekDashboard }     from '@/components/dashboard/KepsekDashboard'
 import { WakamadDashboard }    from '@/components/dashboard/WakamadDashboard'
@@ -57,11 +58,12 @@ export default async function DashboardPage() {
   const db = await getDB()
 
   // Shared minimal fetch — masing-masing dashboard komponen query sendiri
-  const [freshUser, taAktif] = await Promise.all([
+  const [freshUser, taAktif, userRoles] = await Promise.all([
     db.prepare('SELECT nama_lengkap, role, avatar_url FROM "user" WHERE id = ?')
       .bind(user.id).first<{ nama_lengkap: string; role: string; avatar_url: string | null }>(),
     db.prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE is_active = 1 LIMIT 1')
       .first<{ id: string; nama: string; semester: number }>(),
+    getUserRoles(db, user.id),
   ])
 
   const wib       = nowWIB()
@@ -74,6 +76,7 @@ export default async function DashboardPage() {
   const avatarUrl   = freshUser?.avatar_url ?? null
   const roleLabel   = ROLE_LABEL[userRole] ?? userRole.replace(/_/g, ' ')
   const roleColor   = ROLE_COLOR[userRole] ?? 'emerald'
+  const isGuruPiket = userRoles.includes('guru_piket')
 
   const commonProps = {
     userId:    user.id,
@@ -84,6 +87,7 @@ export default async function DashboardPage() {
     roleColor,
     sapaan,
     taAktif:   taAktif ?? null,
+    isGuruPiket,
   }
 
   switch (userRole) {

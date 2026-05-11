@@ -5,7 +5,9 @@ import { todayWIB } from '@/lib/time'
 import { WelcomeStrip } from './shared/WelcomeStrip'
 import { StatCard } from './shared/StatCard'
 import { QuickLink } from './shared/QuickLink'
+import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
+import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
   Users, UserCog, Library, CalendarCheck,
   Activity, ClipboardList, FileSpreadsheet,
@@ -16,9 +18,10 @@ type Props = {
   userId: string; nama: string; namaDepan: string; avatarUrl: string | null
   roleLabel: string; roleColor: string; sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
+  isGuruPiket?: boolean
 }
 
-export async function SuperAdminDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif }: Props) {
+export async function SuperAdminDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
   const db = await getDB()
   const today = todayWIB()
 
@@ -58,6 +61,11 @@ export async function SuperAdminDashboard({ userId, nama, namaDepan, avatarUrl, 
         roleLabel={roleLabel} roleColor={roleColor} taAktif={taAktif} sapaan={sapaan} />
 
       <KehadiranPribadiCard userId={userId} />
+
+      {/* Penugasan Masuk (jika dia guru piket) */}
+      {isGuruPiket && <PenugasanMasukCard userId={userId} />}
+
+      <JadwalMengajarToday userId={userId} taAktif={taAktif} />
 
       <div className="grid grid-cols-3 gap-3">
         <StatCard title="Siswa Aktif" value={counts?.siswa ?? 0}

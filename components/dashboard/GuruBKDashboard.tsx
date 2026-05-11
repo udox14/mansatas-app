@@ -6,6 +6,7 @@ import { WelcomeStrip } from './shared/WelcomeStrip'
 import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
+import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
   HeartHandshake, AlertTriangle, DoorOpen, Brain,
   Users, TrendingDown, ArrowRight, CheckCircle2, Shield,
@@ -15,9 +16,10 @@ type Props = {
   userId: string; nama: string; namaDepan: string; avatarUrl: string | null
   roleLabel: string; roleColor: string; sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
+  isGuruPiket?: boolean
 }
 
-export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif }: Props) {
+export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
   const db = await getDB()
   const today = todayWIB()
 
@@ -76,7 +78,10 @@ export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, role
 
       <KehadiranPribadiCard userId={userId} />
 
-      <JadwalMengajarToday userId={userId} taAktif={taAktif} showAbsensiAction />
+      {/* Penugasan Masuk (jika dia guru piket) */}
+      {isGuruPiket && <PenugasanMasukCard userId={userId} />}
+
+      <JadwalMengajarToday userId={userId} taAktif={taAktif} showAbsensiAction={true} />
 
       {/* Summary Hari Ini */}
       <div className="grid grid-cols-3 gap-3">
