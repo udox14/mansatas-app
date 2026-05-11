@@ -6,6 +6,7 @@ import { WelcomeStrip } from './shared/WelcomeStrip'
 import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
+import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
   ClipboardCheck, CalendarCheck, Activity, BarChart3,
   ClipboardList, FileSpreadsheet, ArrowRight, CheckCircle2,
@@ -15,9 +16,10 @@ type Props = {
   userId: string; nama: string; namaDepan: string; avatarUrl: string | null
   roleLabel: string; roleColor: string; sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
+  isGuruPiket?: boolean
 }
 
-export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif }: Props) {
+export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
   const db = await getDB()
   const today = todayWIB()
 
@@ -35,20 +37,18 @@ export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, rol
 
   const taId = taRow?.id
 
-  const [agendaData] = await Promise.all([
-    taId ? db.prepare(`
-      SELECT
-        COUNT(DISTINCT jm.penugasan_id) as total_penugasan,
-        COUNT(DISTINCT ag.penugasan_id) as sudah_isi,
-        COUNT(DISTINCT pm.guru_id) as total_guru,
-        COUNT(DISTINCT pm2.guru_id) as guru_sudah_isi
-      FROM jadwal_mengajar jm
-      JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
-      LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
-      LEFT JOIN penugasan_mengajar pm2 ON pm2.id = ag.penugasan_id
-      WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
-    `).bind(today, taId, hariIni).first<any>() : Promise.resolve(null)
-  ])
+  const agendaData = taId ? await db.prepare(`
+    SELECT
+      COUNT(DISTINCT jm.id) as total_penugasan,
+      COUNT(DISTINCT ag.id) as sudah_isi,
+      COUNT(DISTINCT pm.guru_id) as total_guru,
+      COUNT(DISTINCT pm2.guru_id) as guru_sudah_isi
+    FROM jadwal_mengajar jm
+    JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
+    LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
+    LEFT JOIN penugasan_mengajar pm2 ON pm2.id = ag.penugasan_id
+    WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
+  `).bind(today, taId, hariIni).first<any>() : null
 
   const tidakMasuk     = kehadiranSiswa?.tidak_masuk ?? 0
   const totalSiswa     = kehadiranSiswa?.total_siswa ?? 0
@@ -56,7 +56,7 @@ export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, rol
   const totalPenugasan = agendaData?.total_penugasan ?? 0
   const sudahIsi       = agendaData?.sudah_isi ?? 0
   const pctAgenda      = totalPenugasan > 0 ? Math.round((sudahIsi / totalPenugasan) * 100) : 0
-  const belumIsi       = totalPenugasan - sudahIsi
+  const belumIsi       = Math.max(0, totalPenugasan - sudahIsi)
 
   return (
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
@@ -64,6 +64,9 @@ export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, rol
         roleLabel={roleLabel} roleColor={roleColor} taAktif={taAktif} sapaan={sapaan} />
 
       <KehadiranPribadiCard userId={userId} />
+
+      {/* Penugasan Masuk (jika dia guru piket) */}
+      {isGuruPiket && <PenugasanMasukCard userId={userId} />}
 
       <JadwalMengajarToday userId={userId} taAktif={taAktif} />
 
@@ -155,7 +158,6 @@ export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, rol
           )}
         </div>
       </div>
-
 
       {/* Shortcut Dinamis */}
       <FeatureShortcuts userId={userId} />

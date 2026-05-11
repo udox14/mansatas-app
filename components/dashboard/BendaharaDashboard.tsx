@@ -2,6 +2,8 @@
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { WelcomeStrip } from './shared/WelcomeStrip'
+import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
+import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
   Landmark, FileText, TrendingDown,
   ChevronRight, TrendingUp, AlertCircle, CheckCircle2, Clock,
@@ -12,9 +14,10 @@ type Props = {
   userId: string; nama: string; namaDepan: string; avatarUrl: string | null
   roleLabel: string; roleColor: string; sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
+  isGuruPiket?: boolean
 }
 
-export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif }: Props) {
+export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
   const db = await getDB()
   const tahun = new Date().getFullYear()
   const bulanIni = new Date().getMonth() + 1
@@ -72,6 +75,11 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
       <WelcomeStrip nama={nama} namaDepan={namaDepan} avatarUrl={avatarUrl}
         roleLabel={roleLabel} roleColor={roleColor} taAktif={taAktif} sapaan={sapaan} />
+
+      <KehadiranPribadiCard userId={userId} />
+
+      {/* Penugasan Masuk (jika dia guru piket) */}
+      {isGuruPiket && <PenugasanMasukCard userId={userId} />}
 
       {/* Quick Links */}
       <div className="grid grid-cols-4 gap-2">

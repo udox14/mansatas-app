@@ -6,6 +6,7 @@ import { WelcomeStrip } from './shared/WelcomeStrip'
 import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
+import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
   ClipboardCheck, UserCog, Activity,
   ClipboardList, FileSpreadsheet, TrendingUp,
@@ -16,9 +17,10 @@ type Props = {
   userId: string; nama: string; namaDepan: string; avatarUrl: string | null
   roleLabel: string; roleColor: string; sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
+  isGuruPiket?: boolean
 }
 
-export async function KepsekDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif }: Props) {
+export async function KepsekDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
   const db = await getDB()
   const today = todayWIB()
 
@@ -62,6 +64,9 @@ export async function KepsekDashboard({ userId, nama, namaDepan, avatarUrl, role
         roleLabel={roleLabel} roleColor={roleColor} taAktif={taAktif} sapaan={sapaan} />
 
       <KehadiranPribadiCard userId={userId} />
+
+      {/* Penugasan Masuk (jika dia guru piket) */}
+      {isGuruPiket && <PenugasanMasukCard userId={userId} />}
 
       <JadwalMengajarToday userId={userId} taAktif={taAktif} />
 

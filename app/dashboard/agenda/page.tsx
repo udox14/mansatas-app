@@ -80,20 +80,20 @@ export default async function AgendaPage({
   const actAsUsers = isSuperAdmin ? await getActAsUserList() : []
 
   // Cek apakah user ini punya jadwal piket (untuk tampilkan/sembunyikan tab)
-  const targetUserId = effectiveUserId || user.id
-  const piketCheck = await db.prepare(`
-    SELECT j.id
-    FROM jadwal_guru_piket j
-    WHERE j.user_id = ?
-       OR j.id IN (
-         SELECT jadwal_piket_id
-         FROM guru_ppl_mapping
-         WHERE guru_ppl_id = ?
-           AND jadwal_piket_id IS NOT NULL
-       )
-    LIMIT 1
-  `).bind(targetUserId, targetUserId).first<any>()
-  const hasPiketJadwal = !!piketCheck
+  // const targetUserId = effectiveUserId || user.id
+  // const piketCheck = await db.prepare(`
+  //   SELECT j.id
+  //   FROM jadwal_guru_piket j
+  //   WHERE j.user_id = ?
+  //      OR j.id IN (
+  //        SELECT jadwal_piket_id
+  //        FROM guru_ppl_mapping
+  //        WHERE guru_ppl_id = ?
+  //          AND jadwal_piket_id IS NOT NULL
+  //      )
+  //   LIMIT 1
+  // `).bind(targetUserId, targetUserId).first<any>()
+  const hasPiketJadwal = false // !!piketCheck (disembunyikan sementara)
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">

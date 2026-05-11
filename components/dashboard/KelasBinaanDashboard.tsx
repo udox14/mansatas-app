@@ -8,6 +8,7 @@ import { WelcomeStrip } from './shared/WelcomeStrip'
 import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
+import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
   AlertTriangle,
   ArrowRight,
@@ -31,6 +32,7 @@ type Props = {
   roleColor: string
   sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
+  isGuruPiket?: boolean
   kelasIdOverride?: string | null
   riskFilter?: string
   showWelcome?: boolean
@@ -72,6 +74,7 @@ export async function KelasBinaanDashboard({
   roleColor,
   sapaan,
   taAktif,
+  isGuruPiket,
   kelasIdOverride = null,
   riskFilter = 'all',
   showWelcome = true,
@@ -122,6 +125,9 @@ export async function KelasBinaanDashboard({
           </div>
         </div>
         <KehadiranPribadiCard userId={userId} />
+
+        {/* Penugasan Masuk (jika dia guru piket) */}
+        {isGuruPiket && <PenugasanMasukCard userId={userId} />}
       </div>
     )
   }
@@ -374,6 +380,8 @@ export async function KelasBinaanDashboard({
       {showTopCards && (
         <>
           <KehadiranPribadiCard userId={userId} />
+          {/* Penugasan Masuk (jika dia guru piket) */}
+          {isGuruPiket && <PenugasanMasukCard userId={userId} />}
           <JadwalMengajarToday userId={userId} taAktif={taAktif} />
         </>
       )}

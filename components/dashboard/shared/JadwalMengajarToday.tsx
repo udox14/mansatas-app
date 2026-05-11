@@ -4,13 +4,13 @@ import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
 import { ClipboardPen, BookOpen, CheckCircle2, AlertCircle, UserCheck } from 'lucide-react'
 
-type Props = {
+export type JadwalMengajarTodayProps = {
   userId: string
   taAktif: { id?: string; nama: string; semester: number } | null
   showAbsensiAction?: boolean
 }
 
-export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction = false }: Props) {
+export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction = false }: JadwalMengajarTodayProps) {
   if (!taAktif?.id) return null
 
   const db = await getDB()
