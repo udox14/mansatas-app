@@ -188,7 +188,14 @@ export async function syncTanggalMerah(year: number) {
 
   try {
     const { source, data } = await fetchHolidayRows(year)
-    const statements = data.map(item => db.prepare(`
+    const yearStart = `${year}-01-01`
+    const yearEnd = `${year}-12-31`
+    const statements = [
+      db.prepare(`
+        DELETE FROM kalender_pendidikan_events
+        WHERE source = 'sync' AND start_date BETWEEN ? AND ?
+      `).bind(yearStart, yearEnd),
+      ...data.map(item => db.prepare(`
       INSERT INTO kalender_pendidikan_events
         (start_date, end_date, title, category, is_effective, source, external_id, description, created_by, updated_by)
       VALUES (?, ?, ?, 'TANGGAL_MERAH', 0, 'sync', ?, ?, ?, ?)
@@ -201,15 +208,16 @@ export async function syncTanggalMerah(year: number) {
         description = excluded.description,
         updated_by = excluded.updated_by,
         updated_at = datetime('now')
-    `).bind(
-      item.date,
-      item.date,
-      item.title,
-      `${year}:${item.externalId}`,
-      `Sinkron dari ${source}`,
-      user.id,
-      user.id,
-    ))
+      `).bind(
+        item.date,
+        item.date,
+        item.title,
+        `${year}:${item.externalId}`,
+        `Sinkron dari ${source}`,
+        user.id,
+        user.id,
+      )),
+    ]
 
     for (let i = 0; i < statements.length; i += 100) {
       await db.batch(statements.slice(i, i + 100))
