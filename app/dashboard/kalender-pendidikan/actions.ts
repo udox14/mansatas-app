@@ -30,7 +30,7 @@ function normalizeHolidayRows(payload: any): Array<{ date: string; title: string
 
   return rows.map((row: any) => {
     const date = String(row.date || row.tanggal || row.holiday_date || '').slice(0, 10)
-    const title = String(row.name || row.summary || row.title || row.holiday_name || row.keterangan || 'Tanggal Merah').trim()
+    const title = String(row.description || row.name || row.summary || row.title || row.holiday_name || row.keterangan || 'Tanggal Merah').trim()
     const externalId = String(row.id || `${date}:${title}`.toLowerCase().replace(/\s+/g, '-'))
     return { date, title, externalId }
   }).filter((item: { date: string; title: string; externalId: string }) => assertDate(item.date) && item.title)
