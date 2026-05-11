@@ -9,7 +9,7 @@ import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import { nowWIB, currentTimeWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
-import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
 // ============================================================
 // TYPES
@@ -193,6 +193,14 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
     SYSTEM_SETTING_KEYS.agendaTimeRestriction,
     true
   )
+  const agendaLateEnabled = await getSystemSettingBoolean(
+    SYSTEM_SETTING_KEYS.agendaLateEnabled,
+    true
+  )
+  const agendaLateThresholdMinutes = Math.max(0, await getSystemSettingNumber(
+    SYSTEM_SETTING_KEYS.agendaLateThresholdMinutes,
+    10
+  ))
 
   // Cek apakah sudah diisi
   const existing = await db.prepare(
@@ -224,11 +232,13 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
 
   // Hitung status
   const [mulaiH2, mulaiM2] = slotMulai.split(':').map(Number)
-  const batasTepat = mulaiH2 * 60 + mulaiM2 + 10 // 10 menit setelah jam mulai
+  const batasTepat = mulaiH2 * 60 + mulaiM2 + agendaLateThresholdMinutes
   const [curH2, curM2] = currentTime.split(':').map(Number)
   const currentMinutes2 = curH2 * 60 + curM2
   // Jika act-as, selalu TEPAT_WAKTU karena diinput oleh admin
-  const status = isActingAs ? 'TEPAT_WAKTU' : (currentMinutes2 <= batasTepat ? 'TEPAT_WAKTU' : 'TELAT')
+  const status = isActingAs || !agendaLateEnabled
+    ? 'TEPAT_WAKTU'
+    : (currentMinutes2 <= batasTepat ? 'TEPAT_WAKTU' : 'TELAT')
 
   // Upload foto ke R2 (jika ada)
   let fotoUrl: string | null = null

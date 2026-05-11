@@ -172,12 +172,12 @@ export function AbsensiClient({ initialData }: Props) {
 
           return (
             <div key={s.siswa_id} className={`rounded-lg border ${ui.border} ${ui.bg} overflow-hidden transition-colors`}>
-              <div className="flex items-center gap-2 px-3 py-2.5">
+              <div className="flex items-start gap-2 px-3 py-2.5">
                 {/* Number */}
-                <span className="text-[10px] text-slate-400 w-5 text-center shrink-0">{idx + 1}</span>
+                <span className="text-[10px] text-slate-400 w-5 text-center shrink-0 pt-1">{idx + 1}</span>
 
                 {/* Avatar */}
-                <div className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
+                <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
                   {s.foto_url
                     ? <img src={s.foto_url} alt="" className="h-full w-full object-cover" />
                     : <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{s.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
@@ -185,17 +185,17 @@ export function AbsensiClient({ initialData }: Props) {
 
                 {/* Name + info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate leading-tight">{s.nama_lengkap}</p>
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="text-[13px] font-medium text-slate-800 dark:text-slate-100 leading-snug break-words">{s.nama_lengkap}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                     <span className="text-[10px] text-slate-400">{s.nisn}</span>
                     {s.keterangan_wali_kelas && (
-                      <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0 rounded bg-purple-100 text-purple-700 font-medium">
+                      <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
                         <ClipboardCheck className="h-2.5 w-2.5" />
                         Wali Kelas
                       </span>
                     )}
                     {s.ada_izin && (
-                      <span className="text-[10px] px-1.5 py-0 rounded bg-blue-200 text-blue-800 font-medium">Izin: {s.alasan_izin}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-200 text-blue-800 font-medium break-words">Izin: {s.alasan_izin}</span>
                     )}
                   </div>
                 </div>

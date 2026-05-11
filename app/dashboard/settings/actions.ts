@@ -155,6 +155,27 @@ export async function setAgendaTimeRestrictionEnabled(enabled: boolean) {
   return { success: true }
 }
 
+export async function setAgendaLateSetting(enabled: boolean, thresholdMinutes: number) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<{ role: string }>()
+  if (userRow?.role !== 'super_admin') {
+    return { error: 'Hanya Super Admin yang bisa mengubah pengaturan ini.' }
+  }
+
+  const sanitizedMinutes = Math.max(0, Math.min(240, Math.floor(Number(thresholdMinutes) || 0)))
+
+  await setSystemSetting(SYSTEM_SETTING_KEYS.agendaLateEnabled, enabled ? '1' : '0')
+  await setSystemSetting(SYSTEM_SETTING_KEYS.agendaLateThresholdMinutes, String(sanitizedMinutes))
+
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/monitoring-agenda')
+  return { success: true }
+}
+
 export async function setAttendanceTimeRestrictionEnabled(enabled: boolean) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }

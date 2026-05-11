@@ -2,6 +2,8 @@ import { getDB } from '@/utils/db'
 
 export const SYSTEM_SETTING_KEYS = {
   agendaTimeRestriction: 'agenda_time_restriction_enabled',
+  agendaLateEnabled: 'agenda_late_enabled',
+  agendaLateThresholdMinutes: 'agenda_late_threshold_minutes',
   attendanceTimeRestriction: 'attendance_time_restriction_enabled',
 } as const
 
@@ -27,6 +29,12 @@ export async function getSystemSetting(key: string, fallback = ''): Promise<stri
 export async function getSystemSettingBoolean(key: string, fallback = false): Promise<boolean> {
   const raw = await getSystemSetting(key, fallback ? '1' : '0')
   return raw === '1' || raw.toLowerCase() === 'true'
+}
+
+export async function getSystemSettingNumber(key: string, fallback: number): Promise<number> {
+  const raw = await getSystemSetting(key, String(fallback))
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : fallback
 }
 
 export async function setSystemSetting(key: string, value: string): Promise<void> {
