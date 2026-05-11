@@ -10,6 +10,7 @@ import { nowWIB, currentTimeWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 
 // ============================================================
 // TYPES
@@ -59,6 +60,7 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
   slots: SlotJam[]
   tanggal: string
   hari: number
+  calendarStatus?: { isEffective: boolean; reason: string | null; category: string | null }
 }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', blocks: [], slots: [], tanggal: '', hari: 0 }
@@ -91,6 +93,22 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
   }
 
   if (hari === 7) return { error: null, blocks: [], slots: [], tanggal, hari }
+
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) {
+    return {
+      error: null,
+      blocks: [],
+      slots: [],
+      tanggal,
+      hari,
+      calendarStatus: {
+        isEffective: false,
+        reason: calendarStatus.reason,
+        category: calendarStatus.category,
+      },
+    }
+  }
 
   // Ambil TA aktif + jam_pelajaran
   const ta = await db.prepare(
@@ -189,6 +207,10 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
   if (!penugasanId || !materi || !tanggal) return { error: 'Materi wajib diisi.' }
 
   const db = await getDB()
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) {
+    return { error: `Tanggal ini tidak efektif pembelajaran${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}. Agenda tidak perlu disimpan.` }
+  }
   const agendaTimeRestrictionEnabled = await getSystemSettingBoolean(
     SYSTEM_SETTING_KEYS.agendaTimeRestriction,
     true

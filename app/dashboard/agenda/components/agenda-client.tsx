@@ -35,6 +35,7 @@ interface AgendaClientProps {
     slots: SlotJam[]
     tanggal: string
     hari: number
+    calendarStatus?: { isEffective: boolean; reason: string | null; category: string | null }
   }
   userRole: string
   isActingAs?: boolean
@@ -109,13 +110,23 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
     setIsSubmitting(false)
   }
 
-  const { blocks, tanggal, hari, error } = data
+  const { blocks, tanggal, hari, error, calendarStatus } = data
 
   if (error) {
     return (
       <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 p-6 text-center">
         <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
         <p className="text-sm text-amber-700">{error}</p>
+      </div>
+    )
+  }
+
+  if (calendarStatus && !calendarStatus.isEffective) {
+    return (
+      <div className="rounded-lg border border-dashed border-rose-200 bg-rose-50 p-10 text-center">
+        <BookOpen className="h-10 w-10 text-rose-300 mx-auto mb-3" />
+        <p className="text-sm font-semibold text-rose-700">Tanggal ini tidak efektif pembelajaran.</p>
+        <p className="mt-1 text-xs text-rose-600">{calendarStatus.reason || 'Agenda guru tidak perlu diisi.'}</p>
       </div>
     )
   }

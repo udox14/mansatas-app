@@ -1,4 +1,5 @@
 import { formatNamaKelas } from '@/lib/utils'
+import { getEffectiveDatesInRange } from '@/lib/kalender-pendidikan'
 
 export type FinalAttendanceStatus =
   | 'HADIR'
@@ -186,7 +187,7 @@ export async function getFinalAttendanceForClass(
   }
 
   const siswaList = siswaRes.results || []
-  const dates = enumerateDates(startDate, endDate)
+  const dates = await getEffectiveDatesInRange(db, startDate, endDate)
 
   const [jadwalRes, absensiRes, waliRes, sesiRes] = await Promise.all([
     ta?.id

@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
+import { getEffectiveDatesInRange, getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 
 // ============================================================
 // HELPER
@@ -38,6 +39,20 @@ export async function getMonitoringHarian(tanggal: string, filterMode: 'semua' |
   const db = await getDB()
   const hari = getHariFromDate(tanggal)
   if (hari === 7) return { error: null, data: [], hariNama: 'Minggu' }
+
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) {
+    return {
+      error: null,
+      data: [],
+      hariNama: HARI_NAMA[hari] || '',
+      calendarStatus: {
+        isEffective: false,
+        reason: calendarStatus.reason,
+        category: calendarStatus.category,
+      },
+    }
+  }
 
   const ta = await db.prepare(
     'SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1'
@@ -206,42 +221,38 @@ export async function getRekapKehadiranGuru(
   }
 
   // 2. Hitung total blok per guru dalam rentang tanggal
-  const start = new Date(tanggalMulai + 'T00:00:00')
-  const end = new Date(tanggalSelesai + 'T00:00:00')
+  const effectiveDates = await getEffectiveDatesInRange(db, tanggalMulai, tanggalSelesai)
   const totalBlokPerGuru = new Map<string, number>()
 
   for (const [guruId, penMap] of guruJadwal) {
     let total = 0
-    const d = new Date(start)
-    while (d <= end) {
-      const dayOfWeek = d.getDay()
-      const hari = dayOfWeek === 0 ? 7 : dayOfWeek
-      if (hari <= 6) { // Senin-Sabtu
-        for (const [, hariSet] of penMap) {
-          if (hariSet.has(hari)) total++
-        }
+    for (const tanggal of effectiveDates) {
+      const hari = getHariFromDate(tanggal)
+      for (const [, hariSet] of penMap) {
+        if (hariSet.has(hari)) total++
       }
-      d.setDate(d.getDate() + 1)
     }
     totalBlokPerGuru.set(guruId, total)
   }
 
   // 3. Ambil agenda yang tercatat
-  const agendaRes = await db.prepare(`
+  const agendaRes = effectiveDates.length > 0 ? await db.prepare(`
     SELECT ag.guru_id, ag.status, COUNT(*) as cnt
     FROM agenda_guru ag
     WHERE ag.tanggal BETWEEN ? AND ?
+      AND ag.tanggal IN (${effectiveDates.map(() => '?').join(',')})
     GROUP BY ag.guru_id, ag.status
-  `).bind(tanggalMulai, tanggalSelesai).all<any>()
+  `).bind(tanggalMulai, tanggalSelesai, ...effectiveDates).all<any>() : { results: [] }
 
   // 3b. Ambil delegasi tugas (count per guru = berapa blok yang didelegasikan)
-  const delegasiRes = await db.prepare(`
+  const delegasiRes = effectiveDates.length > 0 ? await db.prepare(`
     SELECT dt.dari_user_id as guru_id, COUNT(DISTINCT dtk.penugasan_mengajar_id) as cnt
     FROM delegasi_tugas dt
     JOIN delegasi_tugas_kelas dtk ON dtk.delegasi_id = dt.id
     WHERE dt.tanggal BETWEEN ? AND ?
+      AND dt.tanggal IN (${effectiveDates.map(() => '?').join(',')})
     GROUP BY dt.dari_user_id
-  `).bind(tanggalMulai, tanggalSelesai).all<any>()
+  `).bind(tanggalMulai, tanggalSelesai, ...effectiveDates).all<any>() : { results: [] }
 
   const delegasiCountMap = new Map<string, number>()
   for (const row of delegasiRes.results || []) {
@@ -403,6 +414,20 @@ export async function getMonitoringPiketHarian(tanggal: string) {
   const db = await getDB()
   const hari = getHariFromDate(tanggal)
   if (hari === 7) return { error: null, data: [], hariNama: 'Minggu' }
+
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) {
+    return {
+      error: null,
+      data: [],
+      hariNama: HARI_NAMA[hari] || '',
+      calendarStatus: {
+        isEffective: false,
+        reason: calendarStatus.reason,
+        category: calendarStatus.category,
+      },
+    }
+  }
 
   const ta = await db.prepare(
     'SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1'
