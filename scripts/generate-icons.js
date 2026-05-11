@@ -14,15 +14,32 @@ const sizes = [
 ];
 
 async function generate() {
+  const metadata = await sharp(src).metadata();
+  const width = metadata.width;
+  const height = metadata.height;
+
+  // Kita potong sedikit pinggirannya (sekitar 8%) untuk menghilangkan sudut putih
+  const cropAmount = Math.floor(width * 0.08);
+  const extractArea = {
+    left: cropAmount,
+    top: cropAmount,
+    width: width - (cropAmount * 2),
+    height: height - (cropAmount * 2)
+  };
+
   for (const { name, size } of sizes) {
     const outPath = path.join(outDir, name);
     await sharp(src)
-      .resize(size, size, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 0 } })
+      .extract(extractArea) // Potong bagian putih di pojok
+      .resize(size, size, { 
+        fit: 'cover', // Gunakan cover agar penuh
+        background: { r: 13, g: 79, b: 74, alpha: 1 } // Background teal (#0d4f4a)
+      })
       .png()
       .toFile(outPath);
-    console.log(`✓ Generated ${name} (${size}x${size})`);
+    console.log(`✓ Regenerated ${name} (${size}x${size}) without white edges`);
   }
-  console.log('\nDone! All PWA icons generated.');
+  console.log('\nDone! Icons fixed.');
 }
 
 generate().catch(err => {
