@@ -36,7 +36,49 @@ function normalizeHolidayRows(payload: any): Array<{ date: string; title: string
   }).filter((item: { date: string; title: string; externalId: string }) => assertDate(item.date) && item.title)
 }
 
+const OFFICIAL_HOLIDAYS_BY_YEAR: Record<number, Array<{ date: string; title: string }>> = {
+  2026: [
+    { date: '2026-01-01', title: 'Tahun Baru 2026 Masehi' },
+    { date: '2026-01-16', title: 'Isra Mikraj Nabi Muhammad saw.' },
+    { date: '2026-02-16', title: 'Cuti Bersama Tahun Baru Imlek 2577 Kongzili' },
+    { date: '2026-02-17', title: 'Tahun Baru Imlek 2577 Kongzili' },
+    { date: '2026-03-18', title: 'Cuti Bersama Hari Suci Nyepi Tahun Baru Saka 1948' },
+    { date: '2026-03-19', title: 'Hari Suci Nyepi Tahun Baru Saka 1948' },
+    { date: '2026-03-20', title: 'Cuti Bersama Idulfitri 1447 H' },
+    { date: '2026-03-21', title: 'Idulfitri 1447 H' },
+    { date: '2026-03-22', title: 'Idulfitri 1447 H' },
+    { date: '2026-03-23', title: 'Cuti Bersama Idulfitri 1447 H' },
+    { date: '2026-03-24', title: 'Cuti Bersama Idulfitri 1447 H' },
+    { date: '2026-04-03', title: 'Wafat Yesus Kristus' },
+    { date: '2026-04-05', title: 'Kebangkitan Yesus Kristus' },
+    { date: '2026-05-01', title: 'Hari Buruh Internasional' },
+    { date: '2026-05-14', title: 'Kenaikan Yesus Kristus' },
+    { date: '2026-05-15', title: 'Cuti Bersama Kenaikan Yesus Kristus' },
+    { date: '2026-05-27', title: 'Iduladha 1447 H' },
+    { date: '2026-05-28', title: 'Cuti Bersama Iduladha 1447 H' },
+    { date: '2026-05-31', title: 'Hari Raya Waisak 2570 BE' },
+    { date: '2026-06-01', title: 'Hari Lahir Pancasila' },
+    { date: '2026-06-16', title: '1 Muharam Tahun Baru Islam 1448 H' },
+    { date: '2026-08-17', title: 'Proklamasi Kemerdekaan' },
+    { date: '2026-08-25', title: 'Maulid Nabi Muhammad saw.' },
+    { date: '2026-12-24', title: 'Cuti Bersama Kelahiran Yesus Kristus' },
+    { date: '2026-12-25', title: 'Kelahiran Yesus Kristus' },
+  ],
+}
+
 async function fetchHolidayRows(year: number) {
+  const officialRows = OFFICIAL_HOLIDAYS_BY_YEAR[year]
+  if (officialRows) {
+    return {
+      source: 'SKB 3 Menteri 2026',
+      data: officialRows.map(item => ({
+        date: item.date,
+        title: item.title,
+        externalId: `skb-${item.date}`,
+      })),
+    }
+  }
+
   const sources = [
     {
       name: 'api-hari-libur.vercel.app',
