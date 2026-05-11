@@ -8,7 +8,11 @@ export const metadata: Metadata = {
   description: "MANSATAS App - MAN 1 Tasikmalaya Management Application",
   manifest: "/manifest.json",
   icons: {
-    icon: "/logokemenag.png",
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
+    ],
     apple: "/apple-touch-icon.png"
   },
   appleWebApp: {
@@ -22,7 +26,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#059669",
+  themeColor: "#0d4f4a",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
