@@ -312,7 +312,7 @@ export default async function PortalOrtuPage() {
     `).bind(siswaId).all<any>(),
     db.prepare(`
       SELECT u.id, u.nama_lengkap,
-             COALESCE(u.nomor_whatsapp, s.no_hp_wali, s.nomor_whatsapp) AS nomor_kontak
+             COALESCE(u.nomor_whatsapp, s.nomor_whatsapp) AS nomor_kontak
       FROM siswa s
       LEFT JOIN kelas k ON k.id = s.kelas_id
       LEFT JOIN "user" u ON u.id = k.wali_kelas_id

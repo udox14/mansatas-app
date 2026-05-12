@@ -21,118 +21,56 @@ export function ImportModalSiswa() {
     if (!XLSX) return alert('Library XLSX belum siap, coba beberapa detik lagi.')
 
     const data = [{
-      'No Pendaftaran': '2024001',
-      'Tanggal Daftar': '2024-06-01',
-      'Tahun': '2024',
       'NISN': '0051234567',
-      'Nama Peserta': 'Ahmad Fulan',
+      'NIS Lokal': '',
+      'Nama Lengkap': 'Ahmad Fulan',
       'JK': 'L',
+      'Tempat Tinggal': 'Non-Pesantren',
+      'Tahun Masuk': '2024',
+      'Tingkat Kelas': '7',
+      'Kelompok Kelas': 'KEAGAMAAN',
+      'Nomor Kelas': '1',
+      'Minat Jurusan': 'KEAGAMAAN',
+      'NIK': '3206012345678901',
       'Tempat Lahir': 'Tasikmalaya',
       'Tanggal Lahir': '2008-05-15',
       'Agama': 'Islam',
-      'NIK': '3206012345678901',
-      'No KK': '3206019876543210',
-      'No Registrasi Akta Lahir': '',
-      'Kewarganegaraan': 'WNI',
-      'Berkebutuhan Khusus': '',
-      'Alamat': 'Kp. Pasir Muncang',
+      'Jumlah Saudara Kandung': '2',
+      'Anak Ke': '1',
+      'Status Anak': 'Kandung',
+      'Alamat Lengkap': 'Kp. Pasir Muncang',
       'RT': '01',
       'RW': '02',
-      'Dusun': 'Pasir Muncang',
-      'Kelurahan': 'Sukasukur',
+      'Desa/Kelurahan': 'Sukasukur',
       'Kecamatan': 'Cisayong',
       'Kabupaten/Kota': 'Tasikmalaya',
       'Provinsi': 'Jawa Barat',
       'Kode Pos': '46154',
-      'Tempat Tinggal': 'Bersama Orang Tua',
-      'Moda Transportasi': 'Angkutan Umum',
-      'No KKS': '',
-      'Anak Ke': '1',
-      'Penerima KPS/PKH': 'Tidak',
-      'No KPS/PKH': '',
-      'Penerima KIP': 'Tidak',
-      'No KIP': '',
-      'Nama Tertera Di KIP': '',
-      'Terima Fisik Kartu KIP': '',
-      'Hobi': 'Membaca',
+      'Nomor Whatsapp': '081234567890',
+      'No KK': '3206019876543210',
       'Nama Ayah': 'Budi Santoso',
       'NIK Ayah': '',
       'Tempat Lahir Ayah': 'Tasikmalaya',
       'Tanggal Lahir Ayah': '1975-03-10',
+      'Status Ayah': 'Hidup',
       'Pendidikan Ayah': 'SLTA/Sederajat',
       'Pekerjaan Ayah': 'Wiraswasta',
-      'Penghasilan Bulanan Ayah': '2000000',
-      'Berkebutuhan Khusus Ayah': '',
-      'No Hp Ayah': '081234567890',
+      'Penghasilan Ayah': '2000000',
       'Nama Ibu': 'Siti Aminah',
       'NIK Ibu': '',
       'Tempat Lahir Ibu': 'Garut',
       'Tanggal Lahir Ibu': '1978-07-20',
+      'Status Ibu': 'Hidup',
       'Pendidikan Ibu': 'SLTA/Sederajat',
       'Pekerjaan Ibu': 'Ibu Rumah Tangga',
-      'Penghasilan Bulanan Ibu': '0',
-      'Berkebutuhan Khusus Ibu': '',
-      'No Hp Ibu': '',
-      'Nama Wali': '',
-      'NIK Wali': '',
-      'Tempat Lahir Wali': '',
-      'Tanggal Lahir Wali': '',
-      'Pendidikan Wali': '',
-      'Pekerjaan Wali': '',
-      'Penghasilan Bulanan Wali': '',
-      'No Hp Wali': '',
-      'No Telepon Rumah': '',
-      'Nomor HP': '081234567890',
-      'Email': '',
-      'Tinggi Badan': '155',
-      'Berat Badan': '45',
-      'Lingkar Kepala': '',
-      'Jumlah Saudara Kandung': '2',
-      'Asal Sekolah': 'SDN Sukasukur',
-      'Akreditasi': 'B',
-      'No UN': '',
-      'No Seri Ijazah': '',
-      'No Seri SKHU': '',
-      'Tahun Lulus': '2024',
-      'Sekolah Pilihan 2': '',
-      'Jurusan Pilihan 1': 'KEAGAMAAN',
-      'Jurusan Pilihan 2': '',
-      'Latitude': '',
-      'Longitude': '',
-      'Radius': '',
-      'Rentang Jarak': '',
-      'Waktu Tempuh': '',
-      'Jalur': 'Reguler',
-      'Nilai Rapor': '',
-      'Nilai US': '',
-      'Nilai UN': '',
-      'Nilai Rerata rapor semester': '',
-      'Jumlah Nilai': '',
-      'Nilai Jarak': '',
-      'Nilai Prestasi': '',
-      'Nilai Tes': '',
-      'Nilai Wawancara': '',
-      'Nilai Akhir': '',
-      'Usia': '',
-      'Status': 'aktif',
-      'Status Hasil': 'Diterima',
-      'Status Daftar Ulang': 'Sudah',
-      'Catatan': '',
-      'Keterangan': '',
-      // Kolom khusus aplikasi (bukan bagian PPDB)
-      'Pesantren': 'Non-Pesantren',
-      'Asrama': '',
-      'Kamar': '',
-      'Tingkat Kelas': '7',
-      'Kelompok Kelas': 'KEAGAMAAN',
-      'Nomor Kelas': '1',
+      'Penghasilan Ibu': '0',
     }]
 
     const ws = XLSX.utils.json_to_sheet(data)
     ws['!cols'] = Object.keys(data[0]).map(() => ({ wch: 22 }))
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Template_PPDB')
-    XLSX.writeFile(wb, 'Template_Import_Siswa_PPDB.xlsx')
+    XLSX.utils.book_append_sheet(wb, ws, 'Template_Siswa')
+    XLSX.writeFile(wb, 'Template_Import_Siswa.xlsx')
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -181,7 +119,7 @@ export function ImportModalSiswa() {
         <DialogTrigger asChild>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 border-surface rounded-md px-2.5">
             <FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />
-            <span className="hidden sm:inline">Import PPDB</span>
+            <span className="hidden sm:inline">Import Siswa</span>
           </Button>
         </DialogTrigger>
         <DialogContent className="sm:max-w-lg rounded-xl">
@@ -200,7 +138,7 @@ export function ImportModalSiswa() {
             )}
 
             <div className="flex items-center justify-between p-3 bg-surface-2 border border-surface-2 rounded-lg">
-              <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300">Download format Excel PPDB terlebih dahulu:</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300">Download format Excel siswa terlebih dahulu:</p>
               <Button
                 size="sm"
                 variant="outline"
@@ -221,8 +159,8 @@ export function ImportModalSiswa() {
             </div>
 
             <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg text-xs text-blue-800">
-              <p className="font-semibold text-blue-700 mb-1">Tips import dari hasil export PPDB:</p>
-              <p className="text-blue-700/80">File export PPDB bisa langsung digunakan. Kolom yang kosong diabaikan otomatis.</p>
+              <p className="font-semibold text-blue-700 mb-1">Format import dirampingkan</p>
+              <p className="text-blue-700/80">Template hanya berisi kolom biodata yang tersimpan di tabel siswa. Kolom kosong diabaikan otomatis.</p>
             </div>
 
             <Input

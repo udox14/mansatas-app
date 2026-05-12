@@ -32,6 +32,7 @@ function getSanksiStyle(urutan: number) {
 }
 
 const AMAN_STYLE = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
+const naturalSorter = new Intl.Collator('id-ID', { numeric: true, sensitivity: 'base' })
 
 // ─── Modal Detail Kasus per Siswa ──────────────────────────────
 function DetailKasusModal({
@@ -164,7 +165,7 @@ function DetailKasusModal({
 
 // ─── Main Component ──────────────────────────────────────────
 export function KedisiplinanClient({
-  currentUser, kasusList, masterList, taAktifId, sanksiList = [], lifetimePoin = {}
+  currentUser, kasusList, masterList, taAktifId, sanksiList = [], lifetimePoin = {}, tingkatList = []
 }: {
   currentUser: { id: string, role: string, nama: string }
   kasusList: any[]
@@ -172,6 +173,7 @@ export function KedisiplinanClient({
   taAktifId?: string
   sanksiList?: SanksiConfig[]
   lifetimePoin?: Record<string, number>
+  tingkatList?: string[]
 }) {
   const isSuperAdmin = currentUser.role === 'super_admin'
   const canInput = ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'guru'].includes(currentUser.role)
@@ -209,6 +211,16 @@ export function KedisiplinanClient({
     }
     return Array.from(map.values())
   }, [allKasus])
+
+  const tingkatOptions = useMemo(() => {
+    const fromKasus = allKasus
+      .map(k => k.siswa?.kelas?.tingkat)
+      .filter((tingkat): tingkat is string | number => tingkat !== undefined && tingkat !== null && tingkat !== '')
+      .map(String)
+
+    return Array.from(new Set([...tingkatList, ...fromKasus]))
+      .sort((a, b) => naturalSorter.compare(a, b))
+  }, [allKasus, tingkatList])
 
   const filteredGrouped = useMemo(() => {
     let result = grouped
@@ -358,9 +370,9 @@ export function KedisiplinanClient({
                   <SelectTrigger className="h-7 text-xs rounded flex-1 min-w-[90px]"><SelectValue placeholder="Tingkat" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">Semua Kelas</SelectItem>
-                    <SelectItem value="7">Kelas 7</SelectItem>
-                    <SelectItem value="8">Kelas 8</SelectItem>
-                    <SelectItem value="9">Kelas 9</SelectItem>
+                    {tingkatOptions.map(tingkat => (
+                      <SelectItem key={tingkat} value={tingkat}>Kelas {tingkat}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Select value={filterLevel} onValueChange={v => { setFilterLevel(v); resetPage() }}>
