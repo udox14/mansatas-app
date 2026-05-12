@@ -16,6 +16,17 @@ export type AlasanIzinRow = {
   urutan: number
 }
 
+async function validateAlasanIzin(db: D1Database, alasan: string): Promise<string | null> {
+  const teks = alasan.trim()
+  if (!teks) return 'Alasan wajib dipilih!'
+
+  const row = await db.prepare(
+    `SELECT id FROM alasan_izin_kelas WHERE alasan = ? LIMIT 1`
+  ).bind(teks).first<{ id: string }>()
+
+  return row ? null : 'Alasan tidak tersedia. Silakan pilih alasan dari daftar yang ada.'
+}
+
 // ============================================================
 // ALASAN IZIN — CRUD (hanya super admin bisa tambah/hapus)
 // ============================================================
@@ -189,6 +200,17 @@ export async function simpanIzinWaliKelasBatch(
   const toSimpan = data.filter(d => d.alasan !== null)
 
   try {
+    const alasanDipakai = Array.from(new Set(toSimpan.map(d => d.alasan).filter(Boolean))) as string[]
+    if (alasanDipakai.length > 0) {
+      const placeholders = alasanDipakai.map(() => '?').join(', ')
+      const res = await db.prepare(
+        `SELECT alasan FROM alasan_izin_kelas WHERE alasan IN (${placeholders})`
+      ).bind(...alasanDipakai).all<{ alasan: string }>()
+      const valid = new Set((res.results || []).map(r => r.alasan))
+      const invalid = alasanDipakai.find(a => !valid.has(a))
+      if (invalid) return { error: `Alasan "${invalid}" tidak tersedia. Silakan pilih alasan dari daftar yang ada.` }
+    }
+
     const stmts: any[] = []
 
     // Hapus semua record izin lama untuk siswa yang ada di list (per tanggal)
@@ -317,6 +339,8 @@ export async function tambahIzinTidakMasuk(prevState: any, formData: FormData) {
   const keterangan = formData.get('keterangan') as string
 
   if (!siswa_id || !alasan) return { error: 'Siswa dan alasan wajib diisi!', success: null }
+  const invalidAlasan = await validateAlasanIzin(db, alasan)
+  if (invalidAlasan) return { error: invalidAlasan, success: null }
 
   const result = await dbInsert(db, 'izin_tidak_masuk_kelas', {
     siswa_id,
@@ -359,6 +383,8 @@ export async function tambahIzinKelas(prevState: any, formData: FormData) {
   if (!siswa_id) return { error: 'Siswa wajib dipilih!', success: null }
   if (jam_pelajaran.length === 0) return { error: 'Pilih minimal 1 jam pelajaran!', success: null }
   if (!alasan) return { error: 'Alasan wajib dipilih!', success: null }
+  const invalidAlasan = await validateAlasanIzin(db, alasan)
+  if (invalidAlasan) return { error: invalidAlasan, success: null }
 
   const result = await dbInsert(db, 'izin_tidak_masuk_kelas', {
     siswa_id,

@@ -24,7 +24,7 @@ export default async function KeteranganAbsensiPage() {
     <div className="space-y-4 animate-in fade-in duration-500 pb-24">
       <PageHeader
         title="Keterangan Absensi"
-        description="Input keterangan sakit atau izin siswa kelas binaan Anda."
+        description="Tentukan status harian siswa kelas binaan saat perlu koreksi atau keputusan wali kelas."
       />
 
       {error ? (

@@ -17,6 +17,7 @@ export type MonitoringDelegasi = {
     mapel_nama: string
     tugas: string
     absen_selesai: boolean
+    pelaksana_nama: string | null
   }>
 }
 
@@ -35,12 +36,14 @@ export async function getMonitoringData(tanggal: string): Promise<{ error: strin
       u1.nama_lengkap as dari_nama,
       u2.nama_lengkap as kepada_nama,
       dtk.id as dtk_id, dtk.tugas, dtk.absen_selesai,
+      u_pelaksana.nama_lengkap as pelaksana_nama,
       k.tingkat, k.nomor_kelas, k.kelompok,
       mp.nama_mapel
     FROM delegasi_tugas dt
     JOIN "user" u1 ON dt.dari_user_id = u1.id
-    JOIN "user" u2 ON dt.kepada_user_id = u2.id
+    LEFT JOIN "user" u2 ON dt.kepada_user_id = u2.id
     JOIN delegasi_tugas_kelas dtk ON dt.id = dtk.delegasi_id
+    LEFT JOIN "user" u_pelaksana ON dtk.pelaksana_user_id = u_pelaksana.id
     JOIN penugasan_mengajar pm ON dtk.penugasan_mengajar_id = pm.id
     JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
     JOIN kelas k ON dtk.kelas_id = k.id
@@ -55,7 +58,7 @@ export async function getMonitoringData(tanggal: string): Promise<{ error: strin
       grouped.set(r.delegasi_id, {
         delegasi_id: r.delegasi_id,
         dari_nama: r.dari_nama || 'Tanpa Nama',
-        kepada_nama: r.kepada_nama || 'Tanpa Nama',
+        kepada_nama: r.kepada_nama || 'Semua guru piket hari itu',
         status: r.status,
         tanggal: r.tanggal,
         created_at: r.created_at,
@@ -66,7 +69,8 @@ export async function getMonitoringData(tanggal: string): Promise<{ error: strin
       kelas_label: formatNamaKelas(r.tingkat, r.nomor_kelas, r.kelompok),
       mapel_nama: r.nama_mapel,
       tugas: r.tugas,
-      absen_selesai: !!r.absen_selesai
+      absen_selesai: !!r.absen_selesai,
+      pelaksana_nama: r.pelaksana_nama || null
     })
   }
 

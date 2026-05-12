@@ -29,6 +29,8 @@ export type DelegasiMasuk = {
   delegasi_id: string
   delegasi_kelas_id: string
   dari_user_nama: string
+  pelaksana_user_id: string | null
+  pelaksana_nama: string | null
   tanggal: string
   kelas_id: string
   kelas_label: string
@@ -51,6 +53,14 @@ export type UserOption = {
   shift_nama: string
 }
 
+type GuruPiketRow = {
+  id: string
+  nama_lengkap: string
+  jam_mulai: number
+  jam_selesai: number
+  nama_shift: string
+}
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -66,6 +76,85 @@ function getHariFromDate(dateStr: string): number {
   const d = new Date(dateStr + 'T00:00:00')
   const day = d.getDay()
   return day === 0 ? 7 : day
+}
+
+function parseIzinJamPelajaran(raw: unknown): number[] | null {
+  if (raw === null || raw === undefined || raw === '') return null
+  if (typeof raw === 'number') return Number.isFinite(raw) ? [raw] : []
+
+  const text = String(raw).trim()
+  if (!text) return null
+
+  try {
+    const parsed = JSON.parse(text)
+    if (Array.isArray(parsed)) return parsed.map(Number).filter(Number.isFinite)
+    const n = Number(parsed)
+    return Number.isFinite(n) ? [n] : []
+  } catch {
+    const n = Number(text)
+    return Number.isFinite(n) ? [n] : []
+  }
+}
+
+function jamBeririsan(jamIzin: number[] | null, jamKeMulai?: number, jamKeSelesai?: number): boolean {
+  if (jamIzin === null) return true
+  if (!jamIzin.length) return false
+  if (!jamKeMulai || !jamKeSelesai) return true
+  return jamIzin.some(jam => jam >= jamKeMulai && jam <= jamKeSelesai)
+}
+
+async function getGuruPiketHariIni(db: D1Database, hari: number, excludeUserId?: string): Promise<GuruPiketRow[]> {
+  const excludeSql = excludeUserId ? 'AND u.id != ?' : ''
+  const excludeArgs = excludeUserId ? [excludeUserId] : []
+
+  const piketRegular = await db.prepare(
+    `SELECT u.id, u.nama_lengkap as nama_lengkap, sp.jam_mulai, sp.jam_selesai, sp.nama_shift
+     FROM "user" u
+     JOIN jadwal_guru_piket j ON u.id = j.user_id
+     JOIN pengaturan_shift_piket sp ON j.shift_id = sp.id
+     WHERE j.hari = ? AND u.banned = 0 ${excludeSql}
+     ORDER BY sp.jam_mulai ASC, u.nama_lengkap ASC`
+  ).bind(hari, ...excludeArgs).all<any>()
+
+  const piketPPL = await db.prepare(
+    `SELECT u.id, u.nama_lengkap || ' (PPL)' as nama_lengkap, sp.jam_mulai, sp.jam_selesai, sp.nama_shift
+     FROM "user" u
+     JOIN guru_ppl_mapping jpp ON jpp.guru_ppl_id = u.id
+     JOIN jadwal_guru_piket j ON j.id = jpp.jadwal_piket_id
+     JOIN pengaturan_shift_piket sp ON j.shift_id = sp.id
+     WHERE j.hari = ? AND u.banned = 0 ${excludeSql}
+     ORDER BY sp.jam_mulai ASC, u.nama_lengkap ASC`
+  ).bind(hari, ...excludeArgs).all<any>()
+
+  const seen = new Set<string>()
+  const rows: GuruPiketRow[] = []
+  for (const row of [...(piketRegular.results || []), ...(piketPPL.results || [])]) {
+    if (seen.has(row.id)) continue
+    seen.add(row.id)
+    rows.push(row)
+  }
+  return rows
+}
+
+async function isGuruPiketPadaHari(db: D1Database, userId: string, hari: number): Promise<boolean> {
+  const regular = await db.prepare(
+    `SELECT 1
+     FROM jadwal_guru_piket j
+     JOIN "user" u ON u.id = j.user_id
+     WHERE j.hari = ? AND j.user_id = ? AND u.banned = 0
+     LIMIT 1`
+  ).bind(hari, userId).first<any>()
+  if (regular) return true
+
+  const ppl = await db.prepare(
+    `SELECT 1
+     FROM guru_ppl_mapping jpp
+     JOIN jadwal_guru_piket j ON j.id = jpp.jadwal_piket_id
+     JOIN "user" u ON u.id = jpp.guru_ppl_id
+     WHERE j.hari = ? AND jpp.guru_ppl_id = ? AND u.banned = 0
+     LIMIT 1`
+  ).bind(hari, userId).first<any>()
+  return !!ppl
 }
 
 // ============================================================
@@ -151,7 +240,7 @@ export async function getJadwalUntukDelegasi(tanggal: string): Promise<{
 }
 
 // ============================================================
-// 2. AMBIL DAFTAR USER (untuk pilih pelaksana)
+// 2. AMBIL DAFTAR GURU PIKET HARI INI (untuk info penerima broadcast)
 // ============================================================
 export async function getDaftarUser(tanggal: string): Promise<UserOption[]> {
   const user = await getCurrentUser()
@@ -159,33 +248,8 @@ export async function getDaftarUser(tanggal: string): Promise<UserOption[]> {
 
   const db = await getDB()
   const hari = getHariFromDate(tanggal)
-
-  // Guru piket reguler
-  const piketRegular = await db.prepare(
-    `SELECT u.id, u.nama_lengkap as nama_lengkap, sp.jam_mulai, sp.jam_selesai, sp.nama_shift
-     FROM "user" u
-     JOIN jadwal_guru_piket j ON u.id = j.user_id
-     JOIN pengaturan_shift_piket sp ON j.shift_id = sp.id
-     WHERE j.hari = ? AND u.banned = 0 AND u.id != ?
-     ORDER BY sp.jam_mulai ASC, u.nama_lengkap ASC`
-  ).bind(hari, user.id).all<any>()
-
-  // Guru PPL yang punya mapping piket di hari yang sama
-  const piketPPL = await db.prepare(
-    `SELECT u.id, u.nama_lengkap || ' (PPL)' as nama_lengkap, sp.jam_mulai, sp.jam_selesai, sp.nama_shift
-     FROM "user" u
-     JOIN guru_ppl_mapping jpp ON jpp.guru_ppl_id = u.id
-     JOIN jadwal_guru_piket j ON j.id = jpp.jadwal_piket_id
-     JOIN pengaturan_shift_piket sp ON j.shift_id = sp.id
-     WHERE j.hari = ? AND u.banned = 0 AND u.id != ?
-     ORDER BY sp.jam_mulai ASC, u.nama_lengkap ASC`
-  ).bind(hari, user.id).all<any>()
-
-  const allRows = [...(piketRegular.results || []), ...(piketPPL.results || [])]
-  const result = { results: allRows }
-
-
-  return (result.results || []).map((u: any) => ({
+  const rows = await getGuruPiketHariIni(db, hari)
+  return rows.map((u: any) => ({
     id: u.id,
     nama: u.nama_lengkap || 'Tanpa Nama',
     jam_mulai: u.jam_mulai,
@@ -198,15 +262,14 @@ export async function getDaftarUser(tanggal: string): Promise<UserOption[]> {
 // 3. KIRIM DELEGASI TUGAS
 // ============================================================
 export async function kirimDelegasiTugas(
-  kepada_user_id: string,
   tanggal: string,
   items: Array<{ penugasan_mengajar_id: string; kelas_id: string; tugas: string }>
 ): Promise<{ error?: string; success?: string }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
-  if (!kepada_user_id || !tanggal || items.length === 0) {
-    return { error: 'Data tidak lengkap. Pilih pelaksana dan minimal satu kelas.' }
+  if (!tanggal || items.length === 0) {
+    return { error: 'Data tidak lengkap. Pilih minimal satu kelas.' }
   }
 
   for (const item of items) {
@@ -214,6 +277,11 @@ export async function kirimDelegasiTugas(
   }
 
   const db = await getDB()
+  const hari = getHariFromDate(tanggal)
+  const guruPiket = await getGuruPiketHariIni(db, hari)
+  if (guruPiket.length === 0) {
+    return { error: 'Belum ada guru piket yang bertugas pada hari ini.' }
+  }
 
   // Cek apakah sudah ada delegasi untuk penugasan_mengajar yang sama di tanggal ini
   const penIds = items.map(i => i.penugasan_mengajar_id)
@@ -232,7 +300,7 @@ export async function kirimDelegasiTugas(
   // Insert delegasi_tugas
   const delegasiResult = await dbInsert<any>(db, 'delegasi_tugas', {
     dari_user_id: user.id,
-    kepada_user_id: kepada_user_id,
+    kepada_user_id: null,
     tanggal,
     status: 'DIKIRIM',
   })
@@ -259,20 +327,19 @@ export async function kirimDelegasiTugas(
   // Trigger Push Notification
   try {
     const jumlahSesi = items.length;
-    await sendPushNotification(
-      {
+    await Promise.allSettled(guruPiket.map(piket =>
+      sendPushNotification({
         title: 'Tugas Baru Masuk!',
-        body: `Anda mendapat penugasan piket dari ${user.name || 'Guru'} untuk ${jumlahSesi} sesi kelas pada tanggal ${tanggal}. Segera periksa di aplikasi.`,
+        body: `Ada penugasan piket dari ${user.name || 'Guru'} untuk ${jumlahSesi} sesi kelas pada tanggal ${tanggal}. Siapa pun guru piket hari ini bisa melaksanakan.`,
         url: '/dashboard/penugasan'
-      },
-      { userId: kepada_user_id }
-    );
+      }, { userId: piket.id })
+    ));
   } catch (pushErr) {
     console.error("Gagal mengirim push alert ke guru piket:", pushErr);
   }
 
   revalidatePath('/dashboard/penugasan')
-  return { success: 'Tugas berhasil dikirim!' }
+  return { success: `Tugas berhasil dikirim ke ${guruPiket.length} guru piket yang bertugas hari ini.` }
 }
 
 // ============================================================
@@ -308,16 +375,29 @@ export async function getTugasMasuk(tanggal: string): Promise<{
       mp.nama_mapel,
       dtk.tugas,
       dtk.absen_selesai,
+      dtk.pelaksana_user_id,
+      u_pelaksana.nama_lengkap as pelaksana_nama,
       dt.status
     FROM delegasi_tugas dt
     JOIN delegasi_tugas_kelas dtk ON dtk.delegasi_id = dt.id
     JOIN "user" u_dari ON dt.dari_user_id = u_dari.id
+    LEFT JOIN "user" u_pelaksana ON dtk.pelaksana_user_id = u_pelaksana.id
     JOIN penugasan_mengajar pm ON dtk.penugasan_mengajar_id = pm.id
     JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
     JOIN kelas k ON dtk.kelas_id = k.id
-    WHERE dt.kepada_user_id = ? AND dt.tanggal = ?
+    WHERE dt.tanggal = ?
+      AND (dt.kepada_user_id = ? OR (dt.kepada_user_id IS NULL AND EXISTS (
+        SELECT 1 FROM jadwal_guru_piket j
+        JOIN "user" u_piket ON u_piket.id = j.user_id
+        WHERE j.hari = ? AND j.user_id = ? AND u_piket.banned = 0
+        UNION
+        SELECT 1 FROM guru_ppl_mapping jpp
+        JOIN jadwal_guru_piket j ON j.id = jpp.jadwal_piket_id
+        JOIN "user" u_ppl ON u_ppl.id = jpp.guru_ppl_id
+        WHERE j.hari = ? AND jpp.guru_ppl_id = ? AND u_ppl.banned = 0
+      )))
     ORDER BY k.tingkat, k.kelompok, k.nomor_kelas
-  `).bind(user.id, tanggal).all<any>()).results || []
+  `).bind(tanggal, user.id, hari, user.id, hari, user.id).all<any>()).results || []
 
   // Get jam_ke for each penugasan from jadwal_mengajar
   const penugasanIds = [...new Set(rows.map((r: any) => r.penugasan_mengajar_id))]
@@ -344,6 +424,8 @@ export async function getTugasMasuk(tanggal: string): Promise<{
       delegasi_id: r.delegasi_id,
       delegasi_kelas_id: r.delegasi_kelas_id,
       dari_user_nama: r.dari_user_nama,
+      pelaksana_user_id: r.pelaksana_user_id || null,
+      pelaksana_nama: r.pelaksana_nama || null,
       tanggal: r.tanggal,
       kelas_id: r.kelas_id,
       kelas_label: formatNamaKelas(r.tingkat, r.nomor_kelas, r.kelompok),
@@ -371,7 +453,7 @@ export async function getDelegasiTerkirim(tanggal: string): Promise<{
     delegasi_id: string
     kepada_user_nama: string
     status: string
-    items: Array<{ kelas_label: string; tugas: string; absen_selesai: boolean }>
+    items: Array<{ kelas_label: string; tugas: string; absen_selesai: boolean; pelaksana_nama: string | null }>
   }>
 }> {
   const user = await getCurrentUser()
@@ -387,10 +469,12 @@ export async function getDelegasiTerkirim(tanggal: string): Promise<{
       dtk.id as dtk_id,
       k.tingkat, k.nomor_kelas, k.kelompok,
       dtk.tugas,
-      dtk.absen_selesai
+      dtk.absen_selesai,
+      u_pelaksana.nama_lengkap as pelaksana_nama
     FROM delegasi_tugas dt
-    JOIN "user" u_kepada ON dt.kepada_user_id = u_kepada.id
+    LEFT JOIN "user" u_kepada ON dt.kepada_user_id = u_kepada.id
     JOIN delegasi_tugas_kelas dtk ON dtk.delegasi_id = dt.id
+    LEFT JOIN "user" u_pelaksana ON dtk.pelaksana_user_id = u_pelaksana.id
     JOIN kelas k ON dtk.kelas_id = k.id
     WHERE dt.dari_user_id = ? AND dt.tanggal = ?
     ORDER BY dt.created_at DESC, k.tingkat, k.kelompok, k.nomor_kelas
@@ -402,7 +486,7 @@ export async function getDelegasiTerkirim(tanggal: string): Promise<{
     if (!grouped.has(r.delegasi_id)) {
       grouped.set(r.delegasi_id, {
         delegasi_id: r.delegasi_id,
-        kepada_user_nama: r.kepada_user_nama,
+        kepada_user_nama: r.kepada_user_nama || 'Semua guru piket hari ini',
         status: r.status,
         items: [],
       })
@@ -411,6 +495,7 @@ export async function getDelegasiTerkirim(tanggal: string): Promise<{
       kelas_label: formatNamaKelas(r.tingkat, r.nomor_kelas, r.kelompok),
       tugas: r.tugas,
       absen_selesai: !!r.absen_selesai,
+      pelaksana_nama: r.pelaksana_nama || null,
     })
   }
 
@@ -434,6 +519,11 @@ export async function batalkanDelegasi(delegasiId: string): Promise<{ error?: st
   if (!dt) return { error: 'Delegasi tidak ditemukan.' }
   if (dt.status === 'SELESAI') return { error: 'Delegasi sudah selesai, tidak bisa dibatalkan.' }
 
+  const done = await db.prepare(
+    'SELECT COUNT(*) as cnt FROM delegasi_tugas_kelas WHERE delegasi_id = ? AND absen_selesai = 1'
+  ).bind(delegasiId).first<any>()
+  if ((done?.cnt || 0) > 0) return { error: 'Sebagian tugas sudah dilaksanakan, tidak bisa dibatalkan.' }
+
   // Delete cascade
   const result = await dbDelete(db, 'delegasi_tugas', { id: delegasiId })
   if (result.error) return { error: result.error }
@@ -449,7 +539,9 @@ export async function loadSiswaDelegasi(
   delegasiKelasId: string,
   penugasanMengajarId: string,
   kelasId: string,
-  tanggal: string
+  tanggal: string,
+  jamKeMulai?: number,
+  jamKeSelesai?: number
 ): Promise<{
   error: string | null
   siswa: Array<{
@@ -458,6 +550,9 @@ export async function loadSiswaDelegasi(
     nisn: string
     status: 'HADIR' | 'SAKIT' | 'ALFA' | 'IZIN'
     catatan: string
+    ada_izin: boolean
+    alasan_izin: string
+    keterangan_wali_kelas: string | null
   }>
 }> {
   const user = await getCurrentUser()
@@ -465,36 +560,72 @@ export async function loadSiswaDelegasi(
 
   const db = await getDB()
 
-  // Verify user is the pelaksana
+  // Verify user is the assigned receiver (legacy) or any teacher on today's piket roster.
   const dtk = await db.prepare(`
-    SELECT dtk.id FROM delegasi_tugas_kelas dtk
+    SELECT dtk.id, dt.kepada_user_id FROM delegasi_tugas_kelas dtk
     JOIN delegasi_tugas dt ON dtk.delegasi_id = dt.id
-    WHERE dtk.id = ? AND dt.kepada_user_id = ?
-  `).bind(delegasiKelasId, user.id).first<any>()
+    WHERE dtk.id = ? AND dt.tanggal = ?
+  `).bind(delegasiKelasId, tanggal).first<any>()
   if (!dtk) return { error: 'Tidak memiliki akses.', siswa: [] }
+  if (dtk.kepada_user_id && dtk.kepada_user_id !== user.id) return { error: 'Tidak memiliki akses.', siswa: [] }
+  if (!dtk.kepada_user_id && !(await isGuruPiketPadaHari(db, user.id, getHariFromDate(tanggal)))) {
+    return { error: 'Tidak memiliki akses.', siswa: [] }
+  }
 
-  const [siswaRes, absensiRes, izinRes] = await Promise.all([
+  const [siswaRes, absensiRes, izinRes, izinKeluarRes, waliKelasRes] = await Promise.all([
     db.prepare(`SELECT id, nama_lengkap, nisn FROM siswa WHERE kelas_id = ? AND status = 'aktif' ORDER BY nama_lengkap`).bind(kelasId).all<any>(),
     db.prepare(`SELECT siswa_id, status, catatan FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?`).bind(penugasanMengajarId, tanggal).all<any>(),
-    db.prepare(`SELECT siswa_id, alasan FROM izin_tidak_masuk_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(tanggal, kelasId).all<any>(),
+    db.prepare(`SELECT siswa_id, alasan, jam_pelajaran FROM izin_tidak_masuk_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(tanggal, kelasId).all<any>(),
+    db.prepare(`SELECT siswa_id, keterangan FROM izin_keluar_komplek WHERE status = 'BELUM KEMBALI' AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(kelasId).all<any>(),
+    db.prepare(`SELECT siswa_id, status, keterangan FROM keterangan_absensi_wali_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(tanggal, kelasId).all<any>(),
   ])
 
   const absenMap = new Map<string, { status: string; catatan: string }>()
   for (const a of absensiRes.results || []) absenMap.set(a.siswa_id, { status: a.status, catatan: a.catatan || '' })
   const izinMap = new Map<string, string>()
-  for (const i of izinRes.results || []) izinMap.set(i.siswa_id, i.alasan || 'Izin')
+  for (const i of izinRes.results || []) {
+    if (jamBeririsan(parseIzinJamPelajaran(i.jam_pelajaran), jamKeMulai, jamKeSelesai)) {
+      izinMap.set(i.siswa_id, i.alasan || 'Izin')
+    }
+  }
+  for (const i of izinKeluarRes.results || []) {
+    if (!izinMap.has(i.siswa_id)) {
+      izinMap.set(i.siswa_id, i.keterangan ? `Keluar komplek: ${i.keterangan}` : 'Keluar komplek')
+    }
+  }
+  const waliMap = new Map<string, { status: string; keterangan: string }>()
+  for (const w of waliKelasRes.results || []) waliMap.set(w.siswa_id, { status: w.status, keterangan: w.keterangan || '' })
 
   return {
     error: null,
     siswa: (siswaRes.results || []).map((s: any) => {
       const ab = absenMap.get(s.id)
       const adaIzin = izinMap.has(s.id)
+      const wali = waliMap.get(s.id)
+
+      let status: 'HADIR' | 'SAKIT' | 'ALFA' | 'IZIN'
+      let catatan = ''
+      if (ab) {
+        status = ab.status as any
+        catatan = ab.catatan
+      } else if (wali) {
+        status = wali.status as any
+        catatan = `Keterangan dari wali kelas${wali.keterangan ? ': ' + wali.keterangan : ''}`
+      } else if (adaIzin) {
+        status = 'IZIN'
+      } else {
+        status = 'HADIR'
+      }
+
       return {
         siswa_id: s.id,
         nama_lengkap: s.nama_lengkap,
         nisn: s.nisn,
-        status: ab ? ab.status as any : (adaIzin ? 'IZIN' : 'HADIR'),
-        catatan: ab?.catatan || '',
+        status,
+        catatan,
+        ada_izin: adaIzin,
+        alasan_izin: izinMap.get(s.id) || '',
+        keterangan_wali_kelas: wali ? (wali.keterangan || wali.status) : null,
       }
     }),
   }
@@ -516,13 +647,20 @@ export async function simpanAbsensiDelegasi(
 
   const db = await getDB()
 
-  // Verify pelaksana
+  // Verify user is the assigned receiver (legacy) or any teacher on today's piket roster.
   const dtk = await db.prepare(`
-    SELECT dtk.id, dtk.delegasi_id FROM delegasi_tugas_kelas dtk
+    SELECT dtk.id, dtk.delegasi_id, dtk.absen_selesai, dtk.pelaksana_user_id, dt.kepada_user_id FROM delegasi_tugas_kelas dtk
     JOIN delegasi_tugas dt ON dtk.delegasi_id = dt.id
-    WHERE dtk.id = ? AND dt.kepada_user_id = ?
-  `).bind(delegasiKelasId, user.id).first<any>()
+    WHERE dtk.id = ? AND dt.tanggal = ?
+  `).bind(delegasiKelasId, tanggal).first<any>()
   if (!dtk) return { error: 'Tidak memiliki akses.' }
+  if (dtk.kepada_user_id && dtk.kepada_user_id !== user.id) return { error: 'Tidak memiliki akses.' }
+  if (!dtk.kepada_user_id && !(await isGuruPiketPadaHari(db, user.id, getHariFromDate(tanggal)))) {
+    return { error: 'Tidak memiliki akses.' }
+  }
+  if (dtk.absen_selesai && dtk.pelaksana_user_id && dtk.pelaksana_user_id !== user.id) {
+    return { error: 'Tugas ini sudah dilaksanakan guru piket lain.' }
+  }
 
   // Sparse: only save non-HADIR
   const toSave = dataAbsen.filter(d => d.status !== 'HADIR')
@@ -546,7 +684,11 @@ export async function simpanAbsensiDelegasi(
   }
 
   // Mark absen_selesai
-  await dbUpdate(db, 'delegasi_tugas_kelas', { absen_selesai: 1 }, { id: delegasiKelasId })
+  await dbUpdate(db, 'delegasi_tugas_kelas', {
+    absen_selesai: 1,
+    pelaksana_user_id: user.id,
+    selesai_at: nowWIB().toISOString(),
+  }, { id: delegasiKelasId })
 
   // Check if all kelas in this delegasi are done → mark delegasi as SELESAI
   const remaining = await db.prepare(

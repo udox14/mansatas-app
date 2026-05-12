@@ -7,12 +7,14 @@ export type FinalAttendanceStatus =
   | 'IZIN'
   | 'ALFA'
   | 'PARSIAL'
+  | 'PERLU_KONFIRMASI_WALI'
   | 'BELUM_ADA_DATA'
 
 export type FinalAttendanceSource =
   | 'guru'
   | 'wali_kelas'
   | 'koreksi_wali_kelas'
+  | 'perlu_konfirmasi_wali'
   | 'belum_ada_data'
 
 export type FinalAttendanceDetail = {
@@ -22,7 +24,7 @@ export type FinalAttendanceDetail = {
   tanggal: string
   total_blok: number
   guru_status: FinalAttendanceStatus
-  wali_status: 'SAKIT' | 'IZIN' | null
+  wali_status: 'SAKIT' | 'IZIN' | 'ALFA' | null
   status_akhir: FinalAttendanceStatus
   sumber_status: FinalAttendanceSource
   keterangan_wali_kelas: string | null
@@ -76,18 +78,20 @@ function enumerateDates(startDate: string, endDate: string) {
 
 function deriveGuruStatus(totalBlok: number, records: Array<{ status: string }>): FinalAttendanceStatus {
   if (totalBlok <= 0) {
-    return records.length > 0 ? 'PARSIAL' : 'BELUM_ADA_DATA'
+    return records.length > 0 ? 'PERLU_KONFIRMASI_WALI' : 'BELUM_ADA_DATA'
   }
 
   if (records.length === 0) {
     return 'BELUM_ADA_DATA'
   }
 
+  const uniqueStatuses = Array.from(new Set(records.map(record => record.status)))
+
   if (records.length < totalBlok) {
-    return 'PARSIAL'
+    if (!uniqueStatuses.includes('ALFA')) return 'HADIR'
+    return uniqueStatuses.length === 1 ? 'PARSIAL' : 'PERLU_KONFIRMASI_WALI'
   }
 
-  const uniqueStatuses = Array.from(new Set(records.map(record => record.status)))
   if (uniqueStatuses.length === 1) {
     const [status] = uniqueStatuses
     if (status === 'SAKIT' || status === 'IZIN' || status === 'ALFA') {
@@ -95,7 +99,7 @@ function deriveGuruStatus(totalBlok: number, records: Array<{ status: string }>)
     }
   }
 
-  return 'PARSIAL'
+  return 'PERLU_KONFIRMASI_WALI'
 }
 
 function deriveGuruStatusWithSession(
@@ -103,16 +107,20 @@ function deriveGuruStatusWithSession(
   records: Array<{ status: string }>,
   isSubmitted: boolean
 ): FinalAttendanceStatus {
-  if (totalBlok <= 0) return records.length > 0 ? 'PARSIAL' : 'BELUM_ADA_DATA'
+  if (totalBlok <= 0) return records.length > 0 ? 'PERLU_KONFIRMASI_WALI' : 'BELUM_ADA_DATA'
   if (records.length === 0) return isSubmitted ? 'HADIR' : 'BELUM_ADA_DATA'
   return deriveGuruStatus(totalBlok, records)
 }
 
-function buildFinalStatus(guruStatus: FinalAttendanceStatus, waliStatus: 'SAKIT' | 'IZIN' | null) {
+function buildFinalStatus(guruStatus: FinalAttendanceStatus, waliStatus: 'SAKIT' | 'IZIN' | 'ALFA' | null) {
   if (!waliStatus) {
     return {
       status_akhir: guruStatus,
-      sumber_status: guruStatus === 'BELUM_ADA_DATA' ? 'belum_ada_data' as const : 'guru' as const,
+      sumber_status: guruStatus === 'BELUM_ADA_DATA'
+        ? 'belum_ada_data' as const
+        : guruStatus === 'PERLU_KONFIRMASI_WALI'
+          ? 'perlu_konfirmasi_wali' as const
+          : 'guru' as const,
     }
   }
 
@@ -256,7 +264,7 @@ export async function getFinalAttendanceForClass(
     sesiMap.get(row.tanggal)!.add(row.penugasan_id)
   }
 
-  const waliMap = new Map<string, { status: 'SAKIT' | 'IZIN'; keterangan: string | null }>()
+  const waliMap = new Map<string, { status: 'SAKIT' | 'IZIN' | 'ALFA'; keterangan: string | null }>()
   for (const row of waliRes.results || []) {
     waliMap.set(`${row.siswa_id}__${row.tanggal}`, {
       status: row.status,

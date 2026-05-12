@@ -1,5 +1,5 @@
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB, parseJsonCol } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
@@ -205,6 +205,13 @@ export default async function DetailSiswaPage({
     },
   }
 
+  const formattedIzinKelas = (izinKelas.results || []).map((row: any) => ({
+    ...row,
+    jam_pelajaran: parseJsonCol<number[] | null>(row.jam_pelajaran, null) ?? (
+      row.jam_pelajaran ? [Number(row.jam_pelajaran)].filter(Number.isFinite) : []
+    ),
+  }))
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <Link href={backHref} className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-emerald-600 transition-colors bg-surface px-4 py-2 rounded-xl shadow-sm border border-surface w-fit">
@@ -216,7 +223,7 @@ export default async function DetailSiswaPage({
         riwayatKelas={riwayatKelas.results || []}
         pelanggaran={pelanggaran.results || []}
         izinKeluar={izinKeluar.results || []}
-        izinKelas={izinKelas.results || []}
+        izinKelas={formattedIzinKelas}
         keteranganWaliKelas={keteranganWaliKelas.results || []}
         keuangan={{
           dspt: dsptKeuangan || null,

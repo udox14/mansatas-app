@@ -46,13 +46,22 @@ function badgeClass(status: string) {
   if (status === 'IZIN') return 'bg-blue-100 text-blue-700 border-blue-200'
   if (status === 'ALFA') return 'bg-rose-100 text-rose-700 border-rose-200'
   if (status === 'PARSIAL') return 'bg-violet-100 text-violet-700 border-violet-200'
+  if (status === 'PERLU_KONFIRMASI_WALI') return 'bg-purple-100 text-purple-700 border-purple-200'
   return 'bg-slate-100 text-slate-600 border-slate-200'
+}
+
+function attendanceStatusLabel(status: string | null | undefined) {
+  if (!status || status === 'BELUM_ADA_DATA') return 'Belum Ada Data'
+  if (status === 'PARSIAL') return 'Bolos'
+  if (status === 'PERLU_KONFIRMASI_WALI') return 'Perlu Keputusan Wali'
+  return status
 }
 
 function sourceLabel(source: string) {
   if (source === 'wali_kelas') return 'Wali Kelas'
   if (source === 'koreksi_wali_kelas') return 'Koreksi Wali'
   if (source === 'guru') return 'Guru'
+  if (source === 'perlu_konfirmasi_wali') return 'Perlu Keputusan Wali'
   return 'Belum Ada Data'
 }
 
@@ -262,6 +271,7 @@ export async function KelasBinaanDashboard({
     izin: 0,
     alfa: 0,
     parsial: 0,
+    perluKonfirmasiWali: 0,
     belumAdaData: 0,
   }
 
@@ -287,12 +297,13 @@ export async function KelasBinaanDashboard({
   const studentRows = snapshot30?.siswa.map(siswa => {
     const statuses = snapshot30.statusByStudent.get(siswa.id) || []
     const todayStatus = statuses.find(item => item.tanggal === today) || null
-    const monthly = { sakit: 0, izin: 0, alfa: 0, parsial: 0 }
+    const monthly = { sakit: 0, izin: 0, alfa: 0, parsial: 0, perluKonfirmasiWali: 0 }
     for (const status of statuses) {
       if (status.status_akhir === 'SAKIT') monthly.sakit++
       else if (status.status_akhir === 'IZIN') monthly.izin++
       else if (status.status_akhir === 'ALFA') monthly.alfa++
       else if (status.status_akhir === 'PARSIAL') monthly.parsial++
+      else if (status.status_akhir === 'PERLU_KONFIRMASI_WALI') monthly.perluKonfirmasiWali++
     }
     const pelanggaran = topPelanggaran.find(item => item.siswa_id === siswa.id)
     return {
@@ -324,6 +335,7 @@ export async function KelasBinaanDashboard({
     else if (row?.status_akhir === 'IZIN') todaySummary.izin++
     else if (row?.status_akhir === 'ALFA') todaySummary.alfa++
     else if (row?.status_akhir === 'PARSIAL') todaySummary.parsial++
+    else if (row?.status_akhir === 'PERLU_KONFIRMASI_WALI') todaySummary.perluKonfirmasiWali++
     else if (row?.status_akhir === 'BELUM_ADA_DATA') todaySummary.belumAdaData++
     else todaySummary.hadir++
   }
@@ -335,7 +347,7 @@ export async function KelasBinaanDashboard({
 
     const summary = { tanggal, tidakHadir: 0, perhatian: 0 }
     for (const row of rows) {
-      if (['SAKIT', 'IZIN', 'ALFA', 'PARSIAL'].includes(row.status_akhir)) summary.tidakHadir++
+      if (['SAKIT', 'IZIN', 'ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI'].includes(row.status_akhir)) summary.tidakHadir++
       if (row.status_akhir === 'ALFA' || row.sumber_status === 'koreksi_wali_kelas') summary.perhatian++
     }
     return summary
@@ -345,12 +357,12 @@ export async function KelasBinaanDashboard({
   const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
 
   const tidakMasukHariIni = studentRows
-    .filter(row => row.todayStatus && ['SAKIT', 'IZIN', 'ALFA', 'PARSIAL'].includes(row.todayStatus.status_akhir))
+    .filter(row => row.todayStatus && ['SAKIT', 'IZIN', 'ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI'].includes(row.todayStatus.status_akhir))
     .sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
 
   const perluPerhatian = studentRows
     .filter(row =>
-      (row.todayStatus && ['ALFA', 'PARSIAL'].includes(row.todayStatus.status_akhir)) ||
+      (row.todayStatus && ['ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI'].includes(row.todayStatus.status_akhir)) ||
       row.monthly.alfa >= 2 ||
       row.totalPoin >= 25
     )
@@ -418,7 +430,8 @@ export async function KelasBinaanDashboard({
           { label: 'Sakit', value: todaySummary.sakit, tone: 'text-amber-600', bg: 'bg-amber-50' },
           { label: 'Izin', value: todaySummary.izin, tone: 'text-blue-600', bg: 'bg-blue-50' },
           { label: 'Alfa', value: todaySummary.alfa, tone: 'text-rose-600', bg: 'bg-rose-50' },
-          { label: 'Parsial', value: todaySummary.parsial, tone: 'text-violet-600', bg: 'bg-violet-50' },
+          { label: 'Bolos', value: todaySummary.parsial, tone: 'text-violet-600', bg: 'bg-violet-50' },
+          { label: 'Keputusan Wali', value: todaySummary.perluKonfirmasiWali, tone: 'text-purple-600', bg: 'bg-purple-50' },
         ].map(item => (
           <div key={item.label} className="rounded-xl border border-surface bg-surface shadow-sm p-4">
             <div className={`inline-flex rounded-lg p-2 ${item.bg}`}>
@@ -510,7 +523,7 @@ export async function KelasBinaanDashboard({
                     <p className="text-[10px] text-slate-400">{sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data')}</p>
                   </div>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeClass(row.todayStatus?.status_akhir || 'BELUM_ADA_DATA')}`}>
-                    {row.todayStatus?.status_akhir === 'PARSIAL' ? 'Parsial' : row.todayStatus?.status_akhir}
+                    {attendanceStatusLabel(row.todayStatus?.status_akhir)}
                   </span>
                 </Link>
               ))
@@ -525,7 +538,7 @@ export async function KelasBinaanDashboard({
             </div>
             <div className="flex-1">
               <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Perlu Perhatian</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">Alfa berulang, parsial, atau poin tinggi</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">Alfa berulang, bolos, atau poin tinggi</p>
             </div>
           </div>
           <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
@@ -636,7 +649,7 @@ export async function KelasBinaanDashboard({
                     </div>
                   </div>
                   <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(row.todayStatus?.status_akhir || 'BELUM_ADA_DATA')}`}>
-                    {row.todayStatus?.status_akhir === 'BELUM_ADA_DATA' ? 'Belum Ada Data' : row.todayStatus?.status_akhir || 'Belum Ada Data'}
+                    {attendanceStatusLabel(row.todayStatus?.status_akhir)}
                   </span>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
@@ -660,7 +673,7 @@ export async function KelasBinaanDashboard({
                   </div>
                   <div className="col-span-2">
                     <p className="text-slate-400">30 Hari</p>
-                    <p className="font-medium text-slate-600 dark:text-slate-300">S {row.monthly.sakit} • I {row.monthly.izin} • A {row.monthly.alfa} • P {row.monthly.parsial}</p>
+                    <p className="font-medium text-slate-600 dark:text-slate-300">S {row.monthly.sakit} • I {row.monthly.izin} • A {row.monthly.alfa} • B {row.monthly.parsial} • W {row.monthly.perluKonfirmasiWali}</p>
                   </div>
                   {row.timeline ? (
                     <div className="col-span-2">
@@ -712,14 +725,14 @@ export async function KelasBinaanDashboard({
                   </div>
                   <div className="flex items-center">
                     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(row.todayStatus?.status_akhir || 'BELUM_ADA_DATA')}`}>
-                      {row.todayStatus?.status_akhir === 'BELUM_ADA_DATA' ? 'Belum Ada Data' : row.todayStatus?.status_akhir || 'Belum Ada Data'}
+                      {attendanceStatusLabel(row.todayStatus?.status_akhir)}
                     </span>
                   </div>
                   <div className="flex flex-col justify-center text-[11px] text-slate-500">
                     <span>{row.komunikasi.unread > 0 ? `${row.komunikasi.unread} belum dibaca` : 'Terbaca'}</span>
                     <span className="text-[10px] text-slate-400">Pemanggilan: {summonStatusLabel(row.komunikasi.summonStatus)}</span>
                   </div>
-                  <div className="flex items-center text-[11px] text-slate-500">S {row.monthly.sakit} • I {row.monthly.izin} • A {row.monthly.alfa} • P {row.monthly.parsial}</div>
+                  <div className="flex items-center text-[11px] text-slate-500">S {row.monthly.sakit} • I {row.monthly.izin} • A {row.monthly.alfa} • B {row.monthly.parsial} • W {row.monthly.perluKonfirmasiWali}</div>
                   <div className="flex items-center text-[11px] font-semibold text-slate-700 dark:text-slate-200">{row.totalPoin}</div>
                   <div className="flex flex-wrap gap-1.5 items-center">
                     <ParentCommActions

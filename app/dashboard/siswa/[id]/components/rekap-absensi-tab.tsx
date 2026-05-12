@@ -41,7 +41,7 @@ type RekapResult = {
   error: string | null
   siswa?: { nama: string; nisn: string; kelas: string }
   days?: AbsensiDay[]
-  summary?: { hadir: number; parsial: number; sakit: number; izin: number; alfa: number }
+  summary?: { hadir: number; parsial: number; sakit: number; izin: number; alfa: number; perlu_konfirmasi_wali?: number }
   totalHari?: number
 }
 
@@ -51,7 +51,8 @@ type RekapResult = {
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { cls: string; icon: React.ReactNode; label: string }> = {
     'HADIR':         { cls: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800', icon: <CheckCircle2 className="h-3 w-3" />, label: 'Hadir' },
-    'HADIR PARSIAL': { cls: 'bg-amber-100 text-amber-700 border-amber-200',       icon: <Clock className="h-3 w-3" />,        label: 'Parsial' },
+    'BOLOS':         { cls: 'bg-amber-100 text-amber-700 border-amber-200',       icon: <Clock className="h-3 w-3" />,        label: 'Bolos' },
+    'PERLU KONFIRMASI WALI': { cls: 'bg-purple-100 text-purple-700 border-purple-200', icon: <AlertTriangle className="h-3 w-3" />, label: 'Perlu Keputusan Wali' },
     'SAKIT':         { cls: 'bg-blue-100 text-blue-700 border-blue-200',           icon: <MinusCircle className="h-3 w-3" />,  label: 'Sakit' },
     'IZIN':          { cls: 'bg-indigo-100 text-indigo-700 border-indigo-200',     icon: <MinusCircle className="h-3 w-3" />,  label: 'Izin' },
     'ALFA':          { cls: 'bg-rose-100 text-rose-700 border-rose-200',           icon: <XCircle className="h-3 w-3" />,      label: 'Alfa' },
@@ -80,8 +81,8 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
 
   // ── State dialog cetak ──
   const [showPrintDialog, setShowPrintDialog] = useState(false)
-  type StatusKey = 'HADIR' | 'HADIR PARSIAL' | 'SAKIT' | 'IZIN' | 'ALFA'
-  const ALL_STATUS: StatusKey[] = ['HADIR', 'HADIR PARSIAL', 'SAKIT', 'IZIN', 'ALFA']
+  type StatusKey = 'HADIR' | 'BOLOS' | 'SAKIT' | 'IZIN' | 'ALFA' | 'PERLU KONFIRMASI WALI'
+  const ALL_STATUS: StatusKey[] = ['HADIR', 'BOLOS', 'SAKIT', 'IZIN', 'ALFA', 'PERLU KONFIRMASI WALI']
   const [printFilter, setPrintFilter] = useState<Set<StatusKey>>(new Set(ALL_STATUS))
 
   const togglePrintFilter = (s: StatusKey) => setPrintFilter(prev => {
@@ -131,7 +132,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
     const tglTtd = new Date().toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric' })
 
     const statusLabel: Record<string, string> = {
-      HADIR: 'Hadir', 'HADIR PARSIAL': 'Hadir Parsial', SAKIT: 'Sakit', IZIN: 'Izin', ALFA: 'Alfa'
+      HADIR: 'Hadir', BOLOS: 'Bolos', SAKIT: 'Sakit', IZIN: 'Izin', ALFA: 'Alfa', 'PERLU KONFIRMASI WALI': 'Perlu Keputusan Wali'
     }
 
     const namaMeta  = siswa?.nama_lengkap || siswaMeta?.nama || '-'
@@ -236,7 +237,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
   <table class="summary-table">
     <thead>
       <tr>
-        <th>Hadir</th><th>Hadir Parsial</th><th>Sakit</th><th>Izin</th><th>Alfa</th><th>Total Hari</th>
+        <th>Hadir</th><th>Bolos</th><th>Sakit</th><th>Izin</th><th>Alfa</th><th>Perlu Keputusan Wali</th><th>Total Hari</th>
       </tr>
     </thead>
     <tbody>
@@ -246,6 +247,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
         <td>${summary?.sakit ?? 0}</td>
         <td>${summary?.izin ?? 0}</td>
         <td>${summary?.alfa ?? 0}</td>
+        <td>${summary?.perlu_konfirmasi_wali ?? 0}</td>
         <td>${days.length}</td>
       </tr>
     </tbody>
@@ -270,7 +272,8 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
     <div class="keterangan">
       <p><strong>Keterangan:</strong></p>
       <p>Hadir: Hadir semua blok jam pelajaran</p>
-      <p>Hadir Parsial: Hadir sebagian jam</p>
+      <p>Bolos: Hadir sebagian jam, lalu alfa di sebagian jam</p>
+      <p>Perlu Keputusan Wali: Ada campuran alfa, sakit, dan/atau izin dalam satu hari</p>
       <p>Sakit / Izin: Tidak hadir dengan keterangan</p>
       <p>Alfa: Tidak hadir tanpa keterangan</p>
     </div>
@@ -304,10 +307,11 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
   // ── Stat card ──
   const statCards = summary ? [
     { label: 'Hadir',   val: summary.hadir,   cls: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' },
-    { label: 'Parsial', val: summary.parsial, cls: 'bg-amber-50 border-amber-200 text-amber-700' },
+    { label: 'Bolos', val: summary.parsial, cls: 'bg-amber-50 border-amber-200 text-amber-700' },
     { label: 'Sakit',   val: summary.sakit,   cls: 'bg-blue-50 border-blue-200 text-blue-700' },
     { label: 'Izin',    val: summary.izin,    cls: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
     { label: 'Alfa',    val: summary.alfa,    cls: 'bg-rose-50 border-rose-200 text-rose-700' },
+    { label: 'Keputusan Wali', val: summary.perlu_konfirmasi_wali ?? 0, cls: 'bg-purple-50 border-purple-200 text-purple-700' },
   ] : []
 
   return (
@@ -403,7 +407,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
         {loaded && !result?.error && (
           <>
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
               {statCards.map(s => (
                 <div key={s.label} className={`border rounded-xl p-3 text-center flex flex-col items-center ${s.cls}`}>
                   <p className="text-2xl font-black">{s.val}</p>
@@ -539,10 +543,11 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
 
             {([
               { key: 'HADIR'         as StatusKey, label: 'Hadir',         desc: 'Hadir semua jam pelajaran',   cls: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' },
-              { key: 'HADIR PARSIAL' as StatusKey, label: 'Hadir Parsial', desc: 'Hadir sebagian jam',          cls: 'bg-amber-50 border-amber-200 text-amber-700' },
+              { key: 'BOLOS'         as StatusKey, label: 'Bolos',         desc: 'Hadir sebagian jam, alfa sebagian jam', cls: 'bg-amber-50 border-amber-200 text-amber-700' },
               { key: 'SAKIT'         as StatusKey, label: 'Sakit',         desc: 'Tidak hadir karena sakit',    cls: 'bg-blue-50 border-blue-200 text-blue-700' },
               { key: 'IZIN'          as StatusKey, label: 'Izin',          desc: 'Tidak hadir karena izin',     cls: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
               { key: 'ALFA'          as StatusKey, label: 'Alfa',          desc: 'Tidak hadir tanpa keterangan',cls: 'bg-rose-50 border-rose-200 text-rose-700' },
+              { key: 'PERLU KONFIRMASI WALI' as StatusKey, label: 'Keputusan Wali', desc: 'Campuran status, perlu ditentukan wali kelas', cls: 'bg-purple-50 border-purple-200 text-purple-700' },
             ]).map(item => {
               const count = result?.days?.filter(d => d.statusHari === item.key).length ?? 0
               const checked = printFilter.has(item.key)

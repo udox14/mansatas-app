@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -93,6 +93,9 @@ export function MonitoringClient({
                           {item.tugas}
                         </p>
                       </div>
+                      {item.pelaksana_nama && (
+                        <p className="text-[11px] text-emerald-600 mt-1.5">Dilaksanakan oleh: {item.pelaksana_nama}</p>
+                      )}
                     </div>
                   </div>
                 ))}

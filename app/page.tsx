@@ -124,7 +124,7 @@ const featureDescriptions: Record<string, string> = {
   'akademik-nilai': 'Dipakai untuk memasukkan dan mengecek nilai akademik dari Excel, lalu melihat rekap nilai siswa dengan lebih rapi.',
   tahfidz: 'Mencatat perkembangan hafalan siswa, setoran ayat, nilai per juz, riwayat setoran, laporan, dan analitik program tahfidz.',
   guru: 'Mengelola akun guru dan pegawai, termasuk data profil, role akses, reset password, import data, dan foto pegawai.',
-  kehadiran: 'Guru dapat mengisi absensi siswa sesuai jadwal mengajar hari itu, lengkap dengan catatan hadir, sakit, izin, alfa, atau parsial.',
+  kehadiran: 'Guru dapat mengisi absensi siswa sesuai jadwal mengajar hari itu, lengkap dengan catatan hadir, sakit, izin, alfa, atau bolos.',
   'rekap-absensi': 'Menyajikan rekap kehadiran siswa agar wali kelas, TU, wakamad, dan pimpinan bisa melihat kondisi absensi dengan cepat.',
   'keterangan-absensi': 'Wali kelas bisa memberi keterangan ketidakhadiran siswa per tanggal, baik satu per satu maupun sekaligus satu kelas.',
   agenda: 'Guru mencatat agenda mengajar dan materi pembelajaran, sementara guru piket dapat mengisi agenda piket harian.',

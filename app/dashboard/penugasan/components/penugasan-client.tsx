@@ -1,14 +1,13 @@
 // Lokasi: app/dashboard/penugasan/components/penugasan-client.tsx
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-  Send, Inbox, Loader2, Search, CheckCircle2,
-  ChevronDown, ChevronUp, XCircle, Clock, Users,
+  Send, Inbox, Loader2, CheckCircle2,
+  ChevronDown, ChevronUp, Clock, Users,
   BookOpen, Trash2, ClipboardList,
 } from 'lucide-react'
 import {
@@ -42,7 +41,7 @@ interface PenugasanClientProps {
       delegasi_id: string
       kepada_user_nama: string
       status: string
-      items: Array<{ kelas_label: string; tugas: string; absen_selesai: boolean }>
+      items: Array<{ kelas_label: string; tugas: string; absen_selesai: boolean; pelaksana_nama?: string | null }>
     }>
   }
   isGuruPiket: boolean
@@ -118,36 +117,8 @@ function TabKirimTugas({
   // Form state
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [tugasMap, setTugasMap] = useState<Record<string, string>>({})
-  const [pelaksanaId, setPelaksanaId] = useState('')
-  const [searchUser, setSearchUser] = useState('')
-  const [showUserList, setShowUserList] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [pesan, setPesan] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null)
-
-  const filteredUsers = useMemo(() => {
-    let minJam = 999
-    let maxJam = 0
-    if (selected.size > 0) {
-      selected.forEach(pid => {
-        const b = blocks.find(x => x.penugasan_id === pid)
-        if (b) {
-          if (b.jam_ke_mulai < minJam) minJam = b.jam_ke_mulai
-          if (b.jam_ke_selesai > maxJam) maxJam = b.jam_ke_selesai
-        }
-      })
-    }
-
-    let allowedUsers = users
-    if (selected.size > 0 && minJam <= maxJam) {
-      allowedUsers = users.filter(u => !(u.jam_selesai < minJam || u.jam_mulai > maxJam))
-    }
-
-    if (!searchUser.trim()) return allowedUsers.slice(0, 20)
-    const q = searchUser.toLowerCase()
-    return allowedUsers.filter(u => u.nama.toLowerCase().includes(q)).slice(0, 20)
-  }, [users, searchUser, selected, blocks])
-
-  const selectedPelaksana = users.find(u => u.id === pelaksanaId)
 
   // Available blocks (not already delegated or agenda-filled)
   const availableBlocks = blocks.filter(b => !b.sudah_didelegasi)
@@ -167,7 +138,7 @@ function TabKirimTugas({
 
   async function handleSubmit() {
     if (selected.size === 0) return setPesan({ tipe: 'error', teks: 'Pilih minimal satu kelas.' })
-    if (!pelaksanaId) return setPesan({ tipe: 'error', teks: 'Pilih pelaksana terlebih dahulu.' })
+    if (users.length === 0) return setPesan({ tipe: 'error', teks: 'Belum ada guru piket yang bertugas hari ini.' })
 
     const items = Array.from(selected).map(pid => {
       const block = blocks.find(b => b.penugasan_id === pid)!
@@ -183,7 +154,7 @@ function TabKirimTugas({
 
     setIsSubmitting(true)
     setPesan(null)
-    const result = await kirimDelegasiTugas(pelaksanaId, tanggalHariIni, items)
+    const result = await kirimDelegasiTugas(tanggalHariIni, items)
     setIsSubmitting(false)
 
     if (result.error) {
@@ -192,8 +163,6 @@ function TabKirimTugas({
       setPesan({ tipe: 'sukses', teks: result.success || 'Berhasil!' })
       setSelected(new Set())
       setTugasMap({})
-      setPelaksanaId('')
-      setSearchUser('')
       // Refresh terkirim
       const fresh = await getDelegasiTerkirim(tanggalHariIni)
       setTerkirim(fresh.data)
@@ -295,62 +264,24 @@ function TabKirimTugas({
             </div>
           </div>
 
-          {/* Step 2: Pilih Pelaksana */}
+          {/* Step 2: Info Penerima */}
           {selected.size > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-xl border overflow-hidden">
               <div className="px-3 py-2.5 bg-gray-50 border-b">
-                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">2. Pilih Pelaksana</p>
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">2. Penerima Tugas</p>
               </div>
               <div className="p-3">
-                {selectedPelaksana && !showUserList ? (
-                  <div className="flex items-center justify-between bg-violet-50 border border-violet-200 rounded-lg p-2.5">
+                {users.length === 0 ? (
+                  <p className="text-xs text-red-600">Belum ada guru piket yang bertugas hari ini.</p>
+                ) : (
+                  <div className="bg-violet-50 border border-violet-200 rounded-lg p-2.5">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-violet-500" />
-                      <span className="text-sm font-medium text-violet-700">{selectedPelaksana.nama}</span>
+                      <span className="text-sm font-medium text-violet-700">Semua guru piket hari ini</span>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs text-violet-600"
-                      onClick={() => { setShowUserList(true); setSearchUser('') }}
-                    >
-                      Ganti
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        type="text"
-                        placeholder="Cari nama guru/pegawai..."
-                        className="pl-9 text-sm"
-                        value={searchUser}
-                        onChange={e => { setSearchUser(e.target.value); setShowUserList(true) }}
-                        onFocus={() => setShowUserList(true)}
-                      />
-                    </div>
-                    {showUserList && (
-                      <div className="max-h-48 overflow-y-auto border rounded-lg divide-y">
-                        {filteredUsers.length === 0 ? (
-                          <p className="text-xs text-gray-400 text-center py-3">Tidak ditemukan</p>
-                        ) : (
-                          filteredUsers.map(u => (
-                            <button
-                              key={u.id}
-                              className="w-full text-left px-3 py-2.5 text-sm hover:bg-violet-50 active:bg-violet-100 transition-colors"
-                              onClick={() => {
-                                setPelaksanaId(u.id)
-                                setSearchUser(u.nama)
-                                setShowUserList(false)
-                              }}
-                            >
-                              {u.nama}
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
+                    <p className="text-xs text-violet-600 mt-1">
+                      {users.length} guru piket akan menerima tugas. Yang mengerjakan nanti otomatis tercatat sebagai pelaksana.
+                    </p>
                   </div>
                 )}
               </div>
@@ -358,7 +289,7 @@ function TabKirimTugas({
           )}
 
           {/* Step 3: Kirim */}
-          {selected.size > 0 && pelaksanaId && (
+          {selected.size > 0 && users.length > 0 && (
             <Button
               className="w-full h-12 text-sm font-semibold bg-violet-600 hover:bg-violet-700"
               onClick={handleSubmit}
@@ -444,6 +375,9 @@ function DelegasiTerkirimCard({
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium">{item.kelas_label}</p>
                   <p className="text-[11px] text-gray-500 mt-0.5">{item.tugas}</p>
+                  {item.pelaksana_nama && (
+                    <p className="text-[11px] text-emerald-600 mt-0.5">Dilaksanakan oleh: {item.pelaksana_nama}</p>
+                  )}
                 </div>
               </div>
             ))}
@@ -548,7 +482,14 @@ function TugasMasukItem({
 }) {
   const [expanded, setExpanded] = useState(false)
   const [siswaList, setSiswaList] = useState<Array<{
-    siswa_id: string; nama_lengkap: string; nisn: string; status: string; catatan: string
+    siswa_id: string
+    nama_lengkap: string
+    nisn: string
+    status: string
+    catatan: string
+    ada_izin: boolean
+    alasan_izin: string
+    keterangan_wali_kelas: string | null
   }>>([])
   const [isLoadingSiswa, setIsLoadingSiswa] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -567,6 +508,8 @@ function TugasMasukItem({
         item.penugasan_mengajar_id,
         item.kelas_id,
         tanggal,
+        item.jam_ke_mulai,
+        item.jam_ke_selesai,
       )
       setIsLoadingSiswa(false)
       if (result.error) {
@@ -628,6 +571,9 @@ function TugasMasukItem({
             <Clock className="h-3 w-3 inline mr-0.5" />
             {item.slot_mulai} - {item.slot_selesai}
           </p>
+          {item.pelaksana_nama && (
+            <p className="text-[11px] text-emerald-600 mt-0.5">Dilaksanakan oleh: {item.pelaksana_nama}</p>
+          )}
           <div className="mt-1.5 bg-amber-50 border border-amber-100 rounded-lg p-2">
             <p className="text-xs text-amber-800"><span className="font-medium">Tugas:</span> {item.tugas}</p>
           </div>
@@ -661,10 +607,28 @@ function TugasMasukItem({
               {/* Siswa List */}
               <div className="border rounded-lg divide-y max-h-[50vh] overflow-y-auto">
                 {siswaList.map(siswa => (
-                  <div key={siswa.siswa_id} className="px-2.5 py-2 flex items-center gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{siswa.nama_lengkap}</p>
-                    </div>
+	                  <div key={siswa.siswa_id} className="px-2.5 py-2 flex items-center gap-2">
+	                    <div className="flex-1 min-w-0">
+	                      <p className="text-xs font-medium truncate">{siswa.nama_lengkap}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          <span className="text-[10px] text-gray-400">{siswa.nisn}</span>
+                          {siswa.keterangan_wali_kelas && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
+                              Wali Kelas: {siswa.keterangan_wali_kelas}
+                            </span>
+                          )}
+                          {siswa.ada_izin && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 font-medium">
+                              Izin: {siswa.alasan_izin}
+                            </span>
+                          )}
+                          {siswa.catatan && !siswa.keterangan_wali_kelas && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 font-medium">
+                              {siswa.catatan}
+                            </span>
+                          )}
+                        </div>
+	                    </div>
                     <div className="flex gap-1 shrink-0">
                       {(['HADIR', 'SAKIT', 'IZIN', 'ALFA'] as const).map(st => (
                         <button

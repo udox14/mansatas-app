@@ -28,8 +28,10 @@ interface Props { filterOptions: FilterOpt }
 
 const ST: Record<string, { bg: string; text: string; label: string; dot: string }> = {
   HADIR:          { bg: 'bg-emerald-50 dark:bg-emerald-950/50', text: 'text-emerald-700 dark:text-emerald-400', label: 'Hadir', dot: 'bg-emerald-500' },
-  'HADIR PARSIAL':{ bg: 'bg-yellow-50', text: 'text-yellow-700', label: 'Hadir Parsial', dot: 'bg-yellow-500' },
-  PARSIAL:        { bg: 'bg-yellow-50', text: 'text-yellow-700', label: 'Parsial', dot: 'bg-yellow-500' },
+  BOLOS:          { bg: 'bg-yellow-50', text: 'text-yellow-700', label: 'Bolos', dot: 'bg-yellow-500' },
+  PARSIAL:        { bg: 'bg-yellow-50', text: 'text-yellow-700', label: 'Bolos', dot: 'bg-yellow-500' },
+  'PERLU KONFIRMASI WALI': { bg: 'bg-purple-50', text: 'text-purple-700', label: 'Perlu Keputusan Wali', dot: 'bg-purple-500' },
+  PERLU_KONFIRMASI_WALI: { bg: 'bg-purple-50', text: 'text-purple-700', label: 'Perlu Keputusan Wali', dot: 'bg-purple-500' },
   SAKIT:          { bg: 'bg-amber-50', text: 'text-amber-700', label: 'Sakit', dot: 'bg-amber-500' },
   ALFA:           { bg: 'bg-red-50', text: 'text-red-700', label: 'Alfa', dot: 'bg-red-500' },
   IZIN:           { bg: 'bg-blue-50', text: 'text-blue-700', label: 'Izin', dot: 'bg-blue-500' },
@@ -153,7 +155,8 @@ function TabKelas() {
                     {k.sakit > 0 && <span className="text-amber-600">S:{k.sakit}</span>}
                     {k.alfa > 0 && <span className="text-red-600">A:{k.alfa}</span>}
                     {k.izin > 0 && <span className="text-blue-600">I:{k.izin}</span>}
-                    {k.parsial > 0 && <span className="text-violet-600">P:{k.parsial}</span>}
+                    {k.parsial > 0 && <span className="text-violet-600">B:{k.parsial}</span>}
+                    {k.perlu_konfirmasi_wali > 0 && <span className="text-purple-600">W:{k.perlu_konfirmasi_wali}</span>}
                   </div>
                 </button>
               )
@@ -253,7 +256,8 @@ function TabSiswa({ filterOptions }: { filterOptions: FilterOpt }) {
           <div className="flex flex-wrap gap-2 mb-3">
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 font-medium">{result.totalHari} hari</span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-medium">Hadir: {result.summary.hadir}</span>
-            {result.summary.parsial > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">Parsial: {result.summary.parsial}</span>}
+            {result.summary.parsial > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">Bolos: {result.summary.parsial}</span>}
+            {result.summary.perlu_konfirmasi_wali > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">Perlu Keputusan Wali: {result.summary.perlu_konfirmasi_wali}</span>}
             {result.summary.sakit > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Sakit: {result.summary.sakit}</span>}
             {result.summary.izin > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">Izin: {result.summary.izin}</span>}
             {result.summary.alfa > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Alfa: {result.summary.alfa}</span>}

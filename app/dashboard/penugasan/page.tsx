@@ -3,7 +3,7 @@ import { Suspense } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { redirect } from 'next/navigation'
 import { getDB } from '@/utils/db'
-import { checkFeatureAccess, getPrimaryRole, getUserRoles } from '@/lib/features'
+import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { Send } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
@@ -15,7 +15,7 @@ export const metadata = { title: 'Penugasan - MANSATAS App' }
 
 export const dynamic = 'force-dynamic'
 
-async function PenugasanDataFetcher({ userId, isGuruPiket }: { userId: string; isGuruPiket: boolean }) {
+async function PenugasanDataFetcher({ isGuruPiket }: { isGuruPiket: boolean }) {
   const tanggal = todayWIB()
   const [jadwal, users, tugasMasuk, terkirim] = await Promise.all([
     getJadwalUntukDelegasi(tanggal),
@@ -44,10 +44,7 @@ export default async function PenugasanPage() {
   const allowed = await checkFeatureAccess(db, user.id, 'penugasan')
   if (!allowed) redirect('/dashboard')
 
-  const [role, allRoles] = await Promise.all([
-    getPrimaryRole(db, user.id),
-    getUserRoles(db, user.id)
-  ])
+  const allRoles = await getUserRoles(db, user.id)
   const isGuruPiket = allRoles.includes('guru_piket')
 
   return (
@@ -58,7 +55,7 @@ export default async function PenugasanPage() {
       />
 
       <Suspense fallback={<PageLoading text="Memuat data penugasan..." />}>
-        <PenugasanDataFetcher userId={user.id} isGuruPiket={isGuruPiket} />
+        <PenugasanDataFetcher isGuruPiket={isGuruPiket} />
       </Suspense>
     </div>
   )

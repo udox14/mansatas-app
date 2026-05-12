@@ -160,7 +160,11 @@ export async function getAbsensiPerSiswa(siswaId: string, tglMulai: string, tglS
         totalBlok: day.total_blok,
         blokHadir: Math.max(0, day.total_blok - blokTidakHadir),
         blokTidakHadir,
-        statusHari: day.status_akhir === 'PARSIAL' ? 'HADIR PARSIAL' : day.status_akhir,
+        statusHari: day.status_akhir === 'PARSIAL'
+          ? 'BOLOS'
+          : day.status_akhir === 'PERLU_KONFIRMASI_WALI'
+            ? 'PERLU KONFIRMASI WALI'
+            : day.status_akhir,
         statusGuru: day.guru_status,
         statusWaliKelas: day.wali_status,
         sumberStatus: day.sumber_status,
@@ -169,13 +173,14 @@ export async function getAbsensiPerSiswa(siswaId: string, tglMulai: string, tglS
       }
     })
 
-  const summary = { hadir: 0, parsial: 0, sakit: 0, izin: 0, alfa: 0, belum_ada_data: 0 }
+  const summary = { hadir: 0, parsial: 0, sakit: 0, izin: 0, alfa: 0, perlu_konfirmasi_wali: 0, belum_ada_data: 0 }
   for (const day of days) {
     if (day.statusHari === 'HADIR') summary.hadir++
-    else if (day.statusHari === 'HADIR PARSIAL') summary.parsial++
+    else if (day.statusHari === 'BOLOS') summary.parsial++
     else if (day.statusHari === 'SAKIT') summary.sakit++
     else if (day.statusHari === 'IZIN') summary.izin++
     else if (day.statusHari === 'ALFA') summary.alfa++
+    else if (day.statusHari === 'PERLU KONFIRMASI WALI') summary.perlu_konfirmasi_wali++
     else summary.belum_ada_data++
   }
 
@@ -243,6 +248,7 @@ export async function getAbsensiPerKelas(tanggal: string) {
     let izin = 0
     let alfa = 0
     let parsial = 0
+    let perluKonfirmasiWali = 0
     let belumAdaData = 0
 
     for (const siswa of classData.siswa) {
@@ -251,6 +257,7 @@ export async function getAbsensiPerKelas(tanggal: string) {
       else if (status === 'IZIN') izin++
       else if (status === 'ALFA') alfa++
       else if (status === 'PARSIAL') parsial++
+      else if (status === 'PERLU_KONFIRMASI_WALI') perluKonfirmasiWali++
       else if (status === 'BELUM_ADA_DATA') belumAdaData++
       else hadir++
     }
@@ -265,6 +272,7 @@ export async function getAbsensiPerKelas(tanggal: string) {
       izin,
       alfa,
       parsial,
+      perlu_konfirmasi_wali: perluKonfirmasiWali,
       belum_ada_data: belumAdaData,
     })
   }

@@ -550,7 +550,7 @@ export function DetailSiswaClient({
                           <div className="flex justify-between items-start mb-2">
                             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500">{new Date(k.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                             <div className="flex gap-1 flex-wrap justify-end max-w-[50%]">
-                              {k.jam_pelajaran.map((j: number) => <span key={j} className="h-5 w-5 bg-indigo-100 text-indigo-700 rounded-md flex items-center justify-center text-[10px] font-black border border-indigo-200">{j}</span>)}
+                              {(Array.isArray(k.jam_pelajaran) ? k.jam_pelajaran : []).map((j: number) => <span key={j} className="h-5 w-5 bg-indigo-100 text-indigo-700 rounded-md flex items-center justify-center text-[10px] font-black border border-indigo-200">{j}</span>)}
                             </div>
                           </div>
                           <p className="text-[11px] font-black text-indigo-700 uppercase tracking-wider mb-1 bg-indigo-50 w-fit px-2 py-0.5 rounded">{k.alasan}</p>
