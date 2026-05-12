@@ -9,14 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   CalendarDays, ChevronLeft, ChevronRight, Loader2, Plus, RefreshCw,
-  Pencil, Trash2, CheckCircle2, XCircle, Search,
+  Pencil, Trash2, CheckCircle2, XCircle, Search, Upload, FileSpreadsheet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   deleteKalenderEvent,
   getKalenderPendidikanData,
+  importKalenderResmi,
   saveKalenderEvent,
   syncTanggalMerah,
+  type KalenderImportRow,
 } from '../actions'
 import {
   KALENDER_CATEGORY_LABELS,
@@ -55,6 +57,8 @@ type FormState = {
   is_effective: boolean
   description: string
 }
+
+type ImportPreviewRow = KalenderImportRow & { row_no: number }
 
 const CATEGORY_TONES: Record<string, string> = {
   TANGGAL_MERAH: 'bg-rose-50 text-rose-700 border-rose-200',
@@ -98,6 +102,10 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
   const [query, setQuery] = useState('')
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [form, setForm] = useState<FormState | null>(null)
+  const [isImportOpen, setIsImportOpen] = useState(false)
+  const [importYear, setImportYear] = useState(String(initialData.year))
+  const [importRows, setImportRows] = useState<ImportPreviewRow[]>([])
+  const [importError, setImportError] = useState('')
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [syncYear, setSyncYear] = useState(String(initialData.year))
   const [isPending, startTransition] = useTransition()
@@ -184,6 +192,74 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
     })
   }
 
+  const handleImportFile = async (file: File | null) => {
+    setImportError('')
+    setImportRows([])
+    if (!file) return
+
+    try {
+      const parsed = await parseImportFile(file)
+      if (parsed.length === 0) {
+        setImportError('File tidak berisi baris valid. Gunakan template Excel yang tersedia.')
+        return
+      }
+      setImportRows(parsed)
+    } catch (error: any) {
+      setImportError(error?.message || 'File tidak bisa dibaca.')
+    }
+  }
+
+  const submitImport = () => {
+    const year = Number(importYear)
+    startTransition(async () => {
+      const result = await importKalenderResmi(year, importRows)
+      if (result.error) {
+        setImportError(result.error)
+        return
+      }
+      setMessage({ type: 'success', text: result.success || 'Impor berhasil.' })
+      setIsImportOpen(false)
+      setImportRows([])
+      setImportError('')
+      reload(data.year, data.month)
+    })
+  }
+
+  const downloadTemplate = async () => {
+    const XLSX = await import('xlsx') as any
+    const year = Number(importYear) || data.year
+    const rows = [
+      {
+        tanggal: `${year}-01-01`,
+        tanggal_selesai: `${year}-01-01`,
+        nama: `Tahun Baru ${year} Masehi`,
+        jenis: 'Tanggal Merah',
+        status: 'Tidak Efektif',
+        catatan: 'SKB resmi',
+      },
+      {
+        tanggal: `${year}-07-20`,
+        tanggal_selesai: `${year}-07-20`,
+        nama: 'Kegiatan Awal Tahun',
+        jenis: 'Kegiatan Madrasah',
+        status: 'Hari Efektif',
+        catatan: 'Masuk seperti biasa',
+      },
+    ]
+    const worksheet = XLSX.utils.json_to_sheet(rows)
+    worksheet['!cols'] = [
+      { wch: 14 },
+      { wch: 18 },
+      { wch: 34 },
+      { wch: 20 },
+      { wch: 16 },
+      { wch: 24 },
+    ]
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template SKB')
+    XLSX.writeFile(workbook, `template_skb_${year}.xlsx`)
+  }
+
   const openEdit = (event: KalenderEvent) => {
     setForm({
       id: event.id,
@@ -244,6 +320,9 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
           <div className="flex flex-wrap items-center gap-2 xl:ml-auto">
             <Button onClick={() => openAdd()} size="sm" className="h-9 bg-slate-900 hover:bg-slate-800 text-white">
               <Plus className="h-4 w-4 mr-1.5" /> Tambah Event
+            </Button>
+            <Button onClick={() => { setImportYear(String(data.year)); setIsImportOpen(true) }} size="sm" variant="outline" className="h-9">
+              <Upload className="h-4 w-4 mr-1.5" /> Impor SKB
             </Button>
             <div className="flex items-center gap-2 rounded-lg border border-surface-2 bg-surface-2 p-1">
               <Input
@@ -447,6 +526,88 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+        <DialogContent className="sm:max-w-3xl rounded-xl border-surface">
+          <DialogHeader className="border-b border-surface-2 pb-3">
+            <DialogTitle className="text-base flex items-center gap-2">
+              <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+              Impor SKB Resmi
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+              Unduh template Excel, isi daftar SKB resmi, lalu upload kembali. Status isi <strong>Tidak Efektif</strong> untuk libur/cuti bersama.
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-3 items-end">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Tahun</Label>
+                <Input type="number" value={importYear} onChange={e => setImportYear(e.target.value)} min={2020} max={2100} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Template dan file Excel</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-2">
+                  <Button type="button" variant="outline" onClick={downloadTemplate} className="gap-1.5">
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Download Template
+                  </Button>
+                  <Input type="file" accept=".xlsx,.xls" onChange={e => handleImportFile(e.target.files?.[0] || null)} />
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-surface-2 bg-surface-2 p-3">
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Kolom template</p>
+              <pre className="mt-2 overflow-x-auto rounded-md bg-white dark:bg-slate-900 p-2 text-[11px] text-slate-600 dark:text-slate-300">{`tanggal,nama,jenis,status,catatan
+2027-01-01,Tahun Baru 2027 Masehi,Tanggal Merah,Tidak Efektif,SKB resmi
+2027-03-10,Cuti Bersama Idulfitri,Tanggal Merah,Tidak Efektif,SKB resmi
+2027-07-20,Kegiatan Awal Tahun,Kegiatan Madrasah,Hari Efektif,Masuk seperti biasa`}</pre>
+            </div>
+
+            {importError && (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{importError}</div>
+            )}
+
+            {importRows.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Preview {importRows.length} baris</p>
+                <div className="max-h-72 overflow-auto rounded-lg border border-surface-2">
+                  <table className="w-full text-xs">
+                    <thead className="bg-surface-2 text-slate-500">
+                      <tr>
+                        <th className="px-2 py-2 text-left">Tanggal</th>
+                        <th className="px-2 py-2 text-left">Nama</th>
+                        <th className="px-2 py-2 text-left">Jenis</th>
+                        <th className="px-2 py-2 text-left">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-2">
+                      {importRows.slice(0, 80).map(row => (
+                        <tr key={row.row_no}>
+                          <td className="px-2 py-2 whitespace-nowrap">{row.start_date}{row.end_date !== row.start_date ? ` s/d ${row.end_date}` : ''}</td>
+                          <td className="px-2 py-2">{row.title}</td>
+                          <td className="px-2 py-2">{KALENDER_CATEGORY_LABELS[row.category]}</td>
+                          <td className={cn('px-2 py-2 font-semibold', row.is_effective ? 'text-emerald-600' : 'text-rose-600')}>{row.is_effective ? 'Hari efektif' : 'Tidak efektif'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {importRows.length > 80 && <p className="text-[11px] text-slate-400">Preview menampilkan 80 baris pertama.</p>}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end border-t border-surface-2 pt-3">
+              <Button variant="outline" onClick={() => setIsImportOpen(false)} disabled={isPending}>Batal</Button>
+              <Button onClick={submitImport} disabled={isPending || importRows.length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                Simpan sebagai SKB Resmi
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -474,7 +635,7 @@ function EventRow({
             {formatDate(event.start_date)}{event.start_date !== event.end_date ? ` s/d ${formatDate(event.end_date)}` : ''}
           </p>
           <p className={cn('mt-1 text-[11px] font-semibold', Number(event.is_effective) === 1 ? 'text-emerald-600' : 'text-rose-600')}>
-            {Number(event.is_effective) === 1 ? 'Hari efektif' : 'Tidak efektif'} | {event.source === 'sync' ? 'Sinkron' : 'Manual'}
+            {Number(event.is_effective) === 1 ? 'Hari efektif' : 'Tidak efektif'} | {event.source === 'official' ? 'SKB Resmi' : event.source === 'sync' ? 'API Publik' : 'Manual'}
           </p>
           {event.description && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{event.description}</p>}
         </div>
@@ -489,4 +650,75 @@ function EventRow({
       </div>
     </div>
   )
+}
+
+async function parseImportFile(file: File): Promise<ImportPreviewRow[]> {
+  const XLSX = await import('xlsx') as any
+  const buffer = await file.arrayBuffer()
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
+  const sheetName = workbook.SheetNames[0]
+  if (!sheetName) return []
+  const worksheet = workbook.Sheets[sheetName]
+  const records = XLSX.utils.sheet_to_json(worksheet, { defval: '' }) as Array<Record<string, unknown>>
+  const rows: ImportPreviewRow[] = []
+
+  records.forEach((record: Record<string, unknown>, index: number) => {
+    const obj: Record<string, string> = {}
+    for (const [key, value] of Object.entries(record)) {
+      obj[normalizeHeader(key)] = value instanceof Date ? value.toISOString().split('T')[0] : String(value ?? '').trim()
+    }
+
+    const start = normalizeDateCell(obj.tanggal || obj.date || obj.start_date || obj.mulai)
+    const end = normalizeDateCell(obj.tanggal_selesai || obj.end_date || obj.selesai || obj.sampai || start)
+    const title = obj.nama || obj.title || obj.judul || obj.keterangan
+    if (!start || !end || !title) return
+
+    rows.push({
+      row_no: index + 2,
+      start_date: start,
+      end_date: end,
+      title: title.trim(),
+      category: parseCategory(obj.jenis || obj.category || obj.kategori),
+      is_effective: parseEffective(obj.status || obj.efektif || obj.is_effective),
+      description: obj.catatan || obj.description || '',
+    })
+  })
+
+  return rows
+}
+
+function normalizeHeader(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_')
+}
+
+function normalizeDateCell(value: string) {
+  const clean = value.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean
+  const slash = clean.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/)
+  if (slash) {
+    return `${slash[3]}-${slash[2].padStart(2, '0')}-${slash[1].padStart(2, '0')}`
+  }
+  if (/^\d+(\.\d+)?$/.test(clean)) {
+    const epoch = new Date(Date.UTC(1899, 11, 30))
+    epoch.setUTCDate(epoch.getUTCDate() + Math.floor(Number(clean)))
+    return epoch.toISOString().split('T')[0]
+  }
+  return ''
+}
+
+function parseCategory(value: string): KalenderKategori {
+  const raw = value.trim().toLowerCase()
+  if (raw.includes('semester')) return 'LIBUR_SEMESTER'
+  if (raw.includes('rapat')) return 'RAPAT'
+  if (raw.includes('ujian') || raw.includes('asesmen')) return 'UJIAN'
+  if (raw.includes('kegiatan')) return 'KEGIATAN_MADRASAH'
+  if (raw.includes('lain')) return 'LAINNYA'
+  return 'TANGGAL_MERAH'
+}
+
+function parseEffective(value: string) {
+  const raw = value.trim().toLowerCase()
+  if (!raw) return false
+  if (raw.includes('tidak') || raw.includes('libur') || raw.includes('cuti') || raw === '0' || raw === 'false') return false
+  return raw.includes('efektif') || raw.includes('masuk') || raw === '1' || raw === 'true'
 }

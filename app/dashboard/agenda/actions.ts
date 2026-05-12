@@ -346,6 +346,7 @@ export async function getRiwayatMateri(guruIdOverride?: string): Promise<any[]> 
       ag.id, ag.tanggal, ag.materi, ag.waktu_input,
       ag.jam_ke_mulai, ag.jam_ke_selesai,
       mp.nama_mapel,
+      k.id as kelas_id,
       k.tingkat, k.nomor_kelas, k.kelompok
     FROM agenda_guru ag
     JOIN penugasan_mengajar pm ON ag.penugasan_id = pm.id

@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS kalender_pendidikan_events (
   category      TEXT NOT NULL DEFAULT 'LAINNYA'
                 CHECK(category IN ('TANGGAL_MERAH','LIBUR_SEMESTER','RAPAT','UJIAN','KEGIATAN_MADRASAH','LAINNYA')),
   is_effective  INTEGER NOT NULL DEFAULT 0,
-  source        TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','sync')),
+  source        TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','sync','official')),
   external_id   TEXT,
   description   TEXT,
   created_by    TEXT REFERENCES "user"(id) ON DELETE SET NULL,

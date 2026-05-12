@@ -13,7 +13,7 @@ export type KalenderEvent = {
   title: string
   category: KalenderKategori
   is_effective: number
-  source: 'manual' | 'sync'
+  source: 'manual' | 'sync' | 'official'
   external_id: string | null
   description: string | null
 }
@@ -46,7 +46,7 @@ export async function ensureKalenderPendidikanTables(db: D1Database) {
       category      TEXT NOT NULL DEFAULT 'LAINNYA'
                     CHECK(category IN ('TANGGAL_MERAH','LIBUR_SEMESTER','RAPAT','UJIAN','KEGIATAN_MADRASAH','LAINNYA')),
       is_effective  INTEGER NOT NULL DEFAULT 0,
-      source        TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','sync')),
+      source        TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual','sync','official')),
       external_id   TEXT,
       description   TEXT,
       created_by    TEXT REFERENCES "user"(id) ON DELETE SET NULL,
@@ -109,7 +109,8 @@ export async function getKalenderEventsForRange(db: D1Database, startDate: strin
 export async function getKalenderDateStatus(db: D1Database, tanggal: string): Promise<KalenderDateStatus> {
   const events = await getKalenderEventsForRange(db, tanggal, tanggal)
   const manualEvents = events.filter(event => event.source === 'manual')
-  const decidingEvent = manualEvents[0] || events[0] || null
+  const officialEvents = events.filter(event => event.source === 'official')
+  const decidingEvent = manualEvents[0] || officialEvents[0] || events[0] || null
   const isSunday = hariNumFromDateString(tanggal) === 7
 
   if (decidingEvent) {
@@ -153,7 +154,8 @@ export async function getEffectiveDatesInRange(db: D1Database, startDate: string
   return dates.filter(tanggal => {
     const dayEvents = byDate.get(tanggal) || []
     const manual = dayEvents.find(event => event.source === 'manual')
-    const deciding = manual || dayEvents[0] || null
+    const official = dayEvents.find(event => event.source === 'official')
+    const deciding = manual || official || dayEvents[0] || null
     if (deciding) return Number(deciding.is_effective) === 1
     return hariNumFromDateString(tanggal) !== 7
   })
