@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS kalender_pendidikan_events (
+CREATE TABLE IF NOT EXISTS kalender_pendidikan_events_new (
   id            TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   start_date    TEXT NOT NULL,
   end_date      TEXT NOT NULL,
@@ -17,28 +17,17 @@ CREATE TABLE IF NOT EXISTS kalender_pendidikan_events (
   UNIQUE(source, external_id)
 );
 
+INSERT OR IGNORE INTO kalender_pendidikan_events_new
+  (id, start_date, end_date, title, category, is_effective, source, external_id, description, created_by, updated_by, created_at, updated_at)
+SELECT id, start_date, end_date, title, category, is_effective, source, external_id, description, created_by, updated_by, created_at, updated_at
+FROM kalender_pendidikan_events;
+
+DROP TABLE kalender_pendidikan_events;
+
+ALTER TABLE kalender_pendidikan_events_new RENAME TO kalender_pendidikan_events;
+
 CREATE INDEX IF NOT EXISTS idx_kalender_pendidikan_events_range
 ON kalender_pendidikan_events(start_date, end_date);
 
 CREATE INDEX IF NOT EXISTS idx_kalender_pendidikan_events_category
 ON kalender_pendidikan_events(category, is_effective);
-
-CREATE TABLE IF NOT EXISTS kalender_pendidikan_sync_logs (
-  id            TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-  tahun         INTEGER NOT NULL,
-  source        TEXT NOT NULL,
-  status        TEXT NOT NULL CHECK(status IN ('SUCCESS','FAILED')),
-  jumlah_data   INTEGER NOT NULL DEFAULT 0,
-  message       TEXT,
-  synced_by     TEXT REFERENCES "user"(id) ON DELETE SET NULL,
-  synced_at     TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_kalender_pendidikan_sync_logs_tahun
-ON kalender_pendidikan_sync_logs(tahun, synced_at);
-
-INSERT OR IGNORE INTO role_features (role, feature_id) VALUES
-('super_admin', 'kalender-pendidikan'),
-('admin_tu', 'kalender-pendidikan'),
-('kepsek', 'kalender-pendidikan'),
-('wakamad', 'kalender-pendidikan');

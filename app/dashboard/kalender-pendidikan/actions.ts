@@ -204,6 +204,94 @@ export async function saveKalenderEvent(payload: {
   return { success: 'Kalender pendidikan disimpan.' }
 }
 
+export type KalenderImportRow = {
+  start_date: string
+  end_date: string
+  title: string
+  category: KalenderKategori
+  is_effective: boolean
+  description?: string
+}
+
+function normalizeImportCategory(value: string): KalenderKategori {
+  const raw = value.trim().toUpperCase().replace(/\s+/g, '_').replace(/-/g, '_')
+  if (raw.includes('CUTI') || raw.includes('LIBUR_NASIONAL') || raw.includes('TANGGAL_MERAH')) return 'TANGGAL_MERAH'
+  if (raw.includes('SEMESTER')) return 'LIBUR_SEMESTER'
+  if (raw.includes('RAPAT')) return 'RAPAT'
+  if (raw.includes('UJIAN') || raw.includes('ASESMEN')) return 'UJIAN'
+  if (raw.includes('KEGIATAN')) return 'KEGIATAN_MADRASAH'
+  return VALID_CATEGORIES.has(raw as KalenderKategori) ? raw as KalenderKategori : 'TANGGAL_MERAH'
+}
+
+export async function importKalenderResmi(year: number, rows: KalenderImportRow[]) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  if (!Number.isInteger(year) || year < 2020 || year > 2100) return { error: 'Tahun tidak valid.' }
+  if (!Array.isArray(rows) || rows.length === 0) return { error: 'Tidak ada data untuk diimpor.' }
+
+  const cleanRows: KalenderImportRow[] = []
+  for (const row of rows) {
+    const startDate = String(row.start_date || '').slice(0, 10)
+    const endDate = String(row.end_date || row.start_date || '').slice(0, 10)
+    const title = String(row.title || '').trim()
+    if (!assertDate(startDate) || !assertDate(endDate) || !title) continue
+    if (startDate > endDate) continue
+    if (!startDate.startsWith(`${year}-`)) continue
+    cleanRows.push({
+      start_date: startDate,
+      end_date: endDate,
+      title,
+      category: normalizeImportCategory(row.category || 'TANGGAL_MERAH'),
+      is_effective: Boolean(row.is_effective),
+      description: row.description?.trim() || 'Impor SKB resmi',
+    })
+  }
+
+  if (cleanRows.length === 0) return { error: 'Tidak ada baris valid untuk tahun tersebut.' }
+
+  const db = await getDB()
+  await ensureKalenderPendidikanTables(db)
+  const yearStart = `${year}-01-01`
+  const yearEnd = `${year}-12-31`
+  const statements = [
+    db.prepare(`
+      DELETE FROM kalender_pendidikan_events
+      WHERE source IN ('sync','official') AND start_date BETWEEN ? AND ?
+    `).bind(yearStart, yearEnd),
+    ...cleanRows.map((row, index) => db.prepare(`
+      INSERT INTO kalender_pendidikan_events
+        (start_date, end_date, title, category, is_effective, source, external_id, description, created_by, updated_by)
+      VALUES (?, ?, ?, ?, ?, 'official', ?, ?, ?, ?)
+    `).bind(
+      row.start_date,
+      row.end_date,
+      row.title,
+      row.category,
+      row.is_effective ? 1 : 0,
+      `${year}:official:${row.start_date}:${index}`,
+      row.description || null,
+      user.id,
+      user.id,
+    )),
+  ]
+
+  for (let i = 0; i < statements.length; i += 100) {
+    await db.batch(statements.slice(i, i + 100))
+  }
+
+  await db.prepare(`
+    INSERT INTO kalender_pendidikan_sync_logs (tahun, source, status, jumlah_data, message, synced_by)
+    VALUES (?, 'SKB Resmi', 'SUCCESS', ?, ?, ?)
+  `).bind(year, cleanRows.length, 'Impor SKB resmi berhasil', user.id).run()
+
+  revalidatePath('/dashboard/kalender-pendidikan')
+  revalidatePath('/dashboard/kehadiran')
+  revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/monitoring-agenda')
+  revalidatePath('/dashboard/rekap-absensi')
+  return { success: `${cleanRows.length} data SKB resmi berhasil diimpor.`, count: cleanRows.length }
+}
+
 export async function deleteKalenderEvent(id: string) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
