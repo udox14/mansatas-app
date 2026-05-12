@@ -243,12 +243,9 @@ export async function uploadFotoSiswaAction(siswaId: string, formData: FormData)
 
 // ============================================================
 // 7. IMPORT MASSAL SISWA
-// Mendukung format export PPDB langsung (header nama panjang dengan spasi)
-// maupun format lama (CAPS_WITH_UNDERSCORES) untuk backward compatibility
+// Template dan proses import hanya menyimpan kolom yang memang ada di tabel siswa.
+// Kolom tambahan dari format lama tetap aman dibaca, tapi diabaikan.
 //
-// FIX: Payload kini dipisah ke tabel siswa + siswa_ppdb.
-//      Sebelumnya semua kolom PPDB dikirim ke tabel siswa → SQLite error
-//      "no such column" → dbBatchInsert catch → successCount: 0 (silent fail).
 // ============================================================
 export async function importSiswaMassal(dataSiswa: any[]) {
   if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.', success: null }
@@ -261,17 +258,6 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     for (const k of keys) {
       const v = row[k]
       if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim()
-    }
-    return null
-  }
-  // Helper: ambil nilai float
-  const f = (row: any, ...keys: string[]): number | null => {
-    for (const k of keys) {
-      const v = row[k]
-      if (v !== undefined && v !== null && String(v).trim() !== '') {
-        const num = parseFloat(String(v).replace(',', '.'))
-        return isNaN(num) ? null : num
-      }
     }
     return null
   }
@@ -288,7 +274,7 @@ export async function importSiswaMassal(dataSiswa: any[]) {
   }
 
   // -------------------------------------------------------
-  // WHITELIST kolom tabel siswa (49 kolom inti, NO PPDB cols)
+  // WHITELIST kolom tabel siswa
   // -------------------------------------------------------
   const SISWA_COLS = new Set([
     'id', 'nisn', 'nis_lokal', 'nama_lengkap', 'jenis_kelamin', 'tempat_tinggal',
@@ -301,28 +287,7 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     'pendidikan_ayah', 'pekerjaan_ayah', 'penghasilan_ayah',
     'nama_ibu', 'nik_ibu', 'tempat_lahir_ibu', 'tanggal_lahir_ibu', 'status_ibu',
     'pendidikan_ibu', 'pekerjaan_ibu', 'penghasilan_ibu',
-    'updated_at',
-  ])
-
-  // -------------------------------------------------------
-  // WHITELIST kolom tabel siswa_ppdb
-  // -------------------------------------------------------
-  const PPDB_COLS = new Set([
-    'no_pendaftaran', 'tanggal_daftar', 'tahun_daftar',
-    'no_akta_lahir', 'kewarganegaraan', 'berkebutuhan_khusus', 'hobi', 'email_siswa',
-    'no_telepon_rumah', 'tinggi_badan', 'berat_badan', 'lingkar_kepala',
-    'dusun', 'tempat_tinggal_ppdb', 'moda_transportasi',
-    'no_kks', 'penerima_kps_pkh', 'no_kps_pkh', 'penerima_kip', 'no_kip',
-    'nama_di_kip', 'terima_fisik_kip',
-    'berkebutuhan_khusus_ayah', 'no_hp_ayah', 'berkebutuhan_khusus_ibu', 'no_hp_ibu',
-    'nama_wali', 'nik_wali', 'tempat_lahir_wali', 'tanggal_lahir_wali',
-    'pendidikan_wali', 'pekerjaan_wali', 'penghasilan_wali', 'no_hp_wali',
-    'asal_sekolah', 'akreditasi_sekolah', 'no_un', 'no_seri_ijazah', 'no_seri_skhu', 'tahun_lulus',
-    'sekolah_pilihan_2', 'jurusan_pilihan_1', 'jurusan_pilihan_2',
-    'latitude', 'longitude', 'radius', 'rentang_jarak', 'waktu_tempuh',
-    'jalur_masuk', 'nilai_rapor', 'nilai_us', 'nilai_un', 'nilai_rerata_rapor',
-    'jumlah_nilai', 'nilai_jarak', 'nilai_prestasi', 'nilai_tes', 'nilai_wawancara', 'nilai_akhir',
-    'status_hasil', 'status_daftar_ulang', 'catatan', 'keterangan',
+    'tahun_masuk', 'updated_at',
   ])
 
   // Ambil data kelas dan siswa existing
@@ -344,8 +309,8 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     if (s2.nisn) existingByNisn.set(s2.nisn.trim(), { id: s2.id, nama_lengkap: s2.nama_lengkap })
   })
 
-  const toInsert: Array<{ siswaData: any; ppdbData: any }> = []
-  const toUpdate: Array<{ id: string; siswaData: any; ppdbData: any }> = []
+  const toInsert: Array<{ siswaData: any }> = []
+  const toUpdate: Array<{ id: string; siswaData: any }> = []
   const errors: string[] = []
 
   const VALID_TEMPAT_TINGGAL = [
@@ -356,7 +321,7 @@ export async function importSiswaMassal(dataSiswa: any[]) {
   for (const row of dataSiswa) {
     // --- Identitas wajib ---
     const nisn = s(row, 'NISN', 'nisn') ?? ''
-    const nama_lengkap = s(row, 'Nama Peserta', 'NAMA_LENGKAP', 'nama_lengkap') ?? ''
+    const nama_lengkap = s(row, 'Nama Peserta', 'Nama Lengkap', 'NAMA_LENGKAP', 'nama_lengkap') ?? ''
 
     if (!nama_lengkap) { errors.push(`Baris tanpa nama dilewati`); continue }
 
@@ -368,140 +333,57 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     const kelas_id = kelasKey ? (kelasMap.get(kelasKey) ?? null) : null
 
     // --- Tempat tinggal (enum aplikasi) ---
-    const pesantrenRaw = s(row, 'Pesantren', 'PESANTREN', 'TEMPAT_TINGGAL') ?? ''
+    const pesantrenRaw = s(row, 'Tempat Tinggal', 'Pesantren', 'PESANTREN', 'TEMPAT_TINGGAL', 'tempat_tinggal') ?? ''
     const tempat_tinggal = VALID_TEMPAT_TINGGAL.includes(pesantrenRaw) ? pesantrenRaw : 'Non-Pesantren'
 
     // --- JK ---
     const jkRaw = s(row, 'JK', 'JENIS_KELAMIN', 'jenis_kelamin') ?? ''
     const jenis_kelamin = jkRaw.toUpperCase() === 'P' ? 'P' : 'L'
 
-    // --- Build full payload (semua kolom dari Excel) ---
+    // --- Build payload sesuai kolom tabel siswa ---
     const fullPayload: any = {
-      // Core
       nisn: nisn || null,
+      nis_lokal: s(row, 'NIS Lokal', 'NIS_LOKAL', 'nis_lokal'),
       nama_lengkap,
       jenis_kelamin,
       tempat_tinggal,
       kelas_id,
       status: 'aktif',
-
-      // Identitas & Pendaftaran
-      no_pendaftaran:   s(row, 'No Pendaftaran'),
-      tanggal_daftar:   s(row, 'Tanggal Daftar'),
-      tahun_daftar:     s(row, 'Tahun'),
-
-      // Data diri
+      tahun_masuk:      n(row, 'Tahun Masuk', 'TAHUN_MASUK', 'tahun_masuk'),
+      minat_jurusan:    s(row, 'Minat Jurusan', 'Jurusan Pilihan 1', 'MINAT_JURUSAN'),
       tempat_lahir:     s(row, 'Tempat Lahir', 'TEMPAT_LAHIR'),
       tanggal_lahir:    s(row, 'Tanggal Lahir', 'TANGGAL_LAHIR'),
       agama:            s(row, 'Agama', 'AGAMA'),
       nik:              s(row, 'NIK', 'nik'),
       nomor_kk:         s(row, 'No KK', 'No. KK', 'NOMOR_KK'),
-      no_akta_lahir:    s(row, 'No Registrasi Akta Lahir'),
-      kewarganegaraan:  s(row, 'Kewarganegaraan'),
-      berkebutuhan_khusus: s(row, 'Berkebutuhan Khusus'),
-      hobi:             s(row, 'Hobi'),
-      email_siswa:      s(row, 'Email'),
-      nomor_whatsapp:   s(row, 'Nomor HP', 'NOMOR_WHATSAPP', 'nomor_whatsapp'),
-      no_telepon_rumah: s(row, 'No Telepon Rumah'),
-      tinggi_badan:     f(row, 'Tinggi Badan'),
-      berat_badan:      f(row, 'Berat Badan'),
-      lingkar_kepala:   f(row, 'Lingkar Kepala'),
+      nomor_whatsapp:   s(row, 'Nomor Whatsapp', 'Nomor WhatsApp', 'Nomor HP', 'NOMOR_WHATSAPP', 'nomor_whatsapp'),
       anak_ke:          n(row, 'Anak Ke', 'ANAK_KE'),
       jumlah_saudara:   n(row, 'Jumlah Saudara Kandung', 'JUMLAH_SAUDARA'),
-
-      // Alamat
-      alamat_lengkap:   s(row, 'Alamat', 'ALAMAT_LENGKAP'),
+      status_anak:      s(row, 'Status Anak', 'STATUS_ANAK'),
+      alamat_lengkap:   s(row, 'Alamat Lengkap', 'Alamat', 'ALAMAT_LENGKAP'),
       rt:               s(row, 'RT'),
       rw:               s(row, 'RW'),
-      dusun:            s(row, 'Dusun'),
-      desa_kelurahan:   s(row, 'Kelurahan', 'DESA_KELURAHAN'),
+      desa_kelurahan:   s(row, 'Desa/Kelurahan', 'Kelurahan', 'DESA_KELURAHAN'),
       kecamatan:        s(row, 'Kecamatan', 'KECAMATAN'),
       kabupaten_kota:   s(row, 'Kabupaten/Kota', 'KABUPATEN_KOTA'),
       provinsi:         s(row, 'Provinsi', 'PROVINSI'),
       kode_pos:         s(row, 'Kode Pos', 'KODE_POS'),
-      tempat_tinggal_ppdb: s(row, 'Tempat Tinggal'),
-      moda_transportasi: s(row, 'Moda Transportasi'),
-
-      // Bantuan sosial
-      no_kks:           s(row, 'No KKS'),
-      penerima_kps_pkh: s(row, 'Penerima KPS/PKH'),
-      no_kps_pkh:       s(row, 'No KPS/PKH'),
-      penerima_kip:     s(row, 'Penerima KIP'),
-      no_kip:           s(row, 'No KIP'),
-      nama_di_kip:      s(row, 'Nama Tertera Di KIP'),
-      terima_fisik_kip: s(row, 'Terima Fisik Kartu KIP'),
-
-      // Ayah
       nama_ayah:        s(row, 'Nama Ayah', 'NAMA_AYAH'),
       nik_ayah:         s(row, 'NIK Ayah'),
       tempat_lahir_ayah: s(row, 'Tempat Lahir Ayah'),
       tanggal_lahir_ayah: s(row, 'Tanggal Lahir Ayah'),
       pendidikan_ayah:  s(row, 'Pendidikan Ayah', 'PENDIDIKAN_AYAH'),
       pekerjaan_ayah:   s(row, 'Pekerjaan Ayah', 'PEKERJAAN_AYAH'),
-      penghasilan_ayah: s(row, 'Penghasilan Bulanan Ayah', 'PENGHASILAN_AYAH'),
-      berkebutuhan_khusus_ayah: s(row, 'Berkebutuhan Khusus Ayah'),
-      no_hp_ayah:       s(row, 'No Hp Ayah'),
-
-      // Ibu
+      status_ayah:      s(row, 'Status Ayah', 'STATUS_AYAH'),
+      penghasilan_ayah: s(row, 'Penghasilan Ayah', 'Penghasilan Bulanan Ayah', 'PENGHASILAN_AYAH'),
       nama_ibu:         s(row, 'Nama Ibu', 'NAMA_IBU'),
       nik_ibu:          s(row, 'NIK Ibu'),
       tempat_lahir_ibu: s(row, 'Tempat Lahir Ibu'),
       tanggal_lahir_ibu: s(row, 'Tanggal Lahir Ibu'),
       pendidikan_ibu:   s(row, 'Pendidikan Ibu', 'PENDIDIKAN_IBU'),
       pekerjaan_ibu:    s(row, 'Pekerjaan Ibu', 'PEKERJAAN_IBU'),
-      penghasilan_ibu:  s(row, 'Penghasilan Bulanan Ibu', 'PENGHASILAN_IBU'),
-      berkebutuhan_khusus_ibu: s(row, 'Berkebutuhan Khusus Ibu'),
-      no_hp_ibu:        s(row, 'No Hp Ibu'),
-
-      // Wali
-      nama_wali:        s(row, 'Nama Wali'),
-      nik_wali:         s(row, 'NIK Wali'),
-      tempat_lahir_wali: s(row, 'Tempat Lahir Wali'),
-      tanggal_lahir_wali: s(row, 'Tanggal Lahir Wali'),
-      pendidikan_wali:  s(row, 'Pendidikan Wali'),
-      pekerjaan_wali:   s(row, 'Pekerjaan Wali'),
-      penghasilan_wali: s(row, 'Penghasilan Bulanan Wali'),
-      no_hp_wali:       s(row, 'No Hp Wali'),
-
-      // Sekolah asal
-      asal_sekolah:     s(row, 'Asal Sekolah'),
-      akreditasi_sekolah: s(row, 'Akreditasi'),
-      no_un:            s(row, 'No UN'),
-      no_seri_ijazah:   s(row, 'No Seri Ijazah'),
-      no_seri_skhu:     s(row, 'No Seri SKHU'),
-      tahun_lulus:      s(row, 'Tahun Lulus'),
-
-      // Pilihan
-      sekolah_pilihan_2: s(row, 'Sekolah Pilihan 2'),
-      jurusan_pilihan_1: s(row, 'Jurusan Pilihan 1'),
-      jurusan_pilihan_2: s(row, 'Jurusan Pilihan 2'),
-      minat_jurusan:    s(row, 'Jurusan Pilihan 1', 'MINAT_JURUSAN'),  // sync kolom lama di siswa
-
-      // Geolokasi
-      latitude:         s(row, 'Latitude'),
-      longitude:        s(row, 'Longitude'),
-      radius:           s(row, 'Radius'),
-      rentang_jarak:    s(row, 'Rentang Jarak'),
-      waktu_tempuh:     s(row, 'Waktu Tempuh'),
-
-      // Penerimaan & Nilai
-      jalur_masuk:      s(row, 'Jalur'),
-      nilai_rapor:      f(row, 'Nilai Rapor'),
-      nilai_us:         f(row, 'Nilai US'),
-      nilai_un:         f(row, 'Nilai UN'),
-      nilai_rerata_rapor: f(row, 'Nilai Rerata rapor semester'),
-      jumlah_nilai:     f(row, 'Jumlah Nilai'),
-      nilai_jarak:      f(row, 'Nilai Jarak'),
-      nilai_prestasi:   f(row, 'Nilai Prestasi'),
-      nilai_tes:        f(row, 'Nilai Tes'),
-      nilai_wawancara:  f(row, 'Nilai Wawancara'),
-      nilai_akhir:      f(row, 'Nilai Akhir'),
-
-      // Status PPDB
-      status_hasil:         s(row, 'Status Hasil'),
-      status_daftar_ulang:  s(row, 'Status Daftar Ulang'),
-      catatan:              s(row, 'Catatan'),
-      keterangan:           s(row, 'Keterangan'),
+      status_ibu:       s(row, 'Status Ibu', 'STATUS_IBU'),
+      penghasilan_ibu:  s(row, 'Penghasilan Ibu', 'Penghasilan Bulanan Ibu', 'PENGHASILAN_IBU'),
     }
 
     // Hapus semua key null agar tidak overwrite data existing yang sudah terisi
@@ -510,17 +392,12 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     })
 
     // -----------------------------------------------------------
-    // FIX: Pisahkan payload ke dua tabel: siswa vs siswa_ppdb
-    // Sebelumnya seluruh payload (termasuk kolom PPDB) dikirim ke
-    // tabel siswa → SQLite error → silent fail → 0 inserted.
+    // Simpan hanya kolom yang benar-benar ada di tabel siswa.
     // -----------------------------------------------------------
     const siswaPayload: any = {}
-    const ppdbPayload: any = {}
 
     for (const [k, v] of Object.entries(fullPayload)) {
       if (SISWA_COLS.has(k)) siswaPayload[k] = v
-      else if (PPDB_COLS.has(k)) ppdbPayload[k] = v
-      // field lain (asrama, kamar, dll.) yang belum ada di schema: diabaikan
     }
 
     // Pastikan field wajib siswa selalu ada (termasuk setelah filter null di atas)
@@ -537,7 +414,7 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     if (existing) {
       // UPDATE: siswa sudah ada — update saja, NISN tidak perlu diset ulang jika kosong
       if (nisn) siswaPayload.nisn = nisn
-      toUpdate.push({ id: existing.id, siswaData: siswaPayload, ppdbData: ppdbPayload })
+      toUpdate.push({ id: existing.id, siswaData: siswaPayload })
     } else {
       // INSERT: siswa baru — NISN wajib (NOT NULL UNIQUE constraint di DB)
       if (!nisn) {
@@ -545,16 +422,15 @@ export async function importSiswaMassal(dataSiswa: any[]) {
         continue
       }
       siswaPayload.nisn = nisn
-      // Pre-generate ID agar bisa dipakai sebagai FK di siswa_ppdb
+      // Pre-generate ID agar batch insert tetap bisa dipetakan dengan jelas.
       const newId = crypto.randomUUID().replace(/-/g, '')
       siswaPayload.id = newId
-      toInsert.push({ siswaData: siswaPayload, ppdbData: ppdbPayload })
+      toInsert.push({ siswaData: siswaPayload })
     }
   }
 
   let insertCount = 0
   let updateCount = 0
-  const ppdbUpserts: any[] = []
 
   // ---- INSERT siswa baru ----
   if (toInsert.length > 0) {
@@ -564,12 +440,6 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     // FIX: Propagate error dari dbBatchInsert — sebelumnya error ini diabaikan
     if (batchError) errors.push(`DB insert error: ${batchError}`)
 
-    // Kumpulkan ppdb rows untuk semua siswa baru (gunakan ID yang sudah di-generate)
-    toInsert.forEach(r => {
-      if (Object.keys(r.ppdbData).length > 0) {
-        ppdbUpserts.push({ siswa_id: r.siswaData.id, ...r.ppdbData })
-      }
-    })
   }
 
   // ---- UPDATE siswa existing ----
@@ -585,42 +455,6 @@ export async function importSiswaMassal(dataSiswa: any[]) {
       })
       await db.batch(stmts)
       updateCount += chunk.length
-    }
-
-    toUpdate.forEach(r => {
-      if (Object.keys(r.ppdbData).length > 0) {
-        ppdbUpserts.push({ siswa_id: r.id, ...r.ppdbData })
-      }
-    })
-  }
-
-  // ---- UPSERT siswa_ppdb (data PPDB lengkap) ----
-  if (ppdbUpserts.length > 0) {
-    try {
-      // Kumpulkan semua keys unik dari seluruh baris ppdb
-      const allPpdbKeys = [...new Set(ppdbUpserts.flatMap(r => Object.keys(r)))]
-      const placeholders = allPpdbKeys.map(() => '?').join(', ')
-      const updateSets = allPpdbKeys
-        .filter(k => k !== 'siswa_id')
-        .map(k => `${k} = excluded.${k}`)
-        .join(', ')
-
-      const sql = `INSERT INTO siswa_ppdb (${allPpdbKeys.join(', ')}) VALUES (${placeholders})
-                   ON CONFLICT(siswa_id) DO UPDATE SET ${updateSets}, updated_at = datetime('now')`
-
-      const stmts = ppdbUpserts.map(row => {
-        const vals = allPpdbKeys.map(k => serializeValue(row[k] ?? null))
-        return db.prepare(sql).bind(...vals)
-      })
-
-      const chunkSize = 100
-      for (let i = 0; i < stmts.length; i += chunkSize) {
-        await db.batch(stmts.slice(i, i + chunkSize))
-      }
-    } catch (e: any) {
-      // Tabel siswa_ppdb mungkin belum ada (migration belum dijalankan)
-      // Insert siswa tetap dihitung sukses, ppdb detail di-skip
-      errors.push(`Data PPDB detail tidak tersimpan: ${e.message}`)
     }
   }
 

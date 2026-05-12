@@ -244,23 +244,14 @@ export async function KelasBinaanDashboard({
     `).bind(kelas.id).all<any>().then(res => res.results || []),
   ])
 
-  let studentContacts: Record<string, { phone: string | null }> = {}
-  try {
-    const contactRows = await db.prepare(`
-      SELECT s.id AS siswa_id, COALESCE(sp.no_hp_wali, s.nomor_whatsapp) AS phone
-      FROM siswa s
-      LEFT JOIN siswa_ppdb sp ON sp.siswa_id = s.id
-      WHERE s.kelas_id = ? AND s.status = 'aktif'
-    `).bind(kelas.id).all<any>()
-    studentContacts = Object.fromEntries((contactRows.results || []).map((r: any) => [r.siswa_id, { phone: r.phone || null }]))
-  } catch {
-    const contactRows = await db.prepare(`
-      SELECT s.id AS siswa_id, s.nomor_whatsapp AS phone
-      FROM siswa s
-      WHERE s.kelas_id = ? AND s.status = 'aktif'
-    `).bind(kelas.id).all<any>()
-    studentContacts = Object.fromEntries((contactRows.results || []).map((r: any) => [r.siswa_id, { phone: r.phone || null }]))
-  }
+  const contactRows = await db.prepare(`
+    SELECT s.id AS siswa_id, s.nomor_whatsapp AS phone
+    FROM siswa s
+    WHERE s.kelas_id = ? AND s.status = 'aktif'
+  `).bind(kelas.id).all<any>()
+  const studentContacts: Record<string, { phone: string | null }> = Object.fromEntries(
+    (contactRows.results || []).map((r: any) => [r.siswa_id, { phone: r.phone || null }])
+  )
 
   const jumlahSiswa = snapshot30?.siswa.length ?? 0
   const todayRows = snapshot30?.siswa.map(siswa => snapshot30.statusByStudent.get(siswa.id)?.find(row => row.tanggal === today)).filter(Boolean) ?? []
@@ -418,7 +409,7 @@ export async function KelasBinaanDashboard({
               <Eye className="h-3.5 w-3.5" /> Halaman Penuh
             </Link>
             <Link href="/dashboard/keterangan-absensi" className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">
-              <NotebookPen className="h-3.5 w-3.5" /> Koreksi Wali
+              <NotebookPen className="h-3.5 w-3.5" /> Koreksi Absensi
             </Link>
           </div>
         </div>

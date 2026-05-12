@@ -22,7 +22,7 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
 }) {
   const db = await getDB()
 
-  const [kasusResult, masterResult] = await Promise.all([
+  const [kasusResult, masterResult, tingkatResult] = await Promise.all([
     db.prepare(`
       SELECT sp.id, sp.tanggal, sp.keterangan, sp.foto_url, sp.siswa_id, sp.master_pelanggaran_id, sp.diinput_oleh,
         s.nama_lengkap as siswa_nama, s.foto_url as siswa_foto, k.tingkat, k.nomor_kelas, k.kelompok,
@@ -36,7 +36,8 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
       ORDER BY sp.tanggal DESC, sp.created_at DESC
       LIMIT 50
     `).bind(taAktifId).all<any>(),
-    db.prepare(`SELECT id, kategori, nama_pelanggaran, poin FROM master_pelanggaran ORDER BY poin ASC`).all<any>()
+    db.prepare(`SELECT id, kategori, nama_pelanggaran, poin FROM master_pelanggaran ORDER BY poin ASC`).all<any>(),
+    db.prepare(`SELECT DISTINCT tingkat FROM kelas WHERE tingkat IS NOT NULL`).all<{ tingkat: string | number }>()
   ])
 
   const formattedKasus = (kasusResult.results || []).map((p: any) => ({
@@ -47,7 +48,9 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
     pelapor: { nama_lengkap: p.pelapor_nama }
   }))
 
-  return <KedisiplinanClient currentUser={currentUser} kasusList={formattedKasus} masterList={masterResult.results || []} taAktifId={taAktifId} sanksiList={sanksiList} lifetimePoin={lifetimePoin} />
+  const tingkatList = (tingkatResult.results || []).map(row => String(row.tingkat))
+
+  return <KedisiplinanClient currentUser={currentUser} kasusList={formattedKasus} masterList={masterResult.results || []} taAktifId={taAktifId} sanksiList={sanksiList} lifetimePoin={lifetimePoin} tingkatList={tingkatList} />
 }
 
 async function AnalitikFetcher({ taAktifId, isAdmin }: { taAktifId: string; isAdmin: boolean }) {
