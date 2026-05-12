@@ -78,7 +78,7 @@ export async function getMonitoringHarian(tanggal: string, filterMode: 'semua' |
       ag.waktu_input,
       ag.catatan_admin,
       dtk.id as delegasi_kelas_id,
-      u_pelaksana.nama_lengkap as pelaksana_nama
+      COALESCE(u_pelaksana_kelas.nama_lengkap, u_pelaksana_delegasi.nama_lengkap) as pelaksana_nama
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
     JOIN "user" u ON pm.guru_id = u.id
@@ -88,7 +88,8 @@ export async function getMonitoringHarian(tanggal: string, filterMode: 'semua' |
     LEFT JOIN delegasi_tugas_kelas dtk ON dtk.penugasan_mengajar_id = jm.penugasan_id
       AND dtk.delegasi_id IN (SELECT dt.id FROM delegasi_tugas dt WHERE dt.dari_user_id = pm.guru_id AND dt.tanggal = ?)
     LEFT JOIN delegasi_tugas dt_info ON dtk.delegasi_id = dt_info.id
-    LEFT JOIN "user" u_pelaksana ON dt_info.kepada_user_id = u_pelaksana.id
+    LEFT JOIN "user" u_pelaksana_delegasi ON dt_info.kepada_user_id = u_pelaksana_delegasi.id
+    LEFT JOIN "user" u_pelaksana_kelas ON dtk.pelaksana_user_id = u_pelaksana_kelas.id
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
   `
   const params: unknown[] = [tanggal, tanggal, ta.id, hari]

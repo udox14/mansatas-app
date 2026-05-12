@@ -12,7 +12,7 @@ export type SiswaKeterangan = {
   siswa_id: string
   nama_lengkap: string
   nisn: string
-  status: 'SAKIT' | 'IZIN' | null
+  status: 'SAKIT' | 'IZIN' | 'ALFA' | null
   keterangan: string
   keterangan_id: string | null
 }
@@ -107,7 +107,7 @@ export async function loadSiswaKeterangan(kelasId: string, tanggal: string): Pro
         siswa_id: s.id,
         nama_lengkap: s.nama_lengkap,
         nisn: s.nisn,
-        status: (ket?.status as 'SAKIT' | 'IZIN') || null,
+        status: (ket?.status as 'SAKIT' | 'IZIN' | 'ALFA') || null,
         keterangan: ket?.keterangan || '',
         keterangan_id: ket?.id || null,
       }
@@ -119,7 +119,7 @@ export async function loadSiswaKeterangan(kelasId: string, tanggal: string): Pro
 export async function simpanKeterangan(
   siswaId: string,
   tanggal: string,
-  status: 'SAKIT' | 'IZIN' | null,
+  status: 'SAKIT' | 'IZIN' | 'ALFA' | null,
   keterangan: string
 ): Promise<{ error?: string; success?: string }> {
   const user = await getCurrentUser()
@@ -169,7 +169,7 @@ export async function simpanKeterangan(
 export async function simpanKeteranganBatch(
   kelasId: string,
   tanggal: string,
-  data: Array<{ siswa_id: string; status: 'SAKIT' | 'IZIN' | null; keterangan: string }>
+  data: Array<{ siswa_id: string; status: 'SAKIT' | 'IZIN' | 'ALFA' | null; keterangan: string }>
 ): Promise<{ error?: string; success?: string }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }

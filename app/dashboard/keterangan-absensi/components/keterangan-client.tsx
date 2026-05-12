@@ -5,7 +5,7 @@ import { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Thermometer, ShieldAlert, X, Save, Loader2,
-  Users, ChevronDown, MessageSquare, CheckCircle2,
+  Users, ChevronDown, MessageSquare, XCircle,
 } from 'lucide-react'
 import {
   loadSiswaKeterangan, simpanKeteranganBatch,
@@ -20,6 +20,7 @@ interface Props {
 const STATUS_UI = {
   SAKIT: { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', icon: Thermometer, label: 'Sakit' },
   IZIN:  { bg: 'bg-blue-50',  border: 'border-blue-300',  text: 'text-blue-700',  icon: ShieldAlert,  label: 'Izin'  },
+  ALFA:  { bg: 'bg-red-50',   border: 'border-red-300',   text: 'text-red-700',   icon: XCircle,      label: 'Alfa'  },
 }
 
 export function KeteranganClient({ kelasList, initialKelasId }: Props) {
@@ -66,7 +67,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
     setCalendarInfo('')
   }
 
-  const setStatus = (siswaId: string, status: 'SAKIT' | 'IZIN' | null) => {
+  const setStatus = (siswaId: string, status: 'SAKIT' | 'IZIN' | 'ALFA' | null) => {
     setSiswaList(prev => prev.map(s => s.siswa_id === siswaId ? { ...s, status } : s))
     setHasChanges(true)
   }
@@ -209,6 +210,13 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
                       >
                         <ShieldAlert className="h-3 w-3" />
                         Izin
+                      </button>
+                      <button
+                        onClick={() => setStatus(s.siswa_id, s.status === 'ALFA' ? null : 'ALFA')}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-semibold transition-colors ${s.status === 'ALFA' ? 'bg-red-100 border-red-300 text-red-700' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:border-red-300 hover:text-red-600'}`}
+                      >
+                        <XCircle className="h-3 w-3" />
+                        Alfa
                       </button>
                       {s.status && (
                         <button

@@ -6,7 +6,7 @@
 CREATE TABLE IF NOT EXISTS delegasi_tugas (
   id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   dari_user_id    TEXT NOT NULL REFERENCES "user"(id),
-  kepada_user_id  TEXT NOT NULL REFERENCES "user"(id),
+  kepada_user_id  TEXT REFERENCES "user"(id),
   tanggal         TEXT NOT NULL,
   status          TEXT NOT NULL DEFAULT 'DIKIRIM' CHECK(status IN ('DIKIRIM','SELESAI')),
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS delegasi_tugas_kelas (
   kelas_id                TEXT NOT NULL REFERENCES kelas(id),
   tugas                   TEXT NOT NULL,
   absen_selesai           INTEGER NOT NULL DEFAULT 0,
+  pelaksana_user_id       TEXT REFERENCES "user"(id),
+  selesai_at              TEXT,
   created_at              TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

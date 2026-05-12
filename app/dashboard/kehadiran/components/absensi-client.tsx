@@ -54,7 +54,13 @@ export function AbsensiClient({ initialData }: Props) {
     setIsLoadingSiswa(true)
     setPesan(null)
     setHasChanges(false)
-    const res = await loadSiswaAbsensi(block.penugasan_id, block.kelas_id, data.tanggal)
+    const res = await loadSiswaAbsensi(
+      block.penugasan_id,
+      block.kelas_id,
+      data.tanggal,
+      block.jam_ke_mulai,
+      block.jam_ke_selesai,
+    )
     if (res.error) setPesan({ tipe: 'error', teks: res.error })
     else setSiswaList(res.siswa)
     setIsLoadingSiswa(false)

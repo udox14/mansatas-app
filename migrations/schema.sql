@@ -222,12 +222,19 @@ CREATE TABLE IF NOT EXISTS izin_keluar_komplek (
   updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS alasan_izin_kelas (
+  id         TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  alasan     TEXT NOT NULL UNIQUE,
+  urutan     INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS izin_tidak_masuk_kelas (
   id             TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   siswa_id       TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
   tanggal        TEXT NOT NULL DEFAULT (date('now')),
-  jam_pelajaran  TEXT NOT NULL,
-  alasan         TEXT NOT NULL CHECK(alasan IN ('Sakit','Izin','Keperluan Keluarga','Lainnya')),
+  jam_pelajaran  TEXT,
+  alasan         TEXT NOT NULL,
   keterangan     TEXT,
   diinput_oleh   TEXT REFERENCES "user"(id),
   created_at     TEXT NOT NULL DEFAULT (datetime('now')),
@@ -308,7 +315,7 @@ CREATE INDEX IF NOT EXISTS idx_sarpras_aset_kategori ON sarpras_aset(kategori_id
 CREATE TABLE IF NOT EXISTS delegasi_tugas (
   id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   dari_user_id    TEXT NOT NULL REFERENCES "user"(id),
-  kepada_user_id  TEXT NOT NULL REFERENCES "user"(id),
+  kepada_user_id  TEXT REFERENCES "user"(id),
   tanggal         TEXT NOT NULL,
   status          TEXT NOT NULL DEFAULT 'DIKIRIM' CHECK(status IN ('DIKIRIM','SELESAI')),
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -322,6 +329,8 @@ CREATE TABLE IF NOT EXISTS delegasi_tugas_kelas (
   kelas_id                TEXT NOT NULL REFERENCES kelas(id),
   tugas                   TEXT NOT NULL,
   absen_selesai           INTEGER NOT NULL DEFAULT 0,
+  pelaksana_user_id       TEXT REFERENCES "user"(id),
+  selesai_at              TEXT,
   created_at              TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

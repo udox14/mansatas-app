@@ -72,6 +72,33 @@ function getSlotsHari(raw: string, hari: number): SlotJam[] {
 
 function hariNum(d: Date): number { const day = d.getDay(); return day === 0 ? 7 : day }
 
+function parseIzinJamPelajaran(raw: unknown): number[] | null {
+  if (raw === null || raw === undefined || raw === '') return null
+  if (typeof raw === 'number') return Number.isFinite(raw) ? [raw] : []
+
+  const text = String(raw).trim()
+  if (!text) return null
+
+  try {
+    const parsed = JSON.parse(text)
+    if (Array.isArray(parsed)) {
+      return parsed.map(Number).filter(Number.isFinite)
+    }
+    const n = Number(parsed)
+    return Number.isFinite(n) ? [n] : []
+  } catch {
+    const n = Number(text)
+    return Number.isFinite(n) ? [n] : []
+  }
+}
+
+function jamBeririsan(jamIzin: number[] | null, jamKeMulai?: number, jamKeSelesai?: number): boolean {
+  if (jamIzin === null) return true
+  if (!jamIzin.length) return false
+  if (!jamKeMulai || !jamKeSelesai) return true
+  return jamIzin.some(jam => jam >= jamKeMulai && jam <= jamKeSelesai)
+}
+
 // ============================================================
 // 1. AMBIL BLOK MENGAJAR GURU HARI INI
 //    Menerima optional guruId untuk fitur Act As
@@ -216,24 +243,34 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
 // ============================================================
 // 2. LOAD SISWA + ABSENSI EXISTING + IZIN AKTIF
 // ============================================================
-export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tanggal: string): Promise<{
+export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tanggal: string, jamKeMulai?: number, jamKeSelesai?: number): Promise<{
   error: string | null; siswa: SiswaAbsensi[]
 }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', siswa: [] }
   const db = await getDB()
 
-  const [siswaRes, absensiRes, izinRes, waliKelasRes] = await Promise.all([
+  const [siswaRes, absensiRes, izinRes, izinKeluarRes, waliKelasRes] = await Promise.all([
     db.prepare(`SELECT id, nama_lengkap, nisn, foto_url FROM siswa WHERE kelas_id = ? AND status = 'aktif' ORDER BY nama_lengkap`).bind(kelasId).all<any>(),
     db.prepare(`SELECT siswa_id, status, catatan FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?`).bind(penugasanId, tanggal).all<any>(),
-    db.prepare(`SELECT siswa_id, alasan FROM izin_tidak_masuk_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(tanggal, kelasId).all<any>(),
+    db.prepare(`SELECT siswa_id, alasan, jam_pelajaran FROM izin_tidak_masuk_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(tanggal, kelasId).all<any>(),
+    db.prepare(`SELECT siswa_id, keterangan FROM izin_keluar_komplek WHERE status = 'BELUM KEMBALI' AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(kelasId).all<any>(),
     db.prepare(`SELECT siswa_id, status, keterangan FROM keterangan_absensi_wali_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(tanggal, kelasId).all<any>(),
   ])
 
   const absenMap = new Map<string, { status: string; catatan: string }>()
   for (const a of absensiRes.results || []) absenMap.set(a.siswa_id, { status: a.status, catatan: a.catatan || '' })
   const izinMap = new Map<string, string>()
-  for (const i of izinRes.results || []) izinMap.set(i.siswa_id, i.alasan || 'Izin')
+  for (const i of izinRes.results || []) {
+    if (jamBeririsan(parseIzinJamPelajaran(i.jam_pelajaran), jamKeMulai, jamKeSelesai)) {
+      izinMap.set(i.siswa_id, i.alasan || 'Izin')
+    }
+  }
+  for (const i of izinKeluarRes.results || []) {
+    if (!izinMap.has(i.siswa_id)) {
+      izinMap.set(i.siswa_id, i.keterangan ? `Keluar komplek: ${i.keterangan}` : 'Keluar komplek')
+    }
+  }
   const waliMap = new Map<string, { status: string; keterangan: string }>()
   for (const w of waliKelasRes.results || []) waliMap.set(w.siswa_id, { status: w.status, keterangan: w.keterangan || '' })
 
