@@ -44,7 +44,7 @@ function SubmitProfileBtn() {
   return (
     <Button type="submit" disabled={pending} className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg gap-1.5">
       {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-      Simpan Nama
+      Simpan Profil
     </Button>
   )
 }
@@ -132,7 +132,7 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
         {/* Form ubah nama */}
         <div className="rounded-xl border border-surface bg-surface p-5 shadow-sm">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 mb-0.5">Informasi Dasar</p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Ubah nama tampilan Anda di dalam sistem.</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Ubah nama tampilan dan data CKH Anda di dalam sistem.</p>
 
           <form action={profileAction} className="space-y-3 max-w-md">
             {profileState?.error && (
@@ -152,6 +152,16 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Email</Label>
               <Input value={email} readOnly className="h-9 rounded-lg bg-surface-3 text-slate-400 dark:text-slate-500 text-sm cursor-not-allowed" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">NIP</Label>
+                <Input name="nip" defaultValue={profile.nip || ''} className="h-9 rounded-lg bg-surface-2 text-sm" placeholder="Nomor Induk Pegawai" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Jabatan Cetak CKH</Label>
+                <Input name="jabatan_cetak" defaultValue={profile.jabatan_cetak || ''} className="h-9 rounded-lg bg-surface-2 text-sm" placeholder="Contoh: GURU BAHASA ARAB" />
+              </div>
             </div>
             <SubmitProfileBtn />
           </form>

@@ -76,27 +76,28 @@ function enumerateDates(startDate: string, endDate: string) {
   return dates
 }
 
-function deriveGuruStatus(totalBlok: number, records: Array<{ status: string }>): FinalAttendanceStatus {
+function deriveGuruStatus(
+  totalBlok: number,
+  submittedBlok: number,
+  records: Array<{ status: string }>
+): FinalAttendanceStatus {
   if (totalBlok <= 0) {
     return records.length > 0 ? 'PERLU_KONFIRMASI_WALI' : 'BELUM_ADA_DATA'
   }
 
-  if (records.length === 0) {
+  if (submittedBlok < totalBlok) {
     return 'BELUM_ADA_DATA'
   }
 
   const uniqueStatuses = Array.from(new Set(records.map(record => record.status)))
 
+  if (records.length === 0) {
+    return 'HADIR'
+  }
+
   if (records.length < totalBlok) {
     if (!uniqueStatuses.includes('ALFA')) return 'HADIR'
     return uniqueStatuses.length === 1 ? 'PARSIAL' : 'PERLU_KONFIRMASI_WALI'
-  }
-
-  if (uniqueStatuses.length === 1) {
-    const [status] = uniqueStatuses
-    if (status === 'SAKIT' || status === 'IZIN' || status === 'ALFA') {
-      return status
-    }
   }
 
   return 'PERLU_KONFIRMASI_WALI'
@@ -105,11 +106,10 @@ function deriveGuruStatus(totalBlok: number, records: Array<{ status: string }>)
 function deriveGuruStatusWithSession(
   totalBlok: number,
   records: Array<{ status: string }>,
-  isSubmitted: boolean
+  submittedBlok: number
 ): FinalAttendanceStatus {
   if (totalBlok <= 0) return records.length > 0 ? 'PERLU_KONFIRMASI_WALI' : 'BELUM_ADA_DATA'
-  if (records.length === 0) return isSubmitted ? 'HADIR' : 'BELUM_ADA_DATA'
-  return deriveGuruStatus(totalBlok, records)
+  return deriveGuruStatus(totalBlok, submittedBlok, records)
 }
 
 function buildFinalStatus(guruStatus: FinalAttendanceStatus, waliStatus: 'SAKIT' | 'IZIN' | 'ALFA' | null) {
@@ -281,8 +281,7 @@ export async function getFinalAttendanceForClass(
       const guruRecords = guruMap.get(`${siswa.id}__${tanggal}`) || []
       const waliRecord = waliMap.get(`${siswa.id}__${tanggal}`)
       const submittedPenugasanCount = sesiMap.get(tanggal)?.size || 0
-      const isSubmitted = totalBlok > 0 && submittedPenugasanCount >= totalBlok
-      const guruStatus = deriveGuruStatusWithSession(totalBlok, guruRecords, isSubmitted)
+      const guruStatus = deriveGuruStatusWithSession(totalBlok, guruRecords, submittedPenugasanCount)
       const finalState = buildFinalStatus(guruStatus, waliRecord?.status ?? null)
 
       perDay.push({

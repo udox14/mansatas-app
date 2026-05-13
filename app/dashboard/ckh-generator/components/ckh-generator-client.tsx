@@ -103,7 +103,7 @@ function CkhPrintDocument({
     : new Date(year, month, 0).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
-    <div style={{ fontFamily: 'Tahoma, sans-serif', color: '#000', background: '#fff', fontSize: '9pt' }}>
+    <div style={{ fontFamily: 'Tahoma, sans-serif', color: '#000', background: '#fff', fontSize: '10.5pt' }}>
       <style>{`
         @media print {
           @page { size: ${pageCss}; margin: ${margins.top}mm ${margins.right}mm ${margins.bottom}mm ${margins.left}mm; }
@@ -113,12 +113,12 @@ function CkhPrintDocument({
       `}</style>
 
       <div style={{ textAlign: 'center', marginBottom: '10px' }}>
-        <div style={{ fontSize: '12pt', fontWeight: 700 }}>CATATAN KINERJA HARIAN</div>
-        <div style={{ fontSize: '12pt', fontWeight: 700 }}>ASN MAN 1 TASIKMALAYA</div>
+        <div style={{ fontSize: '13pt', fontWeight: 700 }}>CATATAN KINERJA HARIAN</div>
+        <div style={{ fontSize: '13pt', fontWeight: 700 }}>ASN MAN 1 TASIKMALAYA</div>
         <div style={{ fontSize: '10pt', fontWeight: 700, marginTop: '2px' }}>BULAN : {monthLabel}</div>
       </div>
 
-      <table style={{ marginBottom: '8px', borderCollapse: 'collapse', fontSize: '9pt' }}>
+      <table style={{ marginBottom: '8px', borderCollapse: 'collapse', fontSize: '10pt' }}>
         <tbody>
           <tr><td style={{ width: '95px' }}>NAMA</td><td style={{ width: '10px' }}>:</td><td>{user.nama_lengkap}</td></tr>
           <tr><td>NIP</td><td>:</td><td>{user.nip || '-'}</td></tr>
@@ -127,7 +127,7 @@ function CkhPrintDocument({
         </tbody>
       </table>
 
-      <table className="ckh-print-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '8.5pt' }}>
+      <table className="ckh-print-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '10pt' }}>
         <thead>
           <tr>
             <th style={th('7mm')}>NO</th>
@@ -152,7 +152,7 @@ function CkhPrintDocument({
         </tbody>
       </table>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '18mm', fontSize: '9pt' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '18mm', fontSize: '10pt' }}>
         <div style={{ width: '46%', textAlign: 'center' }}>
           <div>Mengetahui :</div>
           <div style={{ fontWeight: 700, textTransform: 'uppercase', marginBottom: '20mm' }}>
@@ -190,7 +190,7 @@ function td(textAlign: 'left' | 'center'): CSSProperties {
     border: '1px solid #000',
     padding: '4px 4px',
     textAlign,
-    verticalAlign: 'top',
+    verticalAlign: 'middle',
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
   }
@@ -538,6 +538,10 @@ function TemplateAdmin({ templates }: { templates: Template[] }) {
   const [isPending, startTransition] = useTransition()
   const [templateForm, setTemplateForm] = useState<Template | null>(null)
   const [noteForm, setNoteForm] = useState<{ id?: string; template_id: string; note: string; sort_order: number } | null>(null)
+  const [roleFilter, setRoleFilter] = useState('_all')
+  const filteredTemplates = roleFilter === '_all'
+    ? templates
+    : templates.filter(template => template.role === roleFilter)
 
   const submitTemplate = (formData: FormData) => {
     startTransition(async () => {
@@ -579,14 +583,27 @@ function TemplateAdmin({ templates }: { templates: Template[] }) {
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Template CKH</p>
             <p className="text-xs text-slate-500">Kegiatan bulanan per role dan opsional jabatan cetak.</p>
           </div>
-          <Button size="sm" onClick={() => setTemplateForm({ id: '', role: 'guru', jabatan_cetak: null, title: '', sort_order: 0, is_active: 1, notes: [] })} className="gap-1.5">
-            <Plus className="h-4 w-4" /> Template
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="h-9 w-40 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all" className="text-xs">Semua Role</SelectItem>
+                {roleOptions.map(role => (
+                  <SelectItem key={role} value={role} className="text-xs">{role}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={() => setTemplateForm({ id: '', role: roleFilter === '_all' ? 'guru' : roleFilter, jabatan_cetak: null, title: '', sort_order: 0, is_active: 1, notes: [] })} className="gap-1.5">
+              <Plus className="h-4 w-4" /> Template
+            </Button>
+          </div>
         </div>
         <div className="divide-y divide-surface-2">
-          {templates.length === 0 ? (
+          {filteredTemplates.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-slate-400">Belum ada template.</p>
-          ) : templates.map(template => (
+          ) : filteredTemplates.map(template => (
             <div key={template.id} className="p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
