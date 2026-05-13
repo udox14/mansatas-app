@@ -454,6 +454,8 @@ export function TemplateSPPD({ data }: { data: any }) {
   const noCell: React.CSSProperties = { ...cell, width: '9mm', textAlign: 'center' }
   const fieldCell: React.CSSProperties = { ...cell, width: '76mm' }
   const colonCell: React.CSSProperties = { ...cell, width: '5mm', textAlign: 'center', paddingLeft: 0, paddingRight: 0 }
+  const dateCell: React.CSSProperties = { ...cell, width: '44mm' }
+  const ketCell: React.CSSProperties = { ...cell, width: '34mm' }
   const sppdDate = text(data.tanggal_surat || formatTanggalIndo(data.tanggal_surat_raw || data.tanggal_berangkat))
   const ppkName = text(ppk.nama).toUpperCase()
   const kepalaName = text(kepala.nama).toUpperCase()
@@ -479,29 +481,36 @@ export function TemplateSPPD({ data }: { data: any }) {
         <p style={{ margin: '6mm 0 4mm', textAlign: 'center', ...base }}>Nomor : {text(data.nomor_surat)}</p>
         <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '10pt', marginBottom: '5mm' }}>SURAT PERJALANAN DINAS (SPD)</div>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, border: '1.2pt solid #000', ...base }}>
+          <colgroup>
+            <col style={{ width: '9mm' }} />
+            <col style={{ width: '76mm' }} />
+            <col style={{ width: '5mm' }} />
+            <col style={{ width: '44mm' }} />
+            <col style={{ width: '34mm' }} />
+          </colgroup>
           <tbody>
             {tableRows.slice(0, 7).map(([no, field, value], i) => (
               <tr key={i}>
                 <td style={noCell}>{no}</td>
                 <td style={fieldCell}>{field}</td>
                 <td style={colonCell}>:</td>
-                <td style={cell}>{value}</td>
+                <td colSpan={2} style={cell}>{value}</td>
               </tr>
             ))}
             <tr>
               <td style={noCell}>8.</td>
-              <td style={{ ...fieldCell, borderRight: 0 }}>
+              <td colSpan={2} style={{ ...fieldCell }}>
                 <span>Pengikut :</span><span style={{ display: 'inline-block', width: '42mm', textAlign: 'center' }}>Nama</span>
               </td>
-              <td style={{ ...cell, width: '44mm', textAlign: 'center' }}>Tanggal lahir</td>
-              <td style={{ ...cell, width: '34mm', textAlign: 'center' }}>Keterangan</td>
+              <td style={{ ...dateCell, textAlign: 'center' }}>Tanggal lahir</td>
+              <td style={{ ...ketCell, textAlign: 'center' }}>Keterangan</td>
             </tr>
             {pengikutRows.map(row => (
               <tr key={`pengikut-${row.no}`}>
                 <td style={{ ...noCell, borderTop: 0, borderBottom: row.no === 5 ? undefined : 0 }} />
-                <td style={{ ...fieldCell, borderTop: 0, borderBottom: row.no === 5 ? undefined : 0 }}>{row.no}. {row.nama}</td>
-                <td style={{ ...cell, width: '44mm', borderTop: 0, borderBottom: row.no === 5 ? undefined : 0, textAlign: 'center' }}>{row.tanggal}</td>
-                <td style={{ ...cell, width: '34mm', borderTop: 0, borderBottom: row.no === 5 ? undefined : 0 }}>{row.ket}</td>
+                <td colSpan={2} style={{ ...fieldCell, borderTop: 0, borderBottom: row.no === 5 ? undefined : 0 }}>{row.no}. {row.nama}</td>
+                <td style={{ ...dateCell, borderTop: 0, borderBottom: row.no === 5 ? undefined : 0, textAlign: 'center' }}>{row.tanggal}</td>
+                <td style={{ ...ketCell, borderTop: 0, borderBottom: row.no === 5 ? undefined : 0 }}>{row.ket}</td>
               </tr>
             ))}
             {tableRows.slice(7).map(([no, field, value], i) => (
@@ -509,7 +518,7 @@ export function TemplateSPPD({ data }: { data: any }) {
                 <td style={noCell}>{no}</td>
                 <td style={fieldCell}>{field}</td>
                 <td style={colonCell}>:</td>
-                <td style={cell}>{value}</td>
+                <td colSpan={2} style={cell}>{value}</td>
               </tr>
             ))}
           </tbody>
