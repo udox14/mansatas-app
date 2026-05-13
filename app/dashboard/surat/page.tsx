@@ -7,22 +7,24 @@ import { checkFeatureAccess } from '@/lib/features'
 import { FileText } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
-import { getDataForSurat, getSuratKeluar } from './actions'
+import { getDataForSurat, getSuratKeluar, getSuratPenandatanganSettings } from './actions'
 import { SuratClient } from './components/surat-client'
 
 export const metadata = { title: 'Surat Keluar - MANSATAS App' }
 export const dynamic = 'force-dynamic'
 
 async function SuratDataFetcher({ userId, userName }: { userId: string; userName: string }) {
-  const [masterData, logSurat] = await Promise.all([
+  const [masterData, logSurat, penandatanganSettings] = await Promise.all([
     getDataForSurat(),
     getSuratKeluar(),
+    getSuratPenandatanganSettings(),
   ])
 
   return (
     <SuratClient
       masterData={masterData}
       logSurat={logSurat}
+      penandatanganSettings={penandatanganSettings}
       currentUser={{ id: userId, nama: userName }}
     />
   )

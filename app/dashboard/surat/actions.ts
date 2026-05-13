@@ -5,8 +5,42 @@ import { getDB } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
 import type { JenisSurat } from './constants'
 import { KODE_KLASIFIKASI_SURAT } from './constants'
+import { getSystemSetting, setSystemSetting } from '@/lib/system-settings'
 
 const BULAN_ROMAWI = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
+const PENANDATANGAN_SETTING_KEY = 'surat_penandatangan'
+
+export type SuratPenandatanganSettings = {
+  kepala?: string
+  kepala_tu?: string
+  waka_kesiswaan?: string
+  waka_kurikulum?: string
+}
+
+export async function getSuratPenandatanganSettings(): Promise<SuratPenandatanganSettings> {
+  const raw = await getSystemSetting(PENANDATANGAN_SETTING_KEY, '{}')
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+export async function simpanSuratPenandatanganSettings(settings: SuratPenandatanganSettings): Promise<{ success?: string; error?: string }> {
+  try {
+    await setSystemSetting(PENANDATANGAN_SETTING_KEY, JSON.stringify({
+      kepala: settings.kepala || '',
+      kepala_tu: settings.kepala_tu || '',
+      waka_kesiswaan: settings.waka_kesiswaan || '',
+      waka_kurikulum: settings.waka_kurikulum || '',
+    }))
+    revalidatePath('/dashboard/surat')
+    return { success: 'Pengaturan penandatangan berhasil disimpan.' }
+  } catch (e: any) {
+    return { error: 'Gagal menyimpan pengaturan: ' + (e?.message || '') }
+  }
+}
 
 // ============================================================
 // GET DATA FOR SURAT (siswa, guru, kelas, pejabat)

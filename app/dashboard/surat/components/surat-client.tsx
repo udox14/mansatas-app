@@ -21,7 +21,7 @@ import {
   getPrintSettings,
   type PrintSettings,
 } from './surat-templates'
-import { hapusSuratKeluar, hapusSuratKeluarBatch, getSuratKeluar, simpanSuratKeluar } from '../actions'
+import { hapusSuratKeluar, hapusSuratKeluarBatch, getSuratKeluar, simpanSuratKeluar, simpanSuratPenandatanganSettings, type SuratPenandatanganSettings } from '../actions'
 import { JENIS_SURAT_LABEL, KODE_KLASIFIKASI_SURAT, type JenisSurat } from '../constants'
 import { formatNamaKelas } from '@/lib/utils'
 
@@ -169,9 +169,10 @@ function SearchMulti({ options, selected, onChange }: {
   )
 }
 
-export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
+export function SuratClient({ masterData, logSurat: initialLog, penandatanganSettings, currentUser }: {
   masterData: MasterData
   logSurat: any[]
+  penandatanganSettings: SuratPenandatanganSettings
   currentUser: { id: string; nama: string }
 }) {
   const [activeTab, setActiveTab] = useState('buat')
@@ -191,6 +192,9 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
   const [reprintType, setReprintType] = useState<JenisSurat | null>(null)
   const [reprintOpen, setReprintOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [signerSettings, setSignerSettings] = useState<SuratPenandatanganSettings>(penandatanganSettings || {})
+  const [isSavingSigner, setIsSavingSigner] = useState(false)
+  const [signerMessage, setSignerMessage] = useState<{ success?: string; error?: string } | null>(null)
 
   const printRef = useRef<HTMLDivElement>(null)
   const reprintRef = useRef<HTMLDivElement>(null)
@@ -207,10 +211,21 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
     sub: [g.jabatan_cetak, g.nip].filter(Boolean).join(' | ') || g.role || '',
   })), [masterData.guru])
 
+  const pejabatOptions = useMemo(() => masterData.pejabat.map((p: any) => ({
+    value: p.user_id || p.id,
+    label: p.nama_lengkap,
+    sub: [p.jabatan_cetak || p.nama, p.nip].filter(Boolean).join(' | ') || p.role || '',
+  })), [masterData.pejabat])
+
   const selectedSiswa = formData.siswa_id ? masterData.siswa.find((s: any) => s.id === formData.siswa_id) : null
 
-  const findPejabat = (key: 'kepala' | 'kepala_tu' | 'waka_kesiswaan') => {
+  const findPejabat = (key: 'kepala' | 'kepala_tu' | 'waka_kesiswaan' | 'waka_kurikulum') => {
     const all = masterData.pejabat || []
+    const configured = signerSettings[key]
+    if (configured) {
+      const picked = all.find((p: any) => p.user_id === configured || p.id === configured)
+      if (picked) return picked
+    }
     const lower = (v: any) => String(v || '').toLowerCase()
     const jab = (p: any) => lower(p.jabatan_cetak || p.nama)
     if (key === 'kepala') {
@@ -219,6 +234,9 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
     if (key === 'kepala_tu') {
       return all.find((p: any) => jab(p).includes('kepala tu')) || all.find((p: any) => p.role === 'admin_tu') || {}
     }
+    if (key === 'waka_kurikulum') {
+      return all.find((p: any) => jab(p).includes('kurikulum')) || all.find((p: any) => p.role === 'wakamad' && jab(p).includes('kurikulum')) || {}
+    }
     return all.find((p: any) => jab(p).includes('kesiswaan')) || all.find((p: any) => p.role === 'wakamad' && jab(p).includes('siswa')) || {}
   }
 
@@ -226,6 +244,7 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
     kepala: findPejabat('kepala'),
     kepala_tu: findPejabat('kepala_tu'),
     waka_kesiswaan: findPejabat('waka_kesiswaan'),
+    waka_kurikulum: findPejabat('waka_kurikulum'),
   })
 
   const updateField = (key: string, value: any) => {
@@ -379,6 +398,13 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
       setSelectedIds([])
     }
     setIsFilterLoading(false)
+  }
+
+  const handleSaveSignerSettings = async () => {
+    setIsSavingSigner(true)
+    const result = await simpanSuratPenandatanganSettings(signerSettings)
+    setSignerMessage(result)
+    setIsSavingSigner(false)
   }
 
   const handleReprintOpen = (surat: any) => {
@@ -576,6 +602,9 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
           <TabsPrimitive.Trigger value="log" className="rounded-md px-4 py-1.5 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-700">
             <FileText className="mr-1.5 inline h-3.5 w-3.5" />Log Surat Keluar
           </TabsPrimitive.Trigger>
+          <TabsPrimitive.Trigger value="penandatangan" className="rounded-md px-4 py-1.5 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-700">
+            <FileSignature className="mr-1.5 inline h-3.5 w-3.5" />Penandatangan
+          </TabsPrimitive.Trigger>
         </TabsPrimitive.List>
 
         <TabsPrimitive.Content value="buat" className="mt-4">
@@ -595,6 +624,29 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
                 </button>
               )
             })}
+          </div>
+        </TabsPrimitive.Content>
+
+        <TabsPrimitive.Content value="penandatangan" className="mt-4">
+          <div className="max-w-3xl rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Pejabat Penandatangan Surat</h3>
+              <p className="mt-1 text-xs text-slate-500">Pilihan ini menjadi acuan utama untuk tanda tangan surat. Jika kosong, sistem tetap memakai fallback dari jabatan cetak/role.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SearchableSelect label="Kepala Madrasah" options={pejabatOptions} value={signerSettings.kepala || ''} onChange={v => { setSignerMessage(null); setSignerSettings(prev => ({ ...prev, kepala: v })) }} placeholder="Pilih Kepala Madrasah" />
+              <SearchableSelect label="Kepala TU / PPK SPPD" options={pejabatOptions} value={signerSettings.kepala_tu || ''} onChange={v => { setSignerMessage(null); setSignerSettings(prev => ({ ...prev, kepala_tu: v })) }} placeholder="Pilih Kepala TU" />
+              <SearchableSelect label="Waka Kesiswaan" options={pejabatOptions} value={signerSettings.waka_kesiswaan || ''} onChange={v => { setSignerMessage(null); setSignerSettings(prev => ({ ...prev, waka_kesiswaan: v })) }} placeholder="Pilih Waka Kesiswaan" />
+              <SearchableSelect label="Waka Kurikulum" options={pejabatOptions} value={signerSettings.waka_kurikulum || ''} onChange={v => { setSignerMessage(null); setSignerSettings(prev => ({ ...prev, waka_kurikulum: v })) }} placeholder="Pilih Waka Kurikulum" />
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+              {signerMessage?.success && <span className="mr-auto text-xs text-emerald-600">{signerMessage.success}</span>}
+              {signerMessage?.error && <span className="mr-auto text-xs text-red-500">{signerMessage.error}</span>}
+              <Button size="sm" onClick={handleSaveSignerSettings} disabled={isSavingSigner} className="bg-amber-600 text-white hover:bg-amber-700">
+                {isSavingSigner && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
+                Simpan Penandatangan
+              </Button>
+            </div>
           </div>
         </TabsPrimitive.Content>
 
