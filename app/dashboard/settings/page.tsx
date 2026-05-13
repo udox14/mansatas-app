@@ -80,7 +80,7 @@ export default async function SettingsPage() {
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
         title="Pengaturan Sistem"
-        description="Kelola kalender akademik, jurusan, dan jam pelajaran."
+        description="Kelola perilaku input, tahun ajaran, jurusan, dan jam pelajaran."
       />
       <SettingsClient
         taData={taData}

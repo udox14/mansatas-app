@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -524,7 +525,18 @@ export function SettingsClient({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
+      <Tabs defaultValue="perilaku" className="space-y-4">
+        <TabsList className="grid h-auto w-full grid-cols-2 sm:max-w-md">
+          <TabsTrigger value="perilaku" className="gap-1.5 py-2 text-xs sm:text-sm">
+            <Clock className="h-3.5 w-3.5" /> Perilaku Guru
+          </TabsTrigger>
+          <TabsTrigger value="tahun-ajaran" className="gap-1.5 py-2 text-xs sm:text-sm">
+            <CalendarDays className="h-3.5 w-3.5" /> Tahun Ajaran
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="perilaku" className="mt-0">
+          <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
         <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-surface-2">
           <div>
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Perilaku Input Guru</p>
@@ -664,11 +676,13 @@ export function SettingsClient({
           </button>
         </div>
       </div>
+        </TabsContent>
 
-      <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
+        <TabsContent value="tahun-ajaran" className="mt-0">
+          <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
 
         {/* HEADER */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-2">
+        <div className="flex flex-col gap-3 px-5 py-4 border-b border-surface-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="p-1.5 rounded-md bg-surface-3 border border-surface">
               <CalendarDays className="h-4 w-4 text-slate-500 dark:text-slate-400" />
@@ -851,7 +865,9 @@ export function SettingsClient({
             </div>
           )
         })}
-      </div>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* ── MODAL EDIT JURUSAN ── */}
       <Dialog open={!!editingJurusanTA} onOpenChange={open => !open && setEditingJurusanTA(null)}>

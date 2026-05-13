@@ -457,6 +457,7 @@ export function TemplateSPPD({ data }: { data: any }) {
   const sppdDate = text(data.tanggal_surat || formatTanggalIndo(data.tanggal_surat_raw || data.tanggal_berangkat))
   const ppkName = text(ppk.nama).toUpperCase()
   const kepalaName = text(kepala.nama).toUpperCase()
+  const pengikutRows = buildPengikutRows(data.pengikut, data.daftar_pengikut)
 
   const tableRows: Array<[string, React.ReactNode, React.ReactNode]> = [
     ['1.', 'Pejabat Pembuat Komitmen', 'MAN 1 Tasikmalaya'],
@@ -489,10 +490,20 @@ export function TemplateSPPD({ data }: { data: any }) {
             ))}
             <tr>
               <td style={noCell}>8.</td>
-              <td colSpan={3} style={{ ...cell, padding: 0, borderLeft: 0 }}>
-                <PengikutList pengikut={data.pengikut} daftarPengikut={data.daftar_pengikut} />
+              <td style={{ ...fieldCell, borderRight: 0 }}>
+                <span>Pengikut :</span><span style={{ display: 'inline-block', width: '42mm', textAlign: 'center' }}>Nama</span>
               </td>
+              <td style={{ ...cell, width: '44mm', textAlign: 'center' }}>Tanggal lahir</td>
+              <td style={{ ...cell, width: '34mm', textAlign: 'center' }}>Keterangan</td>
             </tr>
+            {pengikutRows.map(row => (
+              <tr key={`pengikut-${row.no}`}>
+                <td style={{ ...noCell, borderTop: 0, borderBottom: row.no === 5 ? undefined : 0 }} />
+                <td style={{ ...fieldCell, borderTop: 0, borderBottom: row.no === 5 ? undefined : 0 }}>{row.no}. {row.nama}</td>
+                <td style={{ ...cell, width: '44mm', borderTop: 0, borderBottom: row.no === 5 ? undefined : 0, textAlign: 'center' }}>{row.tanggal}</td>
+                <td style={{ ...cell, width: '34mm', borderTop: 0, borderBottom: row.no === 5 ? undefined : 0 }}>{row.ket}</td>
+              </tr>
+            ))}
             {tableRows.slice(7).map(([no, field, value], i) => (
               <tr key={`bottom-${i}`}>
                 <td style={noCell}>{no}</td>
@@ -507,7 +518,7 @@ export function TemplateSPPD({ data }: { data: any }) {
         <div style={{ marginLeft: '101mm', marginTop: '2mm', ...base }}>
           <p style={{ margin: 0 }}>Dikeluarkan di&nbsp;&nbsp;&nbsp;&nbsp;: Tasikmalaya</p>
           <p style={{ margin: 0 }}>Tanggal&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {sppdDate}</p>
-          <div style={{ textAlign: 'center', marginTop: '3mm' }}>
+          <div style={{ textAlign: 'left', marginTop: '3mm' }}>
             <p style={{ margin: 0 }}>PPK MAN 1 Tasikmalaya,</p>
             <div style={{ height: '17mm' }} />
             <p style={{ margin: 0, fontWeight: 'bold' }}>{ppkName}</p>
@@ -546,13 +557,13 @@ export function TemplateSPPD({ data }: { data: any }) {
                   <p style={{ margin: '0.7mm 0 0 11mm' }}>(Tempat kedudukan)</p>
                   <TravelInfoRow label="Pada Tanggal" value={titik(16)} />
                 </div>
-                <TravelSignature label="Pejabat Pembuat Komitmen," name={ppkName} nip={text(ppk.nip)} spacer="11mm" />
+                <TravelSignature label="Pejabat Pembuat Komitmen," name={ppkName} nip={text(ppk.nip)} indent="11mm" spacer="11mm" />
               </td>
               <td style={{ ...cell, width: '50%', height: '40mm' }}>
-                <div style={{ minHeight: '17mm' }}>
+                <div style={{ minHeight: '17mm', marginLeft: '11mm' }}>
                   <P style={{ margin: 0, textAlign: 'justify' }}>Telah diperiksa dengan keterangan bahwa perjalanan tersebut atas perintahnya dan semata-mata untuk kepentingan jabatan dalam waktu yang sesingkat-singkatnya.</P>
                 </div>
-                <TravelSignature label="Pejabat Pembuat Komitmen," name={ppkName} nip={text(ppk.nip)} spacer="11mm" />
+                <TravelSignature label="Pejabat Pembuat Komitmen," name={ppkName} nip={text(ppk.nip)} indent="11mm" spacer="11mm" />
               </td>
             </tr>
             <tr>
@@ -595,7 +606,7 @@ function KopSuratSPPD() {
   )
 }
 
-function PengikutList({ pengikut, daftarPengikut }: { pengikut?: string; daftarPengikut?: any[] }) {
+function buildPengikutRows(pengikut?: string, daftarPengikut?: any[]) {
   const selectedRows = (daftarPengikut || []).map((row, i) => ({
     no: i + 1,
     nama: text(row.nama || row.nama_lengkap, ''),
@@ -615,30 +626,7 @@ function PengikutList({ pengikut, daftarPengikut }: { pengikut?: string; daftarP
     })
     : []
   const filledRows = [...selectedRows, ...manualRows].slice(0, 5)
-  const rows = [...filledRows, ...Array.from({ length: Math.max(0, 5 - filledRows.length) }, (_, i) => ({ no: filledRows.length + i + 1, nama: '', tanggal: '', ket: '' }))]
-
-  return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, fontSize: '10pt' }}>
-      <thead>
-        <tr>
-          <th style={{ borderRight: '0.75pt solid #000', borderBottom: '0.75pt solid #000', padding: '0.8mm 1.6mm', fontWeight: 'normal', textAlign: 'left' }}>
-            <span>Pengikut :</span><span style={{ display: 'inline-block', width: '44mm', textAlign: 'center' }}>Nama</span>
-          </th>
-          <th style={{ borderRight: '0.75pt solid #000', borderBottom: '0.75pt solid #000', padding: '0.8mm', fontWeight: 'normal', textAlign: 'center', width: '29%' }}>Tanggal lahir</th>
-          <th style={{ borderBottom: '0.75pt solid #000', padding: '0.8mm', fontWeight: 'normal', textAlign: 'center', width: '22%' }}>Keterangan</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, i) => (
-          <tr key={row.no}>
-            <td style={{ borderRight: '0.75pt solid #000', padding: '0.65mm 1.6mm', height: '5.1mm' }}>{row.no}. {row.nama}</td>
-            <td style={{ borderRight: '0.75pt solid #000', padding: '0.65mm 1.6mm', textAlign: 'center' }}>{row.tanggal}</td>
-            <td style={{ padding: '0.65mm 1.6mm' }}>{row.ket}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
+  return [...filledRows, ...Array.from({ length: Math.max(0, 5 - filledRows.length) }, (_, i) => ({ no: filledRows.length + i + 1, nama: '', tanggal: '', ket: '' }))]
 }
 
 function formatTanggalPendek(value: any) {
