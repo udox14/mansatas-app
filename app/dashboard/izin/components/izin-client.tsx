@@ -16,6 +16,7 @@ import { tambahIzinKeluar, tandaiSudahKembali, tambahIzinKelas, hapusIzinKeluar,
 import { KelolaAlasanModal } from './kelola-alasan-modal'
 import { cn, formatNamaKelas } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
+import { formatTimeWIB } from '@/lib/time'
 
 const initialFormState = { error: null as string | null, success: null as string | null }
 
@@ -91,7 +92,7 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole, ini
     (filterAlasan === 'SEMUA' || k.alasan === filterAlasan)
   )
 
-  const formatTime = (iso: string) => new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+  const formatTime = (iso: string) => formatTimeWIB(iso, { suffix: false })
 
   const renderSiswaAutocomplete = () => (
     <div className="space-y-1.5 relative">

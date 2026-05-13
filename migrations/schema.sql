@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS "user" (
   updatedAt         TEXT NOT NULL DEFAULT (datetime('now')),
   role              TEXT NOT NULL DEFAULT 'guru',
   nama_lengkap      TEXT,
+  nip               TEXT,
+  jabatan_cetak     TEXT,
   avatar_url        TEXT,
   banned            INTEGER DEFAULT 0,
   banReason         TEXT,

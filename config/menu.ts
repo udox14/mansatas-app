@@ -41,6 +41,7 @@ import {
   NotebookPen,
   BookCheck,
   ClipboardSignature,
+  FilePenLine,
 } from 'lucide-react'
 
 export type MenuItem = {
@@ -150,6 +151,13 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/agenda',
     icon: NotebookPen,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_ppl']
+  },
+  {
+    id: 'ckh-generator',
+    title: 'CKH Generator',
+    href: '/dashboard/ckh-generator',
+    icon: FilePenLine,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_tahfidz', 'operator', 'pramubakti', 'satpam']
   },
   {
     id: 'nilai-harian',

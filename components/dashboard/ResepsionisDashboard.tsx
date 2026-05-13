@@ -1,7 +1,7 @@
 // components/dashboard/ResepsionisDashboard.tsx
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
-import { todayWIB } from '@/lib/time'
+import { formatTimeWIB, todayWIB } from '@/lib/time'
 import { WelcomeStrip } from './shared/WelcomeStrip'
 import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
@@ -136,10 +136,10 @@ export async function ResepsionisDashboard({ userId, nama, namaDepan, avatarUrl,
                 </div>
                 <div className="text-right shrink-0">
                   <p className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                    {r.waktu_keluar ? new Date(r.waktu_keluar).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : '-'}
+                    {r.waktu_keluar ? formatTimeWIB(r.waktu_keluar, { suffix: false }) : '-'}
                   </p>
                   <p className={`text-[9px] font-medium ${r.status === 'BELUM KEMBALI' ? 'text-rose-500' : 'text-emerald-500'}`}>
-                    {r.status === 'BELUM KEMBALI' ? 'Blm kembali' : (r.waktu_kembali ? new Date(r.waktu_kembali).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit' }) : 'Kembali')}
+                    {r.status === 'BELUM KEMBALI' ? 'Blm kembali' : (r.waktu_kembali ? formatTimeWIB(r.waktu_kembali, { suffix: false }) : 'Kembali')}
                   </p>
                 </div>
               </div>

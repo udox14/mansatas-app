@@ -6,7 +6,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { uploadToR2 } from '@/utils/r2'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
-import { nowWIB, currentTimeWIB, todayWIB } from '@/lib/time'
+import { nowWIB, currentTimeWIB, nowWIBISO } from '@/lib/time'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 
@@ -254,7 +254,7 @@ export async function submitAgendaPiket(formData: FormData): Promise<{ error?: s
     tanggal,
     foto_url: uploadResult.url,
     status,
-    waktu_submit: nowWIB().toISOString(),
+    waktu_submit: nowWIBISO(),
     diubah_oleh: effective?.realUserId || user.id,
   }
 

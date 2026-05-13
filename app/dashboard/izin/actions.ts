@@ -289,6 +289,7 @@ export async function tambahIzinKeluar(prevState: any, formData: FormData) {
   const result = await dbInsert(db, 'izin_keluar_komplek', {
     siswa_id,
     keterangan,
+    waktu_keluar: nowWIBISO(),
     diinput_oleh: user.id,
   })
 

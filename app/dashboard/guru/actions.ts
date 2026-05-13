@@ -19,6 +19,8 @@ export async function tambahPegawai(prevState: any, formData: FormData) {
   const nama_lengkap = (formData.get('nama_lengkap') as string).trim()
   const email = (formData.get('email') as string).trim()
   const role = formData.get('role') as string
+  const nip = (formData.get('nip') as string)?.trim() || null
+  const jabatan_cetak = (formData.get('jabatan_cetak') as string)?.trim() || null
 
   if (!nama_lengkap || !email || !role) {
     return { error: 'Semua field wajib diisi.', success: null }
@@ -32,8 +34,8 @@ export async function tambahPegawai(prevState: any, formData: FormData) {
     if (!res?.user?.id) throw new Error('Gagal membuat akun.')
     const db = await getDB()
     // Update role utama di tabel user
-    await db.prepare(`UPDATE "user" SET role = ?, nama_lengkap = ?, updatedAt = datetime('now') WHERE id = ?`)
-      .bind(role, nama_lengkap, res.user.id).run()
+    await db.prepare(`UPDATE "user" SET role = ?, nama_lengkap = ?, nip = ?, jabatan_cetak = ?, updatedAt = datetime('now') WHERE id = ?`)
+      .bind(role, nama_lengkap, nip, jabatan_cetak, res.user.id).run()
     // Insert ke user_roles
     await db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)')
       .bind(res.user.id, role).run()
@@ -49,11 +51,18 @@ export async function tambahPegawai(prevState: any, formData: FormData) {
 // ============================================================
 // EDIT PEGAWAI
 // ============================================================
-export async function editPegawai(id: string, nama_lengkap: string, email: string) {
+export async function editPegawai(id: string, nama_lengkap: string, email: string, nip?: string, jabatan_cetak?: string) {
   const db = await getDB()
   const result = await dbUpdate(
     db, '"user"',
-    { nama_lengkap, name: nama_lengkap, email, updatedAt: new Date().toISOString() },
+    {
+      nama_lengkap,
+      name: nama_lengkap,
+      email,
+      nip: nip?.trim() || null,
+      jabatan_cetak: jabatan_cetak?.trim() || null,
+      updatedAt: new Date().toISOString(),
+    },
     { id }
   )
   if (result.error) return { error: result.error }
@@ -154,12 +163,14 @@ export async function importPegawaiMassal(dataExcel: any[]) {
   const db = await getDB()
   const errorLogs: string[] = []
 
-  const users: Array<{ nama_lengkap: string; email: string; role: string }> = []
+  const users: Array<{ nama_lengkap: string; email: string; role: string; nip: string | null; jabatan_cetak: string | null }> = []
 
   for (const row of dataExcel) {
     const nama_lengkap = String(row.NAMA_LENGKAP || '').trim()
     const email = String(row.EMAIL || '').trim().toLowerCase()
     const rawJabatan = String(row.JABATAN || 'guru').toLowerCase().trim()
+    const nip = String(row.NIP || '').trim() || null
+    const jabatan_cetak = String(row.JABATAN_CETAK || row.JABATAN_PRINT || row.JABATAN || '').trim() || null
     if (!nama_lengkap || !email) continue
 
     let role = 'guru'
@@ -172,7 +183,7 @@ export async function importPegawaiMassal(dataExcel: any[]) {
     else if (rawJabatan.includes('ppl') || rawJabatan.includes('praktek')) role = 'guru_ppl'
     else if (rawJabatan.includes('wali kelas') || rawJabatan.includes('walas')) role = 'wali_kelas'
 
-    users.push({ nama_lengkap, email, role })
+    users.push({ nama_lengkap, email, role, nip, jabatan_cetak })
   }
 
   if (users.length === 0) return { success: null, error: 'Data kosong atau format tidak sesuai.', logs: [] }
@@ -203,12 +214,12 @@ export async function importPegawaiMassal(dataExcel: any[]) {
     const chunk = toInsert.slice(i, i + chunkSize)
 
     const userPlaceholders = chunk.map(() =>
-      `(lower(hex(randomblob(16))), ?, ?, 1, ?, ?, datetime('now'), datetime('now'))`
+      `(lower(hex(randomblob(16))), ?, ?, 1, ?, ?, ?, ?, datetime('now'), datetime('now'))`
     ).join(', ')
-    const userValues = chunk.flatMap(u => [u.nama_lengkap, u.email, u.role, u.nama_lengkap])
+    const userValues = chunk.flatMap(u => [u.nama_lengkap, u.email, u.role, u.nama_lengkap, u.nip, u.jabatan_cetak])
 
     await db.prepare(
-      `INSERT OR IGNORE INTO "user" (id, name, email, emailVerified, role, nama_lengkap, createdAt, updatedAt) VALUES ${userPlaceholders}`
+      `INSERT OR IGNORE INTO "user" (id, name, email, emailVerified, role, nama_lengkap, nip, jabatan_cetak, createdAt, updatedAt) VALUES ${userPlaceholders}`
     ).bind(...userValues).run()
 
     const emailList = chunk.map(() => '?').join(',')

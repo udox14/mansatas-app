@@ -31,6 +31,8 @@ type MasterRoleType = { value: string; label: string; is_custom: number }
 type ProfilType = {
   id: string, nama_lengkap: string, role: string, roles: string[], email: string,
   avatar_url?: string | null,
+  nip?: string | null,
+  jabatan_cetak?: string | null,
 }
 
 type ExportRow = {
@@ -193,7 +195,13 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
     e.preventDefault()
     setIsPending(true)
     const formData = new FormData(e.currentTarget)
-    const res = await editPegawai(formData.get('id') as string, formData.get('nama_lengkap') as string, formData.get('email') as string)
+    const res = await editPegawai(
+      formData.get('id') as string,
+      formData.get('nama_lengkap') as string,
+      formData.get('email') as string,
+      formData.get('nip') as string,
+      formData.get('jabatan_cetak') as string,
+    )
     if (res?.error) alert(res.error)
     else { alert(res.success); setEditingPegawai(null) }
     setIsPending(false)
@@ -270,8 +278,8 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
     const XLSX = (window as any).XLSX
     if (!XLSX) return alert('Library belum siap.')
     const ws = XLSX.utils.json_to_sheet([
-      { NAMA_LENGKAP: 'Budi Santoso, S.Pd', EMAIL: 'budi@man1tasikmalaya.sch.id', JABATAN: 'guru' },
-      { NAMA_LENGKAP: 'Siti Aminah, M.Pd', EMAIL: 'siti@man1tasikmalaya.sch.id', JABATAN: 'wakamad' },
+      { NAMA_LENGKAP: 'Budi Santoso, S.Pd', EMAIL: 'budi@man1tasikmalaya.sch.id', JABATAN: 'guru', NIP: '199001012020121001', JABATAN_CETAK: 'GURU BAHASA ARAB' },
+      { NAMA_LENGKAP: 'Siti Aminah, M.Pd', EMAIL: 'siti@man1tasikmalaya.sch.id', JABATAN: 'wakamad', NIP: '198501012010012001', JABATAN_CETAK: 'WAKIL KEPALA MADRASAH' },
     ])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Data_Pegawai')
@@ -536,6 +544,16 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Email (Login)</Label>
               <Input type="email" name="email" defaultValue={editingPegawai?.email} required className="h-9 text-sm rounded-lg" />
             </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">NIP</Label>
+                <Input name="nip" defaultValue={editingPegawai?.nip || ''} className="h-9 text-sm rounded-lg" placeholder="Nomor Induk Pegawai" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Jabatan Cetak CKH</Label>
+                <Input name="jabatan_cetak" defaultValue={editingPegawai?.jabatan_cetak || ''} className="h-9 text-sm rounded-lg" placeholder="Contoh: GURU BAHASA ARAB" />
+              </div>
+            </div>
             <Button type="submit" disabled={isPending} className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
             </Button>
@@ -744,6 +762,16 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                       <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
                       <SelectContent>{masterRoles.map((r: MasterRoleType) => <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>)}</SelectContent>
                     </Select>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">NIP</Label>
+                      <Input name="nip" className="h-9 text-sm rounded-lg" placeholder="Opsional, untuk CKH" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Jabatan Cetak CKH</Label>
+                      <Input name="jabatan_cetak" className="h-9 text-sm rounded-lg" placeholder="Contoh: GURU BAHASA ARAB" />
+                    </div>
                   </div>
                   <SubmitButton />
                 </form>
