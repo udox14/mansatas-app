@@ -449,8 +449,8 @@ export function TemplateSPPD({ data }: { data: any }) {
   const pegawai = data.pegawai || {}
   const ppk = pejabat(data, 'kepala_tu')
   const kepala = pejabat(data, 'kepala')
-  const base: React.CSSProperties = { fontSize: '11.2pt', lineHeight: 1.16 }
-  const cell: React.CSSProperties = { border: '0.75pt solid #000', verticalAlign: 'top', padding: '0.9mm 1.6mm' }
+  const base: React.CSSProperties = { fontSize: '10pt', lineHeight: 1.16 }
+  const cell: React.CSSProperties = { border: '0.75pt solid #000', verticalAlign: 'top', padding: '0.8mm 1.5mm' }
   const noCell: React.CSSProperties = { ...cell, width: '9mm', textAlign: 'center' }
   const fieldCell: React.CSSProperties = { ...cell, width: '76mm' }
   const colonCell: React.CSSProperties = { ...cell, width: '5mm', textAlign: 'center', paddingLeft: 0, paddingRight: 0 }
@@ -476,7 +476,7 @@ export function TemplateSPPD({ data }: { data: any }) {
         <LampiranSPPD />
         <KopSuratSPPD />
         <p style={{ margin: '6mm 0 4mm', textAlign: 'center', ...base }}>Nomor : {text(data.nomor_surat)}</p>
-        <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13pt', marginBottom: '5mm' }}>SURAT PERJALANAN DINAS (SPD)</div>
+        <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '10pt', marginBottom: '5mm' }}>SURAT PERJALANAN DINAS (SPD)</div>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, border: '1.2pt solid #000', ...base }}>
           <tbody>
             {tableRows.slice(0, 7).map(([no, field, value], i) => (
@@ -534,31 +534,25 @@ export function TemplateSPPD({ data }: { data: any }) {
               </td>
             </tr>
             {['II.', 'III.', 'IV.', 'V.'].map(no => (
-              <tr key={no} style={{ height: '31mm' }}>
+              <tr key={no} style={{ height: '30mm' }}>
                 <td style={{ ...cell, width: '50%' }}><TravelArriveBlank no={no} /></td>
                 <td style={{ ...cell, width: '50%' }}><TravelDepartBlank /></td>
               </tr>
             ))}
             <tr>
               <td style={{ ...cell, width: '50%', height: '40mm' }}>
-                <p style={{ margin: 0 }}>VI.&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Tiba di&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {text(data.tempat_berangkat, 'Sukamanah')}</p>
-                <p style={{ margin: '1mm 0 0 11mm' }}>(Tempat kedudukan)</p>
-                <p style={{ margin: '1mm 0 0 11mm' }}>Pada Tanggal&nbsp;&nbsp;: {titik(16)}</p>
-                <div style={{ marginTop: '5mm' }}>
-                  <p style={{ margin: 0 }}>Pejabat Pembuat Komitmen,</p>
-                  <div style={{ height: '11mm' }} />
-                  <p style={{ margin: 0, fontWeight: 'bold' }}>{ppkName}</p>
-                  <p style={{ margin: 0 }}>NIP. {ppk.nip}</p>
+                <div style={{ minHeight: '17mm' }}>
+                  <TravelInfoRow no="VI." label="Tiba di" value={text(data.tempat_berangkat, 'Sukamanah')} />
+                  <p style={{ margin: '0.7mm 0 0 11mm' }}>(Tempat kedudukan)</p>
+                  <TravelInfoRow label="Pada Tanggal" value={titik(16)} />
                 </div>
+                <TravelSignature label="Pejabat Pembuat Komitmen," name={ppkName} nip={text(ppk.nip)} spacer="11mm" />
               </td>
               <td style={{ ...cell, width: '50%', height: '40mm' }}>
-                <P style={{ margin: 0, textAlign: 'justify' }}>Telah diperiksa dengan keterangan bahwa perjalanan tersebut atas perintahnya dan semata-mata untuk kepentingan jabatan dalam waktu yang sesingkat-singkatnya.</P>
-                <div style={{ marginTop: '2mm' }}>
-                  <p style={{ margin: 0 }}>Pejabat Pembuat Komitmen,</p>
-                  <div style={{ height: '11mm' }} />
-                  <p style={{ margin: 0, fontWeight: 'bold' }}>{ppkName}</p>
-                  <p style={{ margin: 0 }}>NIP. {ppk.nip}</p>
+                <div style={{ minHeight: '17mm' }}>
+                  <P style={{ margin: 0, textAlign: 'justify' }}>Telah diperiksa dengan keterangan bahwa perjalanan tersebut atas perintahnya dan semata-mata untuk kepentingan jabatan dalam waktu yang sesingkat-singkatnya.</P>
                 </div>
+                <TravelSignature label="Pejabat Pembuat Komitmen," name={ppkName} nip={text(ppk.nip)} spacer="11mm" />
               </td>
             </tr>
             <tr>
@@ -583,8 +577,8 @@ export function TemplateSPPD({ data }: { data: any }) {
 
 function LampiranSPPD() {
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '4mm', fontFamily: FONT, fontSize: '9.2pt', lineHeight: 1.06 }}>
-      <div style={{ width: '73mm' }}>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '4mm', fontFamily: FONT, fontSize: '7pt', lineHeight: 1.06 }}>
+      <div style={{ width: '58mm' }}>
         <div style={{ textAlign: 'right', marginBottom: '1mm' }}>LAMPIRAN I<br />PERATURAN&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MENTERI&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;KEUANGAN&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;REPUBLIK</div>
         <div>INDONESIA NOMOR : 113/PMK.05/2012</div>
         <div>TENTANG : PERJALANAN DINAS JABATAN DALAM NEGERI BAGI PEJABAT NEGARA, PEGAWAI NEGERI DAN PEGAWAI TIDAK TETAP.</div>
@@ -607,7 +601,7 @@ function PengikutList({ pengikut }: { pengikut?: string }) {
     : [1, 2, 3, 4, 5].map(no => ({ no, nama: '', tanggal: '', ket: '' }))
 
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, fontSize: '10.8pt' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, fontSize: '10pt' }}>
       <thead>
         <tr>
           <th style={{ borderRight: '0.75pt solid #000', borderBottom: '0.75pt solid #000', padding: '0.8mm 1.6mm', fontWeight: 'normal', textAlign: 'left' }}>
@@ -633,14 +627,13 @@ function PengikutList({ pengikut }: { pengikut?: string }) {
 function TravelFilled({ no, from, to, date, signerName, signerNip }: { no: string; from: string; to: string; date: string; signerName: string; signerNip: string }) {
   return (
     <div>
-      <p style={{ margin: 0 }}>{no}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Berangkat dari&nbsp;&nbsp;&nbsp;&nbsp;: {from}</p>
-      <p style={{ margin: '1mm 0 0 11mm' }}>(Tempat kedudukan)</p>
-      <p style={{ margin: '1mm 0 0 11mm' }}>Ke&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {to}</p>
-      <p style={{ margin: '1mm 0 0 11mm' }}>Pada Tanggal&nbsp;&nbsp;&nbsp;: {date}</p>
-      <p style={{ margin: '1mm 0 0 11mm' }}>K e p a l a,</p>
-      <div style={{ height: '13mm' }} />
-      <p style={{ margin: '0 0 0 11mm', fontWeight: 'bold' }}>{signerName}</p>
-      <p style={{ margin: '0 0 0 11mm' }}>NIP. {signerNip}</p>
+      <div style={{ minHeight: '16mm' }}>
+        <TravelInfoRow no={no} label="Berangkat dari" value={from} />
+        <p style={{ margin: '0.7mm 0 0 11mm' }}>(Tempat kedudukan)</p>
+        <TravelInfoRow label="Ke" value={to} />
+        <TravelInfoRow label="Pada Tanggal" value={date} />
+      </div>
+      <TravelSignature label="K e p a l a," name={signerName} nip={signerNip} indent="11mm" spacer="12mm" />
     </div>
   )
 }
@@ -648,12 +641,11 @@ function TravelFilled({ no, from, to, date, signerName, signerNip }: { no: strin
 function TravelArriveBlank({ no }: { no: string }) {
   return (
     <div>
-      <p style={{ margin: 0 }}>{no}&nbsp;&nbsp;&nbsp;&nbsp;Tiba di&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:</p>
-      <p style={{ margin: '1mm 0 0 11mm' }}>Pada Tanggal&nbsp;&nbsp;:</p>
-      <p style={{ margin: '1mm 0 0 11mm' }}>K e p a l a,</p>
-      <div style={{ height: '9mm' }} />
-      <p style={{ margin: '0 0 0 11mm' }}>( {titik(32)} )</p>
-      <p style={{ margin: '0 0 0 11mm' }}>NIP.</p>
+      <div style={{ minHeight: '10mm' }}>
+        <TravelInfoRow no={no} label="Tiba di" />
+        <TravelInfoRow label="Pada Tanggal" />
+      </div>
+      <TravelSignature label="K e p a l a," name={`( ${titik(32)} )`} nip="NIP." indent="11mm" spacer="8mm" bold={false} />
     </div>
   )
 }
@@ -661,13 +653,36 @@ function TravelArriveBlank({ no }: { no: string }) {
 function TravelDepartBlank() {
   return (
     <div>
-      <p style={{ margin: 0 }}>Berangkat dari&nbsp;&nbsp;&nbsp;&nbsp;:</p>
-      <p style={{ margin: '1mm 0 0' }}>Ke&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:</p>
-      <p style={{ margin: '1mm 0 0' }}>Pada Tanggal&nbsp;&nbsp;&nbsp;:</p>
-      <p style={{ margin: '1mm 0 0' }}>K e p a l a,</p>
-      <div style={{ height: '9mm' }} />
-      <p style={{ margin: 0 }}>( {titik(32)} )</p>
-      <p style={{ margin: 0 }}>NIP.</p>
+      <div style={{ minHeight: '10mm' }}>
+        <TravelInfoRow label="Berangkat dari" compact />
+        <TravelInfoRow label="Ke" compact />
+        <TravelInfoRow label="Pada Tanggal" compact />
+      </div>
+      <TravelSignature label="K e p a l a," name={`( ${titik(32)} )`} nip="NIP." spacer="8mm" bold={false} />
+    </div>
+  )
+}
+
+function TravelInfoRow({ no, label, value = '', compact = false }: { no?: string; label: string; value?: string; compact?: boolean }) {
+  const noWidth = compact ? '0mm' : '11mm'
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `${noWidth} 27mm 4mm 1fr`, columnGap: 0, marginTop: no ? 0 : '0.7mm', alignItems: 'baseline' }}>
+      <span>{no || ''}</span>
+      <span>{label}</span>
+      <span>:</span>
+      <span>{value}</span>
+    </div>
+  )
+}
+
+function TravelSignature({ label, name, nip, indent = '0', spacer = '8mm', bold = true }: { label: string; name: string; nip: string; indent?: string; spacer?: string; bold?: boolean }) {
+  const margin = `0 0 0 ${indent}`
+  return (
+    <div>
+      <p style={{ margin }}>{label}</p>
+      <div style={{ height: spacer }} />
+      <p style={{ margin, fontWeight: bold ? 'bold' : 'normal' }}>{name}</p>
+      <p style={{ margin }}>{nip.startsWith('NIP') ? nip : `NIP. ${nip}`}</p>
     </div>
   )
 }
