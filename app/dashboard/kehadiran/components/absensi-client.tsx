@@ -12,6 +12,7 @@ import {
   getBlokMengajarHariIni, loadSiswaAbsensi, simpanAbsensi,
   type BlokMengajar, type SiswaAbsensi,
 } from '../actions'
+import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 interface Props {
   initialData: {
@@ -197,11 +198,7 @@ export function AbsensiClient({ initialData }: Props) {
                 <span className="text-[10px] text-slate-400 w-5 text-center shrink-0 pt-1">{idx + 1}</span>
 
                 {/* Avatar */}
-                <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
-                  {s.foto_url
-                    ? <img src={s.foto_url} alt="" className="h-full w-full object-cover" />
-                    : <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{s.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
-                </div>
+                <AvatarSiswa fotoUrl={s.foto_url} nama={s.nama_lengkap} size="sm" />
 
                 {/* Name + info */}
                 <div className="flex-1 min-w-0">

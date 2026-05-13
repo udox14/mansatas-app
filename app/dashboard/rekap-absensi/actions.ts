@@ -36,6 +36,7 @@ type Summary = {
   alfa: number
   bolos: number
   perlu_konfirmasi_wali: number
+  belum_ada_input: number
   belum_ada_data: number
 }
 
@@ -47,6 +48,7 @@ function emptySummary(): Summary {
     alfa: 0,
     bolos: 0,
     perlu_konfirmasi_wali: 0,
+    belum_ada_input: 0,
     belum_ada_data: 0,
   }
 }
@@ -63,12 +65,14 @@ function statusKey(status: string | null | undefined): keyof Summary {
   if (status === 'ALFA') return 'alfa'
   if (status === 'PARSIAL' || status === 'BOLOS') return 'bolos'
   if (status === 'PERLU_KONFIRMASI_WALI' || status === 'PERLU KONFIRMASI WALI') return 'perlu_konfirmasi_wali'
+  if (status === 'BELUM_ADA_INPUT' || status === 'BELUM ADA INPUT') return 'belum_ada_input'
   return 'belum_ada_data'
 }
 
 function displayStatus(status: string | null | undefined) {
   if (status === 'PARSIAL') return 'BOLOS'
   if (status === 'PERLU_KONFIRMASI_WALI') return 'PERLU KONFIRMASI WALI'
+  if (status === 'BELUM_ADA_INPUT') return 'BELUM ADA INPUT'
   return status || 'BELUM_ADA_DATA'
 }
 
@@ -578,7 +582,7 @@ export async function getAbsensiPerSiswa(siswaId: string, tglMulai: string, tglS
     .map(day => {
       const izinItems = izinMap.get(`${day.siswa_id}__${day.tanggal}`) || []
       const statusHari = displayStatus(applyIzinStatus(day, izinItems))
-      const blokTidakHadir = day.guru_status === 'HADIR' || day.guru_status === 'BELUM_ADA_DATA'
+      const blokTidakHadir = day.guru_status === 'HADIR' || day.guru_status === 'BELUM_ADA_DATA' || day.guru_status === 'BELUM_ADA_INPUT'
         ? 0
         : day.guru_status === 'PARSIAL'
           ? day.detail_guru.length

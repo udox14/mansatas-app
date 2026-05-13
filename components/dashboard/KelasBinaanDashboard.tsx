@@ -3,7 +3,9 @@ import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 import { getFinalAttendanceForClass } from '@/lib/wali-kelas-attendance'
+import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 import { ParentCommActions } from './ParentCommActions'
+import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { WelcomeStrip } from './shared/WelcomeStrip'
 import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
@@ -41,6 +43,7 @@ type Props = {
 }
 
 function badgeClass(status: string) {
+  if (status === 'LIBUR') return 'bg-slate-100 text-slate-600 border-slate-200'
   if (status === 'HADIR') return 'bg-emerald-100 text-emerald-700 border-emerald-200'
   if (status === 'SAKIT') return 'bg-amber-100 text-amber-700 border-amber-200'
   if (status === 'IZIN') return 'bg-blue-100 text-blue-700 border-blue-200'
@@ -51,17 +54,21 @@ function badgeClass(status: string) {
 }
 
 function attendanceStatusLabel(status: string | null | undefined) {
+  if (status === 'LIBUR') return 'Libur'
   if (!status || status === 'BELUM_ADA_DATA') return 'Belum Lengkap'
+  if (status === 'BELUM_ADA_INPUT') return 'Belum Ada Input'
   if (status === 'PARSIAL') return 'Bolos'
   if (status === 'PERLU_KONFIRMASI_WALI') return 'Perlu Keputusan Wali'
   return status
 }
 
 function sourceLabel(source: string) {
+  if (source === 'kalender') return 'Kalender Pendidikan'
   if (source === 'wali_kelas') return 'Wali Kelas'
   if (source === 'koreksi_wali_kelas') return 'Koreksi Wali'
   if (source === 'guru') return 'Guru'
   if (source === 'perlu_konfirmasi_wali') return 'Perlu Keputusan Wali'
+  if (source === 'belum_ada_input') return 'Belum Ada Input'
   return 'Belum Lengkap'
 }
 
@@ -187,7 +194,8 @@ export async function KelasBinaanDashboard({
     )
   `).run()
 
-  const [snapshot30, topPelanggaran, agendaTerbaru, izinPembelajaranHariIni, komunikasiStatusRaw, komunikasiTimelineRaw] = await Promise.all([
+  const [todayCalendarStatus, snapshot30, topPelanggaran, agendaTerbaru, izinPembelajaranHariIni, komunikasiStatusRaw, komunikasiTimelineRaw] = await Promise.all([
+    getKalenderDateStatus(db, today),
     getFinalAttendanceForClass(db, kelas.id, start30Str, today),
     db.prepare(`
       SELECT sp.siswa_id, s.nama_lengkap, s.nisn, SUM(mp.poin) as total_poin, COUNT(*) as jumlah_kasus
@@ -254,6 +262,8 @@ export async function KelasBinaanDashboard({
   )
 
   const jumlahSiswa = snapshot30?.siswa.length ?? 0
+  const isTodayEffective = todayCalendarStatus.isEffective
+  const todayHolidayReason = todayCalendarStatus.reason || 'Tidak efektif pembelajaran'
   const todayRows = snapshot30?.siswa.map(siswa => snapshot30.statusByStudent.get(siswa.id)?.find(row => row.tanggal === today)).filter(Boolean) ?? []
 
   const todaySummary = {
@@ -263,6 +273,7 @@ export async function KelasBinaanDashboard({
     alfa: 0,
     parsial: 0,
     perluKonfirmasiWali: 0,
+    belumAdaInput: 0,
     belumAdaData: 0,
   }
 
@@ -327,6 +338,7 @@ export async function KelasBinaanDashboard({
     else if (row?.status_akhir === 'ALFA') todaySummary.alfa++
     else if (row?.status_akhir === 'PARSIAL') todaySummary.parsial++
     else if (row?.status_akhir === 'PERLU_KONFIRMASI_WALI') todaySummary.perluKonfirmasiWali++
+    else if (row?.status_akhir === 'BELUM_ADA_INPUT') todaySummary.belumAdaInput++
     else if (row?.status_akhir === 'BELUM_ADA_DATA') todaySummary.belumAdaData++
     else todaySummary.hadir++
   }
@@ -338,8 +350,8 @@ export async function KelasBinaanDashboard({
 
     const summary = { tanggal, tidakHadir: 0, perhatian: 0 }
     for (const row of rows) {
-      if (['SAKIT', 'IZIN', 'ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI'].includes(row.status_akhir)) summary.tidakHadir++
-      if (row.status_akhir === 'ALFA' || row.sumber_status === 'koreksi_wali_kelas') summary.perhatian++
+      if (['SAKIT', 'IZIN', 'ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA'].includes(row.status_akhir)) summary.tidakHadir++
+      if (['ALFA', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA'].includes(row.status_akhir) || row.sumber_status === 'koreksi_wali_kelas') summary.perhatian++
     }
     return summary
   }).slice(-7)
@@ -348,12 +360,12 @@ export async function KelasBinaanDashboard({
   const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
 
   const tidakMasukHariIni = studentRows
-    .filter(row => row.todayStatus && ['SAKIT', 'IZIN', 'ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI', 'BELUM_ADA_DATA'].includes(row.todayStatus.status_akhir))
+    .filter(row => isTodayEffective && row.todayStatus && ['SAKIT', 'IZIN', 'ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA'].includes(row.todayStatus.status_akhir))
     .sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
 
   const perluPerhatian = studentRows
     .filter(row =>
-      (row.todayStatus && ['ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI', 'BELUM_ADA_DATA'].includes(row.todayStatus.status_akhir)) ||
+      (isTodayEffective && row.todayStatus && ['ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA'].includes(row.todayStatus.status_akhir)) ||
       row.monthly.alfa >= 2 ||
       row.totalPoin >= 25
     )
@@ -415,25 +427,42 @@ export async function KelasBinaanDashboard({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-        {[
-          { label: 'Hadir', value: todaySummary.hadir, tone: 'text-emerald-600', bg: 'bg-emerald-50' },
-          { label: 'Sakit', value: todaySummary.sakit, tone: 'text-amber-600', bg: 'bg-amber-50' },
-          { label: 'Izin', value: todaySummary.izin, tone: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Alfa', value: todaySummary.alfa, tone: 'text-rose-600', bg: 'bg-rose-50' },
-          { label: 'Bolos', value: todaySummary.parsial, tone: 'text-violet-600', bg: 'bg-violet-50' },
-          { label: 'Keputusan Wali', value: todaySummary.perluKonfirmasiWali, tone: 'text-purple-600', bg: 'bg-purple-50' },
-          { label: 'Belum Lengkap', value: todaySummary.belumAdaData, tone: 'text-slate-600', bg: 'bg-slate-100' },
-        ].map(item => (
-          <div key={item.label} className="rounded-xl border border-surface bg-surface shadow-sm p-4">
-            <div className={`inline-flex rounded-lg p-2 ${item.bg}`}>
-              <CalendarCheck className={`h-4 w-4 ${item.tone}`} />
+      {!isTodayEffective ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg bg-white p-2 text-slate-500 shadow-sm dark:bg-slate-800">
+              <CalendarCheck className="h-4 w-4" />
             </div>
-            <p className={`mt-3 text-2xl font-bold leading-none ${item.tone}`}>{item.value}</p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.label} hari ini</p>
+            <div>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">Hari ini tidak efektif pembelajaran</p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                {todayHolidayReason}. Absensi harian siswa tidak dihitung untuk tanggal ini.
+              </p>
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3">
+          {[
+            { label: 'Hadir', value: todaySummary.hadir, tone: 'text-emerald-600', bg: 'bg-emerald-50' },
+            { label: 'Sakit', value: todaySummary.sakit, tone: 'text-amber-600', bg: 'bg-amber-50' },
+            { label: 'Izin', value: todaySummary.izin, tone: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'Alfa', value: todaySummary.alfa, tone: 'text-rose-600', bg: 'bg-rose-50' },
+            { label: 'Bolos', value: todaySummary.parsial, tone: 'text-violet-600', bg: 'bg-violet-50' },
+            { label: 'Keputusan Wali', value: todaySummary.perluKonfirmasiWali, tone: 'text-purple-600', bg: 'bg-purple-50' },
+            { label: 'Belum Ada Input', value: todaySummary.belumAdaInput, tone: 'text-slate-600', bg: 'bg-slate-100' },
+            { label: 'Belum Lengkap', value: todaySummary.belumAdaData, tone: 'text-slate-600', bg: 'bg-slate-100' },
+          ].map(item => (
+            <div key={item.label} className="rounded-xl border border-surface bg-surface shadow-sm p-4">
+              <div className={`inline-flex rounded-lg p-2 ${item.bg}`}>
+                <CalendarCheck className={`h-4 w-4 ${item.tone}`} />
+              </div>
+              <p className={`mt-3 text-2xl font-bold leading-none ${item.tone}`}>{item.value}</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{item.label} hari ini</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden xl:col-span-2">
@@ -505,11 +534,7 @@ export async function KelasBinaanDashboard({
             ) : (
               tidakMasukHariIni.slice(0, 6).map(row => (
                 <Link key={row.siswa_id} href={`/dashboard/siswa/${row.siswa_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <div className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
-                    {row.foto_url
-                      ? <img src={row.foto_url} alt="" className="h-full w-full object-cover" />
-                      : <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{row.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
-                  </div>
+                  <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{row.nama_lengkap}</p>
                     <p className="text-[10px] text-slate-400">{sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data')}</p>
@@ -539,11 +564,7 @@ export async function KelasBinaanDashboard({
             ) : (
               perluPerhatian.map(row => (
                 <Link key={row.siswa_id} href={`/dashboard/siswa/${row.siswa_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <div className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
-                    {row.foto_url
-                      ? <img src={row.foto_url} alt="" className="h-full w-full object-cover" />
-                      : <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">{row.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
-                  </div>
+                  <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{row.nama_lengkap}</p>
                     <p className="text-[10px] text-slate-400">Alfa 30 hari: {row.monthly.alfa} • Poin: {row.totalPoin}</p>
@@ -626,28 +647,26 @@ export async function KelasBinaanDashboard({
         <div className="md:hidden p-3 space-y-2">
           {filteredStudentRows.map(row => {
             const detailHref = `/dashboard/siswa/${row.siswa_id}?tab=absensi&returnTo=${encodeURIComponent(kelasIdOverride ? `/dashboard/kelas-binaan?kelas=${kelas.id}` : '/dashboard/kelas-binaan')}`
+            const statusHariIni = isTodayEffective ? (row.todayStatus?.status_akhir || 'BELUM_ADA_DATA') : 'LIBUR'
+            const sumberHariIni = isTodayEffective ? sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data') : 'Kalender Pendidikan'
             return (
               <Link key={row.siswa_id} href={detailHref} className="block rounded-xl border border-surface-2 bg-slate-50/80 dark:bg-slate-800/40 p-3 active:scale-[0.99] transition-transform">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
-                      {row.foto_url
-                        ? <img src={row.foto_url} alt="" className="h-full w-full object-cover" />
-                        : <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{row.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
-                    </div>
+                    <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{row.nama_lengkap}</p>
                       <p className="text-[11px] text-slate-400 truncate">{row.nisn}</p>
                     </div>
                   </div>
-                  <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(row.todayStatus?.status_akhir || 'BELUM_ADA_DATA')}`}>
-                    {attendanceStatusLabel(row.todayStatus?.status_akhir)}
+                  <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(statusHariIni)}`}>
+                    {attendanceStatusLabel(statusHariIni)}
                   </span>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
                   <div>
                     <p className="text-slate-400">Sumber</p>
-                    <p className="font-medium text-slate-600 dark:text-slate-300">{sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data')}</p>
+                    <p className="font-medium text-slate-600 dark:text-slate-300">{sumberHariIni}</p>
                   </div>
                   <div>
                     <p className="text-slate-400">Poin</p>
@@ -701,14 +720,11 @@ export async function KelasBinaanDashboard({
           <div className="divide-y divide-surface-2">
             {filteredStudentRows.map(row => {
               const detailHref = `/dashboard/siswa/${row.siswa_id}?tab=absensi&returnTo=${encodeURIComponent(kelasIdOverride ? `/dashboard/kelas-binaan?kelas=${kelas.id}` : '/dashboard/kelas-binaan')}`
+              const statusHariIni = isTodayEffective ? (row.todayStatus?.status_akhir || 'BELUM_ADA_DATA') : 'LIBUR'
               return (
                 <div key={row.siswa_id} className="grid grid-cols-[minmax(0,1.8fr)_minmax(140px,1fr)_minmax(170px,1fr)_minmax(160px,1fr)_80px_minmax(220px,1.4fr)] gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                   <div className="min-w-0 flex items-center gap-2.5">
-                    <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
-                      {row.foto_url
-                        ? <img src={row.foto_url} alt="" className="h-full w-full object-cover" />
-                        : <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{row.nama_lengkap?.charAt(0)?.toUpperCase()}</span>}
-                    </div>
+                    <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
                     <div className="min-w-0">
                       <Link href={detailHref} className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate block hover:underline">{row.nama_lengkap}</Link>
                       <p className="text-[11px] text-slate-400 truncate">{row.nisn}</p>
@@ -716,8 +732,8 @@ export async function KelasBinaanDashboard({
                     </div>
                   </div>
                   <div className="flex items-center">
-                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(row.todayStatus?.status_akhir || 'BELUM_ADA_DATA')}`}>
-                      {attendanceStatusLabel(row.todayStatus?.status_akhir)}
+                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(statusHariIni)}`}>
+                      {attendanceStatusLabel(statusHariIni)}
                     </span>
                   </div>
                   <div className="flex flex-col justify-center text-[11px] text-slate-500">

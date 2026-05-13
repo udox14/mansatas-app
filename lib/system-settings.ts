@@ -5,6 +5,7 @@ export const SYSTEM_SETTING_KEYS = {
   agendaLateEnabled: 'agenda_late_enabled',
   agendaLateThresholdMinutes: 'agenda_late_threshold_minutes',
   attendanceTimeRestriction: 'attendance_time_restriction_enabled',
+  attendanceSkipIncompleteForDailyStatus: 'attendance_skip_incomplete_for_daily_status',
 } as const
 
 async function ensureSystemSettingsTable(db: D1Database) {

@@ -67,7 +67,7 @@ function DetailKasusModal({
         {/* Header */}
         <DialogHeader className="px-5 pt-5 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-start gap-3">
-            <AvatarSiswa fotoUrl={group.siswa.foto_url} nama={group.siswa.nama_lengkap || '?'} size="md" className="h-10 w-10 bg-gradient-to-br from-rose-400 to-pink-500 text-white font-black text-base" />
+            <AvatarSiswa fotoUrl={group.siswa.foto_url} nama={group.siswa.nama_lengkap || '?'} size="md" className="bg-gradient-to-br from-rose-400 to-pink-500 text-white font-black text-base" />
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-snug">
                 {group.siswa.nama_lengkap}

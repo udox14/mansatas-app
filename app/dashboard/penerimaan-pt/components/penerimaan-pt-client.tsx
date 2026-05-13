@@ -33,6 +33,7 @@ import type { JalurPT, StatusPenerimaan, PenerimaanRow } from '../types'
 import { JALUR_LIST, STATUS_LIST } from '../types'
 import kampusData from '@/data/kampus.json'
 import { cn } from '@/lib/utils'
+import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 // ── Types ──────────────────────────────────────────────────────────────
 type Kampus = { id: string; nama: string; singkatan: string; kota: string; provinsi: string; jenis: string }
@@ -59,17 +60,6 @@ function Badge({ label, colorClass, small }: { label: string; colorClass: string
     <span className={cn('font-semibold rounded border', small ? 'text-[9px] px-1 py-0.5' : 'text-[10px] px-1.5 py-0.5', colorClass)}>
       {label}
     </span>
-  )
-}
-
-function AvatarSiswa({ siswa, size = 'md' }: { siswa: Pick<SiswaRow, 'foto_url' | 'nama_lengkap'>; size?: 'sm' | 'md' }) {
-  const cls = size === 'sm' ? 'h-7 w-7 text-[10px]' : 'h-9 w-9 text-sm'
-  return (
-    <div className={cn('rounded-full bg-gradient-to-br from-indigo-100 to-blue-100 flex items-center justify-center shrink-0 overflow-hidden border border-indigo-100', cls)}>
-      {siswa.foto_url
-        ? <img src={siswa.foto_url} alt="" className="h-full w-full object-cover" />
-        : <span className="font-bold text-indigo-600">{siswa.nama_lengkap.charAt(0)}</span>}
-    </div>
   )
 }
 
@@ -230,7 +220,7 @@ function FormPenerimaan({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 p-3 rounded-xl bg-indigo-50/60 border border-indigo-100">
-        <AvatarSiswa siswa={siswa} />
+        <AvatarSiswa fotoUrl={siswa.foto_url} nama={siswa.nama_lengkap} size="md" className="bg-gradient-to-br from-indigo-100 to-blue-100 border-indigo-100 text-indigo-600" />
         <div>
           <p className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">{siswa.nama_lengkap}</p>
           <p className="text-[11px] text-slate-400">{siswa.nisn} · Kelas {siswa.tingkat}-{siswa.nomor_kelas} {siswa.kelas_kelompok}</p>
@@ -562,7 +552,7 @@ function TabInputJalur({ taId, dynamicJalurList, addJalur }: {
               <div key={siswa.id} className="rounded-xl border border-surface bg-surface overflow-hidden">
                 <div className="flex items-center gap-3 px-4 py-3">
                   <button onClick={() => toggleExpand(siswa.id)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
-                    <AvatarSiswa siswa={siswa} size="sm" />
+                    <AvatarSiswa fotoUrl={siswa.foto_url} nama={siswa.nama_lengkap} size="sm" className="bg-gradient-to-br from-indigo-100 to-blue-100 border-indigo-100 text-indigo-600" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{siswa.nama_lengkap}</p>
                       <p className="text-[10px] text-slate-400">{siswa.nisn} · {siswa.tingkat}-{siswa.nomor_kelas}</p>
@@ -715,7 +705,7 @@ function TabPerSiswa({ taId, dynamicJalurList }: {
                 <button key={s.id} onClick={() => handleSelectSiswa(s)}
                   className={cn('w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors',
                     selectedSiswa?.id === s.id ? 'bg-indigo-50 dark:bg-indigo-900/20' : 'hover:bg-surface-2')}>
-                  <AvatarSiswa siswa={s} size="sm" />
+                  <AvatarSiswa fotoUrl={s.foto_url} nama={s.nama_lengkap} size="sm" className="bg-gradient-to-br from-indigo-100 to-blue-100 border-indigo-100 text-indigo-600" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
                     <p className="text-[10px] text-slate-400">{s.tingkat}-{s.nomor_kelas}</p>
@@ -742,7 +732,7 @@ function TabPerSiswa({ taId, dynamicJalurList }: {
         ) : (
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-r from-indigo-50 to-white dark:from-indigo-900/20 dark:to-transparent border border-indigo-100">
-              <AvatarSiswa siswa={selectedSiswa} />
+              <AvatarSiswa fotoUrl={selectedSiswa.foto_url} nama={selectedSiswa.nama_lengkap} size="md" className="bg-gradient-to-br from-indigo-100 to-blue-100 border-indigo-100 text-indigo-600" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">{selectedSiswa.nama_lengkap}</p>
                 <p className="text-[11px] text-slate-400">{selectedSiswa.nisn} · Kelas {selectedSiswa.tingkat}-{selectedSiswa.nomor_kelas} {selectedSiswa.kelas_kelompok}</p>

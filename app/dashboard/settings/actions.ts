@@ -195,3 +195,25 @@ export async function setAttendanceTimeRestrictionEnabled(enabled: boolean) {
   revalidatePath('/dashboard/kehadiran')
   return { success: true }
 }
+
+export async function setAttendanceSkipIncompleteForDailyStatusEnabled(enabled: boolean) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<{ role: string }>()
+  if (userRow?.role !== 'super_admin') {
+    return { error: 'Hanya Super Admin yang bisa mengubah pengaturan ini.' }
+  }
+
+  await setSystemSetting(
+    SYSTEM_SETTING_KEYS.attendanceSkipIncompleteForDailyStatus,
+    enabled ? '1' : '0'
+  )
+
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/rekap-absensi')
+  revalidatePath('/dashboard/kelas-binaan')
+  revalidatePath('/dashboard/siswa')
+  return { success: true }
+}

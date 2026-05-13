@@ -20,6 +20,7 @@ import { RekapAbsensiTab } from './rekap-absensi-tab'
 import { formatNamaKelas } from '@/lib/utils'
 import { formatTimeWIB } from '@/lib/time'
 import type { SanksiConfig } from '../../../kedisiplinan/actions'
+import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 export function DetailSiswaClient({
   siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, keteranganWaliKelas, keuangan, kelasList, currentUser, sanksiList, initialTab = 'biodata'
@@ -211,15 +212,12 @@ export function DetailSiswaClient({
       <div className="bg-surface rounded-xl p-5 sm:p-6 border border-surface shadow-sm flex flex-col lg:flex-row items-center lg:items-start gap-5 sm:gap-6">
         {/* FOTO PROFIL / INISIAL */}
         <div className="relative z-10 shrink-0">
-          <div className="h-44 w-32 sm:h-48 sm:w-36 rounded-xl overflow-hidden border-2 border-white shadow-lg bg-surface-3">
-            {siswa.foto_url ? (
-              <img src={siswa.foto_url} alt={siswa.nama_lengkap} className="h-full w-full object-cover" />
-            ) : (
-              <div className={`h-full w-full bg-gradient-to-br ${getAvatarColor(siswa.nama_lengkap)} flex items-center justify-center text-4xl font-black text-white`}>
-                {siswa.nama_lengkap.charAt(0).toUpperCase()}
-              </div>
-            )}
-          </div>
+          <AvatarSiswa
+            fotoUrl={siswa.foto_url}
+            nama={siswa.nama_lengkap}
+            size="profile"
+            className={`rounded-xl border-2 border-white shadow-lg ${!siswa.foto_url ? `bg-gradient-to-br ${getAvatarColor(siswa.nama_lengkap)} text-white font-black` : ''}`}
+          />
           {activeSanksi && activeSanksi.urutan >= 3 && (
             <div className="absolute -bottom-2 -right-2 bg-rose-500 text-white p-2 rounded-full shadow-lg border-2 border-white animate-bounce" title="Siswa dalam pengawasan khusus">
               <AlertTriangle className="h-5 w-5" />

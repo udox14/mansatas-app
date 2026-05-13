@@ -5,7 +5,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { JUZ_DATA, getTotalAyatInJuz } from '../data/juz-data'
 import { Search, Loader2, BookOpen, ChevronRight, ChevronUp, History, Check, Printer, ChevronDown } from 'lucide-react'
 import { getSiswaTahfidz, getProgressSiswa, simpanSetoranHafalan, getRiwayatSetoran, getNilaiJuz, simpanNilaiJuz, simpanHafalanJuzPenuh } from '../actions'
@@ -13,6 +12,7 @@ import { AyatGrid } from './AyatGrid'
 import { RiwayatModal } from './RiwayatModal'
 import { CetakLaporanModal, type CetakType } from './CetakLaporanModal'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 function useToast() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -248,10 +248,7 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
                     selectedSiswa?.id === s.id ? 'bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent'
                   }`}
                 >
-                  <Avatar className="h-10 w-10 border border-slate-200 dark:border-slate-800">
-                    <AvatarImage src={s.foto_url || ''} />
-                    <AvatarFallback>{s.nama_lengkap.charAt(0)}</AvatarFallback>
-                  </Avatar>
+                  <AvatarSiswa fotoUrl={s.foto_url} nama={s.nama_lengkap} size="md" />
                   <div className="flex-1 overflow-hidden">
                     <p className="font-medium text-sm text-slate-800 dark:text-slate-200 truncate">{s.nama_lengkap}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">{s.tingkat}-{s.nomor_kelas} {s.kelompok}</p>
@@ -289,10 +286,7 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
             {/* Header Profil */}
             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="flex items-center gap-4">
-                <Avatar className="h-14 w-14 border border-slate-200 dark:border-slate-800">
-                  <AvatarImage src={selectedSiswa.foto_url || ''} />
-                  <AvatarFallback className="text-lg">{selectedSiswa.nama_lengkap.charAt(0)}</AvatarFallback>
-                </Avatar>
+                <AvatarSiswa fotoUrl={selectedSiswa.foto_url} nama={selectedSiswa.nama_lengkap} size="lg" />
                 <div>
                   <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">{selectedSiswa.nama_lengkap}</h2>
                   <p className="text-sm text-slate-500 dark:text-slate-400">NISN: {selectedSiswa.nisn} • Kelas {selectedSiswa.tingkat}-{selectedSiswa.nomor_kelas} {selectedSiswa.kelompok}</p>

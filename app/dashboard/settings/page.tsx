@@ -71,6 +71,10 @@ export default async function SettingsPage() {
     SYSTEM_SETTING_KEYS.attendanceTimeRestriction,
     false
   )
+  const attendanceSkipIncompleteForDailyStatusEnabled = await getSystemSettingBoolean(
+    SYSTEM_SETTING_KEYS.attendanceSkipIncompleteForDailyStatus,
+    false
+  )
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -84,6 +88,7 @@ export default async function SettingsPage() {
         agendaLateEnabled={agendaLateEnabled}
         agendaLateThresholdMinutes={agendaLateThresholdMinutes}
         attendanceTimeRestrictionEnabled={attendanceTimeRestrictionEnabled}
+        attendanceSkipIncompleteForDailyStatusEnabled={attendanceSkipIncompleteForDailyStatusEnabled}
       />
     </div>
   )
