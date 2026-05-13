@@ -270,6 +270,18 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
       if (g) base.pegawai = g
     }
 
+    if (wizardType === 'sppd') {
+      const pengikutSiswa = (formData.pengikut_siswa_ids || []).map((id: string) => {
+        const s = masterData.siswa.find((item: any) => item.id === id)
+        return s ? { nama: s.nama_lengkap, tanggal_lahir: s.tanggal_lahir, keterangan: s.tingkat ? `Kelas ${formatNamaKelas(s.tingkat, s.nomor_kelas, s.kelompok)}` : 'Siswa' } : null
+      }).filter(Boolean)
+      const pengikutGuru = (formData.pengikut_guru_ids || []).map((id: string) => {
+        const g = masterData.guru.find((item: any) => item.id === id)
+        return g ? { nama: g.nama_lengkap, tanggal_lahir: g.tanggal_lahir, keterangan: g.jabatan_cetak || g.role || 'Pegawai' } : null
+      }).filter(Boolean)
+      base.daftar_pengikut = [...pengikutSiswa, ...pengikutGuru]
+    }
+
     if (wizardType === 'surat_tugas') {
       base.daftar_guru = (formData.guru_ids || []).map((id: string) => {
         const g = masterData.guru.find((item: any) => item.id === id)
@@ -474,7 +486,15 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
             <Field label="Lama Perjalanan" field="lama_perjalanan" formData={formData} onChange={updateField} placeholder="1 (satu) Hari" />
             <Field label="Alat Kendaraan" field="alat_angkut" formData={formData} onChange={updateField} placeholder="Kendaraan Pribadi" />
             <Field label="Tingkat Biaya" field="tingkat_biaya" formData={formData} onChange={updateField} placeholder="Biasa" />
-            <Field label="Pengikut (opsional)" field="pengikut" formData={formData} onChange={updateField} textarea />
+            <div>
+              <Label className="text-xs font-medium">Pengikut Siswa</Label>
+              <SearchMulti options={siswaOptions} selected={formData.pengikut_siswa_ids || []} onChange={v => updateField('pengikut_siswa_ids', v)} />
+            </div>
+            <div>
+              <Label className="text-xs font-medium">Pengikut Guru/Pegawai</Label>
+              <SearchMulti options={guruOptions} selected={formData.pengikut_guru_ids || []} onChange={v => updateField('pengikut_guru_ids', v)} />
+            </div>
+            <Field label="Pengikut Manual (Nama, Tanggal lahir, Keterangan)" field="pengikut" formData={formData} onChange={updateField} placeholder="Contoh: Ahmad Fauzi, 12/03/2008, Siswa" textarea />
             <Field label="Pembebanan Anggaran" field="pembebanan_anggaran" formData={formData} onChange={updateField} />
             <Field label="Mata Anggaran" field="mata_anggaran" formData={formData} onChange={updateField} />
             <Field label="Keterangan Lain" field="keterangan_lain" formData={formData} onChange={updateField} />

@@ -489,8 +489,8 @@ export function TemplateSPPD({ data }: { data: any }) {
             ))}
             <tr>
               <td style={noCell}>8.</td>
-              <td colSpan={3} style={{ ...cell, padding: 0 }}>
-                <PengikutList pengikut={data.pengikut} />
+              <td colSpan={3} style={{ ...cell, padding: 0, borderLeft: 0 }}>
+                <PengikutList pengikut={data.pengikut} daftarPengikut={data.daftar_pengikut} />
               </td>
             </tr>
             {tableRows.slice(7).map(([no, field, value], i) => (
@@ -595,10 +595,27 @@ function KopSuratSPPD() {
   )
 }
 
-function PengikutList({ pengikut }: { pengikut?: string }) {
-  const rows = pengikut?.trim()
-    ? pengikut.split('\n').map((row, i) => ({ no: i + 1, nama: row.trim(), tanggal: '', ket: '' })).slice(0, 5)
-    : [1, 2, 3, 4, 5].map(no => ({ no, nama: '', tanggal: '', ket: '' }))
+function PengikutList({ pengikut, daftarPengikut }: { pengikut?: string; daftarPengikut?: any[] }) {
+  const selectedRows = (daftarPengikut || []).map((row, i) => ({
+    no: i + 1,
+    nama: text(row.nama || row.nama_lengkap, ''),
+    tanggal: formatTanggalPendek(row.tanggal_lahir),
+    ket: text(row.keterangan || row.jabatan || row.kelas, ''),
+  }))
+  const manualRows = pengikut?.trim()
+    ? pengikut.split('\n').map((row, i) => {
+      const separator = row.includes('|') ? '|' : ','
+      const parts = row.split(separator).map(part => part.trim())
+      return {
+        no: selectedRows.length + i + 1,
+        nama: parts[0] || '',
+        tanggal: parts[1] || '',
+        ket: parts[2] || '',
+      }
+    })
+    : []
+  const filledRows = [...selectedRows, ...manualRows].slice(0, 5)
+  const rows = [...filledRows, ...Array.from({ length: Math.max(0, 5 - filledRows.length) }, (_, i) => ({ no: filledRows.length + i + 1, nama: '', tanggal: '', ket: '' }))]
 
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, fontSize: '10pt' }}>
@@ -612,16 +629,23 @@ function PengikutList({ pengikut }: { pengikut?: string }) {
         </tr>
       </thead>
       <tbody>
-        {rows.map(row => (
+        {rows.map((row, i) => (
           <tr key={row.no}>
             <td style={{ borderRight: '0.75pt solid #000', padding: '0.65mm 1.6mm', height: '5.1mm' }}>{row.no}. {row.nama}</td>
-            <td style={{ borderRight: '0.75pt solid #000', padding: '0.65mm 1.6mm' }}>{row.tanggal}</td>
+            <td style={{ borderRight: '0.75pt solid #000', padding: '0.65mm 1.6mm', textAlign: 'center' }}>{row.tanggal}</td>
             <td style={{ padding: '0.65mm 1.6mm' }}>{row.ket}</td>
           </tr>
         ))}
       </tbody>
     </table>
   )
+}
+
+function formatTanggalPendek(value: any) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return String(value)
+  return d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 function TravelFilled({ no, from, to, date, signerName, signerNip }: { no: string; from: string; to: string; date: string; signerName: string; signerNip: string }) {
@@ -644,8 +668,9 @@ function TravelArriveBlank({ no }: { no: string }) {
       <div style={{ minHeight: '10mm' }}>
         <TravelInfoRow no={no} label="Tiba di" />
         <TravelInfoRow label="Pada Tanggal" />
+        <TravelInfoBlankRow />
       </div>
-      <TravelSignature label="K e p a l a," name={`( ${titik(32)} )`} nip="NIP." indent="11mm" spacer="8mm" bold={false} />
+      <TravelSignature label="K e p a l a," name={`( ${titik(66)} )`} nip="NIP." indent="11mm" spacer="8mm" bold={false} />
     </div>
   )
 }
@@ -654,17 +679,17 @@ function TravelDepartBlank() {
   return (
     <div>
       <div style={{ minHeight: '10mm' }}>
-        <TravelInfoRow label="Berangkat dari" compact />
-        <TravelInfoRow label="Ke" compact />
-        <TravelInfoRow label="Pada Tanggal" compact />
+        <TravelInfoRow label="Berangkat dari" />
+        <TravelInfoRow label="Ke" />
+        <TravelInfoRow label="Pada Tanggal" />
       </div>
-      <TravelSignature label="K e p a l a," name={`( ${titik(32)} )`} nip="NIP." spacer="8mm" bold={false} />
+      <TravelSignature label="K e p a l a," name={`( ${titik(66)} )`} nip="NIP." indent="11mm" spacer="8mm" bold={false} />
     </div>
   )
 }
 
-function TravelInfoRow({ no, label, value = '', compact = false }: { no?: string; label: string; value?: string; compact?: boolean }) {
-  const noWidth = compact ? '0mm' : '11mm'
+function TravelInfoRow({ no, label, value = '' }: { no?: string; label: string; value?: string }) {
+  const noWidth = '11mm'
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `${noWidth} 27mm 4mm 1fr`, columnGap: 0, marginTop: no ? 0 : '0.7mm', alignItems: 'baseline' }}>
       <span>{no || ''}</span>
@@ -673,6 +698,10 @@ function TravelInfoRow({ no, label, value = '', compact = false }: { no?: string
       <span>{value}</span>
     </div>
   )
+}
+
+function TravelInfoBlankRow() {
+  return <div style={{ height: '1em', marginTop: '0.7mm' }} />
 }
 
 function TravelSignature({ label, name, nip, indent = '0', spacer = '8mm', bold = true }: { label: string; name: string; nip: string; indent?: string; spacer?: string; bold?: boolean }) {
