@@ -17,7 +17,8 @@ import {
 import {
   tambahTahunAjaran, setAktifTahunAjaran, hapusTahunAjaran,
   simpanDaftarJurusan, simpanJamPelajaran,
-  setAgendaTimeRestrictionEnabled, setAgendaLateSetting, setAttendanceTimeRestrictionEnabled
+  setAgendaTimeRestrictionEnabled, setAgendaLateSetting, setAttendanceTimeRestrictionEnabled,
+  setAttendanceSkipIncompleteForDailyStatusEnabled
 } from '../actions'
 import { DEFAULT_POLA_JAM } from '../types'
 import type { PolaJam, SlotJam } from '../types'
@@ -357,17 +358,20 @@ export function SettingsClient({
   agendaLateEnabled,
   agendaLateThresholdMinutes,
   attendanceTimeRestrictionEnabled,
+  attendanceSkipIncompleteForDailyStatusEnabled,
 }: {
   taData: TAProps[]
   agendaTimeRestrictionEnabled: boolean
   agendaLateEnabled: boolean
   agendaLateThresholdMinutes: number
   attendanceTimeRestrictionEnabled: boolean
+  attendanceSkipIncompleteForDailyStatusEnabled: boolean
 }) {
   const [agendaTimeRestricted, setAgendaTimeRestricted] = useState(agendaTimeRestrictionEnabled)
   const [agendaLateActive, setAgendaLateActive] = useState(agendaLateEnabled)
   const [agendaLateMinutes, setAgendaLateMinutes] = useState(String(agendaLateThresholdMinutes))
   const [attendanceTimeRestricted, setAttendanceTimeRestricted] = useState(attendanceTimeRestrictionEnabled)
+  const [attendanceSkipIncomplete, setAttendanceSkipIncomplete] = useState(attendanceSkipIncompleteForDailyStatusEnabled)
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const [state, formAction] = useActionState(tambahTahunAjaran, initialState)
@@ -390,6 +394,7 @@ export function SettingsClient({
   const [isSavingAgendaSetting, setIsSavingAgendaSetting] = useState(false)
   const [isSavingAgendaLateSetting, setIsSavingAgendaLateSetting] = useState(false)
   const [isSavingAttendanceSetting, setIsSavingAttendanceSetting] = useState(false)
+  const [isSavingAttendanceSkipSetting, setIsSavingAttendanceSkipSetting] = useState(false)
 
   const addJurusan = (isEdit: boolean) => {
     const input = isEdit ? editJurusanInput : tambahJurusanInput
@@ -497,6 +502,18 @@ export function SettingsClient({
     }
   }
 
+  const handleAttendanceSkipIncompleteToggle = async () => {
+    const nextValue = !attendanceSkipIncomplete
+    setAttendanceSkipIncomplete(nextValue)
+    setIsSavingAttendanceSkipSetting(true)
+    const res = await setAttendanceSkipIncompleteForDailyStatusEnabled(nextValue)
+    setIsSavingAttendanceSkipSetting(false)
+    if (res?.error) {
+      setAttendanceSkipIncomplete(!nextValue)
+      alert(res.error)
+    }
+  }
+
   // Summary jam untuk card TA
   const getJamSummary = (pola: PolaJam[]) => {
     if (!pola || pola.length === 0) return null
@@ -594,7 +611,7 @@ export function SettingsClient({
             </Button>
           </div>
         </div>
-        <div className="px-5 py-4 flex items-start justify-between gap-4">
+        <div className="px-5 py-4 flex items-start justify-between gap-4 border-b border-surface-2">
           <div className="space-y-1">
             <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Batasi absensi siswa sesuai jam pelajaran</p>
             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -616,6 +633,32 @@ export function SettingsClient({
               className={cn(
                 'inline-block h-5 w-5 transform rounded-full bg-white transition-transform',
                 attendanceTimeRestricted ? 'translate-x-6' : 'translate-x-1'
+              )}
+            />
+          </button>
+        </div>
+        <div className="px-5 py-4 flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Abaikan blok belum lengkap saat menentukan status harian</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Jika aktif, rekap harian memakai blok yang sudah diabsen saja. Siswa tetap tidak akan dianggap Hadir bila tidak ada satu pun blok yang benar-benar menunjukkan hadir.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleAttendanceSkipIncompleteToggle}
+            disabled={isSavingAttendanceSkipSetting}
+            className={cn(
+              'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors',
+              attendanceSkipIncomplete ? 'bg-emerald-500 border-emerald-500' : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700',
+              isSavingAttendanceSkipSetting && 'opacity-60 cursor-wait'
+            )}
+            aria-pressed={attendanceSkipIncomplete}
+          >
+            <span
+              className={cn(
+                'inline-block h-5 w-5 transform rounded-full bg-white transition-transform',
+                attendanceSkipIncomplete ? 'translate-x-6' : 'translate-x-1'
               )}
             />
           </button>

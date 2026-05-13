@@ -24,6 +24,7 @@ import {
 import type { BidangBK, TipePenanganan, SesiPenanganan } from '../actions'
 import { cn, formatNamaKelas } from '@/lib/utils'
 import { todayWIB } from '@/lib/time'
+import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 // ── Types ──────────────────────────────────────────────────────────────
 type Topik = { id: string; bidang: BidangBK; nama: string }
@@ -57,17 +58,6 @@ const TIPE_COLOR: Record<TipePenanganan, string> = {
 
 function Badge({ label, colorClass }: { label: string; colorClass: string }) {
   return <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', colorClass)}>{label}</span>
-}
-
-function AvatarSiswa({ siswa, size = 'md' }: { siswa: Pick<SiswaResult, 'foto_url' | 'nama_lengkap'>; size?: 'sm' | 'md' }) {
-  const cls = size === 'sm' ? 'h-7 w-7 text-[10px]' : 'h-9 w-9 text-sm'
-  return (
-    <div className={cn('rounded-full bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center shrink-0 overflow-hidden', cls)}>
-      {siswa.foto_url
-        ? <img src={siswa.foto_url} alt="" className="h-full w-full object-cover" />
-        : <span className="font-bold text-slate-500 dark:text-slate-400">{siswa.nama_lengkap.charAt(0)}</span>}
-    </div>
-  )
 }
 
 // ── Sesi Lokal (belum tersimpan ke DB, untuk form tambah rekaman baru) ─
@@ -491,7 +481,7 @@ function ModalCariSiswa({ isOpen, taId, currentUserId, onSelect, onClose }: {
                 {results.map(s => (
                   <button key={s.id} type="button" onClick={() => { onSelect(s); onClose() }}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-2 transition-colors text-left group">
-                    <AvatarSiswa siswa={s} />
+                    <AvatarSiswa fotoUrl={s.foto_url} nama={s.nama_lengkap} size="md" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
                       <p className="text-[11px] text-slate-400">{s.nisn} · Kelas {formatNamaKelas(s.tingkat, s.nomor_kelas, s.kelas_kelompok)}</p>
@@ -554,7 +544,7 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, topikAll, onClose, 
         <div className="px-5 pt-5 pb-4 border-b border-surface-2 shrink-0 bg-gradient-to-r from-rose-50/60 to-white dark:from-rose-950/20 dark:to-transparent">
           <div className="flex items-center gap-3">
             <div className="relative shrink-0">
-              <AvatarSiswa siswa={siswa} size="md" />
+              <AvatarSiswa fotoUrl={siswa.foto_url} nama={siswa.nama_lengkap} size="md" />
               <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 border-2 border-white dark:border-slate-900" />
             </div>
             <div className="flex-1 min-w-0">
@@ -827,7 +817,7 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
                       className="hover:bg-surface-2 cursor-pointer transition-colors">
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2.5">
-                          <AvatarSiswa siswa={{ nama_lengkap: row.nama_lengkap, foto_url: row.foto_url }} size="sm" />
+                          <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
                           <div className="min-w-0">
                             <p className="font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate text-xs">{row.nama_lengkap}</p>
                             <p className="text-[10px] text-slate-400">{row.nisn}</p>
@@ -854,7 +844,7 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
                 <div key={row.siswa_id}
                   onClick={() => setSelectedSiswa({ id: row.siswa_id || row.id, nama_lengkap: row.nama_lengkap, nisn: row.nisn, foto_url: row.foto_url, tingkat: row.tingkat, nomor_kelas: row.nomor_kelas, kelas_kelompok: row.kelas_kelompok })}
                   className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 cursor-pointer transition-colors">
-                  <AvatarSiswa siswa={{ nama_lengkap: row.nama_lengkap, foto_url: row.foto_url }} />
+                  <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="md" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{row.nama_lengkap}</p>
                     <p className="text-[11px] text-slate-400">{formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelas_kelompok)} · {row.jumlah_rekaman} rekaman</p>

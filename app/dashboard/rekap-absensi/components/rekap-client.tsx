@@ -46,6 +46,8 @@ const ST: Record<string, { label: string; cls: string; dot: string; short: strin
   PARSIAL: { label: 'Bolos sebagian jam', short: 'B', dot: 'bg-yellow-500', cls: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
   'PERLU KONFIRMASI WALI': { label: 'Perlu keputusan wali kelas', short: 'W', dot: 'bg-purple-500', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
   PERLU_KONFIRMASI_WALI: { label: 'Perlu keputusan wali kelas', short: 'W', dot: 'bg-purple-500', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
+  'BELUM ADA INPUT': { label: 'Belum ada input', short: 'BI', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
+  BELUM_ADA_INPUT: { label: 'Belum ada input', short: 'BI', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
   BELUM_ADA_DATA: { label: 'Belum lengkap', short: 'BL', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
   '-': { label: '-', short: '-', dot: 'bg-slate-300', cls: 'bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-900 dark:text-slate-500 dark:border-slate-800' },
 }
@@ -153,6 +155,7 @@ function SummaryChips({ item }: { item: any }) {
     ['Alfa', item.alfa, 'text-red-700 bg-red-50 border-red-200'],
     ['Bolos sebagian jam', item.bolos, 'text-yellow-700 bg-yellow-50 border-yellow-200'],
     ['Perlu keputusan wali kelas', item.perlu_konfirmasi_wali, 'text-purple-700 bg-purple-50 border-purple-200'],
+    ['Belum ada input', item.belum_ada_input, 'text-slate-600 bg-slate-100 border-slate-200'],
     ['Belum lengkap', item.belum_ada_data, 'text-slate-600 bg-slate-100 border-slate-200'],
   ]
   return (
@@ -222,7 +225,7 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
   }
 
   const followUpItems = data.filter(item =>
-    Number(item.belum_ada_data || 0) > 0 || Number(item.perlu_konfirmasi_wali || 0) > 0
+    Number(item.belum_ada_input || 0) > 0 || Number(item.belum_ada_data || 0) > 0 || Number(item.perlu_konfirmasi_wali || 0) > 0
   )
 
   return (
@@ -258,7 +261,7 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
         <div className="rounded-lg border border-purple-200 bg-purple-50 p-4 text-purple-900">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-sm font-bold">Tindak lanjut Belum Lengkap</p>
+              <p className="text-sm font-bold">Tindak lanjut data absensi</p>
               <p className="mt-0.5 text-xs text-purple-700">
                 Untuk wali kelas, staff tata usaha, dan admin. Cek kelas berikut lalu koordinasikan absensi guru/piket atau tetapkan keputusan wali kelas.
               </p>
@@ -286,6 +289,7 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
                 <p className="font-bold text-slate-900">{item.label}</p>
                 <p className="mt-1 text-purple-700">
                   Belum lengkap: {item.belum_ada_data || 0}
+                  {Number(item.belum_ada_input || 0) > 0 ? ` • Belum input: ${item.belum_ada_input}` : ''}
                   {Number(item.perlu_konfirmasi_wali || 0) > 0 ? ` • Keputusan wali: ${item.perlu_konfirmasi_wali}` : ''}
                 </p>
               </button>
@@ -469,7 +473,7 @@ function TabSiswa({ filterOptions, initialJump, onBack }: {
             <table className="min-w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-500 dark:bg-slate-800">
                 <tr>
-                  {['No', 'Nama Siswa', 'NISN', 'Hari Efektif', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Bolos sebagian jam', 'Perlu keputusan wali kelas', 'Belum lengkap', 'Kehadiran'].map(h => (
+                  {['No', 'Nama Siswa', 'NISN', 'Hari Efektif', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Bolos sebagian jam', 'Perlu keputusan wali kelas', 'Belum ada input', 'Belum lengkap', 'Kehadiran'].map(h => (
                     <th key={h} className="whitespace-nowrap px-3 py-2">{h}</th>
                   ))}
                 </tr>
@@ -490,12 +494,13 @@ function TabSiswa({ filterOptions, initialJump, onBack }: {
                       <td className="px-3 py-2 text-red-700">{row.alfa}</td>
                       <td className="px-3 py-2 text-yellow-700">{row.bolos}</td>
                       <td className="px-3 py-2 text-purple-700">{row.perlu_konfirmasi_wali}</td>
+                      <td className="px-3 py-2 text-slate-500">{row.belum_ada_input || 0}</td>
                       <td className="px-3 py-2 text-slate-500">{row.belum_ada_data}</td>
                       <td className="px-3 py-2 font-bold">{row.persentase_hadir}%</td>
                     </tr>
                     {expanded === row.siswa_id && (
                       <tr key={`${row.siswa_id}-detail`}>
-                        <td colSpan={12} className="bg-slate-50 px-4 py-3 dark:bg-slate-800/50">
+                        <td colSpan={13} className="bg-slate-50 px-4 py-3 dark:bg-slate-800/50">
                           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                             {row.days.map((day: any) => (
                               <div key={day.tanggal} className="rounded-lg border bg-white p-3 dark:bg-slate-900">
@@ -813,7 +818,7 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai }: any) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
               <thead>
                 <tr>
-                  {['No', 'Nama Siswa', 'NISN', 'Hari Efektif', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Bolos sebagian jam', 'Perlu keputusan wali kelas', 'Belum lengkap', 'Kehadiran'].map(h => (
+                  {['No', 'Nama Siswa', 'NISN', 'Hari Efektif', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Bolos sebagian jam', 'Perlu keputusan wali kelas', 'Belum ada input', 'Belum lengkap', 'Kehadiran'].map(h => (
                     <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>
                   ))}
                 </tr>
@@ -831,6 +836,7 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai }: any) {
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.alfa}</td>
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.bolos}</td>
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.perlu_konfirmasi_wali}</td>
+                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.belum_ada_input || 0}</td>
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.belum_ada_data}</td>
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.persentase_hadir}%</td>
                   </tr>
@@ -861,7 +867,7 @@ function PrintSiswa({ data, tglMulai, tglSelesai }: any) {
         </tbody>
       </table>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12, fontSize: 10 }}>
-        <thead><tr>{['Hadir', 'Bolos', 'Sakit', 'Izin', 'Alfa', 'Perlu keputusan wali kelas', 'Belum lengkap'].map(h => <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>)}</tr></thead>
+        <thead><tr>{['Hadir', 'Bolos', 'Sakit', 'Izin', 'Alfa', 'Perlu keputusan wali kelas', 'Belum ada input', 'Belum lengkap'].map(h => <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>)}</tr></thead>
         <tbody><tr>
           <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.hadir || 0}</td>
           <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.parsial || summary.bolos || 0}</td>
@@ -869,6 +875,7 @@ function PrintSiswa({ data, tglMulai, tglSelesai }: any) {
           <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.izin || 0}</td>
           <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.alfa || 0}</td>
           <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.perlu_konfirmasi_wali || 0}</td>
+          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.belum_ada_input || 0}</td>
           <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.belum_ada_data || 0}</td>
         </tr></tbody>
       </table>

@@ -20,6 +20,7 @@ import {
 } from '../actions'
 import type { RekomMapping } from '../actions'
 import { cn, formatNamaKelas } from '@/lib/utils'
+import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 // ── Types ──────────────────────────────────────────────────────────────
 type KelasItem = { id: string; tingkat: number; nomor_kelas: string; kelompok: string }
@@ -264,11 +265,7 @@ function ModalDetail({ siswaId, onClose, isAdmin }: {
             ) : data ? (
               <div className="flex items-start gap-3 pr-8">
                 {/* pr-8 = beri ruang untuk tombol X bawaan Dialog yang absolute */}
-                <div className="h-10 w-10 rounded-full bg-violet-100 flex items-center justify-center shrink-0 overflow-hidden">
-                  {data.foto_url
-                    ? <img src={data.foto_url} alt="" className="h-full w-full object-cover" />
-                    : <span className="text-sm font-bold text-violet-600">{data.nama_lengkap?.charAt(0)}</span>}
-                </div>
+                <AvatarSiswa fotoUrl={data.foto_url} nama={data.nama_lengkap || ''} size="md" className="bg-violet-100 text-violet-600 font-bold" />
                 <div className="flex-1 min-w-0">
                   <DialogTitle className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate leading-tight">{data.nama_lengkap}</DialogTitle>
                   <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
@@ -560,10 +557,7 @@ function TabDaftar({ kelasList, isAdmin, userRole }: {
                       className="hover:bg-surface-2 cursor-pointer transition-colors">
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2.5">
-                          <div className="h-7 w-7 rounded-full bg-violet-100 flex items-center justify-center shrink-0 overflow-hidden">
-                            {row.foto_url ? <img src={row.foto_url} alt="" className="h-full w-full object-cover" />
-                              : <span className="text-[10px] font-bold text-violet-600">{row.nama_lengkap?.charAt(0)}</span>}
-                          </div>
+                          <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap || ''} size="sm" className="bg-violet-100 text-violet-600 font-bold" />
                           <p className="font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate max-w-[160px]">{row.nama_lengkap}</p>
                         </div>
                       </td>
@@ -606,10 +600,7 @@ function TabDaftar({ kelasList, isAdmin, userRole }: {
               {rows.map(row => (
                 <div key={row.siswa_id} onClick={() => setSelectedSiswa(row.siswa_id)}
                   className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 cursor-pointer transition-colors">
-                  <div className="h-9 w-9 rounded-full bg-violet-100 flex items-center justify-center shrink-0 overflow-hidden">
-                    {row.foto_url ? <img src={row.foto_url} alt="" className="h-full w-full object-cover" />
-                      : <span className="text-xs font-bold text-violet-600">{row.nama_lengkap?.charAt(0)}</span>}
-                  </div>
+                  <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap || ''} size="md" className="bg-violet-100 text-violet-600 font-bold" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{row.nama_lengkap}</p>
                     <p className="text-[11px] text-slate-400 dark:text-slate-500">

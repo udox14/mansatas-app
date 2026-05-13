@@ -9,6 +9,7 @@ import { ChangePasswordForm } from './change-password-form'
 import { SummonResponseForm } from './summon-response-form'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { markParentNotificationRead } from '../actions'
+import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
@@ -89,13 +90,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-5 relative z-10">
             <div className="relative shrink-0">
-              <div className="w-20 aspect-[3/4] rounded-xl border-2 border-white/20 bg-slate-800 flex items-center justify-center overflow-hidden shadow-inner">
-                {profil.foto_url ? (
-                  <img src={profil.foto_url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-3xl font-bold text-slate-400">{initialLetter}</span>
-                )}
-              </div>
+              <AvatarSiswa fotoUrl={profil.foto_url} nama={profil.nama_lengkap || initialLetter} size="xl" className="h-[106px] w-20 rounded-xl border-2 border-white/20 bg-slate-800 text-slate-400 shadow-inner" />
             </div>
             
             <div className="flex-1">

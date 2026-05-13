@@ -1,5 +1,6 @@
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveDatesInRange } from '@/lib/kalender-pendidikan'
+import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
 export type FinalAttendanceStatus =
   | 'HADIR'
@@ -8,6 +9,7 @@ export type FinalAttendanceStatus =
   | 'ALFA'
   | 'PARSIAL'
   | 'PERLU_KONFIRMASI_WALI'
+  | 'BELUM_ADA_INPUT'
   | 'BELUM_ADA_DATA'
 
 export type FinalAttendanceSource =
@@ -15,6 +17,7 @@ export type FinalAttendanceSource =
   | 'wali_kelas'
   | 'koreksi_wali_kelas'
   | 'perlu_konfirmasi_wali'
+  | 'belum_ada_input'
   | 'belum_ada_data'
 
 export type FinalAttendanceDetail = {
@@ -79,15 +82,19 @@ function enumerateDates(startDate: string, endDate: string) {
 function deriveGuruStatus(
   totalBlok: number,
   submittedBlok: number,
-  records: Array<{ status: string }>
+  records: Array<{ status: string }>,
+  skipIncompleteForDailyStatus: boolean
 ): FinalAttendanceStatus {
   if (totalBlok <= 0) {
     return records.length > 0 ? 'PERLU_KONFIRMASI_WALI' : 'BELUM_ADA_DATA'
   }
 
-  if (submittedBlok < totalBlok) {
+  if (submittedBlok < totalBlok && !skipIncompleteForDailyStatus) {
     return 'BELUM_ADA_DATA'
   }
+
+  const effectiveBlok = skipIncompleteForDailyStatus ? Math.min(totalBlok, submittedBlok) : totalBlok
+  if (effectiveBlok <= 0) return skipIncompleteForDailyStatus ? 'BELUM_ADA_INPUT' : 'BELUM_ADA_DATA'
 
   const uniqueStatuses = Array.from(new Set(records.map(record => record.status)))
 
@@ -95,9 +102,16 @@ function deriveGuruStatus(
     return 'HADIR'
   }
 
-  if (records.length < totalBlok) {
+  if (records.length < effectiveBlok) {
     if (!uniqueStatuses.includes('ALFA')) return 'HADIR'
     return uniqueStatuses.length === 1 ? 'PARSIAL' : 'PERLU_KONFIRMASI_WALI'
+  }
+
+  if (uniqueStatuses.length === 1) {
+    const [status] = uniqueStatuses
+    if (status === 'SAKIT' || status === 'IZIN' || status === 'ALFA') {
+      return status
+    }
   }
 
   return 'PERLU_KONFIRMASI_WALI'
@@ -106,19 +120,22 @@ function deriveGuruStatus(
 function deriveGuruStatusWithSession(
   totalBlok: number,
   records: Array<{ status: string }>,
-  submittedBlok: number
+  submittedBlok: number,
+  skipIncompleteForDailyStatus: boolean
 ): FinalAttendanceStatus {
   if (totalBlok <= 0) return records.length > 0 ? 'PERLU_KONFIRMASI_WALI' : 'BELUM_ADA_DATA'
-  return deriveGuruStatus(totalBlok, submittedBlok, records)
+  return deriveGuruStatus(totalBlok, submittedBlok, records, skipIncompleteForDailyStatus)
 }
 
 function buildFinalStatus(guruStatus: FinalAttendanceStatus, waliStatus: 'SAKIT' | 'IZIN' | 'ALFA' | null) {
   if (!waliStatus) {
     return {
       status_akhir: guruStatus,
-      sumber_status: guruStatus === 'BELUM_ADA_DATA'
-        ? 'belum_ada_data' as const
-        : guruStatus === 'PERLU_KONFIRMASI_WALI'
+      sumber_status: guruStatus === 'BELUM_ADA_INPUT'
+        ? 'belum_ada_input' as const
+        : guruStatus === 'BELUM_ADA_DATA'
+          ? 'belum_ada_data' as const
+          : guruStatus === 'PERLU_KONFIRMASI_WALI'
           ? 'perlu_konfirmasi_wali' as const
           : 'guru' as const,
     }
@@ -126,7 +143,7 @@ function buildFinalStatus(guruStatus: FinalAttendanceStatus, waliStatus: 'SAKIT'
 
   return {
     status_akhir: waliStatus,
-    sumber_status: guruStatus === 'HADIR' || guruStatus === 'BELUM_ADA_DATA'
+    sumber_status: guruStatus === 'HADIR' || guruStatus === 'BELUM_ADA_DATA' || guruStatus === 'BELUM_ADA_INPUT'
       ? 'wali_kelas' as const
       : 'koreksi_wali_kelas' as const,
   }
@@ -196,6 +213,10 @@ export async function getFinalAttendanceForClass(
 
   const siswaList = siswaRes.results || []
   const dates = await getEffectiveDatesInRange(db, startDate, endDate)
+  const skipIncompleteForDailyStatus = await getSystemSettingBoolean(
+    SYSTEM_SETTING_KEYS.attendanceSkipIncompleteForDailyStatus,
+    false
+  )
 
   const [jadwalRes, absensiRes, waliRes, sesiRes] = await Promise.all([
     ta?.id
@@ -281,7 +302,12 @@ export async function getFinalAttendanceForClass(
       const guruRecords = guruMap.get(`${siswa.id}__${tanggal}`) || []
       const waliRecord = waliMap.get(`${siswa.id}__${tanggal}`)
       const submittedPenugasanCount = sesiMap.get(tanggal)?.size || 0
-      const guruStatus = deriveGuruStatusWithSession(totalBlok, guruRecords, submittedPenugasanCount)
+      const guruStatus = deriveGuruStatusWithSession(
+        totalBlok,
+        guruRecords,
+        submittedPenugasanCount,
+        skipIncompleteForDailyStatus
+      )
       const finalState = buildFinalStatus(guruStatus, waliRecord?.status ?? null)
 
       perDay.push({

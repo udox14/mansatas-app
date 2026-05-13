@@ -15,6 +15,7 @@ import { hapusSiswa, uploadFotoSiswaAction, getDetailSiswaLengkap, bulkSetTahunM
 import { EditSiswaModal } from './edit-modal'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatNamaKelas, cn } from '@/lib/utils'
+import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 const compressImage = async (file: File): Promise<File> => {
   const TARGET_MAX_BYTES = 300 * 1024 // 300KB
@@ -356,12 +357,13 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                       <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-slate-900/70 z-10">
                         <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
                       </div>
-                    ) : s.foto_url ? (
-                      <img src={s.foto_url} alt={s.nama_lengkap} className="w-full h-full object-cover" />
                     ) : (
-                      <div className={`w-full h-full bg-gradient-to-br ${getAvatarColor(s.nama_lengkap)} flex items-center justify-center text-3xl font-black text-white/60`}>
-                        {s.nama_lengkap.charAt(0).toUpperCase()}
-                      </div>
+                      <AvatarSiswa
+                        fotoUrl={s.foto_url}
+                        nama={s.nama_lengkap}
+                        size="full"
+                        className={cn('rounded-none border-0', !s.foto_url && `bg-gradient-to-br ${getAvatarColor(s.nama_lengkap)} text-3xl font-black text-white/60`)}
+                      />
                     )}
                     <label className="absolute bottom-1 right-1 bg-white dark:bg-slate-900/90 text-slate-700 dark:text-slate-300 dark:text-slate-200 p-1 rounded shadow cursor-pointer z-10 hover:bg-surface transition-colors">
                       <Camera className="w-3 h-3" />
@@ -404,14 +406,12 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                       )}
                     >
                       {/* Avatar */}
-                      <div className="h-14 w-[42px] shrink-0 rounded-md overflow-hidden bg-surface-3 border border-surface-2">
-                        {s.foto_url
-                          ? <img src={s.foto_url} className="w-full h-full object-cover" alt="" />
-                          : <div className={`w-full h-full bg-gradient-to-br ${getAvatarColor(s.nama_lengkap)} flex items-center justify-center text-lg font-bold text-white`}>
-                              {s.nama_lengkap.charAt(0).toUpperCase()}
-                            </div>
-                        }
-                      </div>
+                      <AvatarSiswa
+                        fotoUrl={s.foto_url}
+                        nama={s.nama_lengkap}
+                        size="lg"
+                        className={cn(!s.foto_url && `bg-gradient-to-br ${getAvatarColor(s.nama_lengkap)} text-lg font-bold text-white`)}
+                      />
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
@@ -492,14 +492,12 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                         >
                           <TableCell className="px-4 py-2.5">
                             <div className="flex items-center gap-3">
-                              <div className="h-12 w-9 shrink-0 rounded-md overflow-hidden bg-surface-3 border border-surface-2">
-                                {s.foto_url
-                                  ? <img src={s.foto_url} className="w-full h-full object-cover" alt="" />
-                                  : <div className={`w-full h-full bg-gradient-to-br ${getAvatarColor(s.nama_lengkap)} flex items-center justify-center text-xs font-bold text-white`}>
-                                      {s.nama_lengkap.charAt(0).toUpperCase()}
-                                    </div>
-                                }
-                              </div>
+                              <AvatarSiswa
+                                fotoUrl={s.foto_url}
+                                nama={s.nama_lengkap}
+                                size="md"
+                                className={cn(!s.foto_url && `bg-gradient-to-br ${getAvatarColor(s.nama_lengkap)} text-xs font-bold text-white`)}
+                              />
                               <div>
                                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 group-hover:text-blue-700 transition-colors leading-tight">{s.nama_lengkap}</p>
                                 <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">{s.nisn}</p>
@@ -648,11 +646,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                           className="hover:bg-surface-2 cursor-pointer transition-colors">
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-2.5">
-                              <div className="h-12 w-9 rounded-md bg-rose-100 flex items-center justify-center shrink-0 overflow-hidden border border-rose-200">
-                                {s.foto_url
-                                  ? <img src={s.foto_url} alt="" className="h-full w-full object-cover" />
-                                  : <span className="text-[10px] font-bold text-rose-600">{s.nama_lengkap?.charAt(0)}</span>}
-                              </div>
+                              <AvatarSiswa fotoUrl={s.foto_url} nama={s.nama_lengkap || ''} size="md" className="bg-rose-100 border-rose-200 text-rose-600 font-bold" />
                               <p className="font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200 truncate max-w-[180px]">{s.nama_lengkap}</p>
                             </div>
                           </td>
@@ -685,11 +679,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                     <div key={s.id}
                       onClick={() => window.location.href = `/dashboard/siswa/${s.id}`}
                       className="flex items-center gap-3 px-4 py-3 hover:bg-surface-2 cursor-pointer transition-colors">
-                      <div className="h-14 w-[42px] rounded-md bg-rose-100 flex items-center justify-center shrink-0 overflow-hidden border border-rose-200">
-                        {s.foto_url
-                          ? <img src={s.foto_url} alt="" className="h-full w-full object-cover" />
-                          : <span className="text-xs font-bold text-rose-600">{s.nama_lengkap?.charAt(0)}</span>}
-                      </div>
+                      <AvatarSiswa fotoUrl={s.foto_url} nama={s.nama_lengkap || ''} size="lg" className="bg-rose-100 border-rose-200 text-rose-600 font-bold" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
                         <p className="text-[11px] text-slate-400 dark:text-slate-500">{s.nisn}</p>
