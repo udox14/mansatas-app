@@ -4,8 +4,8 @@
 import { useMemo, useRef, useState } from 'react'
 import { useReactToPrint } from 'react-to-print'
 import {
-  ArrowRightLeft, BookOpen, Briefcase, ChevronDown, ChevronLeft, ClipboardCheck,
-  Eye, FileSignature, FileText, Filter, Loader2, Mail, Megaphone, Plus, Printer,
+  ArrowRightLeft, BookOpen, Briefcase, ChevronDown, ClipboardCheck,
+  FileSignature, FileText, Filter, Loader2, Mail, Megaphone, Plus, Printer,
   RotateCcw, Search, ShieldCheck, Trash2, UserCheck, Users, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -184,7 +184,6 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
   const [currentPage, setCurrentPage] = useState(1)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [wizardType, setWizardType] = useState<JenisSurat | null>(null)
-  const [wizardStep, setWizardStep] = useState<'form' | 'preview'>('form')
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [isSaving, setIsSaving] = useState(false)
   const [saveResult, setSaveResult] = useState<{ success?: string; error?: string; nomor_surat?: string } | null>(null)
@@ -229,8 +228,12 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
     waka_kesiswaan: findPejabat('waka_kesiswaan'),
   })
 
-  const updateField = (key: string, value: any) => setFormData(prev => ({ ...prev, [key]: value }))
+  const updateField = (key: string, value: any) => {
+    setSaveResult(null)
+    setFormData(prev => ({ ...prev, [key]: value }))
+  }
   const updatePrintSetting = (path: string, value: string) => {
+    setSaveResult(null)
     setFormData(prev => {
       const current = getPrintSettings(prev)
       if (path === 'paper') return { ...prev, print_settings: { ...current, paper: value } }
@@ -293,7 +296,6 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
 
   const openWizard = (type: JenisSurat) => {
     setWizardType(type)
-    setWizardStep('form')
     setFormData({
       print_settings: DEFAULT_PRINT_SETTINGS,
       lampiran: '-',
@@ -330,7 +332,6 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
     setSaveResult(result)
     setIsSaving(false)
     if (result.success) {
-      setWizardStep('preview')
       refreshLog()
     }
   }
@@ -390,7 +391,7 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
     const config = SURAT_CONFIGS.find(c => c.id === wizardType)!
 
     return (
-      <div className="max-h-[65vh] space-y-3 overflow-y-auto pr-1">
+      <div className="max-h-[78vh] space-y-3 overflow-y-auto pr-1">
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/20">
           <Field label="No. Surat (bagian depan)" field="nomor_urut_manual" formData={formData} onChange={updateField} placeholder="Contoh: B-762 atau B.722" />
           <p className="mt-1 text-[10px] italic text-amber-700/80">Format otomatis: {buildDefaultNomor(wizardType)}</p>
@@ -700,46 +701,49 @@ export function SuratClient({ masterData, logSurat: initialLog, currentUser }: {
         <DialogPrimitive.Portal>
           <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50" />
           <DialogPrimitive.Content className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto pb-[3vh] pt-[3vh]">
-            <div className={`mx-3 w-full rounded-xl bg-white shadow-2xl transition-all duration-300 dark:bg-slate-900 ${wizardStep === 'preview' ? 'max-w-[240mm]' : 'max-w-xl'}`}>
+            <div className="mx-3 w-full max-w-[calc(100vw-32px)] rounded-xl bg-white shadow-2xl dark:bg-slate-900">
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4 text-amber-500" />
                   <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">{wizardType ? JENIS_SURAT_LABEL[wizardType] : 'Buat Surat'}</h3>
-                  {wizardStep === 'preview' && saveResult?.nomor_surat && <span className="rounded bg-amber-50 px-2 py-0.5 font-mono text-[10px] text-amber-600 dark:bg-amber-950/40">{saveResult.nomor_surat}</span>}
+                  {saveResult?.nomor_surat && <span className="rounded bg-amber-50 px-2 py-0.5 font-mono text-[10px] text-amber-600 dark:bg-amber-950/40">{saveResult.nomor_surat}</span>}
                 </div>
                 <DialogPrimitive.Close className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800">
                   <X className="h-4 w-4" />
                 </DialogPrimitive.Close>
               </div>
-              <div className="px-5 py-4">
-                {wizardStep === 'form' && (
-                  <>
-                    {renderFormFields()}
-                    <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
-                      <Button variant="outline" size="sm" onClick={closeWizard}>Batal</Button>
-                      <Button size="sm" onClick={handleSaveAndPreview} disabled={isSaving} className="bg-amber-600 text-white hover:bg-amber-700">
-                        {isSaving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Eye className="mr-1 h-3.5 w-3.5" />}Simpan & Preview
-                      </Button>
+              <div className="grid gap-4 px-5 py-4 xl:grid-cols-[420px_minmax(0,1fr)]">
+                <div className="min-w-0">
+                  {renderFormFields()}
+                  <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                    <Button variant="outline" size="sm" onClick={closeWizard}>Batal</Button>
+                    <Button size="sm" variant="outline" onClick={handleSaveAndPreview} disabled={isSaving}>
+                      {isSaving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <FileText className="mr-1 h-3.5 w-3.5" />}Simpan ke Log
+                    </Button>
+                    <Button size="sm" onClick={() => handlePrint()} disabled={!wizardType || !previewData} className="bg-emerald-600 text-white hover:bg-emerald-700">
+                      <Printer className="mr-1 h-3.5 w-3.5" /> Cetak PDF
+                    </Button>
+                  </div>
+                  {saveResult?.success && <p className="mt-2 text-xs text-emerald-600">{saveResult.success}</p>}
+                  {saveResult?.error && <p className="mt-2 text-xs text-red-500">{saveResult.error}</p>}
+                </div>
+
+                <div className="min-w-0">
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Preview Live</p>
+                    <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500 dark:bg-slate-800">
+                      {previewSettings.paper} | {previewSettings.margins.top}/{previewSettings.margins.right}/{previewSettings.margins.bottom}/{previewSettings.margins.left} mm
+                    </span>
+                  </div>
+                  <div className="max-h-[78vh] overflow-auto rounded-lg border border-slate-200 bg-gray-100 p-4 dark:border-slate-800 dark:bg-slate-800">
+                    <div ref={printRef} style={{ background: '#fff' }}>
+                      {wizardType && previewData && (() => {
+                        const Tpl = TEMPLATE_MAP[wizardType]
+                        return Tpl ? <Tpl data={previewData} /> : <p>Template tidak ditemukan</p>
+                      })()}
                     </div>
-                    {saveResult?.error && <p className="mt-2 text-xs text-red-500">{saveResult.error}</p>}
-                  </>
-                )}
-                {wizardStep === 'preview' && wizardType && previewData && (
-                  <>
-                    <div className="max-h-[70vh] overflow-auto rounded-lg border border-slate-200 bg-gray-100 p-4 dark:border-slate-800 dark:bg-slate-800">
-                      <div ref={printRef} style={{ background: '#fff' }}>
-                        {(() => {
-                          const Tpl = TEMPLATE_MAP[wizardType]
-                          return Tpl ? <Tpl data={previewData} /> : <p>Template tidak ditemukan</p>
-                        })()}
-                      </div>
-                    </div>
-                    <div className="mt-4 flex justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
-                      <Button variant="outline" size="sm" onClick={() => setWizardStep('form')}><ChevronLeft className="mr-1 h-3.5 w-3.5" /> Kembali</Button>
-                      <Button size="sm" onClick={() => handlePrint()} className="bg-emerald-600 text-white hover:bg-emerald-700"><Printer className="mr-1 h-3.5 w-3.5" /> Cetak PDF</Button>
-                    </div>
-                  </>
-                )}
+                  </div>
+                </div>
               </div>
             </div>
           </DialogPrimitive.Content>
