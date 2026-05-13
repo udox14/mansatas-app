@@ -4,20 +4,21 @@
 import { getDB } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
 import type { JenisSurat } from './constants'
+import { KODE_KLASIFIKASI_SURAT } from './constants'
 
 const BULAN_ROMAWI = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 
 // ============================================================
-// GET DATA FOR SURAT (siswa, guru, kelas)
+// GET DATA FOR SURAT (siswa, guru, kelas, pejabat)
 // ============================================================
 export async function getDataForSurat() {
   const db = await getDB()
 
-  const [siswaRes, guruRes, kelasRes] = await Promise.all([
+  const [siswaRes, guruRes, kelasRes, pejabatRes] = await Promise.all([
     db.prepare(`
       SELECT s.id, s.nisn, s.nis_lokal, s.nama_lengkap, s.jenis_kelamin, s.tempat_lahir, s.tanggal_lahir,
         s.nik, s.alamat_lengkap, s.rt, s.rw, s.desa_kelurahan, s.kecamatan, s.kabupaten_kota, s.provinsi, s.kode_pos,
-        s.nama_ayah, s.pekerjaan_ayah, s.nama_ibu, s.pekerjaan_ibu, s.nik_ayah,
+        s.nama_ayah, s.pekerjaan_ayah, s.nama_ibu, s.pekerjaan_ibu, s.nik_ayah, s.tahun_masuk,
         s.kelas_id, s.status,
         k.tingkat, k.nomor_kelas, k.kelompok
       FROM siswa s LEFT JOIN kelas k ON s.kelas_id = k.id
@@ -26,14 +27,39 @@ export async function getDataForSurat() {
     `).all<any>(),
 
     db.prepare(`
-      SELECT u.id, u.nama_lengkap, u.role
+      SELECT u.id, COALESCE(u.nama_lengkap, u.name) AS nama_lengkap, u.role,
+        u.nip, u.pangkat_golongan, u.jabatan_cetak
       FROM "user" u
-      WHERE u.banned = 0
-      ORDER BY u.nama_lengkap ASC
+      WHERE COALESCE(u.banned, 0) = 0
+      ORDER BY COALESCE(u.nama_lengkap, u.name) ASC
     `).all<any>(),
 
     db.prepare(`
       SELECT id, tingkat, nomor_kelas, kelompok FROM kelas ORDER BY tingkat, nomor_kelas
+    `).all<any>(),
+
+    db.prepare(`
+      SELECT u.id AS user_id, COALESCE(u.nama_lengkap, u.name) AS nama_lengkap, u.role,
+        u.nip, u.pangkat_golongan, u.jabatan_cetak,
+        COALESCE(u.jabatan_cetak,
+          CASE
+            WHEN u.role = 'kepsek' THEN 'Kepala Madrasah'
+            WHEN u.role = 'admin_tu' THEN 'Kepala TU'
+            WHEN u.role = 'wakamad' THEN 'Wakil Kepala Madrasah'
+            ELSE u.role
+          END
+        ) AS nama
+      FROM "user" u
+      WHERE COALESCE(u.banned, 0) = 0
+        AND COALESCE(u.nama_lengkap, u.name) IS NOT NULL
+      ORDER BY
+        CASE
+          WHEN LOWER(COALESCE(u.jabatan_cetak, '')) LIKE '%kepala madrasah%' OR u.role = 'kepsek' THEN 1
+          WHEN LOWER(COALESCE(u.jabatan_cetak, '')) LIKE '%kepala tu%' THEN 2
+          WHEN LOWER(COALESCE(u.jabatan_cetak, '')) LIKE '%kesiswaan%' THEN 3
+          ELSE 9
+        END,
+        COALESCE(u.nama_lengkap, u.name) ASC
     `).all<any>(),
   ])
 
@@ -41,16 +67,17 @@ export async function getDataForSurat() {
     siswa: siswaRes.results || [],
     guru: guruRes.results || [],
     kelas: kelasRes.results || [],
-    pejabat: [],
+    pejabat: pejabatRes.results || [],
   }
 }
 
 // ============================================================
 // FORMAT NOMOR SURAT
 // ============================================================
-function formatNomorSurat(nomorUrutLokal: string, bulan: number, tahun: number): string {
+function formatNomorSurat(jenisSurat: JenisSurat, nomorUrutLokal: string, bulan: number, tahun: number): string {
   const bulanRomawi = BULAN_ROMAWI[bulan] || String(bulan)
-  return `${nomorUrutLokal}/Man.10.06/PP.00.5/${bulanRomawi}/${tahun}`
+  const kode = KODE_KLASIFIKASI_SURAT[jenisSurat] || 'PP.00.6'
+  return `${nomorUrutLokal}/Ma.10.20/${kode}/${bulanRomawi}/${tahun}`
 }
 
 // ============================================================
@@ -74,8 +101,9 @@ export async function simpanSuratKeluar(data: {
   const tahun = d.getFullYear()
   const bulan = d.getMonth() + 1
 
-  let nomorUrut = parseInt(data.nomor_urut_manual.replace(/[^0-9]/g, '')) || 0
-  const nomorSurat = formatNomorSurat(data.nomor_urut_manual, bulan, tahun)
+  const nomorUrut = parseInt(data.nomor_urut_manual.replace(/[^0-9]/g, '')) || 0
+  const nomorSurat = formatNomorSurat(data.jenis_surat, data.nomor_urut_manual, bulan, tahun)
+  const dataSurat = { ...data.data_surat, nomor_surat: nomorSurat }
 
   try {
     const result = await db.prepare(`
@@ -88,7 +116,7 @@ export async function simpanSuratKeluar(data: {
       nomorSurat,
       tahun,
       data.perihal || null,
-      JSON.stringify(data.data_surat),
+      JSON.stringify(dataSurat),
       data.dicetak_oleh,
       data.nama_pencetak
     ).first<any>()
