@@ -1,0 +1,73 @@
+
+--- 2026-05-13T01:32:35.094Z debug
+🪵  Writing logs to "C:\DATA\Codes\mansatas-app\scratch\wrangler-logs\wrangler-2026-05-13_01-32-34_965.log"
+---
+
+--- 2026-05-13T01:32:35.094Z log
+
+ ⛅️ wrangler 4.79.0 (update available 4.90.1)
+─────────────────────────────────────────────
+---
+
+--- 2026-05-13T01:32:35.110Z debug
+Error sending metrics event Error: EPERM: operation not permitted, mkdir 'C:\Users\IAbdu\AppData\Roaming\xdg.config\.wrangler'
+    at Object.mkdirSync (node:fs:1363:26)
+    at writeMetricsConfig (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169236:8)
+    at getDeviceId (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169271:5)
+    at getMetricsConfig (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169204:20)
+    at dispatch (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169390:27)
+    at Object.sendCommandEvent (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169377:9)
+    at C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:180689:20
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_context_frame:63:14)
+    at run (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:56784:61)
+    at Object.handler (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:180648:13) {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'mkdir',
+  path: 'C:\\Users\\IAbdu\\AppData\\Roaming\\xdg.config\\.wrangler'
+}
+---
+
+--- 2026-05-13T01:32:35.117Z log
+Getting User settings...
+---
+
+--- 2026-05-13T01:32:35.117Z log
+You are not authenticated. Please run `wrangler login`.
+---
+
+--- 2026-05-13T01:32:35.119Z debug
+Error sending metrics event Error: EPERM: operation not permitted, mkdir 'C:\Users\IAbdu\AppData\Roaming\xdg.config\.wrangler'
+    at Object.mkdirSync (node:fs:1363:26)
+    at writeMetricsConfig (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169236:8)
+    at getDeviceId (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169271:5)
+    at getMetricsConfig (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169204:20)
+    at dispatch (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169390:27)
+    at Object.sendAdhocEvent (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169340:7)
+    at sendMetricsEvent (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169474:23)
+    at Object.handler (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:290013:9)
+    at async C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:180699:26
+    at async Object.handler (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:180648:7) {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'mkdir',
+  path: 'C:\\Users\\IAbdu\\AppData\\Roaming\\xdg.config\\.wrangler'
+}
+---
+
+--- 2026-05-13T01:32:35.119Z debug
+Error sending metrics event Error: EPERM: operation not permitted, mkdir 'C:\Users\IAbdu\AppData\Roaming\xdg.config\.wrangler'
+    at Object.mkdirSync (node:fs:1363:26)
+    at writeMetricsConfig (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169236:8)
+    at getDeviceId (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169271:5)
+    at getMetricsConfig (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169204:20)
+    at dispatch (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169390:27)
+    at Object.sendCommandEvent (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169377:9)
+    at C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:180707:22
+    at async Object.handler (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:180648:7) {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'mkdir',
+  path: 'C:\\Users\\IAbdu\\AppData\\Roaming\\xdg.config\\.wrangler'
+}
+---

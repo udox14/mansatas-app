@@ -11,6 +11,7 @@ import {
 import { submitAgendaPiket, getJadwalPiketHariIni } from '../actions-piket'
 import type { PiketShiftData } from '../actions-piket'
 import { compressAgendaImage } from './image-compression'
+import { formatTimeWIB } from '@/lib/time'
 
 interface AgendaPiketClientProps {
   initialData: {
@@ -172,9 +173,7 @@ export function AgendaPiketClient({ initialData, isActingAs = false }: AgendaPik
                   </div>
                   {shift.waktu_submit && (
                     <span className="text-[10px] text-slate-400">
-                      {new Date(shift.waktu_submit).toLocaleTimeString('id-ID', {
-                        hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta'
-                      })} WIB
+                      {formatTimeWIB(shift.waktu_submit, { legacyShiftedWIB: true })}
                     </span>
                   )}
                 </div>

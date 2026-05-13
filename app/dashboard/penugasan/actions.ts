@@ -5,7 +5,7 @@ import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
-import { nowWIB } from '@/lib/time'
+import { nowWIBISO } from '@/lib/time'
 import { sendPushNotification } from '@/lib/web-push'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 
@@ -687,7 +687,7 @@ export async function simpanAbsensiDelegasi(
   await dbUpdate(db, 'delegasi_tugas_kelas', {
     absen_selesai: 1,
     pelaksana_user_id: user.id,
-    selesai_at: nowWIB().toISOString(),
+    selesai_at: nowWIBISO(),
   }, { id: delegasiKelasId })
 
   // Check if all kelas in this delegasi are done → mark delegasi as SELESAI
@@ -698,7 +698,7 @@ export async function simpanAbsensiDelegasi(
   if (remaining?.cnt === 0) {
     await dbUpdate(db, 'delegasi_tugas', {
       status: 'SELESAI',
-      updated_at: nowWIB().toISOString(),
+      updated_at: nowWIBISO(),
     }, { id: dtk.delegasi_id })
   }
 

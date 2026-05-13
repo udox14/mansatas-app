@@ -1,0 +1,41 @@
+
+--- 2026-05-13T01:27:20.566Z debug
+🪵  Writing logs to "C:\DATA\Codes\mansatas-app\scratch\xdg.config\.wrangler\logs\wrangler-2026-05-13_01-27-20_431.log"
+---
+
+--- 2026-05-13T01:27:20.566Z log
+
+ ⛅️ wrangler 4.79.0 (update available 4.90.1)
+─────────────────────────────────────────────
+---
+
+--- 2026-05-13T01:27:20.568Z log
+Resource location: remote 
+
+---
+
+--- 2026-05-13T01:27:20.573Z debug
+Metrics dispatcher: Posting data {"deviceId":"00bf9a8d-71dd-4340-babd-84a9fab1e37d","event":"wrangler command started","timestamp":1778635640573,"properties":{"amplitude_session_id":1778635640572,"amplitude_event_id":0,"wranglerVersion":"4.79.0","wranglerMajorVersion":4,"wranglerMinorVersion":79,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":24,"packageManager":"npm","isFirstUsage":false,"configFileType":"toml","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":false,"hasAssets":true,"agent":null,"argsUsed":["binding","config","preview","remote"],"argsCombination":"binding, config, preview, remote","sanitizedCommand":"kv bulk put","sanitizedArgs":{}}}
+---
+
+--- 2026-05-13T01:27:20.604Z debug
+Metrics dispatcher: Posting data {"deviceId":"00bf9a8d-71dd-4340-babd-84a9fab1e37d","event":"wrangler command errored","timestamp":1778635640604,"properties":{"amplitude_session_id":1778635640572,"amplitude_event_id":1,"wranglerVersion":"4.79.0","wranglerMajorVersion":4,"wranglerMinorVersion":79,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":24,"packageManager":"npm","isFirstUsage":false,"configFileType":"toml","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":false,"hasAssets":true,"agent":null,"argsUsed":["binding","config","preview","remote"],"argsCombination":"binding, config, preview, remote","sanitizedCommand":"kv bulk put","sanitizedArgs":{},"durationMs":42,"errorType":"UserError"}}
+---
+
+--- 2026-05-13T01:27:20.605Z log
+
+---
+
+--- 2026-05-13T01:27:20.655Z error
+X [ERROR] In a non-interactive environment, it's necessary to set a CLOUDFLARE_API_TOKEN environment variable for wrangler to work. Please go to https://developers.cloudflare.com/fundamentals/api/get-started/create-token/ for instructions on how to create an api token, and assign its value to CLOUDFLARE_API_TOKEN.
+
+
+---
+
+--- 2026-05-13T01:27:20.666Z debug
+Error: In a non-interactive environment, it's necessary to set a CLOUDFLARE_API_TOKEN environment variable for wrangler to work. Please go to https://developers.cloudflare.com/fundamentals/api/get-started/create-token/ for instructions on how to create an api token, and assign its value to CLOUDFLARE_API_TOKEN.
+    at requireAuth (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:128974:13)
+    at async Object.handler (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:234561:29)
+    at async C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:180699:26
+    at async Object.handler (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:180648:7)
+---

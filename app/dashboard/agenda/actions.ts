@@ -6,7 +6,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { uploadToR2 } from '@/utils/r2'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
-import { nowWIB, currentTimeWIB } from '@/lib/time'
+import { nowWIB, currentTimeWIB, nowWIBISO } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
@@ -288,7 +288,7 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
     materi,
     foto_url: fotoUrl,
     status,
-    waktu_input: nowWIB().toISOString(),
+    waktu_input: nowWIBISO(),
     diubah_oleh: effective?.realUserId || user.id, // audit trail: siapa admin yang input
   }
 

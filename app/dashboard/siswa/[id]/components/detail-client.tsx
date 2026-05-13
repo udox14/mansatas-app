@@ -18,6 +18,7 @@ import { EditSiswaModal } from '../../components/edit-modal'
 import { TandaiKeluarModal, BatalkanKeluarModal } from './tandai-keluar-modal'
 import { RekapAbsensiTab } from './rekap-absensi-tab'
 import { formatNamaKelas } from '@/lib/utils'
+import { formatTimeWIB } from '@/lib/time'
 import type { SanksiConfig } from '../../../kedisiplinan/actions'
 
 export function DetailSiswaClient({
@@ -492,11 +493,11 @@ export function DetailSiswaClient({
                         <div className="flex gap-4 mb-2">
                           <div className="flex-1 bg-surface-2 p-2 rounded-xl text-center border border-surface-2">
                             <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">Jam Keluar</p>
-                            <p className="font-mono font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200">{new Date(k.waktu_keluar).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</p>
+                            <p className="font-mono font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200">{formatTimeWIB(k.waktu_keluar, { suffix: false })}</p>
                           </div>
                           <div className="flex-1 bg-surface-2 p-2 rounded-xl text-center border border-surface-2">
                             <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">Jam Kembali</p>
-                            <p className="font-mono font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200">{k.waktu_kembali ? new Date(k.waktu_kembali).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}</p>
+                            <p className="font-mono font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200">{k.waktu_kembali ? formatTimeWIB(k.waktu_kembali, { suffix: false }) : '-'}</p>
                           </div>
                         </div>
                         <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 line-clamp-2"><span className="font-semibold text-slate-400 dark:text-slate-500">Ket:</span> {k.keterangan || '-'}</p>

@@ -1,0 +1,37 @@
+
+--- 2026-05-13T01:36:22.260Z debug
+🪵  Writing logs to "C:\DATA\Codes\mansatas-app\scratch\wrangler-logs\wrangler-2026-05-13_01-36-22_134.log"
+---
+
+--- 2026-05-13T01:36:22.260Z log
+
+ ⛅️ wrangler 4.79.0 (update available 4.90.1)
+─────────────────────────────────────────────
+---
+
+--- 2026-05-13T01:36:22.284Z debug
+Error sending metrics event Error: EPERM: operation not permitted, mkdir 'C:\Users\IAbdu\AppData\Roaming\xdg.config\.wrangler'
+    at Object.mkdirSync (node:fs:1363:26)
+    at writeMetricsConfig (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169236:8)
+    at getDeviceId (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169271:5)
+    at getMetricsConfig (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169204:20)
+    at dispatch (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169390:27)
+    at Object.sendCommandEvent (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:169377:9)
+    at C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:180689:20
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_context_frame:63:14)
+    at run (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:56784:61)
+    at Object.handler (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:180648:13) {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'mkdir',
+  path: 'C:\\Users\\IAbdu\\AppData\\Roaming\\xdg.config\\.wrangler'
+}
+---
+
+--- 2026-05-13T01:36:22.293Z log
+Attempting to login via OAuth...
+---
+
+--- 2026-05-13T01:36:22.299Z log
+Visit this link to authenticate: https://dash.cloudflare.com/oauth2/auth?response_type=code&client_id=54d11594-84e4-41aa-b438-e81b8fa78ee7&redirect_uri=http%3A%2F%2Flocalhost%3A8976%2Foauth%2Fcallback&scope=account%3Aread%20user%3Aread%20workers%3Awrite%20workers_kv%3Awrite%20workers_routes%3Awrite%20workers_scripts%3Awrite%20workers_tail%3Aread%20d1%3Awrite%20pages%3Awrite%20zone%3Aread%20ssl_certs%3Awrite%20ai%3Awrite%20ai-search%3Awrite%20ai-search%3Arun%20queues%3Awrite%20pipelines%3Awrite%20secrets_store%3Awrite%20containers%3Awrite%20cloudchamber%3Awrite%20connectivity%3Aadmin%20offline_access&state=j0EfOfWAOGVUK3qykfn4qmzNxvx6POYS&code_challenge=bRod9gJGInFMFco32B6ycgYYT9CkmlrowliD-teSYQ8&code_challenge_method=S256
+---

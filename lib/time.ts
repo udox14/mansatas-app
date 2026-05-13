@@ -8,6 +8,31 @@
  */
 
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000 // UTC+7
+export const WIB_TIME_ZONE = 'Asia/Jakarta'
+
+function getWIBParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: WIB_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
+
+  const pick = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value || '00'
+  return {
+    year: pick('year'),
+    month: pick('month'),
+    day: pick('day'),
+    hour: pick('hour'),
+    minute: pick('minute'),
+    second: pick('second'),
+    millisecond: String(date.getMilliseconds()).padStart(3, '0'),
+  }
+}
 
 /**
  * Mengembalikan objek Date yang mewakili "sekarang" dalam WIB.
@@ -25,7 +50,8 @@ export function nowWIB(): Date {
  * Pengganti: new Date().toISOString().split('T')[0]
  */
 export function todayWIB(): string {
-  return nowWIB().toISOString().split('T')[0]
+  const p = getWIBParts()
+  return `${p.year}-${p.month}-${p.day}`
 }
 
 /**
@@ -47,7 +73,41 @@ export function currentTimeWIB(): { hours: number; minutes: number; hhmm: string
  * Cocok untuk updated_at, created_at yang perlu timestamp penuh tapi berbasis WIB.
  */
 export function nowWIBISO(): string {
-  return nowWIB().toISOString()
+  const p = getWIBParts()
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}.${p.millisecond}+07:00`
+}
+
+/**
+ * Format timestamp ke jam WIB.
+ *
+ * Opsi legacyShiftedWIB dipakai untuk field lama yang pernah disimpan dengan
+ * nowWIB().toISOString(): nilainya sudah WIB, tetapi akhiran "Z" membuat
+ * browser menganggapnya UTC dan menambah 7 jam lagi.
+ */
+export function formatTimeWIB(
+  value: string | null | undefined,
+  options: { legacyShiftedWIB?: boolean; suffix?: boolean } = {}
+): string {
+  if (!value) return ''
+
+  if (options.legacyShiftedWIB && /Z$/i.test(value)) {
+    const match = value.match(/T(\d{2}):(\d{2})/)
+    if (match) return `${match[1]}.${match[2]}${options.suffix === false ? '' : ' WIB'}`
+  }
+
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T')
+  const hasExplicitZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)
+  const parseable = hasExplicitZone ? normalized : `${normalized}Z`
+  const date = new Date(parseable)
+  if (isNaN(date.getTime())) return value
+
+  const formatted = new Intl.DateTimeFormat('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: WIB_TIME_ZONE,
+  }).format(date)
+
+  return `${formatted}${options.suffix === false ? '' : ' WIB'}`
 }
 
 /**

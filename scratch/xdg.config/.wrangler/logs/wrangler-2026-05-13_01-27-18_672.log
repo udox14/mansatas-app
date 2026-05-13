@@ -1,0 +1,8 @@
+
+--- 2026-05-13T01:27:18.825Z debug
+🪵  Writing logs to "C:\DATA\Codes\mansatas-app\scratch\xdg.config\.wrangler\logs\wrangler-2026-05-13_01-27-18_672.log"
+---
+
+--- 2026-05-13T01:27:18.825Z debug
+local dev variables file not found at ".dev.vars". Continuing... For more details, refer to https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
+---

@@ -1,0 +1,40 @@
+name = "mansatas-app"
+main = "worker-entry.ts"
+minify = true
+account_id = "89389959c60ad166fb81698c4289aab0"
+
+compatibility_date = "2025-05-05"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "STATIC_ASSETS"
+
+[[kv_namespaces]]
+binding = "NEXT_INC_CACHE_KV"
+id = "d71a11d5f8ec47318b96e52f52715749"
+preview_id = "d71a11d5f8ec47318b96e52f52715749"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mansatas-db"
+database_id = "76b7b346-3f3f-4c1e-a347-2d51497bad97"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "mansatas-storage"
+
+[vars]
+BETTER_AUTH_SECRET = "Kfa9zVehGtjD2ARODz5GX9C0wbxO756J3bssf6nyTOk="
+BETTER_AUTH_URL = "http://localhost:3000"
+R2_PUBLIC_URL = "https://pub-84873e7206c44c4ba6e4aa405b6a8192.r2.dev"
+CRON_SECRET = "mansatas-cron-xB2kLp9QrT"
+NEXT_PUBLIC_VAPID_PUBLIC_KEY = "BEid0JOqK1rANP4eBIxkIcjJ52J0b1zuzVx0KaspUQWEy2WjceusyWP6-pEEVXFcRKnRRcZboC4u7RIDleawKNc"
+VAPID_PRIVATE_KEY = "GB10S4v4nrTNt8g3vViOSKTLTAq2jqfWxLgw36fmhBM"
+VAPID_SUBJECT = "mailto:admin@man1tasikmalaya.sch.id"
+
+[triggers]
+crons = ["* * * * *"]
+
+[alias]
+"next/dist/compiled/@vercel/og/index.edge.js" = "./stubs/og-stub.js"

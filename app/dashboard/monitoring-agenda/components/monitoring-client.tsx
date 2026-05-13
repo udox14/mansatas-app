@@ -20,7 +20,7 @@ import {
   editAgendaStatus, getDataCetakLaporan,
   getMonitoringPiketHarian, editAgendaPiketStatus,
 } from '../actions'
-import { todayWIB, nowWIB } from '@/lib/time'
+import { todayWIB, nowWIB, formatTimeWIB } from '@/lib/time'
 
 // ============================================================
 // TYPES
@@ -280,7 +280,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                 <div><span className="text-slate-500 dark:text-slate-400 text-xs">Mapel</span><p className="font-medium">{detailItem.mapel_nama}</p></div>
                 <div><span className="text-slate-500 dark:text-slate-400 text-xs">Kelas</span><p className="font-medium">{detailItem.kelas_label}</p></div>
                 <div><span className="text-slate-500 dark:text-slate-400 text-xs">Jam</span><p className="font-medium">{detailItem.jam_label}</p></div>
-                <div><span className="text-slate-500 dark:text-slate-400 text-xs">Waktu Input</span><p className="font-medium">{detailItem.waktu_input ? new Date(detailItem.waktu_input).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-'}</p></div>
+                <div><span className="text-slate-500 dark:text-slate-400 text-xs">Waktu Input</span><p className="font-medium">{detailItem.waktu_input ? formatTimeWIB(detailItem.waktu_input, { legacyShiftedWIB: true }) : '-'}</p></div>
                 <div>
                   <span className="text-slate-500 dark:text-slate-400 text-xs">Status</span>
                   {(() => {
@@ -754,7 +754,7 @@ function TabMonitoringPiket() {
                     </TableCell>
                     <TableCell className="text-xs text-slate-500 dark:text-slate-400">
                       {item.waktu_submit
-                        ? new Date(item.waktu_submit).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }) + ' WIB'
+                        ? formatTimeWIB(item.waktu_submit, { legacyShiftedWIB: true })
                         : <span className="text-slate-300">—</span>}
                     </TableCell>
                     <TableCell>

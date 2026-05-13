@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { ArrowLeft, BookOpen, Calendar, ChevronRight, Clock, Search } from 'lucide-react'
 import { formatNamaKelas } from '@/lib/utils'
+import { formatTimeWIB } from '@/lib/time'
 
 interface RiwayatItem {
   id: string
@@ -45,10 +46,7 @@ export function RiwayatMateriTab({ data }: Props) {
   }
 
   const fmtWaktu = (iso: string) => {
-    return new Date(iso).toLocaleTimeString('id-ID', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return formatTimeWIB(iso, { legacyShiftedWIB: true })
   }
 
   const kelasGroups = useMemo<KelasGroup[]>(() => {

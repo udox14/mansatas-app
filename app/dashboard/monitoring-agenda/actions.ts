@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import { getEffectiveDatesInRange, getKalenderDateStatus } from '@/lib/kalender-pendidikan'
+import { nowWIBISO } from '@/lib/time'
 
 // ============================================================
 // HELPER
@@ -343,7 +344,7 @@ export async function editAgendaStatus(
       status: newStatus,
       catatan_admin: catatanAdmin || null,
       diubah_oleh: user.id,
-      updated_at: new Date().toISOString(),
+      updated_at: nowWIBISO(),
     }, { id: agendaId })
     if (result.error) return { error: result.error }
   } else {

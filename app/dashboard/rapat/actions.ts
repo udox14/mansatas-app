@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
 import { sendPushNotification } from '@/lib/web-push'
-import { nowWIB } from '@/lib/time'
+import { nowWIBISO, todayWIB } from '@/lib/time'
 
 // ============================================================
 // HELPER — Cek role admin
@@ -129,7 +129,7 @@ export async function konfirmasiKehadiran(
   await dbUpdate(db, 'peserta_rapat', {
     status_kehadiran: status,
     alasan_tidak_hadir: alasan || null,
-    waktu_respon: nowWIB().toISOString()
+    waktu_respon: nowWIBISO()
   }, { id: pesertaId })
 
   revalidatePath('/dashboard/rapat')
@@ -219,11 +219,11 @@ export async function hapusUndanganExpired(rapatId: string) {
   const db = await getDB()
 
   // Ambil rapat — harus milik pengundang dan sudah lewat hari ini
-  const todayWIB = nowWIB().toISOString().split('T')[0]
+  const today = todayWIB()
   const rapat = await db.prepare(`
     SELECT id, tanggal FROM undangan_rapat
     WHERE id = ? AND pengundang_id = ? AND tanggal < ?
-  `).bind(rapatId, user.id, todayWIB).first<any>()
+  `).bind(rapatId, user.id, today).first<any>()
 
   if (!rapat) return { error: 'Rapat tidak ditemukan, bukan milik Anda, atau belum expired.' }
 

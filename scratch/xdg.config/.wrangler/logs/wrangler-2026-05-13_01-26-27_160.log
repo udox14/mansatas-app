@@ -1,0 +1,43 @@
+
+--- 2026-05-13T01:26:28.246Z debug
+🪵  Writing logs to "C:\DATA\Codes\mansatas-app\scratch\xdg.config\.wrangler\logs\wrangler-2026-05-13_01-26-27_160.log"
+---
+
+--- 2026-05-13T01:26:28.246Z log
+
+ ⛅️ wrangler 4.79.0 (update available 4.90.1)
+─────────────────────────────────────────────
+---
+
+--- 2026-05-13T01:26:28.247Z log
+Resource location: remote 
+
+---
+
+--- 2026-05-13T01:26:28.254Z debug
+Metrics dispatcher: Posting data {"deviceId":"00bf9a8d-71dd-4340-babd-84a9fab1e37d","event":"wrangler command started","timestamp":1778635588254,"properties":{"amplitude_session_id":1778635588251,"amplitude_event_id":0,"wranglerVersion":"4.79.0","wranglerMajorVersion":4,"wranglerMinorVersion":79,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":24,"packageManager":"npm","isFirstUsage":true,"configFileType":"toml","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":false,"hasAssets":true,"agent":null,"argsUsed":["binding","preview","remote"],"argsCombination":"binding, preview, remote","sanitizedCommand":"kv bulk put","sanitizedArgs":{}}}
+---
+
+--- 2026-05-13T01:26:28.268Z debug
+Metrics dispatcher: Posting data {"deviceId":"00bf9a8d-71dd-4340-babd-84a9fab1e37d","event":"wrangler command errored","timestamp":1778635588268,"properties":{"amplitude_session_id":1778635588251,"amplitude_event_id":1,"wranglerVersion":"4.79.0","wranglerMajorVersion":4,"wranglerMinorVersion":79,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Home Single Language","nodeVersion":24,"packageManager":"npm","isFirstUsage":false,"configFileType":"toml","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":false,"hasAssets":true,"agent":null,"argsUsed":["binding","preview","remote"],"argsCombination":"binding, preview, remote","sanitizedCommand":"kv bulk put","sanitizedArgs":{},"durationMs":936,"errorType":"UserError"}}
+---
+
+--- 2026-05-13T01:26:28.268Z log
+
+---
+
+--- 2026-05-13T01:26:28.309Z error
+X [ERROR] No preview ID found for NEXT_INC_CACHE_KV. Add one to your wrangler config file to use a separate namespace for previewing your worker.
+
+
+---
+
+--- 2026-05-13T01:26:28.320Z debug
+Error: No preview ID found for NEXT_INC_CACHE_KV. Add one to your wrangler config file to use a separate namespace for previewing your worker.
+    at getKVNamespaceId (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:184256:11)
+    at Object.handler (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:234479:39)
+    at C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:180699:36
+    at AsyncLocalStorage.run (node:internal/async_local_storage/async_context_frame:63:14)
+    at run (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:56784:61)
+    at Object.handler (C:\DATA\Codes\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:180648:13)
+---
