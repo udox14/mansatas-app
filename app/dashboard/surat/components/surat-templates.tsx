@@ -225,7 +225,7 @@ function SignatureBlock({ data, signer, label, align = 'right', date, place = 'T
   const p = signer || pejabat(data, 'kepala')
   return (
     <div style={{ textAlign: align, marginTop: `${top}mm` }}>
-      <div style={{ display: 'inline-block', minWidth: '62mm', textAlign: 'center' }}>
+      <div style={{ display: 'inline-block', minWidth: '62mm', textAlign: 'left' }}>
         <p style={{ margin: 0 }}>{place}, {text(date || data.tanggal_surat || formatTanggalIndo(data.tanggal_surat_raw))}</p>
         <p style={{ margin: '2mm 0 0' }}>{label || p.jabatan || 'Kepala,'}</p>
         <div style={{ height: '22mm' }} />
@@ -449,10 +449,10 @@ export function TemplateSPPD({ data }: { data: any }) {
   const pegawai = data.pegawai || {}
   const ppk = pejabat(data, 'kepala_tu')
   const kepala = pejabat(data, 'kepala')
-  const base: React.CSSProperties = { fontSize: '11.5pt', lineHeight: 1.18 }
-  const cell: React.CSSProperties = { border: '0.7pt solid #000', verticalAlign: 'top', padding: '1mm 1.5mm' }
+  const base: React.CSSProperties = { fontSize: '11.2pt', lineHeight: 1.16 }
+  const cell: React.CSSProperties = { border: '0.75pt solid #000', verticalAlign: 'top', padding: '0.9mm 1.6mm' }
   const noCell: React.CSSProperties = { ...cell, width: '9mm', textAlign: 'center' }
-  const fieldCell: React.CSSProperties = { ...cell, width: '75mm' }
+  const fieldCell: React.CSSProperties = { ...cell, width: '76mm' }
   const colonCell: React.CSSProperties = { ...cell, width: '5mm', textAlign: 'center', paddingLeft: 0, paddingRight: 0 }
   const sppdDate = text(data.tanggal_surat || formatTanggalIndo(data.tanggal_surat_raw || data.tanggal_berangkat))
   const ppkName = text(ppk.nama).toUpperCase()
@@ -466,7 +466,6 @@ export function TemplateSPPD({ data }: { data: any }) {
     ['5.', 'Alat Kendaraan yang dipergunakan', text(data.alat_angkut, 'Kendaraan Pribadi')],
     ['6.', <><div>a. Tempat berangkat</div><div>b. Tempat tujuan</div></>, <><div>{text(data.tempat_berangkat, 'Sukamanah')}</div><div>{text(data.tempat_tujuan)}</div></>],
     ['7.', <><div>a. Lamanya perjalanan Dinas</div><div>b. Tanggal berangkat</div><div>c. Tanggal harus kembali tiba di tempat baru *)</div></>, <><div>{text(data.lama_perjalanan, '1 (satu) Hari')}</div><div>{formatTanggalIndo(data.tanggal_berangkat)}</div><div>{data.tanggal_kembali ? formatTanggalIndo(data.tanggal_kembali) : titik(18)}</div></>],
-    ['8.', 'Pengikut', <PengikutList pengikut={data.pengikut} />],
     ['9.', <><div>a. Pembebanan anggaran</div><div>b. Instansi</div><div>c. Mata anggaran</div></>, <><div>{text(data.pembebanan_anggaran)}</div><div>{text(data.instansi_anggaran, 'MA Negeri 1 Tasikmalaya')}</div><div>{text(data.mata_anggaran)}</div></>],
     ['10.', 'Keterangan lain-lain', text(data.keterangan_lain)],
   ]
@@ -475,13 +474,27 @@ export function TemplateSPPD({ data }: { data: any }) {
     <>
       <Page data={data} compact>
         <LampiranSPPD />
-        <KopSurat data={data} marginBottom={4} />
-        <p style={{ margin: '0 0 4mm', textAlign: 'center', ...base }}>Nomor : {text(data.nomor_surat)}</p>
-        <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13pt', marginBottom: '4mm' }}>SURAT PERJALANAN DINAS (SPD)</div>
+        <KopSuratSPPD />
+        <p style={{ margin: '6mm 0 4mm', textAlign: 'center', ...base }}>Nomor : {text(data.nomor_surat)}</p>
+        <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13pt', marginBottom: '5mm' }}>SURAT PERJALANAN DINAS (SPD)</div>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, border: '1.2pt solid #000', ...base }}>
           <tbody>
-            {tableRows.map(([no, field, value], i) => (
+            {tableRows.slice(0, 7).map(([no, field, value], i) => (
               <tr key={i}>
+                <td style={noCell}>{no}</td>
+                <td style={fieldCell}>{field}</td>
+                <td style={colonCell}>:</td>
+                <td style={cell}>{value}</td>
+              </tr>
+            ))}
+            <tr>
+              <td style={noCell}>8.</td>
+              <td colSpan={3} style={{ ...cell, padding: 0 }}>
+                <PengikutList pengikut={data.pengikut} />
+              </td>
+            </tr>
+            {tableRows.slice(7).map(([no, field, value], i) => (
+              <tr key={`bottom-${i}`}>
                 <td style={noCell}>{no}</td>
                 <td style={fieldCell}>{field}</td>
                 <td style={colonCell}>:</td>
@@ -490,13 +503,13 @@ export function TemplateSPPD({ data }: { data: any }) {
             ))}
           </tbody>
         </table>
-        <p style={{ margin: '1mm 0 0 3mm', fontSize: '10pt', fontStyle: 'italic' }}>*) Coret yang tidak perlu</p>
-        <div style={{ marginLeft: '102mm', marginTop: '2mm', ...base }}>
+        <p style={{ margin: '0.8mm 0 0 3mm', fontSize: '10pt', fontStyle: 'italic' }}>*) Coret yang tidak perlu</p>
+        <div style={{ marginLeft: '101mm', marginTop: '2mm', ...base }}>
           <p style={{ margin: 0 }}>Dikeluarkan di&nbsp;&nbsp;&nbsp;&nbsp;: Tasikmalaya</p>
           <p style={{ margin: 0 }}>Tanggal&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {sppdDate}</p>
           <div style={{ textAlign: 'center', marginTop: '3mm' }}>
             <p style={{ margin: 0 }}>PPK MAN 1 Tasikmalaya,</p>
-            <div style={{ height: '18mm' }} />
+            <div style={{ height: '17mm' }} />
             <p style={{ margin: 0, fontWeight: 'bold' }}>{ppkName}</p>
             <p style={{ margin: 0 }}>NIP. {ppk.nip}</p>
           </div>
@@ -507,7 +520,7 @@ export function TemplateSPPD({ data }: { data: any }) {
         <LampiranSPPD />
         <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, border: '1.4pt double #000', ...base }}>
           <tbody>
-            <tr style={{ height: '42mm' }}>
+            <tr style={{ height: '39mm' }}>
               <td style={{ ...cell, width: '50%' }} />
               <td style={{ ...cell, width: '50%' }}>
                 <TravelFilled
@@ -521,7 +534,7 @@ export function TemplateSPPD({ data }: { data: any }) {
               </td>
             </tr>
             {['II.', 'III.', 'IV.', 'V.'].map(no => (
-              <tr key={no} style={{ height: '32mm' }}>
+              <tr key={no} style={{ height: '31mm' }}>
                 <td style={{ ...cell, width: '50%' }}><TravelArriveBlank no={no} /></td>
                 <td style={{ ...cell, width: '50%' }}><TravelDepartBlank /></td>
               </tr>
@@ -531,9 +544,9 @@ export function TemplateSPPD({ data }: { data: any }) {
                 <p style={{ margin: 0 }}>VI.&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Tiba di&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {text(data.tempat_berangkat, 'Sukamanah')}</p>
                 <p style={{ margin: '1mm 0 0 11mm' }}>(Tempat kedudukan)</p>
                 <p style={{ margin: '1mm 0 0 11mm' }}>Pada Tanggal&nbsp;&nbsp;: {titik(16)}</p>
-                <div style={{ marginTop: '6mm' }}>
+                <div style={{ marginTop: '5mm' }}>
                   <p style={{ margin: 0 }}>Pejabat Pembuat Komitmen,</p>
-                  <div style={{ height: '12mm' }} />
+                  <div style={{ height: '11mm' }} />
                   <p style={{ margin: 0, fontWeight: 'bold' }}>{ppkName}</p>
                   <p style={{ margin: 0 }}>NIP. {ppk.nip}</p>
                 </div>
@@ -542,7 +555,7 @@ export function TemplateSPPD({ data }: { data: any }) {
                 <P style={{ margin: 0, textAlign: 'justify' }}>Telah diperiksa dengan keterangan bahwa perjalanan tersebut atas perintahnya dan semata-mata untuk kepentingan jabatan dalam waktu yang sesingkat-singkatnya.</P>
                 <div style={{ marginTop: '2mm' }}>
                   <p style={{ margin: 0 }}>Pejabat Pembuat Komitmen,</p>
-                  <div style={{ height: '12mm' }} />
+                  <div style={{ height: '11mm' }} />
                   <p style={{ margin: 0, fontWeight: 'bold' }}>{ppkName}</p>
                   <p style={{ margin: 0 }}>NIP. {ppk.nip}</p>
                 </div>
@@ -570,12 +583,20 @@ export function TemplateSPPD({ data }: { data: any }) {
 
 function LampiranSPPD() {
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '5mm', fontFamily: FONT, fontSize: '9.5pt', lineHeight: 1.08 }}>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '4mm', fontFamily: FONT, fontSize: '9.2pt', lineHeight: 1.06 }}>
       <div style={{ width: '73mm' }}>
         <div style={{ textAlign: 'right', marginBottom: '1mm' }}>LAMPIRAN I<br />PERATURAN&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MENTERI&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;KEUANGAN&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;REPUBLIK</div>
         <div>INDONESIA NOMOR : 113/PMK.05/2012</div>
         <div>TENTANG : PERJALANAN DINAS JABATAN DALAM NEGERI BAGI PEJABAT NEGARA, PEGAWAI NEGERI DAN PEGAWAI TIDAK TETAP.</div>
       </div>
+    </div>
+  )
+}
+
+function KopSuratSPPD() {
+  return (
+    <div style={{ marginBottom: 0 }}>
+      <img src="/kopsurat.png" alt="Kop Surat" style={{ width: '100%', display: 'block' }} />
     </div>
   )
 }
@@ -586,20 +607,22 @@ function PengikutList({ pengikut }: { pengikut?: string }) {
     : [1, 2, 3, 4, 5].map(no => ({ no, nama: '', tanggal: '', ket: '' }))
 
   return (
-    <table style={{ width: 'calc(100% + 3mm)', borderCollapse: 'collapse', fontFamily: FONT, fontSize: '10.5pt', margin: '-1mm -1.5mm' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, fontSize: '10.8pt' }}>
       <thead>
         <tr>
-          <th style={{ border: '0.7pt solid #000', borderTop: 0, padding: '0.7mm', fontWeight: 'normal', textAlign: 'center' }}>Nama</th>
-          <th style={{ border: '0.7pt solid #000', borderTop: 0, padding: '0.7mm', fontWeight: 'normal', textAlign: 'center', width: '34%' }}>Tanggal lahir</th>
-          <th style={{ border: '0.7pt solid #000', borderTop: 0, borderRight: 0, padding: '0.7mm', fontWeight: 'normal', textAlign: 'center', width: '26%' }}>Keterangan</th>
+          <th style={{ borderRight: '0.75pt solid #000', borderBottom: '0.75pt solid #000', padding: '0.8mm 1.6mm', fontWeight: 'normal', textAlign: 'left' }}>
+            <span>Pengikut :</span><span style={{ display: 'inline-block', width: '44mm', textAlign: 'center' }}>Nama</span>
+          </th>
+          <th style={{ borderRight: '0.75pt solid #000', borderBottom: '0.75pt solid #000', padding: '0.8mm', fontWeight: 'normal', textAlign: 'center', width: '29%' }}>Tanggal lahir</th>
+          <th style={{ borderBottom: '0.75pt solid #000', padding: '0.8mm', fontWeight: 'normal', textAlign: 'center', width: '22%' }}>Keterangan</th>
         </tr>
       </thead>
       <tbody>
         {rows.map(row => (
           <tr key={row.no}>
-            <td style={{ border: '0.7pt solid #000', borderBottom: 0, padding: '0.7mm 1.5mm', height: '5mm' }}>{row.no}. {row.nama}</td>
-            <td style={{ border: '0.7pt solid #000', borderBottom: 0, padding: '0.7mm 1.5mm' }}>{row.tanggal}</td>
-            <td style={{ border: '0.7pt solid #000', borderBottom: 0, borderRight: 0, padding: '0.7mm 1.5mm' }}>{row.ket}</td>
+            <td style={{ borderRight: '0.75pt solid #000', padding: '0.65mm 1.6mm', height: '5.1mm' }}>{row.no}. {row.nama}</td>
+            <td style={{ borderRight: '0.75pt solid #000', padding: '0.65mm 1.6mm' }}>{row.tanggal}</td>
+            <td style={{ padding: '0.65mm 1.6mm' }}>{row.ket}</td>
           </tr>
         ))}
       </tbody>
