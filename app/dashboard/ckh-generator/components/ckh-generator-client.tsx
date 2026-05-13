@@ -61,7 +61,6 @@ const MONTHS = [
 const PAPER = {
   a4: { label: 'A4', css: '210mm 297mm' },
   f4: { label: 'F4 / Folio', css: '215mm 330mm' },
-  legal: { label: 'Legal', css: '216mm 356mm' },
 }
 
 const roleOptions = [
@@ -77,6 +76,14 @@ function sourceLabel(source: string) {
 
 function upper(value: string | null | undefined) {
   return String(value || '').toUpperCase()
+}
+
+function MissingProfilePrint() {
+  return <span style={{ fontStyle: 'italic' }}>Silakan isi dulu di Profil</span>
+}
+
+function MissingProfileInline() {
+  return <span className="italic text-amber-700">Silakan isi dulu di Profil</span>
 }
 
 function CkhPrintDocument({
@@ -121,9 +128,9 @@ function CkhPrintDocument({
       <table style={{ marginBottom: '8px', borderCollapse: 'collapse', fontSize: '10pt' }}>
         <tbody>
           <tr><td style={{ width: '95px' }}>NAMA</td><td style={{ width: '10px' }}>:</td><td>{user.nama_lengkap}</td></tr>
-          <tr><td>NIP</td><td>:</td><td>{user.nip || '-'}</td></tr>
-          <tr><td>PANGKAT / GOL.</td><td>:</td><td>{user.pangkat_golongan || '-'}</td></tr>
-          <tr><td>JABATAN</td><td>:</td><td>{user.jabatan_cetak || '-'}</td></tr>
+          <tr><td>NIP</td><td>:</td><td>{user.nip || <MissingProfilePrint />}</td></tr>
+          <tr><td>PANGKAT / GOL.</td><td>:</td><td>{user.pangkat_golongan || <MissingProfilePrint />}</td></tr>
+          <tr><td>JABATAN</td><td>:</td><td>{user.jabatan_cetak || <MissingProfilePrint />}</td></tr>
         </tbody>
       </table>
 
@@ -159,7 +166,7 @@ function CkhPrintDocument({
             KEPALA MAN 1 TASIKMALAYA
           </div>
           <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(kepsek?.nama_lengkap) || 'KEPALA MADRASAH BELUM DIATUR'}</div>
-          <div>NIP. {kepsek?.nip || '-'}</div>
+          <div>NIP. {kepsek?.nip || <MissingProfilePrint />}</div>
         </div>
         <div style={{ width: '46%', textAlign: 'left', paddingLeft: '14mm' }}>
           <div>Tasikmalaya, {tanggalCetak}</div>
@@ -167,7 +174,7 @@ function CkhPrintDocument({
             {user.jabatan_cetak || user.role || 'Pegawai'}
           </div>
           <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(user.nama_lengkap)}</div>
-          <div>NIP. {user.nip || '-'}</div>
+          <div>NIP. {user.nip || <MissingProfilePrint />}</div>
         </div>
       </div>
     </div>
@@ -396,9 +403,9 @@ export function CkhGeneratorClient({
 
             <div className="mt-5 grid grid-cols-[120px_12px_1fr] text-sm text-black">
               <span>NAMA</span><span>:</span><span>{initialData.user.nama_lengkap}</span>
-              <span>NIP</span><span>:</span><span>{initialData.user.nip || <span className="text-amber-700">Belum diisi admin</span>}</span>
-              <span>PANGKAT / GOL.</span><span>:</span><span>{initialData.user.pangkat_golongan || <span className="text-amber-700">Belum diisi user</span>}</span>
-              <span>JABATAN</span><span>:</span><span>{initialData.user.jabatan_cetak || <span className="text-amber-700">Belum diisi admin</span>}</span>
+              <span>NIP</span><span>:</span><span>{initialData.user.nip || <MissingProfileInline />}</span>
+              <span>PANGKAT / GOL.</span><span>:</span><span>{initialData.user.pangkat_golongan || <MissingProfileInline />}</span>
+              <span>JABATAN</span><span>:</span><span>{initialData.user.jabatan_cetak || <MissingProfileInline />}</span>
             </div>
 
             <div className="mt-4 overflow-hidden border border-black">
@@ -511,13 +518,13 @@ export function CkhGeneratorClient({
                 <p>Mengetahui :</p>
                 <p className="mb-20 font-bold uppercase">KEPALA MAN 1 TASIKMALAYA</p>
                 <p className="font-bold underline">{upper(initialData.kepsek?.nama_lengkap) || 'KEPALA MADRASAH BELUM DIATUR'}</p>
-                <p>NIP. {initialData.kepsek?.nip || '-'}</p>
+                <p>NIP. {initialData.kepsek?.nip || <MissingProfileInline />}</p>
               </div>
               <div className="w-[45%] pl-14 text-left">
                 <p>Tasikmalaya, {new Date(year, month, 0).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                 <p className="mb-20 font-bold uppercase">{initialData.user.jabatan_cetak || initialData.user.role}</p>
                 <p className="font-bold underline">{upper(initialData.user.nama_lengkap)}</p>
-                <p>NIP. {initialData.user.nip || '-'}</p>
+                <p>NIP. {initialData.user.nip || <MissingProfileInline />}</p>
               </div>
             </div>
           </div>
