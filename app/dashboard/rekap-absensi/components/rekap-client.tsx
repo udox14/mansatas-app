@@ -433,8 +433,8 @@ function TabSiswa({ filterOptions, initialJump, onBack }: {
                   {(result.slots || []).map((slot: any) => (
                     <th key={slot.id} className="min-w-[92px] px-2 py-2 text-center align-top">
                       <span className="block font-semibold">Jam {slot.id}</span>
-                      <span className="mt-0.5 block text-[10px] font-normal leading-tight text-slate-500">
-                        {slot.nama_mapel || '-'}
+                      <span className="mt-0.5 block text-[10px] font-mono font-semibold leading-tight text-slate-500">
+                        {slot.kode_mapel || slot.nama_mapel || '-'}
                       </span>
                     </th>
                   ))}

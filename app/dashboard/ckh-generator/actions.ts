@@ -23,6 +23,7 @@ type CkhUser = {
   nama_lengkap: string
   role: string
   nip: string | null
+  pangkat_golongan: string | null
   jabatan_cetak: string | null
 }
 
@@ -79,7 +80,7 @@ async function requireCkhAccess(db: D1Database, userId: string) {
 
 async function getFreshUser(db: D1Database, userId: string): Promise<CkhUser> {
   const user = await db.prepare(`
-    SELECT id, COALESCE(nama_lengkap, name) as nama_lengkap, role, nip, jabatan_cetak
+    SELECT id, COALESCE(nama_lengkap, name) as nama_lengkap, role, nip, pangkat_golongan, jabatan_cetak
     FROM "user"
     WHERE id = ?
   `).bind(userId).first<CkhUser>()

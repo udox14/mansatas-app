@@ -357,7 +357,7 @@ async function buildClassDailyMatrix(db: D1Database, kelasId: string, tanggal: s
   const hari = hariNum(new Date(tanggal + 'T00:00:00'))
   const slots = ta ? getSlotsHari(ta.jam_pelajaran || '[]', hari) : []
   const jadwalRes = ta ? await db.prepare(`
-    SELECT jm.jam_ke, jm.penugasan_id, mp.nama_mapel
+    SELECT jm.jam_ke, jm.penugasan_id, mp.nama_mapel, mp.kode_mapel, mp.kode_asc
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
     JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
@@ -365,9 +365,14 @@ async function buildClassDailyMatrix(db: D1Database, kelasId: string, tanggal: s
     ORDER BY jm.jam_ke
   `).bind(kelasId, ta.id, hari).all<any>() : { results: [] }
 
-  const jadwalByJam = new Map<number, { penugasan_id: string; nama_mapel: string }>()
+  const jadwalByJam = new Map<number, { penugasan_id: string; nama_mapel: string; kode_mapel: string | null; kode_asc: string | null }>()
   for (const row of jadwalRes.results || []) {
-    jadwalByJam.set(row.jam_ke, { penugasan_id: row.penugasan_id, nama_mapel: row.nama_mapel })
+    jadwalByJam.set(row.jam_ke, {
+      penugasan_id: row.penugasan_id,
+      nama_mapel: row.nama_mapel,
+      kode_mapel: row.kode_mapel || null,
+      kode_asc: row.kode_asc || null,
+    })
   }
 
   const sesiRes = await db.prepare(`
@@ -449,6 +454,7 @@ async function buildClassDailyMatrix(db: D1Database, kelasId: string, tanggal: s
   const slotsWithMapel = slots.map(slot => ({
     ...slot,
     nama_mapel: jadwalByJam.get(slot.id)?.nama_mapel || null,
+    kode_mapel: jadwalByJam.get(slot.id)?.kode_mapel || jadwalByJam.get(slot.id)?.kode_asc || null,
   }))
 
   return {

@@ -75,8 +75,8 @@ function sourceLabel(source: string) {
   return 'Manual'
 }
 
-function normalize(value: string) {
-  return value.trim().replace(/\s+/g, ' ')
+function upper(value: string | null | undefined) {
+  return String(value || '').toUpperCase()
 }
 
 function CkhPrintDocument({
@@ -122,7 +122,7 @@ function CkhPrintDocument({
         <tbody>
           <tr><td style={{ width: '95px' }}>NAMA</td><td style={{ width: '10px' }}>:</td><td>{user.nama_lengkap}</td></tr>
           <tr><td>NIP</td><td>:</td><td>{user.nip || '-'}</td></tr>
-          <tr><td>PANGKAT / GOL.</td><td>:</td><td>-</td></tr>
+          <tr><td>PANGKAT / GOL.</td><td>:</td><td>{user.pangkat_golongan || '-'}</td></tr>
           <tr><td>JABATAN</td><td>:</td><td>{user.jabatan_cetak || '-'}</td></tr>
         </tbody>
       </table>
@@ -153,20 +153,20 @@ function CkhPrintDocument({
       </table>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '18mm', fontSize: '10pt' }}>
-        <div style={{ width: '46%', textAlign: 'center' }}>
+        <div style={{ width: '46%', textAlign: 'left', paddingLeft: '14mm' }}>
           <div>Mengetahui :</div>
           <div style={{ fontWeight: 700, textTransform: 'uppercase', marginBottom: '20mm' }}>
-            {kepsek?.jabatan_cetak || 'KEPALA MAN 1 TASIKMALAYA'}
+            KEPALA MAN 1 TASIKMALAYA
           </div>
-          <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{kepsek?.nama_lengkap || 'Kepala Madrasah belum diatur'}</div>
+          <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(kepsek?.nama_lengkap) || 'KEPALA MADRASAH BELUM DIATUR'}</div>
           <div>NIP. {kepsek?.nip || '-'}</div>
         </div>
-        <div style={{ width: '46%', textAlign: 'center' }}>
+        <div style={{ width: '46%', textAlign: 'left', paddingLeft: '14mm' }}>
           <div>Tasikmalaya, {tanggalCetak}</div>
           <div style={{ fontWeight: 700, textTransform: 'uppercase', marginBottom: '20mm' }}>
             {user.jabatan_cetak || user.role || 'Pegawai'}
           </div>
-          <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{user.nama_lengkap}</div>
+          <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(user.nama_lengkap)}</div>
           <div>NIP. {user.nip || '-'}</div>
         </div>
       </div>
@@ -397,7 +397,7 @@ export function CkhGeneratorClient({
             <div className="mt-5 grid grid-cols-[120px_12px_1fr] text-sm text-black">
               <span>NAMA</span><span>:</span><span>{initialData.user.nama_lengkap}</span>
               <span>NIP</span><span>:</span><span>{initialData.user.nip || <span className="text-amber-700">Belum diisi admin</span>}</span>
-              <span>PANGKAT / GOL.</span><span>:</span><span>-</span>
+              <span>PANGKAT / GOL.</span><span>:</span><span>{initialData.user.pangkat_golongan || <span className="text-amber-700">Belum diisi user</span>}</span>
               <span>JABATAN</span><span>:</span><span>{initialData.user.jabatan_cetak || <span className="text-amber-700">Belum diisi admin</span>}</span>
             </div>
 
@@ -506,17 +506,17 @@ export function CkhGeneratorClient({
               </datalist>
             </div>
 
-            <div className="mt-12 flex justify-between text-center text-sm text-black">
-              <div className="w-[45%]">
+            <div className="mt-12 flex justify-between text-sm text-black">
+              <div className="w-[45%] pl-14 text-left">
                 <p>Mengetahui :</p>
-                <p className="mb-20 font-bold uppercase">{initialData.kepsek?.jabatan_cetak || 'KEPALA MAN 1 TASIKMALAYA'}</p>
-                <p className="font-bold underline">{initialData.kepsek?.nama_lengkap || 'Kepala Madrasah belum diatur'}</p>
+                <p className="mb-20 font-bold uppercase">KEPALA MAN 1 TASIKMALAYA</p>
+                <p className="font-bold underline">{upper(initialData.kepsek?.nama_lengkap) || 'KEPALA MADRASAH BELUM DIATUR'}</p>
                 <p>NIP. {initialData.kepsek?.nip || '-'}</p>
               </div>
-              <div className="w-[45%]">
+              <div className="w-[45%] pl-14 text-left">
                 <p>Tasikmalaya, {new Date(year, month, 0).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                 <p className="mb-20 font-bold uppercase">{initialData.user.jabatan_cetak || initialData.user.role}</p>
-                <p className="font-bold underline">{initialData.user.nama_lengkap}</p>
+                <p className="font-bold underline">{upper(initialData.user.nama_lengkap)}</p>
                 <p>NIP. {initialData.user.nip || '-'}</p>
               </div>
             </div>

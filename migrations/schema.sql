@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS "user" (
   role              TEXT NOT NULL DEFAULT 'guru',
   nama_lengkap      TEXT,
   nip               TEXT,
+  pangkat_golongan  TEXT,
   jabatan_cetak     TEXT,
   avatar_url        TEXT,
   banned            INTEGER DEFAULT 0,
