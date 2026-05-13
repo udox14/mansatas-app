@@ -153,10 +153,14 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
               <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Email</Label>
               <Input value={email} readOnly className="h-9 rounded-lg bg-surface-3 text-slate-400 dark:text-slate-500 text-sm cursor-not-allowed" />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">NIP</Label>
                 <Input name="nip" defaultValue={profile.nip || ''} className="h-9 rounded-lg bg-surface-2 text-sm" placeholder="Nomor Induk Pegawai" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Pangkat / Gol.</Label>
+                <Input name="pangkat_golongan" defaultValue={profile.pangkat_golongan || ''} className="h-9 rounded-lg bg-surface-2 text-sm" placeholder="Contoh: III/a" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Jabatan Cetak CKH</Label>
