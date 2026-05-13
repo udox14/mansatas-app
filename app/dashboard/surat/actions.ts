@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import type { JenisSurat } from './constants'
 import { KODE_KLASIFIKASI_SURAT } from './constants'
 import { getSystemSetting, setSystemSetting } from '@/lib/system-settings'
+import { ensureJabatanStrukturalSchema } from '../guru/actions'
 
 const BULAN_ROMAWI = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 const PENANDATANGAN_SETTING_KEY = 'surat_penandatangan'
@@ -47,6 +48,7 @@ export async function simpanSuratPenandatanganSettings(settings: SuratPenandatan
 // ============================================================
 export async function getDataForSurat() {
   const db = await getDB()
+  await ensureJabatanStrukturalSchema(db)
 
   const [siswaRes, guruRes, kelasRes, pejabatRes] = await Promise.all([
     db.prepare(`
@@ -62,8 +64,10 @@ export async function getDataForSurat() {
 
     db.prepare(`
       SELECT u.id, COALESCE(u.nama_lengkap, u.name) AS nama_lengkap, u.role,
-        u.nip, u.pangkat_golongan, u.jabatan_cetak
+        u.nip, u.pangkat_golongan, u.jabatan_cetak, u.jabatan_struktural_id,
+        mjs.nama AS jabatan_struktural_nama
       FROM "user" u
+      LEFT JOIN master_jabatan_struktural mjs ON u.jabatan_struktural_id = mjs.id
       WHERE COALESCE(u.banned, 0) = 0
       ORDER BY COALESCE(u.nama_lengkap, u.name) ASC
     `).all<any>(),
@@ -74,8 +78,9 @@ export async function getDataForSurat() {
 
     db.prepare(`
       SELECT u.id AS user_id, COALESCE(u.nama_lengkap, u.name) AS nama_lengkap, u.role,
-        u.nip, u.pangkat_golongan, u.jabatan_cetak,
-        COALESCE(u.jabatan_cetak,
+        u.nip, u.pangkat_golongan, u.jabatan_cetak, u.jabatan_struktural_id,
+        mjs.nama AS jabatan_struktural_nama,
+        COALESCE(u.jabatan_cetak, mjs.nama,
           CASE
             WHEN u.role = 'kepsek' THEN 'Kepala Madrasah'
             WHEN u.role = 'admin_tu' THEN 'Kepala TU'
@@ -84,13 +89,14 @@ export async function getDataForSurat() {
           END
         ) AS nama
       FROM "user" u
+      LEFT JOIN master_jabatan_struktural mjs ON u.jabatan_struktural_id = mjs.id
       WHERE COALESCE(u.banned, 0) = 0
         AND COALESCE(u.nama_lengkap, u.name) IS NOT NULL
       ORDER BY
         CASE
-          WHEN LOWER(COALESCE(u.jabatan_cetak, '')) LIKE '%kepala madrasah%' OR u.role = 'kepsek' THEN 1
-          WHEN LOWER(COALESCE(u.jabatan_cetak, '')) LIKE '%kepala tu%' THEN 2
-          WHEN LOWER(COALESCE(u.jabatan_cetak, '')) LIKE '%kesiswaan%' THEN 3
+          WHEN LOWER(COALESCE(mjs.nama, u.jabatan_cetak, '')) LIKE '%kepala madrasah%' OR u.role = 'kepsek' THEN 1
+          WHEN LOWER(COALESCE(mjs.nama, u.jabatan_cetak, '')) LIKE '%kepala tu%' THEN 2
+          WHEN LOWER(COALESCE(mjs.nama, u.jabatan_cetak, '')) LIKE '%kesiswaan%' THEN 3
           ELSE 9
         END,
         COALESCE(u.nama_lengkap, u.name) ASC

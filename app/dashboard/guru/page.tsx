@@ -7,16 +7,20 @@ import { GuruClient } from './components/guru-client'
 import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
 import { checkFeatureAccess } from '@/lib/features'
+import { ensureJabatanStrukturalSchema } from './actions'
 
 export const metadata = { title: 'Data Guru & Pegawai - MANSATAS App' }
 
 async function GuruDataFetcher() {
   const db = await getDB()
+  await ensureJabatanStrukturalSchema(db)
 
-  const [usersResult, userRolesResult, masterRolesResult] = await Promise.all([
+  const [usersResult, userRolesResult, masterRolesResult, masterJabatanResult] = await Promise.all([
     db.prepare(`
-      SELECT u.id, u.email, u.name, u.role, u.nama_lengkap, u.avatar_url, u.nip, u.jabatan_cetak
+      SELECT u.id, u.email, u.name, u.role, u.nama_lengkap, u.avatar_url, u.nip, u.jabatan_cetak,
+        u.jabatan_struktural_id, mjs.nama AS jabatan_struktural_nama
       FROM "user" u
+      LEFT JOIN master_jabatan_struktural mjs ON u.jabatan_struktural_id = mjs.id
       ORDER BY u.nama_lengkap ASC
     `).all<any>(),
     db.prepare(`
@@ -25,6 +29,9 @@ async function GuruDataFetcher() {
     db.prepare(`
       SELECT value, label, is_custom FROM master_roles ORDER BY is_custom ASC, label ASC
     `).all<{ value: string; label: string; is_custom: number }>(),
+    db.prepare(`
+      SELECT id, nama, urutan FROM master_jabatan_struktural ORDER BY urutan ASC, nama ASC
+    `).all<{ id: string; nama: string; urutan: number }>(),
   ])
 
   const userRolesMap: Record<string, string[]> = {}
@@ -40,6 +47,8 @@ async function GuruDataFetcher() {
     avatar_url: u.avatar_url || null,
     nip: u.nip || null,
     jabatan_cetak: u.jabatan_cetak || null,
+    jabatan_struktural_id: u.jabatan_struktural_id || null,
+    jabatan_struktural_nama: u.jabatan_struktural_nama || null,
     roles: userRolesMap[u.id] || (u.role ? [u.role] : []),
     email: u.email || 'Email tidak ditemukan',
   }))
@@ -48,6 +57,7 @@ async function GuruDataFetcher() {
     <GuruClient
       initialData={mergedData}
       masterRoles={masterRolesResult.results || []}
+      masterJabatanStruktural={masterJabatanResult.results || []}
     />
   )
 }
