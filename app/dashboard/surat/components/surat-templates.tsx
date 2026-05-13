@@ -449,14 +449,18 @@ export function TemplateSPPD({ data }: { data: any }) {
   const pegawai = data.pegawai || {}
   const ppk = pejabat(data, 'kepala_tu')
   const kepala = pejabat(data, 'kepala')
-  const kecil: React.CSSProperties = { fontSize: '10pt', lineHeight: 1.2 }
-  const tdL: React.CSSProperties = { width: '8mm', verticalAlign: 'top', padding: '1mm 1.5mm' }
-  const tdF: React.CSSProperties = { width: '64mm', verticalAlign: 'top', padding: '1mm 1.5mm' }
-  const tdV: React.CSSProperties = { verticalAlign: 'top', padding: '1mm 1.5mm' }
+  const base: React.CSSProperties = { fontSize: '11.5pt', lineHeight: 1.18 }
+  const cell: React.CSSProperties = { border: '0.7pt solid #000', verticalAlign: 'top', padding: '1mm 1.5mm' }
+  const noCell: React.CSSProperties = { ...cell, width: '9mm', textAlign: 'center' }
+  const fieldCell: React.CSSProperties = { ...cell, width: '75mm' }
+  const colonCell: React.CSSProperties = { ...cell, width: '5mm', textAlign: 'center', paddingLeft: 0, paddingRight: 0 }
+  const sppdDate = text(data.tanggal_surat || formatTanggalIndo(data.tanggal_surat_raw || data.tanggal_berangkat))
+  const ppkName = text(ppk.nama).toUpperCase()
+  const kepalaName = text(kepala.nama).toUpperCase()
 
   const tableRows: Array<[string, React.ReactNode, React.ReactNode]> = [
     ['1.', 'Pejabat Pembuat Komitmen', 'MAN 1 Tasikmalaya'],
-    ['2.', 'Nama/NIP Pegawai yang melaksanakan perjalanan dinas', <>{text(pegawai.nama_lengkap)}<br />NIP. {text(pegawai.nip)}</>],
+    ['2.', 'Nama/NIP Pegawai yang melaksanakan perjalanan dinas', <><strong>{text(pegawai.nama_lengkap)}</strong><br />NIP. {text(pegawai.nip)}</>],
     ['3.', <><div>a. Pangkat dan Golongan</div><div>b. Jabatan/Instansi</div><div>c. Tingkat Biaya Perjalanan Dinas</div></>, <><div>{text(pegawai.pangkat_golongan)}</div><div>{text(pegawai.jabatan_cetak || pegawai.role)} / MAN 1 Tasikmalaya</div><div>{text(data.tingkat_biaya, 'Biasa')}</div></>],
     ['4.', 'Maksud Perjalanan Dinas', text(data.maksud_perjalanan)],
     ['5.', 'Alat Kendaraan yang dipergunakan', text(data.alat_angkut, 'Kendaraan Pribadi')],
@@ -470,142 +474,178 @@ export function TemplateSPPD({ data }: { data: any }) {
   return (
     <>
       <Page data={data} compact>
-        <div style={kecil}>
-          <P style={{ marginBottom: '2mm' }}>LAMPIRAN I<br />PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA NOMOR : 113/PMK.05/2012</P>
-          <P style={{ marginBottom: '3mm' }}>TENTANG : PERJALANAN DINAS JABATAN DALAM NEGERI BAGI PEJABAT NEGARA, PEGAWAI NEGERI DAN PEGAWAI TIDAK TETAP.</P>
-        </div>
-        <KopSurat data={data} marginBottom={3} />
-        <p style={{ margin: '0 0 4mm', ...kecil }}>Nomor : {text(data.nomor_surat)}</p>
-        <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12pt', marginBottom: '3mm' }}>SURAT PERJALANAN DINAS (SPD)</div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, ...kecil }}>
+        <LampiranSPPD />
+        <KopSurat data={data} marginBottom={4} />
+        <p style={{ margin: '0 0 4mm', textAlign: 'center', ...base }}>Nomor : {text(data.nomor_surat)}</p>
+        <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13pt', marginBottom: '4mm' }}>SURAT PERJALANAN DINAS (SPD)</div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, border: '1.2pt solid #000', ...base }}>
           <tbody>
             {tableRows.map(([no, field, value], i) => (
               <tr key={i}>
-                <td style={tdL}>{no}</td>
-                <td style={tdF}>{field}</td>
-                <td style={{ width: '4mm', padding: '1mm 0', verticalAlign: 'top' }}>:</td>
-                <td style={tdV}>{value}</td>
+                <td style={noCell}>{no}</td>
+                <td style={fieldCell}>{field}</td>
+                <td style={colonCell}>:</td>
+                <td style={cell}>{value}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <p style={{ margin: '2mm 0 0', fontSize: '9pt' }}>*) Coret yang tidak perlu</p>
-        <div style={{ marginLeft: '102mm', marginTop: '3mm', ...kecil }}>
-          <p style={{ margin: 0 }}>Dikeluarkan di : Tasikmalaya</p>
-          <p style={{ margin: '1mm 0 0' }}>Tanggal : {text(data.tanggal_surat || formatTanggalIndo(data.tanggal_surat_raw || data.tanggal_berangkat))}</p>
+        <p style={{ margin: '1mm 0 0 3mm', fontSize: '10pt', fontStyle: 'italic' }}>*) Coret yang tidak perlu</p>
+        <div style={{ marginLeft: '102mm', marginTop: '2mm', ...base }}>
+          <p style={{ margin: 0 }}>Dikeluarkan di&nbsp;&nbsp;&nbsp;&nbsp;: Tasikmalaya</p>
+          <p style={{ margin: 0 }}>Tanggal&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {sppdDate}</p>
           <div style={{ textAlign: 'center', marginTop: '3mm' }}>
             <p style={{ margin: 0 }}>PPK MAN 1 Tasikmalaya,</p>
             <div style={{ height: '18mm' }} />
-            <p style={{ margin: 0, fontWeight: 'bold' }}>{ppk.nama}</p>
+            <p style={{ margin: 0, fontWeight: 'bold' }}>{ppkName}</p>
             <p style={{ margin: 0 }}>NIP. {ppk.nip}</p>
           </div>
         </div>
       </Page>
 
       <Page data={data} compact>
-        <div style={kecil}>
-          <P style={{ marginBottom: '2mm' }}>LAMPIRAN I<br />PERATURAN MENTERI KEUANGAN REPUBLIK INDONESIA NOMOR : 113/PMK.05/2012</P>
-          <P style={{ marginBottom: '4mm' }}>TENTANG : PERJALANAN DINAS JABATAN DALAM NEGERI BAGI PEJABAT NEGARA, PEGAWAI NEGERI DAN PEGAWAI TIDAK TETAP.</P>
-        </div>
-        <TravelRow no="I." title="Berangkat dari" place={text(data.tempat_berangkat, 'Sukamanah')} to={text(data.tempat_tujuan)} date={formatTanggalIndo(data.tanggal_berangkat)} signerLabel="K e p a l a," signer={kepala} />
-        {['II.', 'III.', 'IV.', 'V.'].map(no => (
-          <TravelBlank key={no} no={no} />
-        ))}
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, ...kecil }}>
+        <LampiranSPPD />
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, border: '1.4pt double #000', ...base }}>
           <tbody>
+            <tr style={{ height: '42mm' }}>
+              <td style={{ ...cell, width: '50%' }} />
+              <td style={{ ...cell, width: '50%' }}>
+                <TravelFilled
+                  no="I."
+                  from={text(data.tempat_berangkat, 'Sukamanah')}
+                  to={text(data.tempat_tujuan)}
+                  date={formatTanggalIndo(data.tanggal_berangkat)}
+                  signerName={kepalaName}
+                  signerNip={text(kepala.nip)}
+                />
+              </td>
+            </tr>
+            {['II.', 'III.', 'IV.', 'V.'].map(no => (
+              <tr key={no} style={{ height: '32mm' }}>
+                <td style={{ ...cell, width: '50%' }}><TravelArriveBlank no={no} /></td>
+                <td style={{ ...cell, width: '50%' }}><TravelDepartBlank /></td>
+              </tr>
+            ))}
             <tr>
-              <td style={{ width: '50%', verticalAlign: 'top', paddingTop: '2mm' }}>
-                <p style={{ margin: 0 }}>VI. Tiba di : {text(data.tempat_berangkat, 'Sukamanah')}</p>
-                <p style={{ margin: '1mm 0 0' }}>(Tempat kedudukan)</p>
-                <p style={{ margin: '1mm 0 0' }}>Pada Tanggal : {titik(16)}</p>
-                <div style={{ textAlign: 'center', marginTop: '3mm' }}>
+              <td style={{ ...cell, width: '50%', height: '40mm' }}>
+                <p style={{ margin: 0 }}>VI.&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Tiba di&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {text(data.tempat_berangkat, 'Sukamanah')}</p>
+                <p style={{ margin: '1mm 0 0 11mm' }}>(Tempat kedudukan)</p>
+                <p style={{ margin: '1mm 0 0 11mm' }}>Pada Tanggal&nbsp;&nbsp;: {titik(16)}</p>
+                <div style={{ marginTop: '6mm' }}>
                   <p style={{ margin: 0 }}>Pejabat Pembuat Komitmen,</p>
-                  <div style={{ height: '14mm' }} />
-                  <p style={{ margin: 0, fontWeight: 'bold' }}>{ppk.nama}</p>
+                  <div style={{ height: '12mm' }} />
+                  <p style={{ margin: 0, fontWeight: 'bold' }}>{ppkName}</p>
                   <p style={{ margin: 0 }}>NIP. {ppk.nip}</p>
                 </div>
               </td>
-              <td style={{ verticalAlign: 'top', paddingTop: '2mm' }}>
-                <P>Telah diperiksa dengan keterangan bahwa perjalanan tersebut atas perintahnya dan semata-mata untuk kepentingan jabatan dalam waktu yang sesingkat-singkatnya.</P>
-                <div style={{ textAlign: 'center', marginTop: '3mm' }}>
+              <td style={{ ...cell, width: '50%', height: '40mm' }}>
+                <P style={{ margin: 0, textAlign: 'justify' }}>Telah diperiksa dengan keterangan bahwa perjalanan tersebut atas perintahnya dan semata-mata untuk kepentingan jabatan dalam waktu yang sesingkat-singkatnya.</P>
+                <div style={{ marginTop: '2mm' }}>
                   <p style={{ margin: 0 }}>Pejabat Pembuat Komitmen,</p>
-                  <div style={{ height: '14mm' }} />
-                  <p style={{ margin: 0, fontWeight: 'bold' }}>{ppk.nama}</p>
+                  <div style={{ height: '12mm' }} />
+                  <p style={{ margin: 0, fontWeight: 'bold' }}>{ppkName}</p>
                   <p style={{ margin: 0 }}>NIP. {ppk.nip}</p>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td colSpan={2} style={{ ...cell, height: '6mm' }}>VII.&nbsp;&nbsp;&nbsp;&nbsp;Catatan Lain-Lain :</td>
+            </tr>
+            <tr>
+              <td colSpan={2} style={{ ...cell, height: '18mm', paddingTop: '0.5mm' }}>
+                <div>VIII.&nbsp;&nbsp;&nbsp;PERHATIAN :</div>
+                <div style={{ paddingLeft: '11mm', textAlign: 'justify' }}>
+                  PPK yang menerbitkan SPD pegawai yang melakukan perjalanan dinas, para pejabat yang mengesahkan tanggal berangkat/tiba,
+                  serta bendahara pengeluaran bertanggung jawab berdasarkan peraturan-peraturan Keuangan Negara apabila Negara menderita rugi
+                  akibat kesalahan, kelalaian dan kealpaannya.
                 </div>
               </td>
             </tr>
           </tbody>
         </table>
-        <p style={{ margin: '3mm 0 0', ...kecil }}>VII. Catatan Lain-Lain :</p>
-        <p style={{ margin: '2mm 0 0', ...kecil }}>VIII. PERHATIAN : PPK yang menerbitkan SPD pegawai yang melakukan perjalanan dinas, para pejabat yang mengesahkan tanggal berangkat/tiba, serta bendahara pengeluaran bertanggung jawab berdasarkan peraturan-peraturan Keuangan Negara.</p>
       </Page>
     </>
   )
 }
 
+function LampiranSPPD() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '5mm', fontFamily: FONT, fontSize: '9.5pt', lineHeight: 1.08 }}>
+      <div style={{ width: '73mm' }}>
+        <div style={{ textAlign: 'right', marginBottom: '1mm' }}>LAMPIRAN I<br />PERATURAN&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;MENTERI&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;KEUANGAN&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;REPUBLIK</div>
+        <div>INDONESIA NOMOR : 113/PMK.05/2012</div>
+        <div>TENTANG : PERJALANAN DINAS JABATAN DALAM NEGERI BAGI PEJABAT NEGARA, PEGAWAI NEGERI DAN PEGAWAI TIDAK TETAP.</div>
+      </div>
+    </div>
+  )
+}
+
 function PengikutList({ pengikut }: { pengikut?: string }) {
-  if (pengikut?.trim()) return <span>{pengikut}</span>
+  const rows = pengikut?.trim()
+    ? pengikut.split('\n').map((row, i) => ({ no: i + 1, nama: row.trim(), tanggal: '', ket: '' })).slice(0, 5)
+    : [1, 2, 3, 4, 5].map(no => ({ no, nama: '', tanggal: '', ket: '' }))
+
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, fontSize: '9.5pt' }}>
+    <table style={{ width: 'calc(100% + 3mm)', borderCollapse: 'collapse', fontFamily: FONT, fontSize: '10.5pt', margin: '-1mm -1.5mm' }}>
+      <thead>
+        <tr>
+          <th style={{ border: '0.7pt solid #000', borderTop: 0, padding: '0.7mm', fontWeight: 'normal', textAlign: 'center' }}>Nama</th>
+          <th style={{ border: '0.7pt solid #000', borderTop: 0, padding: '0.7mm', fontWeight: 'normal', textAlign: 'center', width: '34%' }}>Tanggal lahir</th>
+          <th style={{ border: '0.7pt solid #000', borderTop: 0, borderRight: 0, padding: '0.7mm', fontWeight: 'normal', textAlign: 'center', width: '26%' }}>Keterangan</th>
+        </tr>
+      </thead>
       <tbody>
-        <tr><td>Nama</td><td>Tanggal lahir</td><td>Keterangan</td></tr>
-        {[1, 2, 3, 4, 5].map(n => <tr key={n}><td>{n}. {titik(12)}</td><td>{titik(10)}</td><td>{titik(10)}</td></tr>)}
+        {rows.map(row => (
+          <tr key={row.no}>
+            <td style={{ border: '0.7pt solid #000', borderBottom: 0, padding: '0.7mm 1.5mm', height: '5mm' }}>{row.no}. {row.nama}</td>
+            <td style={{ border: '0.7pt solid #000', borderBottom: 0, padding: '0.7mm 1.5mm' }}>{row.tanggal}</td>
+            <td style={{ border: '0.7pt solid #000', borderBottom: 0, borderRight: 0, padding: '0.7mm 1.5mm' }}>{row.ket}</td>
+          </tr>
+        ))}
       </tbody>
     </table>
   )
 }
 
-function TravelRow({ no, title, place, to, date, signerLabel, signer }: { no: string; title: string; place: string; to: string; date: string; signerLabel: string; signer: any }) {
-  const st: React.CSSProperties = { fontSize: '10pt', lineHeight: 1.2 }
+function TravelFilled({ no, from, to, date, signerName, signerNip }: { no: string; from: string; to: string; date: string; signerName: string; signerNip: string }) {
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, marginBottom: '2mm', ...st }}>
-      <tbody>
-        <tr>
-          <td style={{ width: '50%', verticalAlign: 'top' }}>
-            <p style={{ margin: 0 }}>{no} {title} : {place}</p>
-            <p style={{ margin: '1mm 0 0' }}>(Tempat kedudukan)</p>
-            <p style={{ margin: '1mm 0 0' }}>Ke : {to}</p>
-            <p style={{ margin: '1mm 0 0' }}>Pada Tanggal : {date}</p>
-          </td>
-          <td style={{ verticalAlign: 'top', textAlign: 'center' }}>
-            <p style={{ margin: 0 }}>{signerLabel}</p>
-            <div style={{ height: '16mm' }} />
-            <p style={{ margin: 0, fontWeight: 'bold' }}>{signer.nama}</p>
-            <p style={{ margin: 0 }}>NIP. {signer.nip}</p>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div>
+      <p style={{ margin: 0 }}>{no}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Berangkat dari&nbsp;&nbsp;&nbsp;&nbsp;: {from}</p>
+      <p style={{ margin: '1mm 0 0 11mm' }}>(Tempat kedudukan)</p>
+      <p style={{ margin: '1mm 0 0 11mm' }}>Ke&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {to}</p>
+      <p style={{ margin: '1mm 0 0 11mm' }}>Pada Tanggal&nbsp;&nbsp;&nbsp;: {date}</p>
+      <p style={{ margin: '1mm 0 0 11mm' }}>K e p a l a,</p>
+      <div style={{ height: '13mm' }} />
+      <p style={{ margin: '0 0 0 11mm', fontWeight: 'bold' }}>{signerName}</p>
+      <p style={{ margin: '0 0 0 11mm' }}>NIP. {signerNip}</p>
+    </div>
   )
 }
 
-function TravelBlank({ no }: { no: string }) {
-  const st: React.CSSProperties = { fontSize: '10pt', lineHeight: 1.15 }
+function TravelArriveBlank({ no }: { no: string }) {
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: FONT, marginBottom: '1.5mm', ...st }}>
-      <tbody>
-        <tr>
-          <td style={{ width: '50%', verticalAlign: 'top' }}>
-            <p style={{ margin: 0 }}>{no} Tiba di : {titik(14)}</p>
-            <p style={{ margin: '1mm 0 0' }}>Pada Tanggal : {titik(14)}</p>
-            <p style={{ margin: '1mm 0 0' }}>K e p a l a,</p>
-            <div style={{ height: '9mm' }} />
-            <p style={{ margin: 0 }}>( {titik(30)} )</p>
-            <p style={{ margin: 0 }}>NIP. {titik(18)}</p>
-          </td>
-          <td style={{ verticalAlign: 'top' }}>
-            <p style={{ margin: 0 }}>Berangkat dari : {titik(14)}</p>
-            <p style={{ margin: '1mm 0 0' }}>Ke : {titik(14)}</p>
-            <p style={{ margin: '1mm 0 0' }}>Pada Tanggal : {titik(14)}</p>
-            <p style={{ margin: '1mm 0 0' }}>K e p a l a,</p>
-            <div style={{ height: '9mm' }} />
-            <p style={{ margin: 0 }}>( {titik(30)} )</p>
-            <p style={{ margin: 0 }}>NIP. {titik(18)}</p>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div>
+      <p style={{ margin: 0 }}>{no}&nbsp;&nbsp;&nbsp;&nbsp;Tiba di&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:</p>
+      <p style={{ margin: '1mm 0 0 11mm' }}>Pada Tanggal&nbsp;&nbsp;:</p>
+      <p style={{ margin: '1mm 0 0 11mm' }}>K e p a l a,</p>
+      <div style={{ height: '9mm' }} />
+      <p style={{ margin: '0 0 0 11mm' }}>( {titik(32)} )</p>
+      <p style={{ margin: '0 0 0 11mm' }}>NIP.</p>
+    </div>
+  )
+}
+
+function TravelDepartBlank() {
+  return (
+    <div>
+      <p style={{ margin: 0 }}>Berangkat dari&nbsp;&nbsp;&nbsp;&nbsp;:</p>
+      <p style={{ margin: '1mm 0 0' }}>Ke&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:</p>
+      <p style={{ margin: '1mm 0 0' }}>Pada Tanggal&nbsp;&nbsp;&nbsp;:</p>
+      <p style={{ margin: '1mm 0 0' }}>K e p a l a,</p>
+      <div style={{ height: '9mm' }} />
+      <p style={{ margin: 0 }}>( {titik(32)} )</p>
+      <p style={{ margin: 0 }}>NIP.</p>
+    </div>
   )
 }
 
