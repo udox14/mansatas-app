@@ -166,7 +166,7 @@ export async function SuperAdminDashboard({ userId, nama, namaDepan, avatarUrl, 
             title="Monitoring Agenda" desc="Pantau jurnal mengajar guru" />
           <QuickLink href="/dashboard/rekap-absensi"
             icon={<ClipboardList className="h-4 w-4" />} iconBg="bg-amber-50" iconColor="text-amber-600"
-            title="Rekap Absensi Siswa" desc="Kehadiran per kelas & periode" />
+            title="Rekap Absensi Siswa" desc="Kehadiran, bolos, dan tindak lanjut belum lengkap" />
           <QuickLink href="/dashboard/akademik/nilai"
             icon={<FileSpreadsheet className="h-4 w-4" />} iconBg="bg-purple-50" iconColor="text-purple-600"
             title="Rekap Nilai" desc="Capaian akademik siswa" />

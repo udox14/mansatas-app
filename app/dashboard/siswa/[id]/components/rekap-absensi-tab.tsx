@@ -41,7 +41,7 @@ type RekapResult = {
   error: string | null
   siswa?: { nama: string; nisn: string; kelas: string }
   days?: AbsensiDay[]
-  summary?: { hadir: number; parsial: number; sakit: number; izin: number; alfa: number; perlu_konfirmasi_wali?: number }
+  summary?: { hadir: number; parsial: number; sakit: number; izin: number; alfa: number; perlu_konfirmasi_wali?: number; belum_ada_data?: number }
   totalHari?: number
 }
 
@@ -56,6 +56,7 @@ function StatusBadge({ status }: { status: string }) {
     'SAKIT':         { cls: 'bg-blue-100 text-blue-700 border-blue-200',           icon: <MinusCircle className="h-3 w-3" />,  label: 'Sakit' },
     'IZIN':          { cls: 'bg-indigo-100 text-indigo-700 border-indigo-200',     icon: <MinusCircle className="h-3 w-3" />,  label: 'Izin' },
     'ALFA':          { cls: 'bg-rose-100 text-rose-700 border-rose-200',           icon: <XCircle className="h-3 w-3" />,      label: 'Alfa' },
+    'BELUM_ADA_DATA': { cls: 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800', icon: <AlertTriangle className="h-3 w-3" />, label: 'Belum Lengkap' },
   }
   const cfg = map[status] ?? { cls: 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800', icon: null, label: status }
   return (
@@ -81,8 +82,8 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
 
   // ── State dialog cetak ──
   const [showPrintDialog, setShowPrintDialog] = useState(false)
-  type StatusKey = 'HADIR' | 'BOLOS' | 'SAKIT' | 'IZIN' | 'ALFA' | 'PERLU KONFIRMASI WALI'
-  const ALL_STATUS: StatusKey[] = ['HADIR', 'BOLOS', 'SAKIT', 'IZIN', 'ALFA', 'PERLU KONFIRMASI WALI']
+  type StatusKey = 'HADIR' | 'BOLOS' | 'SAKIT' | 'IZIN' | 'ALFA' | 'PERLU KONFIRMASI WALI' | 'BELUM_ADA_DATA'
+  const ALL_STATUS: StatusKey[] = ['HADIR', 'BOLOS', 'SAKIT', 'IZIN', 'ALFA', 'PERLU KONFIRMASI WALI', 'BELUM_ADA_DATA']
   const [printFilter, setPrintFilter] = useState<Set<StatusKey>>(new Set(ALL_STATUS))
 
   const togglePrintFilter = (s: StatusKey) => setPrintFilter(prev => {
@@ -132,7 +133,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
     const tglTtd = new Date().toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric' })
 
     const statusLabel: Record<string, string> = {
-      HADIR: 'Hadir', BOLOS: 'Bolos', SAKIT: 'Sakit', IZIN: 'Izin', ALFA: 'Alfa', 'PERLU KONFIRMASI WALI': 'Perlu Keputusan Wali'
+      HADIR: 'Hadir', BOLOS: 'Bolos', SAKIT: 'Sakit', IZIN: 'Izin', ALFA: 'Alfa', 'PERLU KONFIRMASI WALI': 'Perlu Keputusan Wali', BELUM_ADA_DATA: 'Belum Lengkap'
     }
 
     const namaMeta  = siswa?.nama_lengkap || siswaMeta?.nama || '-'
@@ -237,7 +238,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
   <table class="summary-table">
     <thead>
       <tr>
-        <th>Hadir</th><th>Bolos</th><th>Sakit</th><th>Izin</th><th>Alfa</th><th>Perlu Keputusan Wali</th><th>Total Hari</th>
+        <th>Hadir</th><th>Bolos</th><th>Sakit</th><th>Izin</th><th>Alfa</th><th>Perlu Keputusan Wali</th><th>Belum Lengkap</th><th>Total Hari</th>
       </tr>
     </thead>
     <tbody>
@@ -248,6 +249,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
         <td>${summary?.izin ?? 0}</td>
         <td>${summary?.alfa ?? 0}</td>
         <td>${summary?.perlu_konfirmasi_wali ?? 0}</td>
+        <td>${summary?.belum_ada_data ?? 0}</td>
         <td>${days.length}</td>
       </tr>
     </tbody>
@@ -274,6 +276,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
       <p>Hadir: Hadir semua blok jam pelajaran</p>
       <p>Bolos: Hadir sebagian jam, lalu alfa di sebagian jam</p>
       <p>Perlu Keputusan Wali: Ada campuran alfa, sakit, dan/atau izin dalam satu hari</p>
+      <p>Belum Lengkap: Absensi harian belum selesai diinput semua guru</p>
       <p>Sakit / Izin: Tidak hadir dengan keterangan</p>
       <p>Alfa: Tidak hadir tanpa keterangan</p>
     </div>
@@ -312,6 +315,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
     { label: 'Izin',    val: summary.izin,    cls: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
     { label: 'Alfa',    val: summary.alfa,    cls: 'bg-rose-50 border-rose-200 text-rose-700' },
     { label: 'Keputusan Wali', val: summary.perlu_konfirmasi_wali ?? 0, cls: 'bg-purple-50 border-purple-200 text-purple-700' },
+    { label: 'Belum Lengkap', val: summary.belum_ada_data ?? 0, cls: 'bg-slate-50 border-slate-200 text-slate-600' },
   ] : []
 
   return (
@@ -407,7 +411,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
         {loaded && !result?.error && (
           <>
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-7 gap-2">
               {statCards.map(s => (
                 <div key={s.label} className={`border rounded-xl p-3 text-center flex flex-col items-center ${s.cls}`}>
                   <p className="text-2xl font-black">{s.val}</p>
@@ -463,7 +467,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
                                   {day.sumberStatus === 'guru' ? 'Guru'
                                     : day.sumberStatus === 'wali_kelas' ? 'Wali Kelas'
                                     : day.sumberStatus === 'koreksi_wali_kelas' ? 'Koreksi Wali'
-                                    : 'Belum ada data'}
+                                    : 'Belum lengkap'}
                                 </span>
                               )}
                               {day.statusWaliKelas && (
@@ -548,6 +552,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
               { key: 'IZIN'          as StatusKey, label: 'Izin',          desc: 'Tidak hadir karena izin',     cls: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
               { key: 'ALFA'          as StatusKey, label: 'Alfa',          desc: 'Tidak hadir tanpa keterangan',cls: 'bg-rose-50 border-rose-200 text-rose-700' },
               { key: 'PERLU KONFIRMASI WALI' as StatusKey, label: 'Keputusan Wali', desc: 'Campuran status, perlu ditentukan wali kelas', cls: 'bg-purple-50 border-purple-200 text-purple-700' },
+              { key: 'BELUM_ADA_DATA' as StatusKey, label: 'Belum Lengkap', desc: 'Absensi harian belum selesai diinput', cls: 'bg-slate-50 border-slate-200 text-slate-600' },
             ]).map(item => {
               const count = result?.days?.filter(d => d.statusHari === item.key).length ?? 0
               const checked = printFilter.has(item.key)

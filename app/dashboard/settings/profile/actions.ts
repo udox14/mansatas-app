@@ -21,13 +21,15 @@ export async function updateProfileInfo(prevState: any, formData: FormData) {
   if (!user) return { error: 'Anda belum login', success: null }
 
   const nama_lengkap = (formData.get('nama_lengkap') as string)?.trim()
+  const nip = (formData.get('nip') as string)?.trim() || null
+  const jabatan_cetak = (formData.get('jabatan_cetak') as string)?.trim() || null
   if (!nama_lengkap) return { error: 'Nama lengkap tidak boleh kosong', success: null }
 
   const db = await getDB()
   const result = await dbUpdate(
     db,
     '"user"',
-    { nama_lengkap, name: nama_lengkap, updatedAt: new Date().toISOString() },
+    { nama_lengkap, name: nama_lengkap, nip, jabatan_cetak, updatedAt: new Date().toISOString() },
     { id: user.id }
   )
 

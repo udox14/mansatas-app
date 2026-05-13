@@ -46,7 +46,7 @@ const ST: Record<string, { label: string; cls: string; dot: string; short: strin
   PARSIAL: { label: 'Bolos sebagian jam', short: 'B', dot: 'bg-yellow-500', cls: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
   'PERLU KONFIRMASI WALI': { label: 'Perlu keputusan wali kelas', short: 'W', dot: 'bg-purple-500', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
   PERLU_KONFIRMASI_WALI: { label: 'Perlu keputusan wali kelas', short: 'W', dot: 'bg-purple-500', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
-  BELUM_ADA_DATA: { label: 'Belum ada data', short: '?', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
+  BELUM_ADA_DATA: { label: 'Belum lengkap', short: 'BL', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
   '-': { label: '-', short: '-', dot: 'bg-slate-300', cls: 'bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-900 dark:text-slate-500 dark:border-slate-800' },
 }
 
@@ -153,7 +153,7 @@ function SummaryChips({ item }: { item: any }) {
     ['Alfa', item.alfa, 'text-red-700 bg-red-50 border-red-200'],
     ['Bolos sebagian jam', item.bolos, 'text-yellow-700 bg-yellow-50 border-yellow-200'],
     ['Perlu keputusan wali kelas', item.perlu_konfirmasi_wali, 'text-purple-700 bg-purple-50 border-purple-200'],
-    ['Belum ada data', item.belum_ada_data, 'text-slate-600 bg-slate-100 border-slate-200'],
+    ['Belum lengkap', item.belum_ada_data, 'text-slate-600 bg-slate-100 border-slate-200'],
   ]
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -221,6 +221,10 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
     setLoading(false)
   }
 
+  const followUpItems = data.filter(item =>
+    Number(item.belum_ada_data || 0) > 0 || Number(item.perlu_konfirmasi_wali || 0) > 0
+  )
+
   return (
     <div className="space-y-3">
       <div className="rounded-lg border bg-white p-4 dark:bg-slate-900">
@@ -249,6 +253,46 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
       </div>
 
       {info && <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{info}</div>}
+
+      {followUpItems.length > 0 && (
+        <div className="rounded-lg border border-purple-200 bg-purple-50 p-4 text-purple-900">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-sm font-bold">Tindak lanjut Belum Lengkap</p>
+              <p className="mt-0.5 text-xs text-purple-700">
+                Untuk wali kelas, staff tata usaha, dan admin. Cek kelas berikut lalu koordinasikan absensi guru/piket atau tetapkan keputusan wali kelas.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-bold text-purple-700">
+              {followUpItems.length} kelas perlu dicek
+            </span>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {followUpItems.map(item => (
+              <button
+                key={`follow-up-${item.kelas_id}`}
+                type="button"
+                onClick={() => onOpenKelas({
+                  source: 'follow-up',
+                  mode,
+                  kelasId: item.kelas_id,
+                  kelasLabel: item.label,
+                  tanggal,
+                  tglMulai,
+                  tglSelesai,
+                })}
+                className="rounded-md border border-purple-200 bg-white px-3 py-2 text-left text-xs shadow-sm transition-colors hover:border-purple-400"
+              >
+                <p className="font-bold text-slate-900">{item.label}</p>
+                <p className="mt-1 text-purple-700">
+                  Belum lengkap: {item.belum_ada_data || 0}
+                  {Number(item.perlu_konfirmasi_wali || 0) > 0 ? ` • Keputusan wali: ${item.perlu_konfirmasi_wali}` : ''}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {data.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -386,7 +430,14 @@ function TabSiswa({ filterOptions, initialJump, onBack }: {
                   <th className="w-10 px-3 py-2">No</th>
                   <th className="min-w-[220px] px-3 py-2">Nama Siswa</th>
                   <th className="px-3 py-2">NISN</th>
-                  {(result.slots || []).map((slot: any) => <th key={slot.id} className="px-2 py-2 text-center">Jam {slot.id}</th>)}
+                  {(result.slots || []).map((slot: any) => (
+                    <th key={slot.id} className="min-w-[92px] px-2 py-2 text-center align-top">
+                      <span className="block font-semibold">Jam {slot.id}</span>
+                      <span className="mt-0.5 block text-[10px] font-normal leading-tight text-slate-500">
+                        {slot.nama_mapel || '-'}
+                      </span>
+                    </th>
+                  ))}
                   <th className="min-w-[150px] px-3 py-2">Status Harian</th>
                   <th className="min-w-[240px] px-3 py-2">Keterangan</th>
                 </tr>
@@ -418,7 +469,7 @@ function TabSiswa({ filterOptions, initialJump, onBack }: {
             <table className="min-w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-500 dark:bg-slate-800">
                 <tr>
-                  {['No', 'Nama Siswa', 'NISN', 'Hari Efektif', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Bolos sebagian jam', 'Perlu keputusan wali kelas', 'Belum ada data', 'Kehadiran'].map(h => (
+                  {['No', 'Nama Siswa', 'NISN', 'Hari Efektif', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Bolos sebagian jam', 'Perlu keputusan wali kelas', 'Belum lengkap', 'Kehadiran'].map(h => (
                     <th key={h} className="whitespace-nowrap px-3 py-2">{h}</th>
                   ))}
                 </tr>
@@ -762,7 +813,7 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai }: any) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
               <thead>
                 <tr>
-                  {['No', 'Nama Siswa', 'NISN', 'Hari Efektif', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Bolos sebagian jam', 'Perlu keputusan wali kelas', 'Belum ada data', 'Kehadiran'].map(h => (
+                  {['No', 'Nama Siswa', 'NISN', 'Hari Efektif', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Bolos sebagian jam', 'Perlu keputusan wali kelas', 'Belum lengkap', 'Kehadiran'].map(h => (
                     <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>
                   ))}
                 </tr>
@@ -810,7 +861,7 @@ function PrintSiswa({ data, tglMulai, tglSelesai }: any) {
         </tbody>
       </table>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12, fontSize: 10 }}>
-        <thead><tr>{['Hadir', 'Bolos', 'Sakit', 'Izin', 'Alfa', 'Perlu keputusan wali kelas', 'Belum ada data'].map(h => <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>)}</tr></thead>
+        <thead><tr>{['Hadir', 'Bolos', 'Sakit', 'Izin', 'Alfa', 'Perlu keputusan wali kelas', 'Belum lengkap'].map(h => <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>)}</tr></thead>
         <tbody><tr>
           <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.hadir || 0}</td>
           <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.parsial || summary.bolos || 0}</td>

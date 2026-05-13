@@ -194,9 +194,7 @@ async function getIzinMapForClass(db: D1Database, kelasId: string, startDate: st
   return map
 }
 
-function applyIzinStatus(item: FinalAttendanceDetail, izinItems?: Array<{ jam: number[]; alasan: string; keterangan: string | null }>) {
-  if (!izinItems?.length) return item.status_akhir
-  if (['HADIR', 'BELUM_ADA_DATA'].includes(item.status_akhir)) return 'IZIN'
+function applyIzinStatus(item: FinalAttendanceDetail, _izinItems?: Array<{ jam: number[]; alasan: string; keterangan: string | null }>) {
   return item.status_akhir
 }
 
@@ -448,10 +446,15 @@ async function buildClassDailyMatrix(db: D1Database, kelasId: string, tanggal: s
     }
   })
 
+  const slotsWithMapel = slots.map(slot => ({
+    ...slot,
+    nama_mapel: jadwalByJam.get(slot.id)?.nama_mapel || null,
+  }))
+
   return {
     error: null,
     kelas: classData.kelas,
-    slots,
+    slots: slotsWithMapel,
     rows,
     calendarStatus: null,
   }

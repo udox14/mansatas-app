@@ -51,7 +51,7 @@ function badgeClass(status: string) {
 }
 
 function attendanceStatusLabel(status: string | null | undefined) {
-  if (!status || status === 'BELUM_ADA_DATA') return 'Belum Ada Data'
+  if (!status || status === 'BELUM_ADA_DATA') return 'Belum Lengkap'
   if (status === 'PARSIAL') return 'Bolos'
   if (status === 'PERLU_KONFIRMASI_WALI') return 'Perlu Keputusan Wali'
   return status
@@ -62,7 +62,7 @@ function sourceLabel(source: string) {
   if (source === 'koreksi_wali_kelas') return 'Koreksi Wali'
   if (source === 'guru') return 'Guru'
   if (source === 'perlu_konfirmasi_wali') return 'Perlu Keputusan Wali'
-  return 'Belum Ada Data'
+  return 'Belum Lengkap'
 }
 
 function summonStatusLabel(status: string | null) {
@@ -348,12 +348,12 @@ export async function KelasBinaanDashboard({
   const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
 
   const tidakMasukHariIni = studentRows
-    .filter(row => row.todayStatus && ['SAKIT', 'IZIN', 'ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI'].includes(row.todayStatus.status_akhir))
+    .filter(row => row.todayStatus && ['SAKIT', 'IZIN', 'ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI', 'BELUM_ADA_DATA'].includes(row.todayStatus.status_akhir))
     .sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
 
   const perluPerhatian = studentRows
     .filter(row =>
-      (row.todayStatus && ['ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI'].includes(row.todayStatus.status_akhir)) ||
+      (row.todayStatus && ['ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI', 'BELUM_ADA_DATA'].includes(row.todayStatus.status_akhir)) ||
       row.monthly.alfa >= 2 ||
       row.totalPoin >= 25
     )
@@ -415,7 +415,7 @@ export async function KelasBinaanDashboard({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         {[
           { label: 'Hadir', value: todaySummary.hadir, tone: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'Sakit', value: todaySummary.sakit, tone: 'text-amber-600', bg: 'bg-amber-50' },
@@ -423,6 +423,7 @@ export async function KelasBinaanDashboard({
           { label: 'Alfa', value: todaySummary.alfa, tone: 'text-rose-600', bg: 'bg-rose-50' },
           { label: 'Bolos', value: todaySummary.parsial, tone: 'text-violet-600', bg: 'bg-violet-50' },
           { label: 'Keputusan Wali', value: todaySummary.perluKonfirmasiWali, tone: 'text-purple-600', bg: 'bg-purple-50' },
+          { label: 'Belum Lengkap', value: todaySummary.belumAdaData, tone: 'text-slate-600', bg: 'bg-slate-100' },
         ].map(item => (
           <div key={item.label} className="rounded-xl border border-surface bg-surface shadow-sm p-4">
             <div className={`inline-flex rounded-lg p-2 ${item.bg}`}>
@@ -529,7 +530,7 @@ export async function KelasBinaanDashboard({
             </div>
             <div className="flex-1">
               <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Perlu Perhatian</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">Alfa berulang, bolos, atau poin tinggi</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">Alfa berulang, bolos, belum lengkap, atau poin tinggi</p>
             </div>
           </div>
           <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
