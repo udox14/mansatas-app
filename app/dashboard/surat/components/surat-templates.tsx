@@ -135,7 +135,7 @@ function pejabat(data: any, key = 'kepala') {
   return {
     nama: text(p.nama_lengkap || p.nama),
     nip: text(p.nip),
-    jabatan: text(p.jabatan_cetak || p.jabatan || p.nama_jabatan),
+    jabatan: text(p.jabatan_cetak || p.jabatan_struktural_nama || p.jabatan || p.nama_jabatan),
     pangkat: text(p.pangkat_golongan),
   }
 }

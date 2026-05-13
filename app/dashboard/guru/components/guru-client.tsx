@@ -28,11 +28,14 @@ import { MENU_ITEMS, getRoleLabel } from '@/config/menu'
 import { cn } from '@/lib/utils'
 
 type MasterRoleType = { value: string; label: string; is_custom: number }
+type MasterJabatanStruktural = { id: string; nama: string; urutan: number }
 type ProfilType = {
   id: string, nama_lengkap: string, role: string, roles: string[], email: string,
   avatar_url?: string | null,
   nip?: string | null,
   jabatan_cetak?: string | null,
+  jabatan_struktural_id?: string | null,
+  jabatan_struktural_nama?: string | null,
 }
 
 type ExportRow = {
@@ -124,8 +127,8 @@ const escapeHtml = (value: string) => value
   .replaceAll('"', '&quot;')
   .replaceAll("'", '&#39;')
 
-export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
-  initialData: ProfilType[], masterRoles?: MasterRoleType[]
+export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJabatanStruktural = [] }: {
+  initialData: ProfilType[], masterRoles?: MasterRoleType[], masterJabatanStruktural?: MasterJabatanStruktural[]
 }) {
   const [isPending, setIsPending] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -201,6 +204,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
       formData.get('email') as string,
       formData.get('nip') as string,
       formData.get('jabatan_cetak') as string,
+      formData.get('jabatan_struktural_id') as string,
     )
     if (res?.error) alert(res.error)
     else { alert(res.success); setEditingPegawai(null) }
@@ -550,9 +554,19 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                 <Input name="nip" defaultValue={editingPegawai?.nip || ''} className="h-9 text-sm rounded-lg" placeholder="Nomor Induk Pegawai" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Jabatan Cetak CKH</Label>
-                <Input name="jabatan_cetak" defaultValue={editingPegawai?.jabatan_cetak || ''} className="h-9 text-sm rounded-lg" placeholder="Contoh: GURU BAHASA ARAB" />
+                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Jabatan Struktural</Label>
+                <Select name="jabatan_struktural_id" defaultValue={editingPegawai?.jabatan_struktural_id || '_none'}>
+                  <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue placeholder="Pilih jabatan struktural" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none" className="text-xs">Tidak ada</SelectItem>
+                    {masterJabatanStruktural.map(j => <SelectItem key={j.id} value={j.id} className="text-xs">{j.nama}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Jabatan Cetak CKH / Surat</Label>
+              <Input name="jabatan_cetak" defaultValue={editingPegawai?.jabatan_cetak || ''} className="h-9 text-sm rounded-lg" placeholder="Contoh: Guru Bahasa Arab / Wakamad Bidang Kurikulum" />
             </div>
             <Button type="submit" disabled={isPending} className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
@@ -769,9 +783,19 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                       <Input name="nip" className="h-9 text-sm rounded-lg" placeholder="Opsional, untuk CKH" />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Jabatan Cetak CKH</Label>
-                      <Input name="jabatan_cetak" className="h-9 text-sm rounded-lg" placeholder="Contoh: GURU BAHASA ARAB" />
+                      <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Jabatan Struktural</Label>
+                      <Select name="jabatan_struktural_id" defaultValue="_none">
+                        <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue placeholder="Pilih jabatan struktural" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_none" className="text-xs">Tidak ada</SelectItem>
+                          {masterJabatanStruktural.map(j => <SelectItem key={j.id} value={j.id} className="text-xs">{j.nama}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Jabatan Cetak CKH / Surat</Label>
+                    <Input name="jabatan_cetak" className="h-9 text-sm rounded-lg" placeholder="Contoh: Guru Bahasa Arab / Wakamad Bidang Kurikulum" />
                   </div>
                   <SubmitButton />
                 </form>
@@ -880,13 +904,14 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                   <TableRow className="bg-surface-2 hover:bg-surface-2">
                     <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">Profil Pegawai</TableHead>
                     <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 w-52">Role</TableHead>
+                    <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 w-48">Struktural</TableHead>
                     <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 text-right px-4 w-36">Kelola</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedData.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={3} className="h-24 text-center">
+                      <TableCell colSpan={4} className="h-24 text-center">
                         <div className="flex flex-col items-center gap-2 text-slate-400">
                           <Users className="h-7 w-7 text-slate-300 dark:text-slate-600" />
                           <p className="text-sm">Tidak ada data pegawai.</p>
@@ -920,6 +945,17 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES }: {
                           <button onClick={() => openRoleModal(p)} className="p-1 rounded text-violet-500 hover:bg-violet-50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" title="Atur Role">
                             <Pencil className="h-3 w-3" />
                           </button>
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-2.5">
+                        <div className="space-y-1">
+                          <span className={cn(
+                            'inline-flex rounded border px-2 py-0.5 text-[10px] font-medium',
+                            p.jabatan_struktural_nama ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-400'
+                          )}>
+                            {p.jabatan_struktural_nama || 'Tidak ada'}
+                          </span>
+                          {p.jabatan_cetak && <p className="text-[10px] text-slate-400">{p.jabatan_cetak}</p>}
                         </div>
                       </TableCell>
                       <TableCell className="py-2.5 px-4 text-right">

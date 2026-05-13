@@ -12,6 +12,41 @@ async function getAuth() {
   return createAuth(env.DB)
 }
 
+export async function ensureJabatanStrukturalSchema(db?: D1Database) {
+  const database = db || await getDB()
+  await database.prepare(`
+    CREATE TABLE IF NOT EXISTS master_jabatan_struktural (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      nama TEXT NOT NULL UNIQUE,
+      urutan INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `).run()
+  try {
+    await database.prepare('ALTER TABLE "user" ADD COLUMN jabatan_struktural_id TEXT REFERENCES master_jabatan_struktural(id) ON DELETE SET NULL').run()
+  } catch {
+    // Column already exists on migrated databases.
+  }
+  const defaults = [
+    ['jbt_kepsek', 'Kepala Madrasah', 1],
+    ['jbt_waka_kurikulum', 'Wakamad Bidang Kurikulum', 2],
+    ['jbt_waka_kesiswaan', 'Wakamad Bidang Kesiswaan', 3],
+    ['jbt_waka_sarpras', 'Wakamad Bidang Sarana Prasarana', 4],
+    ['jbt_waka_humas', 'Wakamad Bidang Humas', 5],
+    ['jbt_ktu', 'Kepala TU', 6],
+    ['jbt_bendahara', 'Bendahara', 7],
+    ['jbt_operator', 'Operator', 8],
+    ['jbt_staff_tu', 'Staff TU', 9],
+    ['jbt_wali_kelas', 'Wali Kelas', 10],
+    ['jbt_guru_bk', 'Guru BK', 11],
+    ['jbt_guru', 'Guru', 12],
+  ]
+  await database.batch(defaults.map(([id, nama, urutan]) =>
+    database.prepare('INSERT OR IGNORE INTO master_jabatan_struktural (id, nama, urutan) VALUES (?, ?, ?)')
+      .bind(id, nama, urutan)
+  ))
+}
+
 // ============================================================
 // TAMBAH PEGAWAI (1 user)
 // ============================================================
@@ -21,6 +56,8 @@ export async function tambahPegawai(prevState: any, formData: FormData) {
   const role = formData.get('role') as string
   const nip = (formData.get('nip') as string)?.trim() || null
   const jabatan_cetak = (formData.get('jabatan_cetak') as string)?.trim() || null
+  const jabatan_struktural_id_raw = (formData.get('jabatan_struktural_id') as string)?.trim()
+  const jabatan_struktural_id = jabatan_struktural_id_raw && jabatan_struktural_id_raw !== '_none' ? jabatan_struktural_id_raw : null
 
   if (!nama_lengkap || !email || !role) {
     return { error: 'Semua field wajib diisi.', success: null }
@@ -33,9 +70,10 @@ export async function tambahPegawai(prevState: any, formData: FormData) {
     }) as any
     if (!res?.user?.id) throw new Error('Gagal membuat akun.')
     const db = await getDB()
+    await ensureJabatanStrukturalSchema(db)
     // Update role utama di tabel user
-    await db.prepare(`UPDATE "user" SET role = ?, nama_lengkap = ?, nip = ?, jabatan_cetak = ?, updatedAt = datetime('now') WHERE id = ?`)
-      .bind(role, nama_lengkap, nip, jabatan_cetak, res.user.id).run()
+    await db.prepare(`UPDATE "user" SET role = ?, nama_lengkap = ?, nip = ?, jabatan_cetak = ?, jabatan_struktural_id = ?, updatedAt = datetime('now') WHERE id = ?`)
+      .bind(role, nama_lengkap, nip, jabatan_cetak, jabatan_struktural_id, res.user.id).run()
     // Insert ke user_roles
     await db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)')
       .bind(res.user.id, role).run()
@@ -51,8 +89,10 @@ export async function tambahPegawai(prevState: any, formData: FormData) {
 // ============================================================
 // EDIT PEGAWAI
 // ============================================================
-export async function editPegawai(id: string, nama_lengkap: string, email: string, nip?: string, jabatan_cetak?: string) {
+export async function editPegawai(id: string, nama_lengkap: string, email: string, nip?: string, jabatan_cetak?: string, jabatan_struktural_id?: string) {
   const db = await getDB()
+  await ensureJabatanStrukturalSchema(db)
+  const strukturalId = jabatan_struktural_id?.trim() && jabatan_struktural_id !== '_none' ? jabatan_struktural_id : null
   const result = await dbUpdate(
     db, '"user"',
     {
@@ -61,6 +101,7 @@ export async function editPegawai(id: string, nama_lengkap: string, email: strin
       email,
       nip: nip?.trim() || null,
       jabatan_cetak: jabatan_cetak?.trim() || null,
+      jabatan_struktural_id: strukturalId,
       updatedAt: new Date().toISOString(),
     },
     { id }

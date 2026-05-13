@@ -208,13 +208,13 @@ export function SuratClient({ masterData, logSurat: initialLog, penandatanganSet
   const guruOptions = useMemo(() => masterData.guru.map((g: any) => ({
     value: g.id,
     label: g.nama_lengkap,
-    sub: [g.jabatan_cetak, g.nip].filter(Boolean).join(' | ') || g.role || '',
+    sub: [g.jabatan_cetak || g.jabatan_struktural_nama, g.nip].filter(Boolean).join(' | ') || g.role || '',
   })), [masterData.guru])
 
   const pejabatOptions = useMemo(() => masterData.pejabat.map((p: any) => ({
     value: p.user_id || p.id,
     label: p.nama_lengkap,
-    sub: [p.jabatan_cetak || p.nama, p.nip].filter(Boolean).join(' | ') || p.role || '',
+    sub: [p.jabatan_cetak || p.jabatan_struktural_nama || p.nama, p.nip].filter(Boolean).join(' | ') || p.role || '',
   })), [masterData.pejabat])
 
   const selectedSiswa = formData.siswa_id ? masterData.siswa.find((s: any) => s.id === formData.siswa_id) : null
@@ -227,7 +227,7 @@ export function SuratClient({ masterData, logSurat: initialLog, penandatanganSet
       if (picked) return picked
     }
     const lower = (v: any) => String(v || '').toLowerCase()
-    const jab = (p: any) => lower(p.jabatan_cetak || p.nama)
+    const jab = (p: any) => lower([p.jabatan_struktural_nama, p.jabatan_cetak, p.nama].filter(Boolean).join(' '))
     if (key === 'kepala') {
       return all.find((p: any) => jab(p).includes('kepala madrasah')) || all.find((p: any) => p.role === 'kepsek') || {}
     }
@@ -296,7 +296,7 @@ export function SuratClient({ masterData, logSurat: initialLog, penandatanganSet
       }).filter(Boolean)
       const pengikutGuru = (formData.pengikut_guru_ids || []).map((id: string) => {
         const g = masterData.guru.find((item: any) => item.id === id)
-        return g ? { nama: g.nama_lengkap, tanggal_lahir: g.tanggal_lahir, keterangan: g.jabatan_cetak || g.role || 'Pegawai' } : null
+        return g ? { nama: g.nama_lengkap, tanggal_lahir: g.tanggal_lahir, keterangan: g.jabatan_cetak || g.jabatan_struktural_nama || g.role || 'Pegawai' } : null
       }).filter(Boolean)
       base.daftar_pengikut = [...pengikutSiswa, ...pengikutGuru]
     }
@@ -304,7 +304,7 @@ export function SuratClient({ masterData, logSurat: initialLog, penandatanganSet
     if (wizardType === 'surat_tugas') {
       base.daftar_guru = (formData.guru_ids || []).map((id: string) => {
         const g = masterData.guru.find((item: any) => item.id === id)
-        return g ? { nama: g.nama_lengkap, jabatan: g.jabatan_cetak || g.role, nip: g.nip } : null
+        return g ? { nama: g.nama_lengkap, jabatan: g.jabatan_cetak || g.jabatan_struktural_nama || g.role, nip: g.nip } : null
       }).filter(Boolean)
     }
 
