@@ -23,6 +23,45 @@ const STATUS_UI = {
   ALFA:  { bg: 'bg-red-50',   border: 'border-red-300',   text: 'text-red-700',   icon: XCircle,      label: 'Alfa'  },
 }
 
+function statusLabel(status: string | null | undefined) {
+  if (status === 'HADIR') return 'Hadir'
+  if (status === 'SAKIT') return 'Sakit'
+  if (status === 'IZIN') return 'Izin'
+  if (status === 'ALFA') return 'Alfa'
+  if (status === 'PARSIAL') return 'Bolos'
+  if (status === 'PERLU_KONFIRMASI_WALI') return 'Perlu Keputusan Wali'
+  if (status === 'BELUM_ADA_INPUT') return 'Belum Ada Input'
+  return 'Belum Lengkap'
+}
+
+function sourceLabel(source: string | null | undefined) {
+  if (source === 'wali_kelas') return 'Wali Kelas'
+  if (source === 'koreksi_wali_kelas') return 'Koreksi Wali'
+  if (source === 'guru') return 'Guru'
+  if (source === 'perlu_konfirmasi_wali') return 'Perlu Keputusan Wali'
+  if (source === 'belum_ada_input') return 'Belum Ada Input'
+  return 'Belum Lengkap'
+}
+
+function statusBadgeClass(status: string | null | undefined) {
+  if (status === 'HADIR') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  if (status === 'SAKIT') return 'bg-amber-50 text-amber-700 border-amber-200'
+  if (status === 'IZIN') return 'bg-blue-50 text-blue-700 border-blue-200'
+  if (status === 'ALFA') return 'bg-red-50 text-red-700 border-red-200'
+  if (status === 'PARSIAL') return 'bg-violet-50 text-violet-700 border-violet-200'
+  if (status === 'PERLU_KONFIRMASI_WALI') return 'bg-purple-50 text-purple-700 border-purple-200'
+  return 'bg-slate-100 text-slate-600 border-slate-200'
+}
+
+function statusPriority(status: string | null | undefined) {
+  if (status === 'PERLU_KONFIRMASI_WALI') return 0
+  if (status === 'PARSIAL') return 1
+  if (status === 'BELUM_ADA_INPUT') return 2
+  if (status === 'BELUM_ADA_DATA') return 3
+  if (status === 'ALFA') return 4
+  return 5
+}
+
 export function KeteranganClient({ kelasList, initialKelasId }: Props) {
   const today = new Date().toISOString().split('T')[0]
 
@@ -95,6 +134,10 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
   }
 
   const jumlahDitandai = siswaList.filter(s => s.status !== null).length
+  const sortedSiswaList = [...siswaList].sort((a, b) => (
+    statusPriority(a.status_akhir) - statusPriority(b.status_akhir) ||
+    a.nama_lengkap.localeCompare(b.nama_lengkap)
+  ))
 
   return (
     <div className="space-y-4 pb-40 md:pb-24">
@@ -178,7 +221,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
           </div>
 
           <div className="space-y-2">
-            {siswaList.map((s, idx) => {
+            {sortedSiswaList.map((s, idx) => {
               const noteOpen = expandedNote === s.siswa_id
               const ui = s.status ? STATUS_UI[s.status] : null
 
@@ -192,7 +235,13 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
 
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-medium text-slate-800 dark:text-slate-100 truncate leading-tight">{s.nama_lengkap}</p>
-                      <p className="text-[10px] text-slate-400">{s.nisn}</p>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] text-slate-400">{s.nisn}</span>
+                        <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${statusBadgeClass(s.status || s.status_akhir)}`}>
+                          {statusLabel(s.status || s.status_akhir)}
+                        </span>
+                        <span className="text-[10px] text-slate-400">{sourceLabel(s.sumber_status)}</span>
+                      </div>
                     </div>
 
                     {/* Tombol status */}
@@ -259,6 +308,23 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">"{s.keterangan}"</p>
                     </div>
                   )}
+
+                  <div className="px-3 pb-2">
+                    {s.detail_guru.length === 0 ? (
+                      <p className="text-[11px] text-slate-400">Belum ada input guru untuk tanggal ini.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {s.detail_guru.map((detail, detailIndex) => (
+                          <div key={`${s.siswa_id}-${detail.nama_mapel}-${detailIndex}`} className="rounded-md border border-slate-100 bg-white/70 px-2 py-1.5 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300">
+                            <span className="font-semibold">{detail.nama_mapel}</span>
+                            <span className="text-slate-400"> Jam {detail.jam_ke_mulai === detail.jam_ke_selesai ? detail.jam_ke_mulai : `${detail.jam_ke_mulai}-${detail.jam_ke_selesai}`}</span>
+                            <span className={`ml-1.5 rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${statusBadgeClass(detail.status)}`}>{statusLabel(detail.status)}</span>
+                            {detail.catatan ? <span className="ml-1 text-slate-500">Catatan: {detail.catatan}</span> : null}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )
             })}
