@@ -17,7 +17,7 @@ const BULAN = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli
 
 export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   paper: 'A4',
-  margins: { top: 20, right: 20, bottom: 20, left: 20 },
+  margins: { top: 15, right: 15, bottom: 15, left: 15 },
 }
 
 export function getPrintSettings(data?: any): PrintSettings {
@@ -714,189 +714,14 @@ function TravelSignature({ label, name, nip, indent = '0', spacer = '8mm', bold 
 }
 
 // ============================================================
-// TEMPLATE LAMA YANG TETAP TERSEDIA
-// ============================================================
-export function TemplatePenerimaan({ data }: { data: any }) {
-  const s = data.siswa || {}
-  const kepala = pejabat(data, 'kepala')
-  return (
-    <Page data={data}>
-      <KopSurat data={data} />
-      <Title>SURAT KETERANGAN PENERIMAAN</Title>
-      <Nomor value={data.nomor_surat} />
-      <P>Yang bertanda tangan di bawah ini Kepala MAN 1 Tasikmalaya menerangkan bahwa :</P>
-      <FieldRows
-        rows={[
-          ['Nama Siswa', upper(s.nama_lengkap)],
-          ['Tempat Tanggal Lahir', ttl(s)],
-          ['Kelas', kelas(s)],
-          ['NISN', text(s.nisn)],
-          ['Nama Orang Tua/Wali', waliNama(s)],
-          ['Pekerjaan Orang Tua/Wali', waliPekerjaan(s)],
-          ['Alamat Orang Tua/Wali', alamatSiswa(s)],
-        ]}
-        left={8}
-        labelWidth={50}
-      />
-      <P>Telah diterima di MAN 1 Tasikmalaya pada tanggal {formatTanggalIndo(data.tanggal_terima)}.</P>
-      <P>Demikian surat keterangan ini dibuat, untuk diketahui dan dipergunakan sebagaimana mestinya.</P>
-      <SignatureBlock data={data} signer={kepala} label="Kepala MAN 1 Tasikmalaya," />
-    </Page>
-  )
-}
-
-export function TemplateIzinPesantren({ data }: { data: any }) {
-  const kepala = pejabat(data, 'kepala')
-  return (
-    <Page data={data}>
-      <KopSurat data={data} />
-      <HeaderSurat data={data} perihal={data.perihal || 'Permohonan Izin'} />
-      <P><i>Assalamu'alaikum Wr. Wb.</i></P>
-      <P indent>Salam silaturahmi teriring doa kami sampaikan semoga segala aktivitas Bapak/Ibu senantiasa berada dalam lindungan dan maghfiroh Allah SWT.</P>
-      <P indent>Selanjutnya, sehubungan dengan {text(data.keperluan, 'akan dilaksanakannya kegiatan')}, kami memohon untuk memberikan izin kepada peserta didik kami sebagaimana terlampir di bawah ini:</P>
-      <SimplePeopleTable rows={data.daftar_siswa || []} />
-      <P>Untuk tidak mengikuti kegiatan pesantren, pada:</P>
-      <FieldRows rows={[['Hari, tanggal', text(data.hari_tanggal)], ['Waktu', text(data.waktu)], ['Tempat', text(data.tempat, 'MAN 1 Tasikmalaya')]]} left={15} labelWidth={38} />
-      <P indent>Besar harapan kami kiranya Bapak/Ibu dapat memberikan izin untuk pelaksanaan kegiatan tersebut. Demikian permohonan izin ini disampaikan. Atas segala perhatian dan kerjasamanya kami ucapkan terima kasih.</P>
-      <P><i>Wassalamu'alaikum Wr. Wb.</i></P>
-      <SignatureBlock data={data} signer={kepala} label="Kepala Madrasah," />
-    </Page>
-  )
-}
-
-export function TemplatePermohonan({ data }: { data: any }) {
-  const kepala = pejabat(data, 'kepala')
-  return (
-    <Page data={data}>
-      <KopSurat data={data} />
-      <HeaderSurat data={data} perihal={data.perihal || 'Permohonan'} />
-      <P><i>Assalamu'alaikum Wr. Wb.</i></P>
-      <P indent>{text(data.isi_surat, 'Sehubungan akan diadakannya kegiatan tersebut, kami memohon kiranya Bapak/Ibu berkenan memenuhi permohonan ini.')}</P>
-      {(data.hari_tanggal || data.waktu || data.tempat) && (
-        <FieldRows rows={[['Hari/Tanggal', text(data.hari_tanggal)], ['Waktu', text(data.waktu)], ['Tempat', text(data.tempat)]]} left={15} labelWidth={35} />
-      )}
-      {data.isi_tambahan && <P indent>{data.isi_tambahan}</P>}
-      <P indent>Demikian permohonan ini kami sampaikan, atas perhatian dan partisipasinya kami ucapkan terima kasih.</P>
-      <P><i>Wassalamu'alaikum Wr. Wb.</i></P>
-      <SignatureBlock data={data} signer={kepala} label="Kepala Madrasah," />
-    </Page>
-  )
-}
-
-export function TemplateSuratTugas({ data }: { data: any }) {
-  const kepala = pejabat(data, 'kepala')
-  const daftarGuru: any[] = data.daftar_guru || []
-  return (
-    <Page data={data}>
-      <KopSurat data={data} />
-      <Title>SURAT TUGAS</Title>
-      <Nomor value={data.nomor_surat} />
-      {data.dasar_surat && <P indent>{data.dasar_surat}</P>}
-      <P>Yang bertanda tangan di bawah ini :</P>
-      <FieldRows rows={[['Nama', kepala.nama], ['Jabatan', kepala.jabatan || 'Kepala MAN 1 Tasikmalaya']]} left={8} labelWidth={35} />
-      <P>Dengan ini menugaskan kepada :</P>
-      <SimplePeopleTable rows={daftarGuru} />
-      <P>untuk {text(data.tujuan_tugas, 'melaksanakan tugas')} yang dilaksanakan pada tanggal {text(data.tanggal_kegiatan)} bertempat di {text(data.tempat_kegiatan)}.</P>
-      <P>Demikian surat tugas ini diberikan untuk dapat dilaksanakan dengan penuh tanggung jawab.</P>
-      <SignatureBlock data={data} signer={kepala} label="Kepala Madrasah," />
-    </Page>
-  )
-}
-
-export function TemplateUndanganRapat({ data }: { data: any }) {
-  const kepala = pejabat(data, 'kepala')
-  return (
-    <Page data={data}>
-      <KopSurat data={data} />
-      <HeaderSurat data={data} perihal={data.perihal || 'Undangan Rapat'} tujuan={data.tujuan_surat || 'Pendidik dan Tenaga Kependidikan'} />
-      <P><i>Assalamu'alaikum Wr. Wb.</i></P>
-      <P indent>{text(data.isi_surat, 'Sehubungan akan dilaksanakannya kegiatan madrasah,')} dengan ini kami mengundang Bapak/Ibu untuk hadir pada kegiatan tersebut yang insya Allah akan dilaksanakan pada :</P>
-      <FieldRows rows={[['Hari/Tanggal', text(data.hari_tanggal)], ['Waktu', text(data.waktu)], ['Tempat', text(data.tempat, 'MAN 1 Tasikmalaya')], ['Agenda', text(data.agenda)]]} left={15} labelWidth={35} />
-      <P indent>Mengingat pentingnya kegiatan tersebut, kami mohon Bapak/Ibu hadir tepat pada waktunya.</P>
-      <P indent>Demikian, atas kehadiran Bapak/Ibu kami haturkan terima kasih.</P>
-      <P><i>Wassalamu'alaikum Wr. Wb.</i></P>
-      {data.catatan && <p style={{ marginTop: '3mm', fontSize: '10pt', fontStyle: 'italic' }}>Catatan: {data.catatan}</p>}
-      <SignatureBlock data={data} signer={kepala} label="Kepala Madrasah," />
-    </Page>
-  )
-}
-
-export function TemplatePernyataan({ data }: { data: any }) {
-  const s = data.siswa || {}
-  return (
-    <Page data={data}>
-      <KopSurat data={data} />
-      <Title>SURAT PERNYATAAN</Title>
-      <P>Yang bertanda tangan di bawah ini :</P>
-      <FieldRows rows={[['Nama', text(data.nama_ortu || s.nama_ayah || s.nama_ibu)], ['Alamat', data.alamat_ortu || alamatSiswa(s)], ['No. KTP', text(data.no_ktp || s.nik_ayah)]]} left={8} labelWidth={35} />
-      <P>Selaku Orang tua / Wali murid dari :</P>
-      <FieldRows rows={[['Nama', upper(s.nama_lengkap)], ['Kelas', kelas(s)]]} left={8} labelWidth={35} />
-      <P>Menyatakan bahwa sejak tahun pelajaran {text(data.tahun_pelajaran)} menarik (mengundurkan diri) siswa tersebut dari MAN 1 Tasikmalaya.</P>
-      <P>Demikian surat pernyataan ini kami buat. Atas perhatian Bapak kami ucapkan terima kasih.</P>
-      <SignatureBlock data={data} signer={{ nama: text(data.nama_ortu || s.nama_ayah || s.nama_ibu), nip: '', jabatan: 'Yang membuat pernyataan,' }} label="Yang membuat pernyataan," />
-    </Page>
-  )
-}
-
-function HeaderSurat({ data, perihal, tujuan }: { data: any; perihal: string; tujuan?: string }) {
-  return (
-    <table style={{ width: '100%', marginBottom: '8mm', borderCollapse: 'collapse', fontFamily: FONT, fontSize: '12pt' }}>
-      <tbody>
-        <tr>
-          <td style={{ width: '50%', verticalAlign: 'top' }}>
-            <FieldRows rows={[['Nomor', text(data.nomor_surat)], ['Lampiran', text(data.lampiran, '-')], ['Perihal', perihal]]} labelWidth={22} />
-          </td>
-          <td style={{ verticalAlign: 'top', textAlign: 'left' }}>
-            <p style={{ margin: 0 }}>Tasikmalaya, {text(data.tanggal_surat || formatTanggalIndo(data.tanggal_surat_raw))}</p>
-            <p style={{ margin: '4mm 0 0' }}>Kepada:</p>
-            <p style={{ margin: 0 }}>Yth. {text(tujuan || data.tujuan_surat)}</p>
-            <p style={{ margin: '2mm 0 0 10mm' }}>di Tempat</p>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  )
-}
-
-function SimplePeopleTable({ rows }: { rows: any[] }) {
-  if (!rows?.length) return null
-  return (
-    <table style={{ width: '90%', margin: '0 0 4mm 8mm', borderCollapse: 'collapse', fontFamily: FONT, fontSize: '11pt' }}>
-      <thead>
-        <tr>
-          <th style={{ border: '0.5pt solid #000', padding: '1mm', width: '10mm' }}>No</th>
-          <th style={{ border: '0.5pt solid #000', padding: '1mm' }}>Nama</th>
-          <th style={{ border: '0.5pt solid #000', padding: '1mm', width: '42mm' }}>Keterangan</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, i) => (
-          <tr key={i}>
-            <td style={{ border: '0.5pt solid #000', padding: '1mm', textAlign: 'center' }}>{i + 1}</td>
-            <td style={{ border: '0.5pt solid #000', padding: '1mm 2mm' }}>{text(row.nama || row.nama_lengkap)}</td>
-            <td style={{ border: '0.5pt solid #000', padding: '1mm 2mm', textAlign: 'center' }}>{text(row.jabatan || row.kelas || row.sub)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
-}
-
-// ============================================================
 // TEMPLATE REGISTRY
 // ============================================================
 export const TEMPLATE_MAP: Record<string, React.FC<{ data: any }>> = {
-  penerimaan: TemplatePenerimaan,
   sppd: TemplateSPPD,
-  izin_pesantren: TemplateIzinPesantren,
   ket_aktif: TemplateKetAktif,
-  permohonan: TemplatePermohonan,
-  surat_tugas: TemplateSuratTugas,
-  undangan_rapat: TemplateUndanganRapat,
   pindah: TemplateMutasiKeluar,
   mutasi_keluar: TemplateMutasiKeluar,
   mutasi_masuk: TemplateMutasiMasuk,
-  pernyataan: TemplatePernyataan,
   kelakuan_baik: TemplateKelakuanBaik,
   penelitian: TemplatePenelitian,
   panggilan_ortu: TemplatePanggilanOrtu,

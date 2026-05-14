@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { MENU_ITEMS } from '@/config/menu'
+import { DEFAULT_SIDEBAR_GROUPS, MENU_ITEMS, type SidebarGroupConfig } from '@/config/menu'
 import { LogOut, X, ChevronLeft, ChevronRight, Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -19,19 +19,6 @@ const SIDEBAR_THEMES = [
 ]
 
 type ThemeKey = typeof SIDEBAR_THEMES[number]['id']
-
-const MENU_GROUPS = [
-  { label: 'Utama', hrefs: ['/dashboard'] },
-  { label: 'Data Master', hrefs: ['/dashboard/siswa', '/dashboard/guru', '/dashboard/kelas', '/dashboard/plotting'] },
-  { label: 'Tugas Harian Guru', hrefs: ['/dashboard/agenda', '/dashboard/ckh-generator', '/dashboard/kehadiran', '/dashboard/nilai-harian', '/dashboard/penugasan'] },
-  { label: 'Monitoring Akademik', hrefs: ['/dashboard/akademik', '/dashboard/kalender-pendidikan', '/dashboard/analitik'] },
-  { label: 'Monitoring & Rekap', hrefs: ['/dashboard/monitoring-agenda', '/dashboard/monitoring-penugasan', '/dashboard/rekap-absensi', '/dashboard/akademik/nilai'] },
-  { label: 'Program Khusus', hrefs: ['/dashboard/tahfidz'] },
-  { label: 'Kesiswaan & BK', hrefs: ['/dashboard/kelas-binaan', '/dashboard/keterangan-absensi', '/dashboard/jadwal-piket', '/dashboard/izin', '/dashboard/kedisiplinan', '/dashboard/bk', '/dashboard/psikotes', '/dashboard/tka', '/dashboard/penerimaan-pt'] },
-  { label: 'Administrasi & HR', hrefs: ['/dashboard/surat', '/dashboard/rapat', '/dashboard/sarpras', '/dashboard/kelola-ppl', '/dashboard/buku-tamu'] },
-  { label: 'Keuangan', hrefs: ['/dashboard/keuangan/daftar-ulang', '/dashboard/keuangan/transaksi', '/dashboard/keuangan/dspt', '/dashboard/keuangan/spp', '/dashboard/keuangan/kas-keluar', '/dashboard/keuangan/laporan'] },
-  { label: 'Sistem', hrefs: ['/dashboard/settings', '/dashboard/settings/notifications', '/dashboard/settings/jadwal-notif', '/dashboard/settings/fitur', '/dashboard/pengumuman-ortu'] },
-]
 
 function getActiveMenu(pathname: string, menuItems: typeof MENU_ITEMS) {
   const sorted = [...menuItems].sort((a, b) => b.href.length - a.href.length)
@@ -50,6 +37,8 @@ interface SidebarProps {
   primaryRole?: string
   userName?: string
   allowedFeatures?: string[]
+  sidebarGroups?: SidebarGroupConfig[]
+  featureLabels?: Record<string, string>
 }
 
 export function Sidebar({
@@ -57,6 +46,8 @@ export function Sidebar({
   primaryRole = 'guru',
   userName = 'Pengguna',
   allowedFeatures = [],
+  sidebarGroups = DEFAULT_SIDEBAR_GROUPS,
+  featureLabels = {},
 }: SidebarProps) {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
@@ -167,9 +158,9 @@ export function Sidebar({
             .sidebar-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); border-radius: 10px; }
             .sidebar-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.25); }
           `}</style>
-          {MENU_GROUPS.map((group, gi) => {
-            const groupItems = group.hrefs
-              .map(href => allowedMenus.find(m => m.href === href))
+          {sidebarGroups.map((group, gi) => {
+            const groupItems = group.items
+              .map(id => allowedMenus.find(m => m.id === id))
               .filter(Boolean) as typeof MENU_ITEMS
             if (groupItems.length === 0) return null
 
@@ -193,7 +184,7 @@ export function Sidebar({
                       <Link
                         key={item.href}
                         href={item.href}
-                        title={collapsed ? item.title : undefined}
+                        title={collapsed ? (featureLabels[item.id] || item.title) : undefined}
                         className={cn(
                           'group flex items-center rounded-xl text-[13px] transition-all duration-300',
                           collapsed ? 'justify-center p-2.5 mx-auto w-[42px] h-[42px]' : 'gap-3 px-3 py-[9px]',
@@ -203,7 +194,7 @@ export function Sidebar({
                         )}
                       >
                         <Icon className={cn('h-[18px] w-[18px] shrink-0 transition-all duration-300', isActive ? 'opacity-100 scale-110 drop-shadow-sm' : 'opacity-70 group-hover:scale-110 group-hover:opacity-100')} />
-                        {!collapsed && <span className="truncate leading-snug">{item.title}</span>}
+                        {!collapsed && <span className="truncate leading-snug">{featureLabels[item.id] || item.title}</span>}
                       </Link>
                     )
                   })}

@@ -9,6 +9,7 @@ import { BottomNav } from '@/components/layout/bottom-nav'
 import { getUserAllowedFeatures, getUserRoles, getPrimaryRole } from '@/lib/features'
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
+import { DEFAULT_SIDEBAR_GROUPS, type SidebarGroupConfig } from '@/config/menu'
 
 export const metadata = {
   title: 'Dashboard - MANSATAS App',
@@ -44,11 +45,41 @@ export default async function DashboardLayout({
 
   // Ambil pengaturan navbar khusus untuk role utama user
   let navLinks: string[] = []
+  let sidebarGroups: SidebarGroupConfig[] = DEFAULT_SIDEBAR_GROUPS
+  let featureLabels: Record<string, string> = {}
   try {
-    const roleConfig = await db.prepare("SELECT mobile_nav_links FROM master_roles WHERE value = ?").bind(primaryRole).first<any>()
+    await Promise.all([
+      db.prepare(`
+        CREATE TABLE IF NOT EXISTS role_sidebar_configs (
+          role TEXT PRIMARY KEY,
+          groups_json TEXT NOT NULL DEFAULT '[]',
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (role) REFERENCES master_roles(value) ON DELETE CASCADE
+        )
+      `).run(),
+      db.prepare(`
+        CREATE TABLE IF NOT EXISTS feature_display_settings (
+          feature_id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `).run(),
+    ])
+    const roleConfig = await db.prepare(`
+      SELECT mr.mobile_nav_links, rsc.groups_json
+      FROM master_roles mr
+      LEFT JOIN role_sidebar_configs rsc ON rsc.role = mr.value
+      WHERE mr.value = ?
+    `).bind(primaryRole).first<any>()
+    const featureLabelRows = await db.prepare('SELECT feature_id, title FROM feature_display_settings').all<{ feature_id: string; title: string }>()
     if (roleConfig?.mobile_nav_links) {
       navLinks = JSON.parse(roleConfig.mobile_nav_links)
     }
+    if (roleConfig?.groups_json) {
+      const parsed = JSON.parse(roleConfig.groups_json)
+      if (Array.isArray(parsed) && parsed.length > 0) sidebarGroups = parsed
+    }
+    for (const row of featureLabelRows.results ?? []) featureLabels[row.feature_id] = row.title
   } catch(e) {}
   
   const navEnabled = navLinks.length > 0;
@@ -61,6 +92,8 @@ export default async function DashboardLayout({
         primaryRole={primaryRole}
         userName={userName}
         allowedFeatures={allowedFeatures}
+        sidebarGroups={sidebarGroups}
+        featureLabels={featureLabels}
       />
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <Header
@@ -79,7 +112,7 @@ export default async function DashboardLayout({
         </main>
       </div>
       {navEnabled && (
-        <BottomNav activeIds={navLinks} allowedItems={allowedFeatures} />
+        <BottomNav activeIds={navLinks} allowedItems={allowedFeatures} featureLabels={featureLabels} />
       )}
     </div>
   )

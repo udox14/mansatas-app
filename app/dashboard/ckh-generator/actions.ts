@@ -402,14 +402,15 @@ export async function addCkhRow(documentId: string, tanggal: string) {
   const maxRow = await db.prepare('SELECT COALESCE(MAX(row_order), 0) as max_order FROM ckh_rows WHERE document_id = ? AND tanggal = ?')
     .bind(documentId, tanggal).first<{ max_order: number }>()
 
-  await db.prepare(`
+  const inserted = await db.prepare(`
     INSERT INTO ckh_rows
       (document_id, tanggal, row_order, kegiatan_bulanan, catatan_harian, vol, satuan, source, source_key, is_manual)
     VALUES (?, ?, ?, '', '', ?, ?, 'manual', ?, 1)
-  `).bind(documentId, tanggal, (maxRow?.max_order || 0) + 1, CKH_DEFAULT_VOL, CKH_DEFAULT_SATUAN, `manual:${tanggal}:${Date.now()}`).run()
+    RETURNING *
+  `).bind(documentId, tanggal, (maxRow?.max_order || 0) + 1, CKH_DEFAULT_VOL, CKH_DEFAULT_SATUAN, `manual:${tanggal}:${Date.now()}`).first<CkhRow>()
 
   revalidatePath('/dashboard/ckh-generator')
-  return { success: true }
+  return { success: true, row: inserted }
 }
 
 export async function deleteCkhRow(rowId: string) {
@@ -494,8 +495,10 @@ export async function refreshCkhDraft(documentId: string) {
     await db.batch(statements.slice(i, i + 50))
   }
 
+  const rows = await getRows(db, documentId)
+
   revalidatePath('/dashboard/ckh-generator')
-  return { success: `Refresh selesai. ${generated.length} baris sumber dicek.` }
+  return { success: `Sinkron selesai. ${generated.length} baris sumber dicek.`, rows }
 }
 
 export async function acceptCkhSuggestion(rowId: string) {
@@ -523,7 +526,7 @@ export async function acceptCkhSuggestion(rowId: string) {
   `).bind(rowId).run()
 
   revalidatePath('/dashboard/ckh-generator')
-  return { success: true }
+  return { success: true, rowId }
 }
 
 export async function saveCkhTemplate(formData: FormData) {

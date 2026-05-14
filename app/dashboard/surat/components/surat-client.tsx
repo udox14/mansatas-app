@@ -5,8 +5,8 @@ import { useMemo, useRef, useState } from 'react'
 import { useReactToPrint } from 'react-to-print'
 import {
   ArrowRightLeft, BookOpen, Briefcase, ChevronDown, ClipboardCheck,
-  FileSignature, FileText, Filter, Loader2, Mail, Megaphone, Plus, Printer,
-  RotateCcw, Search, ShieldCheck, Trash2, UserCheck, Users, X,
+  FileSignature, FileText, Filter, Loader2, Megaphone, Plus, Printer,
+  RotateCcw, Search, ShieldCheck, Trash2, UserCheck, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,12 +46,6 @@ const SURAT_CONFIGS: SuratConfig[] = [
   { id: 'penelitian', label: 'Penelitian', desc: 'Keterangan selesai penelitian', icon: BookOpen, color: 'violet' },
   { id: 'panggilan_ortu', label: 'Panggilan Ortu', desc: 'Panggilan wali murid', icon: Megaphone, color: 'rose', needsSiswa: true },
   { id: 'sppd', label: 'SPPD', desc: 'Surat perjalanan dinas', icon: Briefcase, color: 'blue', needsGuru: true },
-  { id: 'penerimaan', label: 'Penerimaan', desc: 'Keterangan penerimaan siswa', icon: UserCheck, color: 'emerald', needsSiswa: true },
-  { id: 'izin_pesantren', label: 'Izin Pesantren', desc: 'Permohonan izin kegiatan', icon: BookOpen, color: 'violet' },
-  { id: 'permohonan', label: 'Permohonan', desc: 'Permohonan umum', icon: Mail, color: 'amber' },
-  { id: 'surat_tugas', label: 'Surat Tugas', desc: 'Penugasan pegawai', icon: Users, color: 'indigo', needsGuru: true, multiGuru: true },
-  { id: 'undangan_rapat', label: 'Undangan Rapat', desc: 'Undangan rapat/kegiatan', icon: Megaphone, color: 'rose' },
-  { id: 'pernyataan', label: 'Pernyataan', desc: 'Pernyataan orang tua/wali', icon: FileSignature, color: 'slate', needsSiswa: true },
 ]
 
 const COLOR_MAP: Record<string, { border: string; iconBg: string }> = {
@@ -69,6 +63,25 @@ const COLOR_MAP: Record<string, { border: string; iconBg: string }> = {
 
 const BULAN_NAMES = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 const BULAN_ROMAWI = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
+const PRINT_SETTINGS_STORAGE_KEY = 'mansatas.surat.printSettings'
+
+function readLocalPrintSettings(): PrintSettings {
+  if (typeof window === 'undefined') return DEFAULT_PRINT_SETTINGS
+  try {
+    const raw = window.localStorage.getItem(PRINT_SETTINGS_STORAGE_KEY)
+    if (!raw) return DEFAULT_PRINT_SETTINGS
+    return getPrintSettings({ print_settings: JSON.parse(raw) })
+  } catch {
+    return DEFAULT_PRINT_SETTINGS
+  }
+}
+
+function saveLocalPrintSettings(settings: PrintSettings) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(PRINT_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+  } catch { /* ignore storage failures */ }
+}
 
 function SearchableSelect({ label, options, value, onChange, placeholder }: {
   label: string
@@ -255,13 +268,19 @@ export function SuratClient({ masterData, logSurat: initialLog, penandatanganSet
     setSaveResult(null)
     setFormData(prev => {
       const current = getPrintSettings(prev)
-      if (path === 'paper') return { ...prev, print_settings: { ...current, paper: value } }
+      if (path === 'paper') {
+        const next = { ...current, paper: value === 'F4' ? 'F4' : 'A4' } as PrintSettings
+        saveLocalPrintSettings(next)
+        return { ...prev, print_settings: next }
+      }
+      const next = {
+        ...current,
+        margins: { ...current.margins, [path]: Number(value) || 0 },
+      }
+      saveLocalPrintSettings(next)
       return {
         ...prev,
-        print_settings: {
-          ...current,
-          margins: { ...current.margins, [path]: Number(value) || 0 },
-        },
+        print_settings: next,
       }
     })
   }
@@ -301,20 +320,6 @@ export function SuratClient({ masterData, logSurat: initialLog, penandatanganSet
       base.daftar_pengikut = [...pengikutSiswa, ...pengikutGuru]
     }
 
-    if (wizardType === 'surat_tugas') {
-      base.daftar_guru = (formData.guru_ids || []).map((id: string) => {
-        const g = masterData.guru.find((item: any) => item.id === id)
-        return g ? { nama: g.nama_lengkap, jabatan: g.jabatan_cetak || g.jabatan_struktural_nama || g.role, nip: g.nip } : null
-      }).filter(Boolean)
-    }
-
-    if (wizardType === 'izin_pesantren') {
-      base.daftar_siswa = (formData.siswa_ids || []).map((id: string) => {
-        const s = masterData.siswa.find((item: any) => item.id === id)
-        return s ? { nama: s.nama_lengkap, kelas: s.tingkat ? `Kelas ${formatNamaKelas(s.tingkat, s.nomor_kelas, s.kelompok)}` : '' } : null
-      }).filter(Boolean)
-    }
-
     return base
   }
 
@@ -326,9 +331,10 @@ export function SuratClient({ masterData, logSurat: initialLog, penandatanganSet
   const handleReprint = useReactToPrint({ contentRef: reprintRef, pageStyle: getPrintPageStyle(reprintSettings) })
 
   const openWizard = (type: JenisSurat) => {
+    const localPrintSettings = readLocalPrintSettings()
     setWizardType(type)
     setFormData({
-      print_settings: DEFAULT_PRINT_SETTINGS,
+      print_settings: localPrintSettings,
       lampiran: '-',
       tempat_berangkat: 'Sukamanah',
       tempat: type === 'panggilan_ortu' ? 'Ruang BK' : '',
@@ -412,7 +418,7 @@ export function SuratClient({ masterData, logSurat: initialLog, penandatanganSet
       const parsed = typeof surat.data_surat === 'string' ? JSON.parse(surat.data_surat) : surat.data_surat
       setReprintData({
         pejabat: buildPejabatMap(),
-        print_settings: DEFAULT_PRINT_SETTINGS,
+        print_settings: readLocalPrintSettings(),
         ...parsed,
         nomor_surat: surat.nomor_surat,
       })
@@ -524,60 +530,6 @@ export function SuratClient({ masterData, logSurat: initialLog, penandatanganSet
             <Field label="Pembebanan Anggaran" field="pembebanan_anggaran" formData={formData} onChange={updateField} />
             <Field label="Mata Anggaran" field="mata_anggaran" formData={formData} onChange={updateField} />
             <Field label="Keterangan Lain" field="keterangan_lain" formData={formData} onChange={updateField} />
-          </>
-        )}
-
-        {wizardType === 'penerimaan' && (
-          <>
-            <Field label="Tanggal Diterima" type="date" field="tanggal_terima" formData={formData} onChange={updateField} />
-            <Field label="Tahun Pelajaran" field="tahun_pelajaran" formData={formData} onChange={updateField} placeholder="2025/2026" />
-          </>
-        )}
-
-        {wizardType === 'izin_pesantren' && (
-          <>
-            <div>
-              <Label className="text-xs font-medium">Daftar Siswa (bisa lebih dari satu)</Label>
-              <SearchMulti options={siswaOptions} selected={formData.siswa_ids || []} onChange={v => updateField('siswa_ids', v)} />
-            </div>
-            <Field label="Tujuan Surat" field="tujuan_surat" formData={formData} onChange={updateField} />
-            <Field label="Keperluan / Alasan" field="keperluan" formData={formData} onChange={updateField} />
-            <Field label="Hari, Tanggal" field="hari_tanggal" formData={formData} onChange={updateField} />
-            <Field label="Waktu" field="waktu" formData={formData} onChange={updateField} />
-            <Field label="Tempat" field="tempat" formData={formData} onChange={updateField} />
-          </>
-        )}
-
-        {(wizardType === 'permohonan' || wizardType === 'undangan_rapat') && (
-          <>
-            <Field label="Tujuan Surat" field="tujuan_surat" formData={formData} onChange={updateField} />
-            <Field label="Perihal" field="perihal" formData={formData} onChange={updateField} />
-            <Field label="Lampiran" field="lampiran" formData={formData} onChange={updateField} placeholder="-" />
-            <Field label={wizardType === 'undangan_rapat' ? 'Keterangan Pembuka' : 'Isi Surat'} field="isi_surat" formData={formData} onChange={updateField} textarea />
-            <Field label="Hari/Tanggal Kegiatan" field="hari_tanggal" formData={formData} onChange={updateField} />
-            <Field label="Waktu" field="waktu" formData={formData} onChange={updateField} />
-            <Field label="Tempat" field="tempat" formData={formData} onChange={updateField} />
-            {wizardType === 'undangan_rapat'
-              ? <Field label="Agenda" field="agenda" formData={formData} onChange={updateField} />
-              : <Field label="Isi Tambahan" field="isi_tambahan" formData={formData} onChange={updateField} textarea />}
-          </>
-        )}
-
-        {wizardType === 'surat_tugas' && (
-          <>
-            <Field label="Dasar Surat" field="dasar_surat" formData={formData} onChange={updateField} textarea />
-            <Field label="Tujuan Penugasan" field="tujuan_tugas" formData={formData} onChange={updateField} />
-            <Field label="Tanggal Kegiatan" field="tanggal_kegiatan" formData={formData} onChange={updateField} />
-            <Field label="Tempat Kegiatan" field="tempat_kegiatan" formData={formData} onChange={updateField} />
-          </>
-        )}
-
-        {wizardType === 'pernyataan' && (
-          <>
-            <Field label="Nama Orang Tua/Wali" field="nama_ortu" formData={formData} onChange={updateField} placeholder={selectedSiswa?.nama_ayah || ''} />
-            <Field label="Alamat Orang Tua/Wali" field="alamat_ortu" formData={formData} onChange={updateField} textarea />
-            <Field label="No. KTP" field="no_ktp" formData={formData} onChange={updateField} placeholder={selectedSiswa?.nik_ayah || ''} />
-            <Field label="Tahun Pelajaran" field="tahun_pelajaran" formData={formData} onChange={updateField} placeholder="2025/2026" />
           </>
         )}
 

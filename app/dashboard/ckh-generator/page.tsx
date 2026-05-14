@@ -34,7 +34,7 @@ export default async function CkhGeneratorPage({
     <div className="space-y-4 animate-in fade-in duration-500 pb-16">
       <PageHeader
         title="CKH Generator"
-        description="Buat, edit, refresh, dan cetak Capaian Kinerja Harian bulanan."
+        description="Buat, edit, sinkronkan agenda, dan cetak Capaian Kinerja Harian bulanan."
       />
       <CkhGeneratorClient initialData={data} year={year} month={month} canManageTemplates={canManageTemplates} />
     </div>

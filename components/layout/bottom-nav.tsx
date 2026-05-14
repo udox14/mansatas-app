@@ -7,9 +7,10 @@ import { MENU_ITEMS } from '@/config/menu'
 type Props = {
   activeIds: string[] // dari konfigurasi admin
   allowedItems: string[] // list feature_id dari RBAC user (string)
+  featureLabels?: Record<string, string>
 }
 
-export function BottomNav({ activeIds, allowedItems }: Props) {
+export function BottomNav({ activeIds, allowedItems, featureLabels = {} }: Props) {
   const pathname = usePathname()
 
   // Filter menu: hanya ambil yang ada di activeIds DAN allowedItems
@@ -52,7 +53,7 @@ export function BottomNav({ activeIds, allowedItems }: Props) {
                 <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'stroke-[2.5px]' : ''}`} />
               </div>
               <span className={`text-[9px] text-center leading-[1.1] tracking-tight ${isActive ? 'font-bold' : 'font-medium'}`}>
-                {item.title}
+                {featureLabels[item.id] || item.title}
               </span>
             </Link>
           )
