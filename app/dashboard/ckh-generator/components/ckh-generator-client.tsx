@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition, type CSSProperties
 import { useRouter } from 'next/navigation'
 import { useReactToPrint } from 'react-to-print'
 import {
-  AlertTriangle, CalendarDays, Check, FileText, Loader2, Plus, Printer,
+  AlertTriangle, CalendarDays, Check, ChevronLeft, ChevronRight, FileText, Loader2, Plus, Printer,
   RotateCw, Save, Settings2, Trash2, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -215,6 +215,10 @@ function sortCkhRows(rows: Row[]) {
   })
 }
 
+function getMonthUrl(year: number, month: number) {
+  return `/dashboard/ckh-generator?year=${year}&month=${month}`
+}
+
 function PrintDialog({ rows, user, kepsek, year, month }: { rows: Row[]; user: any; kepsek: any; year: number; month: number }) {
   const [paper, setPaper] = useState<keyof typeof PAPER>('f4')
   const [margins, setMargins] = useState({ top: 15, right: 12, bottom: 15, left: 12 })
@@ -305,10 +309,17 @@ export function CkhGeneratorClient({
   const [isPending, startTransition] = useTransition()
   const [isSyncing, setIsSyncing] = useState(false)
   const [busyRowId, setBusyRowId] = useState<string | null>(null)
-  const [monthValue, setMonthValue] = useState(`${year}-${String(month).padStart(2, '0')}`)
+  const [selectedMonth, setSelectedMonth] = useState(String(month))
+  const [selectedYear, setSelectedYear] = useState(String(year))
 
   const templates: Template[] = initialData.templates
   const allTemplates: Template[] = initialData.allTemplates
+  const yearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear()
+    const start = Math.min(year, currentYear) - 2
+    const end = Math.max(year, currentYear) + 1
+    return Array.from({ length: end - start + 1 }, (_, index) => start + index)
+  }, [year])
   const activityTitles = useMemo(() => Array.from(new Set(templates.map(t => t.title))), [templates])
   const notesByActivity = useMemo(() => {
     const map = new Map<string, string[]>()
@@ -321,6 +332,11 @@ export function CkhGeneratorClient({
   useEffect(() => {
     setRows(initialData.rows)
   }, [initialData.rows])
+
+  useEffect(() => {
+    setSelectedMonth(String(month))
+    setSelectedYear(String(year))
+  }, [month, year])
 
   const updateRowLocal = (id: string, patch: Partial<Row>) => {
     setRows(prev => prev.map(row => row.id === id ? { ...row, ...patch } : row))
@@ -353,8 +369,14 @@ export function CkhGeneratorClient({
   }
 
   const goMonth = () => {
-    const [nextYear, nextMonth] = monthValue.split('-').map(Number)
-    router.push(`/dashboard/ckh-generator?year=${nextYear}&month=${nextMonth}`)
+    const nextYear = Number(selectedYear)
+    const nextMonth = Number(selectedMonth)
+    router.push(getMonthUrl(nextYear, nextMonth))
+  }
+
+  const shiftMonth = (offset: number) => {
+    const next = new Date(year, month - 1 + offset, 1)
+    router.push(getMonthUrl(next.getFullYear(), next.getMonth() + 1))
   }
 
   const addRow = (tanggal: string) => {
@@ -420,10 +442,35 @@ export function CkhGeneratorClient({
           {canManageTemplates && <TabsTrigger value="template" className="gap-1.5"><Settings2 className="h-3.5 w-3.5" /> Template</TabsTrigger>}
         </TabsList>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 rounded-lg border border-surface bg-surface p-1">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-surface bg-surface p-1">
+            <Button size="sm" variant="ghost" onClick={() => shiftMonth(-1)} className="h-8 w-8 p-0" title="Bulan sebelumnya">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
             <CalendarDays className="ml-2 h-4 w-4 text-slate-400" />
-            <Input type="month" value={monthValue} onChange={e => setMonthValue(e.target.value)} className="h-8 w-36 border-0 bg-transparent text-sm shadow-none focus-visible:ring-0" />
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="h-8 w-32 border-0 bg-transparent text-sm shadow-none focus:ring-0">
+                <SelectValue aria-label="Bulan CKH" />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTHS.map((label, index) => (
+                  <SelectItem key={label} value={String(index + 1)}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
+              <SelectTrigger className="h-8 w-24 border-0 bg-transparent text-sm shadow-none focus:ring-0">
+                <SelectValue aria-label="Tahun CKH" />
+              </SelectTrigger>
+              <SelectContent>
+                {yearOptions.map(option => (
+                  <SelectItem key={option} value={String(option)}>{option}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button size="sm" variant="outline" onClick={goMonth} className="h-8">Buka</Button>
+            <Button size="sm" variant="ghost" onClick={() => shiftMonth(1)} className="h-8 w-8 p-0" title="Bulan berikutnya">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
           <Button variant="outline" onClick={syncDraft} disabled={isSyncing} className="gap-2">
             {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
