@@ -62,6 +62,10 @@ function statusPriority(status: string | null | undefined) {
   return 5
 }
 
+function needsWaliDecision(status: string | null | undefined) {
+  return ['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA', 'ALFA'].includes(status || '')
+}
+
 export function KeteranganClient({ kelasList, initialKelasId }: Props) {
   const today = new Date().toISOString().split('T')[0]
 
@@ -311,7 +315,11 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
 
                   <div className="px-3 pb-2">
                     {s.detail_guru.length === 0 ? (
-                      <p className="text-[11px] text-slate-400">Belum ada input guru untuk tanggal ini.</p>
+                      <p className="text-[11px] text-slate-400">
+                        {needsWaliDecision(s.status_akhir)
+                          ? 'Belum ada detail input guru yang bisa dijadikan rujukan untuk siswa ini.'
+                          : 'Tidak ada catatan ketidakhadiran dari guru untuk siswa ini.'}
+                      </p>
                     ) : (
                       <div className="space-y-1">
                         {s.detail_guru.map((detail, detailIndex) => (

@@ -107,6 +107,10 @@ function priority(status: FinalStatus) {
   return 6
 }
 
+function needsWaliDecision(status: FinalStatus) {
+  return ['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA', 'ALFA'].includes(status)
+}
+
 export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, holidayReason }: Props) {
   const router = useRouter()
   const [items, setItems] = useState(() => rows.map(row => ({
@@ -126,7 +130,7 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
     ))
   }, [items])
 
-  const attentionCount = rows.filter(row => ['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA', 'ALFA'].includes(row.status_akhir)).length
+  const attentionCount = rows.filter(row => needsWaliDecision(row.status_akhir)).length
   const decidedCount = items.filter(row => row.draft_status !== null).length
 
   const setStatus = (siswaId: string, status: WaliStatus | null) => {
@@ -204,13 +208,19 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
             {sortedItems.map((row, index) => {
               const isExpanded = expanded === row.siswa_id
               const finalStatus = row.draft_status || row.status_akhir
+              const noTeacherDetailText = needsWaliDecision(row.status_akhir)
+                ? 'Belum ada detail input guru yang bisa dijadikan rujukan untuk siswa ini.'
+                : 'Tidak ada catatan ketidakhadiran dari guru untuk siswa ini.'
+
               return (
-                <div key={row.siswa_id} className="px-4 py-3">
-                  <div className="flex flex-col gap-3 xl:flex-row xl:items-start">
+                <div key={row.siswa_id} className="px-3 py-3 sm:px-4">
+                  <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[10px] text-slate-400">{index + 1}</span>
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{row.nama_lengkap}</p>
+                        <p className="min-w-0 flex-1 basis-full text-sm font-semibold leading-snug text-slate-800 dark:text-slate-100 sm:basis-auto">
+                          {row.nama_lengkap}
+                        </p>
                         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(finalStatus)}`}>
                           {statusLabel(finalStatus)}
                         </span>
@@ -220,7 +230,7 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
 
                       <div className="mt-2 space-y-1">
                         {row.detail_guru.length === 0 ? (
-                          <p className="text-[11px] text-slate-400">Belum ada input guru untuk siswa ini pada hari ini.</p>
+                          <p className="text-[11px] text-slate-400">{noTeacherDetailText}</p>
                         ) : (
                           row.detail_guru.map((detail, detailIndex) => (
                             <div key={`${row.siswa_id}-${detail.nama_mapel}-${detailIndex}`} className="rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2 text-[11px] text-slate-600 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
@@ -235,7 +245,7 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
                     </div>
 
                     <div className="flex flex-col gap-2 xl:w-[360px]">
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="grid grid-cols-3 gap-1.5 sm:flex sm:flex-wrap">
                         {STATUS_OPTIONS.map(option => {
                           const Icon = option.icon
                           const active = row.draft_status === option.status
@@ -244,7 +254,7 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
                               key={option.status}
                               type="button"
                               onClick={() => setStatus(row.siswa_id, active ? null : option.status)}
-                              className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                              className={`inline-flex items-center justify-center gap-1 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
                                 active ? `${option.className} bg-white ring-1 ring-current` : `${option.className} bg-white`
                               }`}
                             >
@@ -257,7 +267,7 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
                           <button
                             type="button"
                             onClick={() => setStatus(row.siswa_id, null)}
-                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-50"
+                            className="col-span-3 inline-flex items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 sm:col-span-auto"
                           >
                             <CheckCircle2 className="h-3 w-3" />
                             Ikuti Guru
@@ -266,7 +276,7 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
                         <button
                           type="button"
                           onClick={() => setExpanded(isExpanded ? null : row.siswa_id)}
-                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-50"
+                          className="col-span-3 inline-flex items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 sm:col-span-auto"
                         >
                           <MessageSquare className="h-3 w-3" />
                           Catatan
