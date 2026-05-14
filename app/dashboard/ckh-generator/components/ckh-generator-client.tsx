@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useReactToPrint } from 'react-to-print'
 import {
   AlertTriangle, CalendarDays, Check, FileText, Loader2, Plus, Printer,
-  RefreshCw, Save, Settings2, Trash2, X,
+  RotateCw, Save, Settings2, Trash2, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,6 +62,8 @@ const PAPER = {
   a4: { label: 'A4', css: '210mm 297mm' },
   f4: { label: 'F4 / Folio', css: '215mm 330mm' },
 }
+
+const printProfileLabel: CSSProperties = { width: '112px', whiteSpace: 'nowrap' }
 
 const roleOptions = [
   'super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas',
@@ -127,10 +129,10 @@ function CkhPrintDocument({
 
       <table style={{ marginBottom: '8px', borderCollapse: 'collapse', fontSize: '10pt' }}>
         <tbody>
-          <tr><td style={{ width: '95px' }}>NAMA</td><td style={{ width: '10px' }}>:</td><td>{user.nama_lengkap}</td></tr>
-          <tr><td>NIP</td><td>:</td><td>{user.nip || <MissingProfilePrint />}</td></tr>
-          <tr><td>PANGKAT / GOL.</td><td>:</td><td>{user.pangkat_golongan || <MissingProfilePrint />}</td></tr>
-          <tr><td>JABATAN</td><td>:</td><td>{user.jabatan_cetak || <MissingProfilePrint />}</td></tr>
+          <tr><td style={printProfileLabel}>NAMA</td><td style={{ width: '10px' }}>:</td><td>{user.nama_lengkap}</td></tr>
+          <tr><td style={printProfileLabel}>NIP</td><td>:</td><td>{user.nip || <MissingProfilePrint />}</td></tr>
+          <tr><td style={printProfileLabel}>PANGKAT / GOL.</td><td>:</td><td>{user.pangkat_golongan || <MissingProfilePrint />}</td></tr>
+          <tr><td style={printProfileLabel}>JABATAN</td><td>:</td><td>{user.jabatan_cetak || <MissingProfilePrint />}</td></tr>
         </tbody>
       </table>
 
@@ -201,6 +203,16 @@ function td(textAlign: 'left' | 'center'): CSSProperties {
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
   }
+}
+
+function sortCkhRows(rows: Row[]) {
+  return [...rows].sort((a, b) => {
+    const byDate = a.tanggal.localeCompare(b.tanggal)
+    if (byDate !== 0) return byDate
+    const byOrder = Number(a.row_order || 0) - Number(b.row_order || 0)
+    if (byOrder !== 0) return byOrder
+    return a.id.localeCompare(b.id)
+  })
 }
 
 function PrintDialog({ rows, user, kepsek, year, month }: { rows: Row[]; user: any; kepsek: any; year: number; month: number }) {
@@ -291,6 +303,8 @@ export function CkhGeneratorClient({
   const [rows, setRows] = useState<Row[]>(initialData.rows)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [busyRowId, setBusyRowId] = useState<string | null>(null)
   const [monthValue, setMonthValue] = useState(`${year}-${String(month).padStart(2, '0')}`)
 
   const templates: Template[] = initialData.templates
@@ -320,16 +334,22 @@ export function CkhGeneratorClient({
         catatan_harian: row.catatan_harian,
       })
       setMessage(res?.error ? { type: 'error', text: res.error } : { type: 'success', text: 'Baris CKH disimpan.' })
-      router.refresh()
     })
   }
 
-  const refresh = () => {
-    startTransition(async () => {
+  const syncDraft = async () => {
+    setIsSyncing(true)
+    try {
       const res = await refreshCkhDraft(initialData.document.id)
-      setMessage(res?.error ? { type: 'error', text: res.error } : { type: 'success', text: res.success || 'Draft diperbarui.' })
-      router.refresh()
-    })
+      if (res?.error) {
+        setMessage({ type: 'error', text: res.error })
+        return
+      }
+      if (res?.rows) setRows(sortCkhRows(res.rows as Row[]))
+      setMessage({ type: 'success', text: res.success || 'Draft disinkronkan.' })
+    } finally {
+      setIsSyncing(false)
+    }
   }
 
   const goMonth = () => {
@@ -339,26 +359,56 @@ export function CkhGeneratorClient({
 
   const addRow = (tanggal: string) => {
     startTransition(async () => {
-      const res = await addCkhRow(initialData.document.id, tanggal)
-      if (res?.error) setMessage({ type: 'error', text: res.error })
-      router.refresh()
+      setBusyRowId(`add:${tanggal}`)
+      try {
+        const res = await addCkhRow(initialData.document.id, tanggal)
+        if (res?.error) {
+          setMessage({ type: 'error', text: res.error })
+          return
+        }
+        if (res?.row) setRows(prev => sortCkhRows([...prev, res.row as Row]))
+        setMessage({ type: 'success', text: 'Baris CKH ditambahkan.' })
+      } finally {
+        setBusyRowId(null)
+      }
     })
   }
 
   const removeRow = (rowId: string) => {
     if (!confirm('Hapus baris CKH ini?')) return
     startTransition(async () => {
-      const res = await deleteCkhRow(rowId)
-      if (res?.error) setMessage({ type: 'error', text: res.error })
-      router.refresh()
+      setBusyRowId(rowId)
+      try {
+        const res = await deleteCkhRow(rowId)
+        if (res?.error) {
+          setMessage({ type: 'error', text: res.error })
+          return
+        }
+        setRows(prev => prev.filter(row => row.id !== rowId))
+        setMessage({ type: 'success', text: 'Baris CKH dihapus.' })
+      } finally {
+        setBusyRowId(null)
+      }
     })
   }
 
   const acceptSuggestion = (rowId: string) => {
     startTransition(async () => {
       const res = await acceptCkhSuggestion(rowId)
-      if (res?.error) setMessage({ type: 'error', text: res.error })
-      router.refresh()
+      if (res?.error) {
+        setMessage({ type: 'error', text: res.error })
+        return
+      }
+      setRows(prev => prev.map(row => row.id === rowId ? {
+        ...row,
+        kegiatan_bulanan: row.suggested_kegiatan_bulanan || row.kegiatan_bulanan,
+        catatan_harian: row.suggested_catatan_harian || row.catatan_harian,
+        is_manual: 0,
+        has_conflict: 0,
+        suggested_kegiatan_bulanan: null,
+        suggested_catatan_harian: null,
+      } : row))
+      setMessage({ type: 'success', text: 'Versi baru dipakai.' })
     })
   }
 
@@ -375,9 +425,9 @@ export function CkhGeneratorClient({
             <Input type="month" value={monthValue} onChange={e => setMonthValue(e.target.value)} className="h-8 w-36 border-0 bg-transparent text-sm shadow-none focus-visible:ring-0" />
             <Button size="sm" variant="outline" onClick={goMonth} className="h-8">Buka</Button>
           </div>
-          <Button variant="outline" onClick={refresh} disabled={isPending} className="gap-2">
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Refresh
+          <Button variant="outline" onClick={syncDraft} disabled={isSyncing} className="gap-2">
+            {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+            Sinkronkan Agenda
           </Button>
           <PrintDialog rows={rows} user={initialData.user} kepsek={initialData.kepsek} year={year} month={month} />
         </div>
@@ -394,79 +444,80 @@ export function CkhGeneratorClient({
 
       <TabsContent value="dokumen" className="mt-0">
         <div className="overflow-x-auto rounded-xl border border-surface bg-slate-100 p-2 sm:p-4">
-          <div className="mx-auto min-w-[980px] max-w-[1120px] bg-white p-8 shadow-sm" style={{ fontFamily: 'Tahoma, sans-serif' }}>
+          <div className="mx-auto min-w-[980px] max-w-[1120px] rounded-lg bg-white p-8 shadow-sm ring-1 ring-slate-200" style={{ fontFamily: 'Tahoma, sans-serif' }}>
             <div className="text-center text-black">
               <h2 className="text-base font-bold">CATATAN KINERJA HARIAN</h2>
               <h3 className="text-base font-bold">ASN MAN 1 TASIKMALAYA</h3>
               <p className="mt-1 text-sm font-bold">BULAN : {formatCkhMonth(year, month)}</p>
             </div>
 
-            <div className="mt-5 grid grid-cols-[120px_12px_1fr] text-sm text-black">
+            <div className="mt-5 grid grid-cols-[132px_12px_1fr] text-sm text-black">
               <span>NAMA</span><span>:</span><span>{initialData.user.nama_lengkap}</span>
               <span>NIP</span><span>:</span><span>{initialData.user.nip || <MissingProfileInline />}</span>
               <span>PANGKAT / GOL.</span><span>:</span><span>{initialData.user.pangkat_golongan || <MissingProfileInline />}</span>
               <span>JABATAN</span><span>:</span><span>{initialData.user.jabatan_cetak || <MissingProfileInline />}</span>
             </div>
 
-            <div className="mt-4 overflow-hidden border border-black">
-              <table className="w-full table-fixed border-collapse text-[12px] text-black">
+            <div className="mt-4 overflow-hidden rounded-md border border-slate-300">
+              <table className="w-full table-fixed border-collapse text-[12px] text-slate-900">
                 <thead>
-                  <tr className="bg-white">
-                    <th className="w-10 border border-black p-1">NO</th>
-                    <th className="w-28 border border-black p-1">TANGGAL</th>
-                    <th className="w-64 border border-black p-1">KEGIATAN BULANAN</th>
-                    <th className="border border-black p-1">CATATAN KINERJA HARIAN</th>
-                    <th className="w-14 border border-black p-1">VOL</th>
-                    <th className="w-24 border border-black p-1">SATUAN</th>
-                    <th className="w-28 border border-black p-1 print:hidden">AKSI</th>
+                  <tr className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-600">
+                    <th className="w-10 border border-slate-300 p-2">NO</th>
+                    <th className="w-28 border border-slate-300 p-2">TANGGAL</th>
+                    <th className="w-64 border border-slate-300 p-2">KEGIATAN BULANAN</th>
+                    <th className="border border-slate-300 p-2">CATATAN KINERJA HARIAN</th>
+                    <th className="w-14 border border-slate-300 p-2">VOL</th>
+                    <th className="w-24 border border-slate-300 p-2">SATUAN</th>
+                    <th className="w-32 border border-slate-300 p-2 print:hidden">AKSI</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row, index) => (
-                    <tr key={row.id} className={cn(row.has_conflict && 'bg-amber-50')}>
-                      <td className="border border-black p-1 text-center align-top">{index + 1}</td>
-                      <td className="border border-black p-1 align-top">
+                    <tr key={row.id} className={cn('bg-white transition-colors hover:bg-slate-50', row.has_conflict && 'bg-amber-50 hover:bg-amber-50')}>
+                      <td className="border border-slate-300 p-2 text-center align-top font-medium text-slate-500">{index + 1}</td>
+                      <td className="border border-slate-300 p-1.5 align-top">
                         <Input
                           type="date"
                           value={row.tanggal}
                           onChange={e => updateRowLocal(row.id, { tanggal: e.target.value })}
-                          onBlur={() => saveRow(row)}
-                          className="h-8 border-0 p-0 text-center text-[12px] shadow-none focus-visible:ring-0"
+                          onBlur={e => saveRow({ ...row, tanggal: e.target.value })}
+                          className="h-8 rounded-md border-slate-200 bg-white px-1 text-center text-[12px] shadow-none focus-visible:ring-1"
                         />
                       </td>
-                      <td className="border border-black p-1 align-top">
+                      <td className="border border-slate-300 p-1.5 align-top">
                         <input
                           list="ckh-activities"
                           value={row.kegiatan_bulanan}
                           onChange={e => updateRowLocal(row.id, { kegiatan_bulanan: e.target.value })}
-                          onBlur={() => saveRow(row)}
-                          className="min-h-8 w-full resize-none bg-transparent text-[12px] outline-none"
+                          onBlur={e => saveRow({ ...row, kegiatan_bulanan: e.target.value })}
+                          className="min-h-8 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
                         />
                       </td>
-                      <td className="border border-black p-1 align-top">
+                      <td className="border border-slate-300 p-1.5 align-top">
                         <textarea
                           value={row.catatan_harian}
                           onChange={e => updateRowLocal(row.id, { catatan_harian: e.target.value })}
-                          onBlur={() => saveRow(row)}
+                          onBlur={e => saveRow({ ...row, catatan_harian: e.target.value })}
                           rows={2}
-                          className="w-full resize-none bg-transparent text-[12px] outline-none"
+                          className="w-full resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] leading-relaxed outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
                         />
                         {(notesByActivity.get(row.kegiatan_bulanan) || []).length > 0 && (
                           <select
                             value=""
                             onChange={e => {
                               if (!e.target.value) return
-                              updateRowLocal(row.id, { catatan_harian: e.target.value })
+                              const catatan = e.target.value
+                              updateRowLocal(row.id, { catatan_harian: catatan })
                               startTransition(async () => {
-                                await saveCkhRow(row.id, {
+                                const res = await saveCkhRow(row.id, {
                                   tanggal: row.tanggal,
                                   kegiatan_bulanan: row.kegiatan_bulanan,
-                                  catatan_harian: e.target.value,
+                                  catatan_harian: catatan,
                                 })
-                                router.refresh()
+                                setMessage(res?.error ? { type: 'error', text: res.error } : { type: 'success', text: 'Baris CKH disimpan.' })
                               })
                             }}
-                            className="mt-1 h-7 w-full rounded border border-slate-200 bg-white px-2 text-[11px] text-slate-600 print:hidden"
+                            className="mt-1 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] text-slate-600 print:hidden"
                           >
                             <option value="">Pilih catatan template...</option>
                             {(notesByActivity.get(row.kegiatan_bulanan) || []).map(note => (
@@ -486,16 +537,16 @@ export function CkhGeneratorClient({
                           </div>
                         ) : null}
                       </td>
-                      <td className="border border-black p-1 text-center align-top">{row.vol || CKH_DEFAULT_VOL}</td>
-                      <td className="border border-black p-1 text-center align-top">{row.satuan || CKH_DEFAULT_SATUAN}</td>
-                      <td className="border border-black p-1 align-top print:hidden">
+                      <td className="border border-slate-300 p-2 text-center align-top">{row.vol || CKH_DEFAULT_VOL}</td>
+                      <td className="border border-slate-300 p-2 text-center align-top">{row.satuan || CKH_DEFAULT_SATUAN}</td>
+                      <td className="border border-slate-300 p-1.5 align-top print:hidden">
                         <div className="flex items-center justify-center gap-1">
-                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{sourceLabel(row.source)}</span>
-                          <button onClick={() => addRow(row.tanggal)} className="rounded p-1 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600" title="Tambah baris">
-                            <Plus className="h-3.5 w-3.5" />
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500">{sourceLabel(row.source)}</span>
+                          <button disabled={busyRowId === `add:${row.tanggal}`} onClick={() => addRow(row.tanggal)} className="rounded-md p-1 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50" title="Tambah baris">
+                            {busyRowId === `add:${row.tanggal}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                           </button>
-                          <button onClick={() => removeRow(row.id)} className="rounded p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600" title="Hapus baris">
-                            <Trash2 className="h-3.5 w-3.5" />
+                          <button disabled={busyRowId === row.id} onClick={() => removeRow(row.id)} className="rounded-md p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50" title="Hapus baris">
+                            {busyRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                           </button>
                         </div>
                       </td>

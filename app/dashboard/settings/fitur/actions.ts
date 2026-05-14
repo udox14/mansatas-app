@@ -4,7 +4,28 @@
 import { getDB } from '@/utils/db'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
-import { MENU_ITEMS } from '@/config/menu'
+import { DEFAULT_SIDEBAR_GROUPS, MENU_ITEMS, type SidebarGroupConfig } from '@/config/menu'
+
+async function ensureSidebarConfigTable(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS role_sidebar_configs (
+      role TEXT PRIMARY KEY,
+      groups_json TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (role) REFERENCES master_roles(value) ON DELETE CASCADE
+    )
+  `).run()
+}
+
+async function ensureFeatureDisplayTable(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS feature_display_settings (
+      feature_id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run()
+}
 
 // ============================================================
 // ROLE FEATURES CRUD
@@ -16,15 +37,25 @@ import { MENU_ITEMS } from '@/config/menu'
  */
 export async function getRoleFeatureMatrix(): Promise<{
   matrix: Record<string, string[]>
-  roles: { value: string; label: string; is_custom: number; mobile_nav_links: string }[]
+  roles: { value: string; label: string; is_custom: number; mobile_nav_links: string; sidebar_config: string }[]
+  featureLabels: Record<string, string>
 }> {
   const db = await getDB()
-  const [featResult, rolesResult] = await Promise.all([
+  await Promise.all([ensureSidebarConfigTable(db), ensureFeatureDisplayTable(db)])
+  const [featResult, rolesResult, labelsResult] = await Promise.all([
     db.prepare('SELECT role, feature_id FROM role_features ORDER BY role, feature_id').all<{ role: string; feature_id: string }>(),
-    db.prepare('SELECT value, label, is_custom, mobile_nav_links FROM master_roles ORDER BY is_custom ASC, label ASC').all<{ value: string; label: string; is_custom: number; mobile_nav_links: string }>(),
+    db.prepare(`
+      SELECT mr.value, mr.label, mr.is_custom, mr.mobile_nav_links, COALESCE(rsc.groups_json, '') AS sidebar_config
+      FROM master_roles mr
+      LEFT JOIN role_sidebar_configs rsc ON rsc.role = mr.value
+      ORDER BY mr.is_custom ASC, mr.label ASC
+    `).all<{ value: string; label: string; is_custom: number; mobile_nav_links: string; sidebar_config: string }>(),
+    db.prepare('SELECT feature_id, title FROM feature_display_settings ORDER BY feature_id').all<{ feature_id: string; title: string }>(),
   ])
 
   const roles = rolesResult.results ?? []
+  const featureLabels: Record<string, string> = {}
+  for (const row of labelsResult.results ?? []) featureLabels[row.feature_id] = row.title
   const matrix: Record<string, string[]> = {}
   for (const r of roles) matrix[r.value] = []
 
@@ -32,7 +63,7 @@ export async function getRoleFeatureMatrix(): Promise<{
     if (!matrix[row.role]) matrix[row.role] = []
     matrix[row.role].push(row.feature_id)
   }
-  return { matrix, roles }
+  return { matrix, roles, featureLabels }
 }
 
 /**
@@ -334,4 +365,83 @@ export async function setRoleMobileNav(value: string, navLinks: string[]) {
   revalidatePath('/dashboard')
   revalidatePath('/', 'layout')
   return { success: true }
+}
+
+/**
+ * Update sidebar grouping/order for a role
+ */
+export async function setRoleSidebarConfig(value: string, groups: SidebarGroupConfig[]) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<any>()
+  if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengedit sidebar.' }
+
+  await ensureSidebarConfigTable(db)
+
+  const knownIds = new Set(MENU_ITEMS.map(item => item.id))
+  const seen = new Set<string>()
+  const cleanGroups = groups
+    .map((group, index) => ({
+      id: group.id || `group-${index + 1}`,
+      label: group.label.trim() || `Group ${index + 1}`,
+      items: group.items.filter(id => {
+        if (!knownIds.has(id) || seen.has(id)) return false
+        seen.add(id)
+        return true
+      }),
+    }))
+    .filter(group => group.label || group.items.length > 0)
+
+  const groupsJson = JSON.stringify(cleanGroups.length > 0 ? cleanGroups : DEFAULT_SIDEBAR_GROUPS)
+  await db.prepare(`
+    INSERT INTO role_sidebar_configs (role, groups_json, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(role) DO UPDATE SET
+      groups_json = excluded.groups_json,
+      updated_at = CURRENT_TIMESTAMP
+  `).bind(value, groupsJson).run()
+
+  revalidatePath('/dashboard/settings/fitur')
+  revalidatePath('/dashboard')
+  revalidatePath('/', 'layout')
+  return { success: true, groupsJson }
+}
+
+/**
+ * Update display label for a feature. This does not change feature_id or route.
+ */
+export async function setFeatureDisplayTitle(featureId: string, title: string) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<any>()
+  if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa rename fitur.' }
+
+  const feature = MENU_ITEMS.find(item => item.id === featureId)
+  if (!feature) return { error: 'Fitur tidak ditemukan.' }
+
+  await ensureFeatureDisplayTable(db)
+
+  const cleanTitle = title.trim()
+  if (!cleanTitle) return { error: 'Nama fitur tidak boleh kosong.' }
+
+  if (cleanTitle === feature.title) {
+    await db.prepare('DELETE FROM feature_display_settings WHERE feature_id = ?').bind(featureId).run()
+  } else {
+    await db.prepare(`
+      INSERT INTO feature_display_settings (feature_id, title, updated_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(feature_id) DO UPDATE SET
+        title = excluded.title,
+        updated_at = CURRENT_TIMESTAMP
+    `).bind(featureId, cleanTitle).run()
+  }
+
+  revalidatePath('/dashboard/settings/fitur')
+  revalidatePath('/dashboard')
+  revalidatePath('/', 'layout')
+  return { success: true, title: cleanTitle }
 }

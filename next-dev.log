@@ -1,0 +1,13 @@
+
+> mansatas-app@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.2 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://192.168.1.13:3001
+- Environments: .env.local, .env
+✓ Ready in 970ms
+- Experiments (use with caution):
+  · optimizePackageImports
+  · serverActions
+

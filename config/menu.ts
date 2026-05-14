@@ -52,6 +52,12 @@ export type MenuItem = {
   roles: string[]   // default roles (fallback jika DB kosong)
 }
 
+export type SidebarGroupConfig = {
+  id: string
+  label: string
+  items: string[]
+}
+
 export const MENU_ITEMS: MenuItem[] = [
   {
     id: 'dashboard',
@@ -365,6 +371,19 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: BookUser,
     roles: ['orang_tua']
   }
+]
+
+export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
+  { id: 'utama', label: 'Utama', items: ['dashboard'] },
+  { id: 'data-master', label: 'Data Master', items: ['siswa', 'guru', 'kelas', 'plotting'] },
+  { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'ckh-generator', 'kehadiran', 'nilai-harian', 'penugasan'] },
+  { id: 'monitoring-akademik', label: 'Monitoring Akademik', items: ['akademik', 'kalender-pendidikan', 'analitik'] },
+  { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'monitoring-penugasan', 'rekap-absensi', 'akademik-nilai'] },
+  { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
+  { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
+  { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
+  { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-kas-keluar', 'keuangan-laporan'] },
+  { id: 'sistem', label: 'Sistem', items: ['settings', 'settings-notifications', 'settings-jadwal-notif', 'settings-fitur', 'pengumuman-ortu'] },
 ]
 
 // Registry semua role yang tersedia di sistem

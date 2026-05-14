@@ -1,19 +1,20 @@
 'use client'
 
 import { useState, useTransition, useCallback } from 'react'
-import { MENU_ITEMS } from '@/config/menu'
-import { toggleRoleFeature, createCustomRole, editCustomRole, deleteCustomRole, setRoleMobileNav } from './actions'
+import { DEFAULT_SIDEBAR_GROUPS, MENU_ITEMS, type SidebarGroupConfig } from '@/config/menu'
+import { toggleRoleFeature, createCustomRole, editCustomRole, deleteCustomRole, setRoleMobileNav, setRoleSidebarConfig, setFeatureDisplayTitle } from './actions'
 import { cn } from '@/lib/utils'
 import {
   Shield, Layers, Check, Loader2, Search, Info,
-  PlusCircle, Pencil, Trash2, X, Tag, AlertCircle, Smartphone, Plus
+  PlusCircle, Pencil, Trash2, X, Tag, AlertCircle, Smartphone, Plus,
+  PanelLeft, Folder, ArrowUp, ArrowDown, RotateCcw
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-type ViewMode = 'per-fitur' | 'per-role' | 'roles' | 'navbar'
-type MasterRole = { value: string; label: string; is_custom: number; mobile_nav_links: string }
+type ViewMode = 'per-fitur' | 'per-role' | 'roles' | 'navbar' | 'sidebar'
+type MasterRole = { value: string; label: string; is_custom: number; mobile_nav_links: string; sidebar_config?: string }
 
 const ROLE_COLORS_MAP: Record<string, { bg: string; text: string; border: string; dot: string }> = {
   super_admin: { bg: 'bg-rose-50',    text: 'text-rose-700',    border: 'border-rose-200',    dot: 'bg-rose-500' },
@@ -40,18 +41,20 @@ const LOCKED_FEATURES = new Set(['dashboard', 'settings', 'settings-fitur'])
 interface FiturClientProps {
   initialMatrix: Record<string, string[]>
   initialRoles: MasterRole[]
+  initialFeatureLabels: Record<string, string>
 }
 
-export function FiturClient({ initialMatrix, initialRoles }: FiturClientProps) {
+export function FiturClient({ initialMatrix, initialRoles, initialFeatureLabels }: FiturClientProps) {
   const [matrix, setMatrix] = useState(initialMatrix)
   const [roles, setRoles] = useState(initialRoles)
+  const [featureLabels, setFeatureLabels] = useState(initialFeatureLabels)
   const [viewMode, setViewMode] = useState<ViewMode>('per-fitur')
   const [searchTerm, setSearchTerm] = useState('')
   const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set())
   const [, startTransition] = useTransition()
 
   const features = MENU_ITEMS.filter(item =>
-    item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (featureLabels[item.id] || item.title).toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.id.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
@@ -110,6 +113,7 @@ export function FiturClient({ initialMatrix, initialRoles }: FiturClientProps) {
             { id: 'per-fitur', label: 'Per Fitur', icon: Layers },
             { id: 'per-role',  label: 'Per Role',  icon: Shield },
             { id: 'roles',     label: 'Kelola Role', icon: Tag },
+            { id: 'sidebar',   label: 'Sidebar', icon: PanelLeft },
             { id: 'navbar',    label: 'Bottom Nav', icon: Smartphone },
           ] as const).map(({ id, label, icon: Icon }) => (
             <button
@@ -133,26 +137,29 @@ export function FiturClient({ initialMatrix, initialRoles }: FiturClientProps) {
         <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 rounded-lg">
           <Info className="h-3.5 w-3.5 text-violet-500 shrink-0" />
           <p className="text-[11px] text-violet-700 dark:text-violet-300">
-            {viewMode === 'per-fitur'
-              ? `Klik toggle untuk mengaktifkan/menonaktifkan fitur untuk role. ${rolesTotalLabel}.`
-              : `Pilih role lalu atur fitur mana saja yang bisa diakses. Perubahan langsung tersimpan.`
-            }
+            {viewMode === 'per-fitur' && `Klik toggle untuk mengaktifkan/menonaktifkan fitur untuk role. ${rolesTotalLabel}.`}
+            {viewMode === 'per-role' && `Pilih role lalu atur fitur mana saja yang bisa diakses. Perubahan langsung tersimpan.`}
+            {viewMode === 'sidebar' && `Atur susunan group dan urutan menu sidebar per role tanpa mengubah kode.`}
+            {viewMode === 'navbar' && `Atur jalan pintas layar HP per role. Perubahan langsung tersimpan.`}
           </p>
         </div>
       )}
 
       {/* CONTENT */}
       {viewMode === 'per-fitur' && (
-        <PerFiturView features={features} matrix={matrix} roles={roles} pendingKeys={pendingKeys} onToggle={handleToggle} getEnabledCount={getEnabledCount} />
+        <PerFiturView features={features} matrix={matrix} roles={roles} pendingKeys={pendingKeys} onToggle={handleToggle} getEnabledCount={getEnabledCount} featureLabels={featureLabels} setFeatureLabels={setFeatureLabels} />
       )}
       {viewMode === 'per-role' && (
-        <PerRoleView features={features} matrix={matrix} roles={roles} pendingKeys={pendingKeys} onToggle={handleToggle} getFeatureCount={getFeatureCount} setMatrix={setMatrix} />
+        <PerRoleView features={features} matrix={matrix} roles={roles} pendingKeys={pendingKeys} onToggle={handleToggle} getFeatureCount={getFeatureCount} setMatrix={setMatrix} featureLabels={featureLabels} />
       )}
       {viewMode === 'roles' && (
         <RoleManagerView roles={roles} setRoles={setRoles} matrix={matrix} setMatrix={setMatrix} />
       )}
       {viewMode === 'navbar' && (
-        <NavbarView roles={roles} setRoles={setRoles} matrix={matrix} />
+        <NavbarView roles={roles} setRoles={setRoles} matrix={matrix} featureLabels={featureLabels} />
+      )}
+      {viewMode === 'sidebar' && (
+        <SidebarView roles={roles} setRoles={setRoles} matrix={matrix} featureLabels={featureLabels} />
       )}
     </div>
   )
@@ -199,10 +206,72 @@ function RoleToggleBtn({ role, featureId, enabled, loading, locked, onToggle }: 
 // ════════════════════════════════════════════════════════
 // VIEW: Per Fitur
 // ════════════════════════════════════════════════════════
-function PerFiturView({ features, matrix, roles, pendingKeys, onToggle, getEnabledCount }: {
+function FeatureTitleEditor({ feature, featureLabels, setFeatureLabels }: {
+  feature: typeof MENU_ITEMS[number]
+  featureLabels: Record<string, string>
+  setFeatureLabels: React.Dispatch<React.SetStateAction<Record<string, string>>>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(featureLabels[feature.id] || feature.title)
+  const [isSaving, setIsSaving] = useState(false)
+  const displayTitle = featureLabels[feature.id] || feature.title
+
+  const save = async () => {
+    const nextTitle = draft.trim()
+    if (!nextTitle || nextTitle === displayTitle) { setEditing(false); return }
+    setIsSaving(true)
+    const res = await setFeatureDisplayTitle(feature.id, nextTitle)
+    setIsSaving(false)
+    if (res?.error) { alert(res.error); return }
+    setFeatureLabels(prev => {
+      const next = { ...prev }
+      if (nextTitle === feature.title) delete next[feature.id]
+      else next[feature.id] = nextTitle
+      return next
+    })
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <Input
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') save()
+            if (e.key === 'Escape') { setDraft(displayTitle); setEditing(false) }
+          }}
+          className="h-8 text-sm font-semibold rounded-md"
+          autoFocus
+        />
+        <Button size="sm" onClick={save} disabled={isSaving || !draft.trim()} className="h-8 text-xs rounded-md">
+          {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Simpan'}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{displayTitle}</p>
+      <button
+        onClick={() => { setDraft(displayTitle); setEditing(true) }}
+        className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-violet-600 shrink-0"
+        title="Rename fitur"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  )
+}
+
+function PerFiturView({ features, matrix, roles, pendingKeys, onToggle, getEnabledCount, featureLabels, setFeatureLabels }: {
   features: typeof MENU_ITEMS; matrix: Record<string, string[]>; roles: MasterRole[]
   pendingKeys: Set<string>; onToggle: (role: string, featureId: string, enabled: boolean) => void
   getEnabledCount: (featureId: string) => number
+  featureLabels: Record<string, string>
+  setFeatureLabels: React.Dispatch<React.SetStateAction<Record<string, string>>>
 }) {
   return (
     <div className="space-y-2">
@@ -216,7 +285,7 @@ function PerFiturView({ features, matrix, roles, pendingKeys, onToggle, getEnabl
                 <Icon className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{feature.title}</p>
+                <FeatureTitleEditor feature={feature} featureLabels={featureLabels} setFeatureLabels={setFeatureLabels} />
                 <p className="text-[10px] text-slate-400">{feature.href}</p>
               </div>
               <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 px-2 py-0.5 rounded-full">
@@ -247,10 +316,11 @@ function PerFiturView({ features, matrix, roles, pendingKeys, onToggle, getEnabl
 // ════════════════════════════════════════════════════════
 // VIEW: Per Role
 // ════════════════════════════════════════════════════════
-function PerRoleView({ features, matrix, roles, pendingKeys, onToggle, getFeatureCount, setMatrix }: {
+function PerRoleView({ features, matrix, roles, pendingKeys, onToggle, getFeatureCount, setMatrix, featureLabels }: {
   features: typeof MENU_ITEMS; matrix: Record<string, string[]>; roles: MasterRole[]
   pendingKeys: Set<string>; onToggle: (role: string, featureId: string, enabled: boolean) => void
   getFeatureCount: (role: string) => number; setMatrix: React.Dispatch<React.SetStateAction<Record<string, string[]>>>
+  featureLabels: Record<string, string>
 }) {
   const [selectedRole, setSelectedRole] = useState<string>(roles[0]?.value ?? '')
   const count = getFeatureCount(selectedRole)
@@ -319,7 +389,7 @@ function PerRoleView({ features, matrix, roles, pendingKeys, onToggle, getFeatur
                     <Icon className={cn('h-3.5 w-3.5', enabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400')} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={cn('text-xs font-medium truncate', enabled ? 'text-slate-800 dark:text-slate-200 dark:text-slate-100' : 'text-slate-400')}>{feature.title}</p>
+                    <p className={cn('text-xs font-medium truncate', enabled ? 'text-slate-800 dark:text-slate-200 dark:text-slate-100' : 'text-slate-400')}>{featureLabels[feature.id] || feature.title}</p>
                   </div>
                   {pendingKeys.has(key) ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 shrink-0" />
@@ -370,7 +440,7 @@ function RoleManagerView({ roles, setRoles, matrix, setMatrix }: {
     startTransition(async () => {
       const res = await createCustomRole(newLabel, newValue)
       if (res?.error) { setError(res.error); return }
-      const newRole: MasterRole = { value: res.slug!, label: newLabel.trim(), is_custom: 1, mobile_nav_links: '[]' }
+      const newRole: MasterRole = { value: res.slug!, label: newLabel.trim(), is_custom: 1, mobile_nav_links: '[]', sidebar_config: '' }
       setRoles(prev => [...prev, newRole])
       setMatrix(prev => ({ ...prev, [res.slug!]: [] }))
       setNewLabel(''); setNewValue('')
@@ -589,10 +659,239 @@ function RoleManagerView({ roles, setRoles, matrix, setMatrix }: {
 // ════════════════════════════════════════════════════════
 // VIEW: Konfigurasi Bottom Nav (Mobile)
 // ════════════════════════════════════════════════════════
-function NavbarView({ roles, setRoles, matrix }: {
+function parseSidebarConfig(raw?: string): SidebarGroupConfig[] {
+  if (!raw) return DEFAULT_SIDEBAR_GROUPS
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed
+  } catch {}
+  return DEFAULT_SIDEBAR_GROUPS
+}
+
+function SidebarView({ roles, setRoles, matrix, featureLabels }: {
   roles: MasterRole[]
   setRoles: React.Dispatch<React.SetStateAction<MasterRole[]>>
   matrix: Record<string, string[]>
+  featureLabels: Record<string, string>
+}) {
+  const [selectedRole, setSelectedRole] = useState<string>(roles[0]?.value ?? '')
+  const [isSaving, setIsSaving] = useState(false)
+  const [newGroupLabel, setNewGroupLabel] = useState('')
+  const selectedRoleData = roles.find(r => r.value === selectedRole)
+  const groups = parseSidebarConfig(selectedRoleData?.sidebar_config)
+  const allowedFeatures = matrix[selectedRole] ?? []
+  const configuredIds = new Set(groups.flatMap(group => group.items))
+  const availableItems = MENU_ITEMS.filter(item => allowedFeatures.includes(item.id) && !configuredIds.has(item.id))
+
+  const saveGroups = async (nextGroups: SidebarGroupConfig[]) => {
+    if (!selectedRoleData) return
+    setIsSaving(true)
+    const res = await setRoleSidebarConfig(selectedRole, nextGroups)
+    setIsSaving(false)
+    if (res?.error) { alert(res.error); return }
+    setRoles(prev => prev.map(role => role.value === selectedRole ? { ...role, sidebar_config: res.groupsJson } : role))
+  }
+
+  const swapGroups = (index: number, offset: -1 | 1) => {
+    const target = index + offset
+    if (target < 0 || target >= groups.length) return
+    const next = [...groups]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    saveGroups(next)
+  }
+
+  const updateGroup = (groupId: string, patch: Partial<SidebarGroupConfig>) => {
+    saveGroups(groups.map(group => group.id === groupId ? { ...group, ...patch } : group))
+  }
+
+  const moveItem = (fromGroupId: string, itemId: string, direction: 'up' | 'down') => {
+    const next = groups.map(group => ({ ...group, items: [...group.items] }))
+    const groupIndex = next.findIndex(group => group.id === fromGroupId)
+    if (groupIndex < 0) return
+    const itemIndex = next[groupIndex].items.indexOf(itemId)
+    if (itemIndex < 0) return
+
+    if (direction === 'up') {
+      if (itemIndex > 0) {
+        const items = next[groupIndex].items
+        ;[items[itemIndex - 1], items[itemIndex]] = [items[itemIndex], items[itemIndex - 1]]
+      } else if (groupIndex > 0) {
+        next[groupIndex].items.splice(itemIndex, 1)
+        next[groupIndex - 1].items.push(itemId)
+      }
+    } else if (itemIndex < next[groupIndex].items.length - 1) {
+      const items = next[groupIndex].items
+      ;[items[itemIndex], items[itemIndex + 1]] = [items[itemIndex + 1], items[itemIndex]]
+    } else if (groupIndex < next.length - 1) {
+      next[groupIndex].items.splice(itemIndex, 1)
+      next[groupIndex + 1].items.unshift(itemId)
+    }
+    saveGroups(next)
+  }
+
+  const removeItem = (groupId: string, itemId: string) => {
+    saveGroups(groups.map(group => group.id === groupId ? { ...group, items: group.items.filter(id => id !== itemId) } : group))
+  }
+
+  const addItem = (groupId: string, itemId: string) => {
+    if (!itemId || itemId === '__empty') return
+    saveGroups(groups.map(group => group.id === groupId ? { ...group, items: [...group.items, itemId] } : group))
+  }
+
+  const addGroup = () => {
+    const label = newGroupLabel.trim()
+    if (!label) return
+    const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'group'
+    saveGroups([...groups, { id: `${slug}-${Date.now().toString(36)}`, label, items: [] }])
+    setNewGroupLabel('')
+  }
+
+  const resetToDefault = () => {
+    if (!confirm('Kembalikan susunan sidebar role ini ke default?')) return
+    saveGroups(DEFAULT_SIDEBAR_GROUPS)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+        <div className="md:col-span-1 space-y-2">
+          {roles.map(role => {
+            const isSelected = selectedRole === role.value
+            const configuredCount = parseSidebarConfig(role.sidebar_config).flatMap(group => group.items).length
+            return (
+              <button
+                key={role.value}
+                onClick={() => setSelectedRole(role.value)}
+                className={cn(
+                  'w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all text-left',
+                  isSelected ? 'bg-violet-50 border-violet-300 ring-2 ring-violet-100' : 'bg-surface border-surface-2 hover:bg-slate-50 dark:hover:bg-slate-800'
+                )}
+              >
+                <span className={cn('text-xs font-semibold', isSelected ? 'text-violet-700' : 'text-slate-600 dark:text-slate-400')}>{role.label}</span>
+                <span className="text-[10px] text-slate-400">{configuredCount}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        {selectedRoleData && (
+          <div className="md:col-span-3 bg-surface border border-surface rounded-xl overflow-hidden p-4 space-y-4 relative">
+            {isSaving && (
+              <div className="absolute inset-0 z-10 bg-white dark:bg-slate-900/50 backdrop-blur-sm flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-violet-600" />
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{selectedRoleData.label}</p>
+                <p className="text-[10px] text-slate-400">Menu yang dicabut izinnya tetap tersimpan, tapi tidak muncul ke user.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={resetToDefault} className="h-8 text-xs rounded-lg gap-2">
+                <RotateCcw className="h-3.5 w-3.5" /> Default
+              </Button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input
+                value={newGroupLabel}
+                onChange={e => setNewGroupLabel(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addGroup()}
+                placeholder="Nama group baru..."
+                className="h-9 text-sm rounded-lg"
+              />
+              <Button onClick={addGroup} disabled={!newGroupLabel.trim()} className="h-9 text-sm rounded-lg gap-2">
+                <PlusCircle className="h-4 w-4" /> Tambah Group
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {groups.map((group, groupIndex) => (
+                <div key={group.id} className="border border-surface-2 rounded-xl overflow-hidden">
+                  <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 bg-slate-50 dark:bg-slate-800/60 border-b border-surface-2">
+                    <Folder className="h-3.5 w-3.5 text-violet-500 shrink-0" />
+                    <Input
+                      defaultValue={group.label}
+                      onBlur={e => {
+                        const nextLabel = e.target.value.trim()
+                        if (nextLabel && nextLabel !== group.label) updateGroup(group.id, { label: nextLabel })
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') e.currentTarget.blur()
+                      }}
+                      className="h-7 text-xs font-semibold rounded-md max-w-[240px]"
+                    />
+                    <span className="text-[10px] text-slate-400 mr-auto">{group.items.length} menu</span>
+                    <button onClick={() => swapGroups(groupIndex, -1)} disabled={groupIndex === 0} className="p-1.5 rounded hover:bg-white dark:hover:bg-slate-900 disabled:opacity-30" title="Naikkan group">
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => swapGroups(groupIndex, 1)} disabled={groupIndex === groups.length - 1} className="p-1.5 rounded hover:bg-white dark:hover:bg-slate-900 disabled:opacity-30" title="Turunkan group">
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => saveGroups(groups.filter(g => g.id !== group.id))} className="p-1.5 rounded hover:bg-rose-50 text-rose-500" title="Hapus group">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="p-3 space-y-2">
+                    {group.items.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">Group kosong.</p>
+                    ) : (
+                      group.items.map(itemId => {
+                        const item = MENU_ITEMS.find(menu => menu.id === itemId)
+                        const isRevoked = !allowedFeatures.includes(itemId)
+                        if (!item) return null
+                        const Icon = item.icon
+                        return (
+                          <div key={itemId} className={cn('flex items-center gap-2 px-3 py-2 rounded-lg border', isRevoked ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900')}>
+                            <Icon className="h-3.5 w-3.5 shrink-0" />
+                            <span className="text-xs font-medium truncate flex-1">{featureLabels[item.id] || item.title}</span>
+                            {isRevoked && <AlertCircle className="h-3.5 w-3.5 shrink-0" />}
+                            <button onClick={() => moveItem(group.id, itemId, 'up')} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800" title="Naik">
+                              <ArrowUp className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => moveItem(group.id, itemId, 'down')} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800" title="Turun">
+                              <ArrowDown className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => removeItem(group.id, itemId)} className="p-1 rounded hover:bg-rose-50 text-rose-500" title="Lepas dari sidebar">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )
+                      })
+                    )}
+
+                    <Select onValueChange={(itemId) => addItem(group.id, itemId)} value="">
+                      <SelectTrigger className="w-full sm:w-[320px] h-8 text-xs bg-surface border-surface-2 rounded-lg">
+                        <div className="flex items-center gap-2 text-slate-500">
+                          <Plus className="h-3.5 w-3.5" /> Tambah menu ke group ini
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableItems.map(item => (
+                          <SelectItem key={item.id} value={item.id} className="text-xs">{featureLabels[item.id] || item.title}</SelectItem>
+                        ))}
+                        {availableItems.length === 0 && (
+                          <SelectItem value="__empty" disabled className="text-xs text-slate-400">Tidak ada fitur tersisa</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function NavbarView({ roles, setRoles, matrix, featureLabels }: {
+  roles: MasterRole[]
+  setRoles: React.Dispatch<React.SetStateAction<MasterRole[]>>
+  matrix: Record<string, string[]>
+  featureLabels: Record<string, string>
 }) {
   const [selectedRole, setSelectedRole] = useState<string>(roles[0]?.value ?? '')
   const [isSaving, setIsSaving] = useState(false)
@@ -683,7 +982,7 @@ function NavbarView({ roles, setRoles, matrix }: {
                    return (
                      <div key={id} className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border", isRevoked ? "border-rose-200 bg-rose-50 text-rose-700" : "border-blue-200 bg-blue-50 text-blue-800")}>
                        <span className="text-[10px] font-bold opacity-50 w-3">{index + 1}.</span>
-                       <span className="text-xs font-medium">{mMenu ? mMenu.title : id}</span>
+                       <span className="text-xs font-medium">{mMenu ? (featureLabels[mMenu.id] || mMenu.title) : id}</span>
                        {isRevoked && <span title="Izin fitur dicabut"><AlertCircle className="h-3 w-3" /></span>}
                        <button onClick={() => removeNavLink(id)} className="ml-1 text-slate-400 hover:text-rose-500">
                          <X className="h-3 w-3" />
@@ -705,7 +1004,7 @@ function NavbarView({ roles, setRoles, matrix }: {
                  <SelectContent>
                    {MENU_ITEMS.filter(m => allowedFeatures.includes(m.id) && !currentNavLinks.includes(m.id)).map(m => (
                      <SelectItem key={m.id} value={m.id} className="text-xs">
-                       {m.title}
+                       {featureLabels[m.id] || m.title}
                      </SelectItem>
                    ))}
                    {MENU_ITEMS.filter(m => allowedFeatures.includes(m.id) && !currentNavLinks.includes(m.id)).length === 0 && (
@@ -723,4 +1022,3 @@ function NavbarView({ roles, setRoles, matrix }: {
     </div>
   )
 }
-
