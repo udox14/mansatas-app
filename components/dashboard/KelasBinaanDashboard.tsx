@@ -5,6 +5,7 @@ import { formatNamaKelas } from '@/lib/utils'
 import { getFinalAttendanceForClass } from '@/lib/wali-kelas-attendance'
 import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 import { ParentCommActions } from './ParentCommActions'
+import { KeputusanAbsensiHariIni, type KeputusanAbsensiRow } from './KeputusanAbsensiHariIni'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { WelcomeStrip } from './shared/WelcomeStrip'
 import { FeatureShortcuts } from './shared/FeatureShortcuts'
@@ -377,6 +378,7 @@ export async function KelasBinaanDashboard({
     .slice(0, 6)
 
   const namaKelas = formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok)
+  const keputusanAbsensiRows = (todayRows as KeputusanAbsensiRow[])
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -463,6 +465,14 @@ export async function KelasBinaanDashboard({
           ))}
         </div>
       )}
+
+      <KeputusanAbsensiHariIni
+        kelasId={kelas.id}
+        tanggal={today}
+        rows={keputusanAbsensiRows}
+        isEffective={isTodayEffective}
+        holidayReason={todayHolidayReason}
+      />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden xl:col-span-2">
