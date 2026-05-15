@@ -1,8 +1,84 @@
 // Lokasi: app/dashboard/plotting/actions.ts
 'use server'
 
-import { getDB, dbUpdate } from '@/utils/db'
+import { getDB } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
+
+type TahunAjaranRef = {
+  id: string
+  nama: string
+  semester: number
+  is_active?: number
+  daftar_jurusan?: string | null
+}
+
+type PlottingContext = {
+  source_tahun_ajaran_id?: string
+  target_tahun_ajaran_id?: string
+}
+
+async function ensurePlottingPenjurusanDraftTable(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS plotting_penjurusan_draft (
+      id                       TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      siswa_id                 TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
+      source_tahun_ajaran_id   TEXT NOT NULL REFERENCES tahun_ajaran(id) ON DELETE CASCADE,
+      target_tahun_ajaran_id   TEXT NOT NULL REFERENCES tahun_ajaran(id) ON DELETE CASCADE,
+      minat_jurusan            TEXT,
+      status                   TEXT NOT NULL DEFAULT 'draft'
+                               CHECK(status IN ('draft','applied')),
+      created_at               TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at               TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(siswa_id, source_tahun_ajaran_id, target_tahun_ajaran_id)
+    )
+  `).run()
+
+  await db.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_plotting_penjurusan_draft_context
+    ON plotting_penjurusan_draft(source_tahun_ajaran_id, target_tahun_ajaran_id)
+  `).run()
+
+  await db.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_plotting_penjurusan_draft_siswa
+    ON plotting_penjurusan_draft(siswa_id)
+  `).run()
+}
+
+function normalizeJurusan(value: string | null | undefined) {
+  if (!value) return null
+  if (value === 'AGM') return 'KEAGAMAAN'
+  if (value === 'SOS') return 'SOSHUM'
+  return value
+}
+
+export async function getTahunAjaranList() {
+  const db = await getDB()
+  const rows = await db
+    .prepare('SELECT id, nama, semester, is_active, daftar_jurusan FROM tahun_ajaran ORDER BY nama ASC, semester ASC')
+    .all<TahunAjaranRef>()
+
+  return rows.results ?? []
+}
+
+async function resolvePlottingContext(db: D1Database, context?: PlottingContext) {
+  let years = (await db
+    .prepare('SELECT id, nama, semester, is_active, daftar_jurusan FROM tahun_ajaran ORDER BY nama ASC, semester ASC')
+    .all<TahunAjaranRef>()).results ?? []
+
+  if (!years.length) {
+    const ta = await getTahunAjaranAktif()
+    years = [{ ...ta, is_active: 1 }]
+  }
+
+  const active = years.find((ta) => ta.is_active === 1) ?? years[0]
+  const source = years.find((ta) => ta.id === context?.source_tahun_ajaran_id) ?? active
+  const target =
+    years.find((ta) => ta.id === context?.target_tahun_ajaran_id) ??
+    years.find((ta) => ta.nama > source.nama) ??
+    source
+
+  return { source, target, active }
+}
 
 // ============================================================
 // 1. AMBIL TAHUN AJARAN AKTIF
@@ -41,25 +117,35 @@ export async function getSiswaBelumAdaKelas() {
 }
 
 // ============================================================
-// 3. KELAS BERDASARKAN TINGKAT (dengan jumlah siswa)
-// FIX: Sudah pakai GROUP BY — tidak ada correlated subquery
+// 3. KELAS BERDASARKAN TINGKAT
 // ============================================================
-export async function getKelasByTingkat(tingkat: number) {
+export async function getKelasByTingkat(tingkat: number, tahun_ajaran_id?: string) {
   const db = await getDB()
+  const { target } = await resolvePlottingContext(db, { target_tahun_ajaran_id: tahun_ajaran_id })
+  const countByCurrentClass = !tahun_ajaran_id || target.is_active === 1
+
   const rows = await db
     .prepare(
-      `SELECT k.id, k.tingkat, k.kelompok, k.nomor_kelas, k.kapasitas,
-              COUNT(CASE WHEN s.status = 'aktif' THEN 1 END) as jumlah_siswa
-       FROM kelas k
-       LEFT JOIN siswa s ON s.kelas_id = k.id
-       WHERE k.tingkat = ?
-       GROUP BY k.id
-       ORDER BY k.kelompok ASC, k.nomor_kelas ASC`
+      countByCurrentClass
+        ? `SELECT k.id, k.tingkat, k.kelompok, k.nomor_kelas, k.kapasitas,
+                  COUNT(CASE WHEN s.status = 'aktif' THEN 1 END) as jumlah_siswa
+           FROM kelas k
+           LEFT JOIN siswa s ON s.kelas_id = k.id
+           WHERE k.tingkat = ?
+           GROUP BY k.id
+           ORDER BY k.kelompok ASC, k.nomor_kelas ASC`
+        : `SELECT k.id, k.tingkat, k.kelompok, k.nomor_kelas, k.kapasitas,
+                  COUNT(rk.siswa_id) as jumlah_siswa
+           FROM kelas k
+           LEFT JOIN riwayat_kelas rk
+             ON rk.kelas_id = k.id AND rk.tahun_ajaran_id = ?
+           WHERE k.tingkat = ?
+           GROUP BY k.id
+           ORDER BY k.kelompok ASC, k.nomor_kelas ASC`
     )
-    .bind(tingkat)
+    .bind(...(countByCurrentClass ? [tingkat] : [target.id, tingkat]))
     .all<any>()
 
-  // Tambah field 'nama' yang dipakai oleh tab-penjurusan dan tab-pengacakan
   return (rows.results ?? []).map((k: any) => ({
     ...k,
     nama: `${k.tingkat}-${k.nomor_kelas}${k.kelompok !== 'UMUM' ? ' ' + k.kelompok : ''}`,
@@ -67,21 +153,52 @@ export async function getKelasByTingkat(tingkat: number) {
 }
 
 // ============================================================
-// 4. SISWA BERDASARKAN TINGKAT (untuk tab plotting)
+// 4. SISWA BERDASARKAN TINGKAT
 // ============================================================
-export async function getSiswaByTingkat(tingkat: number) {
+export async function getSiswaByTingkat(
+  tingkat: number,
+  source_tahun_ajaran_id?: string,
+  target_tahun_ajaran_id?: string
+) {
   const db = await getDB()
-  // Hanya ambil kolom yang dibutuhkan di UI plotting
+  await ensurePlottingPenjurusanDraftTable(db)
+  const { source, target } = await resolvePlottingContext(db, {
+    source_tahun_ajaran_id,
+    target_tahun_ajaran_id,
+  })
+  const useCurrentClass = source.is_active === 1
+
   const result = await db
     .prepare(
-      `SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin, s.kelas_id, s.minat_jurusan,
-              k.tingkat, k.kelompok, k.nomor_kelas
-       FROM siswa s
-       JOIN kelas k ON s.kelas_id = k.id
-       WHERE k.tingkat = ? AND s.status = 'aktif'
-       ORDER BY s.nama_lengkap ASC`
+      useCurrentClass
+        ? `SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin, s.kelas_id,
+                  s.minat_jurusan as legacy_minat_jurusan,
+                  d.id as draft_id, d.minat_jurusan as draft_minat_jurusan,
+                  k.tingkat, k.kelompok, k.nomor_kelas
+           FROM siswa s
+           JOIN kelas k ON s.kelas_id = k.id
+           LEFT JOIN plotting_penjurusan_draft d
+             ON d.siswa_id = s.id
+            AND d.source_tahun_ajaran_id = ?
+            AND d.target_tahun_ajaran_id = ?
+           WHERE k.tingkat = ? AND s.status = 'aktif'
+           ORDER BY s.nama_lengkap ASC`
+        : `SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin, rk.kelas_id,
+                  s.minat_jurusan as legacy_minat_jurusan,
+                  d.id as draft_id, d.minat_jurusan as draft_minat_jurusan,
+                  k.tingkat, k.kelompok, k.nomor_kelas
+           FROM siswa s
+           JOIN riwayat_kelas rk
+             ON rk.siswa_id = s.id AND rk.tahun_ajaran_id = ?
+           JOIN kelas k ON k.id = rk.kelas_id
+           LEFT JOIN plotting_penjurusan_draft d
+             ON d.siswa_id = s.id
+            AND d.source_tahun_ajaran_id = ?
+            AND d.target_tahun_ajaran_id = ?
+           WHERE k.tingkat = ? AND s.status = 'aktif'
+           ORDER BY s.nama_lengkap ASC`
     )
-    .bind(tingkat)
+    .bind(...(useCurrentClass ? [source.id, target.id, tingkat] : [source.id, source.id, target.id, tingkat]))
     .all<any>()
 
   return (result.results ?? []).map((s: any) => ({
@@ -90,8 +207,9 @@ export async function getSiswaByTingkat(tingkat: number) {
     nama_lengkap: s.nama_lengkap,
     jenis_kelamin: s.jenis_kelamin,
     kelas_id: s.kelas_id,
-    minat_jurusan: s.minat_jurusan,
-    // kelas_lama dan kelompok dibutuhkan oleh SiswaType di tab-penjurusan, tab-pengacakan, tab-kelulusan
+    minat_jurusan: s.draft_id
+      ? normalizeJurusan(s.draft_minat_jurusan)
+      : normalizeJurusan(s.legacy_minat_jurusan),
     kelas_lama: s.tingkat ? `${s.tingkat}-${s.nomor_kelas}` : '',
     kelompok: s.kelompok ?? 'UMUM',
     kelas: {
@@ -136,27 +254,63 @@ export async function getSiswaLulusByRiwayatTingkat(tingkat: number) {
 }
 
 // ============================================================
-// 5. DRAFT PENJURUSAN
+// 5. DRAFT PENJURUSAN PER TAHUN AJARAN
 // ============================================================
-export async function setDraftPenjurusan(siswa_id: string, minat_jurusan: string | null) {
+export async function setDraftPenjurusan(
+  siswa_id: string,
+  minat_jurusan: string | null,
+  context?: PlottingContext
+) {
   const db = await getDB()
-  const result = await dbUpdate(db, 'siswa', { minat_jurusan }, { id: siswa_id })
-  if (result.error) return { error: result.error }
+  await ensurePlottingPenjurusanDraftTable(db)
+  const { source, target } = await resolvePlottingContext(db, context)
+  const now = new Date().toISOString()
+
+  await db
+    .prepare(
+      `INSERT INTO plotting_penjurusan_draft (
+         id, siswa_id, source_tahun_ajaran_id, target_tahun_ajaran_id, minat_jurusan, status, updated_at
+       )
+       VALUES (?, ?, ?, ?, ?, 'draft', ?)
+       ON CONFLICT(siswa_id, source_tahun_ajaran_id, target_tahun_ajaran_id)
+       DO UPDATE SET
+         minat_jurusan = excluded.minat_jurusan,
+         status = 'draft',
+         updated_at = excluded.updated_at`
+    )
+    .bind(crypto.randomUUID(), siswa_id, source.id, target.id, normalizeJurusan(minat_jurusan), now)
+    .run()
+
   revalidatePath('/dashboard/plotting')
   return { success: true }
 }
 
-export async function setDraftPenjurusanMassal(payload: { id: string; minat_jurusan: string }[]) {
+export async function setDraftPenjurusanMassal(
+  payload: { id: string; minat_jurusan: string }[],
+  context?: PlottingContext
+) {
   const db = await getDB()
+  await ensurePlottingPenjurusanDraftTable(db)
+  const { source, target } = await resolvePlottingContext(db, context)
+  const now = new Date().toISOString()
 
-  // Chunk per 100
   const chunkSize = 100
   for (let i = 0; i < payload.length; i += chunkSize) {
     const chunk = payload.slice(i, i + chunkSize)
     const stmts = chunk.map((p) =>
       db
-        .prepare('UPDATE siswa SET minat_jurusan = ? WHERE id = ?')
-        .bind(p.minat_jurusan, p.id)
+        .prepare(
+          `INSERT INTO plotting_penjurusan_draft (
+             id, siswa_id, source_tahun_ajaran_id, target_tahun_ajaran_id, minat_jurusan, status, updated_at
+           )
+           VALUES (?, ?, ?, ?, ?, 'draft', ?)
+           ON CONFLICT(siswa_id, source_tahun_ajaran_id, target_tahun_ajaran_id)
+           DO UPDATE SET
+             minat_jurusan = excluded.minat_jurusan,
+             status = 'draft',
+             updated_at = excluded.updated_at`
+        )
+        .bind(crypto.randomUUID(), p.id, source.id, target.id, normalizeJurusan(p.minat_jurusan), now)
     )
     await db.batch(stmts)
   }
@@ -167,52 +321,69 @@ export async function setDraftPenjurusanMassal(payload: { id: string; minat_juru
 
 // ============================================================
 // 6. SIMPAN PLOTTING MASSAL
-// FIX: Pisah UPDATE dan INSERT riwayat ke 2 batch terpisah
-// agar lebih terprediksi dan tidak campur tipe operasi
 // ============================================================
 export async function simpanPlottingMassal(
-  hasilPlotting: { siswa_id: string; kelas_id: string }[]
+  hasilPlotting: { siswa_id: string; kelas_id: string }[],
+  context?: PlottingContext
 ) {
   if (!hasilPlotting.length) return { error: 'Tidak ada data plotting.' }
 
   const db = await getDB()
-  const ta = await getTahunAjaranAktif()
-  if (!ta) return { error: 'Gagal mendapatkan Tahun Ajaran Aktif.' }
+  await ensurePlottingPenjurusanDraftTable(db)
+  const { source, target } = await resolvePlottingContext(db, context)
 
   try {
     const now = new Date().toISOString()
     const chunkSize = 100
 
-    // Batch 1: UPDATE kelas_id siswa
-    const updateStmts = hasilPlotting.map((plot) =>
-      db
-        .prepare(
-          'UPDATE siswa SET kelas_id = ?, minat_jurusan = NULL, updated_at = ? WHERE id = ?'
-        )
-        .bind(plot.kelas_id, now, plot.siswa_id)
-    )
-    for (let i = 0; i < updateStmts.length; i += chunkSize) {
-      await db.batch(updateStmts.slice(i, i + chunkSize))
+    if (target.is_active === 1) {
+      const updateStmts = hasilPlotting.map((plot) =>
+        db
+          .prepare('UPDATE siswa SET kelas_id = ?, updated_at = ? WHERE id = ?')
+          .bind(plot.kelas_id, now, plot.siswa_id)
+      )
+
+      for (let i = 0; i < updateStmts.length; i += chunkSize) {
+        await db.batch(updateStmts.slice(i, i + chunkSize))
+      }
     }
 
-    // Batch 2: INSERT riwayat_kelas (DO NOTHING jika sudah ada)
     const riwayatStmts = hasilPlotting.map((plot) =>
       db
         .prepare(
           `INSERT INTO riwayat_kelas (siswa_id, kelas_id, tahun_ajaran_id)
            VALUES (?, ?, ?)
-           ON CONFLICT(siswa_id, tahun_ajaran_id) DO NOTHING`
+           ON CONFLICT(siswa_id, tahun_ajaran_id)
+           DO UPDATE SET kelas_id = excluded.kelas_id`
         )
-        .bind(plot.siswa_id, plot.kelas_id, ta.id)
+        .bind(plot.siswa_id, plot.kelas_id, target.id)
     )
+
     for (let i = 0; i < riwayatStmts.length; i += chunkSize) {
       await db.batch(riwayatStmts.slice(i, i + chunkSize))
+    }
+
+    for (let i = 0; i < hasilPlotting.length; i += chunkSize) {
+      const chunk = hasilPlotting.slice(i, i + chunkSize)
+      const placeholders = chunk.map(() => '?').join(', ')
+      await db
+        .prepare(
+          `UPDATE plotting_penjurusan_draft
+           SET status = 'applied', updated_at = ?
+           WHERE source_tahun_ajaran_id = ?
+             AND target_tahun_ajaran_id = ?
+             AND siswa_id IN (${placeholders})`
+        )
+        .bind(now, source.id, target.id, ...chunk.map((plot) => plot.siswa_id))
+        .run()
     }
 
     revalidatePath('/dashboard/kelas')
     revalidatePath('/dashboard/plotting')
     revalidatePath('/dashboard/siswa')
-    return { success: `Berhasil memploting ${hasilPlotting.length} siswa secara permanen!` }
+
+    const mode = target.is_active === 1 ? 'permanen' : `sebagai rencana TA ${target.nama}`
+    return { success: `Berhasil memploting ${hasilPlotting.length} siswa ${mode}!` }
   } catch (err: any) {
     return { error: 'Terjadi kesalahan sistem saat menyimpan plotting.' }
   }

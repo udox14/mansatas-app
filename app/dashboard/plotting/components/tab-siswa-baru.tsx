@@ -12,8 +12,13 @@ import { simpanPlottingMassal } from '../actions'
 type SiswaType = { id: string; nama_lengkap: string; nisn: string; jenis_kelamin: string }
 type KelasType = { id: string; nama: string; kapasitas: number; jumlah_siswa: number }
 type HasilPlottingType = { siswa_id: string; nama_lengkap: string; jk: string; kelas_id: string; kelas_nama: string }
+type PlottingContext = { source_tahun_ajaran_id: string; target_tahun_ajaran_id: string }
 
-export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[]; kelasList: KelasType[] }) {
+export function TabSiswaBaru({
+  siswaList, kelasList, plottingContext
+}: {
+  siswaList: SiswaType[]; kelasList: KelasType[]; plottingContext: PlottingContext
+}) {
   const [selectedKelasIds, setSelectedKelasIds] = useState<string[]>([])
   const [simulasiResult, setSimulasiResult] = useState<HasilPlottingType[]>([])
   const [isSimulating, setIsSimulating] = useState(false)
@@ -59,7 +64,10 @@ export function TabSiswaBaru({ siswaList, kelasList }: { siswaList: SiswaType[];
   const simpanPermanen = async () => {
     if (!simulasiResult.length) return
     setIsSaving(true)
-    const res = await simpanPlottingMassal(simulasiResult.map(r => ({ siswa_id: r.siswa_id, kelas_id: r.kelas_id })))
+    const res = await simpanPlottingMassal(
+      simulasiResult.map(r => ({ siswa_id: r.siswa_id, kelas_id: r.kelas_id })),
+      plottingContext
+    )
     if (res.error) alert(res.error)
     else { setSuccessMsg(res.success!); setSimulasiResult([]) }
     setIsSaving(false)

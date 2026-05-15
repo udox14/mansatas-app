@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/monitoring-agenda/components/monitoring-client.tsx
 'use client'
 
-import { useMemo, useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useReactToPrint } from 'react-to-print'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,7 +16,7 @@ import {
   ChevronLeft, ChevronRight, Send, ShieldCheck,
 } from 'lucide-react'
 import {
-  getMonitoringHarian, getRekapKehadiranGuru,
+  getMonitoringHarian, getMonitoringHarianSlots, getRekapKehadiranGuru,
   editAgendaStatus, getDataCetakLaporan,
   getMonitoringPiketHarian, editAgendaPiketStatus,
 } from '../actions'
@@ -106,15 +106,41 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
   const [editCatatan, setEditCatatan] = useState('')
   const [isEditing, setIsEditing] = useState(false)
 
+  useEffect(() => {
+    let active = true
+
+    getMonitoringHarianSlots(tanggal).then((result) => {
+      if (!active) return
+
+      const nextSlots = ((result as any).slots || []) as SlotOption[]
+      setSlots(nextSlots)
+      setHariNama(result.hariNama || '')
+      setJamFilter(current => {
+        if (current === 'all_jam') return current
+        return nextSlots.some(slot => String(slot.id) === current) ? current : 'all_jam'
+      })
+    })
+
+    setData([])
+    setPesan(null)
+
+    return () => { active = false }
+  }, [tanggal])
+
   const handleSearch = async () => {
     setIsLoading(true); setPesan(null)
-    const result = await getMonitoringHarian(tanggal, filterMode, filterMode !== 'semua' ? filterId : undefined)
+    const selectedJam = jamFilter !== 'all_jam' ? Number(jamFilter) : undefined
+    const result = await getMonitoringHarian(
+      tanggal,
+      filterMode,
+      filterMode !== 'semua' ? filterId : undefined,
+      typeof selectedJam === 'number' && Number.isFinite(selectedJam) ? selectedJam : undefined,
+    )
     if (result.error) setPesan({ tipe: 'error', teks: result.error })
     else {
       setData(result.data || [])
       setHariNama(result.hariNama || '')
       setSlots(((result as any).slots || []) as SlotOption[])
-      setJamFilter('all_jam')
       if ((result as any).calendarStatus && !(result as any).calendarStatus.isEffective) {
         setPesan({ tipe: 'sukses', teks: `Tanggal ini tidak efektif pembelajaran: ${(result as any).calendarStatus.reason || 'tidak ada kewajiban agenda.'}` })
       }
@@ -148,13 +174,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
   }
 
   // Summary counts
-  const filteredData = useMemo(() => {
-    if (jamFilter === 'all_jam') return data
-    const selectedJam = Number(jamFilter)
-    if (!Number.isFinite(selectedJam)) return data
-
-    return data.filter(item => item.jam_ke_mulai <= selectedJam && item.jam_ke_selesai >= selectedJam)
-  }, [data, jamFilter])
+  const filteredData = data
 
   const selectedSlot = slots.find(slot => String(slot.id) === jamFilter)
 
