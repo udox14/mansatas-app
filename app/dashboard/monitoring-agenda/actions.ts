@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import { getEffectiveDatesInRange, getKalenderDateStatus } from '@/lib/kalender-pendidikan'
-import { nowWIBISO } from '@/lib/time'
+import { currentTimeWIB, nowWIBISO, todayWIB } from '@/lib/time'
 
 // ============================================================
 // HELPER
@@ -27,6 +27,25 @@ function getHariFromDate(dateStr: string): number {
 }
 
 const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+
+function timeToMinutes(value?: string | null): number | null {
+  if (!value || value === '-') return null
+  const [hours, minutes] = value.split(':').map(Number)
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null
+  return hours * 60 + minutes
+}
+
+function isTeachingBlockEnded(tanggal: string, slotSelesai?: SlotJam): boolean {
+  const today = todayWIB()
+  if (tanggal < today) return true
+  if (tanggal > today) return false
+
+  const selesaiMinutes = timeToMinutes(slotSelesai?.selesai)
+  if (selesaiMinutes === null) return true
+
+  const current = currentTimeWIB()
+  return current.hours * 60 + current.minutes >= selesaiMinutes
+}
 
 // ============================================================
 // 1. MONITORING HARIAN — semua guru yang punya jadwal di tanggal tertentu
@@ -103,7 +122,11 @@ export async function getMonitoringHarian(tanggal: string, filterMode: 'semua' |
     params.push(filterId)
   }
 
-  sql += ' ORDER BY u.nama_lengkap, jm.jam_ke'
+  if (filterMode === 'kelas' && filterId) {
+    sql += ' ORDER BY jm.jam_ke ASC, u.nama_lengkap ASC'
+  } else {
+    sql += ' ORDER BY u.nama_lengkap ASC, jm.jam_ke ASC'
+  }
 
   const result = await db.prepare(sql).bind(...params).all<any>()
   const rows = result.results || []
@@ -124,14 +147,14 @@ export async function getMonitoringHarian(tanggal: string, filterMode: 'semua' |
     const slotMulai = slots.find(s => s.id === jamMulai)
     const slotSelesai = slots.find(s => s.id === jamSelesai)
 
-    // Tentukan status: agenda > delegasi (TUGAS) > ALFA
+    // Tentukan status: agenda > delegasi (TUGAS) > BELUM_MENGISI/ALFA
     let status: string
     if (first.agenda_id) {
       status = first.status
     } else if (first.delegasi_kelas_id) {
       status = 'TUGAS'
     } else {
-      status = 'ALFA'
+      status = isTeachingBlockEnded(tanggal, slotSelesai) ? 'ALFA' : 'BELUM_MENGISI'
     }
 
     data.push({
@@ -155,6 +178,14 @@ export async function getMonitoringHarian(tanggal: string, filterMode: 'semua' |
       catatan_admin: first.catatan_admin,
       pelaksana_nama: first.pelaksana_nama || null,
     })
+  }
+
+  if (filterMode === 'kelas' && filterId) {
+    data.sort((a, b) =>
+      a.jam_ke_mulai - b.jam_ke_mulai ||
+      a.jam_ke_selesai - b.jam_ke_selesai ||
+      a.guru_nama.localeCompare(b.guru_nama)
+    )
   }
 
   return { error: null, data, hariNama: HARI_NAMA[hari] || '', slots }

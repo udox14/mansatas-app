@@ -15,6 +15,7 @@ export type RppmSpec = {
   topik_pembelajaran: string
   alokasi_waktu: string
   konteks_topik?: string
+  tanggal_ttd?: string
 }
 
 export type RppmContent = {
@@ -76,6 +77,7 @@ const EMPTY_SPEC: RppmSpec = {
   topik_pembelajaran: '',
   alokasi_waktu: '',
   konteks_topik: '',
+  tanggal_ttd: '',
 }
 
 export const DEFAULT_RPPM_PRINT_SETTINGS: RppmPrintSettings = {
@@ -486,7 +488,15 @@ function cleanSpec(value: Record<string, unknown>): Partial<RppmSpec> {
     topik_pembelajaran: cleanText(value.topik_pembelajaran),
     alokasi_waktu: cleanText(value.alokasi_waktu),
     konteks_topik: cleanText(value.konteks_topik),
+    tanggal_ttd: cleanText(value.tanggal_ttd),
   }
+}
+
+export function formatTanggalRppm(dateStr?: string) {
+  if (!dateStr) return ''
+  const date = new Date(`${dateStr}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 function cleanText(value: unknown): string {

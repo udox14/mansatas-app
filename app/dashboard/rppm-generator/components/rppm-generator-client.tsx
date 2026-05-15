@@ -26,6 +26,7 @@ import {
   buildRppmPrompt,
   cleanTextArray,
   emptyRppmContent,
+  formatTanggalRppm,
   normalizePrintSettings,
   normalizeRppmContent,
   parseRppmJson,
@@ -64,6 +65,7 @@ const DEFAULT_SPEC: RppmSpec = {
   topik_pembelajaran: '',
   alokasi_waktu: '2 JP (Pertemuan 1)',
   konteks_topik: '',
+  tanggal_ttd: new Date().toISOString().slice(0, 10),
 }
 
 const WIZARD_STEPS = [
@@ -240,6 +242,11 @@ export function RppmGeneratorClient({
               <SpecInput label="Kelas / Semester" value={content.spesifikasi.kelas_semester} onChange={value => updateSpec(setContent, 'kelas_semester', value)} />
               <SpecInput label="Topik Pembelajaran" value={content.spesifikasi.topik_pembelajaran} onChange={value => updateSpec(setContent, 'topik_pembelajaran', value)} />
               <SpecInput label="Alokasi Waktu" value={content.spesifikasi.alokasi_waktu} onChange={value => updateSpec(setContent, 'alokasi_waktu', value)} />
+              <div>
+                <Label className="text-xs font-medium">Tanggal Tanda Tangan</Label>
+                <Input type="date" value={content.spesifikasi.tanggal_ttd || ''} onChange={event => updateSpec(setContent, 'tanggal_ttd', event.target.value)} className="mt-1" />
+                <p className="mt-1 text-xs text-slate-500">Akan tampil sebagai: Tasikmalaya{content.spesifikasi.tanggal_ttd ? `, ${formatTanggalRppm(content.spesifikasi.tanggal_ttd)}` : ', ...'}</p>
+              </div>
               <div className="sm:col-span-2">
                 <Label className="text-xs font-medium">Konteks Topik / Catatan Pengarah</Label>
                 <Textarea
