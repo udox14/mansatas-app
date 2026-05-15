@@ -166,6 +166,13 @@ export const MENU_ITEMS: MenuItem[] = [
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_tahfidz', 'operator', 'pramubakti', 'satpam']
   },
   {
+    id: 'rppm-generator',
+    title: 'RPPM Generator',
+    href: '/dashboard/rppm-generator',
+    icon: ClipboardEdit,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_tahfidz', 'guru_ppl']
+  },
+  {
     id: 'nilai-harian',
     title: 'Nilai Harian',
     href: '/dashboard/nilai-harian',
@@ -376,7 +383,7 @@ export const MENU_ITEMS: MenuItem[] = [
 export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'utama', label: 'Utama', items: ['dashboard'] },
   { id: 'data-master', label: 'Data Master', items: ['siswa', 'guru', 'kelas', 'plotting'] },
-  { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'ckh-generator', 'kehadiran', 'nilai-harian', 'penugasan'] },
+  { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'ckh-generator', 'rppm-generator', 'kehadiran', 'nilai-harian', 'penugasan'] },
   { id: 'monitoring-akademik', label: 'Monitoring Akademik', items: ['akademik', 'kalender-pendidikan', 'analitik'] },
   { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'monitoring-penugasan', 'rekap-absensi', 'akademik-nilai'] },
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
