@@ -14,6 +14,7 @@ import { simpanPlottingMassal, setDraftPenjurusanMassal } from '../actions'
 type SiswaType = { id: string; nama_lengkap: string; nisn: string; jenis_kelamin: string; kelas_lama: string; minat_jurusan?: string | null }
 type KelasType = { id: string; nama: string; kelompok: string; kapasitas: number; jumlah_siswa: number }
 type HasilPlottingType = { siswa_id: string; nama_lengkap: string; jk: string; kelas_lama: string; kelas_id: string; kelas_nama: string }
+type PlottingContext = { source_tahun_ajaran_id: string; target_tahun_ajaran_id: string }
 
 // ── Palet warna per jurusan ────────────────────────────────────────────────
 const JURUSAN_COLOR: Record<string, { bg: string; bar: string; text: string; border: string }> = {
@@ -189,9 +190,9 @@ function StatistikSebaran({
 }
 
 export function TabPenjurusan({
-  siswaList, kelasList, daftarJurusan = []
+  siswaList, kelasList, daftarJurusan = [], plottingContext
 }: {
-  siswaList: SiswaType[]; kelasList: KelasType[]; daftarJurusan?: string[]
+  siswaList: SiswaType[]; kelasList: KelasType[]; daftarJurusan?: string[]; plottingContext: PlottingContext
 }) {
   const [penjurusan, setPenjurusan] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {}
@@ -281,7 +282,7 @@ export function TabPenjurusan({
     setIsSavingDraft(true); setSaveStatus('Menyimpan...')
     const payload = Object.entries(penjurusan).map(([id, minat_jurusan]) => ({ id, minat_jurusan }))
     siswaList.forEach(s => { if (s.minat_jurusan && !penjurusan[s.id]) payload.push({ id: s.id, minat_jurusan: '' }) })
-    const res = await setDraftPenjurusanMassal(payload) as { error?: string; success?: boolean }
+    const res = await setDraftPenjurusanMassal(payload, plottingContext) as { error?: string; success?: boolean }
     if (res.error) { alert(res.error); setSaveStatus('') }
     else { setSaveStatus('Tersimpan'); setTimeout(() => setSaveStatus(''), 2000) }
     setIsSavingDraft(false)
@@ -326,7 +327,10 @@ export function TabPenjurusan({
   const simpanPermanen = async () => {
     if (!simulasiResult.length) return
     setIsSavingPermanent(true)
-    const res = await simpanPlottingMassal(simulasiResult.map(r => ({ siswa_id: r.siswa_id, kelas_id: r.kelas_id })))
+    const res = await simpanPlottingMassal(
+      simulasiResult.map(r => ({ siswa_id: r.siswa_id, kelas_id: r.kelas_id })),
+      plottingContext
+    )
     if (res.error) alert(res.error)
     else { setSuccessMsg(res.success!); setSimulasiResult([]); setPenjurusan({}); setHasRunSimulation(false) }
     setIsSavingPermanent(false)

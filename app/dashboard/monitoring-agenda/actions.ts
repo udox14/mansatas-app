@@ -52,7 +52,12 @@ function isTeachingBlockEnded(tanggal: string, slotSelesai?: SlotJam): boolean {
 //    Menampilkan siapa sudah isi & siapa ALFA
 //    Efisien: 1 query join, tanpa N+1
 // ============================================================
-export async function getMonitoringHarian(tanggal: string, filterMode: 'semua' | 'guru' | 'kelas', filterId?: string) {
+export async function getMonitoringHarian(
+  tanggal: string,
+  filterMode: 'semua' | 'guru' | 'kelas',
+  filterId?: string,
+  jamKe?: number
+) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', data: [] }
 
@@ -122,6 +127,20 @@ export async function getMonitoringHarian(tanggal: string, filterMode: 'semua' |
     params.push(filterId)
   }
 
+  if (typeof jamKe === 'number' && Number.isFinite(jamKe)) {
+    sql += `
+      AND EXISTS (
+        SELECT 1
+        FROM jadwal_mengajar jm_filter
+        WHERE jm_filter.tahun_ajaran_id = jm.tahun_ajaran_id
+          AND jm_filter.hari = jm.hari
+          AND jm_filter.penugasan_id = jm.penugasan_id
+          AND jm_filter.jam_ke = ?
+      )
+    `
+    params.push(jamKe)
+  }
+
   if (filterMode === 'kelas' && filterId) {
     sql += ' ORDER BY jm.jam_ke ASC, u.nama_lengkap ASC'
   } else {
@@ -189,6 +208,37 @@ export async function getMonitoringHarian(tanggal: string, filterMode: 'semua' |
   }
 
   return { error: null, data, hariNama: HARI_NAMA[hari] || '', slots }
+}
+
+export async function getMonitoringHarianSlots(tanggal: string) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized', slots: [], hariNama: '' }
+
+  const db = await getDB()
+  const hari = getHariFromDate(tanggal)
+  if (hari === 7) return { error: null, slots: [], hariNama: 'Minggu' }
+
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) {
+    return {
+      error: null,
+      slots: [],
+      hariNama: HARI_NAMA[hari] || '',
+      calendarStatus: {
+        isEffective: false,
+        reason: calendarStatus.reason,
+        category: calendarStatus.category,
+      },
+    }
+  }
+
+  const ta = await db.prepare(
+    'SELECT jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1'
+  ).first<any>()
+  if (!ta) return { error: 'Tahun ajaran aktif belum diatur', slots: [], hariNama: HARI_NAMA[hari] || '' }
+
+  const polaList = parsePolaJam(ta.jam_pelajaran || '[]')
+  return { error: null, slots: getSlotsForHari(polaList, hari), hariNama: HARI_NAMA[hari] || '' }
 }
 
 // ============================================================
