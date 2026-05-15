@@ -7,11 +7,11 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, Trash2, Users, ChevronRight, UserCircle, Library, Pencil, AlertTriangle, Save, Loader2, ChevronDown } from 'lucide-react'
+import { Search, Trash2, Users, ChevronRight, UserCircle, Library, Pencil, AlertTriangle, Save, Loader2, ChevronDown, PauseCircle, PlayCircle } from 'lucide-react'
 import { TambahModal } from './tambah-modal'
 import { ImportModal } from './import-modal'
 import { EditModal } from './edit-modal'
-import { hapusKelas, batchUpdateKelas } from '../actions'
+import { hapusKelas, batchUpdateKelas, setStatusKbmKelas, setStatusKbmTingkat } from '../actions'
 import { AssignBKModal } from './assign-bk-modal'
 import { CetakAbsensiModal } from './cetak-absensi-modal'
 import { cn, formatNamaKelas } from '@/lib/utils'
@@ -19,6 +19,7 @@ import { cn, formatNamaKelas } from '@/lib/utils'
 type KelasData = {
   id: string; tingkat: number; nomor_kelas: string; kelompok: string
   kapasitas: number; wali_kelas_id: string; wali_kelas_nama: string; jumlah_siswa: number
+  kbm_nonaktif_mulai: string | null
 }
 type GuruType = { id: string; nama_lengkap: string }
 
@@ -76,6 +77,8 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
   const [editingKelas, setEditingKelas] = useState<KelasData | null>(null)
   const [pendingChanges, setPendingChanges] = useState<Record<string, { kelompok?: string; wali_kelas_id?: string }>>({})
   const [isSavingBatch, setIsSavingBatch] = useState(false)
+  const [updatingKbmId, setUpdatingKbmId] = useState<string | null>(null)
+  const [isUpdatingTingkat12, setIsUpdatingTingkat12] = useState(false)
 
   const handleQueueChange = (id: string, field: 'kelompok' | 'wali_kelas_id', value: string) => {
     setPendingChanges(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: value } }))
@@ -99,6 +102,11 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
     return matchTingkat && matchSearch
   })
 
+  const tingkatOptions = Array.from(new Set(initialData.map(k => k.tingkat))).sort((a, b) => a - b)
+  const kelas12 = initialData.filter(k => k.tingkat === 12)
+  const hasKelas12 = kelas12.length > 0
+  const kelas12SemuaNonaktif = hasKelas12 && kelas12.every(k => !!k.kbm_nonaktif_mulai)
+
   const sortedData = [...filteredData].sort((a, b) =>
     formatNamaKelas(a.tingkat, a.nomor_kelas, a.kelompok).localeCompare(formatNamaKelas(b.tingkat, b.nomor_kelas, b.kelompok), undefined, { numeric: true, sensitivity: 'base' })
   )
@@ -110,6 +118,35 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
     const res = await hapusKelas(id)
     if (res?.error) alert(res.error)
     setIsPending(false)
+  }
+
+  const handleToggleKbm = async (kelas: KelasData) => {
+    const namaKelas = formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok)
+    const nextAktif = !!kelas.kbm_nonaktif_mulai
+    const message = nextAktif
+      ? `Aktifkan lagi kewajiban KBM untuk ${namaKelas}?`
+      : `Nonaktifkan kewajiban agenda dan absensi untuk ${namaKelas} mulai hari ini?`
+    if (!confirm(message)) return
+
+    setUpdatingKbmId(kelas.id)
+    const res = await setStatusKbmKelas(kelas.id, nextAktif)
+    if (res.error) alert(res.error)
+    else router.refresh()
+    setUpdatingKbmId(null)
+  }
+
+  const handleToggleKbmTingkat12 = async () => {
+    const nextAktif = kelas12SemuaNonaktif
+    const message = nextAktif
+      ? 'Aktifkan lagi kewajiban KBM untuk semua kelas 12?'
+      : 'Nonaktifkan kewajiban agenda dan absensi untuk semua kelas 12 mulai hari ini?'
+    if (!confirm(message)) return
+
+    setIsUpdatingTingkat12(true)
+    const res = await setStatusKbmTingkat(12, nextAktif)
+    if (res.error) alert(res.error)
+    else router.refresh()
+    setIsUpdatingTingkat12(false)
   }
 
   return (
@@ -126,12 +163,29 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
           <SelectTrigger className="h-8 w-32 text-xs rounded-md shrink-0"><SelectValue placeholder="Tingkat" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="Semua">Semua</SelectItem>
-            <SelectItem value="7">Kelas 7</SelectItem>
-            <SelectItem value="8">Kelas 8</SelectItem>
-            <SelectItem value="9">Kelas 9</SelectItem>
+            {tingkatOptions.map(tingkat => (
+              <SelectItem key={tingkat} value={String(tingkat)}>Kelas {tingkat}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <div className="flex gap-2 ml-auto">
+          {hasKelas12 && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleToggleKbmTingkat12}
+              disabled={isUpdatingTingkat12}
+              className={cn(
+                "h-8 gap-1.5 rounded-md px-2.5 text-xs",
+                kelas12SemuaNonaktif ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' : 'border-amber-200 text-amber-700 hover:bg-amber-50'
+              )}
+            >
+              {isUpdatingTingkat12
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : kelas12SemuaNonaktif ? <PlayCircle className="h-3.5 w-3.5" /> : <PauseCircle className="h-3.5 w-3.5" />}
+              {kelas12SemuaNonaktif ? 'Aktifkan Kelas 12' : 'Nonaktifkan Kelas 12'}
+            </Button>
+          )}
           {userRole === 'super_admin' && (
             <AssignBKModal kelasList={sortedData.map(k => ({ id: k.id, tingkat: k.tingkat, nomor_kelas: k.nomor_kelas, kelompok: k.kelompok }))} />
           )}
@@ -194,6 +248,11 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
                       <AlertTriangle className="h-2.5 w-2.5 inline mr-0.5" />Usang
                     </span>
                   )}
+                  {k.kbm_nonaktif_mulai && (
+                    <span className="ml-2 text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                      KBM nonaktif
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 border-surface')}>
@@ -229,6 +288,14 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
               <div className="flex justify-end gap-1.5 pt-1 border-t border-surface-2">
                 <button onClick={() => setEditingKelas(k)} className="p-1.5 rounded text-blue-600 hover:bg-blue-50 transition-colors">
                   <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => handleToggleKbm(k)}
+                  disabled={updatingKbmId === k.id}
+                  className={cn("p-1.5 rounded transition-colors", k.kbm_nonaktif_mulai ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50')}
+                  title={k.kbm_nonaktif_mulai ? 'Aktifkan KBM' : 'Nonaktifkan KBM'}
+                >
+                  {k.kbm_nonaktif_mulai ? <PlayCircle className="h-3.5 w-3.5" /> : <PauseCircle className="h-3.5 w-3.5" />}
                 </button>
                 <button
                   onClick={() => handleHapus(k.id, formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok), k.jumlah_siswa)}
@@ -276,6 +343,11 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
                       {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}
                     </span>
                     {!isJurusanValid && <AlertTriangle className="h-3 w-3 text-rose-500 inline ml-1" />}
+                    {k.kbm_nonaktif_mulai && (
+                      <span className="ml-2 inline-flex items-center rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                        Nonaktif sejak {k.kbm_nonaktif_mulai}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="py-2.5">
                     <Select value={currentKelompok} onValueChange={v => handleQueueChange(k.id, 'kelompok', v)} disabled={isSavingBatch}>
@@ -307,6 +379,14 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={e => { e.stopPropagation(); setEditingKelas(k) }} className="p-1.5 rounded text-blue-600 hover:bg-blue-50" title="Edit">
                         <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleToggleKbm(k) }}
+                        disabled={updatingKbmId === k.id}
+                        className={cn("p-1.5 rounded", k.kbm_nonaktif_mulai ? 'text-emerald-600 hover:bg-emerald-50' : 'text-amber-600 hover:bg-amber-50')}
+                        title={k.kbm_nonaktif_mulai ? 'Aktifkan KBM' : 'Nonaktifkan KBM'}
+                      >
+                        {k.kbm_nonaktif_mulai ? <PlayCircle className="h-3.5 w-3.5" /> : <PauseCircle className="h-3.5 w-3.5" />}
                       </button>
                       <button
                         onClick={e => { e.stopPropagation(); handleHapus(k.id, formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok), k.jumlah_siswa) }}

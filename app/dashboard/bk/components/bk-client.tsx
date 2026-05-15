@@ -33,10 +33,9 @@ type SiswaResult = { id: string; nisn: string; nama_lengkap: string; foto_url: s
 type Rekaman = {
   id: string; bidang: BidangBK; deskripsi: string
   penanganan: SesiPenanganan[]; tindak_lanjut: string; catatan_tindak_lanjut?: string
-  topik_nama: string | null; guru_nama: string; created_at: string; updated_at: string
+  topik_id: string | null; topik_nama: string | null; guru_nama: string; created_at: string; updated_at: string
 }
 type SesiLokal = { _key: string; tipe: TipePenanganan; tanggal: string; catatan: string }
-
 // ── Konstanta ──────────────────────────────────────────────────────────
 const BIDANG_LIST: BidangBK[] = ['Pribadi', 'Karir', 'Sosial', 'Akademik']
 const BIDANG_COLORS: Record<BidangBK, string> = {
@@ -55,6 +54,7 @@ const TIPE_COLOR: Record<TipePenanganan, string> = {
   KONSELING_KELOMPOK: 'bg-violet-50 text-violet-700 border-violet-200',
   HOME_VISIT:         'bg-amber-50 text-amber-700 border-amber-200',
 }
+const NO_TOPIK_VALUE = '__no_topik__'
 
 function Badge({ label, colorClass }: { label: string; colorClass: string }) {
   return <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', colorClass)}>{label}</span>
@@ -241,28 +241,25 @@ function FormRekaman({ siswa, taId, guruBkId, topikAll, onSaved, onClose, editDa
   onSaved: (r: Rekaman) => void; onClose: () => void; editData?: Rekaman
 }) {
   const [bidang, setBidang] = useState<BidangBK>(editData?.bidang ?? 'Pribadi')
-  const [topikId, setTopikId] = useState('')
+  const [topikId, setTopikId] = useState(editData?.topik_id ?? NO_TOPIK_VALUE)
   const [deskripsi, setDeskripsi] = useState(editData?.deskripsi ?? '')
   const [tindakLanjut, setTindakLanjut] = useState(editData?.tindak_lanjut ?? '')
   const [catatanTL, setCatatanTL] = useState(editData?.catatan_tindak_lanjut ?? '')
-  const [sesiLokal, setSesiLokal] = useState<SesiLokal[]>([])
   const [isSaving, setIsSaving] = useState(false)
 
   const topikFiltered = topikAll.filter(t => t.bidang === bidang)
+  const selectedTopikId = !topikId || topikId === NO_TOPIK_VALUE ? null : topikId
 
   const handleSave = async () => {
     setIsSaving(true)
     try {
       if (editData) {
-        const res = await editRekamanBK(editData.id, { topik_id: topikId || null, deskripsi, tindak_lanjut: tindakLanjut, catatan_tindak_lanjut: catatanTL })
+        const res = await editRekamanBK(editData.id, { topik_id: selectedTopikId, deskripsi, tindak_lanjut: tindakLanjut, catatan_tindak_lanjut: catatanTL })
         if (res.error) { alert(res.error); return }
-        onSaved({ ...editData, deskripsi, tindak_lanjut: tindakLanjut, catatan_tindak_lanjut: catatanTL })
+        onSaved({ ...editData, topik_id: selectedTopikId, deskripsi, tindak_lanjut: tindakLanjut, catatan_tindak_lanjut: catatanTL })
       } else {
-        const res = await tambahRekamanBK({ siswa_id: siswa.id, guru_bk_id: guruBkId, tahun_ajaran_id: taId, bidang, topik_id: topikId || null, deskripsi, tindak_lanjut: tindakLanjut, catatan_tindak_lanjut: catatanTL })
+        const res = await tambahRekamanBK({ siswa_id: siswa.id, guru_bk_id: guruBkId, tahun_ajaran_id: taId, bidang, topik_id: selectedTopikId, deskripsi, tindak_lanjut: '', catatan_tindak_lanjut: '' })
         if (res.error) { alert(res.error); return }
-        if (res.id && sesiLokal.length > 0) {
-          for (const s of sesiLokal) await tambahSesiPenanganan(res.id, s.tipe, s.tanggal, s.catatan)
-        }
         onClose()
       }
     } finally { setIsSaving(false) }
@@ -275,7 +272,7 @@ function FormRekaman({ siswa, taId, guruBkId, topikAll, onSaved, onClose, editDa
           <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Bidang Layanan <span className="text-rose-500">*</span></label>
           <div className="flex flex-wrap gap-2">
             {BIDANG_LIST.map(b => (
-              <button key={b} type="button" onClick={() => { setBidang(b); setTopikId('') }}
+              <button key={b} type="button" onClick={() => { setBidang(b); setTopikId(NO_TOPIK_VALUE) }}
                 className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
                   bidang === b ? BIDANG_COLORS[b] : 'bg-surface-2 text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-3')}>
                 {b}
@@ -290,7 +287,7 @@ function FormRekaman({ siswa, taId, guruBkId, topikAll, onSaved, onClose, editDa
         <Select value={topikId} onValueChange={setTopikId}>
           <SelectTrigger className="h-9 text-sm rounded-lg bg-surface-2 border-surface"><SelectValue placeholder="Pilih topik (opsional)..." /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="none" className="text-xs italic text-slate-400">— Tidak dipilih —</SelectItem>
+            <SelectItem value={NO_TOPIK_VALUE} className="text-xs italic text-slate-400">Tidak dipilih</SelectItem>
             {topikFiltered.map(t => <SelectItem key={t.id} value={t.id} className="text-sm">{t.nama}</SelectItem>)}
             {topikFiltered.length === 0 && <div className="px-3 py-2 text-xs text-slate-400 italic">Belum ada topik untuk bidang ini</div>}
           </SelectContent>
@@ -304,32 +301,30 @@ function FormRekaman({ siswa, taId, guruBkId, topikAll, onSaved, onClose, editDa
           placeholder="Tuliskan deskripsi masalah secara bebas..." />
       </div>
 
-      {!editData && (
-        <div className="rounded-xl border border-surface-2 bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-900/20 p-3">
-          <SesiLokalPanel sesiList={sesiLokal} onChange={setSesiLokal} />
-        </div>
+      {editData && (
+        <>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Tindak Lanjut</label>
+            <Input value={tindakLanjut} onChange={e => setTindakLanjut(e.target.value)}
+              placeholder="Contoh: Konseling lanjutan, Panggil wali murid, Monitoring 2 minggu..."
+              className="h-9 text-sm rounded-lg bg-surface-2 border-surface" />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">
+              Catatan Tindak Lanjut <span className="text-slate-400 font-normal">(opsional)</span>
+            </label>
+            <textarea value={catatanTL} onChange={e => setCatatanTL(e.target.value)} rows={2}
+              className="w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 resize-none"
+              placeholder="Catatan tambahan terkait tindak lanjut..." />
+          </div>
+        </>
       )}
-
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Tindak Lanjut</label>
-        <Input value={tindakLanjut} onChange={e => setTindakLanjut(e.target.value)}
-          placeholder="Contoh: Konseling lanjutan, Panggil wali murid, Monitoring 2 minggu..."
-          className="h-9 text-sm rounded-lg bg-surface-2 border-surface" />
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">
-          Catatan Tindak Lanjut <span className="text-slate-400 font-normal">(opsional)</span>
-        </label>
-        <textarea value={catatanTL} onChange={e => setCatatanTL(e.target.value)} rows={2}
-          className="w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 resize-none"
-          placeholder="Catatan tambahan terkait tindak lanjut..." />
-      </div>
 
       <div className="flex gap-2 pt-1">
         <Button variant="outline" type="button" onClick={onClose} className="flex-1 h-9 text-sm rounded-lg">Batal</Button>
         <Button onClick={handleSave} disabled={isSaving} className="flex-1 h-9 text-sm rounded-lg bg-rose-600 hover:bg-rose-700 text-white">
-          {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : editData ? 'Simpan Perubahan' : 'Simpan Rekaman'}
+          {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : editData ? 'Simpan Perubahan' : 'Simpan Kasus'}
         </Button>
       </div>
     </div>
@@ -517,7 +512,7 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, topikAll, onClose, 
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'input' | 'riwayat'>('input')
   const [bidangFilter, setBidangFilter] = useState<BidangBK | 'Semua'>('Semua')
-  const canEdit = userRole === 'guru_bk' || userRole === 'super_admin'
+  const canEdit = userRole === 'guru_bk'
 
   useEffect(() => {
     getRekamanSiswa(siswa.id, taId).then(data => {
@@ -568,7 +563,7 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, topikAll, onClose, 
                 ? 'border-rose-600 text-rose-600 bg-rose-50/50 dark:bg-rose-900/10'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-surface-2')}>
             <ClipboardList className="h-3.5 w-3.5" />
-            Input Rekaman Baru
+            Input Kasus Baru
           </button>
           <button onClick={() => setActiveTab('riwayat')}
             className={cn('flex-1 flex items-center justify-center gap-2 py-3 text-xs font-semibold border-b-2 transition-all',
@@ -594,13 +589,14 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, topikAll, onClose, 
                       <ClipboardList className="h-4 w-4 text-rose-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">Rekaman Bimbingan Baru</p>
-                      <p className="text-[11px] text-slate-400">Isi detail bimbingan untuk {siswa.nama_lengkap.split(' ')[0]}</p>
+                      <p className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">Kasus Bimbingan Baru</p>
+                      <p className="text-[11px] text-slate-400">Catat pokok masalah untuk {siswa.nama_lengkap.split(' ')[0]}</p>
                     </div>
                   </div>
                   <FormRekaman siswa={siswa} taId={taId} guruBkId={guruBkId} topikAll={topikAll}
                     onSaved={() => {}}
                     onClose={async () => { await refreshRekaman(); setActiveTab('riwayat') }} />
+                  <p className="mt-3 text-[11px] text-slate-400">Sesi penanganan dan tindak lanjut dicatat setelah rekaman kasus tersimpan.</p>
                 </>
               ) : (
                 <div className="text-center py-10 text-slate-400">
@@ -669,7 +665,7 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, topikAll, onClose, 
           {activeTab === 'riwayat' && canEdit && (
             <Button size="sm" onClick={() => setActiveTab('input')}
               className="h-7 text-xs gap-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg">
-              <Plus className="h-3 w-3" /> Tambah Rekaman
+              <Plus className="h-3 w-3" /> Tambah Kasus
             </Button>
           )}
           {activeTab === 'input' && rekamanList.length > 0 && (
@@ -701,7 +697,7 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
 
   const PAGE_SIZE = 10
   const totalPages = Math.ceil(total / PAGE_SIZE)
-  const canEdit = userRole === 'guru_bk' || userRole === 'super_admin'
+  const canInput = userRole === 'guru_bk'
 
   const loadData = useCallback(async (p: number = 1) => {
     if (!taAktif) return
@@ -731,7 +727,7 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
       {/* Toolbar */}
       <div className="bg-surface border border-surface rounded-xl p-3 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          {canEdit && (
+          {canInput && (
             <Button onClick={() => setShowCariSiswa(true)}
               className="h-9 text-sm gap-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold shrink-0 shadow-sm">
               <Plus className="h-4 w-4" /> Input Bimbingan Baru
@@ -790,7 +786,7 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
           <div className="flex flex-col items-center justify-center py-14 gap-3 text-slate-400">
             <HeartHandshake className="h-10 w-10 text-slate-200 dark:text-slate-700" />
             <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{searchTercatat ? 'Siswa tidak ditemukan' : 'Belum ada rekaman BK'}</p>
-            {canEdit && !searchTercatat && (
+            {canInput && !searchTercatat && (
               <button onClick={() => setShowCariSiswa(true)} className="text-xs text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1">
                 <Plus className="h-3 w-3" /> Mulai input bimbingan pertama
               </button>
@@ -807,7 +803,7 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
                     <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Bidang</th>
                     <th className="text-center px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Rekaman</th>
                     <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Terakhir</th>
-                    <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Status</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Tindak Lanjut</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-2">
@@ -829,9 +825,9 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
                       <td className="px-3 py-2.5 text-center"><span className="font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200">{row.jumlah_rekaman}</span></td>
                       <td className="px-3 py-2.5 text-slate-400 whitespace-nowrap">{new Date(row.rekaman_terakhir).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
                       <td className="px-3 py-2.5">
-                        {row.belum_count > 0
-                          ? <Badge label={`${row.belum_count} pending`} colorClass="bg-amber-50 text-amber-700 border-amber-200" />
-                          : <Badge label="Selesai" colorClass="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" />}
+                        {row.tindak_lanjut_count > 0
+                          ? <Badge label={`${row.tindak_lanjut_count} catatan`} colorClass="bg-amber-50 text-amber-700 border-amber-200" />
+                          : <span className="text-[11px] text-slate-400 italic">Belum ada</span>}
                       </td>
                     </tr>
                   ))}
@@ -851,7 +847,7 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
                     <div className="flex gap-1 mt-1 flex-wrap">{(row.bidang_list || '').split(',').filter(Boolean).map((b: string) => <Badge key={b} label={b.trim()} colorClass={BIDANG_COLORS[b.trim() as BidangBK] ?? 'bg-surface-3 text-slate-500 dark:text-slate-400 border-surface'} />)}</div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    {row.belum_count > 0 ? <Badge label={`${row.belum_count} pending`} colorClass="bg-amber-50 text-amber-700 border-amber-200" /> : <Badge label="Selesai" colorClass="bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" />}
+                    {row.tindak_lanjut_count > 0 && <Badge label={`${row.tindak_lanjut_count} TL`} colorClass="bg-amber-50 text-amber-700 border-amber-200" />}
                     <ChevronRight className="h-3.5 w-3.5 text-slate-300" />
                   </div>
                 </div>

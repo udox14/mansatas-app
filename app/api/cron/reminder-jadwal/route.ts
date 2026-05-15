@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
 
     // Jam & menit sekarang WIB
     const jammenit = `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`
+    const today = now.toISOString().split('T')[0]
     const hariIni = now.getUTCDay() === 0 ? 7 : now.getUTCDay() // 1=Sen … 7=Min
 
     // Ambil semua jadwal aktif yang jamnya = sekarang
@@ -62,8 +63,10 @@ export async function GET(req: NextRequest) {
         const { results: guruRows } = await db.prepare(`
           SELECT DISTINCT pm.guru_id FROM jadwal_mengajar jm
           JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
+          JOIN kelas k ON pm.kelas_id = k.id
           WHERE jm.hari = ? AND jm.tahun_ajaran_id = ?
-        `).bind(hariIni, ta.id).all<any>()
+            AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
+        `).bind(hariIni, ta.id, today).all<any>()
         const guruIds = (guruRows || []).map((r: any) => r.guru_id)
         if (guruIds.length === 0) { log.push({ jadwal: jadwal.nama, skipped: 'tidak ada guru mengajar hari ini' }); continue }
         target.userIds = guruIds

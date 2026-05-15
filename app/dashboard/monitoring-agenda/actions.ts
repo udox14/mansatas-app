@@ -116,8 +116,9 @@ export async function getMonitoringHarian(
     LEFT JOIN "user" u_pelaksana_delegasi ON dt_info.kepada_user_id = u_pelaksana_delegasi.id
     LEFT JOIN "user" u_pelaksana_kelas ON dtk.pelaksana_user_id = u_pelaksana_kelas.id
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
+      AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
   `
-  const params: unknown[] = [tanggal, tanggal, ta.id, hari]
+  const params: unknown[] = [tanggal, tanggal, ta.id, hari, tanggal]
 
   if (filterMode === 'guru' && filterId) {
     sql += ' AND pm.guru_id = ?'
@@ -288,19 +289,25 @@ export async function getRekapKehadiranGuru(
 
   // 1. Ambil semua penugasan guru + jadwal hari apa saja
   const jadwalRes = await db.prepare(`
-    SELECT pm.guru_id, jm.penugasan_id, jm.hari
+    SELECT pm.guru_id, jm.penugasan_id, jm.hari, k.kbm_nonaktif_mulai
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
+    JOIN kelas k ON pm.kelas_id = k.id
     WHERE jm.tahun_ajaran_id = ?
   `).bind(ta.id).all<any>()
 
   // Group: guru_id → Map<penugasan_id, Set<hari>>
-  const guruJadwal = new Map<string, Map<string, Set<number>>>()
+  const guruJadwal = new Map<string, Map<string, { hariSet: Set<number>; kbmNonaktifMulai: string | null }>>()
   for (const row of jadwalRes.results || []) {
     if (!guruJadwal.has(row.guru_id)) guruJadwal.set(row.guru_id, new Map())
     const penMap = guruJadwal.get(row.guru_id)!
-    if (!penMap.has(row.penugasan_id)) penMap.set(row.penugasan_id, new Set())
-    penMap.get(row.penugasan_id)!.add(row.hari)
+    if (!penMap.has(row.penugasan_id)) {
+      penMap.set(row.penugasan_id, {
+        hariSet: new Set(),
+        kbmNonaktifMulai: row.kbm_nonaktif_mulai || null,
+      })
+    }
+    penMap.get(row.penugasan_id)!.hariSet.add(row.hari)
   }
 
   // 2. Hitung total blok per guru dalam rentang tanggal
@@ -311,8 +318,9 @@ export async function getRekapKehadiranGuru(
     let total = 0
     for (const tanggal of effectiveDates) {
       const hari = getHariFromDate(tanggal)
-      for (const [, hariSet] of penMap) {
-        if (hariSet.has(hari)) total++
+      for (const [, jadwal] of penMap) {
+        if (jadwal.kbmNonaktifMulai && jadwal.kbmNonaktifMulai <= tanggal) continue
+        if (jadwal.hariSet.has(hari)) total++
       }
     }
     totalBlokPerGuru.set(guruId, total)

@@ -405,11 +405,13 @@ export default async function PortalOrtuPage() {
       SELECT jm.hari, jm.jam_ke, mp.nama_mapel, u.nama_lengkap AS guru_nama, pm.id AS penugasan_id
       FROM jadwal_mengajar jm
       JOIN penugasan_mengajar pm ON pm.id = jm.penugasan_id
+      JOIN kelas k ON pm.kelas_id = k.id
       JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
       LEFT JOIN "user" u ON u.id = pm.guru_id
       WHERE pm.kelas_id = ? AND pm.tahun_ajaran_id = ?
+        AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
       ORDER BY jm.hari ASC, jm.jam_ke ASC
-    `).bind(profil.kelas_id, taAktif?.id || '').all<any>()
+    `).bind(profil.kelas_id, taAktif?.id || '', todayRaw).all<any>()
     : { results: [] as any[] }
 
   const jadwalByDay = new Map<number, any[]>()
