@@ -1,4 +1,5 @@
 import {
+  formatTanggalRppm,
   getRppmTemplate,
   type RppmContent,
   type RppmPrintSettings,
@@ -107,7 +108,7 @@ function documentXml(
       ${fieldRow('1', 'Asesmen Proses', content.asesmen_pembelajaran.asesmen_proses)}
       ${fieldRow('2', 'Asesmen Akhir', content.asesmen_pembelajaran.asesmen_akhir)}
     </w:tbl>
-    ${signatureTable(user, kepsek)}
+    ${signatureTable(content, user, kepsek)}
     <w:sectPr>
       <w:pgSz w:w="${page.width}" w:h="${page.height}"/>
       <w:pgMar w:top="${margins.top}" w:right="${margins.right}" w:bottom="${margins.bottom}" w:left="${margins.left}" w:header="708" w:footer="708" w:gutter="0"/>
@@ -139,7 +140,7 @@ function gapRow() {
 function cell(inner: string, width: number, gridSpan?: number, fill?: string, borders?: Partial<Record<'top' | 'left' | 'bottom' | 'right', 'single' | 'nil'>>) {
   const border = (side: 'top' | 'left' | 'bottom' | 'right') => {
     const val = borders?.[side] || 'single'
-    return `<w:${side} w:val="${val}"${val === 'single' ? ' w:sz="8" w:space="0" w:color="000000"' : ''}/>`
+    return `<w:${side} w:val="${val}"${val === 'single' ? ' w:sz="10" w:space="0" w:color="000000"' : ''}/>`
   }
 
   return `<w:tc>
@@ -155,7 +156,7 @@ function cell(inner: string, width: number, gridSpan?: number, fill?: string, bo
   </w:tc>`
 }
 
-function signatureTable(user: RppmSigner, kepsek: RppmSigner | null) {
+function signatureTable(content: RppmContent, user: RppmSigner, kepsek: RppmSigner | null) {
   return `<w:p><w:pPr><w:spacing w:before="360" w:after="0"/></w:pPr></w:p>
   <w:tbl>
     <w:tblPr>
@@ -169,7 +170,7 @@ function signatureTable(user: RppmSigner, kepsek: RppmSigner | null) {
     <w:tr>
       ${signatureCell('Mengetahui,', 'Kepala MAN 1 Tasikmalaya', kepsek?.nama_lengkap || 'Kepala Madrasah Belum Diatur', kepsek?.nip || '', 4300)}
       ${cell(paragraph(''), 1900)}
-      ${signatureCell('', user.jabatan_cetak || user.role || 'Guru', user.nama_lengkap || 'Nama Guru Belum Diatur', user.nip || '', 3700)}
+      ${signatureCell(content.spesifikasi.tanggal_ttd ? `Tasikmalaya, ${formatTanggalRppm(content.spesifikasi.tanggal_ttd)}` : 'Tasikmalaya, ................................', user.jabatan_cetak || user.role || 'Guru', user.nama_lengkap || 'Nama Guru Belum Diatur', user.nip || '', 3700)}
     </w:tr>
   </w:tbl>`
 }

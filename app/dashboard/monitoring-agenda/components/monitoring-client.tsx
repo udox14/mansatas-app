@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/monitoring-agenda/components/monitoring-client.tsx
 'use client'
 
-import { useState, useRef } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { useReactToPrint } from 'react-to-print'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,6 +34,7 @@ interface MonitoringClientProps {
 const STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label: string; dot: string }> = {
   TEPAT_WAKTU: { bg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle2, label: 'Tepat Waktu', dot: 'bg-emerald-500' },
   HADIR:       { bg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle2, label: 'Hadir', dot: 'bg-emerald-500' },
+  BELUM_MENGISI: { bg: 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700', text: 'text-slate-600 dark:text-slate-300', icon: Clock, label: 'Belum Mengisi', dot: 'bg-slate-400' },
   TELAT:       { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', icon: Clock, label: 'Telat', dot: 'bg-amber-500' },
   TUGAS:       { bg: 'bg-violet-50 border-violet-200', text: 'text-violet-700', icon: Send, label: 'Tugas', dot: 'bg-violet-500' },
   ALFA:        { bg: 'bg-red-50 border-red-200', text: 'text-red-700', icon: XCircle, label: 'Alfa', dot: 'bg-red-500' },
@@ -43,6 +44,7 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label:
 
 const STATUS_OPTIONS = ['TEPAT_WAKTU', 'TELAT', 'TUGAS', 'ALFA', 'SAKIT', 'IZIN']
 const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+type SlotOption = { id: number; nama: string; mulai: string; selesai: string }
 
 function formatTanggal(tgl: string) {
   return new Date(tgl + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -50,13 +52,24 @@ function formatTanggal(tgl: string) {
 
 function todayStr() { return todayWIB() }
 
+function StatusBadge({ status }: { status: string }) {
+  const style = STATUS_STYLE[status] || STATUS_STYLE.ALFA
+  const StatusIcon = style.icon
+
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${style.bg} ${style.text}`}>
+      <StatusIcon className="h-3 w-3" />{style.label}
+    </span>
+  )
+}
+
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
 export function MonitoringClient({ filterOptions, userRole }: MonitoringClientProps) {
   return (
     <Tabs defaultValue="harian" className="space-y-3">
-      <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+      <TabsList className="grid w-full grid-cols-4 max-w-2xl h-auto p-1">
         <TabsTrigger value="harian" className="text-xs sm:text-sm"><Calendar className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Harian</TabsTrigger>
         <TabsTrigger value="rekap" className="text-xs sm:text-sm"><BarChart3 className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Rekap</TabsTrigger>
         <TabsTrigger value="cetak" className="text-xs sm:text-sm"><Printer className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Cetak</TabsTrigger>
@@ -78,6 +91,8 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
   const [tanggal, setTanggal] = useState(todayStr())
   const [filterMode, setFilterMode] = useState<'semua' | 'guru' | 'kelas'>('semua')
   const [filterId, setFilterId] = useState('')
+  const [jamFilter, setJamFilter] = useState('all_jam')
+  const [slots, setSlots] = useState<SlotOption[]>([])
   const [data, setData] = useState<any[]>([])
   const [hariNama, setHariNama] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -98,6 +113,8 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
     else {
       setData(result.data || [])
       setHariNama(result.hariNama || '')
+      setSlots(((result as any).slots || []) as SlotOption[])
+      setJamFilter('all_jam')
       if ((result as any).calendarStatus && !(result as any).calendarStatus.isEffective) {
         setPesan({ tipe: 'sukses', teks: `Tanggal ini tidak efektif pembelajaran: ${(result as any).calendarStatus.reason || 'tidak ada kewajiban agenda.'}` })
       }
@@ -131,7 +148,17 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
   }
 
   // Summary counts
-  const summary = data.reduce((acc, item) => {
+  const filteredData = useMemo(() => {
+    if (jamFilter === 'all_jam') return data
+    const selectedJam = Number(jamFilter)
+    if (!Number.isFinite(selectedJam)) return data
+
+    return data.filter(item => item.jam_ke_mulai <= selectedJam && item.jam_ke_selesai >= selectedJam)
+  }, [data, jamFilter])
+
+  const selectedSlot = slots.find(slot => String(slot.id) === jamFilter)
+
+  const summary = filteredData.reduce((acc, item) => {
     acc[item.status] = (acc[item.status] || 0) + 1
     return acc
   }, {} as Record<string, number>)
@@ -139,23 +166,23 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
   return (
     <div className="space-y-3">
       {/* Filters */}
-      <div className="rounded-lg border bg-white dark:bg-slate-900 p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigateDate(-1)} className="px-2">
+      <div className="rounded-lg border bg-white dark:bg-slate-900 p-3 sm:p-4 space-y-3">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigateDate(-1)} className="h-9 w-9 p-0">
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className="max-w-[180px] text-sm" />
-          <Button variant="outline" size="sm" onClick={() => navigateDate(1)} className="px-2">
+          <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className="h-9 min-w-0 text-sm" />
+          <Button variant="outline" size="sm" onClick={() => navigateDate(1)} className="h-9 w-9 p-0">
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setTanggal(todayStr())} className="text-xs">Hari Ini</Button>
+          <Button variant="outline" size="sm" onClick={() => setTanggal(todayStr())} className="h-9 px-2 text-xs sm:px-3">Hari Ini</Button>
         </div>
 
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
+        <div className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap sm:gap-3">
+          <div className="min-w-0">
             <Label className="text-xs text-slate-500 dark:text-slate-400">Filter</Label>
             <Select value={filterMode} onValueChange={(v) => { setFilterMode(v as any); setFilterId('') }}>
-              <SelectTrigger className="w-[130px] h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-full text-sm sm:w-[130px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="semua">Semua</SelectItem>
                 <SelectItem value="guru">Per Guru</SelectItem>
@@ -165,7 +192,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
           </div>
 
           {filterMode === 'guru' && (
-            <div className="flex-1 min-w-[200px]">
+            <div className="col-span-2 min-w-0 sm:flex-1 sm:min-w-[200px]">
               <Label className="text-xs text-slate-500 dark:text-slate-400">Guru</Label>
               <Select value={filterId} onValueChange={setFilterId}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Pilih guru..." /></SelectTrigger>
@@ -177,7 +204,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
           )}
 
           {filterMode === 'kelas' && (
-            <div className="flex-1 min-w-[200px]">
+            <div className="col-span-2 min-w-0 sm:flex-1 sm:min-w-[200px]">
               <Label className="text-xs text-slate-500 dark:text-slate-400">Kelas</Label>
               <Select value={filterId} onValueChange={setFilterId}>
                 <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Pilih kelas..." /></SelectTrigger>
@@ -188,7 +215,24 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
             </div>
           )}
 
-          <Button onClick={handleSearch} disabled={isLoading} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
+          {slots.length > 0 && (
+            <div className="min-w-0 sm:min-w-[180px]">
+              <Label className="text-xs text-slate-500 dark:text-slate-400">Jam Pelajaran</Label>
+              <Select value={jamFilter} onValueChange={setJamFilter}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all_jam">Semua Jam</SelectItem>
+                  {slots.map(slot => (
+                    <SelectItem key={slot.id} value={String(slot.id)}>
+                      {slot.nama || `Jam ${slot.id}`} ({slot.mulai}-{slot.selesai})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <Button onClick={handleSearch} disabled={isLoading} size="sm" className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white">
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-1.5" />}
             Cari
           </Button>
@@ -203,19 +247,21 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
       )}
 
       {/* Summary badges */}
-      {data.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <span className="text-xs bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full font-medium">{hariNama} &middot; {data.length} blok</span>
+      {filteredData.length > 0 && (
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
+          <span className="shrink-0 text-xs bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 px-2.5 py-1 rounded-full font-medium">
+            {hariNama} &middot; {filteredData.length} blok{selectedSlot ? ` &middot; ${selectedSlot.nama || `Jam ${selectedSlot.id}`}` : ''}
+          </span>
           {Object.entries(summary).map(([status, count]) => {
             const s = STATUS_STYLE[status]
-            return s ? <span key={status} className={`text-xs px-2.5 py-1 rounded-full font-medium border ${s.bg} ${s.text}`}>{s.label}: {count as number}</span> : null
+            return s ? <span key={status} className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium border ${s.bg} ${s.text}`}>{s.label}: {count as number}</span> : null
           })}
         </div>
       )}
 
       {/* Table */}
-      {data.length > 0 && (
-        <div className="rounded-lg border bg-white dark:bg-slate-900 overflow-x-auto">
+      {filteredData.length > 0 && (
+        <div className="hidden rounded-lg border bg-white dark:bg-slate-900 overflow-x-auto md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -229,9 +275,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map((item, idx) => {
-                const style = STATUS_STYLE[item.status] || STATUS_STYLE.ALFA
-                const StatusIcon = style.icon
+              {filteredData.map((item, idx) => {
                 return (
                   <TableRow key={`${item.penugasan_id}-${idx}`}>
                     <TableCell className="text-xs text-slate-400">{idx + 1}</TableCell>
@@ -240,9 +284,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                     <TableCell className="text-xs text-slate-600 dark:text-slate-400">{item.kelas_label}</TableCell>
                     <TableCell className="text-xs text-slate-500 dark:text-slate-400">{item.jam_label}<br /><span className="text-[10px]">{item.slot_mulai}-{item.slot_selesai}</span></TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${style.bg} ${style.text}`}>
-                        <StatusIcon className="h-3 w-3" />{style.label}
-                      </span>
+                      <StatusBadge status={item.status} />
                       {item.status === 'TUGAS' && item.pelaksana_nama && (
                         <p className="text-[10px] text-violet-500 mt-0.5">Pelaksana: {item.pelaksana_nama}</p>
                       )}
@@ -254,7 +296,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                         </Button>
                       )}
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => {
-                        setEditItem(item); setEditStatus(item.status); setEditCatatan(item.catatan_admin || '')
+                        setEditItem(item); setEditStatus(item.status === 'BELUM_MENGISI' ? 'ALFA' : item.status); setEditCatatan(item.catatan_admin || '')
                       }} title="Edit Status">
                         <Edit3 className="h-3.5 w-3.5 text-indigo-500" />
                       </Button>
@@ -264,6 +306,55 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
               })}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {filteredData.length > 0 && (
+        <div className="space-y-2 md:hidden">
+          {filteredData.map((item, idx) => (
+            <div key={`${item.penugasan_id}-mobile-${idx}`} className="rounded-lg border bg-white p-3 shadow-sm dark:bg-slate-900">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-semibold text-slate-400">#{idx + 1}</span>
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{item.guru_nama}</p>
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{item.mapel_nama}</p>
+                </div>
+                <StatusBadge status={item.status} />
+              </div>
+
+              <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+                <div className="min-w-0 text-xs text-slate-600 dark:text-slate-300">
+                  <p className="truncate font-medium">{item.kelas_label}</p>
+                  <p className="text-[11px] text-slate-400">{item.jam_label} &middot; {item.slot_mulai}-{item.slot_selesai}</p>
+                  {item.status === 'TUGAS' && item.pelaksana_nama && (
+                    <p className="mt-0.5 truncate text-[11px] text-violet-500">Pelaksana: {item.pelaksana_nama}</p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1">
+                  {item.agenda_id && (
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setDetailItem(item)} title="Detail">
+                      <Eye className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => {
+                    setEditItem(item); setEditStatus(item.status === 'BELUM_MENGISI' ? 'ALFA' : item.status); setEditCatatan(item.catatan_admin || '')
+                  }} title="Edit Status">
+                    <Edit3 className="h-3.5 w-3.5 text-indigo-500" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {data.length > 0 && filteredData.length === 0 && (
+        <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-8 text-center">
+          <Clock className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+          <p className="text-sm text-slate-500 dark:text-slate-400">Tidak ada jadwal pada jam pelajaran yang dipilih.</p>
         </div>
       )}
 

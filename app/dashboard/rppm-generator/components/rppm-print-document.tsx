@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import {
   getRppmTemplate,
+  formatTanggalRppm,
   type RppmContent,
   type RppmPrintSettings,
   type RppmTemplateType,
@@ -100,7 +101,7 @@ export function RppmPrintDocument({
           </tbody>
         </table>
 
-        <SignatureBlock user={user} kepsek={kepsek} />
+        <SignatureBlock user={user} kepsek={kepsek} content={content} />
       </div>
     </div>
   )
@@ -160,7 +161,7 @@ function SmartText({ value }: { value: string }) {
   return <List items={items} />
 }
 
-function SignatureBlock({ user, kepsek }: { user: RppmSigner; kepsek: RppmSigner | null }) {
+function SignatureBlock({ user, kepsek, content }: { user: RppmSigner; kepsek: RppmSigner | null; content: RppmContent }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '18mm', marginTop: '16mm', fontSize: '11pt' }}>
       <SignatureColumn
@@ -171,7 +172,7 @@ function SignatureBlock({ user, kepsek }: { user: RppmSigner; kepsek: RppmSigner
         width="44%"
       />
       <SignatureColumn
-        title=""
+        title={content.spesifikasi.tanggal_ttd ? `Tasikmalaya, ${formatTanggalRppm(content.spesifikasi.tanggal_ttd)}` : 'Tasikmalaya, ................................'}
         position={user.jabatan_cetak || user.role || 'Guru'}
         name={user.nama_lengkap || 'Nama Guru Belum Diatur'}
         nip={user.nip || ''}
@@ -206,9 +207,10 @@ function text(value: string) {
 
 function cell(options?: { width?: string; align?: 'left' | 'center'; bold?: boolean; height?: string; fill?: string; borderLeft?: string; borderRight?: string }): CSSProperties {
   return {
-    border: '1px solid #000',
-    borderLeft: options?.borderLeft,
-    borderRight: options?.borderRight,
+    borderTop: '1px solid #000',
+    borderBottom: '1px solid #000',
+    borderLeft: options?.borderLeft || '1px solid #000',
+    borderRight: options?.borderRight || '1px solid #000',
     backgroundColor: options?.fill,
     padding: '2.3mm 2mm',
     verticalAlign: 'top',
