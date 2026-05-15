@@ -60,6 +60,7 @@ export type RppmTemplateConfig = {
   shortLabel: string
   modelLabel: string
   description: string
+  methodText: string
   intiHints: {
     memahami: string[]
     mengaplikasi: string[]
@@ -106,16 +107,18 @@ export const RPPM_TEMPLATES: RppmTemplateConfig[] = [
     shortLabel: 'Cooperative',
     modelLabel: 'Cooperative Learning',
     description: 'Pembelajaran tim, diskusi, presentasi, dan penghargaan kelompok.',
+    methodText: 'tanya-jawab, diskusi, presentasi, penugasan',
     intiHints: {
-      memahami: ['Guru menyajikan informasi awal yang relevan dengan topik pembelajaran.'],
+      memahami: ['Guru menyajikan informasi berupa bahan, media, kasus, teks, gambar, video, atau fenomena yang langsung terkait topik pembelajaran.'],
       mengaplikasi: [
-        'Guru mengorganisir murid ke dalam tim belajar.',
-        'Tiap kelompok mengumpulkan dan mengolah informasi dari berbagai sumber.',
-        'Guru membantu kerja tim belajar sesuai kebutuhan.',
+        'Guru mengorganisir murid ke dalam tim-tim belajar.',
+        'Tiap kelompok mengumpulkan berbagai informasi yang relevan dari berbagai sumber tentang topik pembelajaran.',
+        'Guru membantu kerja tim belajar ketika murid mengolah data/informasi dan menafsirkan hasilnya.',
       ],
       merefleksi: [
-        'Murid mengomunikasikan kesimpulan hasil diskusi kelompok.',
-        'Guru memberi umpan balik dan penghargaan atas hasil kerja murid.',
+        'Guru mengevaluasi proses kerja kelompok.',
+        'Murid mengomunikasikan kesimpulan sebagai hasil diskusi kelompok di depan kelas.',
+        'Guru memberikan penghargaan kepada murid atas hasil kerja berupa pujian, applause, atau bentuk apresiasi lain.',
       ],
     },
   },
@@ -125,6 +128,7 @@ export const RPPM_TEMPLATES: RppmTemplateConfig[] = [
     shortLabel: 'Discovery',
     modelLabel: 'Discovery Learning',
     description: 'Stimulation, problem statement, data collecting, processing, verification, generalization.',
+    methodText: 'tanya-jawab, diskusi, presentasi, penugasan',
     intiHints: {
       memahami: [
         'Stimulation: murid mengamati media, fenomena, masalah, atau bahan ajar.',
@@ -146,10 +150,14 @@ export const RPPM_TEMPLATES: RppmTemplateConfig[] = [
     shortLabel: 'LOK-R',
     modelLabel: 'LOK-R',
     description: 'Literasi, orientasi, kolaborasi, dan refleksi.',
+    methodText: 'tanya-jawab, diskusi, presentasi, penugasan',
     intiHints: {
-      memahami: ['Literasi: murid membaca, mengamati, atau menyimak sumber belajar.', 'Orientasi: guru mengarahkan fokus masalah atau konsep utama.'],
-      mengaplikasi: ['Kolaborasi: murid bekerja bersama untuk mengolah informasi dan menyelesaikan tugas.'],
-      merefleksi: ['Refleksi: murid dan guru meninjau proses, hasil, dan tindak lanjut pembelajaran.'],
+      memahami: [
+        'Literasi: murid membaca, mengamati, menyimak, atau menelaah sumber belajar sesuai topik.',
+        'Orientasi: guru mengarahkan fokus konsep, masalah, nilai KBC, dan tujuan aktivitas.',
+      ],
+      mengaplikasi: ['Kolaborasi: murid bekerja bersama untuk mengolah informasi, menyelesaikan tugas, dan menyusun hasil belajar.'],
+      merefleksi: ['Refleksi: murid dan guru meninjau proses, hasil, nilai KBC, serta tindak lanjut pembelajaran.'],
     },
   },
   {
@@ -158,6 +166,7 @@ export const RPPM_TEMPLATES: RppmTemplateConfig[] = [
     shortLabel: 'PBL',
     modelLabel: 'Problem Based Learning',
     description: 'Orientasi masalah, penyelidikan, presentasi solusi, dan evaluasi proses.',
+    methodText: 'tanya-jawab, diskusi, presentasi, penugasan',
     intiHints: {
       memahami: [
         'Guru mengorientasikan murid pada permasalahan kontekstual terkait materi pembelajaran.',
@@ -180,6 +189,7 @@ export const RPPM_TEMPLATES: RppmTemplateConfig[] = [
     shortLabel: 'PjBL',
     modelLabel: 'Project Based Learning',
     description: 'Pertanyaan pemantik, perencanaan proyek, pelaksanaan, presentasi produk, dan evaluasi.',
+    methodText: 'tanya-jawab, diskusi, presentasi, penugasan proyek',
     intiHints: {
       memahami: [
         'Murid menyiapkan pertanyaan atau penugasan proyek.',
@@ -322,49 +332,129 @@ export function normalizePrintSettings(value: unknown): RppmPrintSettings {
 export function buildRppmPrompt(templateType: RppmTemplateType, spec: RppmSpec): string {
   const template = getRppmTemplate(templateType)
   const schema = emptyRppmContent(spec)
-  const hints = [
-    `Memahami: ${template.intiHints.memahami.join(' ')}`,
-    `Mengaplikasi: ${template.intiHints.mengaplikasi.join(' ')}`,
-    `Merefleksi: ${template.intiHints.merefleksi.join(' ')}`,
-  ].join('\n')
+  const modelFrame = buildModelFrame(template)
+  const kerangkaFrame = buildKerangkaFrame(template, spec)
+  const contentContract = buildContentContract(template)
 
   return [
-    'Anda adalah asisten penyusun RPPM KBC untuk madrasah.',
-    `Buat Rencana Pelaksanaan Pembelajaran Mendalam Berbasis Cinta menggunakan model ${template.modelLabel}.`,
+    'Anda adalah penyusun RPPM KBC madrasah. Tugas Anda mengisi template RPPM, bukan membuat format baru.',
+    `Gunakan MODEL PEMBELAJARAN: ${template.modelLabel}.`,
+    'Output harus sangat setia pada struktur template RPPM KBC: A Spesifikasi, B Identifikasi, C Desain Pembelajaran, D Pengalaman Belajar, E Asesmen Pembelajaran.',
+    'Jangan menambah bagian baru, jangan mengubah nama bagian, dan jangan menghilangkan baris template.',
     '',
-    'Spesifikasi:',
+    'DATA SPESIFIKASI YANG WAJIB DIPAKAI APA ADANYA:',
     `- Satuan Pendidikan: ${spec.satuan_pendidikan || '[isi satuan pendidikan]'}`,
     `- Mata Pelajaran: ${spec.mata_pelajaran || '[isi mata pelajaran]'}`,
     `- Kelas / Semester: ${spec.kelas_semester || '[isi kelas/semester]'}`,
     `- Topik Pembelajaran: ${spec.topik_pembelajaran || '[isi topik]'}`,
     `- Alokasi Waktu: ${spec.alokasi_waktu || '[isi alokasi waktu]'}`,
     '',
-    'Acuan Dimensi Profil Lulusan:',
+    'DAFTAR DPL YANG BOLEH DIPILIH:',
     RPPM_DPL_OPTIONS.map(item => `- ${item}`).join('\n'),
     '',
-    'Acuan Topik Panca Cinta:',
+    'DAFTAR TOPIK PANCA CINTA YANG BOLEH DIPILIH:',
     RPPM_PANCA_CINTA_OPTIONS.map(item => `- ${item}`).join('\n'),
     '',
-    'Aturan penting untuk DPL dan Topik Panca Cinta:',
+    'ATURAN PEMILIHAN DPL DAN PANCA CINTA:',
     '- Jangan memasukkan semua DPL atau semua Topik Panca Cinta secara otomatis.',
     '- Pilih hanya yang benar-benar relevan, alami, dan bisa dipertanggungjawabkan untuk topik/materi pembelajaran.',
     '- Jika hanya 1-3 DPL yang kuat, gunakan 1-3 saja.',
     '- Jika hanya 1 topik Panca Cinta yang cocok, gunakan 1 saja.',
     '- Jelaskan materi integrasi KBC sesuai pilihan Topik Panca Cinta yang dipilih, jangan memaksakan topik yang tidak nyambung.',
     '',
-    'Aturan format isi:',
-    '- Bagian kanan tabel RPPM harus mudah dicetak sebagai poin bernomor.',
-    '- Untuk field bertipe array, isi setiap poin sebagai 1 item array, bukan paragraf panjang.',
-    '- Untuk field bertipe string yang berisi lebih dari satu gagasan, pisahkan setiap gagasan dengan baris baru di dalam string.',
+    'KERANGKA PEMBELAJARAN HARUS MENGIKUTI TEMPLATE INI:',
+    kerangkaFrame,
+    '',
+    'PENGALAMAN BELAJAR HARUS MENGIKUTI TEMPLATE INI:',
+    contentContract,
+    '',
+    `SINTAKS KEGIATAN INTI KHUSUS MODEL ${template.modelLabel.toUpperCase()}:`,
+    modelFrame,
+    '',
+    'ATURAN KESETIAAN TERHADAP TEMPLATE:',
+    '- Bagian kegiatan_awal harus memuat salam/doa, kondisi siap belajar, presensi/apresiasi kehadiran, motivasi/ice breaking, apersepsi/refleksi awal, pertanyaan pemantik, tujuan/kegiatan/teknik penilaian.',
+    '- Bagian kegiatan_penutup harus memuat penguatan, kesimpulan, refleksi, umpan balik, Exit Ticket, informasi kegiatan berikutnya/tindak lanjut, doa, dan salam.',
+    '- Bagian asesmen_proses harus berfungsi sebagai asesmen untuk perbaikan proses pembelajaran dan umpan balik progres belajar.',
+    '- Bagian asesmen_akhir harus mengukur capaian pembelajaran pada akhir pembelajaran.',
+    '- Gunakan istilah Memahami, Mengaplikasi, dan Merefleksi persis sesuai template.',
+    '- Isi harus konkret sesuai mata pelajaran, kelas/semester, topik, dan alokasi waktu.',
+    '- Jangan membuat isi generik seperti "materi ajar" jika data topik sudah tersedia; ganti dengan topik spesifik.',
+    '',
+    'ATURAN FORMAT JSON:',
+    '- Kembalikan hanya JSON valid tanpa markdown, tanpa komentar, tanpa teks pembuka/penutup.',
+    '- Untuk field array, isi setiap poin sebagai 1 item array, tanpa nomor manual.',
+    '- Untuk field string yang berisi lebih dari satu subbagian, pisahkan setiap subbagian dengan baris baru.',
     '- Jangan menulis paragraf panjang yang mencampur banyak kegiatan dalam satu kalimat.',
-    '- Hindari nomor manual pada array; aplikasi akan membuat nomor 1, 2, 3 saat cetak.',
+    '- Pastikan semua field dalam schema terisi.',
     '',
-    'Acuan kegiatan inti untuk model ini:',
-    hints,
-    '',
-    'Kembalikan hanya JSON valid tanpa markdown, tanpa komentar, tanpa teks pembuka/penutup.',
-    'Gunakan shape JSON berikut. Isi semua string dan array dengan konten final siap dipakai:',
+    'SCHEMA JSON WAJIB:',
     JSON.stringify(schema, null, 2),
+  ].join('\n')
+}
+
+function buildKerangkaFrame(template: RppmTemplateConfig, spec: RppmSpec) {
+  const topic = spec.topik_pembelajaran || '[topik pembelajaran]'
+  return [
+    `Praktik Pedagogis Model Pembelajaran: ${template.modelLabel}`,
+    `Metode: ${template.methodText}`,
+    'Kemitraan pembelajaran (opsional):',
+    '- Kolaborasi guru dengan murid.',
+    '- Kolaborasi guru dengan wali kelas.',
+    '- Kolaborasi antarmurid (peer teaching).',
+    'Lingkungan Pembelajaran:',
+    '- Lingkungan Fisik: ruang kelas fleksibel dan kondusif dalam setting kelompok dengan perangkat audio visual.',
+    '- Ruang virtual: daring jika diperlukan, misalnya Google Meet/Zoom/kelas digital.',
+    '- Budaya Belajar: kolaboratif, interaktif, dan dukungan guru untuk mengaktifkan murid.',
+    'Pemanfaatan Digital (opsional):',
+    `- Video/Animasi: guru menggunakan video/animasi tentang ${topic} sebagai stimulus.`,
+    `- Pencarian Informasi: murid menggunakan browser, Qur'an digital, perpustakaan digital, atau sumber relevan terkait ${topic}.`,
+    `- Pembuatan Produk: murid dapat memakai PowerPoint/Google Slides, Canva/PosterMyWall, MindMeister/XMind, atau alat digital relevan untuk menyajikan hasil belajar tentang ${topic}.`,
+    '',
+    'Masukkan kerangka di atas ke field desain_pembelajaran.kerangka_pembelajaran sebagai string multi-baris. Sesuaikan detailnya dengan topik, tetapi pertahankan subjudul Metode, Kemitraan, Lingkungan Pembelajaran, dan Pemanfaatan Digital.',
+  ].join('\n')
+}
+
+function buildContentContract(template: RppmTemplateConfig) {
+  return [
+    'kegiatan_awal harus berupa array 6-8 poin yang mengadaptasi redaksi template:',
+    '- Mengucapkan salam dan mengajak berdoa.',
+    '- Mengkondisikan murid siap untuk belajar.',
+    '- Mempresensi dan mengapresiasi kehadiran.',
+    '- Memotivasi murid dengan ice breaking/permainan atau aktivitas menggembirakan.',
+    '- Apersepsi/refleksi awal dengan mengaitkan materi sebelumnya.',
+    '- Mengajukan pertanyaan pemantik sesuai topik.',
+    '- Menyampaikan tujuan, kegiatan, dan teknik penilaian.',
+    '',
+    'kegiatan_inti wajib dibagi tepat menjadi:',
+    '- memahami: array poin sesuai sintaks Memahami.',
+    '- mengaplikasi: array poin sesuai sintaks Mengaplikasi.',
+    '- merefleksi: array poin sesuai sintaks Merefleksi.',
+    '',
+    'kegiatan_penutup harus berupa array 5-6 poin yang mengadaptasi redaksi template:',
+    '- Penguatan, penarikan kesimpulan, refleksi, dan umpan balik.',
+    '- Exit Ticket: asesmen formatif sederhana di akhir pembelajaran.',
+    '- Murid menjawab pertanyaan singkat sebelum meninggalkan kelas.',
+    '- Guru menyampaikan informasi kegiatan yang akan datang sebagai rencana tindak lanjut.',
+    '- Guru menutup kegiatan dengan mengajak murid bersyukur, berdoa, dan mengucapkan salam.',
+    '',
+    'asesmen_pembelajaran harus mengikuti karakter template:',
+    '- asesmen_proses: jelaskan asesmen untuk perbaikan proses pembelajaran, umpan balik progres murid, dan refleksi guru; contoh bisa penilaian sejawat, penilaian diri, observasi, jurnal, pertanyaan diagnostik, atau umpan balik formatif.',
+    '- asesmen_akhir: jelaskan asesmen untuk mengukur capaian pembelajaran akhir; pilih contoh yang relevan dengan model/topik, misalnya proyek, produk, portofolio, kinerja, tes tertulis, atau tes lisan.',
+    '',
+    `Pastikan semua isi kegiatan inti menggunakan model ${template.modelLabel}, bukan model lain.`,
+  ].join('\n')
+}
+
+function buildModelFrame(template: RppmTemplateConfig) {
+  return [
+    'Memahami:',
+    ...template.intiHints.memahami.map(item => `- ${item}`),
+    '',
+    'Mengaplikasi:',
+    ...template.intiHints.mengaplikasi.map(item => `- ${item}`),
+    '',
+    'Merefleksi:',
+    ...template.intiHints.merefleksi.map(item => `- ${item}`),
   ].join('\n')
 }
 
@@ -406,7 +496,7 @@ function requireText(errors: RppmValidationError[], value: string, path: string,
 }
 
 function requireArray(errors: RppmValidationError[], value: string[], path: string, label: string) {
-  if (value.length === 0) errors.push({ path, label, message: `${label} wajib diisi minimal 1 poin.` })
+  if (value.filter(item => item.trim()).length === 0) errors.push({ path, label, message: `${label} wajib diisi minimal 1 poin.` })
 }
 
 function cleanMargin(value: unknown): number {

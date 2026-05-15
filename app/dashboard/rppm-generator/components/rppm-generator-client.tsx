@@ -20,6 +20,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import {
   DEFAULT_RPPM_PRINT_SETTINGS,
+  RPPM_DPL_OPTIONS,
+  RPPM_PANCA_CINTA_OPTIONS,
   RPPM_TEMPLATES,
   buildRppmPrompt,
   cleanTextArray,
@@ -134,7 +136,7 @@ export function RppmGeneratorClient({
     }
     setContent(parsed.content)
     setActiveStep(4)
-    setMessage({ type: 'success', text: 'JSON berhasil diimport. Periksa isinya sebelum disimpan atau dicetak.' })
+    setMessage({ type: 'success', text: 'JSON berhasil diimport. Periksa isinya sebelum disimpan atau diunduh.' })
   }
 
   const save = (status: 'DRAFT' | 'FINAL') => {
@@ -275,7 +277,7 @@ export function RppmGeneratorClient({
               </div>
               {validationErrors.length > 0 ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-                  <div className="mb-1 font-semibold">Belum siap cetak</div>
+                  <div className="mb-1 font-semibold">Belum siap unduh</div>
                   <ul className="space-y-1">
                     {validationErrors.slice(0, 8).map(error => <li key={error.path}>- {error.message}</li>)}
                     {validationErrors.length > 8 && <li>- {validationErrors.length - 8} field lain belum lengkap.</li>}
@@ -291,21 +293,31 @@ export function RppmGeneratorClient({
 
         {activeStep === 4 && <Card className="rounded-lg shadow-sm">
           <CardHeader className="p-4 pb-3 sm:p-6 sm:pb-3">
-            <CardTitle className="text-base">Edit Isi RPPM</CardTitle>
+            <CardTitle className="flex flex-col gap-2 text-base sm:flex-row sm:items-center sm:justify-between">
+              <span>Edit Isi RPPM</span>
+              <Button size="sm" variant="outline" onClick={() => applyTemplateDefaults(setContent, templateType)} className="h-8 w-full sm:w-auto">
+                Isi Acuan Template
+              </Button>
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 p-4 pt-0 sm:p-6 sm:pt-0">
             <EditorGrid>
               <TextEditor label="Asesmen Awal" value={content.identifikasi.asesmen_awal} onChange={value => updateText(setContent, 'identifikasi.asesmen_awal', value)} />
-              <ArrayEditor label="Dimensi Profil Lulusan" value={content.identifikasi.dimensi_profil_lulusan} onChange={value => updateArray(setContent, 'identifikasi.dimensi_profil_lulusan', value)} />
-              <ArrayEditor label="Topik Panca Cinta" value={content.identifikasi.topik_panca_cinta} onChange={value => updateArray(setContent, 'identifikasi.topik_panca_cinta', value)} />
+              <CheckboxListEditor label="Dimensi Profil Lulusan" options={RPPM_DPL_OPTIONS} value={content.identifikasi.dimensi_profil_lulusan} onChange={value => updateArray(setContent, 'identifikasi.dimensi_profil_lulusan', value)} />
+              <CheckboxListEditor label="Topik Panca Cinta" options={RPPM_PANCA_CINTA_OPTIONS} value={content.identifikasi.topik_panca_cinta} onChange={value => updateArray(setContent, 'identifikasi.topik_panca_cinta', value)} />
               <TextEditor label="Materi Integrasi KBC" value={content.identifikasi.materi_integrasi_kbc} onChange={value => updateText(setContent, 'identifikasi.materi_integrasi_kbc', value)} />
               <TextEditor label="Tujuan Pembelajaran" value={content.desain_pembelajaran.tujuan_pembelajaran} onChange={value => updateText(setContent, 'desain_pembelajaran.tujuan_pembelajaran', value)} />
-              <TextEditor label="Kerangka Pembelajaran" value={content.desain_pembelajaran.kerangka_pembelajaran} onChange={value => updateText(setContent, 'desain_pembelajaran.kerangka_pembelajaran', value)} />
-              <ArrayEditor label="Kegiatan Awal" value={content.pengalaman_belajar.kegiatan_awal} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_awal', value)} />
-              <ArrayEditor label="Inti - Memahami" value={content.pengalaman_belajar.kegiatan_inti.memahami} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_inti.memahami', value)} />
-              <ArrayEditor label="Inti - Mengaplikasi" value={content.pengalaman_belajar.kegiatan_inti.mengaplikasi} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_inti.mengaplikasi', value)} />
-              <ArrayEditor label="Inti - Merefleksi" value={content.pengalaman_belajar.kegiatan_inti.merefleksi} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_inti.merefleksi', value)} />
-              <ArrayEditor label="Kegiatan Penutup" value={content.pengalaman_belajar.kegiatan_penutup} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_penutup', value)} />
+              <KerangkaEditor
+                value={content.desain_pembelajaran.kerangka_pembelajaran}
+                templateType={templateType}
+                spec={content.spesifikasi}
+                onChange={value => updateText(setContent, 'desain_pembelajaran.kerangka_pembelajaran', value)}
+              />
+              <PointListEditor label="Kegiatan Awal" value={content.pengalaman_belajar.kegiatan_awal} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_awal', value)} onReset={() => updateArray(setContent, 'pengalaman_belajar.kegiatan_awal', defaultKegiatanAwal())} />
+              <PointListEditor label="Inti - Memahami" value={content.pengalaman_belajar.kegiatan_inti.memahami} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_inti.memahami', value)} onReset={() => updateArray(setContent, 'pengalaman_belajar.kegiatan_inti.memahami', getTemplateInti(templateType, 'memahami'))} />
+              <PointListEditor label="Inti - Mengaplikasi" value={content.pengalaman_belajar.kegiatan_inti.mengaplikasi} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_inti.mengaplikasi', value)} onReset={() => updateArray(setContent, 'pengalaman_belajar.kegiatan_inti.mengaplikasi', getTemplateInti(templateType, 'mengaplikasi'))} />
+              <PointListEditor label="Inti - Merefleksi" value={content.pengalaman_belajar.kegiatan_inti.merefleksi} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_inti.merefleksi', value)} onReset={() => updateArray(setContent, 'pengalaman_belajar.kegiatan_inti.merefleksi', getTemplateInti(templateType, 'merefleksi'))} />
+              <PointListEditor label="Kegiatan Penutup" value={content.pengalaman_belajar.kegiatan_penutup} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_penutup', value)} onReset={() => updateArray(setContent, 'pengalaman_belajar.kegiatan_penutup', defaultKegiatanPenutup())} />
               <TextEditor label="Asesmen Proses" value={content.asesmen_pembelajaran.asesmen_proses} onChange={value => updateText(setContent, 'asesmen_pembelajaran.asesmen_proses', value)} />
               <TextEditor label="Asesmen Akhir" value={content.asesmen_pembelajaran.asesmen_akhir} onChange={value => updateText(setContent, 'asesmen_pembelajaran.asesmen_akhir', value)} />
             </EditorGrid>
@@ -467,6 +479,100 @@ function ArrayEditor({ label, value, onChange }: { label: string; value: string[
   )
 }
 
+function CheckboxListEditor({ label, options, value, onChange }: { label: string; options: string[]; value: string[]; onChange: (value: string[]) => void }) {
+  const extra = value.filter(item => !options.some(option => matchesOption(item, option)))
+
+  const toggle = (option: string) => {
+    const checked = value.some(item => matchesOption(item, option))
+    if (checked) onChange(value.filter(item => !matchesOption(item, option)))
+    else onChange([...value, option])
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+      <Label className="text-xs font-medium">{label}</Label>
+      <div className="mt-2 grid gap-2">
+        {options.map(option => {
+          const checked = value.some(item => matchesOption(item, option))
+          return (
+            <label key={option} className="flex cursor-pointer items-start gap-2 rounded-md bg-slate-50 px-2 py-2 text-xs leading-5 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-800">
+              <input type="checkbox" checked={checked} onChange={() => toggle(option)} className="mt-1 rounded" />
+              <span>{option}</span>
+            </label>
+          )
+        })}
+      </div>
+      {extra.length > 0 && (
+        <div className="mt-3">
+          <Label className="text-[11px] font-medium text-slate-500">Tambahan dari AI</Label>
+          <Textarea value={extra.join('\n')} onChange={event => onChange([...value.filter(item => !extra.includes(item)), ...cleanTextArray(event.target.value)])} className="mt-1 min-h-20 text-xs" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function KerangkaEditor({ value, templateType, spec, onChange }: { value: string; templateType: RppmTemplateType; spec: RppmSpec; onChange: (value: string) => void }) {
+  const parts = parseKerangka(value)
+  const update = (key: keyof KerangkaParts, nextValue: string) => onChange(buildKerangka({ ...parts, [key]: nextValue }))
+
+  return (
+    <div className="space-y-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800 lg:col-span-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <Label className="text-xs font-medium">Kerangka Pembelajaran</Label>
+        <Button type="button" size="sm" variant="outline" onClick={() => onChange(defaultKerangkaText(templateType, spec))} className="h-8 w-full sm:w-auto">
+          Contoh Struktur
+        </Button>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <TextEditor label="Metode" value={parts.metode} onChange={value => update('metode', value)} />
+        <TextEditor label="Kemitraan Pembelajaran" value={parts.kemitraan} onChange={value => update('kemitraan', value)} />
+        <TextEditor label="Lingkungan Pembelajaran" value={parts.lingkungan} onChange={value => update('lingkungan', value)} />
+        <TextEditor label="Pemanfaatan Digital" value={parts.digital} onChange={value => update('digital', value)} />
+      </div>
+    </div>
+  )
+}
+
+function PointListEditor({ label, value, onChange, onReset }: { label: string; value: string[]; onChange: (value: string[]) => void; onReset?: () => void }) {
+  const updateItem = (index: number, item: string) => onChange(value.map((old, i) => i === index ? item : old))
+  const removeItem = (index: number) => onChange(value.filter((_, i) => i !== index))
+  const moveItem = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= value.length) return
+    const next = [...value]
+    const current = next[index]
+    next[index] = next[target]
+    next[target] = current
+    onChange(next)
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-800">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <Label className="text-xs font-medium">{label}</Label>
+        <div className="flex gap-2">
+          {onReset && <Button type="button" size="sm" variant="outline" onClick={onReset} className="h-8 flex-1 sm:flex-none">Acuan</Button>}
+          <Button type="button" size="sm" variant="outline" onClick={() => onChange([...value, ''])} className="h-8 flex-1 sm:flex-none">Tambah</Button>
+        </div>
+      </div>
+      {value.length === 0 ? (
+        <p className="rounded-md border border-dashed p-3 text-center text-xs text-slate-400">Belum ada poin.</p>
+      ) : value.map((item, index) => (
+        <div key={index} className="grid gap-2 rounded-md bg-slate-50 p-2 dark:bg-slate-900 sm:grid-cols-[28px_1fr_auto]">
+          <div className="pt-2 text-center text-xs font-semibold text-slate-500">{index + 1}</div>
+          <Textarea value={item} onChange={event => updateItem(index, event.target.value)} className="min-h-20 text-sm" />
+          <div className="grid grid-cols-3 gap-1 sm:flex sm:flex-col">
+            <Button type="button" size="sm" variant="outline" onClick={() => moveItem(index, -1)} disabled={index === 0} className="h-8 px-2">Naik</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => moveItem(index, 1)} disabled={index === value.length - 1} className="h-8 px-2">Turun</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => removeItem(index)} className="h-8 px-2 text-rose-600">Hapus</Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function PrintSettingsEditor({ settings, onChange }: { settings: RppmPrintSettings; onChange: (settings: RppmPrintSettings) => void }) {
   const updateMargin = (key: keyof RppmPrintSettings['margins'], value: string) => {
     const n = Number(value)
@@ -528,6 +634,162 @@ function updateArray(setContent: Dispatch<SetStateAction<RppmContent>>, path: Ar
     if (path === 'pengalaman_belajar.kegiatan_penutup') next.pengalaman_belajar.kegiatan_penutup = value
     return next
   })
+}
+
+type KerangkaParts = {
+  metode: string
+  kemitraan: string
+  lingkungan: string
+  digital: string
+}
+
+function applyTemplateDefaults(setContent: Dispatch<SetStateAction<RppmContent>>, templateType: RppmTemplateType) {
+  setContent(prev => ({
+    ...prev,
+    desain_pembelajaran: {
+      ...prev.desain_pembelajaran,
+      kerangka_pembelajaran: prev.desain_pembelajaran.kerangka_pembelajaran.trim() || defaultKerangkaText(templateType, prev.spesifikasi),
+    },
+    pengalaman_belajar: {
+      kegiatan_awal: prev.pengalaman_belajar.kegiatan_awal.length > 0 ? prev.pengalaman_belajar.kegiatan_awal : defaultKegiatanAwal(),
+      kegiatan_inti: {
+        memahami: prev.pengalaman_belajar.kegiatan_inti.memahami.length > 0 ? prev.pengalaman_belajar.kegiatan_inti.memahami : getTemplateInti(templateType, 'memahami'),
+        mengaplikasi: prev.pengalaman_belajar.kegiatan_inti.mengaplikasi.length > 0 ? prev.pengalaman_belajar.kegiatan_inti.mengaplikasi : getTemplateInti(templateType, 'mengaplikasi'),
+        merefleksi: prev.pengalaman_belajar.kegiatan_inti.merefleksi.length > 0 ? prev.pengalaman_belajar.kegiatan_inti.merefleksi : getTemplateInti(templateType, 'merefleksi'),
+      },
+      kegiatan_penutup: prev.pengalaman_belajar.kegiatan_penutup.length > 0 ? prev.pengalaman_belajar.kegiatan_penutup : defaultKegiatanPenutup(),
+    },
+    asesmen_pembelajaran: {
+      asesmen_proses: prev.asesmen_pembelajaran.asesmen_proses.trim() || defaultAsesmenProses(),
+      asesmen_akhir: prev.asesmen_pembelajaran.asesmen_akhir.trim() || defaultAsesmenAkhir(),
+    },
+  }))
+}
+
+function parseKerangka(value: string): KerangkaParts {
+  const parts: KerangkaParts = { metode: '', kemitraan: '', lingkungan: '', digital: '' }
+  let current: keyof KerangkaParts = 'metode'
+
+  for (const rawLine of value.split('\n')) {
+    const line = rawLine.trim()
+    if (!line) continue
+    if (/^praktik pedagogis/i.test(line)) continue
+
+    const matched = matchKerangkaHeading(line)
+    if (matched) {
+      current = matched.key
+      if (matched.value) appendKerangka(parts, current, matched.value)
+      continue
+    }
+
+    appendKerangka(parts, current, line)
+  }
+
+  return parts
+}
+
+function matchKerangkaHeading(line: string): { key: keyof KerangkaParts; value: string } | null {
+  const normalized = line.toLowerCase()
+  const pairs: Array<[keyof KerangkaParts, RegExp]> = [
+    ['metode', /^metode\s*:?\s*/i],
+    ['kemitraan', /^kemitraan pembelajaran(?:\s*\(opsional\))?\s*:?\s*/i],
+    ['lingkungan', /^lingkungan pembelajaran\s*:?\s*/i],
+    ['digital', /^pemanfaatan digital(?:\s*\(opsional\))?\s*:?\s*/i],
+  ]
+
+  for (const [key, regex] of pairs) {
+    if (regex.test(line)) return { key, value: line.replace(regex, '').trim() }
+  }
+  if (normalized.includes('ruang kelas') || normalized.includes('budaya belajar')) return { key: 'lingkungan', value: line }
+  if (normalized.includes('video') || normalized.includes('pencarian informasi') || normalized.includes('produk')) return { key: 'digital', value: line }
+  return null
+}
+
+function appendKerangka(parts: KerangkaParts, key: keyof KerangkaParts, value: string) {
+  const clean = value.replace(/^\s*(?:[-*]|\d+[.)])\s*/, '').trim()
+  if (!clean) return
+  parts[key] = parts[key] ? `${parts[key]}\n${clean}` : clean
+}
+
+function buildKerangka(parts: KerangkaParts) {
+  return [
+    `Metode: ${parts.metode}`,
+    'Kemitraan pembelajaran (opsional):',
+    parts.kemitraan,
+    'Lingkungan Pembelajaran:',
+    parts.lingkungan,
+    'Pemanfaatan Digital (opsional):',
+    parts.digital,
+  ].filter(Boolean).join('\n')
+}
+
+function defaultKerangkaText(templateType: RppmTemplateType, spec: RppmSpec) {
+  const template = RPPM_TEMPLATES.find(item => item.type === templateType) || RPPM_TEMPLATES[0]
+  const topic = spec.topik_pembelajaran || 'topik pembelajaran'
+  return buildKerangka({
+    metode: template.methodText,
+    kemitraan: [
+      'Kolaborasi guru dengan murid.',
+      'Kolaborasi guru dengan wali kelas.',
+      'Kolaborasi antarmurid (peer teaching).',
+    ].join('\n'),
+    lingkungan: [
+      'Lingkungan fisik: ruang kelas fleksibel dan kondusif dalam setting kelompok dengan perangkat audio visual.',
+      'Ruang virtual: daring jika diperlukan, misalnya Google Meet/Zoom/kelas digital.',
+      'Budaya belajar: kolaboratif, interaktif, dan dukungan guru untuk mengaktifkan murid.',
+    ].join('\n'),
+    digital: [
+      `Video/Animasi: guru menggunakan video/animasi tentang ${topic} sebagai stimulus.`,
+      `Pencarian Informasi: murid menggunakan browser, Qur'an digital, perpustakaan digital, atau sumber relevan terkait ${topic}.`,
+      `Pembuatan Produk: murid memakai PowerPoint/Google Slides, Canva/PosterMyWall, MindMeister/XMind, atau alat digital relevan untuk menyajikan hasil belajar tentang ${topic}.`,
+    ].join('\n'),
+  })
+}
+
+function defaultKegiatanAwal() {
+  return [
+    'Mengucapkan salam dan mengajak berdoa.',
+    'Mengkondisikan murid siap untuk belajar.',
+    'Mempresensi dan mengapresiasi kehadiran murid.',
+    'Memotivasi murid dengan ice breaking, permainan singkat, atau aktivitas menggembirakan.',
+    'Melakukan apersepsi/refleksi awal dengan mengaitkan materi sebelumnya.',
+    'Mengajukan pertanyaan pemantik sesuai topik pembelajaran.',
+    'Menyampaikan tujuan, kegiatan pembelajaran, dan teknik penilaian.',
+  ]
+}
+
+function defaultKegiatanPenutup() {
+  return [
+    'Melakukan penguatan, penarikan kesimpulan, refleksi, dan umpan balik.',
+    'Melaksanakan Exit Ticket sebagai asesmen formatif sederhana di akhir pembelajaran.',
+    'Murid menjawab satu atau beberapa pertanyaan singkat sebelum meninggalkan kelas.',
+    'Guru menyampaikan informasi kegiatan yang akan datang sebagai rencana tindak lanjut.',
+    'Guru menutup kegiatan dengan mengajak murid bersyukur, berdoa, dan mengucapkan salam.',
+  ]
+}
+
+function defaultAsesmenProses() {
+  return 'Asesmen untuk perbaikan proses pembelajaran yang berfungsi sebagai umpan balik untuk membantu murid memahami progres belajar mereka serta menjadi bahan refleksi guru dalam mengajar. Bentuk asesmen dapat berupa penilaian sejawat, penilaian diri, observasi, jurnal, pertanyaan diagnostik, dan umpan balik formatif.'
+}
+
+function defaultAsesmenAkhir() {
+  return 'Asesmen untuk mengukur capaian pembelajaran murid pada akhir pembelajaran. Bentuk asesmen dipilih sesuai topik dan model pembelajaran, misalnya penilaian proyek, produk, portofolio, kinerja, tes tertulis, atau tes lisan.'
+}
+
+function getTemplateInti(templateType: RppmTemplateType, key: keyof RppmContent['pengalaman_belajar']['kegiatan_inti']) {
+  const template = RPPM_TEMPLATES.find(item => item.type === templateType) || RPPM_TEMPLATES[0]
+  return [...template.intiHints[key]]
+}
+
+function matchesOption(value: string, option: string) {
+  const a = normalizeOption(value)
+  const b = normalizeOption(option)
+  const code = b.match(/^(dpl|topik)(\d+)/)?.[0]
+  return a === b || Boolean(code && a.startsWith(code))
+}
+
+function normalizeOption(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '')
 }
 
 function marginLabel(key: keyof RppmPrintSettings['margins']) {

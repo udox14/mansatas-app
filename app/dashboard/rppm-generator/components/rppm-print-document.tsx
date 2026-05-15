@@ -60,12 +60,12 @@ export function RppmPrintDocument({
         <table className="rppm-table" style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
           <tbody>
             <SectionRow letter="A" title="Spesifikasi" />
-            <FieldRow no="1" label="Satuan Pendidikan" value={content.spesifikasi.satuan_pendidikan} />
-            <FieldRow no="2" label="Mata Pelajaran" value={content.spesifikasi.mata_pelajaran} />
-            <FieldRow no="3" label="Kelas / Semester" value={content.spesifikasi.kelas_semester} />
-            <FieldRow no="4" label="Topik Pembelajaran" value={content.spesifikasi.topik_pembelajaran} />
-            <FieldRow no="5" label="Alokasi Waktu" value={content.spesifikasi.alokasi_waktu} />
-            <SpacerRow />
+            <SpecRow no="1" label="Satuan Pendidikan" value={content.spesifikasi.satuan_pendidikan} />
+            <SpecRow no="2" label="Mata Pelajaran" value={content.spesifikasi.mata_pelajaran} />
+            <SpecRow no="3" label="Kelas / Semester" value={content.spesifikasi.kelas_semester} />
+            <SpecRow no="4" label="Topik Pembelajaran" value={content.spesifikasi.topik_pembelajaran} />
+            <SpecRow no="5" label="Alokasi Waktu" value={content.spesifikasi.alokasi_waktu} />
+            <GapRow />
 
             <SectionRow letter="B" title="Identifikasi" />
             <FieldRow no="1" label="Asesmen pada Awal Pembelajaran (opsional)" value={content.identifikasi.asesmen_awal} />
@@ -125,12 +125,20 @@ function FieldRow({ no, label, value }: { no: string; label: string; value: Reac
   )
 }
 
-function SpacerRow() {
+function SpecRow({ no, label, value }: { no: string; label: string; value: string }) {
   return (
     <tr>
-      <td style={cell({ height: '6mm' })} />
-      <td style={cell({ height: '6mm' })} />
-      <td style={cell({ height: '6mm' })} />
+      <td style={cell({ width: '9mm', align: 'center' })}>{no}</td>
+      <td style={cell({ width: '48mm', bold: true, borderRight: 'none' })}>{label}</td>
+      <td style={cell({ borderLeft: 'none' })}>{text(value)}</td>
+    </tr>
+  )
+}
+
+function GapRow() {
+  return (
+    <tr>
+      <td colSpan={3} style={{ height: '8mm', border: 'none', padding: 0, background: '#fff' }} />
     </tr>
   )
 }
@@ -196,9 +204,11 @@ function text(value: string) {
   return value?.trim() || EMPTY
 }
 
-function cell(options?: { width?: string; align?: 'left' | 'center'; bold?: boolean; height?: string; fill?: string }): CSSProperties {
+function cell(options?: { width?: string; align?: 'left' | 'center'; bold?: boolean; height?: string; fill?: string; borderLeft?: string; borderRight?: string }): CSSProperties {
   return {
     border: '1px solid #000',
+    borderLeft: options?.borderLeft,
+    borderRight: options?.borderRight,
     backgroundColor: options?.fill,
     padding: '2.3mm 2mm',
     verticalAlign: 'top',
