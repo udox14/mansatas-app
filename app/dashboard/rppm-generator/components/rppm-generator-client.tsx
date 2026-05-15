@@ -4,6 +4,8 @@ import { useMemo, useRef, useState, useTransition, type Dispatch, type ReactNode
 import { useReactToPrint } from 'react-to-print'
 import {
   AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
   Check,
   Clipboard,
   Download,
@@ -11,7 +13,6 @@ import {
   Loader2,
   Printer,
   Save,
-  Upload,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -64,6 +65,15 @@ const DEFAULT_SPEC: RppmSpec = {
   alokasi_waktu: '2 JP (Pertemuan 1)',
 }
 
+const WIZARD_STEPS = [
+  { title: 'Template', desc: 'Pilih model RPPM' },
+  { title: 'Spesifikasi', desc: 'Isi data dasar' },
+  { title: 'Prompt', desc: 'Copy ke AI' },
+  { title: 'Import', desc: 'Paste JSON AI' },
+  { title: 'Edit', desc: 'Rapikan isi' },
+  { title: 'Output', desc: 'PDF atau Word' },
+]
+
 export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: RppmSavedDocument[] }) {
   const firstDoc = initialDocuments[0]
   const [documents, setDocuments] = useState(initialDocuments)
@@ -73,6 +83,8 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
   const [printSettings, setPrintSettings] = useState<RppmPrintSettings>(() => firstDoc?.print_settings || DEFAULT_RPPM_PRINT_SETTINGS)
   const [message, setMessage] = useState<Message>(null)
   const [copied, setCopied] = useState(false)
+  const [activeStep, setActiveStep] = useState(0)
+  const [jsonInput, setJsonInput] = useState('')
   const [isPending, startTransition] = useTransition()
   const printRef = useRef<HTMLDivElement>(null)
   const handlePrint = useReactToPrint({ contentRef: printRef })
@@ -87,6 +99,7 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
     setContent(normalizeRppmContent(doc.content))
     setPrintSettings(normalizePrintSettings(doc.print_settings))
     setMessage(null)
+    setActiveStep(4)
   }
 
   const newDraft = () => {
@@ -95,6 +108,8 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
     setContent(emptyRppmContent(DEFAULT_SPEC))
     setPrintSettings(DEFAULT_RPPM_PRINT_SETTINGS)
     setMessage(null)
+    setJsonInput('')
+    setActiveStep(0)
   }
 
   const copyPrompt = async () => {
@@ -107,19 +122,14 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
     }
   }
 
-  const importFile = async (file: File | undefined) => {
-    if (!file) return
-    if (!file.name.toLowerCase().endsWith('.json') && !file.name.toLowerCase().endsWith('.txt')) {
-      setMessage({ type: 'error', text: 'File harus berformat .json atau .txt berisi JSON valid.' })
-      return
-    }
-    const raw = await file.text()
-    const parsed = parseRppmJson(raw, content.spesifikasi)
+  const importJsonText = () => {
+    const parsed = parseRppmJson(jsonInput, content.spesifikasi)
     if (parsed.error || !parsed.content) {
       setMessage({ type: 'error', text: parsed.error || 'File gagal dibaca.' })
       return
     }
     setContent(parsed.content)
+    setActiveStep(4)
     setMessage({ type: 'success', text: 'JSON berhasil diimport. Periksa isinya sebelum disimpan atau dicetak.' })
   }
 
@@ -172,6 +182,8 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-4">
+        <WizardStepper activeStep={activeStep} onChange={setActiveStep} />
+
         {message && (
           <div className={cn(
             'flex items-start gap-2 rounded-lg border px-3 py-2 text-sm',
@@ -184,7 +196,7 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
           </div>
         )}
 
-        <Card className="rounded-lg shadow-sm">
+        {activeStep === 0 && <Card className="rounded-lg shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Template RPPM</CardTitle>
           </CardHeader>
@@ -208,9 +220,9 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
               ))}
             </div>
           </CardContent>
-        </Card>
+        </Card>}
 
-        <Card className="rounded-lg shadow-sm">
+        {activeStep === 1 && <Card className="rounded-lg shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Spesifikasi</CardTitle>
           </CardHeader>
@@ -223,10 +235,9 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
               <SpecInput label="Alokasi Waktu" value={content.spesifikasi.alokasi_waktu} onChange={value => updateSpec(setContent, 'alokasi_waktu', value)} />
             </div>
           </CardContent>
-        </Card>
+        </Card>}
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="rounded-lg shadow-sm">
+        {activeStep === 2 && <Card className="rounded-lg shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center justify-between gap-2 text-base">
                 <span>Prompt AI</span>
@@ -239,19 +250,25 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
             <CardContent>
               <Textarea value={prompt} readOnly className="min-h-72 resize-y font-mono text-xs leading-5" />
             </CardContent>
-          </Card>
+          </Card>}
 
-          <Card className="rounded-lg shadow-sm">
+          {activeStep === 3 && <Card className="rounded-lg shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Import JSON</CardTitle>
+              <CardTitle className="text-base">Paste JSON dari AI</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">
-                <Upload className="mb-2 h-6 w-6 text-slate-400" />
-                <span className="font-medium">Pilih file JSON/TXT</span>
-                <span className="mt-1 text-xs text-slate-500">Isi file harus JSON sesuai prompt.</span>
-                <input type="file" accept=".json,.txt,application/json,text/plain" className="sr-only" onChange={event => importFile(event.target.files?.[0])} />
-              </label>
+              <Textarea
+                value={jsonInput}
+                onChange={event => setJsonInput(event.target.value)}
+                placeholder="Paste output JSON dari AI di sini. Jangan sertakan markdown ```json."
+                className="min-h-72 resize-y font-mono text-xs leading-5"
+              />
+              <div className="flex justify-end">
+                <Button onClick={importJsonText} className="gap-1.5 bg-slate-900 text-white hover:bg-slate-800">
+                  <Check className="h-4 w-4" />
+                  Import JSON
+                </Button>
+              </div>
               {validationErrors.length > 0 ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
                   <div className="mb-1 font-semibold">Belum siap cetak</div>
@@ -266,10 +283,9 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
                 </div>
               )}
             </CardContent>
-          </Card>
-        </div>
+          </Card>}
 
-        <Card className="rounded-lg shadow-sm">
+        {activeStep === 4 && <Card className="rounded-lg shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Edit Isi RPPM</CardTitle>
           </CardHeader>
@@ -290,9 +306,9 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
               <TextEditor label="Asesmen Akhir" value={content.asesmen_pembelajaran.asesmen_akhir} onChange={value => updateText(setContent, 'asesmen_pembelajaran.asesmen_akhir', value)} />
             </EditorGrid>
           </CardContent>
-        </Card>
+        </Card>}
 
-        <Card className="rounded-lg shadow-sm">
+        {activeStep === 5 && <Card className="rounded-lg shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
               <span>Preview Cetak</span>
@@ -324,7 +340,9 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
               </div>
             </div>
           </CardContent>
-        </Card>
+        </Card>}
+
+        <WizardNav activeStep={activeStep} onChange={setActiveStep} />
       </div>
 
       <aside className="space-y-4">
@@ -368,6 +386,59 @@ function SpecInput({ label, value, onChange }: { label: string; value: string; o
     <div>
       <Label className="text-xs font-medium">{label}</Label>
       <Input value={value} onChange={event => onChange(event.target.value)} className="mt-1" />
+    </div>
+  )
+}
+
+function WizardStepper({ activeStep, onChange }: { activeStep: number; onChange: (step: number) => void }) {
+  return (
+    <div className="overflow-x-auto rounded-lg border bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+      <div className="grid min-w-[760px] grid-cols-6 gap-2">
+        {WIZARD_STEPS.map((step, index) => (
+          <button
+            key={step.title}
+            type="button"
+            onClick={() => onChange(index)}
+            className={cn(
+              'rounded-md px-3 py-2 text-left transition',
+              activeStep === index
+                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800',
+            )}
+          >
+            <span className="block text-[11px] font-semibold uppercase tracking-wide">Step {index + 1}</span>
+            <span className="block text-sm font-semibold">{step.title}</span>
+            <span className={cn('block text-[11px]', activeStep === index ? 'text-slate-200 dark:text-slate-600' : 'text-slate-400')}>{step.desc}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function WizardNav({ activeStep, onChange }: { activeStep: number; onChange: (step: number) => void }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+      <Button
+        variant="outline"
+        onClick={() => onChange(Math.max(0, activeStep - 1))}
+        disabled={activeStep === 0}
+        className="gap-1.5"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Sebelumnya
+      </Button>
+      <div className="text-xs font-medium text-slate-500">
+        {activeStep + 1} / {WIZARD_STEPS.length}
+      </div>
+      <Button
+        onClick={() => onChange(Math.min(WIZARD_STEPS.length - 1, activeStep + 1))}
+        disabled={activeStep === WIZARD_STEPS.length - 1}
+        className="gap-1.5 bg-slate-900 text-white hover:bg-slate-800"
+      >
+        Selanjutnya
+        <ArrowRight className="h-4 w-4" />
+      </Button>
     </div>
   )
 }
