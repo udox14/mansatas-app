@@ -4,6 +4,7 @@ import {
   type RppmPrintSettings,
   type RppmTemplateType,
 } from '@/lib/rppm'
+import type { RppmSigner } from '@/app/dashboard/rppm-generator/actions'
 
 const EMPTY = '........................................'
 
@@ -12,13 +13,19 @@ type ZipEntry = {
   content: Uint8Array
 }
 
-export function buildRppmDocxBlob(templateType: RppmTemplateType, content: RppmContent, settings: RppmPrintSettings) {
+export function buildRppmDocxBlob(
+  templateType: RppmTemplateType,
+  content: RppmContent,
+  settings: RppmPrintSettings,
+  user: RppmSigner,
+  kepsek: RppmSigner | null,
+) {
   const entries: ZipEntry[] = [
     { name: '[Content_Types].xml', content: encodeXml(contentTypesXml()) },
     { name: '_rels/.rels', content: encodeXml(rootRelsXml()) },
     { name: 'word/_rels/document.xml.rels', content: encodeXml(documentRelsXml()) },
     { name: 'word/styles.xml', content: encodeXml(stylesXml()) },
-    { name: 'word/document.xml', content: encodeXml(documentXml(templateType, content, settings)) },
+    { name: 'word/document.xml', content: encodeXml(documentXml(templateType, content, settings, user, kepsek)) },
   ]
 
   return new Blob([buildZip(entries)], {
@@ -33,7 +40,13 @@ export function buildRppmDocxFilename(content: RppmContent) {
   return `${sanitizeFilename(`RPPM ${mapel} ${kelas} ${topic}`)}.docx`
 }
 
-function documentXml(templateType: RppmTemplateType, content: RppmContent, settings: RppmPrintSettings) {
+function documentXml(
+  templateType: RppmTemplateType,
+  content: RppmContent,
+  settings: RppmPrintSettings,
+  user: RppmSigner,
+  kepsek: RppmSigner | null,
+) {
   const template = getRppmTemplate(templateType)
   const page = settings.paper === 'A4'
     ? { width: 11906, height: 16838 }
@@ -78,7 +91,11 @@ function documentXml(templateType: RppmTemplateType, content: RppmContent, setti
       ${fieldRow('4', 'Materi Integrasi KBC', content.identifikasi.materi_integrasi_kbc)}
       ${sectionRow('C', 'Desain Pembelajaran')}
       ${fieldRow('1', 'Tujuan Pembelajaran', content.desain_pembelajaran.tujuan_pembelajaran)}
-      ${fieldRow('2', 'Kerangka Pembelajaran', `Praktik Pedagogis Model Pembelajaran: ${template.modelLabel}\n${content.desain_pembelajaran.kerangka_pembelajaran}`)}
+      ${fieldRowInner(
+        '2',
+        'Kerangka Pembelajaran',
+        paragraph(`Praktik Pedagogis Model Pembelajaran: ${template.modelLabel}`, { bold: true }) + smartParagraphs(content.desain_pembelajaran.kerangka_pembelajaran),
+      )}
       ${sectionRow('D', `Pengalaman Belajar (Menggunakan Model ${template.modelLabel})`)}
       ${fieldRow('1', 'Kegiatan Awal (berkesadaran, bermakna, dan/atau menggembirakan)', listText(content.pengalaman_belajar.kegiatan_awal))}
       ${fieldRow('2', 'Kegiatan Inti (berkesadaran, bermakna, dan/atau menggembirakan)', '')}
@@ -90,6 +107,7 @@ function documentXml(templateType: RppmTemplateType, content: RppmContent, setti
       ${fieldRow('1', 'Asesmen Proses', content.asesmen_pembelajaran.asesmen_proses)}
       ${fieldRow('2', 'Asesmen Akhir', content.asesmen_pembelajaran.asesmen_akhir)}
     </w:tbl>
+    ${signatureTable(user, kepsek)}
     <w:sectPr>
       <w:pgSz w:w="${page.width}" w:h="${page.height}"/>
       <w:pgMar w:top="${margins.top}" w:right="${margins.right}" w:bottom="${margins.bottom}" w:left="${margins.left}" w:header="708" w:footer="708" w:gutter="0"/>
@@ -99,22 +117,27 @@ function documentXml(templateType: RppmTemplateType, content: RppmContent, setti
 }
 
 function sectionRow(letter: string, title: string) {
-  return `<w:tr>${cell(paragraph(letter, { bold: true, align: 'center' }), 510)}${cell(paragraph(title, { bold: true }), 9240, 2)}</w:tr>`
+  return `<w:tr>${cell(paragraph(letter, { bold: true, align: 'center' }), 510, undefined, 'E7E5E4')}${cell(paragraph(title, { bold: true }), 9240, 2, 'E7E5E4')}</w:tr>`
 }
 
 function fieldRow(no: string, label: string, value: string) {
   return `<w:tr>${cell(paragraph(no, { align: 'center' }), 510)}${cell(paragraph(label, { bold: Boolean(no) }), 2700)}${cell(multilineParagraphs(value), 6540)}</w:tr>`
 }
 
+function fieldRowInner(no: string, label: string, inner: string) {
+  return `<w:tr>${cell(paragraph(no, { align: 'center' }), 510)}${cell(paragraph(label, { bold: Boolean(no) }), 2700)}${cell(inner, 6540)}</w:tr>`
+}
+
 function spacerRow() {
   return `<w:tr>${cell(paragraph(''), 510)}${cell(paragraph(''), 2700)}${cell(paragraph(''), 6540)}</w:tr>`
 }
 
-function cell(inner: string, width: number, gridSpan?: number) {
+function cell(inner: string, width: number, gridSpan?: number, fill?: string) {
   return `<w:tc>
     <w:tcPr>
       <w:tcW w:w="${width}" w:type="dxa"/>
       ${gridSpan ? `<w:gridSpan w:val="${gridSpan}"/>` : ''}
+      ${fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : ''}
       <w:tcMar><w:top w:w="90" w:type="dxa"/><w:left w:w="90" w:type="dxa"/><w:bottom w:w="90" w:type="dxa"/><w:right w:w="90" w:type="dxa"/></w:tcMar>
       <w:vAlign w:val="top"/>
     </w:tcPr>
@@ -122,8 +145,44 @@ function cell(inner: string, width: number, gridSpan?: number) {
   </w:tc>`
 }
 
+function signatureTable(user: RppmSigner, kepsek: RppmSigner | null) {
+  return `<w:p><w:pPr><w:spacing w:before="360" w:after="0"/></w:pPr></w:p>
+  <w:tbl>
+    <w:tblPr>
+      <w:tblW w:w="0" w:type="auto"/>
+      <w:tblLayout w:type="fixed"/>
+      <w:tblBorders>
+        <w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/>
+      </w:tblBorders>
+    </w:tblPr>
+    <w:tblGrid><w:gridCol w:w="4700"/><w:gridCol w:w="700"/><w:gridCol w:w="4700"/></w:tblGrid>
+    <w:tr>
+      ${signatureCell('Mengetahui,', 'Kepala MAN 1 Tasikmalaya', kepsek?.nama_lengkap || 'Kepala Madrasah Belum Diatur', kepsek?.nip || '')}
+      ${cell(paragraph(''), 700)}
+      ${signatureCell('', user.jabatan_cetak || user.role || 'Guru', user.nama_lengkap || 'Nama Guru Belum Diatur', user.nip || '')}
+    </w:tr>
+  </w:tbl>`
+}
+
+function signatureCell(title: string, position: string, name: string, nip: string) {
+  return cell(
+    paragraph(title) +
+      paragraph(position.toUpperCase(), { bold: true, after: 900 }) +
+      paragraph(name.toUpperCase(), { bold: true }) +
+      paragraph(`NIP. ${nip || '................................'}`),
+    4700,
+  )
+}
+
 function multilineParagraphs(value: string) {
   const text = value.trim() || EMPTY
+  return smartParagraphs(text)
+}
+
+function smartParagraphs(value: string) {
+  const text = value.trim() || EMPTY
+  const points = splitPoints(text)
+  if (points.length > 1) return points.map((line, index) => paragraph(`${index + 1}. ${line}`)).join('')
   return text.split('\n').map(line => paragraph(line)).join('')
 }
 
@@ -131,7 +190,7 @@ function paragraph(value: string, options?: { bold?: boolean; align?: 'left' | '
   return `<w:p>
     <w:pPr>
       ${options?.align && options.align !== 'left' ? `<w:jc w:val="${options.align}"/>` : ''}
-      <w:spacing w:after="${options?.after ?? 80}" w:line="276" w:lineRule="auto"/>
+      <w:spacing w:after="${options?.after ?? 80}" w:line="240" w:lineRule="auto"/>
     </w:pPr>
     <w:r>
       <w:rPr>
@@ -147,6 +206,14 @@ function paragraph(value: string, options?: { bold?: boolean; align?: 'left' | '
 function listText(items: string[]) {
   if (items.length === 0) return ''
   return items.map((item, index) => `${index + 1}. ${item}`).join('\n')
+}
+
+function splitPoints(value: string) {
+  const lines = value
+    .split('\n')
+    .map(line => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, '').trim())
+    .filter(Boolean)
+  return lines.length > 1 ? lines : []
 }
 
 function contentTypesXml() {

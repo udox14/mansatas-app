@@ -7,6 +7,7 @@ import {
   type RppmPrintSettings,
   type RppmTemplateType,
 } from '@/lib/rppm'
+import type { RppmSigner } from '../actions'
 
 const FONT = '"Times New Roman", Times, serif'
 const EMPTY = '........................................'
@@ -15,10 +16,14 @@ export function RppmPrintDocument({
   templateType,
   content,
   settings,
+  user,
+  kepsek,
 }: {
   templateType: RppmTemplateType
   content: RppmContent
   settings: RppmPrintSettings
+  user: RppmSigner
+  kepsek: RppmSigner | null
 }) {
   const template = getRppmTemplate(templateType)
   const pageSize = settings.paper === 'A4' ? { width: '210mm', minHeight: '297mm', css: 'A4 portrait' } : { width: '215mm', minHeight: '330mm', css: '215mm 330mm' }
@@ -44,7 +49,7 @@ export function RppmPrintDocument({
           boxSizing: 'border-box',
           background: '#fff',
           fontSize: '11pt',
-          lineHeight: 1.25,
+          lineHeight: 1,
         }}
       >
         <div style={{ textAlign: 'center', fontWeight: 700, fontSize: '13pt', lineHeight: 1.15, marginBottom: '7mm' }}>
@@ -76,7 +81,7 @@ export function RppmPrintDocument({
               value={
                 <>
                   <div><strong>Praktik Pedagogis Model Pembelajaran:</strong> {template.modelLabel}</div>
-                  <div style={{ marginTop: '2mm' }}>{text(content.desain_pembelajaran.kerangka_pembelajaran)}</div>
+                  <div style={{ marginTop: '2mm' }}><SmartText value={content.desain_pembelajaran.kerangka_pembelajaran} /></div>
                 </>
               }
             />
@@ -94,6 +99,8 @@ export function RppmPrintDocument({
             <FieldRow no="2" label="Asesmen Akhir" value={content.asesmen_pembelajaran.asesmen_akhir} />
           </tbody>
         </table>
+
+        <SignatureBlock user={user} kepsek={kepsek} />
       </div>
     </div>
   )
@@ -102,8 +109,8 @@ export function RppmPrintDocument({
 function SectionRow({ letter, title }: { letter: string; title: string }) {
   return (
     <tr>
-      <td style={cell({ width: '9mm', align: 'center', bold: true })}>{letter}</td>
-      <td colSpan={2} style={cell({ bold: true })}>{title}</td>
+      <td style={cell({ width: '9mm', align: 'center', bold: true, fill: '#e7e5e4' })}>{letter}</td>
+      <td colSpan={2} style={cell({ bold: true, fill: '#e7e5e4' })}>{title}</td>
     </tr>
   )
 }
@@ -113,7 +120,7 @@ function FieldRow({ no, label, value }: { no: string; label: string; value: Reac
     <tr>
       <td style={cell({ width: '9mm', align: 'center' })}>{no}</td>
       <td style={cell({ width: '48mm', bold: Boolean(no) })}>{label}</td>
-      <td style={cell()}>{typeof value === 'string' ? text(value) : value}</td>
+      <td style={cell()}>{typeof value === 'string' ? <SmartText value={value} /> : value}</td>
     </tr>
   )
 }
@@ -139,13 +146,58 @@ function List({ items }: { items: string[] }) {
   )
 }
 
+function SmartText({ value }: { value: string }) {
+  const items = splitPoints(value)
+  if (items.length <= 1) return <span>{text(value)}</span>
+  return <List items={items} />
+}
+
+function SignatureBlock({ user, kepsek }: { user: RppmSigner; kepsek: RppmSigner | null }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '18mm', marginTop: '16mm', fontSize: '11pt' }}>
+      <SignatureColumn
+        title="Mengetahui,"
+        position="Kepala MAN 1 Tasikmalaya"
+        name={kepsek?.nama_lengkap || 'Kepala Madrasah Belum Diatur'}
+        nip={kepsek?.nip || ''}
+      />
+      <SignatureColumn
+        title=""
+        position={user.jabatan_cetak || user.role || 'Guru'}
+        name={user.nama_lengkap || 'Nama Guru Belum Diatur'}
+        nip={user.nip || ''}
+      />
+    </div>
+  )
+}
+
+function SignatureColumn({ title, position, name, nip }: { title: string; position: string; name: string; nip: string }) {
+  return (
+    <div style={{ width: '48%', textAlign: 'left' }}>
+      <div style={{ minHeight: '5mm' }}>{title}</div>
+      <div style={{ fontWeight: 700, textTransform: 'uppercase', marginBottom: '22mm' }}>{position}</div>
+      <div style={{ fontWeight: 700, textDecoration: 'underline', textTransform: 'uppercase' }}>{name}</div>
+      <div>NIP. {nip || '................................'}</div>
+    </div>
+  )
+}
+
+function splitPoints(value: string) {
+  const lines = value
+    .split('\n')
+    .map(line => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, '').trim())
+    .filter(Boolean)
+  return lines.length > 1 ? lines : []
+}
+
 function text(value: string) {
   return value?.trim() || EMPTY
 }
 
-function cell(options?: { width?: string; align?: 'left' | 'center'; bold?: boolean; height?: string }): CSSProperties {
+function cell(options?: { width?: string; align?: 'left' | 'center'; bold?: boolean; height?: string; fill?: string }): CSSProperties {
   return {
     border: '1px solid #000',
+    backgroundColor: options?.fill,
     padding: '2.3mm 2mm',
     verticalAlign: 'top',
     width: options?.width,
