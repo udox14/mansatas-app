@@ -160,20 +160,22 @@ function SignatureBlock({ user, kepsek }: { user: RppmSigner; kepsek: RppmSigner
         position="Kepala MAN 1 Tasikmalaya"
         name={kepsek?.nama_lengkap || 'Kepala Madrasah Belum Diatur'}
         nip={kepsek?.nip || ''}
+        width="44%"
       />
       <SignatureColumn
         title=""
         position={user.jabatan_cetak || user.role || 'Guru'}
         name={user.nama_lengkap || 'Nama Guru Belum Diatur'}
         nip={user.nip || ''}
+        width="34%"
       />
     </div>
   )
 }
 
-function SignatureColumn({ title, position, name, nip }: { title: string; position: string; name: string; nip: string }) {
+function SignatureColumn({ title, position, name, nip, width }: { title: string; position: string; name: string; nip: string; width: string }) {
   return (
-    <div style={{ width: '48%', textAlign: 'left' }}>
+    <div style={{ width, textAlign: 'left' }}>
       <div style={{ minHeight: '5mm' }}>{title}</div>
       <div style={{ fontWeight: 700, textTransform: 'uppercase', marginBottom: '22mm' }}>{position}</div>
       <div style={{ fontWeight: 700, textDecoration: 'underline', textTransform: 'uppercase' }}>{name}</div>

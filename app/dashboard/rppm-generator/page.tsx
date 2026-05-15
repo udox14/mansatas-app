@@ -23,7 +23,7 @@ export default async function RppmGeneratorPage() {
     <div className="space-y-4 animate-in fade-in duration-500 pb-16">
       <PageHeader
         title="RPPM Generator"
-        description="Buat prompt AI, import JSON, simpan draft, dan cetak RPPM KBC sesuai template."
+        description="Buat prompt AI, paste JSON, simpan draft, dan unduh RPPM KBC dalam format Word."
       />
       <RppmGeneratorClient initialDocuments={data.documents} user={data.user} kepsek={data.kepsek} />
     </div>

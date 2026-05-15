@@ -155,22 +155,22 @@ function signatureTable(user: RppmSigner, kepsek: RppmSigner | null) {
         <w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/>
       </w:tblBorders>
     </w:tblPr>
-    <w:tblGrid><w:gridCol w:w="4700"/><w:gridCol w:w="700"/><w:gridCol w:w="4700"/></w:tblGrid>
+    <w:tblGrid><w:gridCol w:w="4300"/><w:gridCol w:w="1900"/><w:gridCol w:w="3700"/></w:tblGrid>
     <w:tr>
-      ${signatureCell('Mengetahui,', 'Kepala MAN 1 Tasikmalaya', kepsek?.nama_lengkap || 'Kepala Madrasah Belum Diatur', kepsek?.nip || '')}
-      ${cell(paragraph(''), 700)}
-      ${signatureCell('', user.jabatan_cetak || user.role || 'Guru', user.nama_lengkap || 'Nama Guru Belum Diatur', user.nip || '')}
+      ${signatureCell('Mengetahui,', 'Kepala MAN 1 Tasikmalaya', kepsek?.nama_lengkap || 'Kepala Madrasah Belum Diatur', kepsek?.nip || '', 4300)}
+      ${cell(paragraph(''), 1900)}
+      ${signatureCell('', user.jabatan_cetak || user.role || 'Guru', user.nama_lengkap || 'Nama Guru Belum Diatur', user.nip || '', 3700)}
     </w:tr>
   </w:tbl>`
 }
 
-function signatureCell(title: string, position: string, name: string, nip: string) {
+function signatureCell(title: string, position: string, name: string, nip: string, width: number) {
   return cell(
     paragraph(title) +
       paragraph(position.toUpperCase(), { bold: true, after: 900 }) +
       paragraph(name.toUpperCase(), { bold: true }) +
       paragraph(`NIP. ${nip || '................................'}`),
-    4700,
+    width,
   )
 }
 
