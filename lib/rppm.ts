@@ -275,10 +275,10 @@ export function normalizeRppmContent(value: unknown, fallbackSpec?: Partial<Rppm
 
 export function parseRppmJson(raw: string, fallbackSpec?: Partial<RppmSpec>): { content: RppmContent | null; error: string | null } {
   try {
-    const parsed = JSON.parse(raw)
+    const parsed = JSON.parse(stripJsonFence(raw))
     return { content: normalizeRppmContent(parsed, fallbackSpec), error: null }
   } catch {
-    return { content: null, error: 'File tidak berisi JSON yang valid.' }
+    return { content: null, error: 'Teks yang dipaste tidak berisi JSON yang valid.' }
   }
 }
 
@@ -345,6 +345,13 @@ export function buildRppmPrompt(templateType: RppmTemplateType, spec: RppmSpec):
     'Acuan Topik Panca Cinta:',
     RPPM_PANCA_CINTA_OPTIONS.map(item => `- ${item}`).join('\n'),
     '',
+    'Aturan penting untuk DPL dan Topik Panca Cinta:',
+    '- Jangan memasukkan semua DPL atau semua Topik Panca Cinta secara otomatis.',
+    '- Pilih hanya yang benar-benar relevan, alami, dan bisa dipertanggungjawabkan untuk topik/materi pembelajaran.',
+    '- Jika hanya 1-3 DPL yang kuat, gunakan 1-3 saja.',
+    '- Jika hanya 1 topik Panca Cinta yang cocok, gunakan 1 saja.',
+    '- Jelaskan materi integrasi KBC sesuai pilihan Topik Panca Cinta yang dipilih, jangan memaksakan topik yang tidak nyambung.',
+    '',
     'Acuan kegiatan inti untuk model ini:',
     hints,
     '',
@@ -356,6 +363,12 @@ export function buildRppmPrompt(templateType: RppmTemplateType, spec: RppmSpec):
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function stripJsonFence(raw: string) {
+  const text = raw.trim()
+  const fenced = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
+  return fenced ? fenced[1].trim() : text
 }
 
 function cleanSpec(value: Record<string, unknown>): Partial<RppmSpec> {
