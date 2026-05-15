@@ -78,12 +78,12 @@ function documentXml(
       </w:tblPr>
       <w:tblGrid><w:gridCol w:w="510"/><w:gridCol w:w="2700"/><w:gridCol w:w="6540"/></w:tblGrid>
       ${sectionRow('A', 'Spesifikasi')}
-      ${fieldRow('1', 'Satuan Pendidikan', content.spesifikasi.satuan_pendidikan)}
-      ${fieldRow('2', 'Mata Pelajaran', content.spesifikasi.mata_pelajaran)}
-      ${fieldRow('3', 'Kelas / Semester', content.spesifikasi.kelas_semester)}
-      ${fieldRow('4', 'Topik Pembelajaran', content.spesifikasi.topik_pembelajaran)}
-      ${fieldRow('5', 'Alokasi Waktu', content.spesifikasi.alokasi_waktu)}
-      ${spacerRow()}
+      ${specRow('1', 'Satuan Pendidikan', content.spesifikasi.satuan_pendidikan)}
+      ${specRow('2', 'Mata Pelajaran', content.spesifikasi.mata_pelajaran)}
+      ${specRow('3', 'Kelas / Semester', content.spesifikasi.kelas_semester)}
+      ${specRow('4', 'Topik Pembelajaran', content.spesifikasi.topik_pembelajaran)}
+      ${specRow('5', 'Alokasi Waktu', content.spesifikasi.alokasi_waktu)}
+      ${gapRow()}
       ${sectionRow('B', 'Identifikasi')}
       ${fieldRow('1', 'Asesmen pada Awal Pembelajaran (opsional)', content.identifikasi.asesmen_awal)}
       ${fieldRow('2', 'Dimensi Profil Lulusan', listText(content.identifikasi.dimensi_profil_lulusan))}
@@ -124,20 +124,30 @@ function fieldRow(no: string, label: string, value: string) {
   return `<w:tr>${cell(paragraph(no, { align: 'center' }), 510)}${cell(paragraph(label, { bold: Boolean(no) }), 2700)}${cell(multilineParagraphs(value), 6540)}</w:tr>`
 }
 
+function specRow(no: string, label: string, value: string) {
+  return `<w:tr>${cell(paragraph(no, { align: 'center' }), 510)}${cell(paragraph(label, { bold: true }), 2700, undefined, undefined, { right: 'nil' })}${cell(multilineParagraphs(value), 6540, undefined, undefined, { left: 'nil' })}</w:tr>`
+}
+
 function fieldRowInner(no: string, label: string, inner: string) {
   return `<w:tr>${cell(paragraph(no, { align: 'center' }), 510)}${cell(paragraph(label, { bold: Boolean(no) }), 2700)}${cell(inner, 6540)}</w:tr>`
 }
 
-function spacerRow() {
-  return `<w:tr>${cell(paragraph(''), 510)}${cell(paragraph(''), 2700)}${cell(paragraph(''), 6540)}</w:tr>`
+function gapRow() {
+  return `<w:tr>${cell(paragraph(''), 9750, 3, undefined, { top: 'nil', left: 'nil', bottom: 'nil', right: 'nil' })}</w:tr>`
 }
 
-function cell(inner: string, width: number, gridSpan?: number, fill?: string) {
+function cell(inner: string, width: number, gridSpan?: number, fill?: string, borders?: Partial<Record<'top' | 'left' | 'bottom' | 'right', 'single' | 'nil'>>) {
+  const border = (side: 'top' | 'left' | 'bottom' | 'right') => {
+    const val = borders?.[side] || 'single'
+    return `<w:${side} w:val="${val}"${val === 'single' ? ' w:sz="8" w:space="0" w:color="000000"' : ''}/>`
+  }
+
   return `<w:tc>
     <w:tcPr>
       <w:tcW w:w="${width}" w:type="dxa"/>
       ${gridSpan ? `<w:gridSpan w:val="${gridSpan}"/>` : ''}
       ${fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : ''}
+      <w:tcBorders>${border('top')}${border('left')}${border('bottom')}${border('right')}</w:tcBorders>
       <w:tcMar><w:top w:w="90" w:type="dxa"/><w:left w:w="90" w:type="dxa"/><w:bottom w:w="90" w:type="dxa"/><w:right w:w="90" w:type="dxa"/></w:tcMar>
       <w:vAlign w:val="top"/>
     </w:tcPr>
