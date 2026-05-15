@@ -212,14 +212,14 @@ export function RppmGeneratorClient({
                   type="button"
                   onClick={() => setTemplateType(template.type)}
                   className={cn(
-                    'rounded-lg border p-3 text-left transition',
+                    'flex min-h-[156px] flex-col justify-start rounded-lg border p-4 text-left transition',
                     templateType === template.type
                       ? 'border-amber-400 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100'
                       : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950',
                   )}
                 >
-                  <div className="text-sm font-semibold">{template.shortLabel}</div>
-                  <div className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{template.description}</div>
+                  <div className="text-sm font-semibold leading-5">{template.shortLabel}</div>
+                  <div className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{template.description}</div>
                 </button>
               ))}
             </div>
