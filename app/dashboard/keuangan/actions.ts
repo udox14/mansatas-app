@@ -938,6 +938,31 @@ export async function beriDiskon(payload: {
   return { error: null, success: 'Keringanan berhasil diberikan' }
 }
 
+export async function batalkanDiskon(diskonId: string) {
+  const { db } = await requireAuth('keuangan-dspt')
+
+  const diskon = await db.prepare('SELECT * FROM fin_diskon WHERE id = ?').bind(diskonId).first<any>()
+  if (!diskon) return { error: 'Data keringanan tidak ditemukan', success: null }
+
+  const tabel = refTypeToTable(diskon.target_type)
+  if (!tabel) return { error: 'Target keringanan tidak valid', success: null }
+
+  await db.batch([
+    db.prepare(`
+      UPDATE ${tabel}
+      SET total_diskon = MAX(0, total_diskon - ?), updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(diskon.jumlah, diskon.target_id),
+    db.prepare('DELETE FROM fin_diskon WHERE id = ?').bind(diskonId),
+  ])
+
+  await recalcTagihanStatus(db, [{ refType: diskon.target_type, refId: diskon.target_id, jumlah: 0 }])
+
+  revalidatePath('/dashboard/keuangan')
+  revalidatePath(`/dashboard/keuangan/siswa/${diskon.siswa_id}`)
+  return { error: null, success: 'Keringanan berhasil dibatalkan' }
+}
+
 // ─── Kas Keluar ─────────────────────────────────────────────────────────────
 
 export async function getKasKeluarList(filters?: { bulan?: number; tahun?: number }) {
@@ -1071,7 +1096,7 @@ export async function getDashboardStats(tahunAjaran?: string) {
 export async function getBukuBesarSiswa(siswaId: string) {
   const { db } = await requireAuth('keuangan-dspt')
 
-  const [siswa, dspt, sppTagihan, sppMulaiRow, sppSaldoAwal, transaksi, janjiList] = await Promise.all([
+  const [siswa, dspt, sppTagihan, sppMulaiRow, sppSaldoAwal, transaksi, janjiList, diskonList] = await Promise.all([
     db.prepare(`
       SELECT s.*, k.tingkat, k.nomor_kelas, k.kelompok
       FROM siswa s
@@ -1099,6 +1124,13 @@ export async function getBukuBesarSiswa(siswaId: string) {
       ORDER BY t.created_at DESC
     `).bind(siswaId).all<any>(),
     db.prepare('SELECT * FROM fin_janji_bayar WHERE siswa_id = ? ORDER BY tanggal_janji ASC').bind(siswaId).all<any>(),
+    db.prepare(`
+      SELECT d.*, u.nama_lengkap AS nama_pembuat
+      FROM fin_diskon d
+      LEFT JOIN "user" u ON u.id = d.dibuat_oleh
+      WHERE d.siswa_id = ?
+      ORDER BY d.created_at DESC
+    `).bind(siswaId).all<any>(),
   ])
 
   // SPP reguler sedang dinonaktifkan; hanya tunggakan awal yang ditagih.
@@ -1156,6 +1188,7 @@ export async function getBukuBesarSiswa(siswaId: string) {
     kopItems: [],
     transaksi: transaksi.results ?? [],
     janjiList: janjiList.results ?? [],
+    diskonList: diskonList.results ?? [],
     error: null,
   }
 }

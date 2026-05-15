@@ -15,9 +15,9 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { CheckCircle2, Clock, XCircle, Plus, Printer, AlertTriangle, Ban, Calendar } from 'lucide-react'
+import { CheckCircle2, Clock, XCircle, Plus, Printer, AlertTriangle, Ban, Calendar, Trash2 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { catatTransaksi, voidTransaksi, beriDiskon, simpanJanjiBayar, setSppSaldoAwal, bayarSaldoAwalSpp } from '../../actions'
+import { catatTransaksi, voidTransaksi, beriDiskon, batalkanDiskon, simpanJanjiBayar, setSppSaldoAwal, bayarSaldoAwalSpp } from '../../actions'
 import { KuitansiModal, type KuitansiData } from '../../components/kuitansi-print'
 
 const STATUS_MAP = {
@@ -38,6 +38,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
   const [msg, setMsg] = useState('')
   const [bayarModal, setBayarModal] = useState<{ type: 'dspt' | 'spp'; target?: any } | null>(null)
   const [diskonModal, setDiskonModal] = useState<{ type: string; targetId: string; label: string } | null>(null)
+  const [batalDiskonModal, setBatalDiskonModal] = useState<any | null>(null)
   const [voidModal, setVoidModal] = useState<string | null>(null)
   const [janjiModal, setJanjiModal] = useState<{ type: string; targetId: string } | null>(null)
   const [kuitansiData, setKuitansiData] = useState<KuitansiData | null>(null)
@@ -48,7 +49,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
   const [voidAlasan, setVoidAlasan] = useState('')
   const [janjiForm, setJanjiForm] = useState({ tanggal: '', catatan: '' })
 
-  const { siswa, dspt, sppTagihan, sppSaldoAwal, transaksi, janjiList } = data
+  const { siswa, dspt, sppTagihan, sppSaldoAwal, transaksi, janjiList, diskonList = [] } = data
 
   // Saldo Awal (tunggakan migrasi)
   const [saldoAwalModal, setSaldoAwalModal] = useState(false)
@@ -262,6 +263,16 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
     })
   }
 
+  async function handleBatalDiskon(e: React.FormEvent) {
+    e.preventDefault()
+    if (!batalDiskonModal) return
+    startTransition(async () => {
+      const res = await batalkanDiskon(batalDiskonModal.id)
+      setMsg(res.error ?? res.success ?? '')
+      if (!res.error) { setBatalDiskonModal(null); router.refresh() }
+    })
+  }
+
   async function handleVoid(e: React.FormEvent) {
     e.preventDefault()
     if (!voidModal) return
@@ -290,6 +301,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
   }
 
   const dsptSisa = dspt ? dspt.nominal_target - dspt.total_dibayar - dspt.total_diskon : 0
+  const dsptDiskonList = diskonList.filter((d: any) => d.target_type === 'dspt' && d.target_id === dspt?.id)
 
   return (
     <div className="space-y-3 pb-8">
@@ -375,6 +387,36 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                     {Math.round(((dspt.total_dibayar + dspt.total_diskon) / dspt.nominal_target) * 100)}% terpenuhi
                   </p>
                 </div>
+
+                {dsptDiskonList.length > 0 && (
+                  <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-3">
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Rincian Keringanan</p>
+                    <div className="space-y-2">
+                      {dsptDiskonList.map((d: any) => (
+                        <div key={d.id} className="flex items-center justify-between gap-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/60 dark:bg-blue-900/20">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">{formatRupiah(d.jumlah)}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                              {d.alasan?.replace(/_/g, ' ') || 'keringanan'}
+                              {d.keterangan ? ` - ${d.keterangan}` : ''}
+                              {d.created_at ? ` - ${new Date(d.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-[11px] text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-900/20"
+                            onClick={() => setBatalDiskonModal(d)}
+                            disabled={isPending}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" /> Batal
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Janji Bayar */}
@@ -693,7 +735,36 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
         </DialogContent>
       </Dialog>
 
-      {/* ── Modal Void ── */}
+      {/* Modal Batal Diskon */}
+      <Dialog open={!!batalDiskonModal} onOpenChange={v => { if (!v) setBatalDiskonModal(null) }}>
+        <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
+          <DialogHeader className="px-5 py-4 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-800">
+            <DialogTitle className="text-sm font-semibold text-rose-700 dark:text-rose-400">
+              Batalkan Keringanan
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleBatalDiskon} className="p-5 space-y-4">
+            <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+              Keringanan akan dihapus dari tagihan siswa dan status tagihan dihitung ulang.
+            </div>
+            {batalDiskonModal && (
+              <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Nominal keringanan</p>
+                <p className="font-semibold text-rose-600">{formatRupiah(batalDiskonModal.jumlah)}</p>
+              </div>
+            )}
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setBatalDiskonModal(null)}>Tutup</Button>
+              <Button type="submit" variant="destructive" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}>
+                {isPending ? 'Memproses...' : 'Batalkan'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Void */}
       <Dialog open={!!voidModal} onOpenChange={v => { if (!v) setVoidModal(null) }}>
         <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
           <DialogHeader className="px-5 py-4 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-800">
