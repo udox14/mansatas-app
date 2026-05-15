@@ -14,6 +14,7 @@ export type RppmSpec = {
   kelas_semester: string
   topik_pembelajaran: string
   alokasi_waktu: string
+  konteks_topik?: string
 }
 
 export type RppmContent = {
@@ -74,6 +75,7 @@ const EMPTY_SPEC: RppmSpec = {
   kelas_semester: '',
   topik_pembelajaran: '',
   alokasi_waktu: '',
+  konteks_topik: '',
 }
 
 export const DEFAULT_RPPM_PRINT_SETTINGS: RppmPrintSettings = {
@@ -348,6 +350,14 @@ export function buildRppmPrompt(templateType: RppmTemplateType, spec: RppmSpec):
     `- Kelas / Semester: ${spec.kelas_semester || '[isi kelas/semester]'}`,
     `- Topik Pembelajaran: ${spec.topik_pembelajaran || '[isi topik]'}`,
     `- Alokasi Waktu: ${spec.alokasi_waktu || '[isi alokasi waktu]'}`,
+    `- Konteks Topik / Catatan Pengarah: ${spec.konteks_topik || '[tidak ada konteks tambahan]'}`,
+    '',
+    'ATURAN PENGGUNAAN KONTEKS TOPIK:',
+    '- Konteks Topik hanya untuk mengarahkan isi pembelajaran, bukan untuk mengganti Topik Pembelajaran.',
+    '- Jika Topik Pembelajaran adalah judul ringkas, tetap gunakan judul itu pada field spesifikasi.topik_pembelajaran.',
+    '- Gunakan Konteks Topik untuk menentukan fokus pembahasan, batasan materi, contoh, teks bacaan, perbandingan, atau kasus yang harus muncul dalam kegiatan belajar.',
+    '- Jangan menyalin seluruh Konteks Topik ke field spesifikasi.topik_pembelajaran.',
+    '- Jika ada teks bacaan dalam Konteks Topik, gunakan sebagai sumber aktivitas, pertanyaan pemantik, bahan memahami, mengaplikasi, atau asesmen.',
     '',
     'DAFTAR DPL YANG BOLEH DIPILIH:',
     RPPM_DPL_OPTIONS.map(item => `- ${item}`).join('\n'),
@@ -475,6 +485,7 @@ function cleanSpec(value: Record<string, unknown>): Partial<RppmSpec> {
     kelas_semester: cleanText(value.kelas_semester),
     topik_pembelajaran: cleanText(value.topik_pembelajaran),
     alokasi_waktu: cleanText(value.alokasi_waktu),
+    konteks_topik: cleanText(value.konteks_topik),
   }
 }
 

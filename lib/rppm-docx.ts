@@ -125,7 +125,7 @@ function fieldRow(no: string, label: string, value: string) {
 }
 
 function specRow(no: string, label: string, value: string) {
-  return `<w:tr>${cell(paragraph(no, { align: 'center' }), 510)}${cell(paragraph(label, { bold: true }), 2700, undefined, undefined, { right: 'nil' })}${cell(multilineParagraphs(value), 6540, undefined, undefined, { left: 'nil' })}</w:tr>`
+  return `<w:tr>${cell(paragraph(no, { align: 'center' }), 510)}${cell(paragraph(label, { bold: true }), 2700)}${cell(multilineParagraphs(value), 6540)}</w:tr>`
 }
 
 function fieldRowInner(no: string, label: string, inner: string) {
@@ -200,7 +200,7 @@ function paragraph(value: string, options?: { bold?: boolean; align?: 'left' | '
   return `<w:p>
     <w:pPr>
       ${options?.align && options.align !== 'left' ? `<w:jc w:val="${options.align}"/>` : ''}
-      <w:spacing w:after="${options?.after ?? 80}" w:line="240" w:lineRule="auto"/>
+      <w:spacing w:after="${options?.after ?? 0}" w:line="240" w:lineRule="auto"/>
     </w:pPr>
     <w:r>
       <w:rPr>
