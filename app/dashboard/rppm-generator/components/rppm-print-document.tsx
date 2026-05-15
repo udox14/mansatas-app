@@ -129,8 +129,8 @@ function SpecRow({ no, label, value }: { no: string; label: string; value: strin
   return (
     <tr>
       <td style={cell({ width: '9mm', align: 'center' })}>{no}</td>
-      <td style={cell({ width: '48mm', bold: true, borderRight: 'none' })}>{label}</td>
-      <td style={cell({ borderLeft: 'none' })}>{text(value)}</td>
+      <td style={cell({ width: '48mm', bold: true })}>{label}</td>
+      <td style={cell()}>{text(value)}</td>
     </tr>
   )
 }
@@ -148,7 +148,7 @@ function List({ items }: { items: string[] }) {
   return (
     <ol style={{ margin: 0, paddingLeft: '5mm' }}>
       {items.map((item, index) => (
-        <li key={`${index}-${item}`} style={{ marginBottom: '1.5mm' }}>{item}</li>
+        <li key={`${index}-${item}`} style={{ marginBottom: 0 }}>{item}</li>
       ))}
     </ol>
   )

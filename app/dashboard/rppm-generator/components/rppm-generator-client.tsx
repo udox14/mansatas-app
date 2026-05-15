@@ -63,6 +63,7 @@ const DEFAULT_SPEC: RppmSpec = {
   kelas_semester: '',
   topik_pembelajaran: '',
   alokasi_waktu: '2 JP (Pertemuan 1)',
+  konteks_topik: '',
 }
 
 const WIZARD_STEPS = [
@@ -239,6 +240,16 @@ export function RppmGeneratorClient({
               <SpecInput label="Kelas / Semester" value={content.spesifikasi.kelas_semester} onChange={value => updateSpec(setContent, 'kelas_semester', value)} />
               <SpecInput label="Topik Pembelajaran" value={content.spesifikasi.topik_pembelajaran} onChange={value => updateSpec(setContent, 'topik_pembelajaran', value)} />
               <SpecInput label="Alokasi Waktu" value={content.spesifikasi.alokasi_waktu} onChange={value => updateSpec(setContent, 'alokasi_waktu', value)} />
+              <div className="sm:col-span-2">
+                <Label className="text-xs font-medium">Konteks Topik / Catatan Pengarah</Label>
+                <Textarea
+                  value={content.spesifikasi.konteks_topik || ''}
+                  onChange={event => updateSpec(setContent, 'konteks_topik', event.target.value)}
+                  placeholder="Contoh: Topik IDHOFAH difokuskan pada pengertian, syarat-syarat, contoh susunan, dan perbandingan dengan frasa kepemilikan dalam bahasa Indonesia. Bisa juga tempel teks bacaan yang ingin dipakai."
+                  className="mt-1 min-h-32"
+                />
+                <p className="mt-1 text-xs text-slate-500">Dipakai untuk mengarahkan prompt AI saja. Di dokumen, Topik Pembelajaran tetap memakai judul ringkas di atas.</p>
+              </div>
             </div>
           </CardContent>
         </Card>}
