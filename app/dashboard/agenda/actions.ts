@@ -138,8 +138,9 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
     LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ? 
       AND (pm.guru_id = ? OR jm.id IN (SELECT jadwal_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?))
+      AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke ASC
-  `).bind(tanggal, ta.id, hari, guruId, guruId).all<any>()
+  `).bind(tanggal, ta.id, hari, guruId, guruId, tanggal).all<any>()
 
   const rows = result.results || []
   if (rows.length === 0) return { error: null, blocks: [], slots, tanggal, hari }
@@ -273,8 +274,16 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
   }
 
   // Ambil data penugasan untuk memastikan guru_id yang benar (terutama jika diwakilkan PPL)
-  const penugasan = await db.prepare('SELECT guru_id FROM penugasan_mengajar WHERE id = ?').bind(penugasanId).first<any>()
+  const penugasan = await db.prepare(`
+    SELECT pm.guru_id, k.kbm_nonaktif_mulai
+    FROM penugasan_mengajar pm
+    JOIN kelas k ON pm.kelas_id = k.id
+    WHERE pm.id = ?
+  `).bind(penugasanId).first<any>()
   if (!penugasan) return { error: 'Penugasan tidak ditemukan.' }
+  if (penugasan.kbm_nonaktif_mulai && penugasan.kbm_nonaktif_mulai <= tanggal) {
+    return { error: 'Kelas ini sudah dinonaktifkan dari kewajiban KBM. Agenda tidak perlu disimpan.' }
+  }
 
   // guru_id yang disimpan harus guru utama pemilik penugasan
   const guruId = penugasan.guru_id

@@ -44,9 +44,12 @@ export async function KepsekDashboard({ userId, nama, namaDepan, avatarUrl, role
       COUNT(DISTINCT jm.penugasan_id) as total_penugasan,
       COUNT(DISTINCT ag.penugasan_id) as sudah_isi
     FROM jadwal_mengajar jm
+    JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
+    JOIN kelas k ON pm.kelas_id = k.id
     LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
-  `).bind(today, taId, hariIni).first<any>() : null
+      AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
+  `).bind(today, taId, hariIni, today).first<any>() : null
 
 
   const totalPenugasan = agendaData?.total_penugasan ?? 0

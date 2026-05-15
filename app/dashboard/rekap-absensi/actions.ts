@@ -364,10 +364,12 @@ async function buildClassDailyMatrix(db: D1Database, kelasId: string, tanggal: s
     SELECT jm.jam_ke, jm.penugasan_id, mp.nama_mapel, mp.kode_mapel, mp.kode_asc
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
+    JOIN kelas k ON pm.kelas_id = k.id
     JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
     WHERE pm.kelas_id = ? AND jm.tahun_ajaran_id = ? AND jm.hari = ?
+      AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke
-  `).bind(kelasId, ta.id, hari).all<any>() : { results: [] }
+  `).bind(kelasId, ta.id, hari, tanggal).all<any>() : { results: [] }
 
   const jadwalByJam = new Map<number, { penugasan_id: string; nama_mapel: string; kode_mapel: string | null; kode_asc: string | null }>()
   for (const row of jadwalRes.results || []) {

@@ -54,6 +54,7 @@ type ClassRow = {
   kelompok: string
   wali_kelas_id?: string | null
   wali_kelas_nama?: string | null
+  kbm_nonaktif_mulai?: string | null
 }
 
 function hariNum(date: Date) {
@@ -193,7 +194,8 @@ export async function getFinalAttendanceForClass(
 
   const [kelas, siswaRes, ta] = await Promise.all([
     db.prepare(`
-      SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id, u.nama_lengkap as wali_kelas_nama
+      SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id, k.kbm_nonaktif_mulai,
+        u.nama_lengkap as wali_kelas_nama
       FROM kelas k
       LEFT JOIN "user" u ON k.wali_kelas_id = u.id
       WHERE k.id = ?
@@ -212,7 +214,8 @@ export async function getFinalAttendanceForClass(
   }
 
   const siswaList = siswaRes.results || []
-  const dates = await getEffectiveDatesInRange(db, startDate, endDate)
+  const dates = (await getEffectiveDatesInRange(db, startDate, endDate))
+    .filter(tanggal => !kelas.kbm_nonaktif_mulai || kelas.kbm_nonaktif_mulai > tanggal)
   const skipIncompleteForDailyStatus = await getSystemSettingBoolean(
     SYSTEM_SETTING_KEYS.attendanceSkipIncompleteForDailyStatus,
     false

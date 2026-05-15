@@ -123,7 +123,7 @@ export async function searchSiswaBinaan(guru_bk_id: string, query: string, tahun
 export async function getRekamanSiswa(siswa_id: string, tahun_ajaran_id: string) {
   const db = await getDB()
   const res = await db.prepare(`
-    SELECT r.id, r.bidang, r.deskripsi, r.penanganan, r.tindak_lanjut, r.catatan_tindak_lanjut,
+    SELECT r.id, r.bidang, r.topik_id, r.deskripsi, r.penanganan, r.tindak_lanjut, r.catatan_tindak_lanjut,
       r.created_at, r.updated_at,
       t.nama as topik_nama,
       u.nama_lengkap as guru_nama
@@ -248,7 +248,7 @@ export async function getListSiswaBerrekaman(
       COUNT(r.id) as jumlah_rekaman,
       MAX(r.created_at) as rekaman_terakhir,
       GROUP_CONCAT(DISTINCT r.bidang) as bidang_list,
-      SUM(CASE WHEN r.tindak_lanjut = 'BELUM' THEN 1 ELSE 0 END) as belum_count
+      SUM(CASE WHEN NULLIF(TRIM(r.tindak_lanjut), '') IS NOT NULL THEN 1 ELSE 0 END) as tindak_lanjut_count
     FROM bk_rekaman r
     JOIN siswa s ON r.siswa_id = s.id
     LEFT JOIN kelas k ON s.kelas_id = k.id

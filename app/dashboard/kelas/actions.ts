@@ -4,6 +4,7 @@
 import { getDB, dbInsert, dbUpdate, dbDelete, dbSelect, dbBatchInsert } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
+import { todayWIB } from '@/lib/time'
 
 // ============================================================
 // HELPER: Sinkronisasi role 'wali_kelas' di tabel user_roles
@@ -176,6 +177,50 @@ export async function setWaliKelas(kelasId: string, guruId: string | null) {
 
   revalidatePath('/dashboard/kelas')
   return { error: null, success: 'Wali kelas berhasil ditugaskan!' }
+}
+
+export async function setStatusKbmKelas(kelasId: string, aktif: boolean) {
+  const db = await getDB()
+  const result = await dbUpdate(
+    db,
+    'kelas',
+    { kbm_nonaktif_mulai: aktif ? null : todayWIB() },
+    { id: kelasId }
+  )
+  if (result.error) return { error: result.error, success: null }
+
+  revalidatePath('/dashboard/kelas')
+  revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/kehadiran')
+  revalidatePath('/dashboard/monitoring-agenda')
+  revalidatePath('/dashboard/rekap-absensi')
+  return {
+    error: null,
+    success: aktif
+      ? 'Kelas diaktifkan lagi untuk kewajiban KBM.'
+      : 'Kelas dinonaktifkan dari kewajiban KBM mulai hari ini.',
+  }
+}
+
+export async function setStatusKbmTingkat(tingkat: number, aktif: boolean) {
+  const db = await getDB()
+  const result = await db.prepare(
+    'UPDATE kelas SET kbm_nonaktif_mulai = ? WHERE tingkat = ?'
+  ).bind(aktif ? null : todayWIB(), tingkat).run()
+
+  if (!result.success) return { error: 'Gagal memperbarui status KBM tingkat kelas.', success: null }
+
+  revalidatePath('/dashboard/kelas')
+  revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/kehadiran')
+  revalidatePath('/dashboard/monitoring-agenda')
+  revalidatePath('/dashboard/rekap-absensi')
+  return {
+    error: null,
+    success: aktif
+      ? `Kelas ${tingkat} diaktifkan lagi untuk kewajiban KBM.`
+      : `Kelas ${tingkat} dinonaktifkan dari kewajiban KBM mulai hari ini.`,
+  }
 }
 
 export async function batchUpdateKelas(

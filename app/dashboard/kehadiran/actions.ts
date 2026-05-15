@@ -187,8 +187,9 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
           WHERE jpp.guru_ppl_id = ?
         )
       )
+      AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke
-  `).bind(ta.id, hari, guruId, guruId).all<any>()).results || []
+  `).bind(ta.id, hari, guruId, guruId, tanggal).all<any>()).results || []
 
   if (!rows.length) return { error: null, blocks: [], tanggal, hari, hariNama: HARI[hari] }
 
@@ -330,6 +331,17 @@ export async function simpanAbsensi(
   const calendarStatus = await getKalenderDateStatus(db, tanggal)
   if (!calendarStatus.isEffective) {
     return { error: `Tanggal ini tidak efektif pembelajaran${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}. Absensi tidak perlu disimpan.` }
+  }
+
+  const penugasan = await db.prepare(`
+    SELECT k.kbm_nonaktif_mulai
+    FROM penugasan_mengajar pm
+    JOIN kelas k ON pm.kelas_id = k.id
+    WHERE pm.id = ?
+  `).bind(penugasanId).first<{ kbm_nonaktif_mulai: string | null }>()
+  if (!penugasan) return { error: 'Penugasan tidak ditemukan.' }
+  if (penugasan.kbm_nonaktif_mulai && penugasan.kbm_nonaktif_mulai <= tanggal) {
+    return { error: 'Kelas ini sudah dinonaktifkan dari kewajiban KBM. Absensi tidak perlu disimpan.' }
   }
   const attendanceTimeRestrictionEnabled = await getSystemSettingBoolean(
     SYSTEM_SETTING_KEYS.attendanceTimeRestriction,

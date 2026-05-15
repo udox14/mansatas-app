@@ -88,23 +88,30 @@ export async function KehadiranPribadiCard({ userId }: Props) {
 
     if (ta && effectiveDates.length > 0) {
       const jadwalRes = await db.prepare(`
-        SELECT DISTINCT jm.penugasan_id, jm.hari
+        SELECT DISTINCT jm.penugasan_id, jm.hari, k.kbm_nonaktif_mulai
         FROM jadwal_mengajar jm
         JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
+        JOIN kelas k ON pm.kelas_id = k.id
         WHERE jm.tahun_ajaran_id = ? AND pm.guru_id = ?
       `).bind(ta.id, userId).all<any>()
 
-      const jadwalHari = new Map<string, Set<number>>()
+      const jadwalHari = new Map<string, { hariSet: Set<number>; kbmNonaktifMulai: string | null }>()
       for (const row of jadwalRes.results || []) {
-        if (!jadwalHari.has(row.penugasan_id)) jadwalHari.set(row.penugasan_id, new Set())
-        jadwalHari.get(row.penugasan_id)!.add(Number(row.hari))
+        if (!jadwalHari.has(row.penugasan_id)) {
+          jadwalHari.set(row.penugasan_id, {
+            hariSet: new Set(),
+            kbmNonaktifMulai: row.kbm_nonaktif_mulai || null,
+          })
+        }
+        jadwalHari.get(row.penugasan_id)!.hariSet.add(Number(row.hari))
       }
 
       let totalBlok = 0
       for (const tanggal of effectiveDates) {
         const hari = hariNumFromDateString(tanggal)
-        for (const hariSet of jadwalHari.values()) {
-          if (hariSet.has(hari)) totalBlok++
+        for (const jadwal of jadwalHari.values()) {
+          if (jadwal.kbmNonaktifMulai && jadwal.kbmNonaktifMulai <= tanggal) continue
+          if (jadwal.hariSet.has(hari)) totalBlok++
         }
       }
 

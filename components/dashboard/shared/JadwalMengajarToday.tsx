@@ -57,9 +57,10 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
     JOIN kelas k ON pm.kelas_id = k.id
     LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ? AND pm.guru_id = ?
+      AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     GROUP BY jm.penugasan_id, mp.nama_mapel, k.tingkat, k.nomor_kelas, k.kelompok, ag.id
     ORDER BY jam_mulai ASC
-  `).bind(today, taAktif.id, hariIni, userId).all<any>().then(r => r.results ?? [])
+  `).bind(today, taAktif.id, hariIni, userId, today).all<any>().then(r => r.results ?? [])
 
   // Parse jam dari pola jam pelajaran
   let slotsMap: Record<number, { mulai: string; selesai: string }> = {}

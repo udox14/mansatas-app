@@ -18,7 +18,7 @@ async function KelasDataFetcher({ userRole }: { userRole: string }) {
 
   const [kelasResult, guruResult, taAktif] = await Promise.all([
     db.prepare(`
-      SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.kapasitas, k.wali_kelas_id,
+      SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.kapasitas, k.wali_kelas_id, k.kbm_nonaktif_mulai,
         u.nama_lengkap as wali_kelas_nama,
         COUNT(CASE WHEN s.status = 'aktif' THEN 1 END) as jumlah_siswa
       FROM kelas k
@@ -43,7 +43,8 @@ async function KelasDataFetcher({ userRole }: { userRole: string }) {
     kelompok: item.kelompok, kapasitas: item.kapasitas || 36,
     wali_kelas_id: item.wali_kelas_id || 'none',
     wali_kelas_nama: item.wali_kelas_nama || 'Belum Ditentukan',
-    jumlah_siswa: item.jumlah_siswa || 0
+    jumlah_siswa: item.jumlah_siswa || 0,
+    kbm_nonaktif_mulai: item.kbm_nonaktif_mulai || null,
   }))
 
   const daftarJurusan = taAktif?.daftar_jurusan

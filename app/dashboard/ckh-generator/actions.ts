@@ -192,17 +192,21 @@ async function buildGeneratedRows(db: D1Database, userId: string, year: number, 
     generated.push(...buildTeachingRows((agendaRes.results || []).filter(row => effectiveSet.has(row.tanggal))))
 
     const jadwalRes = await db.prepare(`
-      SELECT DISTINCT jm.hari
+      SELECT DISTINCT jm.penugasan_id, jm.hari, k.kbm_nonaktif_mulai
       FROM jadwal_mengajar jm
       JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
+      JOIN kelas k ON pm.kelas_id = k.id
       WHERE pm.guru_id = ? AND jm.tahun_ajaran_id = ?
-    `).bind(userId, ta.id).all<{ hari: number }>()
+    `).bind(userId, ta.id).all<{ penugasan_id: string; hari: number; kbm_nonaktif_mulai: string | null }>()
     const teachingDates = new Set(generated.filter(row => row.source === 'autofill').map(row => row.tanggal))
-    const teachingDays = new Set((jadwalRes.results || []).map(row => row.hari))
+    const teachingSchedules = jadwalRes.results || []
     for (const tanggal of effectiveDates) {
       const day = new Date(tanggal + 'T00:00:00').getDay()
       const hari = day === 0 ? 7 : day
-      if (teachingDays.has(hari) && !teachingDates.has(tanggal)) {
+      const hasActiveTeaching = teachingSchedules.some(row =>
+        row.hari === hari && (!row.kbm_nonaktif_mulai || row.kbm_nonaktif_mulai > tanggal)
+      )
+      if (hasActiveTeaching && !teachingDates.has(tanggal)) {
         generated.push({
           tanggal,
           kegiatan_bulanan: CKH_TEACHING_ACTIVITY,

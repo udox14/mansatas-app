@@ -45,10 +45,12 @@ export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, rol
       COUNT(DISTINCT pm2.guru_id) as guru_sudah_isi
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
+    JOIN kelas k ON pm.kelas_id = k.id
     LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
     LEFT JOIN penugasan_mengajar pm2 ON pm2.id = ag.penugasan_id
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
-  `).bind(today, taId, hariIni).first<any>() : null
+      AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
+  `).bind(today, taId, hariIni, today).first<any>() : null
 
   const tidakMasuk     = kehadiranSiswa?.tidak_masuk ?? 0
   const totalSiswa     = kehadiranSiswa?.total_siswa ?? 0
