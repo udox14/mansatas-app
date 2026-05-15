@@ -1,7 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState, useTransition, type Dispatch, type ReactNode, type SetStateAction } from 'react'
-import { useReactToPrint } from 'react-to-print'
+import { useMemo, useState, useTransition, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -11,7 +10,6 @@ import {
   Download,
   FileText,
   Loader2,
-  Printer,
   Save,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -36,7 +34,7 @@ import {
   type RppmTemplateType,
 } from '@/lib/rppm'
 import { buildRppmDocxBlob, buildRppmDocxFilename } from '@/lib/rppm-docx'
-import { saveRppmDocument, type RppmSavedDocument } from '../actions'
+import { saveRppmDocument, type RppmSavedDocument, type RppmSigner } from '../actions'
 import { RppmPrintDocument } from './rppm-print-document'
 
 type Message = { type: 'success' | 'error'; text: string } | null
@@ -71,10 +69,18 @@ const WIZARD_STEPS = [
   { title: 'Prompt', desc: 'Copy ke AI' },
   { title: 'Import', desc: 'Paste JSON AI' },
   { title: 'Edit', desc: 'Rapikan isi' },
-  { title: 'Output', desc: 'PDF atau Word' },
+  { title: 'Output', desc: 'Download Word' },
 ]
 
-export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: RppmSavedDocument[] }) {
+export function RppmGeneratorClient({
+  initialDocuments,
+  user,
+  kepsek,
+}: {
+  initialDocuments: RppmSavedDocument[]
+  user: RppmSigner
+  kepsek: RppmSigner | null
+}) {
   const firstDoc = initialDocuments[0]
   const [documents, setDocuments] = useState(initialDocuments)
   const [activeId, setActiveId] = useState(firstDoc?.id || null)
@@ -86,8 +92,6 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
   const [activeStep, setActiveStep] = useState(0)
   const [jsonInput, setJsonInput] = useState('')
   const [isPending, startTransition] = useTransition()
-  const printRef = useRef<HTMLDivElement>(null)
-  const handlePrint = useReactToPrint({ contentRef: printRef })
 
   const validationErrors = useMemo(() => validateRppmContent(content), [content])
   const canPrint = validationErrors.length === 0
@@ -168,7 +172,7 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
       return
     }
 
-    const blob = buildRppmDocxBlob(templateType, content, printSettings)
+    const blob = buildRppmDocxBlob(templateType, content, printSettings, user, kepsek)
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
@@ -311,7 +315,7 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
         {activeStep === 5 && <Card className="rounded-lg shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
-              <span>Preview Cetak</span>
+              <span>Output Word</span>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => save('DRAFT')} disabled={isPending} className="gap-1.5">
                   {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -321,13 +325,9 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
                   <FileText className="h-4 w-4" />
                   Simpan Final
                 </Button>
-                <Button onClick={handlePrint} disabled={!canPrint} className="gap-1.5 bg-slate-900 text-white hover:bg-slate-800">
-                  <Printer className="h-4 w-4" />
-                  Cetak / PDF
-                </Button>
                 <Button onClick={downloadDocx} disabled={!canPrint} className="gap-1.5 bg-emerald-700 text-white hover:bg-emerald-800">
                   <Download className="h-4 w-4" />
-                  Word
+                  Download Word
                 </Button>
               </div>
             </CardTitle>
@@ -335,8 +335,8 @@ export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: Rp
           <CardContent className="space-y-4">
             <PrintSettingsEditor settings={printSettings} onChange={setPrintSettings} />
             <div className="overflow-auto rounded-lg border bg-slate-100 p-4 dark:border-slate-800 dark:bg-slate-950">
-              <div ref={printRef} className="mx-auto w-fit shadow-lg">
-                <RppmPrintDocument templateType={templateType} content={content} settings={printSettings} />
+              <div className="mx-auto w-fit shadow-lg">
+                <RppmPrintDocument templateType={templateType} content={content} settings={printSettings} user={user} kepsek={kepsek} />
               </div>
             </div>
           </CardContent>

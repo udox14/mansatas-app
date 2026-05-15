@@ -30,6 +30,14 @@ export type RppmSavedDocument = {
   updated_at: string
 }
 
+export type RppmSigner = {
+  id: string
+  nama_lengkap: string
+  nip: string | null
+  jabatan_cetak: string | null
+  role?: string | null
+}
+
 type RppmDocumentRow = {
   id: string
   user_id: string
@@ -100,21 +108,46 @@ function rowToDocument(row: RppmDocumentRow): RppmSavedDocument {
   }
 }
 
-export async function getRppmPageData(): Promise<{ documents: RppmSavedDocument[] }> {
+export async function getRppmPageData(): Promise<{ documents: RppmSavedDocument[]; user: RppmSigner; kepsek: RppmSigner | null }> {
   const user = await getCurrentUser()
   if (!user) throw new Error('Anda harus login.')
 
   const db = await getDB()
   await requireRppmAccess(db, user.id)
 
-  const rows = await db.prepare(`
-    SELECT *
-    FROM rppm_documents
-    WHERE user_id = ?
-    ORDER BY updated_at DESC, created_at DESC
-  `).bind(user.id).all<RppmDocumentRow>()
+  const [rows, freshUser, kepsek] = await Promise.all([
+    db.prepare(`
+      SELECT *
+      FROM rppm_documents
+      WHERE user_id = ?
+      ORDER BY updated_at DESC, created_at DESC
+    `).bind(user.id).all<RppmDocumentRow>(),
+    db.prepare(`
+      SELECT id, COALESCE(nama_lengkap, name) as nama_lengkap, nip, jabatan_cetak, role
+      FROM "user"
+      WHERE id = ?
+    `).bind(user.id).first<RppmSigner>(),
+    db.prepare(`
+      SELECT u.id, COALESCE(u.nama_lengkap, u.name) as nama_lengkap, u.nip, COALESCE(u.jabatan_cetak, 'Kepala Madrasah') as jabatan_cetak, u.role
+      FROM "user" u
+      LEFT JOIN user_roles ur ON ur.user_id = u.id
+      WHERE u.role = 'kepsek' OR ur.role = 'kepsek'
+      ORDER BY u.nama_lengkap ASC
+      LIMIT 1
+    `).first<RppmSigner>(),
+  ])
 
-  return { documents: (rows.results || []).map(rowToDocument) }
+  return {
+    documents: (rows.results || []).map(rowToDocument),
+    user: freshUser || {
+      id: user.id,
+      nama_lengkap: (user as any).nama_lengkap || user.name || 'Guru',
+      nip: null,
+      jabatan_cetak: null,
+      role: (user as any).role || null,
+    },
+    kepsek: kepsek || null,
+  }
 }
 
 export async function saveRppmDocument(payload: SavePayload): Promise<{ error: string | null; document?: RppmSavedDocument }> {
