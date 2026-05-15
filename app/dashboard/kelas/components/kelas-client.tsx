@@ -23,6 +23,12 @@ type KelasData = {
 }
 type GuruType = { id: string; nama_lengkap: string }
 
+function defaultDateInputValue() {
+  const now = new Date()
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+  return local.toISOString().split('T')[0]
+}
+
 function WaliKelasSelector({ value, onChange, daftarGuru, disabled }: { value: string, onChange: (v: string) => void, daftarGuru: GuruType[], disabled: boolean }) {
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -79,6 +85,7 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
   const [isSavingBatch, setIsSavingBatch] = useState(false)
   const [updatingKbmId, setUpdatingKbmId] = useState<string | null>(null)
   const [isUpdatingTingkat12, setIsUpdatingTingkat12] = useState(false)
+  const [kbmTanggalMulai, setKbmTanggalMulai] = useState(defaultDateInputValue)
 
   const handleQueueChange = (id: string, field: 'kelompok' | 'wali_kelas_id', value: string) => {
     setPendingChanges(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: value } }))
@@ -123,13 +130,17 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
   const handleToggleKbm = async (kelas: KelasData) => {
     const namaKelas = formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok)
     const nextAktif = !!kelas.kbm_nonaktif_mulai
+    if (!nextAktif && !kbmTanggalMulai) {
+      alert('Isi tanggal mulai nonaktif dulu.')
+      return
+    }
     const message = nextAktif
       ? `Aktifkan lagi kewajiban KBM untuk ${namaKelas}?`
-      : `Nonaktifkan kewajiban agenda dan absensi untuk ${namaKelas} mulai hari ini?`
+      : `Nonaktifkan kewajiban agenda dan absensi untuk ${namaKelas} mulai ${kbmTanggalMulai}?`
     if (!confirm(message)) return
 
     setUpdatingKbmId(kelas.id)
-    const res = await setStatusKbmKelas(kelas.id, nextAktif)
+    const res = await setStatusKbmKelas(kelas.id, nextAktif, nextAktif ? undefined : kbmTanggalMulai)
     if (res.error) alert(res.error)
     else router.refresh()
     setUpdatingKbmId(null)
@@ -137,13 +148,17 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
 
   const handleToggleKbmTingkat12 = async () => {
     const nextAktif = kelas12SemuaNonaktif
+    if (!nextAktif && !kbmTanggalMulai) {
+      alert('Isi tanggal mulai nonaktif dulu.')
+      return
+    }
     const message = nextAktif
       ? 'Aktifkan lagi kewajiban KBM untuk semua kelas 12?'
-      : 'Nonaktifkan kewajiban agenda dan absensi untuk semua kelas 12 mulai hari ini?'
+      : `Nonaktifkan kewajiban agenda dan absensi untuk semua kelas 12 mulai ${kbmTanggalMulai}?`
     if (!confirm(message)) return
 
     setIsUpdatingTingkat12(true)
-    const res = await setStatusKbmTingkat(12, nextAktif)
+    const res = await setStatusKbmTingkat(12, nextAktif, nextAktif ? undefined : kbmTanggalMulai)
     if (res.error) alert(res.error)
     else router.refresh()
     setIsUpdatingTingkat12(false)
@@ -168,6 +183,15 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
             ))}
           </SelectContent>
         </Select>
+        <div className="flex items-center gap-1.5 rounded-md border border-surface bg-surface-2 px-2 py-1">
+          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Nonaktif mulai</span>
+          <Input
+            type="date"
+            value={kbmTanggalMulai}
+            onChange={e => setKbmTanggalMulai(e.target.value)}
+            className="h-6 w-32 border-0 bg-transparent p-0 text-xs shadow-none focus-visible:ring-0"
+          />
+        </div>
         <div className="flex gap-2 ml-auto">
           {hasKelas12 && (
             <Button
