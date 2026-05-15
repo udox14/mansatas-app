@@ -1,0 +1,471 @@
+'use client'
+
+import { useMemo, useRef, useState, useTransition, type Dispatch, type ReactNode, type SetStateAction } from 'react'
+import { useReactToPrint } from 'react-to-print'
+import {
+  AlertTriangle,
+  Check,
+  Clipboard,
+  Download,
+  FileText,
+  Loader2,
+  Printer,
+  Save,
+  Upload,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { cn } from '@/lib/utils'
+import {
+  DEFAULT_RPPM_PRINT_SETTINGS,
+  RPPM_TEMPLATES,
+  buildRppmPrompt,
+  cleanTextArray,
+  emptyRppmContent,
+  normalizePrintSettings,
+  normalizeRppmContent,
+  parseRppmJson,
+  validateRppmContent,
+  type RppmContent,
+  type RppmPrintSettings,
+  type RppmSpec,
+  type RppmTemplateType,
+} from '@/lib/rppm'
+import { buildRppmDocxBlob, buildRppmDocxFilename } from '@/lib/rppm-docx'
+import { saveRppmDocument, type RppmSavedDocument } from '../actions'
+import { RppmPrintDocument } from './rppm-print-document'
+
+type Message = { type: 'success' | 'error'; text: string } | null
+type ArrayPath =
+  | 'identifikasi.dimensi_profil_lulusan'
+  | 'identifikasi.topik_panca_cinta'
+  | 'pengalaman_belajar.kegiatan_awal'
+  | 'pengalaman_belajar.kegiatan_inti.memahami'
+  | 'pengalaman_belajar.kegiatan_inti.mengaplikasi'
+  | 'pengalaman_belajar.kegiatan_inti.merefleksi'
+  | 'pengalaman_belajar.kegiatan_penutup'
+
+type TextPath =
+  | 'identifikasi.asesmen_awal'
+  | 'identifikasi.materi_integrasi_kbc'
+  | 'desain_pembelajaran.tujuan_pembelajaran'
+  | 'desain_pembelajaran.kerangka_pembelajaran'
+  | 'asesmen_pembelajaran.asesmen_proses'
+  | 'asesmen_pembelajaran.asesmen_akhir'
+
+const DEFAULT_SPEC: RppmSpec = {
+  satuan_pendidikan: 'MAN 1 Tasikmalaya',
+  mata_pelajaran: '',
+  kelas_semester: '',
+  topik_pembelajaran: '',
+  alokasi_waktu: '2 JP (Pertemuan 1)',
+}
+
+export function RppmGeneratorClient({ initialDocuments }: { initialDocuments: RppmSavedDocument[] }) {
+  const firstDoc = initialDocuments[0]
+  const [documents, setDocuments] = useState(initialDocuments)
+  const [activeId, setActiveId] = useState(firstDoc?.id || null)
+  const [templateType, setTemplateType] = useState<RppmTemplateType>(firstDoc?.template_type || 'cooperative-learning')
+  const [content, setContent] = useState<RppmContent>(() => firstDoc?.content || emptyRppmContent(DEFAULT_SPEC))
+  const [printSettings, setPrintSettings] = useState<RppmPrintSettings>(() => firstDoc?.print_settings || DEFAULT_RPPM_PRINT_SETTINGS)
+  const [message, setMessage] = useState<Message>(null)
+  const [copied, setCopied] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  const printRef = useRef<HTMLDivElement>(null)
+  const handlePrint = useReactToPrint({ contentRef: printRef })
+
+  const validationErrors = useMemo(() => validateRppmContent(content), [content])
+  const canPrint = validationErrors.length === 0
+  const prompt = useMemo(() => buildRppmPrompt(templateType, content.spesifikasi), [templateType, content.spesifikasi])
+
+  const selectDocument = (doc: RppmSavedDocument) => {
+    setActiveId(doc.id)
+    setTemplateType(doc.template_type)
+    setContent(normalizeRppmContent(doc.content))
+    setPrintSettings(normalizePrintSettings(doc.print_settings))
+    setMessage(null)
+  }
+
+  const newDraft = () => {
+    setActiveId(null)
+    setTemplateType('cooperative-learning')
+    setContent(emptyRppmContent(DEFAULT_SPEC))
+    setPrintSettings(DEFAULT_RPPM_PRINT_SETTINGS)
+    setMessage(null)
+  }
+
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(prompt)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      setMessage({ type: 'error', text: 'Prompt gagal disalin. Silakan blok teks prompt lalu salin manual.' })
+    }
+  }
+
+  const importFile = async (file: File | undefined) => {
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith('.json') && !file.name.toLowerCase().endsWith('.txt')) {
+      setMessage({ type: 'error', text: 'File harus berformat .json atau .txt berisi JSON valid.' })
+      return
+    }
+    const raw = await file.text()
+    const parsed = parseRppmJson(raw, content.spesifikasi)
+    if (parsed.error || !parsed.content) {
+      setMessage({ type: 'error', text: parsed.error || 'File gagal dibaca.' })
+      return
+    }
+    setContent(parsed.content)
+    setMessage({ type: 'success', text: 'JSON berhasil diimport. Periksa isinya sebelum disimpan atau dicetak.' })
+  }
+
+  const save = (status: 'DRAFT' | 'FINAL') => {
+    if (status === 'FINAL' && !canPrint) {
+      setMessage({ type: 'error', text: 'Lengkapi field wajib sebelum menyimpan final.' })
+      return
+    }
+
+    startTransition(async () => {
+      const result = await saveRppmDocument({
+        id: activeId,
+        template_type: templateType,
+        content,
+        print_settings: printSettings,
+        status,
+      })
+
+      if (result.error || !result.document) {
+        setMessage({ type: 'error', text: result.error || 'Gagal menyimpan RPPM.' })
+        return
+      }
+
+      setActiveId(result.document.id)
+      setDocuments(prev => {
+        const next = prev.filter(doc => doc.id !== result.document!.id)
+        return [result.document!, ...next]
+      })
+      setMessage({ type: 'success', text: status === 'FINAL' ? 'RPPM disimpan sebagai final.' : 'Draft RPPM berhasil disimpan.' })
+    })
+  }
+
+  const downloadDocx = () => {
+    if (!canPrint) {
+      setMessage({ type: 'error', text: 'Lengkapi field wajib sebelum mengunduh Word.' })
+      return
+    }
+
+    const blob = buildRppmDocxBlob(templateType, content, printSettings)
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = buildRppmDocxFilename(content)
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="space-y-4">
+        {message && (
+          <div className={cn(
+            'flex items-start gap-2 rounded-lg border px-3 py-2 text-sm',
+            message.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300'
+              : 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300',
+          )}>
+            {message.type === 'success' ? <Check className="mt-0.5 h-4 w-4 shrink-0" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
+            <span>{message.text}</span>
+          </div>
+        )}
+
+        <Card className="rounded-lg shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Template RPPM</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+              {RPPM_TEMPLATES.map(template => (
+                <button
+                  key={template.type}
+                  type="button"
+                  onClick={() => setTemplateType(template.type)}
+                  className={cn(
+                    'rounded-lg border p-3 text-left transition',
+                    templateType === template.type
+                      ? 'border-amber-400 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100'
+                      : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950',
+                  )}
+                >
+                  <div className="text-sm font-semibold">{template.shortLabel}</div>
+                  <div className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{template.description}</div>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-lg shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Spesifikasi</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-2">
+              <SpecInput label="Satuan Pendidikan" value={content.spesifikasi.satuan_pendidikan} onChange={value => updateSpec(setContent, 'satuan_pendidikan', value)} />
+              <SpecInput label="Mata Pelajaran" value={content.spesifikasi.mata_pelajaran} onChange={value => updateSpec(setContent, 'mata_pelajaran', value)} />
+              <SpecInput label="Kelas / Semester" value={content.spesifikasi.kelas_semester} onChange={value => updateSpec(setContent, 'kelas_semester', value)} />
+              <SpecInput label="Topik Pembelajaran" value={content.spesifikasi.topik_pembelajaran} onChange={value => updateSpec(setContent, 'topik_pembelajaran', value)} />
+              <SpecInput label="Alokasi Waktu" value={content.spesifikasi.alokasi_waktu} onChange={value => updateSpec(setContent, 'alokasi_waktu', value)} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="rounded-lg shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center justify-between gap-2 text-base">
+                <span>Prompt AI</span>
+                <Button size="sm" variant="outline" onClick={copyPrompt} className="h-8 gap-1.5">
+                  {copied ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}
+                  {copied ? 'Tersalin' : 'Copy'}
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea value={prompt} readOnly className="min-h-72 resize-y font-mono text-xs leading-5" />
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-lg shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Import JSON</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">
+                <Upload className="mb-2 h-6 w-6 text-slate-400" />
+                <span className="font-medium">Pilih file JSON/TXT</span>
+                <span className="mt-1 text-xs text-slate-500">Isi file harus JSON sesuai prompt.</span>
+                <input type="file" accept=".json,.txt,application/json,text/plain" className="sr-only" onChange={event => importFile(event.target.files?.[0])} />
+              </label>
+              {validationErrors.length > 0 ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                  <div className="mb-1 font-semibold">Belum siap cetak</div>
+                  <ul className="space-y-1">
+                    {validationErrors.slice(0, 8).map(error => <li key={error.path}>- {error.message}</li>)}
+                    {validationErrors.length > 8 && <li>- {validationErrors.length - 8} field lain belum lengkap.</li>}
+                  </ul>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
+                  Semua field wajib sudah lengkap.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="rounded-lg shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Edit Isi RPPM</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <EditorGrid>
+              <TextEditor label="Asesmen Awal" value={content.identifikasi.asesmen_awal} onChange={value => updateText(setContent, 'identifikasi.asesmen_awal', value)} />
+              <ArrayEditor label="Dimensi Profil Lulusan" value={content.identifikasi.dimensi_profil_lulusan} onChange={value => updateArray(setContent, 'identifikasi.dimensi_profil_lulusan', value)} />
+              <ArrayEditor label="Topik Panca Cinta" value={content.identifikasi.topik_panca_cinta} onChange={value => updateArray(setContent, 'identifikasi.topik_panca_cinta', value)} />
+              <TextEditor label="Materi Integrasi KBC" value={content.identifikasi.materi_integrasi_kbc} onChange={value => updateText(setContent, 'identifikasi.materi_integrasi_kbc', value)} />
+              <TextEditor label="Tujuan Pembelajaran" value={content.desain_pembelajaran.tujuan_pembelajaran} onChange={value => updateText(setContent, 'desain_pembelajaran.tujuan_pembelajaran', value)} />
+              <TextEditor label="Kerangka Pembelajaran" value={content.desain_pembelajaran.kerangka_pembelajaran} onChange={value => updateText(setContent, 'desain_pembelajaran.kerangka_pembelajaran', value)} />
+              <ArrayEditor label="Kegiatan Awal" value={content.pengalaman_belajar.kegiatan_awal} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_awal', value)} />
+              <ArrayEditor label="Inti - Memahami" value={content.pengalaman_belajar.kegiatan_inti.memahami} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_inti.memahami', value)} />
+              <ArrayEditor label="Inti - Mengaplikasi" value={content.pengalaman_belajar.kegiatan_inti.mengaplikasi} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_inti.mengaplikasi', value)} />
+              <ArrayEditor label="Inti - Merefleksi" value={content.pengalaman_belajar.kegiatan_inti.merefleksi} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_inti.merefleksi', value)} />
+              <ArrayEditor label="Kegiatan Penutup" value={content.pengalaman_belajar.kegiatan_penutup} onChange={value => updateArray(setContent, 'pengalaman_belajar.kegiatan_penutup', value)} />
+              <TextEditor label="Asesmen Proses" value={content.asesmen_pembelajaran.asesmen_proses} onChange={value => updateText(setContent, 'asesmen_pembelajaran.asesmen_proses', value)} />
+              <TextEditor label="Asesmen Akhir" value={content.asesmen_pembelajaran.asesmen_akhir} onChange={value => updateText(setContent, 'asesmen_pembelajaran.asesmen_akhir', value)} />
+            </EditorGrid>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-lg shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+              <span>Preview Cetak</span>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => save('DRAFT')} disabled={isPending} className="gap-1.5">
+                  {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Simpan Draft
+                </Button>
+                <Button variant="outline" onClick={() => save('FINAL')} disabled={isPending || !canPrint} className="gap-1.5">
+                  <FileText className="h-4 w-4" />
+                  Simpan Final
+                </Button>
+                <Button onClick={handlePrint} disabled={!canPrint} className="gap-1.5 bg-slate-900 text-white hover:bg-slate-800">
+                  <Printer className="h-4 w-4" />
+                  Cetak / PDF
+                </Button>
+                <Button onClick={downloadDocx} disabled={!canPrint} className="gap-1.5 bg-emerald-700 text-white hover:bg-emerald-800">
+                  <Download className="h-4 w-4" />
+                  Word
+                </Button>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <PrintSettingsEditor settings={printSettings} onChange={setPrintSettings} />
+            <div className="overflow-auto rounded-lg border bg-slate-100 p-4 dark:border-slate-800 dark:bg-slate-950">
+              <div ref={printRef} className="mx-auto w-fit shadow-lg">
+                <RppmPrintDocument templateType={templateType} content={content} settings={printSettings} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <aside className="space-y-4">
+        <Card className="rounded-lg shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center justify-between gap-2 text-base">
+              <span>Draft Tersimpan</span>
+              <Button size="sm" variant="outline" onClick={newDraft} className="h-8">Baru</Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {documents.length === 0 ? (
+              <p className="rounded-lg border border-dashed p-4 text-center text-sm text-slate-400">Belum ada draft.</p>
+            ) : documents.map(doc => (
+              <button
+                key={doc.id}
+                type="button"
+                onClick={() => selectDocument(doc)}
+                className={cn(
+                  'w-full rounded-lg border p-3 text-left text-sm transition',
+                  activeId === doc.id ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30' : 'border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900',
+                )}
+              >
+                <div className="line-clamp-2 font-semibold">{doc.title || 'RPPM Tanpa Judul'}</div>
+                <div className="mt-1 text-xs text-slate-500">{doc.mapel || '-'} | {doc.kelas_semester || '-'}</div>
+                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+                  <span>{RPPM_TEMPLATES.find(t => t.type === doc.template_type)?.shortLabel}</span>
+                  <span>{formatDate(doc.updated_at)}</span>
+                </div>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      </aside>
+    </div>
+  )
+}
+
+function SpecInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <div>
+      <Label className="text-xs font-medium">{label}</Label>
+      <Input value={value} onChange={event => onChange(event.target.value)} className="mt-1" />
+    </div>
+  )
+}
+
+function EditorGrid({ children }: { children: ReactNode }) {
+  return <div className="grid gap-4 lg:grid-cols-2">{children}</div>
+}
+
+function TextEditor({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <div>
+      <Label className="text-xs font-medium">{label}</Label>
+      <Textarea value={value} onChange={event => onChange(event.target.value)} className="mt-1 min-h-28" />
+    </div>
+  )
+}
+
+function ArrayEditor({ label, value, onChange }: { label: string; value: string[]; onChange: (value: string[]) => void }) {
+  return (
+    <div>
+      <Label className="text-xs font-medium">{label}</Label>
+      <Textarea value={value.join('\n')} onChange={event => onChange(cleanTextArray(event.target.value))} className="mt-1 min-h-28" />
+    </div>
+  )
+}
+
+function PrintSettingsEditor({ settings, onChange }: { settings: RppmPrintSettings; onChange: (settings: RppmPrintSettings) => void }) {
+  const updateMargin = (key: keyof RppmPrintSettings['margins'], value: string) => {
+    const n = Number(value)
+    onChange({
+      ...settings,
+      margins: { ...settings.margins, [key]: Number.isFinite(n) ? n : 20 },
+    })
+  }
+
+  return (
+    <div className="grid gap-3 rounded-lg border bg-white p-3 dark:border-slate-800 dark:bg-slate-950 md:grid-cols-[160px_repeat(4,1fr)]">
+      <div>
+        <Label className="text-xs font-medium">Kertas</Label>
+        <select
+          value={settings.paper}
+          onChange={event => onChange({ ...settings, paper: event.target.value === 'A4' ? 'A4' : 'F4' })}
+          className="mt-1 h-9 w-full rounded-md border border-slate-200 bg-white px-2 text-sm dark:border-slate-800 dark:bg-slate-900"
+        >
+          <option value="F4">F4 / Folio</option>
+          <option value="A4">A4</option>
+        </select>
+      </div>
+      {(['top', 'right', 'bottom', 'left'] as const).map(key => (
+        <div key={key}>
+          <Label className="text-xs font-medium">Margin {marginLabel(key)}</Label>
+          <Input type="number" min={0} max={50} value={settings.margins[key]} onChange={event => updateMargin(key, event.target.value)} className="mt-1" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function updateSpec(setContent: Dispatch<SetStateAction<RppmContent>>, key: keyof RppmSpec, value: string) {
+  setContent(prev => ({ ...prev, spesifikasi: { ...prev.spesifikasi, [key]: value } }))
+}
+
+function updateText(setContent: Dispatch<SetStateAction<RppmContent>>, path: TextPath, value: string) {
+  setContent(prev => {
+    const next = structuredClone(prev)
+    if (path === 'identifikasi.asesmen_awal') next.identifikasi.asesmen_awal = value
+    if (path === 'identifikasi.materi_integrasi_kbc') next.identifikasi.materi_integrasi_kbc = value
+    if (path === 'desain_pembelajaran.tujuan_pembelajaran') next.desain_pembelajaran.tujuan_pembelajaran = value
+    if (path === 'desain_pembelajaran.kerangka_pembelajaran') next.desain_pembelajaran.kerangka_pembelajaran = value
+    if (path === 'asesmen_pembelajaran.asesmen_proses') next.asesmen_pembelajaran.asesmen_proses = value
+    if (path === 'asesmen_pembelajaran.asesmen_akhir') next.asesmen_pembelajaran.asesmen_akhir = value
+    return next
+  })
+}
+
+function updateArray(setContent: Dispatch<SetStateAction<RppmContent>>, path: ArrayPath, value: string[]) {
+  setContent(prev => {
+    const next = structuredClone(prev)
+    if (path === 'identifikasi.dimensi_profil_lulusan') next.identifikasi.dimensi_profil_lulusan = value
+    if (path === 'identifikasi.topik_panca_cinta') next.identifikasi.topik_panca_cinta = value
+    if (path === 'pengalaman_belajar.kegiatan_awal') next.pengalaman_belajar.kegiatan_awal = value
+    if (path === 'pengalaman_belajar.kegiatan_inti.memahami') next.pengalaman_belajar.kegiatan_inti.memahami = value
+    if (path === 'pengalaman_belajar.kegiatan_inti.mengaplikasi') next.pengalaman_belajar.kegiatan_inti.mengaplikasi = value
+    if (path === 'pengalaman_belajar.kegiatan_inti.merefleksi') next.pengalaman_belajar.kegiatan_inti.merefleksi = value
+    if (path === 'pengalaman_belajar.kegiatan_penutup') next.pengalaman_belajar.kegiatan_penutup = value
+    return next
+  })
+}
+
+function marginLabel(key: keyof RppmPrintSettings['margins']) {
+  if (key === 'top') return 'Atas'
+  if (key === 'right') return 'Kanan'
+  if (key === 'bottom') return 'Bawah'
+  return 'Kiri'
+}
+
+function formatDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })
+}
