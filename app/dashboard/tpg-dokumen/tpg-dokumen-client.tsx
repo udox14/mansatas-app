@@ -79,6 +79,8 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
   }, [])
   const finalSelected = data.users.filter(row => selected.includes(row.id) && isCkhFinal(row))
   const s36Selected = data.users.filter(row => selected.includes(row.id) && hasS36(row))
+  const userCkhReady = currentUser ? isCkhFinal(currentUser) : false
+  const userSignatureActive = Boolean(currentUser?.signature_url && currentUser?.signature_enabled)
 
   const applyFilters = () => {
     router.push(`/dashboard/tpg-dokumen?s36Year=${s36Year}&s36Month=${s36Month}&ckhYear=${ckhYear}&ckhMonth=${ckhMonth}`)
@@ -201,7 +203,46 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
           </div>
         </div>
 
-        <div className="rounded-xl border border-surface bg-surface">
+        {!data.canManage && currentUser ? (
+          <div className="rounded-xl border border-surface bg-surface">
+            <div className="border-b border-surface-2 px-4 py-3">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                Status Dokumen Saya Bulan {monthLabel(data.ckhYear, data.ckhMonth)}
+              </p>
+              <p className="text-xs text-slate-500">
+                S36 {monthLabel(data.s36Year, data.s36Month)} | CKH {monthLabel(data.ckhYear, data.ckhMonth)}
+              </p>
+            </div>
+            <div className="grid gap-3 p-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-surface-2 bg-surface-2 p-3">
+                <p className="text-xs font-semibold text-slate-500">S36</p>
+                <div className="mt-2"><StatusPill ok={hasS36(currentUser)} label={hasS36(currentUser) ? 'Sudah upload' : 'Belum upload'} /></div>
+                <p className="mt-2 text-xs text-slate-500">
+                  {hasS36(currentUser)
+                    ? `${currentUser.s36_original_filename} | ${formatDateTime(currentUser.s36_uploaded_at)}`
+                    : 'Upload PDF S36 melalui form di sebelah kiri.'}
+                </p>
+              </div>
+              <div className="rounded-lg border border-surface-2 bg-surface-2 p-3">
+                <p className="text-xs font-semibold text-slate-500">CKH</p>
+                <div className="mt-2"><StatusPill ok={userCkhReady} label={userCkhReady ? 'Sudah dikirim' : 'Belum dikirim'} /></div>
+                <p className="mt-2 text-xs text-slate-500">
+                  {userCkhReady
+                    ? `Terakhir update: ${formatDateTime(currentUser.ckh_updated_at)}`
+                    : 'Klik Kirim CKH di CKH Generator setelah data benar.'}
+                </p>
+              </div>
+              <div className="rounded-lg border border-surface-2 bg-surface-2 p-3">
+                <p className="text-xs font-semibold text-slate-500">Tanda Tangan CKH</p>
+                <div className="mt-2"><StatusPill ok={userSignatureActive} label={userSignatureActive ? 'Aktif' : 'Tidak aktif'} /></div>
+                <p className="mt-2 text-xs text-slate-500">
+                  {userSignatureActive ? 'Tanda tangan akan tampil saat CKH dicetak.' : 'Opsional, bisa diatur di CKH Generator.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-surface bg-surface">
           <div className="flex flex-col gap-3 border-b border-surface-2 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Monitoring TU</p>
@@ -285,6 +326,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   )
