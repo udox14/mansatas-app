@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { getUserRoles } from '@/lib/features'
+import { ensureTpgSchema } from '@/lib/tpg-schema'
 import { CKH_DEFAULT_SATUAN, CKH_DEFAULT_VOL, formatCkhDate, formatCkhMonth } from '@/lib/ckh'
 import { PrintToolbar } from './print-toolbar'
 
@@ -198,6 +199,7 @@ export default async function PrintCkhPage({
   if (!authUser) redirect('/login')
 
   const db = await getDB()
+  await ensureTpgSchema(db)
   const authRoles = await getUserRoles(db, authUser.id)
   if (!authRoles.includes('super_admin') && !authRoles.includes('admin_tu')) redirect('/dashboard')
 

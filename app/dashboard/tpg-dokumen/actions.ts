@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
+import { ensureTpgSchema } from '@/lib/tpg-schema'
 import { uploadS36Pdf, validatePdfFile } from '@/utils/r2'
 import { monthLabel, TPG_CKH_ROLES, type TpgUserStatus } from '@/lib/tpg'
 
@@ -34,6 +35,7 @@ export async function uploadS36Action(formData: FormData) {
   if (validationError) return { error: validationError }
 
   const db = await getDB()
+  await ensureTpgSchema(db)
   await requireTpgAccess(db, user.id)
 
   const uploaded = await uploadS36Pdf(user.id, file)
@@ -65,6 +67,7 @@ export async function getTpgDokumenData(s36Year: number, s36Month: number, ckhYe
   if (!authUser) throw new Error('Unauthorized')
 
   const db = await getDB()
+  await ensureTpgSchema(db)
   await requireTpgAccess(db, authUser.id)
   const roles = await getUserRoles(db, authUser.id)
   const canManage = roles.includes('super_admin') || roles.includes('admin_tu')

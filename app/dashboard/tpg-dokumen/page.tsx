@@ -3,6 +3,7 @@ import { FileArchive } from 'lucide-react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { checkFeatureAccess } from '@/lib/features'
+import { ensureTpgSchema } from '@/lib/tpg-schema'
 import { todayWIB } from '@/lib/time'
 import { previousMonthPeriod } from '@/lib/tpg'
 import { PageHeader } from '@/components/layout/page-header'
@@ -38,6 +39,7 @@ export default async function TpgDokumenPage({
   if (!user) redirect('/login')
 
   const db = await getDB()
+  await ensureTpgSchema(db)
   const allowed = await checkFeatureAccess(db, user.id, 'tpg-dokumen')
   if (!allowed) redirect('/dashboard')
 
