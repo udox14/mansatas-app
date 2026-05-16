@@ -6,9 +6,11 @@ import { getCurrentUser } from '@/utils/auth/server'
 import {
   ensureKalenderPendidikanTables,
   enumerateDateStrings,
+  getKbmExceptionsForRange,
   getKalenderEventsForRange,
   getKalenderDateStatus,
   hariNumFromDateString,
+  type KbmExceptionTargetType,
   type KalenderKategori,
 } from '@/lib/kalender-pendidikan'
 
@@ -23,6 +25,10 @@ const VALID_CATEGORIES = new Set<KalenderKategori>([
 
 function assertDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+function assertJam(value: number) {
+  return Number.isInteger(value) && value > 0 && value <= 20
 }
 
 function normalizeHolidayRows(payload: any): Array<{ date: string; title: string; externalId: string }> {
@@ -117,7 +123,10 @@ export async function getKalenderPendidikanData(year: number, month: number) {
   const lastDay = new Date(year, month, 0).getDate()
   const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-  const events = await getKalenderEventsForRange(db, startDate, endDate)
+  const [events, kbmExceptions] = await Promise.all([
+    getKalenderEventsForRange(db, startDate, endDate),
+    getKbmExceptionsForRange(db, startDate, endDate),
+  ])
   const dates = enumerateDateStrings(startDate, endDate)
   const statuses = await Promise.all(dates.map(tanggal => getKalenderDateStatus(db, tanggal)))
 
@@ -133,15 +142,32 @@ export async function getKalenderPendidikanData(year: number, month: number) {
     year,
     month,
     events,
+    kbmExceptions,
     statuses,
     summary: {
       effective: statuses.filter(status => status.isEffective).length,
       nonEffective: statuses.filter(status => !status.isEffective).length,
       tanggalMerah: events.filter(event => event.category === 'TANGGAL_MERAH' && Number(event.is_effective) === 0).length,
       eventSekolah: events.filter(event => event.category !== 'TANGGAL_MERAH').length,
+      kbmExceptions: kbmExceptions.length,
     },
     syncLog: syncLog || null,
   }
+}
+
+export async function getKalenderKelasOptions() {
+  const db = await getDB()
+  const rows = await db.prepare(`
+    SELECT id, tingkat, nomor_kelas, kelompok
+    FROM kelas
+    ORDER BY tingkat ASC, kelompok ASC, CAST(nomor_kelas AS INTEGER) ASC
+  `).all<any>()
+
+  return (rows.results || []).map(row => ({
+    id: row.id,
+    tingkat: Number(row.tingkat),
+    label: `${row.tingkat}${row.kelompok ?? ''}-${row.nomor_kelas}`,
+  }))
 }
 
 export async function saveKalenderEvent(payload: {
@@ -202,6 +228,106 @@ export async function saveKalenderEvent(payload: {
   revalidatePath('/dashboard/monitoring-agenda')
   revalidatePath('/dashboard/rekap-absensi')
   return { success: 'Kalender pendidikan disimpan.' }
+}
+
+export async function saveKbmException(payload: {
+  id?: string
+  tanggal: string
+  judul: string
+  kategori: KalenderKategori
+  jam_ke_mulai: number
+  jam_ke_selesai: number
+  target_type: KbmExceptionTargetType
+  target_value?: string | null
+  description?: string
+}) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  if (!assertDate(payload.tanggal)) return { error: 'Tanggal tidak valid.' }
+  if (!payload.judul.trim()) return { error: 'Judul wajib diisi.' }
+  if (!VALID_CATEGORIES.has(payload.kategori)) return { error: 'Kategori tidak valid.' }
+  if (!assertJam(payload.jam_ke_mulai) || !assertJam(payload.jam_ke_selesai) || payload.jam_ke_mulai > payload.jam_ke_selesai) {
+    return { error: 'Rentang jam pelajaran tidak valid.' }
+  }
+  if (!['ALL', 'TINGKAT', 'KELAS'].includes(payload.target_type)) return { error: 'Sasaran tidak valid.' }
+
+  let targetValue: string | null = null
+  if (payload.target_type === 'TINGKAT') {
+    const tingkat = Number(payload.target_value)
+    if (!Number.isInteger(tingkat) || tingkat < 1 || tingkat > 12) return { error: 'Tingkat kelas tidak valid.' }
+    targetValue = String(tingkat)
+  } else if (payload.target_type === 'KELAS') {
+    if (!payload.target_value) return { error: 'Kelas target wajib dipilih.' }
+    targetValue = payload.target_value
+  }
+
+  const db = await getDB()
+  await ensureKalenderPendidikanTables(db)
+
+  if (payload.target_type === 'KELAS' && targetValue) {
+    const kelas = await db.prepare('SELECT id FROM kelas WHERE id = ?').bind(targetValue).first<{ id: string }>()
+    if (!kelas) return { error: 'Kelas target tidak ditemukan.' }
+  }
+
+  if (payload.id) {
+    await db.prepare(`
+      UPDATE kbm_exceptions
+      SET tanggal = ?, judul = ?, kategori = ?, jam_ke_mulai = ?, jam_ke_selesai = ?,
+          target_type = ?, target_value = ?, description = ?, updated_by = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(
+      payload.tanggal,
+      payload.judul.trim(),
+      payload.kategori,
+      payload.jam_ke_mulai,
+      payload.jam_ke_selesai,
+      payload.target_type,
+      targetValue,
+      payload.description?.trim() || null,
+      user.id,
+      payload.id,
+    ).run()
+  } else {
+    await db.prepare(`
+      INSERT INTO kbm_exceptions
+        (tanggal, judul, kategori, jam_ke_mulai, jam_ke_selesai, target_type, target_value, description, created_by, updated_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      payload.tanggal,
+      payload.judul.trim(),
+      payload.kategori,
+      payload.jam_ke_mulai,
+      payload.jam_ke_selesai,
+      payload.target_type,
+      targetValue,
+      payload.description?.trim() || null,
+      user.id,
+      user.id,
+    ).run()
+  }
+
+  revalidatePath('/dashboard/kalender-pendidikan')
+  revalidatePath('/dashboard/kehadiran')
+  revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/monitoring-agenda')
+  revalidatePath('/dashboard/rekap-absensi')
+  return { success: 'Pengecualian jam KBM disimpan.' }
+}
+
+export async function deleteKbmException(id: string) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  await ensureKalenderPendidikanTables(db)
+  await db.prepare('DELETE FROM kbm_exceptions WHERE id = ?').bind(id).run()
+
+  revalidatePath('/dashboard/kalender-pendidikan')
+  revalidatePath('/dashboard/kehadiran')
+  revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/monitoring-agenda')
+  revalidatePath('/dashboard/rekap-absensi')
+  return { success: 'Pengecualian jam KBM dihapus.' }
 }
 
 export type KalenderImportRow = {

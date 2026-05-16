@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDB } from '@/utils/db'
 import { sendPushNotification } from '@/lib/web-push'
 import { nowWIB } from '@/lib/time'
+import { findTeachingBlockException, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
 
 /**
  * Master Cron Dispatcher — dipanggil setiap menit oleh Cloudflare Cron Trigger.
@@ -60,14 +61,25 @@ export async function GET(req: NextRequest) {
         // Khusus: kirim ke guru yang punya jadwal mengajar hari ini
         const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
         if (!ta) { log.push({ jadwal: jadwal.nama, skipped: 'tidak ada tahun ajaran aktif' }); continue }
-        const { results: guruRows } = await db.prepare(`
-          SELECT DISTINCT pm.guru_id FROM jadwal_mengajar jm
+        const { results: jadwalRows } = await db.prepare(`
+          SELECT pm.guru_id, jm.penugasan_id, MIN(jm.jam_ke) as jam_mulai, MAX(jm.jam_ke) as jam_selesai,
+            k.id as kelas_id, k.tingkat
+          FROM jadwal_mengajar jm
           JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
           JOIN kelas k ON pm.kelas_id = k.id
           WHERE jm.hari = ? AND jm.tahun_ajaran_id = ?
             AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
+          GROUP BY pm.guru_id, jm.penugasan_id, k.id, k.tingkat
         `).bind(hariIni, ta.id, today).all<any>()
-        const guruIds = (guruRows || []).map((r: any) => r.guru_id)
+        const exceptions = await getKbmExceptionsForDate(db, today)
+        const guruIds = Array.from(new Set((jadwalRows || [])
+          .filter((r: any) => !findTeachingBlockException(
+            exceptions,
+            { id: r.kelas_id, tingkat: Number(r.tingkat) },
+            Number(r.jam_mulai),
+            Number(r.jam_selesai)
+          ))
+          .map((r: any) => r.guru_id)))
         if (guruIds.length === 0) { log.push({ jadwal: jadwal.nama, skipped: 'tidak ada guru mengajar hari ini' }); continue }
         target.userIds = guruIds
       } else if (targetType === 'custom') {

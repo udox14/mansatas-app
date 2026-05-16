@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAppSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { PortalOrtuClient } from './components/portal-ortu-client'
+import { findSlotException, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
 
 export const dynamic = 'force-dynamic'
 
@@ -400,6 +401,7 @@ export default async function PortalOrtuPage() {
   }
 
   const jamMap = parseJamPelajaran(taAktif?.jam_pelajaran)
+  const kbmExceptions = profil.kelas_id ? await getKbmExceptionsForDate(db, todayRaw) : []
   const jadwalRows = profil.kelas_id
     ? await db.prepare(`
       SELECT jm.hari, jm.jam_ke, mp.nama_mapel, u.nama_lengkap AS guru_nama, pm.id AS penugasan_id
@@ -421,8 +423,15 @@ export default async function PortalOrtuPage() {
     const slot = jamMap.get(hari)?.get(Number(row.jam_ke))
     let absensi = null
     if (hari === todayDay) {
+      const exception = findSlotException(
+        kbmExceptions,
+        { id: profil.kelas_id, tingkat: Number(profil.tingkat) },
+        Number(row.jam_ke)
+      )
       const absRecord = todayAbsensiMap.get(row.penugasan_id)
-      if (absRecord) {
+      if (exception) {
+        absensi = { status: 'KBM_EXCEPTION', catatan: exception.description || exception.judul }
+      } else if (absRecord) {
         absensi = absRecord
       } else {
         absensi = { status: 'HADIR', catatan: null }

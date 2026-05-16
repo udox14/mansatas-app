@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { CheckCircle2, XCircle, AlertTriangle } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertTriangle, CalendarCheck } from 'lucide-react'
 
 type Row = { 
   jam_ke: number; 
@@ -83,12 +83,16 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
                 statusColor = 'bg-rose-50 text-rose-600 border-rose-100'
                 StatusIcon = XCircle
                 break
+              case 'KBM_EXCEPTION':
+                statusColor = 'bg-sky-50 text-sky-600 border-sky-100'
+                StatusIcon = CalendarCheck
+                break
             }
           }
 
           return (
             <div key={`${active}-${idx}`} className={`bg-white rounded-xl border p-4 flex items-stretch gap-4 shadow-sm transition-colors ${
-              j.isToday && j.absensi && j.absensi.status !== 'HADIR' ? 'border-amber-200 hover:border-amber-300' : 'border-slate-200 hover:border-slate-300'
+              j.isToday && j.absensi && !['HADIR', 'KBM_EXCEPTION'].includes(j.absensi.status) ? 'border-amber-200 hover:border-amber-300' : 'border-slate-200 hover:border-slate-300'
             }`}>
               {/* Time Badge */}
               <div className={`flex flex-col items-center justify-center rounded-lg px-3 py-2 min-w-[70px] shrink-0 border ${
@@ -105,7 +109,7 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
                   {j.isToday && j.absensi && StatusIcon && (
                     <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] font-bold tracking-wide ${statusColor}`} title="Status kehadiran anak pada jam pelajaran ini">
                       <StatusIcon className="w-3 h-3" />
-                      Anak: {j.absensi.status}
+                      {j.absensi.status === 'KBM_EXCEPTION' ? 'Kegiatan resmi' : `Anak: ${j.absensi.status}`}
                     </div>
                   )}
                 </div>

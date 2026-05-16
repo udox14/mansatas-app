@@ -11,7 +11,12 @@ import {
   type FinalAttendanceDetail,
 } from '@/lib/wali-kelas-attendance'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
-import { getEffectiveDatesInRange, getKalenderDateStatus } from '@/lib/kalender-pendidikan'
+import {
+  findSlotException,
+  getEffectiveDatesInRange,
+  getKbmExceptionsForDate,
+  getKalenderDateStatus,
+} from '@/lib/kalender-pendidikan'
 
 const HARI = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 const MAX_RANGE_DAYS = 31
@@ -331,14 +336,14 @@ export async function getAbsensiPerKelasRentang(tingkat: number, tglMulai: strin
         addStatus(summary, applyIzinStatus(day, izinMap.get(`${siswa.id}__${day.tanggal}`)))
       }
     }
-    const totalStatus = classData.siswa.length * effectiveDates.length
+    const totalStatus = classData.siswa.length * classData.dates.length
     data.push({
       kelas_id: kelas.id,
       tingkat: kelas.tingkat,
       label: kelas.label,
       wali_kelas_nama: kelas.wali_kelas_nama || null,
       total_siswa: classData.siswa.length,
-      total_hari_efektif: effectiveDates.length,
+      total_hari_efektif: classData.dates.length,
       total_status: totalStatus,
       ...summary,
       persentase_hadir: percentage(summary.hadir, totalStatus),
@@ -360,6 +365,7 @@ async function buildClassDailyMatrix(db: D1Database, kelasId: string, tanggal: s
   const ta = await db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
   const hari = hariNum(new Date(tanggal + 'T00:00:00'))
   const slots = ta ? getSlotsHari(ta.jam_pelajaran || '[]', hari) : []
+  const kbmExceptions = await getKbmExceptionsForDate(db, tanggal)
   const jadwalRes = ta ? await db.prepare(`
     SELECT jm.jam_ke, jm.penugasan_id, mp.nama_mapel, mp.kode_mapel, mp.kode_asc
     FROM jadwal_mengajar jm
@@ -411,6 +417,16 @@ async function buildClassDailyMatrix(db: D1Database, kelasId: string, tanggal: s
     const finalDay = classData.statusByStudent.get(siswa.id)?.[0]
     const izinItems = izinMap.get(`${siswa.id}__${tanggal}`) || []
     const cells = slots.map(slot => {
+      const exception = findSlotException(kbmExceptions, { id: kelasId, tingkat: Number(classData.kelas.tingkat) }, slot.id)
+      if (exception) {
+        return {
+          jam_ke: slot.id,
+          status: 'KBM_EXCEPTION',
+          label: exception.judul,
+          nama_mapel: exception.judul,
+          catatan: exception.description || `Pengecualian KBM jam ${exception.jam_ke_mulai}-${exception.jam_ke_selesai}`,
+        }
+      }
       const jadwal = jadwalByJam.get(slot.id)
       if (!jadwal) return { jam_ke: slot.id, status: '-', label: '-', nama_mapel: null, catatan: null }
 
@@ -459,7 +475,7 @@ async function buildClassDailyMatrix(db: D1Database, kelasId: string, tanggal: s
 
   const slotsWithMapel = slots.map(slot => ({
     ...slot,
-    nama_mapel: jadwalByJam.get(slot.id)?.nama_mapel || null,
+    nama_mapel: findSlotException(kbmExceptions, { id: kelasId, tingkat: Number(classData.kelas.tingkat) }, slot.id)?.judul || jadwalByJam.get(slot.id)?.nama_mapel || null,
     kode_mapel: jadwalByJam.get(slot.id)?.kode_mapel || jadwalByJam.get(slot.id)?.kode_asc || null,
   }))
 
@@ -515,9 +531,9 @@ export async function getAbsensiSiswaKelasRentang(kelasId: string, tglMulai: str
       siswa_id: siswa.id,
       nama_lengkap: siswa.nama_lengkap,
       nisn: siswa.nisn,
-      total_hari_efektif: effectiveDates.length,
+      total_hari_efektif: classData.dates.length,
       ...summary,
-      persentase_hadir: percentage(summary.hadir, effectiveDates.length),
+      persentase_hadir: percentage(summary.hadir, classData.dates.length),
       days,
     }
   })
@@ -543,16 +559,18 @@ export async function getAbsensiHeatmap(tingkat: number, tanggal: string) {
       const detail = (matrix.rows || [])
         .map((row: any) => {
           const cell = row.cells.find((c: any) => c.jam_ke === slot.id)
-          return cell && !['HADIR', '-', 'BELUM_ADA_DATA'].includes(cell.status)
+          return cell && !['HADIR', '-', 'BELUM_ADA_DATA', 'KBM_EXCEPTION'].includes(cell.status)
             ? { siswa_id: row.siswa_id, nama_lengkap: row.nama_lengkap, nisn: row.nisn, ...cell }
             : null
         })
         .filter(Boolean)
       const belumAdaData = (matrix.rows || []).filter((row: any) => row.cells.find((c: any) => c.jam_ke === slot.id)?.status === 'BELUM_ADA_DATA').length
+      const exceptionCell = (matrix.rows || [])[0]?.cells?.find((c: any) => c.jam_ke === slot.id && c.status === 'KBM_EXCEPTION')
       return {
         jam_ke: slot.id,
         bermasalah: detail.length,
         belum_ada_data: belumAdaData,
+        exception: exceptionCell ? { label: exceptionCell.label, catatan: exceptionCell.catatan } : null,
         detail,
       }
     })

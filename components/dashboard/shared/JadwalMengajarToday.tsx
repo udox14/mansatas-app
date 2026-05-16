@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
 import { ClipboardPen, BookOpen, CheckCircle2, AlertCircle, UserCheck, CalendarDays } from 'lucide-react'
-import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
+import { findTeachingBlockException, getKbmExceptionsForDate, getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 
 export type JadwalMengajarTodayProps = {
   userId: string
@@ -49,7 +49,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
       MIN(jm.jam_ke) as jam_mulai, MAX(jm.jam_ke) as jam_selesai,
       jm.penugasan_id,
       mp.nama_mapel,
-      k.tingkat, k.nomor_kelas, k.kelompok,
+      k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok,
       ag.id as agenda_id
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
@@ -58,7 +58,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
     LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ? AND pm.guru_id = ?
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
-    GROUP BY jm.penugasan_id, mp.nama_mapel, k.tingkat, k.nomor_kelas, k.kelompok, ag.id
+    GROUP BY jm.penugasan_id, mp.nama_mapel, k.id, k.tingkat, k.nomor_kelas, k.kelompok, ag.id
     ORDER BY jam_mulai ASC
   `).bind(today, taAktif.id, hariIni, userId, today).all<any>().then(r => r.results ?? [])
 
@@ -74,8 +74,15 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
     }
   } catch {}
 
-  const totalJadwal = jadwalRows.length
-  const sudahIsiAgenda = jadwalRows.filter((j: any) => !!j.agenda_id).length
+  const kbmExceptions = await getKbmExceptionsForDate(db, today)
+  const activeJadwalRows = jadwalRows.filter((j: any) => !findTeachingBlockException(
+    kbmExceptions,
+    { id: j.kelas_id, tingkat: Number(j.tingkat) },
+    Number(j.jam_mulai),
+    Number(j.jam_selesai)
+  ))
+  const totalJadwal = activeJadwalRows.length
+  const sudahIsiAgenda = activeJadwalRows.filter((j: any) => !!j.agenda_id).length
   const belumIsi = totalJadwal - sudahIsiAgenda
 
   return (
@@ -88,7 +95,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
           <div className="min-w-0">
             <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Jadwal Mengajar Hari Ini</p>
             <p className="text-[10px] text-slate-400 dark:text-slate-500">
-              {totalJadwal === 0 ? 'Tidak ada jadwal hari ini' : `${totalJadwal} kelas · ${sudahIsiAgenda} agenda terisi`}
+              {totalJadwal === 0 ? 'Tidak ada jadwal wajib hari ini' : `${totalJadwal} kelas · ${sudahIsiAgenda} agenda terisi`}
             </p>
           </div>
         </div>
@@ -119,7 +126,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
         </div>
       ) : (
         <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
-          {jadwalRows.map((j: any, i: number) => {
+          {activeJadwalRows.map((j: any, i: number) => {
             const slotMulai   = slotsMap[j.jam_mulai]?.mulai   ?? '-'
             const slotSelesai = slotsMap[j.jam_selesai]?.selesai ?? '-'
             const filled = !!j.agenda_id

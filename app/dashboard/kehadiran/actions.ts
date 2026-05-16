@@ -9,7 +9,12 @@ import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { currentTimeWIB, todayWIB, nowWIB } from '@/lib/time'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
-import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
+import {
+  findTeachingBlockException,
+  getKbmExceptionsForDate,
+  getKalenderDateStatus,
+  type KbmException,
+} from '@/lib/kalender-pendidikan'
 
 // ============================================================
 // TYPES
@@ -110,6 +115,7 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
   tanggal: string
   hari: number
   hariNama: string
+  kbmExceptions?: KbmException[]
   calendarStatus?: { isEffective: boolean; reason: string | null; category: string | null }
 }> {
   const HARI = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
@@ -169,6 +175,7 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
 
   const slots = getSlotsHari(ta.jam_pelajaran || '[]', hari)
   if (!slots.length) return { error: null, blocks: [], tanggal, hari, hariNama: HARI[hari] }
+  const kbmExceptions = await getKbmExceptionsForDate(db, tanggal)
 
   const rows = (await db.prepare(`
     SELECT jm.penugasan_id, jm.jam_ke,
@@ -228,6 +235,13 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
     const sM = slots.find(s => s.id === jM), sS = slots.find(s => s.id === jS)
     const totalSiswa = siswaCountMap.get(f.kelas_id) || 0
     const tidakHadir = absenCountMap.get(pid) || 0
+    const exception = findTeachingBlockException(
+      kbmExceptions,
+      { id: f.kelas_id, tingkat: Number(f.tingkat) },
+      jM,
+      jS
+    )
+    if (exception) continue
 
     blocks.push({
       penugasan_id: pid, mapel_nama: f.nama_mapel,
@@ -238,7 +252,7 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
     })
   }
   blocks.sort((a, b) => a.jam_ke_mulai - b.jam_ke_mulai)
-  return { error: null, blocks, tanggal, hari, hariNama: HARI[hari] }
+  return { error: null, blocks, tanggal, hari, hariNama: HARI[hari], kbmExceptions }
 }
 
 // ============================================================
@@ -334,14 +348,23 @@ export async function simpanAbsensi(
   }
 
   const penugasan = await db.prepare(`
-    SELECT k.kbm_nonaktif_mulai
+    SELECT k.id as kelas_id, k.tingkat, k.kbm_nonaktif_mulai
     FROM penugasan_mengajar pm
     JOIN kelas k ON pm.kelas_id = k.id
     WHERE pm.id = ?
-  `).bind(penugasanId).first<{ kbm_nonaktif_mulai: string | null }>()
+  `).bind(penugasanId).first<{ kelas_id: string; tingkat: number; kbm_nonaktif_mulai: string | null }>()
   if (!penugasan) return { error: 'Penugasan tidak ditemukan.' }
   if (penugasan.kbm_nonaktif_mulai && penugasan.kbm_nonaktif_mulai <= tanggal) {
     return { error: 'Kelas ini sudah dinonaktifkan dari kewajiban KBM. Absensi tidak perlu disimpan.' }
+  }
+  const exception = findTeachingBlockException(
+    await getKbmExceptionsForDate(db, tanggal),
+    { id: penugasan.kelas_id, tingkat: Number(penugasan.tingkat) },
+    jamKeMulai,
+    jamKeSelesai
+  )
+  if (exception) {
+    return { error: `Jadwal ini masuk pengecualian KBM: ${exception.judul}. Absensi tidak perlu disimpan.` }
   }
   const attendanceTimeRestrictionEnabled = await getSystemSettingBoolean(
     SYSTEM_SETTING_KEYS.attendanceTimeRestriction,

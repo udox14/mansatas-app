@@ -1,7 +1,7 @@
 // components/dashboard/shared/KehadiranPribadiCard.tsx
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
-import { getEffectiveDatesInRange, hariNumFromDateString } from '@/lib/kalender-pendidikan'
+import { findTeachingBlockException, getEffectiveDatesInRange, getKbmExceptionsForRange, hariNumFromDateString } from '@/lib/kalender-pendidikan'
 import { BookOpen } from 'lucide-react'
 import { Clock } from 'lucide-react'
 
@@ -88,22 +88,32 @@ export async function KehadiranPribadiCard({ userId }: Props) {
 
     if (ta && effectiveDates.length > 0) {
       const jadwalRes = await db.prepare(`
-        SELECT DISTINCT jm.penugasan_id, jm.hari, k.kbm_nonaktif_mulai
+        SELECT DISTINCT jm.penugasan_id, jm.hari, jm.jam_ke, k.id as kelas_id, k.tingkat, k.kbm_nonaktif_mulai
         FROM jadwal_mengajar jm
         JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
         JOIN kelas k ON pm.kelas_id = k.id
         WHERE jm.tahun_ajaran_id = ? AND pm.guru_id = ?
       `).bind(ta.id, userId).all<any>()
 
-      const jadwalHari = new Map<string, { hariSet: Set<number>; kbmNonaktifMulai: string | null }>()
+      const jadwalHari = new Map<string, { hariMap: Map<number, Set<number>>; kelasId: string; tingkat: number; kbmNonaktifMulai: string | null }>()
       for (const row of jadwalRes.results || []) {
         if (!jadwalHari.has(row.penugasan_id)) {
           jadwalHari.set(row.penugasan_id, {
-            hariSet: new Set(),
+            hariMap: new Map(),
+            kelasId: row.kelas_id,
+            tingkat: Number(row.tingkat),
             kbmNonaktifMulai: row.kbm_nonaktif_mulai || null,
           })
         }
-        jadwalHari.get(row.penugasan_id)!.hariSet.add(Number(row.hari))
+        const jadwal = jadwalHari.get(row.penugasan_id)!
+        if (!jadwal.hariMap.has(Number(row.hari))) jadwal.hariMap.set(Number(row.hari), new Set())
+        jadwal.hariMap.get(Number(row.hari))!.add(Number(row.jam_ke))
+      }
+
+      const exceptionsByDate = new Map<string, Awaited<ReturnType<typeof getKbmExceptionsForRange>>>()
+      for (const exception of await getKbmExceptionsForRange(db, monthStart, today)) {
+        if (!exceptionsByDate.has(exception.tanggal)) exceptionsByDate.set(exception.tanggal, [])
+        exceptionsByDate.get(exception.tanggal)!.push(exception)
       }
 
       let totalBlok = 0
@@ -111,7 +121,11 @@ export async function KehadiranPribadiCard({ userId }: Props) {
         const hari = hariNumFromDateString(tanggal)
         for (const jadwal of jadwalHari.values()) {
           if (jadwal.kbmNonaktifMulai && jadwal.kbmNonaktifMulai <= tanggal) continue
-          if (jadwal.hariSet.has(hari)) totalBlok++
+          const jamSet = jadwal.hariMap.get(hari)
+          if (!jamSet) continue
+          const jamList = Array.from(jamSet).sort((a, b) => a - b)
+          if (findTeachingBlockException(exceptionsByDate.get(tanggal) || [], { id: jadwal.kelasId, tingkat: jadwal.tingkat }, jamList[0], jamList[jamList.length - 1])) continue
+          totalBlok++
         }
       }
 

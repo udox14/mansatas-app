@@ -17,6 +17,7 @@ import {
   type CkhTemplate,
   type CkhTemplateNote,
 } from '@/lib/ckh'
+import { findTeachingBlockException, getKbmExceptionsForRange } from '@/lib/kalender-pendidikan'
 
 type CkhUser = {
   id: string
@@ -192,20 +193,40 @@ async function buildGeneratedRows(db: D1Database, userId: string, year: number, 
     generated.push(...buildTeachingRows((agendaRes.results || []).filter(row => effectiveSet.has(row.tanggal))))
 
     const jadwalRes = await db.prepare(`
-      SELECT DISTINCT jm.penugasan_id, jm.hari, k.kbm_nonaktif_mulai
+      SELECT DISTINCT jm.penugasan_id, jm.hari, jm.jam_ke, k.id as kelas_id, k.tingkat, k.kbm_nonaktif_mulai
       FROM jadwal_mengajar jm
       JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
       JOIN kelas k ON pm.kelas_id = k.id
       WHERE pm.guru_id = ? AND jm.tahun_ajaran_id = ?
-    `).bind(userId, ta.id).all<{ penugasan_id: string; hari: number; kbm_nonaktif_mulai: string | null }>()
+    `).bind(userId, ta.id).all<{ penugasan_id: string; hari: number; jam_ke: number; kelas_id: string; tingkat: number; kbm_nonaktif_mulai: string | null }>()
     const teachingDates = new Set(generated.filter(row => row.source === 'autofill').map(row => row.tanggal))
-    const teachingSchedules = jadwalRes.results || []
+    const teachingSchedules = new Map<string, { hari: number; jamSet: Set<number>; kelasId: string; tingkat: number; kbmNonaktifMulai: string | null }>()
+    for (const row of jadwalRes.results || []) {
+      if (!teachingSchedules.has(row.penugasan_id)) {
+        teachingSchedules.set(row.penugasan_id, {
+          hari: Number(row.hari),
+          jamSet: new Set(),
+          kelasId: row.kelas_id,
+          tingkat: Number(row.tingkat),
+          kbmNonaktifMulai: row.kbm_nonaktif_mulai || null,
+        })
+      }
+      teachingSchedules.get(row.penugasan_id)!.jamSet.add(Number(row.jam_ke))
+    }
+    const exceptionsByDate = new Map<string, Awaited<ReturnType<typeof getKbmExceptionsForRange>>>()
+    for (const exception of await getKbmExceptionsForRange(db, startDate, endDate)) {
+      if (!exceptionsByDate.has(exception.tanggal)) exceptionsByDate.set(exception.tanggal, [])
+      exceptionsByDate.get(exception.tanggal)!.push(exception)
+    }
     for (const tanggal of effectiveDates) {
       const day = new Date(tanggal + 'T00:00:00').getDay()
       const hari = day === 0 ? 7 : day
-      const hasActiveTeaching = teachingSchedules.some(row =>
-        row.hari === hari && (!row.kbm_nonaktif_mulai || row.kbm_nonaktif_mulai > tanggal)
-      )
+      const hasActiveTeaching = Array.from(teachingSchedules.values()).some(row => {
+        if (row.hari !== hari) return false
+        if (row.kbmNonaktifMulai && row.kbmNonaktifMulai <= tanggal) return false
+        const jamList = Array.from(row.jamSet).sort((a, b) => a - b)
+        return !findTeachingBlockException(exceptionsByDate.get(tanggal) || [], { id: row.kelasId, tingkat: row.tingkat }, jamList[0], jamList[jamList.length - 1])
+      })
       if (hasActiveTeaching && !teachingDates.has(tanggal)) {
         generated.push({
           tanggal,
