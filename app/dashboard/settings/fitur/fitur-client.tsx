@@ -2,18 +2,19 @@
 
 import { useState, useTransition, useCallback } from 'react'
 import { DEFAULT_SIDEBAR_GROUPS, MENU_ITEMS, type SidebarGroupConfig } from '@/config/menu'
-import { toggleRoleFeature, createCustomRole, editCustomRole, deleteCustomRole, setRoleMobileNav, setRoleSidebarConfig, setFeatureDisplayTitle } from './actions'
+import { toggleRoleFeature, createCustomRole, editCustomRole, deleteCustomRole, setRoleMobileNav, setRoleSidebarConfig, setFeatureDisplayTitle, setRoleFeaturePermission, type CrudPermission } from './actions'
 import { cn } from '@/lib/utils'
 import {
   Shield, Layers, Check, Loader2, Search, Info,
   PlusCircle, Pencil, Trash2, X, Tag, AlertCircle, Smartphone, Plus,
-  PanelLeft, Folder, ArrowUp, ArrowDown, RotateCcw
+  PanelLeft, Folder, ArrowUp, ArrowDown, RotateCcw, KeyRound
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-type ViewMode = 'per-fitur' | 'per-role' | 'roles' | 'navbar' | 'sidebar'
+type ViewMode = 'per-fitur' | 'per-role' | 'crud' | 'roles' | 'navbar' | 'sidebar'
+type CrudAction = keyof CrudPermission
 type MasterRole = { value: string; label: string; is_custom: number; mobile_nav_links: string; sidebar_config?: string }
 
 const ROLE_COLORS_MAP: Record<string, { bg: string; text: string; border: string; dot: string }> = {
@@ -40,12 +41,14 @@ const LOCKED_FEATURES = new Set(['dashboard', 'settings', 'settings-fitur'])
 
 interface FiturClientProps {
   initialMatrix: Record<string, string[]>
+  initialPermissions: Record<string, Record<string, CrudPermission>>
   initialRoles: MasterRole[]
   initialFeatureLabels: Record<string, string>
 }
 
-export function FiturClient({ initialMatrix, initialRoles, initialFeatureLabels }: FiturClientProps) {
+export function FiturClient({ initialMatrix, initialPermissions, initialRoles, initialFeatureLabels }: FiturClientProps) {
   const [matrix, setMatrix] = useState(initialMatrix)
+  const [permissions, setPermissions] = useState(initialPermissions)
   const [roles, setRoles] = useState(initialRoles)
   const [featureLabels, setFeatureLabels] = useState(initialFeatureLabels)
   const [viewMode, setViewMode] = useState<ViewMode>('per-fitur')
@@ -112,6 +115,7 @@ export function FiturClient({ initialMatrix, initialRoles, initialFeatureLabels 
           {([
             { id: 'per-fitur', label: 'Per Fitur', icon: Layers },
             { id: 'per-role',  label: 'Per Role',  icon: Shield },
+            { id: 'crud',      label: 'Hak CRUD',  icon: KeyRound },
             { id: 'roles',     label: 'Kelola Role', icon: Tag },
             { id: 'sidebar',   label: 'Sidebar', icon: PanelLeft },
             { id: 'navbar',    label: 'Bottom Nav', icon: Smartphone },
@@ -139,6 +143,7 @@ export function FiturClient({ initialMatrix, initialRoles, initialFeatureLabels 
           <p className="text-[11px] text-violet-700 dark:text-violet-300">
             {viewMode === 'per-fitur' && `Klik toggle untuk mengaktifkan/menonaktifkan fitur untuk role. ${rolesTotalLabel}.`}
             {viewMode === 'per-role' && `Pilih role lalu atur fitur mana saja yang bisa diakses. Perubahan langsung tersimpan.`}
+            {viewMode === 'crud' && `Atur Create, Read, Update, Delete untuk fitur yang sudah diizinkan pada tiap role.`}
             {viewMode === 'sidebar' && `Atur susunan group dan urutan menu sidebar per role tanpa mengubah kode.`}
             {viewMode === 'navbar' && `Atur jalan pintas layar HP per role. Perubahan langsung tersimpan.`}
           </p>
@@ -151,6 +156,9 @@ export function FiturClient({ initialMatrix, initialRoles, initialFeatureLabels 
       )}
       {viewMode === 'per-role' && (
         <PerRoleView features={features} matrix={matrix} roles={roles} pendingKeys={pendingKeys} onToggle={handleToggle} getFeatureCount={getFeatureCount} setMatrix={setMatrix} featureLabels={featureLabels} />
+      )}
+      {viewMode === 'crud' && (
+        <CrudPermissionView features={features} matrix={matrix} setMatrix={setMatrix} permissions={permissions} setPermissions={setPermissions} roles={roles} featureLabels={featureLabels} />
       )}
       {viewMode === 'roles' && (
         <RoleManagerView roles={roles} setRoles={setRoles} matrix={matrix} setMatrix={setMatrix} />
@@ -414,6 +422,198 @@ function PerRoleView({ features, matrix, roles, pendingKeys, onToggle, getFeatur
 // ════════════════════════════════════════════════════════
 // VIEW: Kelola Role
 // ════════════════════════════════════════════════════════
+function getCrudPermission(
+  permissions: Record<string, Record<string, CrudPermission>>,
+  role: string,
+  featureId: string,
+  enabled: boolean
+): CrudPermission {
+  return permissions[role]?.[featureId] || {
+    create: enabled,
+    read: enabled,
+    update: enabled,
+    delete: enabled,
+  }
+}
+
+function CrudPermissionView({ features, matrix, setMatrix, permissions, setPermissions, roles, featureLabels }: {
+  features: typeof MENU_ITEMS
+  matrix: Record<string, string[]>
+  setMatrix: React.Dispatch<React.SetStateAction<Record<string, string[]>>>
+  permissions: Record<string, Record<string, CrudPermission>>
+  setPermissions: React.Dispatch<React.SetStateAction<Record<string, Record<string, CrudPermission>>>>
+  roles: MasterRole[]
+  featureLabels: Record<string, string>
+}) {
+  const [selectedRole, setSelectedRole] = useState<string>(roles[0]?.value ?? '')
+  const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set())
+  const selectedRoleData = roles.find(r => r.value === selectedRole)
+  const colors = ROLE_COLORS_MAP[selectedRole] || (selectedRoleData?.is_custom ? CUSTOM_COLOR : DEFAULT_COLOR)
+  const actionLabels: Array<{ action: CrudAction; label: string; title: string }> = [
+    { action: 'create', label: 'C', title: 'Create / tambah data' },
+    { action: 'read', label: 'R', title: 'Read / akses fitur' },
+    { action: 'update', label: 'U', title: 'Update / edit data' },
+    { action: 'delete', label: 'D', title: 'Delete / hapus data' },
+  ]
+
+  const updateLocalPermission = (role: string, featureId: string, patch: Partial<CrudPermission>) => {
+    setPermissions(prev => {
+      const featureEnabled = matrix[role]?.includes(featureId) ?? false
+      const current = getCrudPermission(prev, role, featureId, featureEnabled)
+      return {
+        ...prev,
+        [role]: {
+          ...(prev[role] || {}),
+          [featureId]: { ...current, ...patch },
+        },
+      }
+    })
+  }
+
+  const togglePermission = async (featureId: string, action: CrudAction) => {
+    const featureEnabled = matrix[selectedRole]?.includes(featureId) ?? false
+    const current = getCrudPermission(permissions, selectedRole, featureId, featureEnabled)
+    const nextEnabled = !current[action]
+    const key = `${selectedRole}:${featureId}:${action}`
+    setPendingKeys(prev => new Set(prev).add(key))
+
+    if (action === 'read') {
+      setMatrix(prev => {
+        const next = { ...prev }
+        const arr = [...(next[selectedRole] || [])]
+        next[selectedRole] = nextEnabled ? Array.from(new Set([...arr, featureId])) : arr.filter(id => id !== featureId)
+        return next
+      })
+      updateLocalPermission(selectedRole, featureId, nextEnabled
+        ? { read: true, create: true, update: true, delete: true }
+        : { read: false, create: false, update: false, delete: false }
+      )
+    } else {
+      if (!featureEnabled) {
+        setPendingKeys(prev => { const s = new Set(prev); s.delete(key); return s })
+        return
+      }
+      updateLocalPermission(selectedRole, featureId, { [action]: nextEnabled })
+    }
+
+    const res = await setRoleFeaturePermission(selectedRole, featureId, action, nextEnabled)
+    if (res?.error) {
+      alert(res.error)
+      if (action === 'read') {
+        setMatrix(prev => {
+          const next = { ...prev }
+          const arr = [...(next[selectedRole] || [])]
+          next[selectedRole] = featureEnabled ? Array.from(new Set([...arr, featureId])) : arr.filter(id => id !== featureId)
+          return next
+        })
+        updateLocalPermission(selectedRole, featureId, current)
+      } else {
+        updateLocalPermission(selectedRole, featureId, { [action]: current[action] })
+      }
+    }
+    setPendingKeys(prev => { const s = new Set(prev); s.delete(key); return s })
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+        {roles.map(role => {
+          const rc = ROLE_COLORS_MAP[role.value] || (role.is_custom ? CUSTOM_COLOR : DEFAULT_COLOR)
+          const isSelected = selectedRole === role.value
+          const activeCount = matrix[role.value]?.length || 0
+          return (
+            <button
+              key={role.value}
+              onClick={() => setSelectedRole(role.value)}
+              className={cn(
+                'flex flex-col items-start gap-1 px-3 py-2.5 rounded-xl border transition-all duration-150',
+                isSelected ? cn(rc.bg, rc.border, 'shadow-sm ring-2 ring-offset-1 ring-slate-300') : 'bg-surface border-surface hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm'
+              )}
+            >
+              <div className="flex items-center gap-2 w-full">
+                <div className={cn('h-2 w-2 rounded-full shrink-0', rc.dot)} />
+                <span className={cn('text-xs font-semibold truncate', isSelected ? rc.text : 'text-slate-600 dark:text-slate-400')}>
+                  {role.label}
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 pl-4">{activeCount} fitur aktif</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {selectedRole && (
+        <div className="bg-surface border border-surface rounded-xl overflow-hidden">
+          <div className={cn('flex items-center gap-3 px-4 py-3 border-b', colors.border, colors.bg)}>
+            <KeyRound className={cn('h-4 w-4 shrink-0', colors.text)} />
+            <div className="flex-1 min-w-0">
+              <p className={cn('text-sm font-semibold', colors.text)}>Hak CRUD: {selectedRoleData?.label ?? selectedRole}</p>
+              <p className="text-[10px] text-slate-500">R adalah akses fitur/menu. Jika R dimatikan, C/U/D ikut tidak aktif.</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="border-b border-surface-2 bg-slate-50 dark:bg-slate-800/60">
+                  <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-slate-500">Fitur</th>
+                  {actionLabels.map(({ action, label, title }) => (
+                    <th key={action} className="px-2 py-2.5 text-center text-[11px] font-semibold text-slate-500" title={title}>{label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {features.map(feature => {
+                  const enabled = matrix[selectedRole]?.includes(feature.id) ?? false
+                  const permission = getCrudPermission(permissions, selectedRole, feature.id, enabled)
+                  const Icon = feature.icon
+                  return (
+                    <tr key={feature.id} className={cn('border-b border-surface-2 last:border-0', enabled ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50' : 'bg-slate-50/40 dark:bg-slate-900/30 opacity-75')}>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className={cn('p-1.5 rounded-md border shrink-0', enabled ? 'bg-violet-50 border-violet-200 dark:bg-violet-950/40 dark:border-violet-800' : 'bg-slate-100 border-slate-200 dark:bg-slate-800 dark:border-slate-700')}>
+                            <Icon className={cn('h-3.5 w-3.5', enabled ? 'text-violet-600 dark:text-violet-400' : 'text-slate-400')} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">{featureLabels[feature.id] || feature.title}</p>
+                            <p className="text-[10px] text-slate-400 font-mono">{feature.id}</p>
+                          </div>
+                        </div>
+                      </td>
+                      {actionLabels.map(({ action, label, title }) => {
+                        const active = action === 'read' ? enabled : enabled && permission[action]
+                        const disabled = action !== 'read' && !enabled
+                        const key = `${selectedRole}:${feature.id}:${action}`
+                        return (
+                          <td key={action} className="px-2 py-2.5 text-center">
+                            <button
+                              onClick={() => togglePermission(feature.id, action)}
+                              disabled={pendingKeys.has(key) || disabled}
+                              title={title}
+                              className={cn(
+                                'mx-auto h-8 w-8 rounded-lg border text-[11px] font-black transition-all flex items-center justify-center',
+                                active ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300',
+                                disabled && 'cursor-not-allowed opacity-40',
+                                action === 'read' && active && 'bg-blue-600 border-blue-700'
+                              )}
+                            >
+                              {pendingKeys.has(key) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : label}
+                            </button>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function RoleManagerView({ roles, setRoles, matrix, setMatrix }: {
   roles: MasterRole[]
   setRoles: React.Dispatch<React.SetStateAction<MasterRole[]>>

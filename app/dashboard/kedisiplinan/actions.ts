@@ -4,8 +4,17 @@
 import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { uploadBuktiFoto, deleteFromR2, validateImageFile } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
+import { getUserRoles } from '@/lib/features'
 // import { formatNamaKelas } from '@/lib/utils'
 import { revalidatePath } from 'next/cache'
+
+const INPUT_PELANGGARAN_ROLES = ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru']
+const MANAGE_KEDISIPLINAN_ROLES = ['super_admin', 'wakamad', 'guru_bk']
+
+async function hasAnyRole(db: D1Database, userId: string, allowedRoles: string[]) {
+  const roles = await getUserRoles(db, userId)
+  return roles.some(role => allowedRoles.includes(role))
+}
 
 // ============================================================
 // SEARCH SISWA (lazy — dipanggil saat user mengetik di form)
@@ -47,6 +56,8 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
   const db = await getDB()
   const user = await getCurrentUser()
   if (!user) return { error: 'Anda belum login', success: null }
+  const canInput = await hasAnyRole(db, user.id, INPUT_PELANGGARAN_ROLES)
+  if (!canInput) return { error: 'Anda tidak memiliki hak untuk menginput pelanggaran.', success: null }
 
   const ta = await db
     .prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1')
@@ -139,12 +150,19 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
 // ============================================================
 export async function hapusPelanggaran(id: string) {
   const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Anda belum login' }
 
   // Ambil foto_url sebelum dihapus
   const record = await db
-    .prepare('SELECT foto_url FROM siswa_pelanggaran WHERE id = ?')
+    .prepare('SELECT foto_url, diinput_oleh FROM siswa_pelanggaran WHERE id = ?')
     .bind(id)
-    .first<{ foto_url: string | null }>()
+    .first<{ foto_url: string | null; diinput_oleh: string | null }>()
+
+  const isSuperAdmin = await hasAnyRole(db, user.id, ['super_admin'])
+  if (!record || (!isSuperAdmin && record.diinput_oleh !== user.id)) {
+    return { error: 'Akses ditolak.' }
+  }
 
   // Hapus foto dari R2 jika ada
   if (record?.foto_url) {
@@ -163,6 +181,10 @@ export async function hapusPelanggaran(id: string) {
 // ============================================================
 export async function simpanMasterPelanggaran(prevState: any, formData: FormData) {
   const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Tidak terautentikasi', success: null }
+  const canManage = await hasAnyRole(db, user.id, MANAGE_KEDISIPLINAN_ROLES)
+  if (!canManage) return { error: 'Anda tidak memiliki hak mengelola master pelanggaran.', success: null }
 
   const id = formData.get('id') as string | null
   const kategori = formData.get('kategori') as string
@@ -187,6 +209,10 @@ export async function simpanMasterPelanggaran(prevState: any, formData: FormData
 
 export async function hapusMasterPelanggaran(id: string) {
   const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Tidak terautentikasi' }
+  const canManage = await hasAnyRole(db, user.id, MANAGE_KEDISIPLINAN_ROLES)
+  if (!canManage) return { error: 'Anda tidak memiliki hak mengelola master pelanggaran.' }
 
   const existing = await db
     .prepare('SELECT id FROM siswa_pelanggaran WHERE master_pelanggaran_id = ? LIMIT 1')
@@ -209,6 +235,10 @@ export async function hapusMasterPelanggaran(id: string) {
 
 export async function importMasterPelanggaranMassal(dataExcel: any[]) {
   const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Tidak terautentikasi' }
+  const canManage = await hasAnyRole(db, user.id, MANAGE_KEDISIPLINAN_ROLES)
+  if (!canManage) return { error: 'Anda tidak memiliki hak mengelola master pelanggaran.' }
 
   const sanitizedData = dataExcel
     .map((item) => ({
@@ -433,6 +463,8 @@ export async function simpanSanksiItem(prevState: any, formData: FormData) {
   const db = await getDB()
   const user = await getCurrentUser()
   if (!user) return { error: 'Tidak terautentikasi', success: null }
+  const canManage = await hasAnyRole(db, user.id, MANAGE_KEDISIPLINAN_ROLES)
+  if (!canManage) return { error: 'Anda tidak memiliki hak mengelola konfigurasi sanksi.', success: null }
 
   try {
     await ensureSanksiTable(db)
@@ -461,6 +493,10 @@ export async function simpanSanksiItem(prevState: any, formData: FormData) {
 
 export async function hapusSanksiItem(id: string) {
   const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Tidak terautentikasi' }
+  const canManage = await hasAnyRole(db, user.id, MANAGE_KEDISIPLINAN_ROLES)
+  if (!canManage) return { error: 'Anda tidak memiliki hak mengelola konfigurasi sanksi.' }
   try {
     await db.prepare(`DELETE FROM sanksi_config WHERE id = ?`).bind(id).run()
     await reorderSanksi(db)
@@ -478,6 +514,8 @@ export async function simpanKedisiplinanConfig(prevState: any, formData: FormDat
   const db = await getDB()
   const user = await getCurrentUser()
   if (!user) return { error: 'Tidak terautentikasi', success: null }
+  const canManage = await hasAnyRole(db, user.id, MANAGE_KEDISIPLINAN_ROLES)
+  if (!canManage) return { error: 'Anda tidak memiliki hak mengelola konfigurasi kedisiplinan.', success: null }
 
   const keys = ['threshold_perhatian', 'threshold_peringatan', 'threshold_kritis', 'credit_score_awal']
   try {

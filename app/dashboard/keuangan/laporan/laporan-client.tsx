@@ -227,12 +227,18 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
       <style>{`
         @media print {
           @page { size: A4 ${orientasi}; margin: 12mm; }
+          html, body { width: auto !important; height: auto !important; overflow: visible !important; background: white !important; }
           body * { visibility: hidden !important; }
           .print-area, .print-area * { visibility: visible !important; }
-          .print-area { position: absolute !important; inset: 0 !important; width: 100% !important; background: white !important; color: #111827 !important; }
+          .print-area { display: block !important; position: static !important; width: 100% !important; height: auto !important; overflow: visible !important; background: white !important; color: #111827 !important; }
           .no-print { display: none !important; }
-          .print-page { box-shadow: none !important; border: 0 !important; padding: 0 !important; }
+          .print-page { display: block !important; height: auto !important; overflow: visible !important; box-shadow: none !important; border: 0 !important; padding: 0 !important; }
           .print-break { break-before: page; }
+          .print-section { break-inside: auto; page-break-inside: auto; }
+          .print-section h2 { break-after: avoid; page-break-after: avoid; }
+          .print-table { break-inside: auto; page-break-inside: auto; }
+          .print-table thead { display: table-header-group; }
+          .print-table tr { break-inside: avoid; page-break-inside: avoid; }
         }
       `}</style>
 
@@ -720,7 +726,7 @@ function PrintHeader({ judul, periode }: { judul: string; periode: string }) {
 
 function PrintSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mb-5">
+    <section className="print-section mb-5">
       <h2 className="mb-2 border-b border-slate-300 pb-1 text-[12px] font-black uppercase">{title}</h2>
       {children}
     </section>
@@ -738,7 +744,7 @@ function PrintMetric({ label, value }: { label: string; value: string }) {
 
 function PrintTable({ headers, children }: { headers: string[]; children: React.ReactNode }) {
   return (
-    <table className="w-full border-collapse text-left">
+    <table className="print-table w-full border-collapse text-left">
       <thead>
         <tr>
           {headers.map(header => (

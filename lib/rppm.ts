@@ -70,6 +70,15 @@ export type RppmTemplateConfig = {
   }
 }
 
+type RppmSubjectProfile = {
+  label: string
+  focusHint: string
+  digitalExamples: string[]
+  productExamples: string[]
+  assessmentExamples: string[]
+  avoidExamples: string[]
+}
+
 const EMPTY_SPEC: RppmSpec = {
   satuan_pendidikan: '',
   mata_pelajaran: '',
@@ -336,15 +345,18 @@ export function normalizePrintSettings(value: unknown): RppmPrintSettings {
 export function buildRppmPrompt(templateType: RppmTemplateType, spec: RppmSpec): string {
   const template = getRppmTemplate(templateType)
   const schema = emptyRppmContent(spec)
+  const subjectProfile = getRppmSubjectProfile(spec)
   const modelFrame = buildModelFrame(template)
-  const kerangkaFrame = buildKerangkaFrame(template, spec)
-  const contentContract = buildContentContract(template)
+  const kerangkaFrame = buildKerangkaFrame(template, spec, subjectProfile)
+  const contentContract = buildContentContract(template, subjectProfile)
+  const adaptationGuide = buildAdaptationGuide(template, spec, subjectProfile)
 
   return [
     'Anda adalah penyusun RPPM KBC madrasah. Tugas Anda mengisi template RPPM, bukan membuat format baru.',
     `Gunakan MODEL PEMBELAJARAN: ${template.modelLabel}.`,
     'Output harus sangat setia pada struktur template RPPM KBC: A Spesifikasi, B Identifikasi, C Desain Pembelajaran, D Pengalaman Belajar, E Asesmen Pembelajaran.',
     'Jangan menambah bagian baru, jangan mengubah nama bagian, dan jangan menghilangkan baris template.',
+    'Template adalah kerangka pedagogis; isi pembelajaran harus ditulis ulang secara hidup sesuai mapel, topik, kelas, konteks topik, dan model yang dipilih.',
     '',
     'DATA SPESIFIKASI YANG WAJIB DIPAKAI APA ADANYA:',
     `- Satuan Pendidikan: ${spec.satuan_pendidikan || '[isi satuan pendidikan]'}`,
@@ -360,6 +372,9 @@ export function buildRppmPrompt(templateType: RppmTemplateType, spec: RppmSpec):
     '- Gunakan Konteks Topik untuk menentukan fokus pembahasan, batasan materi, contoh, teks bacaan, perbandingan, atau kasus yang harus muncul dalam kegiatan belajar.',
     '- Jangan menyalin seluruh Konteks Topik ke field spesifikasi.topik_pembelajaran.',
     '- Jika ada teks bacaan dalam Konteks Topik, gunakan sebagai sumber aktivitas, pertanyaan pemantik, bahan memahami, mengaplikasi, atau asesmen.',
+    '',
+    'ATURAN ADAPTASI ISI, BUKAN SEKADAR GANTI KATA:',
+    adaptationGuide,
     '',
     'DAFTAR DPL YANG BOLEH DIPILIH:',
     RPPM_DPL_OPTIONS.map(item => `- ${item}`).join('\n'),
@@ -391,6 +406,8 @@ export function buildRppmPrompt(templateType: RppmTemplateType, spec: RppmSpec):
     '- Gunakan istilah Memahami, Mengaplikasi, dan Merefleksi persis sesuai template.',
     '- Isi harus konkret sesuai mata pelajaran, kelas/semester, topik, dan alokasi waktu.',
     '- Jangan membuat isi generik seperti "materi ajar" jika data topik sudah tersedia; ganti dengan topik spesifik.',
+    '- Jangan memakai contoh sumber, media, produk, kasus, atau aktivitas dari mapel lain kecuali Konteks Topik secara eksplisit memintanya.',
+    `- Hindari contoh yang tidak cocok untuk ${subjectProfile.label}: ${subjectProfile.avoidExamples.join(', ')}.`,
     '',
     'ATURAN FORMAT JSON:',
     '- Kembalikan hanya JSON valid tanpa markdown, tanpa komentar, tanpa teks pembuka/penutup.',
@@ -404,8 +421,7 @@ export function buildRppmPrompt(templateType: RppmTemplateType, spec: RppmSpec):
   ].join('\n')
 }
 
-function buildKerangkaFrame(template: RppmTemplateConfig, spec: RppmSpec) {
-  const topic = spec.topik_pembelajaran || '[topik pembelajaran]'
+function buildKerangkaFrame(template: RppmTemplateConfig, spec: RppmSpec, subjectProfile: RppmSubjectProfile) {
   return [
     `Praktik Pedagogis Model Pembelajaran: ${template.modelLabel}`,
     `Metode: ${template.methodText}`,
@@ -418,15 +434,13 @@ function buildKerangkaFrame(template: RppmTemplateConfig, spec: RppmSpec) {
     '- Ruang virtual: daring jika diperlukan, misalnya Google Meet/Zoom/kelas digital.',
     '- Budaya Belajar: kolaboratif, interaktif, dan dukungan guru untuk mengaktifkan murid.',
     'Pemanfaatan Digital (opsional):',
-    `- Video/Animasi: guru menggunakan video/animasi tentang ${topic} sebagai stimulus.`,
-    `- Pencarian Informasi: murid menggunakan browser, Qur'an digital, perpustakaan digital, atau sumber relevan terkait ${topic}.`,
-    `- Pembuatan Produk: murid dapat memakai PowerPoint/Google Slides, Canva/PosterMyWall, MindMeister/XMind, atau alat digital relevan untuk menyajikan hasil belajar tentang ${topic}.`,
+    ...buildRppmKerangkaDigitalLines(spec, subjectProfile),
     '',
     'Masukkan kerangka di atas ke field desain_pembelajaran.kerangka_pembelajaran sebagai string multi-baris. Sesuaikan detailnya dengan topik, tetapi pertahankan subjudul Metode, Kemitraan, Lingkungan Pembelajaran, dan Pemanfaatan Digital.',
   ].join('\n')
 }
 
-function buildContentContract(template: RppmTemplateConfig) {
+function buildContentContract(template: RppmTemplateConfig, subjectProfile: RppmSubjectProfile) {
   return [
     'kegiatan_awal harus berupa array 6-8 poin yang mengadaptasi redaksi template:',
     '- Mengucapkan salam dan mengajak berdoa.',
@@ -450,11 +464,211 @@ function buildContentContract(template: RppmTemplateConfig) {
     '- Guru menutup kegiatan dengan mengajak murid bersyukur, berdoa, dan mengucapkan salam.',
     '',
     'asesmen_pembelajaran harus mengikuti karakter template:',
-    '- asesmen_proses: jelaskan asesmen untuk perbaikan proses pembelajaran, umpan balik progres murid, dan refleksi guru; contoh bisa penilaian sejawat, penilaian diri, observasi, jurnal, pertanyaan diagnostik, atau umpan balik formatif.',
-    '- asesmen_akhir: jelaskan asesmen untuk mengukur capaian pembelajaran akhir; pilih contoh yang relevan dengan model/topik, misalnya proyek, produk, portofolio, kinerja, tes tertulis, atau tes lisan.',
+    `- asesmen_proses: jelaskan asesmen untuk perbaikan proses pembelajaran, umpan balik progres murid, dan refleksi guru; pilih bentuk yang cocok untuk ${subjectProfile.label}, misalnya ${subjectProfile.assessmentExamples.slice(0, 3).join(', ')}.`,
+    `- asesmen_akhir: jelaskan asesmen untuk mengukur capaian pembelajaran akhir; pilih bentuk yang relevan dengan model/topik, misalnya ${subjectProfile.assessmentExamples.join(', ')}.`,
     '',
     `Pastikan semua isi kegiatan inti menggunakan model ${template.modelLabel}, bukan model lain.`,
   ].join('\n')
+}
+
+function buildAdaptationGuide(template: RppmTemplateConfig, spec: RppmSpec, subjectProfile: RppmSubjectProfile) {
+  const topic = spec.topik_pembelajaran || '[topik pembelajaran]'
+  const context = spec.konteks_topik?.trim()
+  return [
+    `- Profil mapel terdeteksi: ${subjectProfile.label}. ${subjectProfile.focusHint}`,
+    `- Topik inti adalah "${topic}". Setiap kegiatan inti wajib menyebut konsep, data, teks, soal, kasus, produk, atau keterampilan yang memang berkaitan dengan topik ini.`,
+    context
+      ? '- Konteks Topik dari user adalah prioritas tertinggi untuk menentukan batasan materi, contoh, bahan bacaan, soal, kasus, dan produk.'
+      : '- Jika Konteks Topik kosong, buat fokus materi yang wajar dari Topik Pembelajaran dan Mata Pelajaran, tanpa mengarang sumber yang terlalu spesifik.',
+    '- Contoh media digital, produk, dan asesmen di bawah hanyalah pilihan; pilih yang paling nyambung, jangan memasukkan semuanya.',
+    `- Contoh media/sumber yang cocok: ${subjectProfile.digitalExamples.join(', ')}.`,
+    `- Contoh produk/artefak yang cocok: ${subjectProfile.productExamples.join(', ')}.`,
+    `- Jangan gunakan contoh yang melenceng: ${subjectProfile.avoidExamples.join(', ')}.`,
+    ...buildModelAdaptationRules(template, subjectProfile),
+    '- Integrasi KBC harus natural: nilai cinta ilmu, ketelitian, tanggung jawab, kolaborasi, adab belajar, atau kemanfaatan ilmu boleh dipilih sesuai topik; jangan memaksakan dalil/ritual agama pada mapel non-keagamaan.',
+    '- Variasikan redaksi dan aktivitas sesuai model. Dua RPPM dengan model sama boleh punya alur sintaks sama, tetapi stimulus, tugas, kasus, produk, sumber, dan asesmennya harus berbeda mengikuti mapel dan topik.',
+    '- Kata kunci sintaks template adalah tahapan kerja, bukan kalimat siap-tempel. Tulis ulang poin kegiatan sebagai instruksi kelas yang konkret dan alami.',
+  ].join('\n')
+}
+
+function buildModelAdaptationRules(template: RppmTemplateConfig, subjectProfile: RppmSubjectProfile) {
+  if (template.type === 'pjbl') {
+    return [
+      `- Karena modelnya PjBL, produk proyek wajib lahir dari ${subjectProfile.label} dan topik. Jangan default selalu poster/presentasi; boleh berupa ${subjectProfile.productExamples.join(', ')} jika cocok.`,
+      '- Rancang pertanyaan pemantik, rencana proyek, jadwal, pelaksanaan, monitoring, presentasi produk, dan evaluasi pengalaman proyek secara spesifik, bukan generik.',
+    ]
+  }
+  if (template.type === 'pbl') {
+    return [
+      `- Karena modelnya PBL, masalah/kasus harus nyata atau masuk akal untuk ${subjectProfile.label}; solusi murid harus memakai konsep topik, bukan opini umum.`,
+      '- Hindari mengubah PBL menjadi proyek produk panjang; fokus pada penyelidikan masalah dan argumentasi solusi.',
+    ]
+  }
+  if (template.type === 'discovery-learning') {
+    return [
+      `- Karena modelnya Discovery Learning, stimulus, rumusan masalah, data, pengolahan, verifikasi, dan generalisasi harus berupa proses menemukan konsep ${subjectProfile.label}.`,
+      '- Jangan membuat murid hanya menerima penjelasan guru; arahkan mereka mengamati pola/bukti lalu menyimpulkan.',
+    ]
+  }
+  if (template.type === 'lok-r') {
+    return [
+      `- Karena modelnya LOK-R, bahan literasi harus cocok untuk ${subjectProfile.label}; orientasi mengarahkan fokus konsep, kolaborasi mengolah tugas, refleksi menilai hasil dan proses.`,
+      '- Jangan mengubah LOK-R menjadi sintaks Discovery/PBL/PjBL; cukup gunakan Literasi, Orientasi, Kolaborasi, Refleksi.',
+    ]
+  }
+  return [
+    `- Karena modelnya Cooperative Learning, tugas kelompok harus cocok untuk ${subjectProfile.label}; atur peran, diskusi, olah informasi, presentasi, evaluasi, dan apresiasi kelompok.`,
+    '- Jangan menjadikan Cooperative Learning sebagai proyek panjang; fokus pada kerja tim dan tanggung jawab antaranggota.',
+  ]
+}
+
+export function buildRppmKerangkaDigitalText(spec: RppmSpec): string {
+  return buildRppmKerangkaDigitalLines(spec, getRppmSubjectProfile(spec))
+    .map(line => line.replace(/^- /, ''))
+    .join('\n')
+}
+
+function buildRppmKerangkaDigitalLines(spec: RppmSpec, subjectProfile: RppmSubjectProfile) {
+  const topic = spec.topik_pembelajaran || '[topik pembelajaran]'
+  const [primary, secondary, tertiary] = subjectProfile.digitalExamples
+  return [
+    `- Video/Animasi/Media Visual: guru menggunakan ${primary} untuk menampilkan konteks atau pola penting tentang ${topic}.`,
+    `- Pencarian/Pengolahan Informasi: murid menggunakan ${secondary || primary} atau sumber relevan untuk menelaah data, teks, konsep, contoh, atau kasus terkait ${topic}.`,
+    `- Pembuatan Produk/Presentasi: murid dapat memakai ${tertiary || primary} untuk menyajikan hasil belajar tentang ${topic} dalam bentuk yang sesuai mapel.`,
+  ]
+}
+
+function getRppmSubjectProfile(spec: RppmSpec): RppmSubjectProfile {
+  const subjectText = normalizeSubjectText(spec.mata_pelajaran)
+  const contentText = normalizeSubjectText([
+    spec.topik_pembelajaran,
+    spec.konteks_topik,
+  ].join(' '))
+  const haystack = `${subjectText} ${contentText}`.trim()
+  const arabicKeywords = ['bahasa arab', 'idhofah', 'idhafah', 'idafah', 'mudhaf', 'nahwu', 'sharaf', 'mufradat', 'qiraah', 'hiwar', 'kitabah']
+  const religiousKeywords = ['al-qur', 'alqur', 'quran', 'hadis', 'fikih', 'fiqih', 'akidah', 'akhlak', 'ski', 'sejarah kebudayaan islam', 'pai', 'pendidikan agama']
+  const scienceKeywords = ['ipa', 'fisika', 'kimia', 'biologi', 'sains', 'ekosistem', 'sel', 'gerak', 'energi', 'zat', 'reaksi', 'listrik']
+  const languageKeywords = ['bahasa indonesia', 'bahasa inggris', 'english', 'teks', 'cerpen', 'puisi', 'pidato', 'deskripsi', 'narasi', 'argumentasi', 'grammar', 'reading', 'writing', 'speaking']
+  const socialKeywords = ['ips', 'sejarah', 'geografi', 'ekonomi', 'sosiologi', 'antropologi', 'pkn', 'ppkn', 'kewarganegaraan']
+  const artTechKeywords = ['seni', 'prakarya', 'informatika', 'tik', 'komputer', 'coding', 'desain', 'musik', 'rupa', 'kerajinan']
+  const pjokKeywords = ['pjok', 'penjas', 'olahraga', 'kesehatan jasmani', 'atletik', 'senam', 'bola']
+  const mathKeywords = ['matematika', 'aritmetika', 'bilangan', 'pecahan', 'perbandingan', 'aljabar', 'geometri', 'trigonometri', 'statistika', 'peluang', 'fungsi', 'persamaan', 'koordinat', 'bangun datar', 'bangun ruang']
+  const knownSubject = hasAny(subjectText, [
+    ...arabicKeywords,
+    ...religiousKeywords,
+    ...scienceKeywords,
+    ...languageKeywords,
+    ...socialKeywords,
+    ...artTechKeywords,
+    ...pjokKeywords,
+    ...mathKeywords,
+  ])
+  const matchesProfile = (keywords: string[]) => hasAny(subjectText, keywords) || (!knownSubject && hasAny(haystack, keywords))
+
+  if (matchesProfile(mathKeywords)) {
+    return {
+      label: 'Matematika',
+      focusHint: 'Utamakan konsep, pola, representasi, langkah penyelesaian, penalaran, dan ketelitian.',
+      digitalExamples: ['GeoGebra/Desmos, grafik, diagram, atau animasi konsep', 'kalkulator ilmiah, spreadsheet, bank soal kontekstual, atau simulasi matematika', 'spreadsheet, GeoGebra, Google Slides, papan tulis digital, atau infografis langkah penyelesaian'],
+      productExamples: ['lembar strategi penyelesaian', 'model/diagram matematika', 'infografis konsep', 'presentasi argumentasi solusi', 'kumpulan soal kontekstual buatan murid'],
+      assessmentExamples: ['observasi strategi penyelesaian', 'kuis singkat', 'tes tertulis bertahap', 'rubrik penalaran', 'presentasi solusi', 'portofolio latihan'],
+      avoidExamples: ['sumber dalil/keagamaan yang tidak diminta konteks', 'hafalan ayat', 'produk dakwah yang tidak terkait konsep matematika'],
+    }
+  }
+
+  if (matchesProfile(arabicKeywords)) {
+    return {
+      label: 'Bahasa Arab',
+      focusHint: 'Utamakan makna, struktur bahasa, contoh kalimat, latihan identifikasi, pelafalan, dan penggunaan dalam konteks.',
+      digitalExamples: ['teks qiraah, kartu mufradat digital, audio pelafalan, atau contoh kalimat', 'kamus Arab-Indonesia, korpus teks sederhana, e-book bahasa Arab, atau sumber bacaan yang diberikan guru', 'Google Docs, Canva, kartu kalimat digital, rekaman audio, atau slide contoh penggunaan'],
+      productExamples: ['kartu contoh kalimat', 'dialog pendek', 'tabel pola struktur', 'teks sederhana', 'rekaman pelafalan', 'peta konsep kaidah'],
+      assessmentExamples: ['observasi pelafalan', 'latihan identifikasi struktur', 'tes tulis singkat', 'praktik membuat kalimat', 'rubrik dialog/kitabah', 'portofolio contoh kalimat'],
+      avoidExamples: ['sumber dalil/keagamaan kecuali konteks eksplisit meminta ayat', 'analisis fikih', 'kasus matematika yang tidak relevan'],
+    }
+  }
+
+  if (matchesProfile(religiousKeywords)) {
+    return {
+      label: 'Keagamaan Islam',
+      focusHint: 'Utamakan pemahaman dalil, konsep keislaman, praktik/adab, keteladanan, dan penerapan nilai dalam kehidupan.',
+      digitalExamples: ['mushaf digital, video praktik, peta konsep dalil, atau infografis adab', 'Qur\'an digital, hadis digital, e-book keislaman, atau sumber madrasah yang valid', 'slide, peta konsep, poster adab, jurnal refleksi, atau rekaman praktik'],
+      productExamples: ['peta konsep dalil', 'poster adab/praktik', 'jurnal refleksi', 'panduan singkat', 'presentasi keteladanan', 'simulasi praktik'],
+      assessmentExamples: ['observasi praktik/adab', 'tes lisan', 'tes tertulis', 'jurnal refleksi', 'rubrik presentasi dalil', 'portofolio penerapan nilai'],
+      avoidExamples: ['alat matematika seperti GeoGebra jika tidak relevan', 'eksperimen laboratorium IPA yang tidak terkait', 'produk proyek teknis yang tidak diperlukan'],
+    }
+  }
+
+  if (matchesProfile(scienceKeywords)) {
+    return {
+      label: 'IPA/Sains',
+      focusHint: 'Utamakan fenomena, observasi, data, percobaan, sebab-akibat, model ilmiah, dan keselamatan kerja.',
+      digitalExamples: ['simulasi PhET, video eksperimen, animasi proses, atau gambar fenomena', 'artikel sains populer, data pengamatan, simulasi laboratorium virtual, atau e-book IPA', 'laporan digital, tabel data, grafik spreadsheet, slide hasil percobaan, atau infografis proses'],
+      productExamples: ['laporan pengamatan', 'model proses', 'grafik data', 'poster ilmiah', 'rancangan eksperimen sederhana', 'presentasi temuan'],
+      assessmentExamples: ['observasi praktikum', 'lembar kerja data', 'kuis konsep', 'rubrik laporan', 'presentasi temuan', 'tes tertulis berbasis fenomena'],
+      avoidExamples: ['sumber dalil/keagamaan yang tidak diminta konteks', 'hafalan dalil', 'produk dakwah yang tidak terkait fenomena sains'],
+    }
+  }
+
+  if (matchesProfile(languageKeywords)) {
+    return {
+      label: 'Bahasa dan Literasi',
+      focusHint: 'Utamakan pemahaman teks, kosakata, struktur, keterampilan membaca/menulis/berbicara, dan konteks komunikasi.',
+      digitalExamples: ['teks bacaan digital, audio/video percakapan, atau contoh karya bahasa', 'kamus digital, e-book, artikel, korpus sederhana, atau sumber bacaan yang diberikan guru', 'Google Docs, rekaman audio/video, slide, poster teks, atau papan kolaboratif'],
+      productExamples: ['teks pendek', 'dialog', 'ulasan', 'peta ide', 'rekaman presentasi', 'poster kebahasaan'],
+      assessmentExamples: ['rubrik membaca/menulis/berbicara', 'kuis kosakata', 'analisis teks', 'praktik dialog', 'portofolio tulisan', 'presentasi lisan'],
+      avoidExamples: ['sumber dalil/keagamaan kecuali konteks eksplisit meminta teks ayat', 'rumus matematika yang tidak relevan', 'percobaan laboratorium'],
+    }
+  }
+
+  if (matchesProfile(socialKeywords)) {
+    return {
+      label: 'IPS/Sosial',
+      focusHint: 'Utamakan fenomena sosial, data, peta, kronologi, sebab-akibat, peran warga, dan argumentasi.',
+      digitalExamples: ['peta digital, linimasa, video peristiwa, grafik data, atau infografis sosial', 'artikel berita, data BPS, peta, dokumen sejarah, atau sumber sosial yang kredibel', 'linimasa digital, infografis, peta konsep, slide analisis, atau poster kampanye'],
+      productExamples: ['linimasa', 'peta konsep', 'infografis data', 'analisis kasus', 'poster kampanye', 'presentasi argumentasi'],
+      assessmentExamples: ['analisis kasus', 'kuis konsep', 'rubrik presentasi', 'lembar analisis data', 'portofolio sumber', 'tes tertulis berbasis kasus'],
+      avoidExamples: ['sumber dalil/keagamaan yang tidak diminta konteks', 'simulasi laboratorium IPA', 'rumus matematika yang tidak terkait data sosial'],
+    }
+  }
+
+  if (matchesProfile(artTechKeywords)) {
+    return {
+      label: 'Seni/Prakarya/Teknologi',
+      focusHint: 'Utamakan eksplorasi ide, desain, teknik, proses kreatif, produk, revisi, dan presentasi karya.',
+      digitalExamples: ['contoh karya digital, video demonstrasi teknik, simulasi desain, atau galeri referensi', 'tutorial, perangkat desain, dokumentasi proses, atau sumber karya yang relevan', 'Canva, editor gambar/video, spreadsheet rancangan, slide portofolio, atau aplikasi coding/desain'],
+      productExamples: ['prototype', 'desain karya', 'portofolio proses', 'presentasi karya', 'produk praktik', 'dokumentasi revisi'],
+      assessmentExamples: ['rubrik proses kreatif', 'rubrik produk', 'observasi praktik', 'portofolio karya', 'presentasi karya', 'jurnal refleksi'],
+      avoidExamples: ['sumber dalil/keagamaan yang tidak diminta konteks', 'tes hafalan dalil', 'rumus matematika tanpa kebutuhan desain'],
+    }
+  }
+
+  if (matchesProfile(pjokKeywords)) {
+    return {
+      label: 'PJOK',
+      focusHint: 'Utamakan gerak, teknik, keselamatan, kebugaran, kerja sama, dan kebiasaan hidup sehat.',
+      digitalExamples: ['video demonstrasi gerak, slow-motion teknik, atau gambar tahapan gerakan', 'lembar observasi kebugaran, sumber kesehatan terpercaya, atau rekaman praktik', 'video praktik, jurnal kebugaran, poster teknik aman, atau slide refleksi'],
+      productExamples: ['rekaman praktik', 'jurnal kebugaran', 'poster teknik', 'rencana latihan sederhana', 'demonstrasi kelompok'],
+      assessmentExamples: ['observasi keterampilan gerak', 'rubrik praktik', 'jurnal kebugaran', 'tes performa', 'penilaian diri', 'umpan balik teman'],
+      avoidExamples: ['sumber dalil/keagamaan yang tidak diminta konteks', 'analisis teks panjang yang tidak terkait gerak', 'simulasi matematika'],
+    }
+  }
+
+  return {
+    label: 'Mapel umum',
+    focusHint: 'Utamakan konsep inti, keterampilan yang dilatih, konteks nyata, sumber belajar yang relevan, dan hasil belajar yang terukur.',
+    digitalExamples: ['video/animasi sesuai topik, gambar, diagram, atau bahan ajar digital', 'browser, e-book, artikel tepercaya, perpustakaan digital, atau sumber yang diberikan guru', 'slide, dokumen kolaboratif, infografis, peta konsep, atau media presentasi yang relevan'],
+    productExamples: ['peta konsep', 'lembar hasil diskusi', 'presentasi', 'infografis', 'rangkuman terstruktur', 'portofolio belajar'],
+    assessmentExamples: ['observasi', 'kuis singkat', 'rubrik presentasi', 'lembar kerja', 'tes tertulis', 'portofolio'],
+    avoidExamples: ['sumber atau produk dari mapel lain yang tidak disebut dalam konteks', 'contoh agama/sains/matematika yang tidak relevan'],
+  }
+}
+
+function normalizeSubjectText(value: string) {
+  return value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+}
+
+function hasAny(value: string, keywords: string[]) {
+  return keywords.some(keyword => value.includes(keyword))
 }
 
 function buildModelFrame(template: RppmTemplateConfig) {

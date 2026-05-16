@@ -10,6 +10,7 @@ import {
   CKH_TEACHING_ACTIVITY,
   CKH_OTHER_DUTY_ACTIVITY,
   buildTeachingRows,
+  countCkhItems,
   getCkhEffectiveDates,
   monthRange,
   normalizeCkhText,
@@ -23,6 +24,7 @@ type CkhUser = {
   id: string
   nama_lengkap: string
   role: string
+  signature_url: string | null
   nip: string | null
   pangkat_golongan: string | null
   jabatan_cetak: string | null
@@ -34,6 +36,10 @@ type CkhDocument = {
   year: number
   month: number
   status: string
+  signature_enabled: number
+  signature_x_mm: number
+  signature_y_mm: number
+  signature_width_mm: number
 }
 
 type CkhRow = {
@@ -60,6 +66,8 @@ type CkhKepsek = {
   jabatan_cetak: string | null
 }
 
+type CkhSigner = CkhKepsek
+
 function assertMonth(year: number, month: number) {
   if (!Number.isInteger(year) || year < 2020 || year > 2100) throw new Error('Tahun tidak valid.')
   if (!Number.isInteger(month) || month < 1 || month > 12) throw new Error('Bulan tidak valid.')
@@ -68,6 +76,20 @@ function assertMonth(year: number, month: number) {
 function cleanNullable(value: FormDataEntryValue | null) {
   const text = normalizeCkhText(String(value || ''))
   return text || null
+}
+
+function cleanCkhMultiline(value: string | null | undefined) {
+  return String(value || '')
+    .split(/\r?\n/)
+    .map(item => normalizeCkhText(item))
+    .filter(Boolean)
+    .join('\n')
+}
+
+function cleanCkhVolume(value: unknown, fallbackText: string) {
+  const vol = Number(value)
+  if (Number.isFinite(vol) && vol > 0) return Math.floor(vol)
+  return countCkhItems(fallbackText)
 }
 
 function getPrimaryRoleFromRows(userRoleRows: string[], fallback: string) {
@@ -81,7 +103,7 @@ async function requireCkhAccess(db: D1Database, userId: string) {
 
 async function getFreshUser(db: D1Database, userId: string): Promise<CkhUser> {
   const user = await db.prepare(`
-    SELECT id, COALESCE(nama_lengkap, name) as nama_lengkap, role, nip, pangkat_golongan, jabatan_cetak
+    SELECT id, COALESCE(nama_lengkap, name) as nama_lengkap, role, signature_url, nip, pangkat_golongan, jabatan_cetak
     FROM "user"
     WHERE id = ?
   `).bind(userId).first<CkhUser>()
@@ -92,6 +114,7 @@ async function getFreshUser(db: D1Database, userId: string): Promise<CkhUser> {
 async function getOrCreateDocument(db: D1Database, userId: string, year: number, month: number) {
   let doc = await db.prepare(`
     SELECT id, user_id, year, month, status
+         , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
     FROM ckh_documents
     WHERE user_id = ? AND year = ? AND month = ?
   `).bind(userId, year, month).first<CkhDocument>()
@@ -100,7 +123,7 @@ async function getOrCreateDocument(db: D1Database, userId: string, year: number,
     doc = await db.prepare(`
       INSERT INTO ckh_documents (user_id, year, month)
       VALUES (?, ?, ?)
-      RETURNING id, user_id, year, month, status
+      RETURNING id, user_id, year, month, status, signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
     `).bind(userId, year, month).first<CkhDocument>()
   }
 
@@ -116,6 +139,14 @@ async function getRows(db: D1Database, documentId: string) {
     ORDER BY tanggal ASC, row_order ASC, created_at ASC
   `).bind(documentId).all<CkhRow>()
   return result.results || []
+}
+
+async function markCkhDocumentDraft(db: D1Database, documentId: string) {
+  await db.prepare(`
+    UPDATE ckh_documents
+    SET status = 'DRAFT', updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(documentId).run()
 }
 
 async function getTemplatesForUser(db: D1Database, roles: string[], jabatanCetak: string | null) {
@@ -280,6 +311,7 @@ async function insertInitialRows(db: D1Database, documentId: string, generated: 
         tanggal,
         kegiatan_bulanan: '',
         catatan_harian: '',
+        vol: CKH_DEFAULT_VOL,
         source: 'manual' as const,
         source_key: `blank:${tanggal}:${index}`,
       })),
@@ -295,7 +327,7 @@ async function insertInitialRows(db: D1Database, documentId: string, generated: 
     index + 1,
     row.kegiatan_bulanan,
     row.catatan_harian,
-    CKH_DEFAULT_VOL,
+    row.vol || countCkhItems(row.catatan_harian) || CKH_DEFAULT_VOL,
     CKH_DEFAULT_SATUAN,
     row.source,
     row.source_key,
@@ -323,7 +355,7 @@ export async function getCkhPageData(year: number, month: number) {
   const generated = await buildGeneratedRows(db, authUser.id, year, month)
   await insertInitialRows(db, doc.id, generated, year, month)
 
-  const [rows, templates, allTemplatesRes, kepsek] = await Promise.all([
+  const [rows, templates, allTemplatesRes, kepsek, kepalaTu] = await Promise.all([
     getRows(db, doc.id),
     getTemplatesForUser(db, roles, freshUser.jabatan_cetak),
     db.prepare(`
@@ -341,6 +373,24 @@ export async function getCkhPageData(year: number, month: number) {
       ORDER BY u.nama_lengkap ASC
       LIMIT 1
     `).first<CkhKepsek>(),
+    db.prepare(`
+      SELECT u.id, COALESCE(u.nama_lengkap, u.name) as nama_lengkap, u.nip, COALESCE(u.jabatan_cetak, 'Kepala TU') as jabatan_cetak
+      FROM "user" u
+      LEFT JOIN user_roles ur ON ur.user_id = u.id
+      LEFT JOIN master_jabatan_struktural mjs ON u.jabatan_struktural_id = mjs.id
+      WHERE LOWER(COALESCE(mjs.nama, u.jabatan_cetak, '')) LIKE '%kepala tu%'
+         OR LOWER(COALESCE(mjs.nama, u.jabatan_cetak, '')) LIKE '%kepala tata usaha%'
+         OR u.role = 'admin_tu'
+         OR ur.role = 'admin_tu'
+      ORDER BY
+        CASE
+          WHEN LOWER(COALESCE(mjs.nama, u.jabatan_cetak, '')) LIKE '%kepala tu%' THEN 0
+          WHEN LOWER(COALESCE(mjs.nama, u.jabatan_cetak, '')) LIKE '%kepala tata usaha%' THEN 0
+          ELSE 1
+        END,
+        u.nama_lengkap ASC
+      LIMIT 1
+    `).first<CkhSigner>(),
   ])
 
   const templateMap = new Map<string, CkhTemplate>()
@@ -376,6 +426,7 @@ export async function getCkhPageData(year: number, month: number) {
     templates,
     allTemplates: Array.from(templateMap.values()),
     kepsek: kepsek || null,
+    kepalaTu: kepalaTu || null,
     generatedCount: generated.length,
   }
 }
@@ -384,34 +435,105 @@ export async function saveCkhRow(rowId: string, payload: {
   kegiatan_bulanan: string
   catatan_harian: string
   tanggal: string
+  vol?: number
 }) {
   const authUser = await getCurrentUser()
   if (!authUser) return { error: 'Unauthorized' }
 
-  const kegiatan = normalizeCkhText(payload.kegiatan_bulanan)
-  const catatan = normalizeCkhText(payload.catatan_harian)
+  const kegiatan = cleanCkhMultiline(payload.kegiatan_bulanan)
+  const catatan = cleanCkhMultiline(payload.catatan_harian)
+  const vol = cleanCkhVolume(payload.vol, catatan)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.tanggal)) return { error: 'Tanggal tidak valid.' }
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
   const row = await db.prepare(`
-    SELECT r.id, d.user_id
+    SELECT r.id, d.id as document_id, d.user_id
     FROM ckh_rows r
     JOIN ckh_documents d ON r.document_id = d.id
     WHERE r.id = ?
-  `).bind(rowId).first<{ id: string; user_id: string }>()
+  `).bind(rowId).first<{ id: string; document_id: string; user_id: string }>()
   if (!row || row.user_id !== authUser.id) return { error: 'Baris CKH tidak ditemukan.' }
 
+  await markCkhDocumentDraft(db, row.document_id)
   await db.prepare(`
     UPDATE ckh_rows
-    SET tanggal = ?, kegiatan_bulanan = ?, catatan_harian = ?, is_manual = 1,
+    SET tanggal = ?, kegiatan_bulanan = ?, catatan_harian = ?, vol = ?, is_manual = 1,
         has_conflict = 0, suggested_kegiatan_bulanan = NULL, suggested_catatan_harian = NULL,
         updated_at = datetime('now')
     WHERE id = ?
-  `).bind(payload.tanggal, kegiatan, catatan, rowId).run()
+  `).bind(payload.tanggal, kegiatan, catatan, vol, rowId).run()
 
   revalidatePath('/dashboard/ckh-generator')
-  return { success: true }
+  revalidatePath('/dashboard/tpg-dokumen')
+  return { success: true, row: { id: rowId, tanggal: payload.tanggal, kegiatan_bulanan: kegiatan, catatan_harian: catatan, vol } }
+}
+
+export async function finalizeCkhDocument(documentId: string) {
+  const authUser = await getCurrentUser()
+  if (!authUser) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  await requireCkhAccess(db, authUser.id)
+  const doc = await db.prepare('SELECT id, user_id FROM ckh_documents WHERE id = ?').bind(documentId).first<{ id: string; user_id: string }>()
+  if (!doc || doc.user_id !== authUser.id) return { error: 'Dokumen CKH tidak ditemukan.' }
+
+  const rowCount = await db.prepare(`
+    SELECT COUNT(*) as count
+    FROM ckh_rows
+    WHERE document_id = ?
+      AND (TRIM(kegiatan_bulanan) <> '' OR TRIM(catatan_harian) <> '')
+  `).bind(documentId).first<{ count: number }>()
+  if (!rowCount || Number(rowCount.count) === 0) return { error: 'Isi CKH dulu sebelum dikirim.' }
+
+  await db.prepare(`
+    UPDATE ckh_documents
+    SET status = 'FINAL', updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(documentId).run()
+
+  revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/tpg-dokumen')
+  return { success: true, status: 'FINAL' }
+}
+
+export async function saveCkhSignatureSettings(documentId: string, payload: {
+  enabled: boolean
+  xMm: number
+  yMm: number
+  widthMm: number
+}) {
+  const authUser = await getCurrentUser()
+  if (!authUser) return { error: 'Unauthorized' }
+
+  const xMm = Math.max(-20, Math.min(80, Number(payload.xMm) || 0))
+  const yMm = Math.max(-20, Math.min(80, Number(payload.yMm) || 0))
+  const widthMm = Math.max(15, Math.min(90, Number(payload.widthMm) || 38))
+
+  const db = await getDB()
+  await requireCkhAccess(db, authUser.id)
+  const doc = await db.prepare('SELECT id, user_id FROM ckh_documents WHERE id = ?').bind(documentId).first<{ id: string; user_id: string }>()
+  if (!doc || doc.user_id !== authUser.id) return { error: 'Dokumen CKH tidak ditemukan.' }
+
+  await markCkhDocumentDraft(db, documentId)
+  await db.prepare(`
+    UPDATE ckh_documents
+    SET signature_enabled = ?, signature_x_mm = ?, signature_y_mm = ?, signature_width_mm = ?,
+        updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(payload.enabled ? 1 : 0, xMm, yMm, widthMm, documentId).run()
+
+  revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/tpg-dokumen')
+  return {
+    success: true,
+    settings: {
+      signature_enabled: payload.enabled ? 1 : 0,
+      signature_x_mm: xMm,
+      signature_y_mm: yMm,
+      signature_width_mm: widthMm,
+    },
+  }
 }
 
 export async function addCkhRow(documentId: string, tanggal: string) {
@@ -427,6 +549,7 @@ export async function addCkhRow(documentId: string, tanggal: string) {
   const maxRow = await db.prepare('SELECT COALESCE(MAX(row_order), 0) as max_order FROM ckh_rows WHERE document_id = ? AND tanggal = ?')
     .bind(documentId, tanggal).first<{ max_order: number }>()
 
+  await markCkhDocumentDraft(db, documentId)
   const inserted = await db.prepare(`
     INSERT INTO ckh_rows
       (document_id, tanggal, row_order, kegiatan_bulanan, catatan_harian, vol, satuan, source, source_key, is_manual)
@@ -435,6 +558,7 @@ export async function addCkhRow(documentId: string, tanggal: string) {
   `).bind(documentId, tanggal, (maxRow?.max_order || 0) + 1, CKH_DEFAULT_VOL, CKH_DEFAULT_SATUAN, `manual:${tanggal}:${Date.now()}`).first<CkhRow>()
 
   revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/tpg-dokumen')
   return { success: true, row: inserted }
 }
 
@@ -445,15 +569,17 @@ export async function deleteCkhRow(rowId: string) {
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
   const row = await db.prepare(`
-    SELECT r.id, d.user_id
+    SELECT r.id, d.id as document_id, d.user_id
     FROM ckh_rows r
     JOIN ckh_documents d ON r.document_id = d.id
     WHERE r.id = ?
-  `).bind(rowId).first<{ id: string; user_id: string }>()
+  `).bind(rowId).first<{ id: string; document_id: string; user_id: string }>()
   if (!row || row.user_id !== authUser.id) return { error: 'Baris CKH tidak ditemukan.' }
 
+  await markCkhDocumentDraft(db, row.document_id)
   await db.prepare('DELETE FROM ckh_rows WHERE id = ?').bind(rowId).run()
   revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/tpg-dokumen')
   return { success: true }
 }
 
@@ -467,6 +593,7 @@ export async function refreshCkhDraft(documentId: string) {
     .bind(documentId).first<CkhDocument>()
   if (!doc || doc.user_id !== authUser.id) return { error: 'Dokumen CKH tidak ditemukan.' }
 
+  await markCkhDocumentDraft(db, documentId)
   const generated = await buildGeneratedRows(db, authUser.id, doc.year, doc.month)
   const existing = await getRows(db, documentId)
   const existingBySource = new Map(existing.filter(row => row.source_key).map(row => [row.source_key!, row]))
@@ -481,7 +608,7 @@ export async function refreshCkhDraft(documentId: string) {
         INSERT OR IGNORE INTO ckh_rows
           (document_id, tanggal, row_order, kegiatan_bulanan, catatan_harian, vol, satuan, source, source_key, is_manual)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-      `).bind(documentId, row.tanggal, index + 1, row.kegiatan_bulanan, row.catatan_harian, CKH_DEFAULT_VOL, CKH_DEFAULT_SATUAN, row.source, row.source_key))
+      `).bind(documentId, row.tanggal, index + 1, row.kegiatan_bulanan, row.catatan_harian, row.vol || countCkhItems(row.catatan_harian) || CKH_DEFAULT_VOL, CKH_DEFAULT_SATUAN, row.source, row.source_key))
       return
     }
 
@@ -497,11 +624,11 @@ export async function refreshCkhDraft(documentId: string) {
     } else {
       statements.push(db.prepare(`
         UPDATE ckh_rows
-        SET tanggal = ?, row_order = ?, kegiatan_bulanan = ?, catatan_harian = ?,
+        SET tanggal = ?, row_order = ?, kegiatan_bulanan = ?, catatan_harian = ?, vol = ?,
             has_conflict = 0, suggested_kegiatan_bulanan = NULL, suggested_catatan_harian = NULL,
             updated_at = datetime('now')
         WHERE id = ?
-      `).bind(row.tanggal, index + 1, row.kegiatan_bulanan, row.catatan_harian, current.id))
+      `).bind(row.tanggal, index + 1, row.kegiatan_bulanan, row.catatan_harian, row.vol || countCkhItems(row.catatan_harian) || CKH_DEFAULT_VOL, current.id))
     }
   })
 
@@ -523,6 +650,7 @@ export async function refreshCkhDraft(documentId: string) {
   const rows = await getRows(db, documentId)
 
   revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/tpg-dokumen')
   return { success: `Sinkron selesai. ${generated.length} baris sumber dicek.`, rows }
 }
 
@@ -533,13 +661,14 @@ export async function acceptCkhSuggestion(rowId: string) {
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
   const row = await db.prepare(`
-    SELECT r.*, d.user_id
+    SELECT r.*, d.id as document_id, d.user_id
     FROM ckh_rows r
     JOIN ckh_documents d ON r.document_id = d.id
     WHERE r.id = ?
-  `).bind(rowId).first<CkhRow & { user_id: string }>()
+  `).bind(rowId).first<CkhRow & { document_id: string; user_id: string }>()
   if (!row || row.user_id !== authUser.id) return { error: 'Baris CKH tidak ditemukan.' }
 
+  await markCkhDocumentDraft(db, row.document_id)
   await db.prepare(`
     UPDATE ckh_rows
     SET kegiatan_bulanan = COALESCE(suggested_kegiatan_bulanan, kegiatan_bulanan),
@@ -551,6 +680,7 @@ export async function acceptCkhSuggestion(rowId: string) {
   `).bind(rowId).run()
 
   revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/tpg-dokumen')
   return { success: true, rowId }
 }
 
@@ -582,8 +712,18 @@ export async function saveCkhTemplate(formData: FormData) {
     `).bind(role, jabatan, title, sortOrder).run()
   }
 
+  const saved = id
+    ? await db.prepare('SELECT id, role, jabatan_cetak, title, sort_order, is_active FROM ckh_templates WHERE id = ?').bind(id).first<Omit<CkhTemplate, 'notes'>>()
+    : await db.prepare(`
+        SELECT id, role, jabatan_cetak, title, sort_order, is_active
+        FROM ckh_templates
+        WHERE role = ? AND COALESCE(jabatan_cetak, '') = COALESCE(?, '') AND title = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `).bind(role, jabatan, title).first<Omit<CkhTemplate, 'notes'>>()
+
   revalidatePath('/dashboard/ckh-generator')
-  return { success: 'Template CKH disimpan.' }
+  return { success: 'Template CKH disimpan.', template: saved ? { ...saved, notes: [] } : null }
 }
 
 export async function deleteCkhTemplate(id: string) {
@@ -596,7 +736,7 @@ export async function deleteCkhTemplate(id: string) {
 
   await db.prepare('DELETE FROM ckh_templates WHERE id = ?').bind(id).run()
   revalidatePath('/dashboard/ckh-generator')
-  return { success: true }
+  return { success: true, id }
 }
 
 export async function saveCkhTemplateNote(formData: FormData) {
@@ -626,8 +766,18 @@ export async function saveCkhTemplateNote(formData: FormData) {
     `).bind(templateId, note, sortOrder).run()
   }
 
+  const saved = id
+    ? await db.prepare('SELECT id, template_id, note, sort_order, is_active FROM ckh_template_notes WHERE id = ?').bind(id).first<CkhTemplateNote>()
+    : await db.prepare(`
+        SELECT id, template_id, note, sort_order, is_active
+        FROM ckh_template_notes
+        WHERE template_id = ? AND note = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `).bind(templateId, note).first<CkhTemplateNote>()
+
   revalidatePath('/dashboard/ckh-generator')
-  return { success: 'Catatan template disimpan.' }
+  return { success: 'Catatan template disimpan.', note: saved || null }
 }
 
 export async function deleteCkhTemplateNote(id: string) {
@@ -640,5 +790,5 @@ export async function deleteCkhTemplateNote(id: string) {
 
   await db.prepare('DELETE FROM ckh_template_notes WHERE id = ?').bind(id).run()
   revalidatePath('/dashboard/ckh-generator')
-  return { success: true }
+  return { success: true, id }
 }

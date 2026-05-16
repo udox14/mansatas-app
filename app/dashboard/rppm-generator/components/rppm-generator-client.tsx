@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import {
@@ -23,6 +24,7 @@ import {
   RPPM_DPL_OPTIONS,
   RPPM_PANCA_CINTA_OPTIONS,
   RPPM_TEMPLATES,
+  buildRppmKerangkaDigitalText,
   buildRppmPrompt,
   cleanTextArray,
   emptyRppmContent,
@@ -37,7 +39,7 @@ import {
   type RppmTemplateType,
 } from '@/lib/rppm'
 import { buildRppmDocxBlob, buildRppmDocxFilename } from '@/lib/rppm-docx'
-import { saveRppmDocument, type RppmSavedDocument, type RppmSigner } from '../actions'
+import { saveRppmDocument, type RppmMapelOption, type RppmSavedDocument, type RppmSigner } from '../actions'
 import { RppmPrintDocument } from './rppm-print-document'
 
 type Message = { type: 'success' | 'error'; text: string } | null
@@ -68,6 +70,13 @@ const DEFAULT_SPEC: RppmSpec = {
   tanggal_ttd: new Date().toISOString().slice(0, 10),
 }
 
+function defaultSpec(mapelOptions: RppmMapelOption[]): RppmSpec {
+  return {
+    ...DEFAULT_SPEC,
+    mata_pelajaran: mapelOptions.length === 1 ? mapelOptions[0].nama_mapel : '',
+  }
+}
+
 const WIZARD_STEPS = [
   { title: 'Template', desc: 'Pilih model RPPM' },
   { title: 'Spesifikasi', desc: 'Isi data dasar' },
@@ -79,10 +88,12 @@ const WIZARD_STEPS = [
 
 export function RppmGeneratorClient({
   initialDocuments,
+  mapelOptions,
   user,
   kepsek,
 }: {
   initialDocuments: RppmSavedDocument[]
+  mapelOptions: RppmMapelOption[]
   user: RppmSigner
   kepsek: RppmSigner | null
 }) {
@@ -90,7 +101,7 @@ export function RppmGeneratorClient({
   const [documents, setDocuments] = useState(initialDocuments)
   const [activeId, setActiveId] = useState(firstDoc?.id || null)
   const [templateType, setTemplateType] = useState<RppmTemplateType>(firstDoc?.template_type || 'cooperative-learning')
-  const [content, setContent] = useState<RppmContent>(() => firstDoc?.content || emptyRppmContent(DEFAULT_SPEC))
+  const [content, setContent] = useState<RppmContent>(() => firstDoc?.content || emptyRppmContent(defaultSpec(mapelOptions)))
   const [printSettings, setPrintSettings] = useState<RppmPrintSettings>(() => firstDoc?.print_settings || DEFAULT_RPPM_PRINT_SETTINGS)
   const [message, setMessage] = useState<Message>(null)
   const [copied, setCopied] = useState(false)
@@ -114,7 +125,7 @@ export function RppmGeneratorClient({
   const newDraft = () => {
     setActiveId(null)
     setTemplateType('cooperative-learning')
-    setContent(emptyRppmContent(DEFAULT_SPEC))
+    setContent(emptyRppmContent(defaultSpec(mapelOptions)))
     setPrintSettings(DEFAULT_RPPM_PRINT_SETTINGS)
     setMessage(null)
     setJsonInput('')
@@ -238,7 +249,7 @@ export function RppmGeneratorClient({
           <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
             <div className="grid gap-3 sm:grid-cols-2">
               <SpecInput label="Satuan Pendidikan" value={content.spesifikasi.satuan_pendidikan} onChange={value => updateSpec(setContent, 'satuan_pendidikan', value)} />
-              <SpecInput label="Mata Pelajaran" value={content.spesifikasi.mata_pelajaran} onChange={value => updateSpec(setContent, 'mata_pelajaran', value)} />
+              <MapelSelect value={content.spesifikasi.mata_pelajaran} options={mapelOptions} onChange={value => updateSpec(setContent, 'mata_pelajaran', value)} />
               <SpecInput label="Kelas / Semester" value={content.spesifikasi.kelas_semester} onChange={value => updateSpec(setContent, 'kelas_semester', value)} />
               <SpecInput label="Topik Pembelajaran" value={content.spesifikasi.topik_pembelajaran} onChange={value => updateSpec(setContent, 'topik_pembelajaran', value)} />
               <SpecInput label="Alokasi Waktu" value={content.spesifikasi.alokasi_waktu} onChange={value => updateSpec(setContent, 'alokasi_waktu', value)} />
@@ -416,6 +427,36 @@ function SpecInput({ label, value, onChange }: { label: string; value: string; o
     <div>
       <Label className="text-xs font-medium">{label}</Label>
       <Input value={value} onChange={event => onChange(event.target.value)} className="mt-1" />
+    </div>
+  )
+}
+
+function MapelSelect({ value, options, onChange }: { value: string; options: RppmMapelOption[]; onChange: (value: string) => void }) {
+  const selectedValue = options.some(option => option.nama_mapel === value) ? value : ''
+
+  return (
+    <div>
+      <Label className="text-xs font-medium">Mata Pelajaran</Label>
+      <Select value={selectedValue} onValueChange={onChange} disabled={options.length === 0}>
+        <SelectTrigger className="mt-1">
+          <SelectValue placeholder={options.length === 0 ? 'Belum ada penugasan mapel' : 'Pilih mata pelajaran'} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map(option => (
+            <SelectItem key={option.id} value={option.nama_mapel}>{option.nama_mapel}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="mt-1 text-xs text-slate-500">
+        {options.length === 0
+          ? 'Mapel diambil dari penugasan mengajar tahun ajaran aktif. Hubungi admin akademik jika belum muncul.'
+          : options.length === 1
+            ? 'Mapel otomatis mengikuti penugasan mengajar Anda.'
+            : 'Pilihan mapel dibatasi sesuai penugasan mengajar Anda.'}
+      </p>
+      {value && !selectedValue && (
+        <p className="mt-1 text-xs text-amber-600">Mapel tersimpan "{value}" tidak ada di penugasan aktif. Pilih mapel yang tersedia sebelum menyimpan.</p>
+      )}
     </div>
   )
 }
@@ -743,7 +784,6 @@ function buildKerangka(parts: KerangkaParts) {
 
 function defaultKerangkaText(templateType: RppmTemplateType, spec: RppmSpec) {
   const template = RPPM_TEMPLATES.find(item => item.type === templateType) || RPPM_TEMPLATES[0]
-  const topic = spec.topik_pembelajaran || 'topik pembelajaran'
   return buildKerangka({
     metode: template.methodText,
     kemitraan: [
@@ -757,9 +797,7 @@ function defaultKerangkaText(templateType: RppmTemplateType, spec: RppmSpec) {
       'Budaya belajar: kolaboratif, interaktif, dan dukungan guru untuk mengaktifkan murid.',
     ].join('\n'),
     digital: [
-      `Video/Animasi: guru menggunakan video/animasi tentang ${topic} sebagai stimulus.`,
-      `Pencarian Informasi: murid menggunakan browser, Qur'an digital, perpustakaan digital, atau sumber relevan terkait ${topic}.`,
-      `Pembuatan Produk: murid memakai PowerPoint/Google Slides, Canva/PosterMyWall, MindMeister/XMind, atau alat digital relevan untuk menyajikan hasil belajar tentang ${topic}.`,
+      buildRppmKerangkaDigitalText(spec),
     ].join('\n'),
   })
 }

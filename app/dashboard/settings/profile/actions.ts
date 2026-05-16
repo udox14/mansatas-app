@@ -2,7 +2,7 @@
 'use server'
 
 import { getDB, dbUpdate } from '@/utils/db'
-import { uploadAvatar, validateImageFile } from '@/utils/r2'
+import { uploadAvatar, uploadSignature, validateImageFile } from '@/utils/r2'
 import { createAuth } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getCurrentUser } from '@/utils/auth/server'
@@ -92,4 +92,34 @@ export async function uploadAvatarAction(formData: FormData) {
 
   revalidatePath('/', 'layout')
   return { success: 'Foto profil berhasil diperbarui!', url }
+}
+
+// ============================================================
+// UPLOAD TANDA TANGAN KE R2
+// ============================================================
+export async function uploadSignatureAction(formData: FormData) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const file = formData.get('signature') as File
+  if (!file || file.size === 0) return { error: 'Tidak ada file yang dipilih' }
+
+  const validationError = validateImageFile(file)
+  if (validationError) return { error: validationError }
+
+  const { url, error: uploadError } = await uploadSignature(user.id, file)
+  if (uploadError || !url) return { error: uploadError || 'Upload gagal' }
+
+  const db = await getDB()
+  const result = await dbUpdate(
+    db,
+    '"user"',
+    { signature_url: url, updatedAt: new Date().toISOString() },
+    { id: user.id }
+  )
+  if (result.error) return { error: result.error }
+
+  revalidatePath('/dashboard/settings/profile')
+  revalidatePath('/dashboard/ckh-generator')
+  return { success: 'Tanda tangan berhasil diperbarui!', url }
 }

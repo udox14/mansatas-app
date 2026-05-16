@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
-import { checkFeatureAccess } from '@/lib/features'
+import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import {
   DEFAULT_RPPM_PRINT_SETTINGS,
   RPPM_TEMPLATE_TYPES,
@@ -38,6 +38,11 @@ export type RppmSigner = {
   role?: string | null
 }
 
+export type RppmMapelOption = {
+  id: string
+  nama_mapel: string
+}
+
 type RppmDocumentRow = {
   id: string
   user_id: string
@@ -64,6 +69,47 @@ type SavePayload = {
 async function requireRppmAccess(db: D1Database, userId: string) {
   const allowed = await checkFeatureAccess(db, userId, 'rppm-generator')
   if (!allowed) throw new Error('Anda tidak memiliki akses RPPM Generator.')
+}
+
+async function getAllowedRppmMapelOptions(db: D1Database, userId: string): Promise<RppmMapelOption[]> {
+  const roles = await getUserRoles(db, userId)
+  const canSeeAllMapel = roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
+
+  if (canSeeAllMapel) {
+    const { results } = await db.prepare(`
+      SELECT id, nama_mapel
+      FROM mata_pelajaran
+      ORDER BY nama_mapel ASC
+    `).all<RppmMapelOption>()
+    return results || []
+  }
+
+  const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
+  if (!ta) return []
+
+  const { results } = await db.prepare(`
+    SELECT DISTINCT mp.id, mp.nama_mapel
+    FROM penugasan_mengajar pm
+    JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
+    WHERE pm.tahun_ajaran_id = ?
+      AND (
+        pm.guru_id = ?
+        OR pm.id IN (
+          SELECT DISTINCT jm.penugasan_id
+          FROM jadwal_mengajar jm
+          JOIN guru_ppl_mapping gpm ON gpm.jadwal_mengajar_id = jm.id
+          WHERE gpm.guru_ppl_id = ?
+        )
+      )
+    ORDER BY mp.nama_mapel ASC
+  `).bind(ta.id, userId, userId).all<RppmMapelOption>()
+
+  return results || []
+}
+
+function isMapelAllowed(mapel: string, options: RppmMapelOption[]) {
+  const normalized = mapel.trim().toLowerCase()
+  return options.some(option => option.nama_mapel.trim().toLowerCase() === normalized)
 }
 
 function assertTemplateType(value: string): RppmTemplateType {
@@ -108,20 +154,21 @@ function rowToDocument(row: RppmDocumentRow): RppmSavedDocument {
   }
 }
 
-export async function getRppmPageData(): Promise<{ documents: RppmSavedDocument[]; user: RppmSigner; kepsek: RppmSigner | null }> {
+export async function getRppmPageData(): Promise<{ documents: RppmSavedDocument[]; mapelOptions: RppmMapelOption[]; user: RppmSigner; kepsek: RppmSigner | null }> {
   const user = await getCurrentUser()
   if (!user) throw new Error('Anda harus login.')
 
   const db = await getDB()
   await requireRppmAccess(db, user.id)
 
-  const [rows, freshUser, kepsek] = await Promise.all([
+  const [rows, mapelOptions, freshUser, kepsek] = await Promise.all([
     db.prepare(`
       SELECT *
       FROM rppm_documents
       WHERE user_id = ?
       ORDER BY updated_at DESC, created_at DESC
     `).bind(user.id).all<RppmDocumentRow>(),
+    getAllowedRppmMapelOptions(db, user.id),
     db.prepare(`
       SELECT id, COALESCE(nama_lengkap, name) as nama_lengkap, nip, jabatan_cetak, role
       FROM "user"
@@ -139,6 +186,7 @@ export async function getRppmPageData(): Promise<{ documents: RppmSavedDocument[
 
   return {
     documents: (rows.results || []).map(rowToDocument),
+    mapelOptions,
     user: freshUser || {
       id: user.id,
       nama_lengkap: (user as any).nama_lengkap || user.name || 'Guru',
@@ -166,6 +214,9 @@ export async function saveRppmDocument(payload: SavePayload): Promise<{ error: s
     const status = payload.status === 'FINAL' ? 'FINAL' : 'DRAFT'
     const title = content.spesifikasi.topik_pembelajaran || 'RPPM Tanpa Judul'
     const mapel = content.spesifikasi.mata_pelajaran || ''
+    const mapelOptions = await getAllowedRppmMapelOptions(db, user.id)
+    if (!mapelOptions.length) return { error: 'Anda belum memiliki mapel mengajar di tahun ajaran aktif. Hubungi admin akademik.' }
+    if (!isMapelAllowed(mapel, mapelOptions)) return { error: 'Mata pelajaran tidak sesuai dengan penugasan mengajar Anda.' }
     const kelasSemester = content.spesifikasi.kelas_semester || ''
     const alokasiWaktu = content.spesifikasi.alokasi_waktu || ''
 

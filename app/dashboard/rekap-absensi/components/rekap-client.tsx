@@ -49,7 +49,7 @@ const ST: Record<string, { label: string; cls: string; dot: string; short: strin
   'BELUM ADA INPUT': { label: 'Belum ada input', short: 'BI', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
   BELUM_ADA_INPUT: { label: 'Belum ada input', short: 'BI', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
   BELUM_ADA_DATA: { label: 'Belum lengkap', short: 'BL', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
-  KBM_EXCEPTION: { label: 'Kegiatan resmi', short: 'EV', dot: 'bg-sky-500', cls: 'bg-sky-50 text-sky-700 border-sky-200' },
+  KBM_EXCEPTION: { label: 'Kegiatan', short: 'EV', dot: 'bg-sky-500', cls: 'bg-sky-50 text-sky-700 border-sky-200' },
   '-': { label: '-', short: '-', dot: 'bg-slate-300', cls: 'bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-900 dark:text-slate-500 dark:border-slate-800' },
 }
 
@@ -216,13 +216,20 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
   const load = async () => {
     setLoading(true)
     setInfo('')
-    const result = mode === 'hari'
-      ? await getAbsensiPerKelas(tanggal, Number(tingkat))
-      : await getAbsensiPerKelasRentang(Number(tingkat), tglMulai, tglSelesai)
-    if (result.error) setInfo(result.error)
-    else if ((result as any).calendarStatus && !(result as any).calendarStatus.isEffective) setInfo(`Tanggal ini tidak efektif pembelajaran: ${(result as any).calendarStatus.reason || 'tidak dihitung dalam rekap.'}`)
-    setData(result.data || [])
-    setLoading(false)
+    try {
+      const result = mode === 'hari'
+        ? await getAbsensiPerKelas(tanggal, Number(tingkat))
+        : await getAbsensiPerKelasRentang(Number(tingkat), tglMulai, tglSelesai)
+      if (result.error) setInfo(result.error)
+      else if ((result as any).calendarStatus && !(result as any).calendarStatus.isEffective) setInfo(`Tanggal ini tidak efektif pembelajaran: ${(result as any).calendarStatus.reason || 'tidak dihitung dalam rekap.'}`)
+      setData(result.data || [])
+    } catch (error) {
+      console.error('Gagal memuat rekap per kelas:', error)
+      setInfo('Gagal memuat rekap absensi. Silakan coba lagi.')
+      setData([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   const followUpItems = data.filter(item =>
@@ -372,11 +379,17 @@ function TabSiswa({ filterOptions, initialJump, onBack }: {
     setExpanded(null)
     setLoading(true)
     void (async () => {
-      const data = initialJump.mode === 'hari'
-        ? await getAbsensiSiswaKelasHarian(initialJump.kelasId, initialJump.tanggal)
-        : await getAbsensiSiswaKelasRentang(initialJump.kelasId, initialJump.tglMulai, initialJump.tglSelesai)
-      setResult(data)
-      setLoading(false)
+      try {
+        const data = initialJump.mode === 'hari'
+          ? await getAbsensiSiswaKelasHarian(initialJump.kelasId, initialJump.tanggal)
+          : await getAbsensiSiswaKelasRentang(initialJump.kelasId, initialJump.tglMulai, initialJump.tglSelesai)
+        setResult(data)
+      } catch (error) {
+        console.error('Gagal memuat detail siswa dari kelas:', error)
+        setResult({ error: 'Gagal memuat detail siswa. Silakan coba lagi.', rows: [], slots: [] })
+      } finally {
+        setLoading(false)
+      }
     })()
   }, [initialJump, appliedJump])
 
@@ -387,11 +400,17 @@ function TabSiswa({ filterOptions, initialJump, onBack }: {
     if (!kelasId) return
     setLoading(true)
     setExpanded(null)
-    const data = mode === 'hari'
-      ? await getAbsensiSiswaKelasHarian(kelasId, tanggal)
-      : await getAbsensiSiswaKelasRentang(kelasId, tglMulai, tglSelesai)
-    setResult(data)
-    setLoading(false)
+    try {
+      const data = mode === 'hari'
+        ? await getAbsensiSiswaKelasHarian(kelasId, tanggal)
+        : await getAbsensiSiswaKelasRentang(kelasId, tglMulai, tglSelesai)
+      setResult(data)
+    } catch (error) {
+      console.error('Gagal memuat rekap per siswa:', error)
+      setResult({ error: 'Gagal memuat rekap per siswa. Silakan coba lagi.', rows: [], slots: [] })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -549,8 +568,14 @@ function TabJam({ filterOptions, initialTingkat }: { filterOptions: FilterOpt; i
   const load = async () => {
     setLoading(true)
     setSelected(null)
-    setResult(await getAbsensiHeatmap(Number(tingkat), tanggal))
-    setLoading(false)
+    try {
+      setResult(await getAbsensiHeatmap(Number(tingkat), tanggal))
+    } catch (error) {
+      console.error('Gagal memuat heatmap absensi:', error)
+      setResult({ error: 'Gagal memuat heatmap absensi. Silakan coba lagi.', data: [], slots: [] })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -662,26 +687,37 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
     setSiswaId('')
     setSiswaList([])
     if (!id) return
-    const res = await getSiswaByKelas(id)
-    setSiswaList(res.data || [])
+    try {
+      const res = await getSiswaByKelas(id)
+      setSiswaList(res.data || [])
+    } catch (error) {
+      console.error('Gagal memuat daftar siswa:', error)
+      setSiswaList([])
+    }
   }
 
   const load = async () => {
     setLoading(true)
     setPrintData(null)
-    if (printKind === 'kelas') {
-      setPrintData(await getCetakRekapKelas({
-        mode,
-        tanggal,
-        tglMulai,
-        tglSelesai,
-        tingkat: Number(tingkat),
-        kelasId: kelasId !== 'all' ? kelasId : undefined,
-      }))
-    } else if (siswaId) {
-      setPrintData(await getCetakRekapSiswa(siswaId, tglMulai, tglSelesai))
+    try {
+      if (printKind === 'kelas') {
+        setPrintData(await getCetakRekapKelas({
+          mode,
+          tanggal,
+          tglMulai,
+          tglSelesai,
+          tingkat: Number(tingkat),
+          kelasId: kelasId !== 'all' ? kelasId : undefined,
+        }))
+      } else if (siswaId) {
+        setPrintData(await getCetakRekapSiswa(siswaId, tglMulai, tglSelesai))
+      }
+    } catch (error) {
+      console.error('Gagal memuat data cetak rekap absensi:', error)
+      setPrintData({ error: 'Gagal memuat data cetak. Silakan coba lagi.', sections: [] })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const handlePrint = useReactToPrint({

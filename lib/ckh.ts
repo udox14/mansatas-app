@@ -10,6 +10,7 @@ export type CkhGeneratedRow = {
   tanggal: string
   kegiatan_bulanan: string
   catatan_harian: string
+  vol?: number
   source: 'autofill' | 'calendar'
   source_key: string
 }
@@ -53,6 +54,17 @@ export function formatCkhMonth(year: number, month: number) {
 
 export function normalizeCkhText(value: string | null | undefined) {
   return String(value || '').trim().replace(/\s+/g, ' ')
+}
+
+export function splitCkhItems(value: string | null | undefined) {
+  return String(value || '')
+    .split(/\r?\n/)
+    .map(item => normalizeCkhText(item))
+    .filter(Boolean)
+}
+
+export function countCkhItems(value: string | null | undefined) {
+  return Math.max(1, splitCkhItems(value).length)
 }
 
 export function joinIndonesian(items: string[]) {
@@ -114,6 +126,7 @@ export function buildTeachingRows(rows: AgendaRow[]) {
       tanggal,
       kegiatan_bulanan: CKH_TEACHING_ACTIVITY,
       catatan_harian: `Mengajar ${mapel}: "${materi}" di kelas ${joinIndonesian(kelas)}`,
+      vol: Math.max(1, kelas.length),
       source: 'autofill' as const,
       source_key: `agenda:${tanggal}:${mapel}:${materi}`,
     }

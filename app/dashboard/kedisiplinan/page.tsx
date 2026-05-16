@@ -3,7 +3,7 @@ import { Suspense } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
-import { checkFeatureAccess, getPrimaryRole } from '@/lib/features'
+import { checkFeatureAccess, getPrimaryRole, getUserRoles } from '@/lib/features'
 import { CalendarDays, ClipboardList, BarChart3 } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
 import { KedisiplinanClient } from './components/kedisiplinan-client'
@@ -83,8 +83,11 @@ export default async function KedisiplinanPage() {
   const allowed = await checkFeatureAccess(db, user.id, 'kedisiplinan')
   if (!allowed) redirect('/dashboard')
 
-  const role = await getPrimaryRole(db, user.id)
-  const currentUser = { id: user.id, role, nama: (user as any).nama_lengkap ?? user.name ?? '' }
+  const [role, roles] = await Promise.all([
+    getPrimaryRole(db, user.id),
+    getUserRoles(db, user.id),
+  ])
+  const currentUser = { id: user.id, role, roles, nama: (user as any).nama_lengkap ?? user.name ?? '' }
   const isAdmin = ['super_admin', 'admin_tu', 'kepsek'].includes(role)
 
   const taAktif = await db.prepare('SELECT id, nama FROM tahun_ajaran WHERE is_active = 1').first<any>()

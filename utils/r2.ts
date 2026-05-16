@@ -5,6 +5,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 // KONSTANTA VALIDASI
 // ============================================================
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB
+const MAX_PDF_SIZE = 5 * 1024 * 1024 // 5MB
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 
 export function validateImageFile(file: File): string | null {
@@ -13,6 +14,17 @@ export function validateImageFile(file: File): string | null {
   }
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
     return `Format file tidak didukung. Gunakan JPG, PNG, atau WebP`
+  }
+  return null
+}
+
+export function validatePdfFile(file: File): string | null {
+  if (file.size > MAX_PDF_SIZE) {
+    return `Ukuran file terlalu besar. Maksimal 5MB (saat ini: ${(file.size / 1024 / 1024).toFixed(1)}MB)`
+  }
+  const fileName = file.name.toLowerCase()
+  if (file.type !== 'application/pdf' && !fileName.endsWith('.pdf')) {
+    return 'Format file tidak didukung. Gunakan PDF'
   }
   return null
 }
@@ -104,6 +116,33 @@ export async function uploadAvatar(userId: string, file: File) {
   const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
   const fileName = `${userId}/avatar.${ext}`
   return uploadToR2(file, 'avatars', fileName)
+}
+
+export async function uploadSignature(userId: string, file: File) {
+  const validationError = validateImageFile(file)
+  if (validationError) return { url: null, error: validationError }
+
+  const fileName = `${userId}/signature.png`
+  return uploadToR2(file, 'signatures', fileName)
+}
+
+export async function uploadS36Pdf(userId: string, file: File) {
+  const validationError = validatePdfFile(file)
+  if (validationError) return { url: null, key: null, error: validationError }
+
+  const key = `tpg/s36/${userId}.pdf`
+  try {
+    const r2 = await getR2()
+    await r2.put(key, await file.arrayBuffer(), {
+      httpMetadata: {
+        contentType: 'application/pdf',
+        cacheControl: 'private, max-age=0, must-revalidate',
+      },
+    })
+    return { url: `/api/media/${key}`, key, error: null }
+  } catch (e: any) {
+    return { url: null, key: null, error: e.message }
+  }
 }
 
 // Upload bukti foto pelanggaran — nama unik, perlu hapus manual saat delete/edit
