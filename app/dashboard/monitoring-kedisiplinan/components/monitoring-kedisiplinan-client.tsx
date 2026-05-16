@@ -13,9 +13,9 @@ import {
   ShieldCheck, BookOpen, FileSpreadsheet, Download, Loader2, ChevronLeft,
   ChevronRight, User, X, ExternalLink
 } from 'lucide-react'
-import { FormModal } from './form-modal'
-import { MasterModal } from './master-modal'
-import { hapusPelanggaran, hapusMasterPelanggaran, importMasterPelanggaranMassal, type SanksiConfig } from '../actions'
+import { FormModal } from '../../kedisiplinan/components/form-modal'
+import { MasterModal } from '../../kedisiplinan/components/master-modal'
+import { hapusPelanggaran, hapusMasterPelanggaran, importMasterPelanggaranMassal, type SanksiConfig } from '../../kedisiplinan/actions'
 import { cn } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
@@ -164,7 +164,7 @@ function DetailKasusModal({
 }
 
 // ─── Main Component ──────────────────────────────────────────
-export function KedisiplinanClient({
+export function MonitoringKedisiplinanClient({
   currentUser, kasusList, masterList, taAktifId, sanksiList = [], lifetimePoin = {}, tingkatList = []
 }: {
   currentUser: { id: string, role: string, roles?: string[], nama: string }
@@ -178,7 +178,7 @@ export function KedisiplinanClient({
   const userRoles = currentUser.roles?.length ? currentUser.roles : [currentUser.role]
   const isSuperAdmin = userRoles.includes('super_admin')
   const canInput = userRoles.some(role => ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru'].includes(role))
-  const canManageMaster = userRoles.some(role => ['super_admin', 'wakamad', 'guru_bk'].includes(role))
+  const canManageMaster = false
 
   const [allKasus, setAllKasus] = useState(kasusList)
   const [isPending, setIsPending] = useState(false)
@@ -202,6 +202,17 @@ export function KedisiplinanClient({
   const [isImportingKamus, setIsImportingKamus] = useState(false)
 
   // ── Group kasus per siswa ─────────────────────────────────
+  const grouped = useMemo(() => {
+    const map = new Map<string, { siswa: any; kasus: any[]; totalPoin: number; siswaId: string }>()
+    for (const k of allKasus) {
+      if (!map.has(k.siswa_id)) map.set(k.siswa_id, { siswa: k.siswa, kasus: [], totalPoin: 0, siswaId: k.siswa_id })
+      const entry = map.get(k.siswa_id)!
+      entry.kasus.push(k)
+      entry.totalPoin += k.master_pelanggaran?.poin || 0
+    }
+    return Array.from(map.values())
+  }, [allKasus])
+
   const tingkatOptions = useMemo(() => {
     const fromKasus = allKasus
       .map(k => k.siswa?.kelas?.tingkat)
@@ -212,32 +223,31 @@ export function KedisiplinanClient({
       .sort((a, b) => naturalSorter.compare(a, b))
   }, [allKasus, tingkatList])
 
-  const filteredKasus = useMemo(() => {
-    let result = [...allKasus]
+  const filteredGrouped = useMemo(() => {
+    let result = grouped
     if (search) {
       const q = search.toLowerCase()
-      result = result.filter(k =>
-        k.siswa.nama_lengkap.toLowerCase().includes(q) ||
-        k.master_pelanggaran?.nama_pelanggaran?.toLowerCase().includes(q) ||
-        (k.siswa.kelas && `${k.siswa.kelas.tingkat}-${k.siswa.kelas.nomor_kelas}`.toLowerCase().includes(q))
+      result = result.filter(g =>
+        g.siswa.nama_lengkap.toLowerCase().includes(q) ||
+        (g.siswa.kelas && `${g.siswa.kelas.tingkat}-${g.siswa.kelas.nomor_kelas}`.toLowerCase().includes(q))
       )
     }
-    if (filterTingkat !== 'ALL') result = result.filter(k => k.siswa.kelas?.tingkat?.toString() === filterTingkat)
+    if (filterTingkat !== 'ALL') result = result.filter(g => g.siswa.kelas?.tingkat?.toString() === filterTingkat)
     if (filterLevel !== 'ALL') {
-      result = result.filter(k => {
-        const lt = lifetimePoin[k.siswa_id] ?? (k.master_pelanggaran?.poin || 0)
+      result = result.filter(g => {
+        const lt = lifetimePoin[g.siswaId] ?? g.totalPoin
         const sanksi = getSanksiForPoin(lt, sanksiList)
         if (filterLevel === 'baik') return !sanksi
         return sanksi?.id === filterLevel
       })
     }
-    result.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime())
+    result.sort((a, b) => b.totalPoin - a.totalPoin)
     return result
-  }, [allKasus, search, filterTingkat, filterLevel, sanksiList, lifetimePoin])
+  }, [grouped, search, filterTingkat, filterLevel, sanksiList, lifetimePoin])
 
-  const totalPages = Math.max(1, Math.ceil(filteredKasus.length / pageSize))
+  const totalPages = Math.max(1, Math.ceil(filteredGrouped.length / pageSize))
   const safePage = Math.min(page, totalPages)
-  const pagedKasus = filteredKasus.slice((safePage - 1) * pageSize, safePage * pageSize)
+  const pagedGroups = filteredGrouped.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   const resetPage = () => setPage(1)
 
@@ -389,7 +399,7 @@ export function KedisiplinanClient({
             </div>
 
             {/* LIST */}
-            {filteredKasus.length === 0 ? (
+            {filteredGrouped.length === 0 ? (
               <div className="bg-surface py-12 rounded-xl border border-surface text-center">
                 <ShieldCheck className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
                 <p className="text-sm text-slate-400 dark:text-slate-500">Belum ada catatan pelanggaran.</p>
@@ -397,44 +407,43 @@ export function KedisiplinanClient({
             ) : (
               <>
                 <div className="space-y-2">
-                  {pagedKasus.map(kasus => {
-                    const lt = lifetimePoin[kasus.siswa_id] ?? (kasus.master_pelanggaran?.poin || 0)
+                  {pagedGroups.map(group => {
+                    const lt = lifetimePoin[group.siswaId] ?? group.totalPoin
                     const sanksi = getSanksiForPoin(lt, sanksiList)
                     const badgeStyle = sanksi ? getSanksiStyle(sanksi.urutan) : AMAN_STYLE
-                    const kelas = kasus.siswa.kelas
-                      ? `${kasus.siswa.kelas.tingkat}-${kasus.siswa.kelas.nomor_kelas}`
+                    const kelas = group.siswa.kelas
+                      ? `${group.siswa.kelas.tingkat}-${group.siswa.kelas.nomor_kelas}`
                       : '-'
 
                     return (
-                      <div
-                        key={kasus.id}
+                      <button
+                        key={group.siswaId}
+                        type="button"
+                        onClick={() => setDetailGroup(group)}
                         className="w-full bg-surface border border-surface rounded-xl px-4 py-3 flex items-center gap-3 hover:border-rose-200 dark:hover:border-rose-800 hover:bg-rose-50/20 dark:hover:bg-rose-900/10 transition-all text-left group"
                       >
                         {/* Avatar */}
-                        <AvatarSiswa fotoUrl={kasus.siswa.foto_url} nama={kasus.siswa.nama_lengkap || '?'} size="md" className="bg-gradient-to-br from-rose-400 to-pink-500 text-white font-black" />
+                        <AvatarSiswa fotoUrl={group.siswa.foto_url} nama={group.siswa.nama_lengkap || '?'} size="md" className="bg-gradient-to-br from-rose-400 to-pink-500 text-white font-black" />
 
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate group-hover:text-rose-700 dark:group-hover:text-rose-400 transition-colors">
-                              {kasus.siswa.nama_lengkap}
+                              {group.siswa.nama_lengkap}
                             </p>
                             <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full border', badgeStyle)}>
                               {sanksi?.nama || 'Baik'}
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                            Kelas {kelas} · {new Date(kasus.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                          </p>
-                          <p className="text-xs font-semibold text-rose-700 dark:text-rose-400 truncate mt-0.5">
-                            {kasus.master_pelanggaran?.nama_pelanggaran}
+                            Kelas {kelas} · <span className="font-semibold">{group.kasus.length} kasus</span>
                           </p>
                         </div>
 
                         {/* Poin TA ini */}
                         <div className="text-right shrink-0 hidden sm:block">
-                          <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-medium">Poin</p>
-                          <p className="text-base font-black text-rose-600">+{kasus.master_pelanggaran?.poin || 0}</p>
+                          <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-medium">Poin (TA)</p>
+                          <p className="text-base font-black text-rose-600">{group.totalPoin}</p>
                         </div>
 
                         {/* Poin Lifetime */}
@@ -443,31 +452,8 @@ export function KedisiplinanClient({
                           <p className="text-base font-black text-rose-700">{lt}</p>
                         </div>
 
-                        <div className="flex items-center gap-1 shrink-0">
-                          {(kasus.diinput_oleh === currentUser.id || isSuperAdmin) && (
-                            <button
-                              type="button"
-                              onClick={() => { setEditKasusData(kasus); setIsFormModalOpen(true) }}
-                              disabled={isPending}
-                              className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
-                              title="Edit"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                          {isSuperAdmin && (
-                            <button
-                              type="button"
-                              onClick={() => handleHapusKasus(kasus.id)}
-                              disabled={isPending}
-                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition-colors"
-                              title="Hapus"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                        <ChevronRight className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-rose-400 dark:group-hover:text-rose-500 transition-colors shrink-0" />
+                      </button>
                     )
                   })}
                 </div>
@@ -475,7 +461,7 @@ export function KedisiplinanClient({
                 {/* PAGINATION */}
                 <div className="flex items-center justify-between bg-surface border border-surface rounded-lg px-3 py-2 mt-1">
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {filteredKasus.length} catatan · hal <span className="font-semibold">{safePage}</span>/{totalPages}
+                    {filteredGrouped.length} siswa · hal <span className="font-semibold">{safePage}</span>/{totalPages}
                   </p>
                   <div className="flex items-center gap-1">
                     <Button variant="outline" size="sm"

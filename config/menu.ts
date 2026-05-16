@@ -209,6 +209,13 @@ export const MENU_ITEMS: MenuItem[] = [
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad']
   },
   {
+    id: 'monitoring-kedisiplinan',
+    title: 'Monitoring Kedisiplinan',
+    href: '/dashboard/monitoring-kedisiplinan',
+    icon: AlertTriangle,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'wali_kelas']
+  },
+  {
     id: 'rapat',
     title: 'Undangan Rapat',
     href: '/dashboard/rapat',
@@ -393,7 +400,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'data-master', label: 'Data Master', items: ['siswa', 'guru', 'kelas', 'plotting'] },
   { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'ckh-generator', 'rppm-generator', 'kehadiran', 'nilai-harian', 'penugasan'] },
   { id: 'monitoring-akademik', label: 'Monitoring Akademik', items: ['akademik', 'kalender-pendidikan', 'analitik'] },
-  { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'monitoring-penugasan', 'rekap-absensi', 'akademik-nilai'] },
+  { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'monitoring-penugasan', 'monitoring-kedisiplinan', 'rekap-absensi', 'akademik-nilai'] },
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },

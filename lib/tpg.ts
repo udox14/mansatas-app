@@ -3,10 +3,13 @@ export const TPG_CKH_ROLES = [
   'guru_bk', 'guru_piket', 'guru_tahfidz', 'operator', 'pramubakti', 'satpam',
 ]
 
+export const TPG_S36_REQUIRED_ROLES = ['guru', 'guru_bk', 'wali_kelas', 'guru_tahfidz']
+
 export type TpgUserStatus = {
   id: string
   nama_lengkap: string
   role: string
+  roles: string | null
   nip: string | null
   jabatan_cetak: string | null
   signature_url: string | null
@@ -20,6 +23,11 @@ export type TpgUserStatus = {
   ckh_updated_at: string | null
   ckh_row_count: number
   signature_enabled: number | null
+}
+
+export function isS36RequiredForRoles(primaryRole: string | null | undefined, roles: string | null | undefined) {
+  const allRoles = new Set([primaryRole, ...(roles || '').split(',')].filter(Boolean))
+  return TPG_S36_REQUIRED_ROLES.some(role => allRoles.has(role))
 }
 
 export function previousMonthPeriod(today = new Date()) {

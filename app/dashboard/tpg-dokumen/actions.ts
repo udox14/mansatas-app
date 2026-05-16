@@ -6,7 +6,7 @@ import { getDB } from '@/utils/db'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { ensureTpgSchema } from '@/lib/tpg-schema'
 import { uploadS36Pdf, validatePdfFile } from '@/utils/r2'
-import { monthLabel, TPG_CKH_ROLES, type TpgUserStatus } from '@/lib/tpg'
+import { isS36RequiredForRoles, monthLabel, TPG_CKH_ROLES, type TpgUserStatus } from '@/lib/tpg'
 
 function assertPeriod(year: number, month: number) {
   if (!Number.isInteger(year) || year < 2020 || year > 2100) throw new Error('Tahun tidak valid.')
@@ -37,6 +37,11 @@ export async function uploadS36Action(formData: FormData) {
   const db = await getDB()
   await ensureTpgSchema(db)
   await requireTpgAccess(db, user.id)
+  const roles = await getUserRoles(db, user.id)
+  const primary = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<{ role: string }>()
+  if (!isS36RequiredForRoles(primary?.role, roles.join(','))) {
+    return { error: 'Role Anda tidak wajib upload S36.' }
+  }
 
   const uploaded = await uploadS36Pdf(user.id, file)
   if (uploaded.error || !uploaded.key) return { error: uploaded.error || 'Upload S36 gagal.' }
@@ -94,6 +99,7 @@ export async function getTpgDokumenData(s36Year: number, s36Month: number, ckhYe
       u.id,
       COALESCE(u.nama_lengkap, u.name) as nama_lengkap,
       u.role,
+      GROUP_CONCAT(DISTINCT ur.role) as roles,
       u.nip,
       u.jabatan_cetak,
       u.signature_url,
@@ -113,6 +119,7 @@ export async function getTpgDokumenData(s36Year: number, s36Month: number, ckhYe
           AND (TRIM(r.kegiatan_bulanan) <> '' OR TRIM(r.catatan_harian) <> '')
       ), 0) as ckh_row_count
     FROM "user" u
+    LEFT JOIN user_roles ur ON ur.user_id = u.id
     LEFT JOIN tpg_s36_uploads s
       ON s.user_id = u.id AND s.period_year = ? AND s.period_month = ?
     LEFT JOIN ckh_documents d
