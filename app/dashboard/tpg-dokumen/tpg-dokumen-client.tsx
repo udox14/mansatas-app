@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, Download, FileText, Loader2, Printer, Upload, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { monthLabel, type TpgUserStatus } from '@/lib/tpg'
+import { isS36RequiredForRoles, monthLabel, type TpgUserStatus } from '@/lib/tpg'
 import { uploadS36Action } from './actions'
 
 const MONTHS = [
@@ -50,6 +50,10 @@ function hasS36(row: TpgUserStatus) {
   return Boolean(row.s36_uploaded_at)
 }
 
+function s36Required(row: TpgUserStatus) {
+  return isS36RequiredForRoles(row.role, row.roles)
+}
+
 function StatusPill({ ok, label }: { ok: boolean; label: string }) {
   return (
     <span className={cn(
@@ -70,6 +74,8 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
   const [ckhYear, setCkhYear] = useState(String(initialData.ckhYear))
   const [ckhMonth, setCkhMonth] = useState(String(initialData.ckhMonth))
   const [selected, setSelected] = useState<string[]>([])
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState('20')
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
   const currentUser = data.users.find(user => user.id === data.currentUserId) || data.users[0]
@@ -81,6 +87,20 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
   const s36Selected = data.users.filter(row => selected.includes(row.id) && hasS36(row))
   const userCkhReady = currentUser ? isCkhFinal(currentUser) : false
   const userSignatureActive = Boolean(currentUser?.signature_url && currentUser?.signature_enabled)
+  const userS36Required = currentUser ? s36Required(currentUser) : false
+  const totalPages = Math.max(1, Math.ceil(data.users.length / Number(pageSize)))
+  const currentPage = Math.min(page, totalPages)
+  const paginatedUsers = useMemo(() => {
+    const size = Number(pageSize)
+    const start = (currentPage - 1) * size
+    return data.users.slice(start, start + size)
+  }, [currentPage, data.users, pageSize])
+  const pageSelected = paginatedUsers.length > 0 && paginatedUsers.every(user => selected.includes(user.id))
+
+  useEffect(() => {
+    setPage(1)
+    setSelected([])
+  }, [data.s36Year, data.s36Month, data.ckhYear, data.ckhMonth, pageSize])
 
   const applyFilters = () => {
     router.push(`/dashboard/tpg-dokumen?s36Year=${s36Year}&s36Month=${s36Month}&ckhYear=${ckhYear}&ckhMonth=${ckhMonth}`)
@@ -99,8 +119,12 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
     })
   }
 
-  const toggleAll = (checked: boolean) => {
-    setSelected(checked ? data.users.map(user => user.id) : [])
+  const togglePage = (checked: boolean) => {
+    const pageIds = paginatedUsers.map(user => user.id)
+    setSelected(prev => {
+      if (checked) return Array.from(new Set([...prev, ...pageIds]))
+      return prev.filter(id => !pageIds.includes(id))
+    })
   }
 
   const toggleUser = (id: string, checked: boolean) => {
@@ -140,40 +164,46 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
         <div className="space-y-4">
           <div className="rounded-xl border border-surface bg-surface p-4">
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Upload S36</p>
-            <p className="mt-1 text-xs text-slate-500">File PDF baru akan menimpa S36 sebelumnya.</p>
-            <form action={uploadS36} className="mt-4 space-y-3">
-              <input type="hidden" name="period_year" value={s36Year} />
-              <input type="hidden" name="period_month" value={s36Month} />
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Bulan S36</Label>
-                  <Select value={s36Month} onValueChange={setS36Month}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {MONTHS.map((month, index) => <SelectItem key={month} value={String(index + 1)}>{month}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+            <p className="mt-1 text-xs text-slate-500">S36 hanya wajib untuk guru, guru BK, wali kelas, dan guru tahfidz.</p>
+            {userS36Required ? (
+              <form action={uploadS36} className="mt-4 space-y-3">
+                <input type="hidden" name="period_year" value={s36Year} />
+                <input type="hidden" name="period_month" value={s36Month} />
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Bulan S36</Label>
+                    <Select value={s36Month} onValueChange={setS36Month}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {MONTHS.map((month, index) => <SelectItem key={month} value={String(index + 1)}>{month}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Tahun</Label>
+                    <Select value={s36Year} onValueChange={setS36Year}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {yearOptions.map(year => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Tahun</Label>
-                  <Select value={s36Year} onValueChange={setS36Year}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {yearOptions.map(year => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Input name="s36" type="file" accept="application/pdf,.pdf" required />
+                <Button disabled={isPending} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+                  {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  Upload S36
+                </Button>
+              </form>
+            ) : (
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+                Role Anda tidak termasuk yang wajib upload S36.
               </div>
-              <Input name="s36" type="file" accept="application/pdf,.pdf" required />
-              <Button disabled={isPending} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
-                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                Upload S36
-              </Button>
-            </form>
+            )}
             {currentUser ? (
               <div className="mt-4 rounded-lg border border-surface-2 bg-surface-2 p-3 text-xs text-slate-600">
                 <p className="font-semibold text-slate-800 dark:text-slate-100">Status S36 Saya</p>
-                <p className="mt-1">{hasS36(currentUser) ? `${currentUser.s36_original_filename} (${formatSize(currentUser.s36_file_size)})` : 'Belum upload untuk periode ini.'}</p>
+                <p className="mt-1">{!userS36Required ? 'Tidak wajib upload S36.' : hasS36(currentUser) ? `${currentUser.s36_original_filename} (${formatSize(currentUser.s36_file_size)})` : 'Belum upload untuk periode ini.'}</p>
                 <p className="mt-1 text-slate-400">{hasS36(currentUser) ? formatDateTime(currentUser.s36_uploaded_at) : monthLabel(data.s36Year, data.s36Month)}</p>
               </div>
             ) : null}
@@ -216,9 +246,15 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
             <div className="grid gap-3 p-4 sm:grid-cols-3">
               <div className="rounded-lg border border-surface-2 bg-surface-2 p-3">
                 <p className="text-xs font-semibold text-slate-500">S36</p>
-                <div className="mt-2"><StatusPill ok={hasS36(currentUser)} label={hasS36(currentUser) ? 'Sudah upload' : 'Belum upload'} /></div>
+                <div className="mt-2">
+                  {userS36Required
+                    ? <StatusPill ok={hasS36(currentUser)} label={hasS36(currentUser) ? 'Sudah upload' : 'Belum upload'} />
+                    : <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500">Tidak wajib</span>}
+                </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  {hasS36(currentUser)
+                  {!userS36Required
+                    ? 'S36 hanya diwajibkan untuk role guru.'
+                    : hasS36(currentUser)
                     ? `${currentUser.s36_original_filename} | ${formatDateTime(currentUser.s36_uploaded_at)}`
                     : 'Upload PDF S36 melalui form di sebelah kiri.'}
                 </p>
@@ -250,6 +286,17 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
             </div>
             {data.canManage && (
               <div className="flex flex-wrap gap-2">
+                <Select value={pageSize} onValueChange={setPageSize}>
+                  <SelectTrigger className="h-8 w-28 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 / hal</SelectItem>
+                    <SelectItem value="20">20 / hal</SelectItem>
+                    <SelectItem value="50">50 / hal</SelectItem>
+                    <SelectItem value="100">100 / hal</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button variant="outline" size="sm" onClick={() => openS36Download('selected')} disabled={selected.length === 0} className="gap-1.5">
                   <Download className="h-3.5 w-3.5" /> S36 Terpilih
                 </Button>
@@ -272,7 +319,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                 <tr>
                   {data.canManage && (
                     <th className="w-10 px-4 py-3">
-                      <input type="checkbox" checked={selected.length === data.users.length && data.users.length > 0} onChange={e => toggleAll(e.target.checked)} />
+                      <input type="checkbox" checked={pageSelected} onChange={e => togglePage(e.target.checked)} title="Pilih halaman ini" />
                     </th>
                   )}
                   <th className="px-4 py-3">Pegawai</th>
@@ -283,7 +330,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-2">
-                {data.users.map(row => (
+                {paginatedUsers.map(row => (
                   <tr key={row.id} className="bg-white dark:bg-transparent">
                     {data.canManage && (
                       <td className="px-4 py-3">
@@ -295,7 +342,9 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                       <p className="text-xs text-slate-500">{row.jabatan_cetak || row.role}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <StatusPill ok={hasS36(row)} label={hasS36(row) ? 'Sudah upload' : 'Belum'} />
+                      {s36Required(row)
+                        ? <StatusPill ok={hasS36(row)} label={hasS36(row) ? 'Sudah upload' : 'Belum'} />
+                        : <span className="inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500">Tidak wajib</span>}
                       {hasS36(row) && <p className="mt-1 text-xs text-slate-400">{formatSize(row.s36_file_size)} | {formatDateTime(row.s36_uploaded_at)}</p>}
                     </td>
                     <td className="px-4 py-3">
@@ -318,6 +367,24 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
               </tbody>
             </table>
           </div>
+
+          {data.canManage && data.users.length > 0 && (
+            <div className="flex flex-col gap-2 border-t border-surface-2 px-4 py-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+              <span>
+                Menampilkan {(currentPage - 1) * Number(pageSize) + 1}-{Math.min(currentPage * Number(pageSize), data.users.length)} dari {data.users.length} pegawai.
+                {selected.length > 0 ? ` ${selected.length} dipilih.` : ''}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setPage(prev => Math.max(1, prev - 1))} disabled={currentPage <= 1}>
+                  Sebelumnya
+                </Button>
+                <span className="min-w-20 text-center">Hal {currentPage} / {totalPages}</span>
+                <Button type="button" variant="outline" size="sm" onClick={() => setPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage >= totalPages}>
+                  Berikutnya
+                </Button>
+              </div>
+            </div>
+          )}
 
           {!data.canManage && (
             <div className="border-t border-surface-2 px-4 py-3 text-xs text-slate-500">

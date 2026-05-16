@@ -11,6 +11,11 @@ import { revalidatePath } from 'next/cache'
 const INPUT_PELANGGARAN_ROLES = ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru']
 const MANAGE_KEDISIPLINAN_ROLES = ['super_admin', 'wakamad', 'guru_bk']
 
+function revalidateKedisiplinanPaths() {
+  revalidatePath('/dashboard/kedisiplinan')
+  revalidatePath('/dashboard/monitoring-kedisiplinan')
+}
+
 async function hasAnyRole(db: D1Database, userId: string, allowedRoles: string[]) {
   const roles = await getUserRoles(db, userId)
   return roles.some(role => allowedRoles.includes(role))
@@ -141,7 +146,7 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
     }
   }
 
-  revalidatePath('/dashboard/kedisiplinan')
+  revalidateKedisiplinanPaths()
   return { error: null, success: 'Data pelanggaran berhasil disimpan!', naik_sanksi }
 }
 
@@ -172,7 +177,7 @@ export async function hapusPelanggaran(id: string) {
   const result = await dbDelete(db, 'siswa_pelanggaran', { id })
   if (result.error) return { error: 'Akses ditolak atau gagal menghapus: ' + result.error }
 
-  revalidatePath('/dashboard/kedisiplinan')
+  revalidateKedisiplinanPaths()
   return { success: 'Catatan pelanggaran berhasil dihapus permanen.' }
 }
 
@@ -203,7 +208,7 @@ export async function simpanMasterPelanggaran(prevState: any, formData: FormData
     if (result.error) return { error: result.error, success: null }
   }
 
-  revalidatePath('/dashboard/kedisiplinan')
+  revalidateKedisiplinanPaths()
   return { error: null, success: 'Master pelanggaran berhasil disimpan.' }
 }
 
@@ -229,7 +234,7 @@ export async function hapusMasterPelanggaran(id: string) {
   const result = await dbDelete(db, 'master_pelanggaran', { id })
   if (result.error) return { error: 'Gagal menghapus: ' + result.error }
 
-  revalidatePath('/dashboard/kedisiplinan')
+  revalidateKedisiplinanPaths()
   return { success: 'Master pelanggaran berhasil dihapus.' }
 }
 
@@ -260,7 +265,7 @@ export async function importMasterPelanggaranMassal(dataExcel: any[]) {
 
   if (error) return { error }
 
-  revalidatePath('/dashboard/kedisiplinan')
+  revalidateKedisiplinanPaths()
   return { success: `Berhasil mengimport ${successCount} jenis pelanggaran.` }
 }
 
@@ -484,7 +489,7 @@ export async function simpanSanksiItem(prevState: any, formData: FormData) {
         .bind(nama, deskripsi, poin_minimal).run()
     }
     await reorderSanksi(db)
-    revalidatePath('/dashboard/kedisiplinan')
+    revalidateKedisiplinanPaths()
     return { error: null, success: 'Sanksi berhasil disimpan.' }
   } catch (e: any) {
     return { error: 'Gagal: ' + (e?.message || ''), success: null }
@@ -500,7 +505,7 @@ export async function hapusSanksiItem(id: string) {
   try {
     await db.prepare(`DELETE FROM sanksi_config WHERE id = ?`).bind(id).run()
     await reorderSanksi(db)
-    revalidatePath('/dashboard/kedisiplinan')
+    revalidateKedisiplinanPaths()
     return { success: 'Sanksi berhasil dihapus.' }
   } catch (e: any) {
     return { error: 'Gagal menghapus: ' + (e?.message || '') }
@@ -540,7 +545,7 @@ export async function simpanKedisiplinanConfig(prevState: any, formData: FormDat
       `).bind(key, String(num)).run()
     }
 
-    revalidatePath('/dashboard/kedisiplinan')
+    revalidateKedisiplinanPaths()
     return { error: null, success: 'Konfigurasi berhasil disimpan.' }
   } catch (e: any) {
     return { error: 'Gagal menyimpan: ' + (e?.message || ''), success: null }

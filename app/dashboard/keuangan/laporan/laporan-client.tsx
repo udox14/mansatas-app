@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useReactToPrint } from 'react-to-print'
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -137,13 +138,14 @@ function sumBy<T>(rows: T[], picker: (row: T) => number) {
 
 export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }: LaporanClientProps) {
   const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
+  const printRef = useRef<HTMLElement>(null)
   const [tanggalAwal, setTanggalAwal] = useState(firstDayOfMonthInput())
   const [tanggalAkhir, setTanggalAkhir] = useState(todayInput())
   const [kategori, setKategori] = useState('semua')
   const [search, setSearch] = useState('')
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [judul, setJudul] = useState('Laporan Keuangan Madrasah')
-  const [format, setFormat] = useState<'ringkas' | 'detail'>('ringkas')
+  const [format, setFormat] = useState<'ringkas' | 'detail'>('detail')
   const [orientasi, setOrientasi] = useState<'portrait' | 'landscape'>('portrait')
   const [penandaTangan, setPenandaTangan] = useState('Bendahara Komite')
   const [materi, setMateri] = useState<Record<MateriKey, boolean>>({
@@ -213,11 +215,80 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
     setMateri(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  const handlePrint = () => {
-    window.print()
-  }
-
   const periodeLabel = `${formatTanggal(tanggalAwal)} - ${formatTanggal(tanggalAkhir)}`
+  const isDetail = format === 'detail'
+  const materiOptions: Array<readonly [MateriKey, string]> = isDetail
+    ? [
+        ['ringkasan', 'Ringkasan'],
+        ['arusKas', 'Arus Kas'],
+        ['transaksi', 'Transaksi Masuk'],
+        ['kasKeluar', 'Kas Keluar'],
+        ['tunggakan', 'Tunggakan'],
+        ['angkatan', 'Rekap Angkatan'],
+      ]
+    : [
+        ['ringkasan', 'Ringkasan'],
+        ['arusKas', 'Arus Kas'],
+        ['angkatan', 'Rekap Angkatan'],
+      ]
+  const printPageStyle = `
+    @page { size: A4 ${orientasi}; margin: 12mm; }
+    @media print {
+      html, body {
+        width: auto !important;
+        height: auto !important;
+        margin: 0 !important;
+        overflow: visible !important;
+        background: #fff !important;
+      }
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .print-area {
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+        background: #fff !important;
+        color: #111827 !important;
+      }
+      .print-page {
+        display: block !important;
+        height: auto !important;
+        overflow: visible !important;
+        box-shadow: none !important;
+        border: 0 !important;
+        padding: 0 !important;
+      }
+      .print-section {
+        break-inside: auto;
+        page-break-inside: auto;
+      }
+      .print-section h2 {
+        break-after: avoid;
+        page-break-after: avoid;
+      }
+      .print-table {
+        break-inside: auto;
+        page-break-inside: auto;
+      }
+      .print-table thead {
+        display: table-header-group;
+      }
+      .print-table tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
+  `
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `${judul}-${periodeLabel}`,
+    pageStyle: printPageStyle,
+  })
+
   const transaksiPage = transaksiPagination.paginate(transaksiPeriode)
   const tunggakanPage = tunggakanPagination.paginate(tunggakanFiltered)
   const kasPage = kasPagination.paginate(kasKeluarPeriode)
@@ -311,8 +382,8 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
                         <Select value={format} onValueChange={(value: 'ringkas' | 'detail') => setFormat(value)}>
                           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="ringkas">Ringkas</SelectItem>
-                            <SelectItem value="detail">Detail</SelectItem>
+                            <SelectItem value="ringkas">Ringkas (tanpa tabel detail)</SelectItem>
+                            <SelectItem value="detail">Detail (semua data)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -334,14 +405,7 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
                     <div>
                       <p className="mb-2 text-[11px] font-semibold text-slate-500">Materi Cetak</p>
                       <div className="grid grid-cols-2 gap-2">
-                        {([
-                          ['ringkasan', 'Ringkasan'],
-                          ['arusKas', 'Arus Kas'],
-                          ['transaksi', 'Transaksi Masuk'],
-                          ['kasKeluar', 'Kas Keluar'],
-                          ['tunggakan', 'Tunggakan'],
-                          ['angkatan', 'Rekap Angkatan'],
-                        ] as const).map(([key, label]) => (
+                        {materiOptions.map(([key, label]) => (
                           <label key={key} className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-2 py-1.5 text-xs dark:border-slate-800">
                             <input type="checkbox" checked={materi[key]} onChange={() => toggleMateri(key)} />
                             <span>{label}</span>
@@ -358,7 +422,7 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
                     <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPrintModalOpen(false)}>
                       Batal
                     </Button>
-                    <Button size="sm" className="h-8 gap-2 text-xs" onClick={handlePrint}>
+                    <Button size="sm" className="h-8 gap-2 text-xs" onClick={() => handlePrint()}>
                       <Printer className="h-3.5 w-3.5" /> {isMobile ? 'Simpan PDF' : 'Cetak Sekarang'}
                     </Button>
                   </div>
@@ -530,8 +594,8 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
         </DataTablePanel>
       </section>
 
-      <section className="print-area hidden print:block">
-        <div className={`print-page ${format === 'detail' ? 'text-[10px]' : 'text-[11px]'}`}>
+      <section ref={printRef} className="print-area hidden print:block">
+        <div className={`print-page ${isDetail ? 'text-[10px]' : 'text-[11px]'}`}>
           <PrintHeader judul={judul} periode={periodeLabel} />
 
           {materi.ringkasan ? (
@@ -556,10 +620,10 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
             </PrintSection>
           ) : null}
 
-          {materi.transaksi ? (
+          {isDetail && materi.transaksi ? (
             <PrintSection title="Transaksi Masuk">
               <PrintTable headers={['Tanggal', 'Siswa', 'Sumber', 'Kuitansi', 'Jumlah']}>
-                {(format === 'detail' ? transaksiPeriode : transaksiPeriode.slice(0, 20)).map(row => (
+                {transaksiPeriode.map(row => (
                   <tr key={row.id}>
                     <td>{formatTanggalJam(row.created_at)}</td>
                     <td>{row.nama_lengkap}</td>
@@ -572,10 +636,10 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
             </PrintSection>
           ) : null}
 
-          {materi.kasKeluar ? (
+          {isDetail && materi.kasKeluar ? (
             <PrintSection title="Kas Keluar">
               <PrintTable headers={['Tanggal', 'Kategori', 'Keterangan', 'Jumlah']}>
-                {(format === 'detail' ? kasKeluarPeriode : kasKeluarPeriode.slice(0, 20)).map(row => (
+                {kasKeluarPeriode.map(row => (
                   <tr key={row.id}>
                     <td>{formatTanggal(row.tanggal)}</td>
                     <td>{row.kategori ?? '-'}</td>
@@ -587,10 +651,10 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
             </PrintSection>
           ) : null}
 
-          {materi.tunggakan ? (
+          {isDetail && materi.tunggakan ? (
             <PrintSection title="Tunggakan Aktif">
               <PrintTable headers={['Siswa', 'Kelas', 'Jenis', 'Nominal', 'Dibayar', 'Sisa']}>
-                {(format === 'detail' ? tunggakanFiltered : tunggakanFiltered.slice(0, 25)).map(row => (
+                {tunggakanFiltered.map(row => (
                   <tr key={`${row.jenis}-${row.id}`}>
                     <td>{row.nama_lengkap}</td>
                     <td>{row.kelas ?? '-'}</td>

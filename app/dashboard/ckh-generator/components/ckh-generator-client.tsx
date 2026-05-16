@@ -99,6 +99,25 @@ function upper(value: string | null | undefined) {
   return String(value || '').toUpperCase()
 }
 
+function isoToDisplayDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return value || ''
+  const [year, month, day] = value.split('-')
+  return `${day}/${month}/${year}`
+}
+
+function displayToIsoDate(value: string) {
+  const clean = String(value || '').trim()
+  const match = clean.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!match) return null
+  const day = match[1].padStart(2, '0')
+  const month = match[2].padStart(2, '0')
+  const year = match[3]
+  const date = new Date(`${year}-${month}-${day}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return null
+  if (date.getFullYear() !== Number(year) || date.getMonth() + 1 !== Number(month) || date.getDate() !== Number(day)) return null
+  return `${year}-${month}-${day}`
+}
+
 function appendCkhLine(value: string) {
   return value.trim() ? `${value.replace(/\s+$/, '')}\n` : ''
 }
@@ -822,10 +841,23 @@ export function CkhGeneratorClient({
                       <td className="border border-slate-300 p-2 text-center align-top font-medium text-slate-500">{index + 1}</td>
                       <td className="border border-slate-300 p-1.5 align-top">
                         <Input
-                          type="date"
-                          value={row.tanggal}
-                          onChange={e => updateRowLocal(row.id, { tanggal: e.target.value })}
-                          onBlur={e => saveRow({ ...row, tanggal: e.target.value })}
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="DD/MM/YYYY"
+                          value={isoToDisplayDate(row.tanggal)}
+                          onChange={e => {
+                            const iso = displayToIsoDate(e.target.value)
+                            if (iso) updateRowLocal(row.id, { tanggal: iso })
+                          }}
+                          onBlur={e => {
+                            const iso = displayToIsoDate(e.target.value)
+                            if (!iso) {
+                              setMessage({ type: 'error', text: 'Format tanggal harus DD/MM/YYYY.' })
+                              return
+                            }
+                            updateRowLocal(row.id, { tanggal: iso })
+                            saveRow({ ...row, tanggal: iso })
+                          }}
                           className="h-8 rounded-md border-slate-200 bg-white px-1 text-center text-[12px] shadow-none focus-visible:ring-1"
                         />
                       </td>

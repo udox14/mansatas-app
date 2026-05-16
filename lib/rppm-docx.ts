@@ -157,6 +157,7 @@ function cell(inner: string, width: number, gridSpan?: number, fill?: string, bo
 }
 
 function signatureTable(content: RppmContent, user: RppmSigner, kepsek: RppmSigner | null) {
+  const noBorders = { top: 'nil', left: 'nil', bottom: 'nil', right: 'nil' } as const
   return `<w:p><w:pPr><w:spacing w:before="360" w:after="0"/></w:pPr></w:p>
   <w:tbl>
     <w:tblPr>
@@ -169,19 +170,23 @@ function signatureTable(content: RppmContent, user: RppmSigner, kepsek: RppmSign
     <w:tblGrid><w:gridCol w:w="4300"/><w:gridCol w:w="1900"/><w:gridCol w:w="3700"/></w:tblGrid>
     <w:tr>
       ${signatureCell('Mengetahui,', 'Kepala MAN 1 Tasikmalaya', kepsek?.nama_lengkap || 'Kepala Madrasah Belum Diatur', kepsek?.nip || '', 4300)}
-      ${cell(paragraph(''), 1900)}
+      ${cell(paragraph(''), 1900, undefined, undefined, noBorders)}
       ${signatureCell(content.spesifikasi.tanggal_ttd ? `Tasikmalaya, ${formatTanggalRppm(content.spesifikasi.tanggal_ttd)}` : 'Tasikmalaya, ................................', user.jabatan_cetak || user.role || 'Guru', user.nama_lengkap || 'Nama Guru Belum Diatur', user.nip || '', 3700)}
     </w:tr>
   </w:tbl>`
 }
 
 function signatureCell(title: string, position: string, name: string, nip: string, width: number) {
+  const noBorders = { top: 'nil', left: 'nil', bottom: 'nil', right: 'nil' } as const
   return cell(
     paragraph(title) +
       paragraph(position.toUpperCase(), { bold: true, after: 900 }) +
       paragraph(name.toUpperCase(), { bold: true }) +
       paragraph(`NIP. ${nip || '................................'}`),
     width,
+    undefined,
+    undefined,
+    noBorders,
   )
 }
 
