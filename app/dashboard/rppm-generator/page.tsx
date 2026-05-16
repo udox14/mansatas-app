@@ -25,7 +25,7 @@ export default async function RppmGeneratorPage() {
         title="RPPM Generator"
         description="Buat prompt AI, paste JSON, simpan draft, dan unduh RPPM KBC dalam format Word."
       />
-      <RppmGeneratorClient initialDocuments={data.documents} user={data.user} kepsek={data.kepsek} />
+      <RppmGeneratorClient initialDocuments={data.documents} mapelOptions={data.mapelOptions} user={data.user} kepsek={data.kepsek} />
     </div>
   )
 }

@@ -3,6 +3,8 @@
 
 import { MENU_ITEMS } from '@/config/menu'
 
+export type CrudAction = 'create' | 'read' | 'update' | 'delete'
+
 /**
  * Get all roles for a user from user_roles table
  * Falls back to user.role column if user_roles is empty
@@ -112,6 +114,49 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
 export async function checkFeatureAccess(db: D1Database, userId: string, featureId: string): Promise<boolean> {
   const features = await getUserAllowedFeatures(db, userId)
   return features.includes(featureId)
+}
+
+/**
+ * Check if a user has a CRUD action for a feature.
+ * Backward compatible: if the CRUD table is missing or no row exists yet,
+ * allowed feature access grants all CRUD actions until an admin customizes it.
+ */
+export async function checkFeatureCrudAccess(
+  db: D1Database,
+  userId: string,
+  featureId: string,
+  action: CrudAction
+): Promise<boolean> {
+  const hasReadAccess = await checkFeatureAccess(db, userId, featureId)
+  if (!hasReadAccess) return false
+  if (action === 'read') return true
+
+  const roles = await getUserRoles(db, userId)
+  if (roles.length === 0) return false
+
+  const columnMap: Record<CrudAction, string> = {
+    create: 'can_create',
+    read: 'can_read',
+    update: 'can_update',
+    delete: 'can_delete',
+  }
+  const column = columnMap[action]
+  const placeholders = roles.map(() => '?').join(',')
+
+  try {
+    const result = await db.prepare(`
+      SELECT COUNT(*) as configured_count, MAX(${column}) as allowed
+      FROM role_feature_permissions
+      WHERE feature_id = ?
+        AND role IN (${placeholders})
+        AND can_read = 1
+    `).bind(featureId, ...roles).first()
+    const row = result as { configured_count: number; allowed: number | null } | null
+    if (!row || row.configured_count === 0) return true
+    return row.allowed === 1
+  } catch {
+    return true
+  }
 }
 
 /**

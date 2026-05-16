@@ -27,6 +27,29 @@ async function ensureFeatureDisplayTable(db: D1Database) {
   `).run()
 }
 
+async function ensureRoleFeaturePermissionsTable(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS role_feature_permissions (
+      role TEXT NOT NULL,
+      feature_id TEXT NOT NULL,
+      can_create INTEGER NOT NULL DEFAULT 1,
+      can_read INTEGER NOT NULL DEFAULT 1,
+      can_update INTEGER NOT NULL DEFAULT 1,
+      can_delete INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (role, feature_id),
+      FOREIGN KEY (role) REFERENCES master_roles(value) ON DELETE CASCADE
+    )
+  `).run()
+}
+
+export type CrudPermission = {
+  create: boolean
+  read: boolean
+  update: boolean
+  delete: boolean
+}
+
 // ============================================================
 // ROLE FEATURES CRUD
 // ============================================================
@@ -37,12 +60,13 @@ async function ensureFeatureDisplayTable(db: D1Database) {
  */
 export async function getRoleFeatureMatrix(): Promise<{
   matrix: Record<string, string[]>
+  permissions: Record<string, Record<string, CrudPermission>>
   roles: { value: string; label: string; is_custom: number; mobile_nav_links: string; sidebar_config: string }[]
   featureLabels: Record<string, string>
 }> {
   const db = await getDB()
-  await Promise.all([ensureSidebarConfigTable(db), ensureFeatureDisplayTable(db)])
-  const [featResult, rolesResult, labelsResult] = await Promise.all([
+  await Promise.all([ensureSidebarConfigTable(db), ensureFeatureDisplayTable(db), ensureRoleFeaturePermissionsTable(db)])
+  const [featResult, rolesResult, labelsResult, permissionsResult] = await Promise.all([
     db.prepare('SELECT role, feature_id FROM role_features ORDER BY role, feature_id').all<{ role: string; feature_id: string }>(),
     db.prepare(`
       SELECT mr.value, mr.label, mr.is_custom, mr.mobile_nav_links, COALESCE(rsc.groups_json, '') AS sidebar_config
@@ -51,19 +75,46 @@ export async function getRoleFeatureMatrix(): Promise<{
       ORDER BY mr.is_custom ASC, mr.label ASC
     `).all<{ value: string; label: string; is_custom: number; mobile_nav_links: string; sidebar_config: string }>(),
     db.prepare('SELECT feature_id, title FROM feature_display_settings ORDER BY feature_id').all<{ feature_id: string; title: string }>(),
+    db.prepare(`
+      SELECT role, feature_id, can_create, can_read, can_update, can_delete
+      FROM role_feature_permissions
+      ORDER BY role, feature_id
+    `).all<{ role: string; feature_id: string; can_create: number; can_read: number; can_update: number; can_delete: number }>(),
   ])
 
   const roles = rolesResult.results ?? []
   const featureLabels: Record<string, string> = {}
   for (const row of labelsResult.results ?? []) featureLabels[row.feature_id] = row.title
   const matrix: Record<string, string[]> = {}
+  const permissions: Record<string, Record<string, CrudPermission>> = {}
   for (const r of roles) matrix[r.value] = []
+  for (const r of roles) permissions[r.value] = {}
 
   for (const row of featResult.results ?? []) {
     if (!matrix[row.role]) matrix[row.role] = []
     matrix[row.role].push(row.feature_id)
   }
-  return { matrix, roles, featureLabels }
+
+  for (const row of permissionsResult.results ?? []) {
+    if (!permissions[row.role]) permissions[row.role] = {}
+    permissions[row.role][row.feature_id] = {
+      create: row.can_create === 1,
+      read: row.can_read === 1,
+      update: row.can_update === 1,
+      delete: row.can_delete === 1,
+    }
+  }
+
+  for (const [role, featureIds] of Object.entries(matrix)) {
+    if (!permissions[role]) permissions[role] = {}
+    for (const featureId of featureIds) {
+      if (!permissions[role][featureId]) {
+        permissions[role][featureId] = { create: true, read: true, update: true, delete: true }
+      }
+    }
+  }
+
+  return { matrix, permissions, roles, featureLabels }
 }
 
 /**
@@ -79,13 +130,26 @@ export async function toggleRoleFeature(role: string, featureId: string, enabled
   if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengelola fitur.' }
 
   if (enabled) {
-    await db.prepare(
-      'INSERT OR IGNORE INTO role_features (role, feature_id) VALUES (?, ?)'
-    ).bind(role, featureId).run()
+    await ensureRoleFeaturePermissionsTable(db)
+    await db.batch([
+      db.prepare(
+        'INSERT OR IGNORE INTO role_features (role, feature_id) VALUES (?, ?)'
+      ).bind(role, featureId),
+      db.prepare(`
+        INSERT OR IGNORE INTO role_feature_permissions
+          (role, feature_id, can_create, can_read, can_update, can_delete)
+        VALUES (?, ?, 1, 1, 1, 1)
+      `).bind(role, featureId),
+    ])
   } else {
-    await db.prepare(
-      'DELETE FROM role_features WHERE role = ? AND feature_id = ?'
-    ).bind(role, featureId).run()
+    await db.batch([
+      db.prepare(
+        'DELETE FROM role_features WHERE role = ? AND feature_id = ?'
+      ).bind(role, featureId),
+      db.prepare(
+        'DELETE FROM role_feature_permissions WHERE role = ? AND feature_id = ?'
+      ).bind(role, featureId),
+    ])
   }
 
   revalidatePath('/dashboard')
@@ -104,15 +168,91 @@ export async function setRoleFeatures(role: string, featureIds: string[]) {
   if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengelola fitur.' }
 
   // Delete existing, then insert new
+  await ensureRoleFeaturePermissionsTable(db)
   const stmts: D1PreparedStatement[] = [
     db.prepare('DELETE FROM role_features WHERE role = ?').bind(role),
+    db.prepare('DELETE FROM role_feature_permissions WHERE role = ?').bind(role),
     ...featureIds.map(fid =>
       db.prepare('INSERT INTO role_features (role, feature_id) VALUES (?, ?)').bind(role, fid)
-    )
+    ),
+    ...featureIds.map(fid =>
+      db.prepare(`
+        INSERT INTO role_feature_permissions
+          (role, feature_id, can_create, can_read, can_update, can_delete)
+        VALUES (?, ?, 1, 1, 1, 1)
+      `).bind(role, fid)
+    ),
   ]
 
   await db.batch(stmts)
 
+  revalidatePath('/dashboard')
+  return { success: true }
+}
+
+export async function setRoleFeaturePermission(
+  role: string,
+  featureId: string,
+  action: keyof CrudPermission,
+  enabled: boolean
+) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<any>()
+  if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengelola hak CRUD.' }
+
+  await ensureRoleFeaturePermissionsTable(db)
+
+  const allowedActions: Array<keyof CrudPermission> = ['create', 'read', 'update', 'delete']
+  if (!allowedActions.includes(action)) return { error: 'Aksi tidak valid.' }
+
+  const columnMap: Record<keyof CrudPermission, string> = {
+    create: 'can_create',
+    read: 'can_read',
+    update: 'can_update',
+    delete: 'can_delete',
+  }
+  const column = columnMap[action]
+
+  if (action === 'read') {
+    if (enabled) {
+      await db.batch([
+        db.prepare('INSERT OR IGNORE INTO role_features (role, feature_id) VALUES (?, ?)').bind(role, featureId),
+        db.prepare(`
+          INSERT INTO role_feature_permissions
+            (role, feature_id, can_create, can_read, can_update, can_delete, updated_at)
+          VALUES (?, ?, 1, 1, 1, 1, CURRENT_TIMESTAMP)
+          ON CONFLICT(role, feature_id) DO UPDATE SET
+            can_read = 1,
+            updated_at = CURRENT_TIMESTAMP
+        `).bind(role, featureId),
+      ])
+    } else {
+      await db.batch([
+        db.prepare('DELETE FROM role_features WHERE role = ? AND feature_id = ?').bind(role, featureId),
+        db.prepare('DELETE FROM role_feature_permissions WHERE role = ? AND feature_id = ?').bind(role, featureId),
+      ])
+    }
+  } else {
+    const hasFeature = await db.prepare(
+      'SELECT 1 FROM role_features WHERE role = ? AND feature_id = ? LIMIT 1'
+    ).bind(role, featureId).first()
+    if (!hasFeature) return { error: 'Aktifkan akses fitur terlebih dahulu sebelum mengatur C/U/D.' }
+
+    await db.prepare(`
+      INSERT INTO role_feature_permissions
+        (role, feature_id, can_create, can_read, can_update, can_delete, updated_at)
+      VALUES (?, ?, 1, 1, 1, 1, CURRENT_TIMESTAMP)
+      ON CONFLICT(role, feature_id) DO UPDATE SET
+        ${column} = ?,
+        can_read = 1,
+        updated_at = CURRENT_TIMESTAMP
+    `).bind(role, featureId, enabled ? 1 : 0).run()
+  }
+
+  revalidatePath('/dashboard/settings/fitur')
   revalidatePath('/dashboard')
   return { success: true }
 }
@@ -337,6 +477,7 @@ export async function deleteCustomRole(value: string) {
   // Hapus dari role_features dan master_roles
   await db.batch([
     db.prepare('DELETE FROM role_features WHERE role = ?').bind(value),
+    db.prepare('DELETE FROM role_feature_permissions WHERE role = ?').bind(value),
     db.prepare('DELETE FROM master_roles WHERE value = ?').bind(value),
   ])
 

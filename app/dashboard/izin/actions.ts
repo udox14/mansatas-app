@@ -8,6 +8,12 @@ import { revalidatePath } from 'next/cache'
 import { nowWIBISO, todayWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 
+const INPUT_IZIN_ROLES = ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam']
+
+function hasAnyRole(roles: string[], allowedRoles: string[]) {
+  return roles.some(role => allowedRoles.includes(role))
+}
+
 export type AlasanIzin = string
 
 export type AlasanIzinRow = {
@@ -280,6 +286,8 @@ export async function tambahIzinKeluar(prevState: any, formData: FormData) {
   const db = await getDB()
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', success: null }
+  const roles = await getUserRoles(db, user.id)
+  if (!hasAnyRole(roles, INPUT_IZIN_ROLES)) return { error: 'Anda tidak memiliki hak untuk menginput perizinan.', success: null }
 
   const siswa_id = formData.get('siswa_id') as string
   const keterangan = formData.get('keterangan') as string
@@ -301,6 +309,11 @@ export async function tambahIzinKeluar(prevState: any, formData: FormData) {
 
 export async function tandaiSudahKembali(id: string) {
   const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const roles = await getUserRoles(db, user.id)
+  if (!hasAnyRole(roles, INPUT_IZIN_ROLES)) return { error: 'Anda tidak memiliki hak untuk mengubah status perizinan.' }
+
   const result = await dbUpdate(
     db,
     'izin_keluar_komplek',
@@ -319,6 +332,11 @@ export async function tandaiSudahKembali(id: string) {
 
 export async function hapusIzinKeluar(id: string) {
   const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const roles = await getUserRoles(db, user.id)
+  if (!roles.includes('super_admin')) return { error: 'Hanya super admin yang dapat menghapus riwayat izin.' }
+
   const result = await dbDelete(db, 'izin_keluar_komplek', { id })
   if (result.error) return { error: result.error }
   revalidatePath('/dashboard/izin')
@@ -332,6 +350,8 @@ export async function tambahIzinTidakMasuk(prevState: any, formData: FormData) {
   const db = await getDB()
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', success: null }
+  const roles = await getUserRoles(db, user.id)
+  if (!hasAnyRole(roles, INPUT_IZIN_ROLES)) return { error: 'Anda tidak memiliki hak untuk menginput perizinan.', success: null }
 
   const siswa_id = formData.get('siswa_id') as string
   const tanggal = formData.get('tanggal') as string
@@ -360,6 +380,11 @@ export async function tambahIzinTidakMasuk(prevState: any, formData: FormData) {
 
 export async function hapusIzinTidakMasuk(id: string) {
   const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const roles = await getUserRoles(db, user.id)
+  if (!roles.includes('super_admin')) return { error: 'Hanya super admin yang dapat menghapus riwayat izin.' }
+
   const result = await dbDelete(db, 'izin_tidak_masuk_kelas', { id })
   if (result.error) return { error: result.error }
   revalidatePath('/dashboard/izin')
@@ -374,6 +399,8 @@ export async function tambahIzinKelas(prevState: any, formData: FormData) {
   const db = await getDB()
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', success: null }
+  const roles = await getUserRoles(db, user.id)
+  if (!hasAnyRole(roles, INPUT_IZIN_ROLES)) return { error: 'Anda tidak memiliki hak untuk menginput perizinan.', success: null }
 
   const siswa_id = formData.get('siswa_id') as string
   const alasan = formData.get('alasan') as string
@@ -402,6 +429,11 @@ export async function tambahIzinKelas(prevState: any, formData: FormData) {
 
 export async function hapusIzinKelas(id: string) {
   const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const roles = await getUserRoles(db, user.id)
+  if (!roles.includes('super_admin')) return { error: 'Hanya super admin yang dapat menghapus riwayat izin.' }
+
   const result = await dbDelete(db, 'izin_tidak_masuk_kelas', { id })
   if (result.error) return { error: result.error }
   revalidatePath('/dashboard/izin')

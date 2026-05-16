@@ -109,7 +109,7 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
                   {j.isToday && j.absensi && StatusIcon && (
                     <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] font-bold tracking-wide ${statusColor}`} title="Status kehadiran anak pada jam pelajaran ini">
                       <StatusIcon className="w-3 h-3" />
-                      {j.absensi.status === 'KBM_EXCEPTION' ? 'Kegiatan resmi' : `Anak: ${j.absensi.status}`}
+                      {j.absensi.status === 'KBM_EXCEPTION' ? 'Kegiatan' : `Anak: ${j.absensi.status}`}
                     </div>
                   )}
                 </div>

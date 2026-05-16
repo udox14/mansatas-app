@@ -7,8 +7,8 @@ import { useFormStatus } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Camera, Loader2, Save, KeyRound, User, CheckCircle2, AlertCircle, BellRing } from 'lucide-react'
-import { updateProfileInfo, updatePassword, uploadAvatarAction } from '../actions'
+import { Camera, Loader2, Save, KeyRound, User, CheckCircle2, AlertCircle, BellRing, PenLine } from 'lucide-react'
+import { updateProfileInfo, updatePassword, uploadAvatarAction, uploadSignatureAction } from '../actions'
 import { PushNotificationManager } from '@/components/shared/PushNotificationManager'
 
 const initialState = { error: null as string | null, success: null as string | null }
@@ -32,6 +32,33 @@ const compressImage = async (file: File): Promise<File> => {
           if (blob) resolve(new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', { type: 'image/jpeg' }))
           else resolve(file)
         }, 'image/jpeg', 0.8)
+      }
+      img.onerror = reject
+    }
+    reader.onerror = reject
+  })
+}
+
+const compressSignaturePng = async (file: File): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = (event) => {
+      const img = new Image()
+      img.src = event.target?.result as string
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const MAX = 900
+        let w = img.width, h = img.height
+        if (w > MAX) { h *= MAX / w; w = MAX }
+        if (h > 360) { w *= 360 / h; h = 360 }
+        canvas.width = Math.max(1, Math.round(w))
+        canvas.height = Math.max(1, Math.round(h))
+        canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height)
+        canvas.toBlob(blob => {
+          if (blob) resolve(new File([blob], 'signature.png', { type: 'image/png' }))
+          else resolve(file)
+        }, 'image/png')
       }
       img.onerror = reject
     }
@@ -63,8 +90,11 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
   const [profileState, profileAction] = useActionState(updateProfileInfo, initialState)
   const [passwordState, passwordAction] = useActionState(updatePassword, initialState)
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '')
+  const [signatureUrl, setSignatureUrl] = useState(profile?.signature_url || '')
   const [isUploading, setIsUploading] = useState(false)
+  const [isUploadingSignature, setIsUploadingSignature] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const signatureInputRef = useRef<HTMLInputElement>(null)
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -79,6 +109,24 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
       else if (res.url) setAvatarUrl(res.url)
     } catch { alert('Gagal mengunggah foto.') }
     finally { setIsUploading(false) }
+  }
+
+  const handleSignatureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIsUploadingSignature(true)
+    try {
+      const compressed = await compressSignaturePng(file)
+      const fd = new FormData()
+      fd.append('signature', compressed)
+      const res = await uploadSignatureAction(fd)
+      if (res.error) alert(res.error)
+      else if (res.url) setSignatureUrl(res.url)
+    } catch { alert('Gagal mengunggah tanda tangan.') }
+    finally {
+      setIsUploadingSignature(false)
+      e.target.value = ''
+    }
   }
 
   return (
@@ -123,6 +171,36 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
             <li>Jangan berikan password kepada siapapun.</li>
             <li>Hubungi Admin TU untuk mengubah email.</li>
           </ul>
+        </div>
+
+        <div className="rounded-xl border border-surface bg-surface p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                <PenLine className="h-4 w-4 text-emerald-600" /> Tanda Tangan CKH
+              </p>
+              <p className="mt-1 text-xs text-slate-500">Unggah PNG tanda tangan. File akan dikompres sebelum disimpan.</p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => signatureInputRef.current?.click()}
+              disabled={isUploadingSignature}
+              className="shrink-0 gap-1.5"
+            >
+              {isUploadingSignature ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PenLine className="h-3.5 w-3.5" />}
+              Upload
+            </Button>
+          </div>
+          <div className="mt-3 flex min-h-24 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-white p-3">
+            {signatureUrl ? (
+              <img src={signatureUrl} alt="Tanda tangan" className="max-h-24 max-w-full object-contain" />
+            ) : (
+              <span className="text-xs text-slate-400">Belum ada tanda tangan</span>
+            )}
+          </div>
+          <input type="file" ref={signatureInputRef} className="hidden" accept="image/png,image/webp,image/jpeg" onChange={handleSignatureChange} />
         </div>
       </div>
 

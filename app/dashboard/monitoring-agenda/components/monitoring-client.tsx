@@ -129,41 +129,58 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
 
   const handleSearch = async () => {
     setIsLoading(true); setPesan(null)
-    const selectedJam = jamFilter !== 'all_jam' ? Number(jamFilter) : undefined
-    const result = await getMonitoringHarian(
-      tanggal,
-      filterMode,
-      filterMode !== 'semua' ? filterId : undefined,
-      typeof selectedJam === 'number' && Number.isFinite(selectedJam) ? selectedJam : undefined,
-    )
-    if (result.error) setPesan({ tipe: 'error', teks: result.error })
-    else {
-      setData(result.data || [])
-      setHariNama(result.hariNama || '')
-      setSlots(((result as any).slots || []) as SlotOption[])
-      if ((result as any).calendarStatus && !(result as any).calendarStatus.isEffective) {
-        setPesan({ tipe: 'sukses', teks: `Tanggal ini tidak efektif pembelajaran: ${(result as any).calendarStatus.reason || 'tidak ada kewajiban agenda.'}` })
+    try {
+      const selectedJam = jamFilter !== 'all_jam' ? Number(jamFilter) : undefined
+      const result = await getMonitoringHarian(
+        tanggal,
+        filterMode,
+        filterMode !== 'semua' ? filterId : undefined,
+        typeof selectedJam === 'number' && Number.isFinite(selectedJam) ? selectedJam : undefined,
+      )
+      if (result.error) setPesan({ tipe: 'error', teks: result.error })
+      else {
+        setData(result.data || [])
+        setHariNama(result.hariNama || '')
+        setSlots(((result as any).slots || []) as SlotOption[])
+        if ((result as any).calendarStatus && !(result as any).calendarStatus.isEffective) {
+          setPesan({ tipe: 'sukses', teks: `Tanggal ini tidak efektif pembelajaran: ${(result as any).calendarStatus.reason || 'tidak ada kewajiban agenda.'}` })
+        }
       }
+    } catch (error) {
+      console.error('Gagal memuat monitoring harian:', error)
+      setPesan({ tipe: 'error', teks: 'Gagal memuat monitoring harian. Silakan coba lagi.' })
+      setData([])
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   const handleEdit = async () => {
     if (!editItem) return
     setIsEditing(true)
-    const result = await editAgendaStatus(
-      editItem.agenda_id || null,
-      editItem.penugasan_id,
-      tanggal,
-      editItem.guru_id,
-      editItem.jam_ke_mulai,
-      editItem.jam_ke_selesai,
-      editStatus,
-      editCatatan,
-    )
-    if (result.error) setPesan({ tipe: 'error', teks: result.error })
-    else { setPesan({ tipe: 'sukses', teks: result.success || 'Berhasil' }); setEditItem(null); handleSearch() }
-    setIsEditing(false)
+    try {
+      const result = await editAgendaStatus(
+        editItem.agenda_id || null,
+        editItem.penugasan_id,
+        tanggal,
+        editItem.guru_id,
+        editItem.jam_ke_mulai,
+        editItem.jam_ke_selesai,
+        editStatus,
+        editCatatan,
+      )
+      if (result.error) setPesan({ tipe: 'error', teks: result.error })
+      else {
+        setPesan({ tipe: 'sukses', teks: result.success || 'Berhasil' })
+        setEditItem(null)
+        await handleSearch()
+      }
+    } catch (error) {
+      console.error('Gagal mengubah status agenda:', error)
+      setPesan({ tipe: 'error', teks: 'Gagal mengubah status agenda. Silakan coba lagi.' })
+    } finally {
+      setIsEditing(false)
+    }
   }
 
   const navigateDate = (offset: number) => {
@@ -480,12 +497,22 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
   const [data, setData] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('semua')
+  const [pesan, setPesan] = useState<{ tipe: 'error'; teks: string } | null>(null)
 
   const handleSearch = async () => {
     setIsLoading(true)
-    const result = await getRekapKehadiranGuru(tglMulai, tglSelesai, sortBy)
-    setData(result.data || [])
-    setIsLoading(false)
+    setPesan(null)
+    try {
+      const result = await getRekapKehadiranGuru(tglMulai, tglSelesai, sortBy)
+      if (result.error) setPesan({ tipe: 'error', teks: result.error })
+      setData(result.data || [])
+    } catch (error) {
+      console.error('Gagal memuat rekap kehadiran guru:', error)
+      setPesan({ tipe: 'error', teks: 'Gagal memuat rekap kehadiran guru. Silakan coba lagi.' })
+      setData([])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const filteredData = statusFilter === 'semua' ? data : data.filter(d => {
@@ -525,6 +552,12 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
           </Button>
         </div>
       </div>
+
+      {pesan && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+          {pesan.teks}
+        </div>
+      )}
 
       {/* Filter badges */}
       {data.length > 0 && (
@@ -612,15 +645,24 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
   const [guruId, setGuruId] = useState('')
   const [data, setData] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [pesan, setPesan] = useState<{ tipe: 'error'; teks: string } | null>(null)
   const printRef = useRef<HTMLDivElement>(null)
   const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
 
   const handleLoad = async () => {
     setIsLoading(true)
-    const gid = guruId && guruId !== 'all_guru' ? guruId : undefined
-    const result = await getDataCetakLaporan(tglMulai, tglSelesai, gid)
-    setData(result)
-    setIsLoading(false)
+    setPesan(null)
+    try {
+      const gid = guruId && guruId !== 'all_guru' ? guruId : undefined
+      const result = await getDataCetakLaporan(tglMulai, tglSelesai, gid)
+      setData(result)
+    } catch (error) {
+      console.error('Gagal memuat data cetak laporan:', error)
+      setPesan({ tipe: 'error', teks: 'Gagal memuat data cetak laporan. Silakan coba lagi.' })
+      setData([])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handlePrint = useReactToPrint({
@@ -669,6 +711,12 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
           )}
         </div>
       </div>
+
+      {pesan && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+          {pesan.teks}
+        </div>
+      )}
 
       {/* Preview */}
       {data.length > 0 && (
@@ -752,33 +800,50 @@ function TabMonitoringPiket() {
 
   const handleSearch = async () => {
     setIsLoading(true); setPesan(null)
-    const result = await getMonitoringPiketHarian(tanggal)
-    if (result.error) setPesan({ tipe: 'error', teks: result.error })
-    else {
-      setData(result.data || [])
-      setHariNama(result.hariNama || '')
-      if ((result as any).calendarStatus && !(result as any).calendarStatus.isEffective) {
-        setPesan({ tipe: 'sukses', teks: `Tanggal ini tidak efektif pembelajaran: ${(result as any).calendarStatus.reason || 'tidak ada kewajiban piket.'}` })
+    try {
+      const result = await getMonitoringPiketHarian(tanggal)
+      if (result.error) setPesan({ tipe: 'error', teks: result.error })
+      else {
+        setData(result.data || [])
+        setHariNama(result.hariNama || '')
+        if ((result as any).calendarStatus && !(result as any).calendarStatus.isEffective) {
+          setPesan({ tipe: 'sukses', teks: `Tanggal ini tidak efektif pembelajaran: ${(result as any).calendarStatus.reason || 'tidak ada kewajiban piket.'}` })
+        }
       }
+    } catch (error) {
+      console.error('Gagal memuat monitoring piket:', error)
+      setPesan({ tipe: 'error', teks: 'Gagal memuat monitoring piket. Silakan coba lagi.' })
+      setData([])
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   const handleEdit = async () => {
     if (!editItem) return
     setIsEditing(true)
-    const result = await editAgendaPiketStatus(
-      editItem.agenda_id || null,
-      editItem.jadwal_id,
-      editItem.user_id,
-      editItem.shift_id,
-      tanggal,
-      editStatus,
-      editCatatan,
-    )
-    if (result.error) setPesan({ tipe: 'error', teks: result.error })
-    else { setPesan({ tipe: 'sukses', teks: result.success || 'Berhasil' }); setEditItem(null); handleSearch() }
-    setIsEditing(false)
+    try {
+      const result = await editAgendaPiketStatus(
+        editItem.agenda_id || null,
+        editItem.jadwal_id,
+        editItem.user_id,
+        editItem.shift_id,
+        tanggal,
+        editStatus,
+        editCatatan,
+      )
+      if (result.error) setPesan({ tipe: 'error', teks: result.error })
+      else {
+        setPesan({ tipe: 'sukses', teks: result.success || 'Berhasil' })
+        setEditItem(null)
+        await handleSearch()
+      }
+    } catch (error) {
+      console.error('Gagal mengubah status piket:', error)
+      setPesan({ tipe: 'error', teks: 'Gagal mengubah status piket. Silakan coba lagi.' })
+    } finally {
+      setIsEditing(false)
+    }
   }
 
   const navigateDate = (offset: number) => {

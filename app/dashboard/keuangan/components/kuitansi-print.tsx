@@ -274,19 +274,19 @@ function BlokTtd({
   tanggalFmt, namaSiswa, namaPerugas, jabatanPenerima,
 }: { tanggalFmt: string; namaSiswa: string; namaPerugas: string; jabatanPenerima: string }) {
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', lineHeight: 1.12 }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', lineHeight: 1.08, marginTop: '1mm' }}>
       <tbody>
         <tr>
           <td style={{ width: '50%', textAlign: 'center', padding: '0 9mm', verticalAlign: 'bottom' }}>
             {/* Spacer setinggi 2 baris teks kanan agar garis TTD sejajar */}
             <p style={{ margin: '0 0 2px 0', visibility: 'hidden' }}>placeholder</p>
-            <p style={{ margin: '0 0 11mm 0' }}>Penyetor / Siswa</p>
+            <p style={{ margin: '0 0 8mm 0' }}>Penyetor / Siswa</p>
             <div style={{ borderBottom: '1px solid #1a1a1a', marginBottom: '3px' }} />
             <p style={{ margin: 0, fontWeight: 'bold' }}>( {namaSiswa} )</p>
           </td>
           <td style={{ width: '50%', textAlign: 'center', padding: '0 9mm', verticalAlign: 'bottom' }}>
             <p style={{ margin: '0 0 2px 0' }}>Tasikmalaya, {tanggalFmt}</p>
-            <p style={{ margin: '0 0 11mm 0' }}>{jabatanPenerima}</p>
+            <p style={{ margin: '0 0 8mm 0' }}>{jabatanPenerima}</p>
             <div style={{ borderBottom: '1px solid #1a1a1a', marginBottom: '3px' }} />
             <p style={{ margin: 0, fontWeight: 'bold' }}>( {namaPerugas} )</p>
           </td>
@@ -304,11 +304,11 @@ function FooterDoc({ nomorKuitansi }: { nomorKuitansi: string }) {
       position: 'absolute', bottom: 0, left: 0, right: 0,
       borderTop: '1px solid #d4d4d4', padding: '2px 10mm',
       fontSize: '6.6pt', color: '#888',
-      display: 'flex', justifyContent: 'space-between',
+      display: 'grid', gridTemplateColumns: '1fr 1.35fr 1fr', alignItems: 'center', columnGap: '4mm',
     }}>
-      <span>Dicetak: {new Date().toLocaleString('id-ID')}</span>
-      <span>Dokumen ini sah tanpa tanda tangan basah jika dicetak dari sistem</span>
-      <span>{nomorKuitansi}</span>
+      <span style={{ whiteSpace: 'nowrap' }}>Dicetak: {new Date().toLocaleString('id-ID')}</span>
+      <span style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Dokumen ini sah tanpa tanda tangan basah jika dicetak dari sistem</span>
+      <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{nomorKuitansi}</span>
     </div>
   )
 }
@@ -567,7 +567,7 @@ function KuitansiDuplikatPage({ data }: { data: KuitansiData }) {
         <span style={{
           position: 'absolute',
           left: '50%',
-          top: '-8px',
+          top: '2px',
           transform: 'translateX(-50%)',
           backgroundColor: '#fff',
           color: '#777',

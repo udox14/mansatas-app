@@ -14,15 +14,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { CKH_DEFAULT_SATUAN, CKH_DEFAULT_VOL, formatCkhDate, formatCkhMonth } from '@/lib/ckh'
+import { CKH_DEFAULT_SATUAN, CKH_DEFAULT_VOL, countCkhItems, formatCkhDate, formatCkhMonth } from '@/lib/ckh'
 import {
   acceptCkhSuggestion,
-  addCkhRow,
   deleteCkhRow,
   deleteCkhTemplate,
   deleteCkhTemplateNote,
+  finalizeCkhDocument,
   refreshCkhDraft,
   saveCkhRow,
+  saveCkhSignatureSettings,
   saveCkhTemplate,
   saveCkhTemplateNote,
 } from '../actions'
@@ -63,6 +64,13 @@ const PAPER = {
   f4: { label: 'F4 / Folio', css: '215mm 330mm' },
 }
 
+type SignatureSettings = {
+  signature_enabled: number
+  signature_x_mm: number
+  signature_y_mm: number
+  signature_width_mm: number
+}
+
 const printProfileLabel: CSSProperties = { width: '112px', whiteSpace: 'nowrap' }
 
 const roleOptions = [
@@ -80,6 +88,46 @@ function upper(value: string | null | undefined) {
   return String(value || '').toUpperCase()
 }
 
+function appendCkhLine(value: string) {
+  return value.trim() ? `${value.replace(/\s+$/, '')}\n` : ''
+}
+
+function shouldUseKepalaTu(user: any, userRoles: string[] = []) {
+  const roles = new Set([...(userRoles || []), user?.role].filter(Boolean))
+  const jabatan = String(user?.jabatan_cetak || '').toLowerCase()
+  return roles.has('admin_tu') ||
+    roles.has('operator') ||
+    roles.has('pramubakti') ||
+    jabatan.includes('staff tu') ||
+    jabatan.includes('admin tu') ||
+    jabatan.includes('tata usaha') ||
+    jabatan.includes('operator emis') ||
+    jabatan.includes('pramubakti')
+}
+
+function normalizeSignatureSettings(document: any): SignatureSettings {
+  return {
+    signature_enabled: Number(document?.signature_enabled || 0),
+    signature_x_mm: Number(document?.signature_x_mm ?? 14),
+    signature_y_mm: Number(document?.signature_y_mm ?? 12),
+    signature_width_mm: Number(document?.signature_width_mm ?? 38),
+  }
+}
+
+function signatureImageStyle(settings: SignatureSettings): CSSProperties {
+  return {
+    position: 'absolute',
+    left: `${settings.signature_x_mm}mm`,
+    top: `${settings.signature_y_mm}mm`,
+    width: `${settings.signature_width_mm}mm`,
+    height: 'auto',
+    maxHeight: '28mm',
+    objectFit: 'contain',
+    zIndex: 10,
+    pointerEvents: 'none',
+  }
+}
+
 function MissingProfilePrint() {
   return <span style={{ fontStyle: 'italic' }}>Silakan isi dulu di Profil</span>
 }
@@ -92,6 +140,9 @@ function CkhPrintDocument({
   rows,
   user,
   kepsek,
+  kepalaTu,
+  userRoles,
+  signatureSettings,
   year,
   month,
   pageCss,
@@ -100,11 +151,17 @@ function CkhPrintDocument({
   rows: Row[]
   user: any
   kepsek: any
+  kepalaTu: any
+  userRoles: string[]
+  signatureSettings: SignatureSettings
   year: number
   month: number
   pageCss: string
   margins: { top: number; right: number; bottom: number; left: number }
 }) {
+  const signer = shouldUseKepalaTu(user, userRoles) ? kepalaTu : kepsek
+  const signerLabel = shouldUseKepalaTu(user, userRoles) ? 'KEPALA TU' : 'KEPALA MAN 1 TASIKMALAYA'
+  const missingSignerLabel = shouldUseKepalaTu(user, userRoles) ? 'KEPALA TU BELUM DIATUR' : 'KEPALA MADRASAH BELUM DIATUR'
   const monthLabel = formatCkhMonth(year, month)
   const lastRow = rows[rows.length - 1]
   const tanggalCetak = lastRow?.tanggal
@@ -165,12 +222,15 @@ function CkhPrintDocument({
         <div style={{ width: '46%', textAlign: 'left', paddingLeft: '14mm' }}>
           <div>Mengetahui :</div>
           <div style={{ fontWeight: 700, textTransform: 'uppercase', marginBottom: '20mm' }}>
-            KEPALA MAN 1 TASIKMALAYA
+            {signerLabel}
           </div>
-          <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(kepsek?.nama_lengkap) || 'KEPALA MADRASAH BELUM DIATUR'}</div>
-          <div>NIP. {kepsek?.nip || <MissingProfilePrint />}</div>
+          <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(signer?.nama_lengkap) || missingSignerLabel}</div>
+          <div>NIP. {signer?.nip || <MissingProfilePrint />}</div>
         </div>
-        <div style={{ width: '46%', textAlign: 'left', paddingLeft: '14mm' }}>
+        <div style={{ width: '46%', textAlign: 'left', paddingLeft: '14mm', position: 'relative' }}>
+          {signatureSettings.signature_enabled && user.signature_url ? (
+            <img src={user.signature_url} alt="" style={signatureImageStyle(signatureSettings)} />
+          ) : null}
           <div>Tasikmalaya, {tanggalCetak}</div>
           <div style={{ fontWeight: 700, textTransform: 'uppercase', marginBottom: '20mm' }}>
             {user.jabatan_cetak || user.role || 'Pegawai'}
@@ -215,16 +275,60 @@ function sortCkhRows(rows: Row[]) {
   })
 }
 
+function getApplicableTemplates(allTemplates: Template[], userRoles: string[], jabatanCetak: string | null | undefined) {
+  const roles = userRoles.length > 0 ? userRoles : ['guru']
+  const jabatan = String(jabatanCetak || '').toLowerCase()
+  const candidates = allTemplates
+    .filter(template => Number(template.is_active) === 1)
+    .filter(template => roles.includes(template.role))
+    .filter(template => !template.jabatan_cetak || template.jabatan_cetak.toLowerCase() === jabatan)
+    .sort((a, b) => {
+      const bySpecific = Number(Boolean(b.jabatan_cetak)) - Number(Boolean(a.jabatan_cetak))
+      if (bySpecific !== 0) return bySpecific
+      const byRole = a.role.localeCompare(b.role)
+      if (byRole !== 0) return byRole
+      const byOrder = Number(a.sort_order || 0) - Number(b.sort_order || 0)
+      if (byOrder !== 0) return byOrder
+      return a.title.localeCompare(b.title, 'id-ID')
+    })
+
+  const byTitle = new Map<string, Template>()
+  for (const template of candidates) {
+    const key = template.title.toLowerCase()
+    if (!byTitle.has(key) || template.jabatan_cetak) byTitle.set(key, template)
+  }
+  return Array.from(byTitle.values())
+}
+
 function getMonthUrl(year: number, month: number) {
   return `/dashboard/ckh-generator?year=${year}&month=${month}`
 }
 
-function PrintDialog({ rows, user, kepsek, year, month }: { rows: Row[]; user: any; kepsek: any; year: number; month: number }) {
+function PrintDialog({
+  rows,
+  user,
+  kepsek,
+  kepalaTu,
+  userRoles,
+  signatureSettings,
+  year,
+  month,
+}: {
+  rows: Row[]
+  user: any
+  kepsek: any
+  kepalaTu: any
+  userRoles: string[]
+  signatureSettings: SignatureSettings
+  year: number
+  month: number
+}) {
   const [paper, setPaper] = useState<keyof typeof PAPER>('f4')
   const [margins, setMargins] = useState({ top: 15, right: 12, bottom: 15, left: 12 })
   const printRef = useRef<HTMLDivElement>(null)
   const handlePrint = useReactToPrint({ contentRef: printRef })
-  const profileMissing = !user.nip || !user.jabatan_cetak || !kepsek?.nip
+  const signer = shouldUseKepalaTu(user, userRoles) ? kepalaTu : kepsek
+  const profileMissing = !user.nip || !user.jabatan_cetak || !signer?.nip
 
   return (
     <Dialog>
@@ -280,11 +384,139 @@ function PrintDialog({ rows, user, kepsek, year, month }: { rows: Row[]; user: a
               rows={rows}
               user={user}
               kepsek={kepsek}
+              kepalaTu={kepalaTu}
+              userRoles={userRoles}
+              signatureSettings={signatureSettings}
               year={year}
               month={month}
               pageCss={PAPER[paper].css}
               margins={margins}
             />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function SignatureSettingsDialog({
+  documentId,
+  signatureUrl,
+  settings,
+  onApply,
+}: {
+  documentId: string
+  signatureUrl: string | null
+  settings: SignatureSettings
+  onApply: (settings: SignatureSettings) => void
+}) {
+  const [draft, setDraft] = useState<SignatureSettings>(settings)
+  const [message, setMessage] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    setDraft(settings)
+  }, [settings])
+
+  const saveSettings = async () => {
+    setIsSaving(true)
+    setMessage(null)
+    try {
+      const res = await saveCkhSignatureSettings(documentId, {
+        enabled: Boolean(draft.signature_enabled),
+        xMm: draft.signature_x_mm,
+        yMm: draft.signature_y_mm,
+        widthMm: draft.signature_width_mm,
+      })
+      if (res?.error) {
+        setMessage(res.error)
+        return
+      }
+      if (res?.settings) onApply(res.settings as SignatureSettings)
+      setMessage('Pengaturan tanda tangan diterapkan.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const updateNumber = (key: keyof Pick<SignatureSettings, 'signature_x_mm' | 'signature_y_mm' | 'signature_width_mm'>, value: string) => {
+    setDraft(prev => ({ ...prev, [key]: Number(value) }))
+  }
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="gap-2">
+          <Settings2 className="h-4 w-4" />
+          Tanda Tangan
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="text-base">Pengaturan Tanda Tangan CKH</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {!signatureUrl ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              Tanda tangan belum diunggah. Unggah dulu lewat Profil Saya, lalu kembali ke CKH.
+            </div>
+          ) : null}
+
+          <label className="flex items-center gap-2 rounded-lg border border-surface-2 bg-surface-2 px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              checked={Boolean(draft.signature_enabled)}
+              onChange={e => setDraft(prev => ({ ...prev, signature_enabled: e.target.checked ? 1 : 0 }))}
+              disabled={!signatureUrl}
+              className="h-4 w-4"
+            />
+            Pakai tanda tangan pada dokumen CKH ini
+          </label>
+
+          <div className="relative h-40 overflow-hidden rounded-lg border border-slate-200 bg-white">
+            <div className="absolute right-6 top-5 w-56 text-sm text-black">
+              <div>Tasikmalaya, 31 Januari 2026</div>
+              <div className="mb-20 font-bold uppercase">JABATAN CETAK</div>
+              {signatureUrl && draft.signature_enabled ? (
+                <img src={signatureUrl} alt="Preview tanda tangan" style={signatureImageStyle(draft)} />
+              ) : null}
+              <div className="font-bold underline">NAMA PEGAWAI</div>
+              <div>NIP. 000000000000000000</div>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Geser kanan (mm)</Label>
+              <Input type="number" value={draft.signature_x_mm} min={-20} max={80} onChange={e => updateNumber('signature_x_mm', e.target.value)} disabled={!signatureUrl} />
+              <input type="range" min={-20} max={80} value={draft.signature_x_mm} onChange={e => updateNumber('signature_x_mm', e.target.value)} disabled={!signatureUrl} className="w-full" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Geser turun (mm)</Label>
+              <Input type="number" value={draft.signature_y_mm} min={-20} max={80} onChange={e => updateNumber('signature_y_mm', e.target.value)} disabled={!signatureUrl} />
+              <input type="range" min={-20} max={80} value={draft.signature_y_mm} onChange={e => updateNumber('signature_y_mm', e.target.value)} disabled={!signatureUrl} className="w-full" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Lebar (mm)</Label>
+              <Input type="number" value={draft.signature_width_mm} min={15} max={90} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} />
+              <input type="range" min={15} max={90} value={draft.signature_width_mm} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} className="w-full" />
+            </div>
+          </div>
+
+          {message ? <p className="text-xs text-slate-500">{message}</p> : null}
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDraft({ signature_enabled: signatureUrl ? 1 : 0, signature_x_mm: 14, signature_y_mm: 12, signature_width_mm: 38 })}
+              disabled={!signatureUrl || isSaving}
+            >
+              Reset
+            </Button>
+            <Button onClick={saveSettings} disabled={!signatureUrl || isSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
+            </Button>
           </div>
         </div>
       </DialogContent>
@@ -311,9 +543,14 @@ export function CkhGeneratorClient({
   const [busyRowId, setBusyRowId] = useState<string | null>(null)
   const [selectedMonth, setSelectedMonth] = useState(String(month))
   const [selectedYear, setSelectedYear] = useState(String(year))
+  const [allTemplates, setAllTemplates] = useState<Template[]>(initialData.allTemplates)
+  const [signatureSettings, setSignatureSettings] = useState<SignatureSettings>(normalizeSignatureSettings(initialData.document))
+  const [documentStatus, setDocumentStatus] = useState<string>(initialData.document?.status || 'DRAFT')
 
-  const templates: Template[] = initialData.templates
-  const allTemplates: Template[] = initialData.allTemplates
+  const templates = useMemo(
+    () => getApplicableTemplates(allTemplates, initialData.userRoles || [], initialData.user?.jabatan_cetak),
+    [allTemplates, initialData.userRoles, initialData.user?.jabatan_cetak],
+  )
   const yearOptions = useMemo(() => {
     const currentYear = new Date().getFullYear()
     const start = Math.min(year, currentYear) - 2
@@ -328,15 +565,25 @@ export function CkhGeneratorClient({
     }
     return map
   }, [templates])
+  const signatureUsesKepalaTu = shouldUseKepalaTu(initialData.user, initialData.userRoles)
+  const primarySigner = signatureUsesKepalaTu ? initialData.kepalaTu : initialData.kepsek
+  const primarySignerLabel = signatureUsesKepalaTu ? 'KEPALA TU' : 'KEPALA MAN 1 TASIKMALAYA'
+  const missingSignerLabel = signatureUsesKepalaTu ? 'KEPALA TU BELUM DIATUR' : 'KEPALA MADRASAH BELUM DIATUR'
 
   useEffect(() => {
     setRows(initialData.rows)
   }, [initialData.rows])
 
   useEffect(() => {
+    setAllTemplates(initialData.allTemplates)
+  }, [initialData.allTemplates])
+
+  useEffect(() => {
     setSelectedMonth(String(month))
     setSelectedYear(String(year))
-  }, [month, year])
+    setSignatureSettings(normalizeSignatureSettings(initialData.document))
+    setDocumentStatus(initialData.document?.status || 'DRAFT')
+  }, [initialData.document, month, year])
 
   const updateRowLocal = (id: string, patch: Partial<Row>) => {
     setRows(prev => prev.map(row => row.id === id ? { ...row, ...patch } : row))
@@ -348,8 +595,23 @@ export function CkhGeneratorClient({
         tanggal: row.tanggal,
         kegiatan_bulanan: row.kegiatan_bulanan,
         catatan_harian: row.catatan_harian,
+        vol: row.vol,
       })
+      if (res?.row) updateRowLocal(row.id, res.row as Partial<Row>)
+      if (!res?.error) setDocumentStatus('DRAFT')
       setMessage(res?.error ? { type: 'error', text: res.error } : { type: 'success', text: 'Baris CKH disimpan.' })
+    })
+  }
+
+  const finalizeDocument = () => {
+    startTransition(async () => {
+      const res = await finalizeCkhDocument(initialData.document.id)
+      if (res?.error) {
+        setMessage({ type: 'error', text: res.error })
+        return
+      }
+      setDocumentStatus('FINAL')
+      setMessage({ type: 'success', text: 'CKH berhasil dikirim.' })
     })
   }
 
@@ -362,6 +624,7 @@ export function CkhGeneratorClient({
         return
       }
       if (res?.rows) setRows(sortCkhRows(res.rows as Row[]))
+      setDocumentStatus('DRAFT')
       setMessage({ type: 'success', text: res.success || 'Draft disinkronkan.' })
     } finally {
       setIsSyncing(false)
@@ -379,23 +642,6 @@ export function CkhGeneratorClient({
     router.push(getMonthUrl(next.getFullYear(), next.getMonth() + 1))
   }
 
-  const addRow = (tanggal: string) => {
-    startTransition(async () => {
-      setBusyRowId(`add:${tanggal}`)
-      try {
-        const res = await addCkhRow(initialData.document.id, tanggal)
-        if (res?.error) {
-          setMessage({ type: 'error', text: res.error })
-          return
-        }
-        if (res?.row) setRows(prev => sortCkhRows([...prev, res.row as Row]))
-        setMessage({ type: 'success', text: 'Baris CKH ditambahkan.' })
-      } finally {
-        setBusyRowId(null)
-      }
-    })
-  }
-
   const removeRow = (rowId: string) => {
     if (!confirm('Hapus baris CKH ini?')) return
     startTransition(async () => {
@@ -407,6 +653,7 @@ export function CkhGeneratorClient({
           return
         }
         setRows(prev => prev.filter(row => row.id !== rowId))
+        setDocumentStatus('DRAFT')
         setMessage({ type: 'success', text: 'Baris CKH dihapus.' })
       } finally {
         setBusyRowId(null)
@@ -430,6 +677,7 @@ export function CkhGeneratorClient({
         suggested_kegiatan_bulanan: null,
         suggested_catatan_harian: null,
       } : row))
+      setDocumentStatus('DRAFT')
       setMessage({ type: 'success', text: 'Versi baru dipakai.' })
     })
   }
@@ -476,7 +724,25 @@ export function CkhGeneratorClient({
             {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
             Sinkronkan Agenda
           </Button>
-          <PrintDialog rows={rows} user={initialData.user} kepsek={initialData.kepsek} year={year} month={month} />
+          <SignatureSettingsDialog
+            documentId={initialData.document.id}
+            signatureUrl={initialData.user.signature_url}
+            settings={signatureSettings}
+            onApply={settings => {
+              setSignatureSettings(settings)
+              setDocumentStatus('DRAFT')
+            }}
+          />
+          <PrintDialog
+            rows={rows}
+            user={initialData.user}
+            kepsek={initialData.kepsek}
+            kepalaTu={initialData.kepalaTu}
+            userRoles={initialData.userRoles}
+            signatureSettings={signatureSettings}
+            year={year}
+            month={month}
+          />
         </div>
       </div>
 
@@ -532,35 +798,67 @@ export function CkhGeneratorClient({
                         />
                       </td>
                       <td className="border border-slate-300 p-1.5 align-top">
-                        <input
-                          list="ckh-activities"
+                        <div className="flex items-start gap-1">
+                          <textarea
                           value={row.kegiatan_bulanan}
                           onChange={e => updateRowLocal(row.id, { kegiatan_bulanan: e.target.value })}
                           onBlur={e => saveRow({ ...row, kegiatan_bulanan: e.target.value })}
-                          className="min-h-8 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
-                        />
+                            rows={2}
+                            className="min-h-8 w-full resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] leading-relaxed outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+                          />
+                          <button
+                            type="button"
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => updateRowLocal(row.id, { kegiatan_bulanan: appendCkhLine(row.kegiatan_bulanan) })}
+                            className="rounded-md p-1 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 print:hidden"
+                            title="Tambah kegiatan bulanan di tanggal ini"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                       <td className="border border-slate-300 p-1.5 align-top">
-                        <textarea
-                          value={row.catatan_harian}
-                          onChange={e => updateRowLocal(row.id, { catatan_harian: e.target.value })}
-                          onBlur={e => saveRow({ ...row, catatan_harian: e.target.value })}
-                          rows={2}
-                          className="w-full resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] leading-relaxed outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
-                        />
+                        <div className="flex items-start gap-1">
+                          <textarea
+                            value={row.catatan_harian}
+                            onChange={e => {
+                              const catatan = e.target.value
+                              updateRowLocal(row.id, { catatan_harian: catatan, vol: countCkhItems(catatan) })
+                            }}
+                            onBlur={e => saveRow({ ...row, catatan_harian: e.target.value, vol: countCkhItems(e.target.value) })}
+                            rows={2}
+                            className="w-full resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] leading-relaxed outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+                          />
+                          <button
+                            type="button"
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => {
+                              const catatan = appendCkhLine(row.catatan_harian)
+                              updateRowLocal(row.id, { catatan_harian: catatan, vol: countCkhItems(catatan) })
+                            }}
+                            className="rounded-md p-1 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 print:hidden"
+                            title="Tambah catatan kinerja di tanggal ini"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                         {(notesByActivity.get(row.kegiatan_bulanan) || []).length > 0 && (
                           <select
                             value=""
                             onChange={e => {
                               if (!e.target.value) return
                               const catatan = e.target.value
-                              updateRowLocal(row.id, { catatan_harian: catatan })
+                              const vol = countCkhItems(catatan)
+                              updateRowLocal(row.id, { catatan_harian: catatan, vol })
                               startTransition(async () => {
                                 const res = await saveCkhRow(row.id, {
                                   tanggal: row.tanggal,
                                   kegiatan_bulanan: row.kegiatan_bulanan,
                                   catatan_harian: catatan,
+                                  vol,
                                 })
+                                if (res?.row) updateRowLocal(row.id, res.row as Partial<Row>)
+                                if (!res?.error) setDocumentStatus('DRAFT')
                                 setMessage(res?.error ? { type: 'error', text: res.error } : { type: 'success', text: 'Baris CKH disimpan.' })
                               })
                             }}
@@ -584,14 +882,20 @@ export function CkhGeneratorClient({
                           </div>
                         ) : null}
                       </td>
-                      <td className="border border-slate-300 p-2 text-center align-top">{row.vol || CKH_DEFAULT_VOL}</td>
+                      <td className="border border-slate-300 p-1.5 text-center align-top">
+                        <Input
+                          type="number"
+                          min={1}
+                          value={row.vol || CKH_DEFAULT_VOL}
+                          onChange={e => updateRowLocal(row.id, { vol: Math.max(1, Number(e.target.value) || 1) })}
+                          onBlur={e => saveRow({ ...row, vol: Math.max(1, Number(e.target.value) || 1) })}
+                          className="h-8 rounded-md border-slate-200 bg-white px-1 text-center text-[12px] shadow-none focus-visible:ring-1"
+                        />
+                      </td>
                       <td className="border border-slate-300 p-2 text-center align-top">{row.satuan || CKH_DEFAULT_SATUAN}</td>
                       <td className="border border-slate-300 p-1.5 align-top print:hidden">
                         <div className="flex items-center justify-center gap-1">
                           <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500">{sourceLabel(row.source)}</span>
-                          <button disabled={busyRowId === `add:${row.tanggal}`} onClick={() => addRow(row.tanggal)} className="rounded-md p-1 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50" title="Tambah baris">
-                            {busyRowId === `add:${row.tanggal}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                          </button>
                           <button disabled={busyRowId === row.id} onClick={() => removeRow(row.id)} className="rounded-md p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50" title="Hapus baris">
                             {busyRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                           </button>
@@ -614,11 +918,14 @@ export function CkhGeneratorClient({
             <div className="mt-12 flex justify-between text-sm text-black">
               <div className="w-[45%] pl-14 text-left">
                 <p>Mengetahui :</p>
-                <p className="mb-20 font-bold uppercase">KEPALA MAN 1 TASIKMALAYA</p>
-                <p className="font-bold underline">{upper(initialData.kepsek?.nama_lengkap) || 'KEPALA MADRASAH BELUM DIATUR'}</p>
-                <p>NIP. {initialData.kepsek?.nip || <MissingProfileInline />}</p>
+                <p className="mb-20 font-bold uppercase">{primarySignerLabel}</p>
+                <p className="font-bold underline">{upper(primarySigner?.nama_lengkap) || missingSignerLabel}</p>
+                <p>NIP. {primarySigner?.nip || <MissingProfileInline />}</p>
               </div>
-              <div className="w-[45%] pl-14 text-left">
+              <div className="relative w-[45%] pl-14 text-left">
+                {signatureSettings.signature_enabled && initialData.user.signature_url ? (
+                  <img src={initialData.user.signature_url} alt="" style={signatureImageStyle(signatureSettings)} className="print:block" />
+                ) : null}
                 <p>Tasikmalaya, {new Date(year, month, 0).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                 <p className="mb-20 font-bold uppercase">{initialData.user.jabatan_cetak || initialData.user.role}</p>
                 <p className="font-bold underline">{upper(initialData.user.nama_lengkap)}</p>
@@ -631,36 +938,87 @@ export function CkhGeneratorClient({
 
       {canManageTemplates && (
         <TabsContent value="template" className="mt-0">
-          <TemplateAdmin templates={allTemplates} />
+          <TemplateAdmin templates={allTemplates} onTemplatesChange={setAllTemplates} />
         </TabsContent>
       )}
+
+      <div className={cn(
+        'flex flex-col gap-2 rounded-lg border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between',
+        documentStatus === 'FINAL'
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          : 'border-amber-200 bg-amber-50 text-amber-800',
+      )}>
+        <div>
+          <p className="font-semibold">{documentStatus === 'FINAL' ? 'Siap diambil TU' : 'Belum dikirim'}</p>
+          <p className="text-xs opacity-80">
+            {documentStatus === 'FINAL'
+              ? 'Dokumen ini akan muncul di Dokumen TPG TU.'
+              : 'Klik Kirim CKH setelah data sudah benar.'}
+          </p>
+        </div>
+        <Button onClick={finalizeDocument} disabled={isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+          {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          Kirim CKH
+        </Button>
+      </div>
     </Tabs>
   )
 }
 
-function TemplateAdmin({ templates }: { templates: Template[] }) {
-  const router = useRouter()
+function TemplateAdmin({ templates, onTemplatesChange }: { templates: Template[]; onTemplatesChange: (templates: Template[]) => void }) {
   const [isPending, startTransition] = useTransition()
+  const [templateList, setTemplateList] = useState<Template[]>(templates)
   const [templateForm, setTemplateForm] = useState<Template | null>(null)
   const [noteForm, setNoteForm] = useState<{ id?: string; template_id: string; note: string; sort_order: number } | null>(null)
   const [roleFilter, setRoleFilter] = useState('_all')
+  useEffect(() => {
+    setTemplateList(templates)
+  }, [templates])
+  const updateTemplateList = (updater: (templates: Template[]) => Template[]) => {
+    setTemplateList(prev => {
+      const next = updater(prev)
+      onTemplatesChange(next)
+      return next
+    })
+  }
   const filteredTemplates = roleFilter === '_all'
-    ? templates
-    : templates.filter(template => template.role === roleFilter)
+    ? templateList
+    : templateList.filter(template => template.role === roleFilter)
 
   const submitTemplate = (formData: FormData) => {
     startTransition(async () => {
-      await saveCkhTemplate(formData)
+      const res = await saveCkhTemplate(formData)
+      if (res?.template) {
+        const saved = res.template as Template
+        updateTemplateList(prev => {
+          const existing = prev.find(template => template.id === saved.id)
+          if (existing) {
+            return prev.map(template => template.id === saved.id ? { ...existing, ...saved, notes: existing.notes } : template)
+          }
+          return [...prev, saved].sort((a, b) => a.role.localeCompare(b.role) || a.sort_order - b.sort_order || a.title.localeCompare(b.title, 'id-ID'))
+        })
+      }
       setTemplateForm(null)
-      router.refresh()
     })
   }
 
   const submitNote = (formData: FormData) => {
     startTransition(async () => {
-      await saveCkhTemplateNote(formData)
+      const res = await saveCkhTemplateNote(formData)
+      if (res?.note) {
+        const saved = res.note as Template['notes'][number]
+        updateTemplateList(prev => prev.map(template => {
+          if (template.id !== saved.template_id) {
+            return { ...template, notes: template.notes.filter(note => note.id !== saved.id) }
+          }
+          const existing = template.notes.find(note => note.id === saved.id)
+          const notes = existing
+            ? template.notes.map(note => note.id === saved.id ? saved : note)
+            : [...template.notes, saved]
+          return { ...template, notes: notes.sort((a, b) => a.sort_order - b.sort_order || a.note.localeCompare(b.note, 'id-ID')) }
+        }))
+      }
       setNoteForm(null)
-      router.refresh()
     })
   }
 
@@ -668,7 +1026,8 @@ function TemplateAdmin({ templates }: { templates: Template[] }) {
     if (!confirm('Hapus template kegiatan beserta catatannya?')) return
     startTransition(async () => {
       await deleteCkhTemplate(id)
-      router.refresh()
+      updateTemplateList(prev => prev.filter(template => template.id !== id))
+      setTemplateForm(current => current?.id === id ? null : current)
     })
   }
 
@@ -676,7 +1035,11 @@ function TemplateAdmin({ templates }: { templates: Template[] }) {
     if (!confirm('Hapus catatan template ini?')) return
     startTransition(async () => {
       await deleteCkhTemplateNote(id)
-      router.refresh()
+      updateTemplateList(prev => prev.map(template => ({
+        ...template,
+        notes: template.notes.filter(note => note.id !== id),
+      })))
+      setNoteForm(current => current?.id === id ? null : current)
     })
   }
 
@@ -793,7 +1156,7 @@ function TemplateAdmin({ templates }: { templates: Template[] }) {
               <Label className="text-xs">Kegiatan bulanan</Label>
               <Select name="template_id" defaultValue={noteForm.template_id}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{templates.map(template => <SelectItem key={template.id} value={template.id}>{template.title}</SelectItem>)}</SelectContent>
+                <SelectContent>{templateList.map(template => <SelectItem key={template.id} value={template.id}>{template.title}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">

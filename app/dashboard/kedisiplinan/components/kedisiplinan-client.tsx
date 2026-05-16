@@ -167,7 +167,7 @@ function DetailKasusModal({
 export function KedisiplinanClient({
   currentUser, kasusList, masterList, taAktifId, sanksiList = [], lifetimePoin = {}, tingkatList = []
 }: {
-  currentUser: { id: string, role: string, nama: string }
+  currentUser: { id: string, role: string, roles?: string[], nama: string }
   kasusList: any[]
   masterList: any[]
   taAktifId?: string
@@ -175,9 +175,10 @@ export function KedisiplinanClient({
   lifetimePoin?: Record<string, number>
   tingkatList?: string[]
 }) {
-  const isSuperAdmin = currentUser.role === 'super_admin'
-  const canInput = ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'guru'].includes(currentUser.role)
-  const canManageMaster = ['super_admin', 'wakamad', 'guru_bk'].includes(currentUser.role)
+  const userRoles = currentUser.roles?.length ? currentUser.roles : [currentUser.role]
+  const isSuperAdmin = userRoles.includes('super_admin')
+  const canInput = userRoles.some(role => ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru'].includes(role))
+  const canManageMaster = userRoles.some(role => ['super_admin', 'wakamad', 'guru_bk'].includes(role))
 
   const [allKasus, setAllKasus] = useState(kasusList)
   const [isPending, setIsPending] = useState(false)

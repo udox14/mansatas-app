@@ -71,7 +71,8 @@ export default async function IzinPage() {
     !roles.includes('wakamad') &&
     !roles.includes('guru_bk') &&
     !roles.includes('guru_piket') &&
-    !roles.includes('resepsionis')
+    !roles.includes('resepsionis') &&
+    !roles.includes('satpam')
 
   const [alasanList] = await Promise.all([getAlasanIzin()])
 

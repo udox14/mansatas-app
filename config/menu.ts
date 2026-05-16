@@ -36,6 +36,7 @@ import {
   ClipboardCheck,
   LineChart,
   FileCheck,
+  FileArchive,
   Landmark,
   UserCheck,
   NotebookPen,
@@ -166,6 +167,13 @@ export const MENU_ITEMS: MenuItem[] = [
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_tahfidz', 'operator', 'pramubakti', 'satpam']
   },
   {
+    id: 'tpg-dokumen',
+    title: 'Dokumen TPG',
+    href: '/dashboard/tpg-dokumen',
+    icon: FileArchive,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_tahfidz', 'operator', 'pramubakti', 'satpam']
+  },
+  {
     id: 'rppm-generator',
     title: 'RPPM Generator',
     href: '/dashboard/rppm-generator',
@@ -219,14 +227,14 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Perizinan Siswa',
     href: '/dashboard/izin',
     icon: DoorOpen,
-    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'wali_kelas']
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'wali_kelas']
   },
   {
     id: 'kedisiplinan',
     title: 'Kedisiplinan',
     href: '/dashboard/kedisiplinan',
     icon: AlertTriangle,
-    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'guru_ppl', 'wali_kelas']
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru_ppl', 'wali_kelas']
   },
   {
     id: 'sarpras',
@@ -388,7 +396,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'monitoring-penugasan', 'rekap-absensi', 'akademik-nilai'] },
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
-  { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
+  { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
   { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-kas-keluar', 'keuangan-laporan'] },
   { id: 'sistem', label: 'Sistem', items: ['settings', 'settings-notifications', 'settings-jadwal-notif', 'settings-fitur', 'pengumuman-ortu'] },
 ]
