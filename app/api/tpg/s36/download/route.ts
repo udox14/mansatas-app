@@ -2,6 +2,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { getUserRoles } from '@/lib/features'
+import { ensureTpgSchema } from '@/lib/tpg-schema'
 import { createZip } from '@/lib/zip'
 import { monthLabel, safeFileSegment } from '@/lib/tpg'
 
@@ -20,6 +21,7 @@ export async function GET(request: Request) {
   if (!user) return new Response('Unauthorized', { status: 401 })
 
   const db = await getDB()
+  await ensureTpgSchema(db)
   const roles = await getUserRoles(db, user.id)
   if (!roles.includes('super_admin') && !roles.includes('admin_tu')) {
     return new Response('Forbidden', { status: 403 })
