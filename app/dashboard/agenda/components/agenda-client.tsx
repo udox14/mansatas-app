@@ -11,6 +11,7 @@ import {
 import { submitAgenda, getJadwalGuruHariIni } from '../actions'
 import type { SlotJam } from '@/app/dashboard/settings/types'
 import { compressAgendaImage } from './image-compression'
+import type { KbmException } from '@/lib/kalender-pendidikan'
 
 type JadwalBlock = {
   penugasan_id: string
@@ -35,6 +36,7 @@ interface AgendaClientProps {
     slots: SlotJam[]
     tanggal: string
     hari: number
+    kbmExceptions?: KbmException[]
     calendarStatus?: { isEffective: boolean; reason: string | null; category: string | null }
   }
   userRole: string
@@ -111,6 +113,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
   }
 
   const { blocks, tanggal, hari, error, calendarStatus } = data
+  const activeExceptions = data.kbmExceptions || []
 
   if (error) {
     return (
@@ -145,6 +148,11 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
       <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 p-10 text-center">
         <BookOpen className="h-10 w-10 text-slate-300 mx-auto mb-3" />
         <p className="text-sm text-slate-500 dark:text-slate-400">Tidak ada jadwal mengajar hari ini ({HARI_NAMA[hari]}).</p>
+        {activeExceptions.length > 0 && (
+          <p className="mt-2 text-xs text-sky-600">
+            Ada pengecualian KBM: {activeExceptions.map(item => `${item.judul} (Jam ${item.jam_ke_mulai}-${item.jam_ke_selesai})`).join(', ')}
+          </p>
+        )}
       </div>
     )
   }
@@ -167,6 +175,12 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
       {pesan && (
         <div className={`rounded-lg border px-4 py-3 text-sm ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
           {pesan.teks}
+        </div>
+      )}
+
+      {activeExceptions.length > 0 && (
+        <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-700">
+          Pengecualian KBM hari ini: {activeExceptions.map(item => `${item.judul} (Jam ${item.jam_ke_mulai}-${item.jam_ke_selesai})`).join(', ')}
         </div>
       )}
 

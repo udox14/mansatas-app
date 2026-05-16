@@ -27,6 +27,25 @@ export type KalenderDateStatus = {
   events: KalenderEvent[]
 }
 
+export type KbmExceptionTargetType = 'ALL' | 'TINGKAT' | 'KELAS'
+
+export type KbmException = {
+  id: string
+  tanggal: string
+  judul: string
+  kategori: KalenderKategori
+  jam_ke_mulai: number
+  jam_ke_selesai: number
+  target_type: KbmExceptionTargetType
+  target_value: string | null
+  description: string | null
+}
+
+export type KbmExceptionClassTarget = {
+  id: string
+  tingkat: number
+}
+
 export const KALENDER_CATEGORY_LABELS: Record<KalenderKategori, string> = {
   TANGGAL_MERAH: 'Tanggal Merah',
   LIBUR_SEMESTER: 'Libur Semester',
@@ -73,6 +92,39 @@ export async function ensureKalenderPendidikanTables(db: D1Database) {
       synced_at     TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `).run()
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS kbm_exceptions (
+      id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      tanggal         TEXT NOT NULL,
+      judul           TEXT NOT NULL,
+      kategori        TEXT NOT NULL DEFAULT 'KEGIATAN_MADRASAH'
+                      CHECK(kategori IN ('TANGGAL_MERAH','LIBUR_SEMESTER','RAPAT','UJIAN','KEGIATAN_MADRASAH','LAINNYA')),
+      jam_ke_mulai    INTEGER NOT NULL,
+      jam_ke_selesai  INTEGER NOT NULL,
+      target_type     TEXT NOT NULL CHECK(target_type IN ('ALL','TINGKAT','KELAS')),
+      target_value    TEXT,
+      description     TEXT,
+      created_by      TEXT REFERENCES "user"(id) ON DELETE SET NULL,
+      updated_by      TEXT REFERENCES "user"(id) ON DELETE SET NULL,
+      created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+      CHECK(tanggal GLOB '????-??-??'),
+      CHECK(jam_ke_mulai > 0),
+      CHECK(jam_ke_selesai >= jam_ke_mulai),
+      CHECK(
+        (target_type = 'ALL' AND target_value IS NULL)
+        OR (target_type IN ('TINGKAT','KELAS') AND target_value IS NOT NULL)
+      )
+    )
+  `).run()
+  await db.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_kbm_exceptions_tanggal
+    ON kbm_exceptions(tanggal)
+  `).run()
+  await db.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_kbm_exceptions_target
+    ON kbm_exceptions(target_type, target_value)
+  `).run()
 }
 
 export function hariNumFromDateString(dateString: string) {
@@ -104,6 +156,62 @@ export async function getKalenderEventsForRange(db: D1Database, startDate: strin
   `).bind(endDate, startDate).all<KalenderEvent>()
 
   return result.results || []
+}
+
+export async function getKbmExceptionsForRange(db: D1Database, startDate: string, endDate: string) {
+  await ensureKalenderPendidikanTables(db)
+  const result = await db.prepare(`
+    SELECT id, tanggal, judul, kategori, jam_ke_mulai, jam_ke_selesai, target_type, target_value, description
+    FROM kbm_exceptions
+    WHERE tanggal BETWEEN ? AND ?
+    ORDER BY tanggal ASC, jam_ke_mulai ASC, judul ASC
+  `).bind(startDate, endDate).all<KbmException>()
+
+  return result.results || []
+}
+
+export async function getKbmExceptionsForDate(db: D1Database, tanggal: string) {
+  return getKbmExceptionsForRange(db, tanggal, tanggal)
+}
+
+export function kbmExceptionAppliesToClass(exception: KbmException, kelas: KbmExceptionClassTarget) {
+  if (exception.target_type === 'ALL') return true
+  if (exception.target_type === 'TINGKAT') return String(kelas.tingkat) === String(exception.target_value)
+  if (exception.target_type === 'KELAS') return kelas.id === exception.target_value
+  return false
+}
+
+export function teachingBlockOverlapsException(exception: KbmException, jamKeMulai: number, jamKeSelesai: number) {
+  return jamKeMulai <= exception.jam_ke_selesai && jamKeSelesai >= exception.jam_ke_mulai
+}
+
+export function findTeachingBlockException(
+  exceptions: KbmException[],
+  kelas: KbmExceptionClassTarget,
+  jamKeMulai: number,
+  jamKeSelesai: number
+) {
+  return exceptions.find(exception =>
+    kbmExceptionAppliesToClass(exception, kelas) &&
+    teachingBlockOverlapsException(exception, jamKeMulai, jamKeSelesai)
+  ) || null
+}
+
+export function isTeachingBlockExcepted(
+  exceptions: KbmException[],
+  kelas: KbmExceptionClassTarget,
+  jamKeMulai: number,
+  jamKeSelesai: number
+) {
+  return !!findTeachingBlockException(exceptions, kelas, jamKeMulai, jamKeSelesai)
+}
+
+export function findSlotException(
+  exceptions: KbmException[],
+  kelas: KbmExceptionClassTarget,
+  jamKe: number
+) {
+  return findTeachingBlockException(exceptions, kelas, jamKe, jamKe)
 }
 
 export async function getKalenderDateStatus(db: D1Database, tanggal: string): Promise<KalenderDateStatus> {

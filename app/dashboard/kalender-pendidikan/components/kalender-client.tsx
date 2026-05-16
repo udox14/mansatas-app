@@ -14,14 +14,19 @@ import {
 import { cn } from '@/lib/utils'
 import {
   deleteKalenderEvent,
+  deleteKbmException,
+  getKalenderKelasOptions,
   getKalenderPendidikanData,
   importKalenderResmi,
   saveKalenderEvent,
+  saveKbmException,
   syncTanggalMerah,
   type KalenderImportRow,
 } from '../actions'
 import {
   KALENDER_CATEGORY_LABELS,
+  type KbmException,
+  type KbmExceptionTargetType,
   type KalenderDateStatus,
   type KalenderEvent,
   type KalenderKategori,
@@ -37,7 +42,9 @@ type KalenderData = {
     nonEffective: number
     tanggalMerah: number
     eventSekolah: number
+    kbmExceptions?: number
   }
+  kbmExceptions: KbmException[]
   syncLog: {
     tahun: number
     source: string
@@ -57,6 +64,20 @@ type FormState = {
   is_effective: boolean
   description: string
 }
+
+type KbmFormState = {
+  id?: string
+  tanggal: string
+  judul: string
+  kategori: KalenderKategori
+  jam_ke_mulai: string
+  jam_ke_selesai: string
+  target_type: KbmExceptionTargetType
+  target_value: string
+  description: string
+}
+
+type KelasOption = { id: string; tingkat: number; label: string }
 
 type ImportPreviewRow = KalenderImportRow & { row_no: number }
 
@@ -96,12 +117,34 @@ function emptyForm(date: string): FormState {
   }
 }
 
+function emptyKbmForm(date: string): KbmFormState {
+  return {
+    tanggal: date,
+    judul: '',
+    kategori: 'KEGIATAN_MADRASAH',
+    jam_ke_mulai: '1',
+    jam_ke_selesai: '1',
+    target_type: 'ALL',
+    target_value: '',
+    description: '',
+  }
+}
+
+function targetLabel(item: KbmException, kelasOptions: KelasOption[]) {
+  if (item.target_type === 'ALL') return 'Semua kelas'
+  if (item.target_type === 'TINGKAT') return `Kelas ${item.target_value}`
+  const kelas = kelasOptions.find(k => k.id === item.target_value)
+  return kelas?.label || 'Kelas tertentu'
+}
+
 export function KalenderPendidikanClient({ initialData }: { initialData: KalenderData }) {
   const [data, setData] = useState(initialData)
   const [categoryFilter, setCategoryFilter] = useState('SEMUA')
   const [query, setQuery] = useState('')
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [form, setForm] = useState<FormState | null>(null)
+  const [kbmForm, setKbmForm] = useState<KbmFormState | null>(null)
+  const [kelasOptions, setKelasOptions] = useState<KelasOption[]>([])
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [importYear, setImportYear] = useState(String(initialData.year))
   const [importRows, setImportRows] = useState<ImportPreviewRow[]>([])
@@ -117,12 +160,21 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
   }, [data.statuses])
 
   const selectedStatus = selectedDate ? statusByDate.get(selectedDate) : null
+  const selectedKbmExceptions = selectedDate ? data.kbmExceptions.filter(item => item.tanggal === selectedDate) : []
 
   const filteredEvents = data.events.filter(event => {
     if (categoryFilter !== 'SEMUA' && event.category !== categoryFilter) return false
     if (query.trim()) {
       const q = query.toLowerCase()
       return event.title.toLowerCase().includes(q) || (event.description || '').toLowerCase().includes(q)
+    }
+    return true
+  })
+
+  const filteredKbmExceptions = data.kbmExceptions.filter(item => {
+    if (query.trim()) {
+      const q = query.toLowerCase()
+      return item.judul.toLowerCase().includes(q) || (item.description || '').toLowerCase().includes(q)
     }
     return true
   })
@@ -167,10 +219,53 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
     })
   }
 
+  const ensureKelasOptions = async () => {
+    if (kelasOptions.length > 0) return kelasOptions
+    const options = await getKalenderKelasOptions()
+    setKelasOptions(options)
+    return options
+  }
+
+  const submitKbmForm = () => {
+    if (!kbmForm) return
+    startTransition(async () => {
+      const result = await saveKbmException({
+        id: kbmForm.id,
+        tanggal: kbmForm.tanggal,
+        judul: kbmForm.judul,
+        kategori: kbmForm.kategori,
+        jam_ke_mulai: Number(kbmForm.jam_ke_mulai),
+        jam_ke_selesai: Number(kbmForm.jam_ke_selesai),
+        target_type: kbmForm.target_type,
+        target_value: kbmForm.target_type === 'ALL' ? null : kbmForm.target_value,
+        description: kbmForm.description,
+      })
+      if (result.error) {
+        setMessage({ type: 'error', text: result.error })
+        return
+      }
+      setMessage({ type: 'success', text: result.success || 'Tersimpan.' })
+      setKbmForm(null)
+      reload()
+    })
+  }
+
   const removeEvent = (event: KalenderEvent) => {
     if (!confirm(`Hapus "${event.title}" dari kalender pendidikan?`)) return
     startTransition(async () => {
       const result = await deleteKalenderEvent(event.id)
+      if (result.error) setMessage({ type: 'error', text: result.error })
+      else {
+        setMessage({ type: 'success', text: result.success || 'Dihapus.' })
+        reload()
+      }
+    })
+  }
+
+  const removeKbmException = (item: KbmException) => {
+    if (!confirm(`Hapus pengecualian "${item.judul}"?`)) return
+    startTransition(async () => {
+      const result = await deleteKbmException(item.id)
       if (result.error) setMessage({ type: 'error', text: result.error })
       else {
         setMessage({ type: 'success', text: result.success || 'Dihapus.' })
@@ -272,8 +367,28 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
     })
   }
 
+  const openEditKbm = async (item: KbmException) => {
+    await ensureKelasOptions()
+    setKbmForm({
+      id: item.id,
+      tanggal: item.tanggal,
+      judul: item.judul,
+      kategori: item.kategori,
+      jam_ke_mulai: String(item.jam_ke_mulai),
+      jam_ke_selesai: String(item.jam_ke_selesai),
+      target_type: item.target_type,
+      target_value: item.target_value || '',
+      description: item.description || '',
+    })
+  }
+
   const openAdd = (date?: string) => {
     setForm(emptyForm(date || isoDate(data.year, data.month, 1)))
+  }
+
+  const openAddKbm = async (date?: string) => {
+    await ensureKelasOptions()
+    setKbmForm(emptyKbmForm(date || selectedDate || isoDate(data.year, data.month, 1)))
   }
 
   return (
@@ -294,7 +409,7 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
           ['Hari efektif', data.summary.effective, 'text-emerald-700 bg-emerald-50 border-emerald-200'],
           ['Tidak efektif', data.summary.nonEffective, 'text-rose-700 bg-rose-50 border-rose-200'],
           ['Tanggal merah', data.summary.tanggalMerah, 'text-amber-700 bg-amber-50 border-amber-200'],
-          ['Event sekolah', data.summary.eventSekolah, 'text-blue-700 bg-blue-50 border-blue-200'],
+          ['Pengecualian KBM', data.summary.kbmExceptions || 0, 'text-blue-700 bg-blue-50 border-blue-200'],
         ].map(([label, value, tone]) => (
           <div key={String(label)} className={cn('rounded-lg border p-3', String(tone))}>
             <p className="text-[11px] font-medium opacity-80">{label}</p>
@@ -320,6 +435,9 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
           <div className="flex flex-wrap items-center gap-2 xl:ml-auto">
             <Button onClick={() => openAdd()} size="sm" className="h-9 bg-slate-900 hover:bg-slate-800 text-white">
               <Plus className="h-4 w-4 mr-1.5" /> Tambah Event
+            </Button>
+            <Button onClick={() => openAddKbm()} size="sm" variant="outline" className="h-9">
+              <Plus className="h-4 w-4 mr-1.5" /> Pengecualian KBM
             </Button>
             <Button onClick={() => { setImportYear(String(data.year)); setIsImportOpen(true) }} size="sm" variant="outline" className="h-9">
               <Upload className="h-4 w-4 mr-1.5" /> Impor SKB
@@ -385,6 +503,11 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
                             {event.title}
                           </div>
                         ))}
+                        {data.kbmExceptions.filter(item => item.tanggal === cell.date).slice(0, 1).map(item => (
+                          <div key={item.id} className="truncate rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
+                            Jam {item.jam_ke_mulai}-{item.jam_ke_selesai}: {item.judul}
+                          </div>
+                        ))}
                         {events.length === 0 && !status?.isEffective && (
                           <div className="truncate rounded border px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-500 border-slate-200">
                             Minggu
@@ -428,8 +551,28 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
                     ))}
                   </div>
                 )}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Pengecualian Jam KBM</p>
+                    <span className="text-[10px] text-slate-400">{selectedKbmExceptions.length} item</span>
+                  </div>
+                  {selectedKbmExceptions.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-surface-2 px-3 py-3 text-xs text-slate-400">Tidak ada pengecualian jam KBM.</p>
+                  ) : selectedKbmExceptions.map(item => (
+                    <KbmExceptionRow
+                      key={item.id}
+                      item={item}
+                      kelasOptions={kelasOptions}
+                      onEdit={openEditKbm}
+                      onDelete={removeKbmException}
+                    />
+                  ))}
+                </div>
                 <Button variant="outline" size="sm" className="w-full" onClick={() => openAdd(selectedStatus.tanggal)}>
                   <Plus className="h-4 w-4 mr-1.5" /> Tambah di tanggal ini
+                </Button>
+                <Button variant="outline" size="sm" className="w-full" onClick={() => openAddKbm(selectedStatus.tanggal)}>
+                  <Plus className="h-4 w-4 mr-1.5" /> Tambah pengecualian KBM
                 </Button>
               </div>
             )}
@@ -460,6 +603,15 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
                 <p className="rounded-lg border border-dashed border-surface-2 px-3 py-8 text-center text-sm text-slate-400">Belum ada event.</p>
               ) : filteredEvents.map(event => (
                 <EventRow key={event.id} event={event} onEdit={openEdit} onDelete={removeEvent} />
+              ))}
+              {filteredKbmExceptions.map(item => (
+                <KbmExceptionRow
+                  key={item.id}
+                  item={item}
+                  kelasOptions={kelasOptions}
+                  onEdit={openEditKbm}
+                  onDelete={removeKbmException}
+                />
               ))}
             </div>
           </div>
@@ -521,6 +673,101 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
               <Button onClick={submitForm} disabled={isPending} className="w-full bg-slate-900 hover:bg-slate-800 text-white">
                 {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
                 Simpan Event
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!kbmForm} onOpenChange={open => !open && setKbmForm(null)}>
+        <DialogContent className="sm:max-w-lg rounded-xl border-surface">
+          <DialogHeader className="border-b border-surface-2 pb-3">
+            <DialogTitle className="text-base">{kbmForm?.id ? 'Edit Pengecualian Jam KBM' : 'Tambah Pengecualian Jam KBM'}</DialogTitle>
+          </DialogHeader>
+          {kbmForm && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs">Tanggal</Label>
+                  <Input type="date" value={kbmForm.tanggal} onChange={e => setKbmForm({ ...kbmForm, tanggal: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Kategori</Label>
+                  <Select value={kbmForm.kategori} onValueChange={value => setKbmForm({ ...kbmForm, kategori: value as KalenderKategori })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(KALENDER_CATEGORY_LABELS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Judul</Label>
+                <Input value={kbmForm.judul} onChange={e => setKbmForm({ ...kbmForm, judul: e.target.value })} placeholder="Contoh: Pembinaan kelas 11 di GOR" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Jam mulai</Label>
+                  <Input type="number" min={1} max={20} value={kbmForm.jam_ke_mulai} onChange={e => setKbmForm({ ...kbmForm, jam_ke_mulai: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Jam selesai</Label>
+                  <Input type="number" min={1} max={20} value={kbmForm.jam_ke_selesai} onChange={e => setKbmForm({ ...kbmForm, jam_ke_selesai: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Sasaran</Label>
+                  <Select value={kbmForm.target_type} onValueChange={value => setKbmForm({ ...kbmForm, target_type: value as KbmExceptionTargetType, target_value: '' })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Semua kelas</SelectItem>
+                      <SelectItem value="TINGKAT">Tingkat kelas</SelectItem>
+                      <SelectItem value="KELAS">Kelas tertentu</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {kbmForm.target_type === 'TINGKAT' && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Tingkat</Label>
+                    <Select value={kbmForm.target_value} onValueChange={value => setKbmForm({ ...kbmForm, target_value: value })}>
+                      <SelectTrigger><SelectValue placeholder="Pilih tingkat" /></SelectTrigger>
+                      <SelectContent>
+                        {Array.from(new Set(kelasOptions.map(k => k.tingkat))).sort((a, b) => a - b).map(tingkat => (
+                          <SelectItem key={tingkat} value={String(tingkat)}>Kelas {tingkat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {kbmForm.target_type === 'KELAS' && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Kelas</Label>
+                    <Select value={kbmForm.target_value} onValueChange={value => setKbmForm({ ...kbmForm, target_value: value })}>
+                      <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+                      <SelectContent>
+                        {kelasOptions.map(kelas => (
+                          <SelectItem key={kelas.id} value={kelas.id}>{kelas.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Catatan</Label>
+                <Textarea value={kbmForm.description} onChange={e => setKbmForm({ ...kbmForm, description: e.target.value })} placeholder="Catatan opsional..." rows={3} />
+              </div>
+
+              <Button onClick={submitKbmForm} disabled={isPending} className="w-full bg-slate-900 hover:bg-slate-800 text-white">
+                {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                Simpan Pengecualian
               </Button>
             </div>
           )}
@@ -644,6 +891,46 @@ function EventRow({
             <Pencil className="h-3.5 w-3.5" />
           </button>
           <button onClick={() => onDelete(event)} className="rounded-md p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Hapus">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function KbmExceptionRow({
+  item,
+  kelasOptions,
+  onEdit,
+  onDelete,
+}: {
+  item: KbmException
+  kelasOptions: KelasOption[]
+  onEdit: (item: KbmException) => void
+  onDelete: (item: KbmException) => void
+}) {
+  return (
+    <div className="rounded-lg border border-sky-200 bg-sky-50 p-3">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="text-sm font-semibold text-slate-800">{item.judul}</p>
+            <span className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-sky-700">
+              Jam {item.jam_ke_mulai}-{item.jam_ke_selesai}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            {formatDate(item.tanggal)} | {targetLabel(item, kelasOptions)}
+          </p>
+          <p className="mt-1 text-[11px] font-semibold text-sky-700">Pengecualian KBM parsial</p>
+          {item.description && <p className="mt-1 text-xs text-slate-500">{item.description}</p>}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <button onClick={() => onEdit(item)} className="rounded-md p-1.5 text-slate-400 hover:bg-white hover:text-sky-600" title="Edit">
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={() => onDelete(item)} className="rounded-md p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Hapus">
             <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>

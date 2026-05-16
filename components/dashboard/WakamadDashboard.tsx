@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
+import { findTeachingBlockException, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
 import { WelcomeStrip } from './shared/WelcomeStrip'
 import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
@@ -37,26 +38,37 @@ export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, rol
 
   const taId = taRow?.id
 
-  const agendaData = taId ? await db.prepare(`
+  const agendaRows = taId ? await db.prepare(`
     SELECT
-      COUNT(DISTINCT jm.id) as total_penugasan,
-      COUNT(DISTINCT ag.id) as sudah_isi,
-      COUNT(DISTINCT pm.guru_id) as total_guru,
-      COUNT(DISTINCT pm2.guru_id) as guru_sudah_isi
+      jm.penugasan_id,
+      MIN(jm.jam_ke) as jam_mulai,
+      MAX(jm.jam_ke) as jam_selesai,
+      pm.guru_id,
+      k.id as kelas_id,
+      k.tingkat,
+      ag.id as agenda_id
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
     JOIN kelas k ON pm.kelas_id = k.id
     LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
-    LEFT JOIN penugasan_mengajar pm2 ON pm2.id = ag.penugasan_id
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
-  `).bind(today, taId, hariIni, today).first<any>() : null
+    GROUP BY jm.penugasan_id, pm.guru_id, k.id, k.tingkat, ag.id
+  `).bind(today, taId, hariIni, today).all<any>().then(r => r.results || []) : []
+
+  const kbmExceptions = await getKbmExceptionsForDate(db, today)
+  const activeAgendaRows = agendaRows.filter((row: any) => !findTeachingBlockException(
+    kbmExceptions,
+    { id: row.kelas_id, tingkat: Number(row.tingkat) },
+    Number(row.jam_mulai),
+    Number(row.jam_selesai)
+  ))
 
   const tidakMasuk     = kehadiranSiswa?.tidak_masuk ?? 0
   const totalSiswa     = kehadiranSiswa?.total_siswa ?? 0
   const hadirSiswaEst  = Math.max(0, totalSiswa - tidakMasuk)
-  const totalPenugasan = agendaData?.total_penugasan ?? 0
-  const sudahIsi       = agendaData?.sudah_isi ?? 0
+  const totalPenugasan = activeAgendaRows.length
+  const sudahIsi       = activeAgendaRows.filter((row: any) => !!row.agenda_id).length
   const pctAgenda      = totalPenugasan > 0 ? Math.round((sudahIsi / totalPenugasan) * 100) : 0
   const belumIsi       = Math.max(0, totalPenugasan - sudahIsi)
 

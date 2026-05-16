@@ -6,7 +6,13 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
-import { getEffectiveDatesInRange, getKalenderDateStatus } from '@/lib/kalender-pendidikan'
+import {
+  findTeachingBlockException,
+  getEffectiveDatesInRange,
+  getKbmExceptionsForDate,
+  getKbmExceptionsForRange,
+  getKalenderDateStatus,
+} from '@/lib/kalender-pendidikan'
 import { currentTimeWIB, nowWIBISO, todayWIB } from '@/lib/time'
 
 // ============================================================
@@ -86,6 +92,7 @@ export async function getMonitoringHarian(
 
   const polaList = parsePolaJam(ta.jam_pelajaran || '[]')
   const slots = getSlotsForHari(polaList, hari)
+  const kbmExceptions = await getKbmExceptionsForDate(db, tanggal)
 
   // Query: semua jadwal hari itu + LEFT JOIN agenda_guru + LEFT JOIN delegasi_tugas
   let sql = `
@@ -166,6 +173,13 @@ export async function getMonitoringHarian(
     const jamSelesai = jamList[jamList.length - 1]
     const slotMulai = slots.find(s => s.id === jamMulai)
     const slotSelesai = slots.find(s => s.id === jamSelesai)
+    const exception = findTeachingBlockException(
+      kbmExceptions,
+      { id: first.kelas_id, tingkat: Number(first.tingkat) },
+      jamMulai,
+      jamSelesai
+    )
+    if (exception) continue
 
     // Tentukan status: agenda > delegasi (TUGAS) > BELUM_MENGISI/ALFA
     let status: string
@@ -289,7 +303,7 @@ export async function getRekapKehadiranGuru(
 
   // 1. Ambil semua penugasan guru + jadwal hari apa saja
   const jadwalRes = await db.prepare(`
-    SELECT pm.guru_id, jm.penugasan_id, jm.hari, k.kbm_nonaktif_mulai
+    SELECT pm.guru_id, jm.penugasan_id, jm.hari, jm.jam_ke, k.id as kelas_id, k.tingkat, k.kbm_nonaktif_mulai
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
     JOIN kelas k ON pm.kelas_id = k.id
@@ -297,21 +311,30 @@ export async function getRekapKehadiranGuru(
   `).bind(ta.id).all<any>()
 
   // Group: guru_id → Map<penugasan_id, Set<hari>>
-  const guruJadwal = new Map<string, Map<string, { hariSet: Set<number>; kbmNonaktifMulai: string | null }>>()
+  const guruJadwal = new Map<string, Map<string, { hariMap: Map<number, Set<number>>; kelasId: string; tingkat: number; kbmNonaktifMulai: string | null }>>()
   for (const row of jadwalRes.results || []) {
     if (!guruJadwal.has(row.guru_id)) guruJadwal.set(row.guru_id, new Map())
     const penMap = guruJadwal.get(row.guru_id)!
     if (!penMap.has(row.penugasan_id)) {
       penMap.set(row.penugasan_id, {
-        hariSet: new Set(),
+        hariMap: new Map(),
+        kelasId: row.kelas_id,
+        tingkat: Number(row.tingkat),
         kbmNonaktifMulai: row.kbm_nonaktif_mulai || null,
       })
     }
-    penMap.get(row.penugasan_id)!.hariSet.add(row.hari)
+    const jadwal = penMap.get(row.penugasan_id)!
+    if (!jadwal.hariMap.has(row.hari)) jadwal.hariMap.set(row.hari, new Set())
+    jadwal.hariMap.get(row.hari)!.add(Number(row.jam_ke))
   }
 
   // 2. Hitung total blok per guru dalam rentang tanggal
   const effectiveDates = await getEffectiveDatesInRange(db, tanggalMulai, tanggalSelesai)
+  const exceptionsByDate = new Map<string, Awaited<ReturnType<typeof getKbmExceptionsForRange>>>()
+  for (const exception of await getKbmExceptionsForRange(db, tanggalMulai, tanggalSelesai)) {
+    if (!exceptionsByDate.has(exception.tanggal)) exceptionsByDate.set(exception.tanggal, [])
+    exceptionsByDate.get(exception.tanggal)!.push(exception)
+  }
   const totalBlokPerGuru = new Map<string, number>()
 
   for (const [guruId, penMap] of guruJadwal) {
@@ -320,7 +343,11 @@ export async function getRekapKehadiranGuru(
       const hari = getHariFromDate(tanggal)
       for (const [, jadwal] of penMap) {
         if (jadwal.kbmNonaktifMulai && jadwal.kbmNonaktifMulai <= tanggal) continue
-        if (jadwal.hariSet.has(hari)) total++
+        const jamSet = jadwal.hariMap.get(hari)
+        if (!jamSet) continue
+        const jamList = Array.from(jamSet).sort((a, b) => a - b)
+        if (findTeachingBlockException(exceptionsByDate.get(tanggal) || [], { id: jadwal.kelasId, tingkat: jadwal.tingkat }, jamList[0], jamList[jamList.length - 1])) continue
+        total++
       }
     }
     totalBlokPerGuru.set(guruId, total)

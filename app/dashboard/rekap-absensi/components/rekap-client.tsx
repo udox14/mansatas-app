@@ -49,6 +49,7 @@ const ST: Record<string, { label: string; cls: string; dot: string; short: strin
   'BELUM ADA INPUT': { label: 'Belum ada input', short: 'BI', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
   BELUM_ADA_INPUT: { label: 'Belum ada input', short: 'BI', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
   BELUM_ADA_DATA: { label: 'Belum lengkap', short: 'BL', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
+  KBM_EXCEPTION: { label: 'Kegiatan resmi', short: 'EV', dot: 'bg-sky-500', cls: 'bg-sky-50 text-sky-700 border-sky-200' },
   '-': { label: '-', short: '-', dot: 'bg-slate-300', cls: 'bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-900 dark:text-slate-500 dark:border-slate-800' },
 }
 
@@ -585,11 +586,11 @@ function TabJam({ filterOptions, initialTingkat }: { filterOptions: FilterOpt; i
                   <tr key={kelas.kelas_id}>
                     <td className="sticky left-0 bg-white px-3 py-2 font-semibold dark:bg-slate-900">{kelas.label}</td>
                     {kelas.cells.map((cell: any) => {
-                      const cls = cell.bermasalah > 4 ? 'bg-red-100 text-red-800 border-red-200' : cell.bermasalah > 0 ? 'bg-amber-100 text-amber-800 border-amber-200' : cell.belum_ada_data > 0 ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      const cls = cell.exception ? 'bg-sky-50 text-sky-700 border-sky-200' : cell.bermasalah > 4 ? 'bg-red-100 text-red-800 border-red-200' : cell.bermasalah > 0 ? 'bg-amber-100 text-amber-800 border-amber-200' : cell.belum_ada_data > 0 ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       return (
                         <td key={cell.jam_ke} className="p-1.5 text-center">
                           <button onClick={() => setSelected({ kelas, cell })} className={`w-full rounded-md border px-2 py-2 text-xs font-bold ${cls}`}>
-                            {cell.bermasalah > 0 ? `${cell.bermasalah} siswa` : cell.belum_ada_data > 0 ? 'Belum data' : 'Aman'}
+                            {cell.exception ? 'Event' : cell.bermasalah > 0 ? `${cell.bermasalah} siswa` : cell.belum_ada_data > 0 ? 'Belum data' : 'Aman'}
                           </button>
                         </td>
                       )
@@ -607,11 +608,19 @@ function TabJam({ filterOptions, initialTingkat }: { filterOptions: FilterOpt; i
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-bold">{selected.kelas.label} - Jam {selected.cell.jam_ke}</p>
-              <p className="text-xs text-slate-500">{selected.cell.bermasalah} siswa bermasalah, {selected.cell.belum_ada_data} belum ada data</p>
+              <p className="text-xs text-slate-500">
+                {selected.cell.exception
+                  ? selected.cell.exception.label
+                  : `${selected.cell.bermasalah} siswa bermasalah, ${selected.cell.belum_ada_data} belum ada data`}
+              </p>
             </div>
             <Button size="sm" variant="outline" onClick={() => setSelected(null)}>Tutup</Button>
           </div>
-          {selected.cell.detail.length > 0 ? (
+          {selected.cell.exception ? (
+            <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-700">
+              {selected.cell.exception.catatan || 'Slot ini dikecualikan dari kewajiban KBM.'}
+            </div>
+          ) : selected.cell.detail.length > 0 ? (
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
               {selected.cell.detail.map((d: any) => (
                 <div key={`${d.siswa_id}-${d.jam_ke}`} className="rounded-lg border bg-slate-50 p-3 dark:bg-slate-800">

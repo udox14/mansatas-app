@@ -1,5 +1,9 @@
 import { formatNamaKelas } from '@/lib/utils'
-import { getEffectiveDatesInRange } from '@/lib/kalender-pendidikan'
+import {
+  findTeachingBlockException,
+  getEffectiveDatesInRange,
+  getKbmExceptionsForRange,
+} from '@/lib/kalender-pendidikan'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
 export type FinalAttendanceStatus =
@@ -224,12 +228,12 @@ export async function getFinalAttendanceForClass(
   const [jadwalRes, absensiRes, waliRes, sesiRes] = await Promise.all([
     ta?.id
       ? db.prepare(`
-          SELECT jm.hari, jm.penugasan_id
+          SELECT jm.hari, jm.jam_ke, jm.penugasan_id
           FROM jadwal_mengajar jm
           JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
           WHERE pm.kelas_id = ? AND jm.tahun_ajaran_id = ?
-        `).bind(kelasId, ta.id).all<{ hari: number; penugasan_id: string }>()
-      : Promise.resolve({ results: [] as Array<{ hari: number; penugasan_id: string }> }),
+        `).bind(kelasId, ta.id).all<{ hari: number; jam_ke: number; penugasan_id: string }>()
+      : Promise.resolve({ results: [] as Array<{ hari: number; jam_ke: number; penugasan_id: string }> }),
     db.prepare(`
       SELECT ab.tanggal, ab.siswa_id, ab.status, ab.catatan, ab.jam_ke_mulai, ab.jam_ke_selesai,
         mp.nama_mapel
@@ -253,15 +257,33 @@ export async function getFinalAttendanceForClass(
     `).bind(kelasId, startDate, endDate).all<any>(),
   ])
 
-  const totalBlokByHari = new Map<number, number>()
-  const jadwalByHari = new Map<number, Set<string>>()
+  const exceptionsByDate = new Map<string, Awaited<ReturnType<typeof getKbmExceptionsForRange>>>()
+  for (const exception of await getKbmExceptionsForRange(db, startDate, endDate)) {
+    if (!exceptionsByDate.has(exception.tanggal)) exceptionsByDate.set(exception.tanggal, [])
+    exceptionsByDate.get(exception.tanggal)!.push(exception)
+  }
+
+  const jadwalByHari = new Map<number, Map<string, Set<number>>>()
   for (const row of jadwalRes.results || []) {
-    if (!jadwalByHari.has(row.hari)) jadwalByHari.set(row.hari, new Set())
-    jadwalByHari.get(row.hari)!.add(row.penugasan_id)
+    if (!jadwalByHari.has(row.hari)) jadwalByHari.set(row.hari, new Map())
+    const penMap = jadwalByHari.get(row.hari)!
+    if (!penMap.has(row.penugasan_id)) penMap.set(row.penugasan_id, new Set())
+    penMap.get(row.penugasan_id)!.add(Number(row.jam_ke))
   }
-  for (const [hari, penugasanSet] of jadwalByHari.entries()) {
-    totalBlokByHari.set(hari, penugasanSet.size)
+
+  const activeBlockCountForDate = (tanggal: string) => {
+    const hari = hariNum(new Date(tanggal + 'T00:00:00'))
+    return Array.from(jadwalByHari.get(hari)?.values() || []).filter(jamSet => {
+      const jamList = Array.from(jamSet).sort((a, b) => a - b)
+      return !findTeachingBlockException(
+        exceptionsByDate.get(tanggal) || [],
+        { id: kelas.id, tingkat: kelas.tingkat },
+        jamList[0],
+        jamList[jamList.length - 1]
+      )
+    }).length
   }
+  const classDates = dates.filter(tanggal => activeBlockCountForDate(tanggal) > 0)
 
   const guruMap = new Map<string, Array<{
     status: string
@@ -299,12 +321,12 @@ export async function getFinalAttendanceForClass(
   const statusByStudent = new Map<string, FinalAttendanceDetail[]>()
   for (const siswa of siswaList) {
     const perDay: FinalAttendanceDetail[] = []
-    for (const tanggal of dates) {
-      const dateObj = new Date(tanggal + 'T00:00:00')
-      const totalBlok = totalBlokByHari.get(hariNum(dateObj)) || 0
+    for (const tanggal of classDates) {
+      const totalBlok = activeBlockCountForDate(tanggal)
       const guruRecords = guruMap.get(`${siswa.id}__${tanggal}`) || []
       const waliRecord = waliMap.get(`${siswa.id}__${tanggal}`)
       const submittedPenugasanCount = sesiMap.get(tanggal)?.size || 0
+      if (totalBlok <= 0 && guruRecords.length === 0 && !waliRecord) continue
       const guruStatus = deriveGuruStatusWithSession(
         totalBlok,
         guruRecords,
@@ -335,7 +357,7 @@ export async function getFinalAttendanceForClass(
       ...kelas,
       label: formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok),
     },
-    dates,
+    dates: classDates,
     siswa: siswaList,
     statusByStudent,
   }
