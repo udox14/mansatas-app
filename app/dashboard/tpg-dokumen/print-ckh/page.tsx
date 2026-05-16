@@ -98,7 +98,7 @@ function signatureStyle(user: PrintUser): CSSProperties {
     top: `${Number(user.signature_y_mm ?? 12)}mm`,
     width: `${Number(user.signature_width_mm ?? 38)}mm`,
     height: 'auto',
-    maxHeight: '28mm',
+    maxHeight: '40mm',
     objectFit: 'contain',
     zIndex: 10,
     pointerEvents: 'none',

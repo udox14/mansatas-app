@@ -72,6 +72,17 @@ type SignatureSettings = {
 }
 
 const printProfileLabel: CSSProperties = { width: '112px', whiteSpace: 'nowrap' }
+const signatureColumnStyle: CSSProperties = { width: '46%', textAlign: 'left', paddingLeft: '14mm' }
+const signatureRoleStyle: CSSProperties = { fontWeight: 700, textTransform: 'uppercase', marginBottom: '20mm' }
+const signaturePreviewColumnStyle: CSSProperties = {
+  ...signatureColumnStyle,
+  position: 'relative',
+  width: '96mm',
+  minHeight: '48mm',
+  fontFamily: 'Tahoma, sans-serif',
+  fontSize: '10pt',
+  color: '#000',
+}
 
 const roleOptions = [
   'super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas',
@@ -121,7 +132,7 @@ function signatureImageStyle(settings: SignatureSettings): CSSProperties {
     top: `${settings.signature_y_mm}mm`,
     width: `${settings.signature_width_mm}mm`,
     height: 'auto',
-    maxHeight: '28mm',
+    maxHeight: '40mm',
     objectFit: 'contain',
     zIndex: 10,
     pointerEvents: 'none',
@@ -219,20 +230,20 @@ function CkhPrintDocument({
       </table>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '18mm', fontSize: '10pt' }}>
-        <div style={{ width: '46%', textAlign: 'left', paddingLeft: '14mm' }}>
+        <div style={signatureColumnStyle}>
           <div>Mengetahui :</div>
-          <div style={{ fontWeight: 700, textTransform: 'uppercase', marginBottom: '20mm' }}>
+          <div style={signatureRoleStyle}>
             {signerLabel}
           </div>
           <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(signer?.nama_lengkap) || missingSignerLabel}</div>
           <div>NIP. {signer?.nip || <MissingProfilePrint />}</div>
         </div>
-        <div style={{ width: '46%', textAlign: 'left', paddingLeft: '14mm', position: 'relative' }}>
+        <div style={{ ...signatureColumnStyle, position: 'relative' }}>
           {signatureSettings.signature_enabled && user.signature_url ? (
             <img src={user.signature_url} alt="" style={signatureImageStyle(signatureSettings)} />
           ) : null}
           <div>Tasikmalaya, {tanggalCetak}</div>
-          <div style={{ fontWeight: 700, textTransform: 'uppercase', marginBottom: '20mm' }}>
+          <div style={signatureRoleStyle}>
             {user.jabatan_cetak || user.role || 'Pegawai'}
           </div>
           <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(user.nama_lengkap)}</div>
@@ -333,7 +344,7 @@ function PrintDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button className="bg-slate-900 hover:bg-slate-800 text-white gap-2">
+        <Button className="h-10 gap-2 bg-slate-900 text-white hover:bg-slate-800">
           <Printer className="h-4 w-4" />
           Cetak / Simpan PDF
         </Button>
@@ -446,7 +457,7 @@ function SignatureSettingsDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" className="h-10 gap-2">
           <Settings2 className="h-4 w-4" />
           Tanda Tangan
         </Button>
@@ -473,19 +484,19 @@ function SignatureSettingsDialog({
             Pakai tanda tangan pada dokumen CKH ini
           </label>
 
-          <div className="relative h-40 overflow-hidden rounded-lg border border-slate-200 bg-white">
-            <div className="absolute right-6 top-5 w-56 text-sm text-black">
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-4">
+            <div style={signaturePreviewColumnStyle}>
               <div>Tasikmalaya, 31 Januari 2026</div>
-              <div className="mb-20 font-bold uppercase">JABATAN CETAK</div>
+              <div style={signatureRoleStyle}>JABATAN CETAK</div>
               {signatureUrl && draft.signature_enabled ? (
                 <img src={signatureUrl} alt="Preview tanda tangan" style={signatureImageStyle(draft)} />
               ) : null}
-              <div className="font-bold underline">NAMA PEGAWAI</div>
+              <div style={{ fontWeight: 700, textDecoration: 'underline' }}>NAMA PEGAWAI</div>
               <div>NIP. 000000000000000000</div>
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Geser kanan (mm)</Label>
               <Input type="number" value={draft.signature_x_mm} min={-20} max={80} onChange={e => updateNumber('signature_x_mm', e.target.value)} disabled={!signatureUrl} />
@@ -496,10 +507,10 @@ function SignatureSettingsDialog({
               <Input type="number" value={draft.signature_y_mm} min={-20} max={80} onChange={e => updateNumber('signature_y_mm', e.target.value)} disabled={!signatureUrl} />
               <input type="range" min={-20} max={80} value={draft.signature_y_mm} onChange={e => updateNumber('signature_y_mm', e.target.value)} disabled={!signatureUrl} className="w-full" />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Lebar (mm)</Label>
-              <Input type="number" value={draft.signature_width_mm} min={15} max={90} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} />
-              <input type="range" min={15} max={90} value={draft.signature_width_mm} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} className="w-full" />
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-xs">Ukuran tanda tangan (mm)</Label>
+              <Input type="number" value={draft.signature_width_mm} min={15} max={120} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} />
+              <input type="range" min={15} max={120} value={draft.signature_width_mm} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} className="w-full" />
             </div>
           </div>
 
@@ -684,65 +695,86 @@ export function CkhGeneratorClient({
 
   return (
     <Tabs defaultValue="dokumen" className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <TabsList className={cn('grid w-full max-w-md', canManageTemplates ? 'grid-cols-2' : 'grid-cols-1')}>
           <TabsTrigger value="dokumen" className="gap-1.5"><FileText className="h-3.5 w-3.5" /> Dokumen</TabsTrigger>
           {canManageTemplates && <TabsTrigger value="template" className="gap-1.5"><Settings2 className="h-3.5 w-3.5" /> Template</TabsTrigger>}
         </TabsList>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-surface bg-surface p-1">
-            <Button size="sm" variant="ghost" onClick={() => shiftMonth(-1)} className="h-8 w-8 p-0" title="Bulan sebelumnya">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <CalendarDays className="ml-2 h-4 w-4 text-slate-400" />
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="h-8 w-32 border-0 bg-transparent text-sm shadow-none focus:ring-0">
-                <SelectValue aria-label="Bulan CKH" />
-              </SelectTrigger>
-              <SelectContent>
-                {MONTHS.map((label, index) => (
-                  <SelectItem key={label} value={String(index + 1)}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="h-8 w-24 border-0 bg-transparent text-sm shadow-none focus:ring-0">
-                <SelectValue aria-label="Tahun CKH" />
-              </SelectTrigger>
-              <SelectContent>
-                {yearOptions.map(option => (
-                  <SelectItem key={option} value={String(option)}>{option}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button size="sm" variant="outline" onClick={goMonth} className="h-8">Buka</Button>
-            <Button size="sm" variant="ghost" onClick={() => shiftMonth(1)} className="h-8 w-8 p-0" title="Bulan berikutnya">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+        <div className="flex w-full flex-col gap-2 xl:w-auto xl:items-end">
+          <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-end xl:w-auto">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-surface bg-surface p-1 md:flex-nowrap">
+              <Button size="sm" variant="ghost" onClick={() => shiftMonth(-1)} className="h-8 w-8 p-0" title="Bulan sebelumnya">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <CalendarDays className="ml-2 h-4 w-4 text-slate-400" />
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="h-8 w-32 border-0 bg-transparent text-sm shadow-none focus:ring-0">
+                  <SelectValue aria-label="Bulan CKH" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((label, index) => (
+                    <SelectItem key={label} value={String(index + 1)}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="h-8 w-24 border-0 bg-transparent text-sm shadow-none focus:ring-0">
+                  <SelectValue aria-label="Tahun CKH" />
+                </SelectTrigger>
+                <SelectContent>
+                  {yearOptions.map(option => (
+                    <SelectItem key={option} value={String(option)}>{option}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" onClick={goMonth} className="h-8">Buka</Button>
+              <Button size="sm" variant="ghost" onClick={() => shiftMonth(1)} className="h-8 w-8 p-0" title="Bulan berikutnya">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
+              <Button variant="outline" onClick={syncDraft} disabled={isSyncing} className="h-10 gap-2">
+                {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+                Sinkronkan Agenda
+              </Button>
+              <SignatureSettingsDialog
+                documentId={initialData.document.id}
+                signatureUrl={initialData.user.signature_url}
+                settings={signatureSettings}
+                onApply={settings => {
+                  setSignatureSettings(settings)
+                  setDocumentStatus('DRAFT')
+                }}
+              />
+              <PrintDialog
+                rows={rows}
+                user={initialData.user}
+                kepsek={initialData.kepsek}
+                kepalaTu={initialData.kepalaTu}
+                userRoles={initialData.userRoles}
+                signatureSettings={signatureSettings}
+                year={year}
+                month={month}
+              />
+              <Button onClick={finalizeDocument} disabled={isPending} className="h-10 gap-2 bg-emerald-600 text-white hover:bg-emerald-700">
+                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                Kirim CKH
+              </Button>
+            </div>
           </div>
-          <Button variant="outline" onClick={syncDraft} disabled={isSyncing} className="gap-2">
-            {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-            Sinkronkan Agenda
-          </Button>
-          <SignatureSettingsDialog
-            documentId={initialData.document.id}
-            signatureUrl={initialData.user.signature_url}
-            settings={signatureSettings}
-            onApply={settings => {
-              setSignatureSettings(settings)
-              setDocumentStatus('DRAFT')
-            }}
-          />
-          <PrintDialog
-            rows={rows}
-            user={initialData.user}
-            kepsek={initialData.kepsek}
-            kepalaTu={initialData.kepalaTu}
-            userRoles={initialData.userRoles}
-            signatureSettings={signatureSettings}
-            year={year}
-            month={month}
-          />
+          <div className={cn(
+            'flex w-full flex-col gap-1 rounded-lg border px-3 py-2 text-xs md:flex-row md:items-center md:justify-between xl:max-w-2xl',
+            documentStatus === 'FINAL'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-amber-200 bg-amber-50 text-amber-800',
+          )}>
+            <span className="font-semibold">{documentStatus === 'FINAL' ? 'Siap diambil TU' : 'Belum dikirim'}</span>
+            <span className="opacity-80">
+              {documentStatus === 'FINAL'
+                ? 'Dokumen ini akan muncul di Dokumen TPG TU.'
+                : 'Klik Kirim CKH setelah data sudah benar.'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -916,19 +948,19 @@ export function CkhGeneratorClient({
             </div>
 
             <div className="mt-12 flex justify-between text-sm text-black">
-              <div className="w-[45%] pl-14 text-left">
+              <div style={signatureColumnStyle}>
                 <p>Mengetahui :</p>
-                <p className="mb-20 font-bold uppercase">{primarySignerLabel}</p>
-                <p className="font-bold underline">{upper(primarySigner?.nama_lengkap) || missingSignerLabel}</p>
+                <p style={signatureRoleStyle}>{primarySignerLabel}</p>
+                <p style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(primarySigner?.nama_lengkap) || missingSignerLabel}</p>
                 <p>NIP. {primarySigner?.nip || <MissingProfileInline />}</p>
               </div>
-              <div className="relative w-[45%] pl-14 text-left">
+              <div style={{ ...signatureColumnStyle, position: 'relative' }}>
                 {signatureSettings.signature_enabled && initialData.user.signature_url ? (
                   <img src={initialData.user.signature_url} alt="" style={signatureImageStyle(signatureSettings)} className="print:block" />
                 ) : null}
                 <p>Tasikmalaya, {new Date(year, month, 0).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                <p className="mb-20 font-bold uppercase">{initialData.user.jabatan_cetak || initialData.user.role}</p>
-                <p className="font-bold underline">{upper(initialData.user.nama_lengkap)}</p>
+                <p style={signatureRoleStyle}>{initialData.user.jabatan_cetak || initialData.user.role}</p>
+                <p style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(initialData.user.nama_lengkap)}</p>
                 <p>NIP. {initialData.user.nip || <MissingProfileInline />}</p>
               </div>
             </div>
@@ -942,25 +974,6 @@ export function CkhGeneratorClient({
         </TabsContent>
       )}
 
-      <div className={cn(
-        'flex flex-col gap-2 rounded-lg border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between',
-        documentStatus === 'FINAL'
-          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-          : 'border-amber-200 bg-amber-50 text-amber-800',
-      )}>
-        <div>
-          <p className="font-semibold">{documentStatus === 'FINAL' ? 'Siap diambil TU' : 'Belum dikirim'}</p>
-          <p className="text-xs opacity-80">
-            {documentStatus === 'FINAL'
-              ? 'Dokumen ini akan muncul di Dokumen TPG TU.'
-              : 'Klik Kirim CKH setelah data sudah benar.'}
-          </p>
-        </div>
-        <Button onClick={finalizeDocument} disabled={isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-          {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-          Kirim CKH
-        </Button>
-      </div>
     </Tabs>
   )
 }
