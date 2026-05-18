@@ -226,6 +226,7 @@ CREATE TABLE IF NOT EXISTS siswa_pelanggaran (
   tahun_ajaran_id        TEXT NOT NULL REFERENCES tahun_ajaran(id),
   tanggal                TEXT NOT NULL DEFAULT (date('now')),
   jam_input              TEXT,
+  source_signature       TEXT,
   keterangan             TEXT,
   foto_url               TEXT,
   diinput_oleh           TEXT NOT NULL REFERENCES "user"(id),
@@ -295,6 +296,9 @@ CREATE INDEX IF NOT EXISTS idx_kelas_tingkat          ON kelas(tingkat);
 CREATE INDEX IF NOT EXISTS idx_rekap_kehadiran_siswa  ON rekap_kehadiran_bulanan(siswa_id, bulan, tahun_ajaran_id);
 CREATE INDEX IF NOT EXISTS idx_jurnal_penugasan        ON jurnal_guru_harian(penugasan_id, tanggal);
 CREATE INDEX IF NOT EXISTS idx_pelanggaran_siswa       ON siswa_pelanggaran(siswa_id, tahun_ajaran_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pelanggaran_source_signature
+  ON siswa_pelanggaran(source_signature)
+  WHERE source_signature IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_izin_keluar_siswa       ON izin_keluar_komplek(siswa_id, status);
 CREATE INDEX IF NOT EXISTS idx_session_token           ON session(token);
 CREATE INDEX IF NOT EXISTS idx_session_userId          ON session(userId);
