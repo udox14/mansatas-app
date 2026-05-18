@@ -34,6 +34,47 @@ function getSanksiStyle(urutan: number) {
 const AMAN_STYLE = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
 const naturalSorter = new Intl.Collator('id-ID', { numeric: true, sensitivity: 'base' })
 
+function parseTanggalValue(raw: string | null | undefined) {
+  const value = String(raw ?? '').trim()
+  if (!value) return null
+
+  const normalized = value.split(/[ T]/)[0]?.trim() || value
+  const isoMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (isoMatch) {
+    const year = Number(isoMatch[1])
+    const middle = Number(isoMatch[2])
+    const last = Number(isoMatch[3])
+
+    if (middle >= 1 && middle <= 12 && last >= 1 && last <= 31) {
+      return new Date(year, middle - 1, last)
+    }
+
+    if (middle > 12 && middle <= 31 && last >= 1 && last <= 12) {
+      return new Date(year, last - 1, middle)
+    }
+  }
+
+  const fallback = new Date(value)
+  if (Number.isNaN(fallback.getTime())) return null
+  return fallback
+}
+
+function getTanggalTimestamp(raw: string | null | undefined) {
+  return parseTanggalValue(raw)?.getTime() ?? 0
+}
+
+function formatTanggalDisplay(raw: string | null | undefined) {
+  const parsed = parseTanggalValue(raw)
+  if (!parsed) return raw || '-'
+
+  return parsed.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 // ─── Modal Detail Kasus per Siswa ──────────────────────────────
 function DetailKasusModal({
   group, lifetimePoin, sanksiList, isSuperAdmin, currentUser, isPending,
@@ -58,7 +99,7 @@ function DetailKasusModal({
     : '-'
 
   const sortedKasus = [...group.kasus].sort(
-    (a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime()
+    (a, b) => getTanggalTimestamp(b.tanggal) - getTanggalTimestamp(a.tanggal)
   )
 
   return (
@@ -114,7 +155,7 @@ function DetailKasusModal({
                       {k.master_pelanggaran?.nama_pelanggaran}
                     </p>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
-                      {new Date(k.tanggal).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                      {formatTanggalDisplay(k.tanggal)}
                     </p>
                     {k.keterangan && (
                       <p className="text-[11px] italic text-slate-500 dark:text-slate-400 mt-1.5 bg-slate-50 dark:bg-slate-800 px-2 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800 dark:border-slate-700">

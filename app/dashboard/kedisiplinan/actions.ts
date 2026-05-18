@@ -330,7 +330,7 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
   const id = formData.get('id') as string | null
   const siswa_id = formData.get('siswa_id') as string
   const master_pelanggaran_id = formData.get('master_pelanggaran_id') as string
-  const tanggal = formData.get('tanggal') as string
+  const tanggal = normalizeImportedDate(formData.get('tanggal'))
   const jam_input_raw = (formData.get('jam_input') as string | null)?.trim() || ''
   const keterangan = formData.get('keterangan') as string
   const jam_input = /^\d{2}:\d{2}$/.test(jam_input_raw) ? jam_input_raw : currentTimeWIB().hhmm
@@ -340,6 +340,10 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
       error: 'Siswa dan Jenis Pelanggaran wajib dipilih dari daftar pencarian.',
       success: null,
     }
+  }
+
+  if (!tanggal) {
+    return { error: 'Tanggal pelanggaran tidak valid.', success: null }
   }
 
   const file = formData.get('foto') as File | null

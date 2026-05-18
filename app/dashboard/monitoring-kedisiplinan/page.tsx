@@ -34,7 +34,6 @@ async function MonitoringDataFetcher({ currentUser, taAktifId, sanksiList, lifet
       LEFT JOIN "user" u ON sp.diinput_oleh = u.id
       WHERE sp.tahun_ajaran_id = ?
       ORDER BY sp.tanggal DESC, sp.created_at DESC
-      LIMIT 50
     `).bind(taAktifId).all<any>(),
     db.prepare(`SELECT id, kategori, nama_pelanggaran, poin FROM master_pelanggaran ORDER BY poin ASC`).all<any>(),
     db.prepare(`SELECT DISTINCT tingkat FROM kelas WHERE tingkat IS NOT NULL`).all<{ tingkat: string | number }>(),
