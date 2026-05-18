@@ -43,14 +43,23 @@ export type ImportPelanggaranPreviewRow = {
   notices: string[]
 }
 
-type ImportPelanggaranPreviewResult = {
-  rows: ImportPelanggaranPreviewRow[]
+export type ImportPelanggaranPreviewResult = {
+  reviewRows: ImportPelanggaranPreviewRow[]
   summary: {
     total: number
     ready: number
     need_review: number
     blocked: number
   }
+}
+
+export type ImportPelanggaranCommitPayload = {
+  rows: ImportPelanggaranRowInput[]
+  overrides?: Array<{
+    rowNumber: number
+    selectedSiswaId?: string
+    selectedMasterId?: string
+  }>
 }
 
 function revalidateKedisiplinanPaths() {
@@ -140,6 +149,106 @@ function buildImportSummary(rows: ImportPelanggaranPreviewRow[]) {
     ready,
     blocked,
     need_review: rows.length - ready - blocked,
+  }
+}
+
+function buildPreviewRow(
+  item: ImportPelanggaranRowInput,
+  index: number,
+  siswaByExact: Map<string, any[]>,
+  masterByExact: Map<string, any[]>,
+  siswaIndexed: any[],
+  masterIndexed: any[]
+): ImportPelanggaranPreviewRow {
+  const rowNumber = Number(item.rowNumber) || index + 2
+  const tanggal_input = normalizeImportedDate((item as any).TANGGAL_INPUT ?? (item as any).TANGGAL ?? item.tanggal_input)
+  const jam_input = normalizeImportedTime((item as any).JAM_INPUT ?? (item as any).JAM ?? item.jam_input)
+  const nama = String((item as any).NAMA ?? (item as any).NAMA_SISWA ?? item.nama ?? '').trim()
+  const pelanggaran = String((item as any).PELANGGARAN ?? (item as any).JENIS_PELANGGARAN ?? item.pelanggaran ?? '').trim()
+  const keterangan = String((item as any).KETERANGAN ?? item.keterangan ?? '').trim()
+
+  const blockingReasons: string[] = []
+  const notices: string[] = []
+
+  if (!tanggal_input) blockingReasons.push('Tanggal tidak valid.')
+  if (!jam_input) blockingReasons.push('Jam tidak valid.')
+  if (!nama) blockingReasons.push('Nama siswa kosong.')
+  if (!pelanggaran) blockingReasons.push('Jenis pelanggaran kosong.')
+
+  const normalizedNama = normalizeImportText(nama)
+  const normalizedPelanggaran = normalizeImportText(pelanggaran)
+  const siswaExactMatches = nama ? (siswaByExact.get(normalizedNama) ?? []) : []
+  let siswaOptions: ImportPelanggaranOption[] = siswaExactMatches.map((siswa: any) => ({
+    id: siswa.id,
+    label: siswa.nama_lengkap,
+    sublabel: `${siswa.nisn} • ${formatKelasLabel(siswa)}${siswa.status !== 'aktif' ? ' • nonaktif' : ''}`,
+    isNonaktif: siswa.status !== 'aktif',
+  }))
+
+  if (siswaOptions.length === 0 && nama) {
+    siswaOptions = siswaIndexed
+      .filter((siswa: any) => siswa.normalizedNama.includes(normalizedNama))
+      .slice(0, 5)
+      .map((siswa: any) => ({
+        id: siswa.id,
+        label: siswa.nama_lengkap,
+        sublabel: `${siswa.nisn} • ${formatKelasLabel(siswa)}${siswa.status !== 'aktif' ? ' • nonaktif' : ''}`,
+        isNonaktif: siswa.status !== 'aktif',
+      }))
+  }
+
+  const masterExactMatches = pelanggaran ? (masterByExact.get(normalizedPelanggaran) ?? []) : []
+  let masterOptions: ImportPelanggaranOption[] = masterExactMatches.map((master: any) => ({
+    id: master.id,
+    label: master.nama_pelanggaran,
+    sublabel: `${master.kategori} • ${master.poin} poin`,
+  }))
+
+  if (masterOptions.length === 0 && pelanggaran) {
+    masterOptions = masterIndexed
+      .filter((master: any) => master.normalizedNama.includes(normalizedPelanggaran))
+      .slice(0, 5)
+      .map((master: any) => ({
+        id: master.id,
+        label: master.nama_pelanggaran,
+        sublabel: `${master.kategori} • ${master.poin} poin`,
+      }))
+  }
+
+  let selectedSiswaId = ''
+  if (siswaExactMatches.length === 1) {
+    selectedSiswaId = siswaExactMatches[0].id
+    siswaOptions = [siswaOptions[0]]
+    if (siswaExactMatches[0].status !== 'aktif') notices.push('Siswa cocok, tetapi statusnya nonaktif/sudah keluar.')
+  } else if (siswaExactMatches.length > 1) {
+    notices.push('Nama siswa ganda. Pilih siswa yang benar.')
+  } else if (nama) {
+    notices.push('Siswa belum cocok otomatis. Periksa kandidat atau lewati baris ini.')
+  }
+
+  let selectedMasterId = ''
+  if (masterExactMatches.length === 1) {
+    selectedMasterId = masterExactMatches[0].id
+    masterOptions = [masterOptions[0]]
+  } else if (masterExactMatches.length > 1) {
+    notices.push('Jenis pelanggaran ganda. Pilih kamus yang benar.')
+  } else if (pelanggaran) {
+    notices.push('Jenis pelanggaran belum cocok otomatis. Pilih dari kamus.')
+  }
+
+  return {
+    rowNumber,
+    tanggal_input,
+    jam_input,
+    nama,
+    pelanggaran,
+    keterangan,
+    siswaOptions,
+    masterOptions,
+    selectedSiswaId,
+    selectedMasterId,
+    blockingReasons,
+    notices,
   }
 }
 
@@ -444,137 +553,96 @@ export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggara
     masterByExact.set(key, current)
   }
 
-  const rows: ImportPelanggaranPreviewRow[] = dataExcel.map((item, index) => {
-    const rowNumber = Number(item.rowNumber) || index + 2
-    const tanggal_input = normalizeImportedDate((item as any).TANGGAL_INPUT ?? (item as any).TANGGAL ?? item.tanggal_input)
-    const jam_input = normalizeImportedTime((item as any).JAM_INPUT ?? (item as any).JAM ?? item.jam_input)
-    const nama = String((item as any).NAMA ?? (item as any).NAMA_SISWA ?? item.nama ?? '').trim()
-    const pelanggaran = String((item as any).PELANGGARAN ?? (item as any).JENIS_PELANGGARAN ?? item.pelanggaran ?? '').trim()
-    const keterangan = String((item as any).KETERANGAN ?? item.keterangan ?? '').trim()
+  const allRows = dataExcel.map((item, index) =>
+    buildPreviewRow(item, index, siswaByExact, masterByExact, siswaIndexed, masterIndexed)
+  )
+  const summary = buildImportSummary(allRows)
+  const reviewRows = allRows.filter(row =>
+    row.blockingReasons.length > 0 || !row.selectedSiswaId || !row.selectedMasterId
+  )
 
-    const blockingReasons: string[] = []
-    const notices: string[] = []
-
-    if (!tanggal_input) blockingReasons.push('Tanggal tidak valid.')
-    if (!jam_input) blockingReasons.push('Jam tidak valid.')
-    if (!nama) blockingReasons.push('Nama siswa kosong.')
-    if (!pelanggaran) blockingReasons.push('Jenis pelanggaran kosong.')
-
-    const normalizedNama = normalizeImportText(nama)
-    const normalizedPelanggaran = normalizeImportText(pelanggaran)
-    const siswaExactMatches = nama ? (siswaByExact.get(normalizedNama) ?? []) : []
-    let siswaOptions: ImportPelanggaranOption[] = siswaExactMatches.map((siswa: any) => ({
-      id: siswa.id,
-      label: siswa.nama_lengkap,
-      sublabel: `${siswa.nisn} • ${formatKelasLabel(siswa)}${siswa.status !== 'aktif' ? ' • nonaktif' : ''}`,
-      isNonaktif: siswa.status !== 'aktif',
-    }))
-
-    if (siswaOptions.length === 0 && nama) {
-      siswaOptions = siswaIndexed
-        .filter((siswa: any) => siswa.normalizedNama.includes(normalizedNama))
-        .slice(0, 5)
-        .map((siswa: any) => ({
-          id: siswa.id,
-          label: siswa.nama_lengkap,
-          sublabel: `${siswa.nisn} • ${formatKelasLabel(siswa)}${siswa.status !== 'aktif' ? ' • nonaktif' : ''}`,
-          isNonaktif: siswa.status !== 'aktif',
-        }))
-    }
-
-    const masterExactMatches = pelanggaran ? (masterByExact.get(normalizedPelanggaran) ?? []) : []
-    let masterOptions: ImportPelanggaranOption[] = masterExactMatches.map((master: any) => ({
-      id: master.id,
-      label: master.nama_pelanggaran,
-      sublabel: `${master.kategori} • ${master.poin} poin`,
-    }))
-
-    if (masterOptions.length === 0 && pelanggaran) {
-      masterOptions = masterIndexed
-        .filter((master: any) => master.normalizedNama.includes(normalizedPelanggaran))
-        .slice(0, 5)
-        .map((master: any) => ({
-          id: master.id,
-          label: master.nama_pelanggaran,
-          sublabel: `${master.kategori} • ${master.poin} poin`,
-        }))
-    }
-
-    let selectedSiswaId = ''
-    if (siswaExactMatches.length === 1) {
-      selectedSiswaId = siswaExactMatches[0].id
-      siswaOptions = [siswaOptions[0]]
-      if (siswaExactMatches[0].status !== 'aktif') notices.push('Siswa cocok, tetapi statusnya nonaktif/sudah keluar.')
-    } else if (siswaExactMatches.length > 1) {
-      notices.push('Nama siswa ganda. Pilih siswa yang benar.')
-    } else if (nama) {
-      notices.push('Siswa belum cocok otomatis. Periksa kandidat atau lewati baris ini.')
-    }
-
-    let selectedMasterId = ''
-    if (masterExactMatches.length === 1) {
-      selectedMasterId = masterExactMatches[0].id
-      masterOptions = [masterOptions[0]]
-    } else if (masterExactMatches.length > 1) {
-      notices.push('Jenis pelanggaran ganda. Pilih kamus yang benar.')
-    } else if (pelanggaran) {
-      notices.push('Jenis pelanggaran belum cocok otomatis. Pilih dari kamus.')
-    }
-
-    return {
-      rowNumber,
-      tanggal_input,
-      jam_input,
-      nama,
-      pelanggaran,
-      keterangan,
-      siswaOptions,
-      masterOptions,
-      selectedSiswaId,
-      selectedMasterId,
-      blockingReasons,
-      notices,
-    }
-  })
-
-  return { rows, summary: buildImportSummary(rows) }
+  return { reviewRows, summary }
 }
 
-export async function commitImportPelanggaranMassal(rows: ImportPelanggaranPreviewRow[]) {
+export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCommitPayload) {
   const db = await getDB()
   const user = await getCurrentUser()
   if (!user) return { error: 'Anda belum login.' }
   const canInput = await hasAnyRole(db, user.id, INPUT_PELANGGARAN_ROLES)
   if (!canInput) return { error: 'Anda tidak memiliki hak untuk import pelanggaran.' }
-  if (!Array.isArray(rows) || rows.length === 0) return { error: 'Tidak ada data siap import.' }
+  const rows = Array.isArray(payload?.rows) ? payload.rows : []
+  if (!rows.length) return { error: 'Tidak ada data siap import.' }
 
   const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
   if (!ta) return { error: 'Tahun Ajaran aktif belum diatur sistem.' }
 
-  const siswaIds = [...new Set(rows.map(row => row.selectedSiswaId).filter(Boolean))]
-  const masterIds = [...new Set(rows.map(row => row.selectedMasterId).filter(Boolean))]
-  if (!siswaIds.length || !masterIds.length) return { error: 'Belum ada baris yang siap diimport.' }
-
-  const [siswaCheck, masterCheck] = await Promise.all([
-    db.prepare(`SELECT id FROM siswa WHERE id IN (${siswaIds.map(() => '?').join(',')})`).bind(...siswaIds).all<any>(),
-    db.prepare(`SELECT id FROM master_pelanggaran WHERE id IN (${masterIds.map(() => '?').join(',')})`).bind(...masterIds).all<any>(),
+  const [siswaRes, masterRes] = await Promise.all([
+    db.prepare(`
+      SELECT s.id, s.nama_lengkap, s.status, s.nisn, k.tingkat, k.nomor_kelas, k.kelompok
+      FROM siswa s
+      LEFT JOIN kelas k ON s.kelas_id = k.id
+      ORDER BY s.nama_lengkap ASC
+    `).all<any>(),
+    db.prepare(`
+      SELECT id, nama_pelanggaran, kategori, poin
+      FROM master_pelanggaran
+      ORDER BY nama_pelanggaran ASC
+    `).all<any>(),
   ])
-  const siswaMap = new Map((siswaCheck.results ?? []).map((s: any) => [s.id, s]))
-  const masterMap = new Map((masterCheck.results ?? []).map((m: any) => [m.id, m]))
+
+  const siswaByExact = new Map<string, any[]>()
+  const masterByExact = new Map<string, any[]>()
+  const siswaList = (siswaRes.results ?? []).map((siswa: any) => ({
+    ...siswa,
+    normalizedNama: normalizeImportText(siswa.nama_lengkap),
+  }))
+  const masterList = (masterRes.results ?? []).map((master: any) => ({
+    ...master,
+    normalizedNama: normalizeImportText(master.nama_pelanggaran),
+  }))
+
+  for (const siswa of siswaList) {
+    const key = siswa.normalizedNama
+    const current = siswaByExact.get(key) ?? []
+    current.push(siswa)
+    siswaByExact.set(key, current)
+  }
+  for (const master of masterList) {
+    const key = master.normalizedNama
+    const current = masterByExact.get(key) ?? []
+    current.push(master)
+    masterByExact.set(key, current)
+  }
+
+  const overrideMap = new Map<number, { selectedSiswaId?: string; selectedMasterId?: string }>()
+  for (const override of payload.overrides ?? []) {
+    if (typeof override?.rowNumber === 'number') {
+      overrideMap.set(override.rowNumber, {
+        selectedSiswaId: override.selectedSiswaId,
+        selectedMasterId: override.selectedMasterId,
+      })
+    }
+  }
 
   const stmts: D1PreparedStatement[] = []
   let successCount = 0
   const skipped: string[] = []
 
-  for (const row of rows) {
-    const tanggal = normalizeImportedDate(row.tanggal_input)
-    const jam = normalizeImportedTime(row.jam_input)
-    if (row.blockingReasons.length > 0 || !tanggal || !jam || !row.selectedSiswaId || !row.selectedMasterId) {
-      skipped.push(`baris ${row.rowNumber}`)
+  for (let index = 0; index < rows.length; index++) {
+    const previewRow = buildPreviewRow(rows[index], index, siswaByExact, masterByExact, siswaList, masterList)
+    const override = overrideMap.get(previewRow.rowNumber)
+    const selectedSiswaId = override?.selectedSiswaId ?? previewRow.selectedSiswaId
+    const selectedMasterId = override?.selectedMasterId ?? previewRow.selectedMasterId
+    const tanggal = normalizeImportedDate(previewRow.tanggal_input)
+    const jam = normalizeImportedTime(previewRow.jam_input)
+    if (previewRow.blockingReasons.length > 0 || !tanggal || !jam || !selectedSiswaId || !selectedMasterId) {
+      skipped.push(`baris ${previewRow.rowNumber}`)
       continue
     }
-    if (!siswaMap.has(row.selectedSiswaId) || !masterMap.has(row.selectedMasterId)) {
-      skipped.push(`baris ${row.rowNumber}`)
+    const siswaValid = siswaList.some((s: any) => s.id === selectedSiswaId)
+    const masterValid = masterList.some((m: any) => m.id === selectedMasterId)
+    if (!siswaValid || !masterValid) {
+      skipped.push(`baris ${previewRow.rowNumber}`)
       continue
     }
 
@@ -587,12 +655,12 @@ export async function commitImportPelanggaranMassal(rows: ImportPelanggaranPrevi
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         crypto.randomUUID().replace(/-/g, ''),
-        row.selectedSiswaId,
-        row.selectedMasterId,
+        selectedSiswaId,
+        selectedMasterId,
         ta.id,
         tanggal,
         jam,
-        row.keterangan || null,
+        previewRow.keterangan || null,
         null,
         user.id,
         createdAt,

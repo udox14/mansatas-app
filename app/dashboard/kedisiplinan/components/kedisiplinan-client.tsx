@@ -19,6 +19,8 @@ import {
   hapusPelanggaran,
   hapusMasterPelanggaran,
   importMasterPelanggaranMassal,
+  type ImportPelanggaranCommitPayload,
+  type ImportPelanggaranPreviewResult,
   previewImportPelanggaranMassal,
   commitImportPelanggaranMassal,
   type ImportPelanggaranPreviewRow,
@@ -42,8 +44,22 @@ function getSanksiStyle(urutan: number) {
 const AMAN_STYLE = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
 const naturalSorter = new Intl.Collator('id-ID', { numeric: true, sensitivity: 'base' })
 
-function getReadyImportCount(rows: ImportPelanggaranPreviewRow[]) {
+function getReviewResolvedCount(rows: ImportPelanggaranPreviewRow[]) {
   return rows.filter(row => row.blockingReasons.length === 0 && row.selectedSiswaId && row.selectedMasterId).length
+}
+
+function ProgressBar({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+        <span>{label}</span>
+        <span>{Math.round(value)}%</span>
+      </div>
+      <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+        <div className="h-full bg-rose-600 transition-all duration-300" style={{ width: `${Math.max(4, Math.min(100, value))}%` }} />
+      </div>
+    </div>
+  )
 }
 
 // ─── Modal Detail Kasus per Siswa ──────────────────────────────
@@ -217,6 +233,10 @@ export function KedisiplinanClient({
   const [isPreviewingImport, setIsPreviewingImport] = useState(false)
   const [isCommittingImport, setIsCommittingImport] = useState(false)
   const [importPreviewRows, setImportPreviewRows] = useState<ImportPelanggaranPreviewRow[]>([])
+  const [importOriginalRows, setImportOriginalRows] = useState<any[]>([])
+  const [importSummary, setImportSummary] = useState<ImportPelanggaranPreviewResult['summary'] | null>(null)
+  const [previewProgress, setPreviewProgress] = useState(0)
+  const [commitProgress, setCommitProgress] = useState(0)
 
   // ── Group kasus per siswa ─────────────────────────────────
   const tingkatOptions = useMemo(() => {
@@ -339,23 +359,35 @@ export function KedisiplinanClient({
     const file = e.target.files?.[0]
     if (!file) return
     setIsPreviewingImport(true)
+    setPreviewProgress(8)
     const reader = new FileReader()
     reader.onload = async (event) => {
+      let progressTimer: ReturnType<typeof setInterval> | null = null
       try {
         const XLSX = (window as any).XLSX
         if (!XLSX) throw new Error('Library belum dimuat.')
+        setPreviewProgress(18)
         const workbook = XLSX.read(event.target?.result, { type: 'binary' })
+        setPreviewProgress(35)
         const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false })
+        setImportOriginalRows(jsonData as any[])
+        progressTimer = setInterval(() => {
+          setPreviewProgress(prev => (prev >= 88 ? prev : prev + 6))
+        }, 250)
         const result = await previewImportPelanggaranMassal(jsonData as any)
         if ('error' in result) {
           alert(result.error)
         } else {
-          setImportPreviewRows(result.rows)
+          setImportPreviewRows(result.reviewRows)
+          setImportSummary(result.summary)
+          setPreviewProgress(100)
         }
       } catch {
         alert('Gagal membaca file Excel.')
       } finally {
+        if (progressTimer) clearInterval(progressTimer)
         setIsPreviewingImport(false)
+        setTimeout(() => setPreviewProgress(0), 500)
         e.target.value = ''
       }
     }
@@ -367,20 +399,38 @@ export function KedisiplinanClient({
   }
 
   const handleCommitImport = async () => {
-    if (getReadyImportCount(importPreviewRows) === 0) {
+    const readyCount = (importSummary?.ready ?? 0) + getReviewResolvedCount(importPreviewRows)
+    if (readyCount === 0) {
       alert('Belum ada baris yang siap diimport.')
       return
     }
     setIsCommittingImport(true)
-    const result = await commitImportPelanggaranMassal(importPreviewRows)
+    setCommitProgress(10)
+    const progressTimer = setInterval(() => {
+      setCommitProgress(prev => (prev >= 90 ? prev : prev + 5))
+    }, 250)
+    const payload: ImportPelanggaranCommitPayload = {
+      rows: importOriginalRows,
+      overrides: importPreviewRows.map(row => ({
+        rowNumber: row.rowNumber,
+        selectedSiswaId: row.selectedSiswaId,
+        selectedMasterId: row.selectedMasterId,
+      })),
+    }
+    const result = await commitImportPelanggaranMassal(payload)
+    clearInterval(progressTimer)
+    setCommitProgress(100)
     if (result.error) alert(result.error)
     if (result.success) {
       alert(result.success)
       setImportPreviewRows([])
+      setImportOriginalRows([])
+      setImportSummary(null)
       setIsImportDialogOpen(false)
       window.location.reload()
     }
     setIsCommittingImport(false)
+    setTimeout(() => setCommitProgress(0), 500)
   }
 
   const filteredMaster = masterList.filter(m =>
@@ -445,35 +495,31 @@ export function KedisiplinanClient({
                           </div>
 
                           <Input type="file" accept=".xlsx,.xls" onChange={handleImportPreviewFile} disabled={isPreviewingImport || isCommittingImport} className="h-9 text-xs rounded-lg cursor-pointer" />
-                          {isPreviewingImport && (
-                            <div className="flex items-center text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 bg-surface-3 p-2.5 rounded-lg">
-                              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Membaca file dan melakukan matching...
-                            </div>
-                          )}
+                          {isPreviewingImport && <ProgressBar value={previewProgress} label="Membaca file dan melakukan matching..." />}
+                          {isCommittingImport && <ProgressBar value={commitProgress} label="Mengirim data import..." />}
 
-                          {importPreviewRows.length > 0 && (
+                          {importSummary && (
                             <>
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                 <div className="rounded-lg border border-surface bg-surface p-3">
                                   <p className="text-[11px] text-slate-400 dark:text-slate-500 uppercase">Total</p>
-                                  <p className="text-lg font-black text-slate-800 dark:text-slate-200 dark:text-slate-100">{importPreviewRows.length}</p>
+                                  <p className="text-lg font-black text-slate-800 dark:text-slate-200 dark:text-slate-100">{importSummary.total}</p>
                                 </div>
                                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 p-3">
                                   <p className="text-[11px] text-emerald-600 uppercase">Siap Import</p>
-                                  <p className="text-lg font-black text-emerald-700 dark:text-emerald-400">{getReadyImportCount(importPreviewRows)}</p>
+                                  <p className="text-lg font-black text-emerald-700 dark:text-emerald-400">{importSummary.ready + getReviewResolvedCount(importPreviewRows)}</p>
                                 </div>
                                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
                                   <p className="text-[11px] text-amber-600 uppercase">Perlu Review</p>
-                                  <p className="text-lg font-black text-amber-700">
-                                    {importPreviewRows.filter(row => row.blockingReasons.length === 0 && (!row.selectedSiswaId || !row.selectedMasterId)).length}
-                                  </p>
+                                  <p className="text-lg font-black text-amber-700">{importSummary.need_review}</p>
                                 </div>
                                 <div className="rounded-lg border border-rose-200 bg-rose-50 p-3">
                                   <p className="text-[11px] text-rose-600 uppercase">Terblokir</p>
-                                  <p className="text-lg font-black text-rose-700">{importPreviewRows.filter(row => row.blockingReasons.length > 0).length}</p>
+                                  <p className="text-lg font-black text-rose-700">{importSummary.blocked}</p>
                                 </div>
                               </div>
 
+                              {importPreviewRows.length > 0 ? (
                               <div className="space-y-2">
                                 {importPreviewRows.map(row => {
                                   const ready = row.blockingReasons.length === 0 && row.selectedSiswaId && row.selectedMasterId
@@ -544,13 +590,18 @@ export function KedisiplinanClient({
                                   )
                                 })}
                               </div>
+                              ) : (
+                                <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 p-4 text-sm text-emerald-700 dark:text-emerald-400">
+                                  Semua baris sudah match otomatis. Tidak ada yang perlu direview.
+                                </div>
+                              )}
 
                               <div className="flex justify-end gap-2 pt-1">
-                                <Button variant="outline" onClick={() => setImportPreviewRows([])} disabled={isCommittingImport} className="h-8 text-xs rounded-md">
+                                <Button variant="outline" onClick={() => { setImportPreviewRows([]); setImportOriginalRows([]); setImportSummary(null) }} disabled={isCommittingImport} className="h-8 text-xs rounded-md">
                                   Reset Preview
                                 </Button>
-                                <Button onClick={handleCommitImport} disabled={isCommittingImport || getReadyImportCount(importPreviewRows) === 0} className="h-8 text-xs rounded-md bg-rose-600 hover:bg-rose-700 text-white">
-                                  {isCommittingImport ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Mengimport...</> : `Import ${getReadyImportCount(importPreviewRows)} baris siap`}
+                                <Button onClick={handleCommitImport} disabled={isCommittingImport || (importSummary.ready + getReviewResolvedCount(importPreviewRows)) === 0} className="h-8 text-xs rounded-md bg-rose-600 hover:bg-rose-700 text-white">
+                                  {isCommittingImport ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Mengimport...</> : `Import ${importSummary.ready + getReviewResolvedCount(importPreviewRows)} baris siap`}
                                 </Button>
                               </div>
                             </>
