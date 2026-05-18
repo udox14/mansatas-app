@@ -94,6 +94,13 @@ function excelSerialToDate(serial: number) {
 }
 
 function normalizeImportedDate(raw: unknown) {
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
+    const y = raw.getFullYear()
+    const m = String(raw.getMonth() + 1).padStart(2, '0')
+    const d = String(raw.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+
   if (typeof raw === 'number' && Number.isFinite(raw)) {
     const date = excelSerialToDate(raw)
     if (!Number.isNaN(date.getTime())) {
@@ -106,16 +113,17 @@ function normalizeImportedDate(raw: unknown) {
 
   const text = String(raw ?? '').trim()
   if (!text) return ''
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text
+  const dateOnly = text.split(/[ T]/)[0].trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return dateOnly
 
-  const slash = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/)
+  const slash = dateOnly.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/)
   if (slash) {
     const day = slash[1].padStart(2, '0')
     const month = slash[2].padStart(2, '0')
     return `${slash[3]}-${month}-${day}`
   }
 
-  const parsed = new Date(text)
+  const parsed = new Date(dateOnly)
   if (Number.isNaN(parsed.getTime())) return ''
   const y = parsed.getFullYear()
   const m = String(parsed.getMonth() + 1).padStart(2, '0')
@@ -150,6 +158,25 @@ function buildImportSummary(rows: ImportPelanggaranPreviewRow[]) {
     blocked,
     need_review: rows.length - ready - blocked,
   }
+}
+
+function buildImportSourceSignature(input: {
+  tahunAjaranId: string
+  siswaId: string
+  masterId: string
+  tanggal: string
+  jam: string
+  keterangan: string
+}) {
+  return [
+    'imp-pelanggaran',
+    input.tahunAjaranId,
+    input.siswaId,
+    input.masterId,
+    input.tanggal,
+    input.jam,
+    normalizeImportText(input.keterangan),
+  ].join('|')
 }
 
 function buildPreviewRow(
@@ -647,12 +674,28 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
     }
 
     const createdAt = `${tanggal} ${jam}:00`
+    const sourceSignature = buildImportSourceSignature({
+      tahunAjaranId: ta.id,
+      siswaId: selectedSiswaId,
+      masterId: selectedMasterId,
+      tanggal,
+      jam,
+      keterangan: previewRow.keterangan || '',
+    })
     stmts.push(
       db.prepare(`
         INSERT INTO siswa_pelanggaran (
           id, siswa_id, master_pelanggaran_id, tahun_ajaran_id, tanggal, jam_input,
-          keterangan, foto_url, diinput_oleh, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          source_signature, keterangan, foto_url, diinput_oleh, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(source_signature) DO UPDATE SET
+          siswa_id = excluded.siswa_id,
+          master_pelanggaran_id = excluded.master_pelanggaran_id,
+          tanggal = excluded.tanggal,
+          jam_input = excluded.jam_input,
+          keterangan = excluded.keterangan,
+          diinput_oleh = excluded.diinput_oleh,
+          updated_at = excluded.updated_at
       `).bind(
         crypto.randomUUID().replace(/-/g, ''),
         selectedSiswaId,
@@ -660,6 +703,7 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
         ta.id,
         tanggal,
         jam,
+        sourceSignature,
         previewRow.keterangan || null,
         null,
         user.id,
