@@ -15,7 +15,15 @@ import {
 } from 'lucide-react'
 import { FormModal } from './form-modal'
 import { MasterModal } from './master-modal'
-import { hapusPelanggaran, hapusMasterPelanggaran, importMasterPelanggaranMassal, type SanksiConfig } from '../actions'
+import {
+  hapusPelanggaran,
+  hapusMasterPelanggaran,
+  importMasterPelanggaranMassal,
+  previewImportPelanggaranMassal,
+  commitImportPelanggaranMassal,
+  type ImportPelanggaranPreviewRow,
+  type SanksiConfig,
+} from '../actions'
 import { cn } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
@@ -33,6 +41,10 @@ function getSanksiStyle(urutan: number) {
 
 const AMAN_STYLE = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
 const naturalSorter = new Intl.Collator('id-ID', { numeric: true, sensitivity: 'base' })
+
+function getReadyImportCount(rows: ImportPelanggaranPreviewRow[]) {
+  return rows.filter(row => row.blockingReasons.length === 0 && row.selectedSiswaId && row.selectedMasterId).length
+}
 
 // ─── Modal Detail Kasus per Siswa ──────────────────────────────
 function DetailKasusModal({
@@ -115,6 +127,7 @@ function DetailKasusModal({
                     </p>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
                       {new Date(k.tanggal).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                      {k.jam_input ? ` • ${k.jam_input}` : ''}
                     </p>
                     {k.keterangan && (
                       <p className="text-[11px] italic text-slate-500 dark:text-slate-400 mt-1.5 bg-slate-50 dark:bg-slate-800 px-2 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800 dark:border-slate-700">
@@ -200,6 +213,10 @@ export function KedisiplinanClient({
   const [isMasterModalOpen, setIsMasterModalOpen] = useState(false)
   const [editMasterData, setEditMasterData] = useState<any>(null)
   const [isImportingKamus, setIsImportingKamus] = useState(false)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [isPreviewingImport, setIsPreviewingImport] = useState(false)
+  const [isCommittingImport, setIsCommittingImport] = useState(false)
+  const [importPreviewRows, setImportPreviewRows] = useState<ImportPelanggaranPreviewRow[]>([])
 
   // ── Group kasus per siswa ─────────────────────────────────
   const tingkatOptions = useMemo(() => {
@@ -305,6 +322,67 @@ export function KedisiplinanClient({
     reader.readAsBinaryString(file)
   }
 
+  const handleDownloadTemplateRiwayat = () => {
+    const XLSX = (window as any).XLSX
+    if (!XLSX) return alert('Library belum siap.')
+    const data = [
+      { TANGGAL_INPUT: '2026-05-10', JAM_INPUT: '07:15', NAMA: 'Ahmad Fauzi', PELANGGARAN: 'Terlambat hadir lebih dari 15 menit' },
+      { TANGGAL_INPUT: '2026-05-10', JAM_INPUT: '08:40', NAMA: 'Budi Setiawan', PELANGGARAN: 'Berambut panjang/gondrong (Putra)' },
+    ]
+    const ws = XLSX.utils.json_to_sheet(data)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Riwayat_Pelanggaran')
+    XLSX.writeFile(wb, 'Template_Import_Riwayat_Pelanggaran.xlsx')
+  }
+
+  const handleImportPreviewFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setIsPreviewingImport(true)
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      try {
+        const XLSX = (window as any).XLSX
+        if (!XLSX) throw new Error('Library belum dimuat.')
+        const workbook = XLSX.read(event.target?.result, { type: 'binary' })
+        const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false })
+        const result = await previewImportPelanggaranMassal(jsonData as any)
+        if ('error' in result) {
+          alert(result.error)
+        } else {
+          setImportPreviewRows(result.rows)
+        }
+      } catch {
+        alert('Gagal membaca file Excel.')
+      } finally {
+        setIsPreviewingImport(false)
+        e.target.value = ''
+      }
+    }
+    reader.readAsBinaryString(file)
+  }
+
+  const updatePreviewRow = (rowNumber: number, patch: Partial<ImportPelanggaranPreviewRow>) => {
+    setImportPreviewRows(prev => prev.map(row => row.rowNumber === rowNumber ? { ...row, ...patch } : row))
+  }
+
+  const handleCommitImport = async () => {
+    if (getReadyImportCount(importPreviewRows) === 0) {
+      alert('Belum ada baris yang siap diimport.')
+      return
+    }
+    setIsCommittingImport(true)
+    const result = await commitImportPelanggaranMassal(importPreviewRows)
+    if (result.error) alert(result.error)
+    if (result.success) {
+      alert(result.success)
+      setImportPreviewRows([])
+      setIsImportDialogOpen(false)
+      window.location.reload()
+    }
+    setIsCommittingImport(false)
+  }
+
   const filteredMaster = masterList.filter(m =>
     m.nama_pelanggaran.toLowerCase().includes(searchMaster.toLowerCase())
   )
@@ -345,13 +423,150 @@ export function KedisiplinanClient({
                   />
                 </div>
                 {canInput && (
-                  <Button
-                    onClick={() => { setEditKasusData(null); setIsFormModalOpen(true) }}
-                    size="sm"
-                    className="h-8 px-3 text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-md shrink-0"
-                  >
-                    <PlusCircle className="h-3.5 w-3.5 mr-1" /> Lapor
-                  </Button>
+                  <div className="flex gap-2 shrink-0">
+                    <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 px-3 text-xs rounded-md">
+                          <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Import
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-4xl rounded-xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader className="border-b pb-3">
+                          <DialogTitle className="text-sm font-semibold">Import Riwayat Pelanggaran</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-3 pt-2">
+                          <div className="flex flex-col md:flex-row md:items-center gap-2 justify-between bg-surface-2 border border-surface rounded-lg p-3">
+                            <div className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300">
+                              Kolom wajib: <strong>TANGGAL_INPUT</strong>, <strong>JAM_INPUT</strong>, <strong>NAMA</strong>, <strong>PELANGGARAN</strong>
+                            </div>
+                            <Button size="sm" variant="outline" onClick={handleDownloadTemplateRiwayat} className="h-7 text-xs gap-1">
+                              <Download className="h-3 w-3" />Template
+                            </Button>
+                          </div>
+
+                          <Input type="file" accept=".xlsx,.xls" onChange={handleImportPreviewFile} disabled={isPreviewingImport || isCommittingImport} className="h-9 text-xs rounded-lg cursor-pointer" />
+                          {isPreviewingImport && (
+                            <div className="flex items-center text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 bg-surface-3 p-2.5 rounded-lg">
+                              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Membaca file dan melakukan matching...
+                            </div>
+                          )}
+
+                          {importPreviewRows.length > 0 && (
+                            <>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <div className="rounded-lg border border-surface bg-surface p-3">
+                                  <p className="text-[11px] text-slate-400 dark:text-slate-500 uppercase">Total</p>
+                                  <p className="text-lg font-black text-slate-800 dark:text-slate-200 dark:text-slate-100">{importPreviewRows.length}</p>
+                                </div>
+                                <div className="rounded-lg border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 p-3">
+                                  <p className="text-[11px] text-emerald-600 uppercase">Siap Import</p>
+                                  <p className="text-lg font-black text-emerald-700 dark:text-emerald-400">{getReadyImportCount(importPreviewRows)}</p>
+                                </div>
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                  <p className="text-[11px] text-amber-600 uppercase">Perlu Review</p>
+                                  <p className="text-lg font-black text-amber-700">
+                                    {importPreviewRows.filter(row => row.blockingReasons.length === 0 && (!row.selectedSiswaId || !row.selectedMasterId)).length}
+                                  </p>
+                                </div>
+                                <div className="rounded-lg border border-rose-200 bg-rose-50 p-3">
+                                  <p className="text-[11px] text-rose-600 uppercase">Terblokir</p>
+                                  <p className="text-lg font-black text-rose-700">{importPreviewRows.filter(row => row.blockingReasons.length > 0).length}</p>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                {importPreviewRows.map(row => {
+                                  const ready = row.blockingReasons.length === 0 && row.selectedSiswaId && row.selectedMasterId
+                                  return (
+                                    <div key={row.rowNumber} className="rounded-xl border border-surface bg-surface p-3 space-y-3">
+                                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                                        <div>
+                                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">Baris {row.rowNumber}</p>
+                                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                            {row.tanggal_input || '-'} • {row.jam_input || '-'} • {row.nama || '(nama kosong)'} • {row.pelanggaran || '(pelanggaran kosong)'}
+                                          </p>
+                                        </div>
+                                        <span className={cn(
+                                          'text-[10px] font-bold px-2 py-1 rounded-full border w-fit',
+                                          ready ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800'
+                                            : row.blockingReasons.length > 0 ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                                        )}>
+                                          {ready ? 'Siap import' : row.blockingReasons.length > 0 ? 'Terblokir' : 'Perlu review'}
+                                        </span>
+                                      </div>
+
+                                      {row.blockingReasons.length > 0 && (
+                                        <div className="rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-700 space-y-1">
+                                          {row.blockingReasons.map(reason => <p key={reason}>{reason}</p>)}
+                                        </div>
+                                      )}
+
+                                      {row.notices.length > 0 && (
+                                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-700 space-y-1">
+                                          {row.notices.map(note => <p key={note}>{note}</p>)}
+                                        </div>
+                                      )}
+
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div className="space-y-1.5">
+                                          <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Match siswa</label>
+                                          <select
+                                            value={row.selectedSiswaId}
+                                            onChange={e => updatePreviewRow(row.rowNumber, { selectedSiswaId: e.target.value })}
+                                            className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-800 bg-surface-2 px-3 text-xs"
+                                          >
+                                            <option value="">Pilih siswa...</option>
+                                            {row.siswaOptions.map(option => (
+                                              <option key={option.id} value={option.id}>
+                                                {option.label} - {option.sublabel}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Match pelanggaran</label>
+                                          <select
+                                            value={row.selectedMasterId}
+                                            onChange={e => updatePreviewRow(row.rowNumber, { selectedMasterId: e.target.value })}
+                                            className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-800 bg-surface-2 px-3 text-xs"
+                                          >
+                                            <option value="">Pilih pelanggaran...</option>
+                                            {row.masterOptions.map(option => (
+                                              <option key={option.id} value={option.id}>
+                                                {option.label} - {option.sublabel}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+
+                              <div className="flex justify-end gap-2 pt-1">
+                                <Button variant="outline" onClick={() => setImportPreviewRows([])} disabled={isCommittingImport} className="h-8 text-xs rounded-md">
+                                  Reset Preview
+                                </Button>
+                                <Button onClick={handleCommitImport} disabled={isCommittingImport || getReadyImportCount(importPreviewRows) === 0} className="h-8 text-xs rounded-md bg-rose-600 hover:bg-rose-700 text-white">
+                                  {isCommittingImport ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Mengimport...</> : `Import ${getReadyImportCount(importPreviewRows)} baris siap`}
+                                </Button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+
+                    <Button
+                      onClick={() => { setEditKasusData(null); setIsFormModalOpen(true) }}
+                      size="sm"
+                      className="h-8 px-3 text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-md shrink-0"
+                    >
+                      <PlusCircle className="h-3.5 w-3.5 mr-1" /> Lapor
+                    </Button>
+                  </div>
                 )}
               </div>
 
@@ -424,7 +639,7 @@ export function KedisiplinanClient({
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                            Kelas {kelas} · {new Date(kasus.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            Kelas {kelas} · {new Date(kasus.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}{kasus.jam_input ? ` • ${kasus.jam_input}` : ''}
                           </p>
                           <p className="text-xs font-semibold text-rose-700 dark:text-rose-400 truncate mt-0.5">
                             {kasus.master_pelanggaran?.nama_pelanggaran}

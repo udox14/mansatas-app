@@ -24,7 +24,7 @@ async function MonitoringDataFetcher({ currentUser, taAktifId, sanksiList, lifet
 
   const [kasusResult, masterResult, tingkatResult] = await Promise.all([
     db.prepare(`
-      SELECT sp.id, sp.tanggal, sp.keterangan, sp.foto_url, sp.siswa_id, sp.master_pelanggaran_id, sp.diinput_oleh,
+      SELECT sp.id, sp.tanggal, sp.jam_input, sp.keterangan, sp.foto_url, sp.siswa_id, sp.master_pelanggaran_id, sp.diinput_oleh,
         s.nama_lengkap as siswa_nama, s.foto_url as siswa_foto, k.tingkat, k.nomor_kelas, k.kelompok,
         mp.nama_pelanggaran, mp.poin, u.nama_lengkap as pelapor_nama
       FROM siswa_pelanggaran sp
@@ -43,6 +43,7 @@ async function MonitoringDataFetcher({ currentUser, taAktifId, sanksiList, lifet
   const formattedKasus = (kasusResult.results || []).map((p: any) => ({
     id: p.id,
     tanggal: p.tanggal,
+    jam_input: p.jam_input ?? '',
     keterangan: p.keterangan,
     foto_url: p.foto_url,
     siswa_id: p.siswa_id,

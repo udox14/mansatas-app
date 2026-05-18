@@ -13,9 +13,22 @@ import { getKelasBinaanForIzin, getAlasanIzin } from './actions'
 
 export const metadata = { title: 'Perizinan Siswa - MANSATAS App' }
 
-async function IzinDataFetcher({ currentUserRole, alasanList }: { currentUserRole: string; alasanList: any[] }) {
+function normalizeTanggalParam(value: string | undefined, fallback: string) {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : fallback
+}
+
+async function IzinDataFetcher({
+  currentUserRole,
+  alasanList,
+  tanggal,
+  today,
+}: {
+  currentUserRole: string
+  alasanList: any[]
+  tanggal: string
+  today: string
+}) {
   const db = await getDB()
-  const today = todayWIB()
 
   const [keluarResult, kelasResult] = await Promise.all([
     db.prepare(`
@@ -25,10 +38,11 @@ async function IzinDataFetcher({ currentUserRole, alasanList }: { currentUserRol
       JOIN siswa s ON ik.siswa_id = s.id
       LEFT JOIN kelas k ON s.kelas_id = k.id
       LEFT JOIN "user" u ON ik.diinput_oleh = u.id
-      WHERE ik.status = 'BELUM KEMBALI' OR date(ik.waktu_keluar) = ?
+      WHERE date(ik.waktu_keluar) = ?
+        OR (? = ? AND ik.status = 'BELUM KEMBALI')
       ORDER BY ik.waktu_keluar DESC
       LIMIT 200
-    `).bind(today).all<any>(),
+    `).bind(tanggal, tanggal, today).all<any>(),
     db.prepare(`
       SELECT itk.id, itk.tanggal, itk.jam_pelajaran, itk.alasan, itk.keterangan,
         s.nama_lengkap as siswa_nama, s.foto_url as siswa_foto, k.tingkat, k.nomor_kelas, u.nama_lengkap as pelapor_nama
@@ -38,7 +52,7 @@ async function IzinDataFetcher({ currentUserRole, alasanList }: { currentUserRol
       LEFT JOIN "user" u ON itk.diinput_oleh = u.id
       WHERE itk.tanggal = ?
       ORDER BY itk.created_at DESC
-    `).bind(today).all<any>()
+    `).bind(tanggal).all<any>()
   ])
 
   const filteredKeluar = (keluarResult.results || [])
@@ -51,11 +65,27 @@ async function IzinDataFetcher({ currentUserRole, alasanList }: { currentUserRol
     pelapor: { nama_lengkap: itk.pelapor_nama }
   }))
 
-  return <IzinClient izinKeluarList={filteredKeluar} izinKelasList={formattedIzinKelas} currentUserRole={currentUserRole} initialAlasanList={alasanList} />
+  return (
+    <IzinClient
+      izinKeluarList={filteredKeluar}
+      izinKelasList={formattedIzinKelas}
+      currentUserRole={currentUserRole}
+      initialAlasanList={alasanList}
+      initialTanggal={tanggal}
+      todayTanggal={today}
+    />
+  )
 }
 
 export const dynamic = 'force-dynamic'
-export default async function IzinPage() {
+export default async function IzinPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tanggal?: string }>
+}) {
+  const params = await searchParams
+  const today = todayWIB()
+  const tanggal = normalizeTanggalParam(params?.tanggal, today)
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
@@ -99,8 +129,8 @@ export default async function IzinPage() {
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader title="Perizinan Siswa Harian" description="Posko pencatatan siswa keluar komplek dan izin meninggalkan jam pelajaran." />
-      <Suspense fallback={<PageLoading text="Memuat data perizinan..." />}>
-        <IzinDataFetcher currentUserRole={role} alasanList={alasanList} />
+      <Suspense fallback={<PageLoading text="Memuat data perizinan..." />} key={tanggal}>
+        <IzinDataFetcher currentUserRole={role} alasanList={alasanList} tanggal={tanggal} today={today} />
       </Suspense>
     </div>
   )

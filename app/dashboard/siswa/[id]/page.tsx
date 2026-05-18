@@ -111,7 +111,7 @@ export default async function DetailSiswaPage({
     `).bind(id).all<any>(),
 
     db.prepare(`
-      SELECT sp.id, sp.tanggal, sp.keterangan, sp.foto_url,
+      SELECT sp.id, sp.tanggal, sp.jam_input, sp.keterangan, sp.foto_url,
         mp.nama_pelanggaran, mp.poin, mp.kategori,
         u.nama_lengkap as pelapor_nama
       FROM siswa_pelanggaran sp
