@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, Camera, AlertCircle, CheckCircle2, Search, ShieldAlert } from 'lucide-react'
 import { simpanPelanggaran, searchSiswa } from '../actions'
-import { todayWIB } from '@/lib/time'
+import { currentTimeWIB, todayWIB } from '@/lib/time'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 const initialState = null as any
@@ -57,6 +57,7 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
   const [state, formAction] = useActionState(simpanPelanggaran, initialState)
   const [sanksiNotif, setSanksiNotif] = useState<{ nama: string; deskripsi?: string; total_poin: number } | null>(null)
   const today = todayWIB()
+  const currentTime = currentTimeWIB().hhmm
 
   const [searchSiswaQuery, setSearchSiswaQuery] = useState('')
   const [selectedSiswaId, setSelectedSiswaId] = useState('')
@@ -232,6 +233,12 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
               <Input type="date" name="tanggal" defaultValue={editData?.tanggal || today} required className="h-8 text-xs rounded-md bg-surface-2" />
             </div>
             <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Jam Input <span className="text-rose-500">*</span></Label>
+              <Input type="time" name="jam_input" defaultValue={editData?.jam_input || currentTime} required className="h-8 text-xs rounded-md bg-surface-2" />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Foto Bukti <span className="text-slate-400 dark:text-slate-500 font-normal">(otomatis kompres)</span></Label>
               <div className="relative">
                 <Camera className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
@@ -239,7 +246,6 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
                   className="h-8 pl-8 pt-1 text-xs rounded-md bg-surface-2 file:hidden cursor-pointer" />
               </div>
             </div>
-          </div>
 
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Keterangan <span className="text-slate-400 dark:text-slate-500 font-normal">(opsional)</span></Label>

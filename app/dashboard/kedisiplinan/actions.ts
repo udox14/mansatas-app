@@ -5,11 +5,53 @@ import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { uploadBuktiFoto, deleteFromR2, validateImageFile } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
+import { currentTimeWIB } from '@/lib/time'
 // import { formatNamaKelas } from '@/lib/utils'
 import { revalidatePath } from 'next/cache'
 
 const INPUT_PELANGGARAN_ROLES = ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru']
 const MANAGE_KEDISIPLINAN_ROLES = ['super_admin', 'wakamad', 'guru_bk']
+
+type ImportPelanggaranRowInput = {
+  rowNumber?: number
+  tanggal_input?: string
+  jam_input?: string
+  nama?: string
+  pelanggaran?: string
+  keterangan?: string
+}
+
+type ImportPelanggaranOption = {
+  id: string
+  label: string
+  sublabel?: string
+  isNonaktif?: boolean
+}
+
+export type ImportPelanggaranPreviewRow = {
+  rowNumber: number
+  tanggal_input: string
+  jam_input: string
+  nama: string
+  pelanggaran: string
+  keterangan: string
+  siswaOptions: ImportPelanggaranOption[]
+  masterOptions: ImportPelanggaranOption[]
+  selectedSiswaId: string
+  selectedMasterId: string
+  blockingReasons: string[]
+  notices: string[]
+}
+
+type ImportPelanggaranPreviewResult = {
+  rows: ImportPelanggaranPreviewRow[]
+  summary: {
+    total: number
+    ready: number
+    need_review: number
+    blocked: number
+  }
+}
 
 function revalidateKedisiplinanPaths() {
   revalidatePath('/dashboard/kedisiplinan')
@@ -19,6 +61,86 @@ function revalidateKedisiplinanPaths() {
 async function hasAnyRole(db: D1Database, userId: string, allowedRoles: string[]) {
   const roles = await getUserRoles(db, userId)
   return roles.some(role => allowedRoles.includes(role))
+}
+
+function normalizeImportText(value: string | null | undefined) {
+  return String(value ?? '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function formatKelasLabel(row: { tingkat?: string | number | null; nomor_kelas?: string | null; kelompok?: string | null }) {
+  if (!row?.tingkat) return 'Tanpa kelas'
+  return `${row.tingkat}-${row.nomor_kelas ?? ''}${row.kelompok ? ` ${row.kelompok}` : ''}`.trim()
+}
+
+function excelSerialToDate(serial: number) {
+  const utcDays = Math.floor(serial - 25569)
+  const utcValue = utcDays * 86400
+  return new Date(utcValue * 1000)
+}
+
+function normalizeImportedDate(raw: unknown) {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    const date = excelSerialToDate(raw)
+    if (!Number.isNaN(date.getTime())) {
+      const y = date.getUTCFullYear()
+      const m = String(date.getUTCMonth() + 1).padStart(2, '0')
+      const d = String(date.getUTCDate()).padStart(2, '0')
+      return `${y}-${m}-${d}`
+    }
+  }
+
+  const text = String(raw ?? '').trim()
+  if (!text) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text
+
+  const slash = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/)
+  if (slash) {
+    const day = slash[1].padStart(2, '0')
+    const month = slash[2].padStart(2, '0')
+    return `${slash[3]}-${month}-${day}`
+  }
+
+  const parsed = new Date(text)
+  if (Number.isNaN(parsed.getTime())) return ''
+  const y = parsed.getFullYear()
+  const m = String(parsed.getMonth() + 1).padStart(2, '0')
+  const d = String(parsed.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function normalizeImportedTime(raw: unknown) {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    const totalMinutes = Math.round(raw * 24 * 60)
+    const hours = Math.floor(totalMinutes / 60) % 24
+    const minutes = totalMinutes % 60
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+  }
+
+  const text = String(raw ?? '').trim()
+  if (!text) return ''
+  const match = text.match(/(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?/)
+  if (!match) return ''
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return ''
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
+
+function buildImportSummary(rows: ImportPelanggaranPreviewRow[]) {
+  const ready = rows.filter(row => row.blockingReasons.length === 0 && row.selectedSiswaId && row.selectedMasterId).length
+  const blocked = rows.filter(row => row.blockingReasons.length > 0).length
+  return {
+    total: rows.length,
+    ready,
+    blocked,
+    need_review: rows.length - ready - blocked,
+  }
 }
 
 // ============================================================
@@ -73,7 +195,9 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
   const siswa_id = formData.get('siswa_id') as string
   const master_pelanggaran_id = formData.get('master_pelanggaran_id') as string
   const tanggal = formData.get('tanggal') as string
+  const jam_input_raw = (formData.get('jam_input') as string | null)?.trim() || ''
   const keterangan = formData.get('keterangan') as string
+  const jam_input = /^\d{2}:\d{2}$/.test(jam_input_raw) ? jam_input_raw : currentTimeWIB().hhmm
 
   if (!siswa_id || !master_pelanggaran_id) {
     return {
@@ -104,6 +228,7 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
     siswa_id,
     master_pelanggaran_id,
     tanggal,
+    jam_input,
     keterangan,
     foto_url,
     tahun_ajaran_id: ta.id,
@@ -269,6 +394,213 @@ export async function importMasterPelanggaranMassal(dataExcel: any[]) {
   return { success: `Berhasil mengimport ${successCount} jenis pelanggaran.` }
 }
 
+export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggaranRowInput[]): Promise<ImportPelanggaranPreviewResult | { error: string }> {
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Anda belum login.' }
+  const canInput = await hasAnyRole(db, user.id, INPUT_PELANGGARAN_ROLES)
+  if (!canInput) return { error: 'Anda tidak memiliki hak untuk import pelanggaran.' }
+  if (!Array.isArray(dataExcel) || dataExcel.length === 0) return { error: 'File Excel kosong atau tidak terbaca.' }
+
+  const [siswaRes, masterRes] = await Promise.all([
+    db.prepare(`
+      SELECT s.id, s.nama_lengkap, s.status, s.nisn, k.tingkat, k.nomor_kelas, k.kelompok
+      FROM siswa s
+      LEFT JOIN kelas k ON s.kelas_id = k.id
+      ORDER BY s.nama_lengkap ASC
+    `).all<any>(),
+    db.prepare(`
+      SELECT id, nama_pelanggaran, kategori, poin
+      FROM master_pelanggaran
+      ORDER BY nama_pelanggaran ASC
+    `).all<any>(),
+  ])
+
+  const siswaByExact = new Map<string, any[]>()
+  const masterByExact = new Map<string, any[]>()
+  const siswaList = siswaRes.results ?? []
+  const masterList = masterRes.results ?? []
+
+  for (const siswa of siswaList) {
+    const key = normalizeImportText(siswa.nama_lengkap)
+    const current = siswaByExact.get(key) ?? []
+    current.push(siswa)
+    siswaByExact.set(key, current)
+  }
+
+  for (const master of masterList) {
+    const key = normalizeImportText(master.nama_pelanggaran)
+    const current = masterByExact.get(key) ?? []
+    current.push(master)
+    masterByExact.set(key, current)
+  }
+
+  const rows: ImportPelanggaranPreviewRow[] = dataExcel.map((item, index) => {
+    const rowNumber = Number(item.rowNumber) || index + 2
+    const tanggal_input = normalizeImportedDate((item as any).TANGGAL_INPUT ?? (item as any).TANGGAL ?? item.tanggal_input)
+    const jam_input = normalizeImportedTime((item as any).JAM_INPUT ?? (item as any).JAM ?? item.jam_input)
+    const nama = String((item as any).NAMA ?? (item as any).NAMA_SISWA ?? item.nama ?? '').trim()
+    const pelanggaran = String((item as any).PELANGGARAN ?? (item as any).JENIS_PELANGGARAN ?? item.pelanggaran ?? '').trim()
+    const keterangan = String((item as any).KETERANGAN ?? item.keterangan ?? '').trim()
+
+    const blockingReasons: string[] = []
+    const notices: string[] = []
+
+    if (!tanggal_input) blockingReasons.push('Tanggal tidak valid.')
+    if (!jam_input) blockingReasons.push('Jam tidak valid.')
+    if (!nama) blockingReasons.push('Nama siswa kosong.')
+    if (!pelanggaran) blockingReasons.push('Jenis pelanggaran kosong.')
+
+    const siswaExactMatches = nama ? (siswaByExact.get(normalizeImportText(nama)) ?? []) : []
+    let siswaOptions: ImportPelanggaranOption[] = siswaExactMatches.map((siswa: any) => ({
+      id: siswa.id,
+      label: siswa.nama_lengkap,
+      sublabel: `${siswa.nisn} • ${formatKelasLabel(siswa)}${siswa.status !== 'aktif' ? ' • nonaktif' : ''}`,
+      isNonaktif: siswa.status !== 'aktif',
+    }))
+
+    if (siswaOptions.length === 0 && nama) {
+      siswaOptions = siswaList
+        .filter((siswa: any) => normalizeImportText(siswa.nama_lengkap).includes(normalizeImportText(nama)))
+        .slice(0, 8)
+        .map((siswa: any) => ({
+          id: siswa.id,
+          label: siswa.nama_lengkap,
+          sublabel: `${siswa.nisn} • ${formatKelasLabel(siswa)}${siswa.status !== 'aktif' ? ' • nonaktif' : ''}`,
+          isNonaktif: siswa.status !== 'aktif',
+        }))
+    }
+
+    const masterExactMatches = pelanggaran ? (masterByExact.get(normalizeImportText(pelanggaran)) ?? []) : []
+    let masterOptions: ImportPelanggaranOption[] = masterExactMatches.map((master: any) => ({
+      id: master.id,
+      label: master.nama_pelanggaran,
+      sublabel: `${master.kategori} • ${master.poin} poin`,
+    }))
+
+    if (masterOptions.length === 0 && pelanggaran) {
+      masterOptions = masterList
+        .filter((master: any) => normalizeImportText(master.nama_pelanggaran).includes(normalizeImportText(pelanggaran)))
+        .slice(0, 8)
+        .map((master: any) => ({
+          id: master.id,
+          label: master.nama_pelanggaran,
+          sublabel: `${master.kategori} • ${master.poin} poin`,
+        }))
+    }
+
+    let selectedSiswaId = ''
+    if (siswaExactMatches.length === 1) {
+      selectedSiswaId = siswaExactMatches[0].id
+      if (siswaExactMatches[0].status !== 'aktif') notices.push('Siswa cocok, tetapi statusnya nonaktif/sudah keluar.')
+    } else if (siswaExactMatches.length > 1) {
+      notices.push('Nama siswa ganda. Pilih siswa yang benar.')
+    } else if (nama) {
+      notices.push('Siswa belum cocok otomatis. Periksa kandidat atau lewati baris ini.')
+    }
+
+    let selectedMasterId = ''
+    if (masterExactMatches.length === 1) {
+      selectedMasterId = masterExactMatches[0].id
+    } else if (masterExactMatches.length > 1) {
+      notices.push('Jenis pelanggaran ganda. Pilih kamus yang benar.')
+    } else if (pelanggaran) {
+      notices.push('Jenis pelanggaran belum cocok otomatis. Pilih dari kamus.')
+    }
+
+    return {
+      rowNumber,
+      tanggal_input,
+      jam_input,
+      nama,
+      pelanggaran,
+      keterangan,
+      siswaOptions,
+      masterOptions,
+      selectedSiswaId,
+      selectedMasterId,
+      blockingReasons,
+      notices,
+    }
+  })
+
+  return { rows, summary: buildImportSummary(rows) }
+}
+
+export async function commitImportPelanggaranMassal(rows: ImportPelanggaranPreviewRow[]) {
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Anda belum login.' }
+  const canInput = await hasAnyRole(db, user.id, INPUT_PELANGGARAN_ROLES)
+  if (!canInput) return { error: 'Anda tidak memiliki hak untuk import pelanggaran.' }
+  if (!Array.isArray(rows) || rows.length === 0) return { error: 'Tidak ada data siap import.' }
+
+  const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
+  if (!ta) return { error: 'Tahun Ajaran aktif belum diatur sistem.' }
+
+  const siswaIds = [...new Set(rows.map(row => row.selectedSiswaId).filter(Boolean))]
+  const masterIds = [...new Set(rows.map(row => row.selectedMasterId).filter(Boolean))]
+  if (!siswaIds.length || !masterIds.length) return { error: 'Belum ada baris yang siap diimport.' }
+
+  const [siswaCheck, masterCheck] = await Promise.all([
+    db.prepare(`SELECT id FROM siswa WHERE id IN (${siswaIds.map(() => '?').join(',')})`).bind(...siswaIds).all<any>(),
+    db.prepare(`SELECT id FROM master_pelanggaran WHERE id IN (${masterIds.map(() => '?').join(',')})`).bind(...masterIds).all<any>(),
+  ])
+  const siswaMap = new Map((siswaCheck.results ?? []).map((s: any) => [s.id, s]))
+  const masterMap = new Map((masterCheck.results ?? []).map((m: any) => [m.id, m]))
+
+  const stmts: D1PreparedStatement[] = []
+  let successCount = 0
+  const skipped: string[] = []
+
+  for (const row of rows) {
+    const tanggal = normalizeImportedDate(row.tanggal_input)
+    const jam = normalizeImportedTime(row.jam_input)
+    if (row.blockingReasons.length > 0 || !tanggal || !jam || !row.selectedSiswaId || !row.selectedMasterId) {
+      skipped.push(`baris ${row.rowNumber}`)
+      continue
+    }
+    if (!siswaMap.has(row.selectedSiswaId) || !masterMap.has(row.selectedMasterId)) {
+      skipped.push(`baris ${row.rowNumber}`)
+      continue
+    }
+
+    const createdAt = `${tanggal} ${jam}:00`
+    stmts.push(
+      db.prepare(`
+        INSERT INTO siswa_pelanggaran (
+          id, siswa_id, master_pelanggaran_id, tahun_ajaran_id, tanggal, jam_input,
+          keterangan, foto_url, diinput_oleh, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        crypto.randomUUID().replace(/-/g, ''),
+        row.selectedSiswaId,
+        row.selectedMasterId,
+        ta.id,
+        tanggal,
+        jam,
+        row.keterangan || null,
+        null,
+        user.id,
+        createdAt,
+        createdAt,
+      )
+    )
+    successCount++
+  }
+
+  if (!stmts.length) return { error: 'Tidak ada baris valid yang bisa diimport.' }
+  for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
+
+  revalidateKedisiplinanPaths()
+  return {
+    error: skipped.length ? `${skipped.length} baris dilewati: ${skipped.slice(0, 8).join(', ')}` : null,
+    success: `${successCount} catatan pelanggaran berhasil diimport.`,
+    successCount,
+    skippedCount: skipped.length,
+  }
+}
+
 // ============================================================
 // 4. LOAD MORE KASUS (pagination client-side request)
 // ============================================================
@@ -278,7 +610,7 @@ export async function loadMoreKasus(taAktifId: string, offset: number) {
 
   const result = await db
     .prepare(
-      `SELECT sp.id, sp.tanggal, sp.keterangan, sp.foto_url, sp.siswa_id, sp.master_pelanggaran_id, sp.diinput_oleh,
+      `SELECT sp.id, sp.tanggal, sp.jam_input, sp.keterangan, sp.foto_url, sp.siswa_id, sp.master_pelanggaran_id, sp.diinput_oleh,
         s.nama_lengkap as siswa_nama, k.tingkat, k.nomor_kelas, k.kelompok,
         mp.nama_pelanggaran, mp.poin, u.nama_lengkap as pelapor_nama
       FROM siswa_pelanggaran sp
@@ -296,6 +628,7 @@ export async function loadMoreKasus(taAktifId: string, offset: number) {
   return (result.results ?? []).map((p: any) => ({
     id: p.id,
     tanggal: p.tanggal,
+    jam_input: p.jam_input ?? '',
     keterangan: p.keterangan,
     foto_url: p.foto_url,
     siswa_id: p.siswa_id,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type SyntheticEvent } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +13,10 @@ interface AvatarSiswaProps {
 
 export function AvatarSiswa({ fotoUrl, nama, size = 'sm', className }: AvatarSiswaProps) {
   const [open, setOpen] = useState(false)
+
+  const stopEventPropagation = (e: SyntheticEvent) => {
+    e.stopPropagation()
+  }
   
   const sizeClasses = {
     xs: 'h-8 w-6 text-[10px]',
@@ -54,7 +58,12 @@ export function AvatarSiswa({ fotoUrl, nama, size = 'sm', className }: AvatarSis
         {content}
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md p-1 overflow-hidden bg-transparent border-none shadow-none flex justify-center [&>button.absolute]:bg-slate-900/50 [&>button.absolute]:text-white [&>button.absolute]:hover:bg-slate-900">
+        <DialogContent
+          onClickCapture={stopEventPropagation}
+          onPointerDownCapture={stopEventPropagation}
+          onKeyDownCapture={stopEventPropagation}
+          className="max-w-md p-1 overflow-hidden bg-transparent border-none shadow-none flex justify-center [&>button.absolute]:bg-slate-900/50 [&>button.absolute]:text-white [&>button.absolute]:hover:bg-slate-900"
+        >
           <DialogTitle className="sr-only">Foto {nama}</DialogTitle>
           <img src={fotoUrl} alt={nama} className="w-auto max-w-full max-h-[85vh] rounded-xl object-contain shadow-2xl" />
         </DialogContent>

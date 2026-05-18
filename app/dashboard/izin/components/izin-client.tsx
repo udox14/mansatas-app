@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
@@ -11,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Search, Loader2, DoorOpen, UserX, AlertCircle, CheckCircle2, Trash2, LogIn, Clock } from 'lucide-react'
+import { Search, Loader2, DoorOpen, UserX, AlertCircle, CheckCircle2, Trash2, LogIn, Clock, CalendarDays } from 'lucide-react'
 import { tambahIzinKeluar, tandaiSudahKembali, tambahIzinKelas, hapusIzinKeluar, hapusIzinKelas, searchSiswaIzin, type AlasanIzinRow } from '../actions'
 import { KelolaAlasanModal } from './kelola-alasan-modal'
 import { cn, formatNamaKelas } from '@/lib/utils'
@@ -29,11 +30,27 @@ function SubmitBtn({ label }: { label: string }) {
   )
 }
 
-export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole, initialAlasanList }: {
-  izinKeluarList: any[], izinKelasList: any[], currentUserRole: string, initialAlasanList: AlasanIzinRow[]
+export function IzinClient({
+  izinKeluarList,
+  izinKelasList,
+  currentUserRole,
+  initialAlasanList,
+  initialTanggal,
+  todayTanggal
+}: {
+  izinKeluarList: any[],
+  izinKelasList: any[],
+  currentUserRole: string,
+  initialAlasanList: AlasanIzinRow[],
+  initialTanggal: string,
+  todayTanggal: string
 }) {
   const isSuperAdmin = currentUserRole === 'super_admin'
   const [alasanList, setAlasanList] = useState<AlasanIzinRow[]>(initialAlasanList)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const [filterTanggal, setFilterTanggal] = useState(initialTanggal)
 
   // Tab 1: Keluar
   const [searchKeluar, setSearchKeluar] = useState('')
@@ -75,7 +92,18 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole, ini
 
   const toggleJam = (jam: number) => setSelectedJam(prev => prev.includes(jam) ? prev.filter(j => j !== jam) : [...prev, jam].sort((a, b) => a - b))
   const toggleSemuaJam = () => setSelectedJam(selectedJam.length === 10 ? [] : [1,2,3,4,5,6,7,8,9,10])
+  const applyTanggalFilter = useCallback((tanggal: string) => {
+    const params = new URLSearchParams(searchParams?.toString() || '')
+    if (tanggal === todayTanggal) {
+      params.delete('tanggal')
+    } else {
+      params.set('tanggal', tanggal)
+    }
+    const next = params.toString()
+    router.replace(next ? `${pathname}?${next}` : pathname)
+  }, [pathname, router, searchParams, todayTanggal])
 
+  useEffect(() => { setFilterTanggal(initialTanggal) }, [initialTanggal])
   useEffect(() => { if (stateKeluar?.success) { const t = setTimeout(() => setIsModalKeluarOpen(false), 1500); return () => clearTimeout(t) } }, [stateKeluar?.success])
   useEffect(() => { if (stateKelas?.success) { const t = setTimeout(() => setIsModalKelasOpen(false), 1500); return () => clearTimeout(t) } }, [stateKelas?.success])
 
@@ -146,6 +174,39 @@ export function IzinClient({ izinKeluarList, izinKelasList, currentUserRole, ini
 
   return (
     <div className="space-y-3">
+      <div className="bg-surface border border-surface rounded-lg p-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="space-y-1 min-w-[200px]">
+            <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Filter Tanggal</Label>
+            <div className="relative">
+              <CalendarDays className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+              <Input
+                type="date"
+                value={filterTanggal}
+                onChange={e => setFilterTanggal(e.target.value)}
+                className="h-8 pl-8 text-xs rounded-md"
+              />
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => applyTanggalFilter(filterTanggal)}
+            className="h-8 px-3 text-xs rounded-md bg-slate-700 hover:bg-slate-800 text-white"
+          >
+            Terapkan
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => { setFilterTanggal(todayTanggal); applyTanggalFilter(todayTanggal) }}
+            className="h-8 px-3 text-xs rounded-md"
+          >
+            HARI INI
+          </Button>
+        </div>
+      </div>
 
       {/* MODAL 1: KELUAR KOMPLEK */}
       <Dialog open={isModalKeluarOpen} onOpenChange={open => { setIsModalKeluarOpen(open); if (!open) { setSelectedSiswaId(''); setSearchSiswa('') } }}>

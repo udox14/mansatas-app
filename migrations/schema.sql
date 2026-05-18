@@ -225,6 +225,7 @@ CREATE TABLE IF NOT EXISTS siswa_pelanggaran (
   master_pelanggaran_id  TEXT NOT NULL REFERENCES master_pelanggaran(id),
   tahun_ajaran_id        TEXT NOT NULL REFERENCES tahun_ajaran(id),
   tanggal                TEXT NOT NULL DEFAULT (date('now')),
+  jam_input              TEXT,
   keterangan             TEXT,
   foto_url               TEXT,
   diinput_oleh           TEXT NOT NULL REFERENCES "user"(id),

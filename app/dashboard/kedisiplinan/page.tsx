@@ -22,7 +22,7 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
 
   const [kasusResult, masterResult, tingkatResult] = await Promise.all([
     db.prepare(`
-      SELECT sp.id, sp.tanggal, sp.keterangan, sp.foto_url, sp.siswa_id, sp.master_pelanggaran_id, sp.diinput_oleh,
+      SELECT sp.id, sp.tanggal, sp.jam_input, sp.keterangan, sp.foto_url, sp.siswa_id, sp.master_pelanggaran_id, sp.diinput_oleh,
         s.nama_lengkap as siswa_nama, s.foto_url as siswa_foto, k.tingkat, k.nomor_kelas, k.kelompok,
         mp.nama_pelanggaran, mp.poin, u.nama_lengkap as pelapor_nama
       FROM siswa_pelanggaran sp
@@ -39,7 +39,7 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
   ])
 
   const formattedKasus = (kasusResult.results || []).map((p: any) => ({
-    id: p.id, tanggal: p.tanggal, keterangan: p.keterangan, foto_url: p.foto_url,
+    id: p.id, tanggal: p.tanggal, jam_input: p.jam_input ?? '', keterangan: p.keterangan, foto_url: p.foto_url,
     siswa_id: p.siswa_id, master_pelanggaran_id: p.master_pelanggaran_id, diinput_oleh: p.diinput_oleh,
     siswa: { nama_lengkap: p.siswa_nama, foto_url: p.siswa_foto ?? null, kelas: p.tingkat ? { tingkat: p.tingkat, nomor_kelas: p.nomor_kelas, kelompok: p.kelompok } : null },
     master_pelanggaran: { nama_pelanggaran: p.nama_pelanggaran, poin: p.poin },

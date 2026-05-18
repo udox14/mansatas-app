@@ -6,6 +6,7 @@ import { BookOpen } from 'lucide-react'
 import { Clock } from 'lucide-react'
 
 type Props = { userId: string }
+const ATTENDANCE_CUTOFF_START = '2026-05-12'
 
 function BaseCard({ title, subtitle, hadir, sakit, izin, alfa, total, telat, icon: Icon, iconBg, iconColor, telatMsg }: any) {
   const pct = total > 0 ? Math.round((hadir / total) * 100) : null
@@ -63,9 +64,13 @@ export async function KehadiranPribadiCard({ userId }: Props) {
   const today = todayWIB()
   const yearMonth = today.substring(0, 7)
   const monthStart = `${yearMonth}-01`
+  const rangeStart = monthStart > ATTENDANCE_CUTOFF_START ? monthStart : ATTENDANCE_CUTOFF_START
 
   const monthLabel = new Date(yearMonth + '-01').toLocaleDateString('id-ID', {
     month: 'long', year: 'numeric',
+  })
+  const cutoffLabel = new Date(ATTENDANCE_CUTOFF_START + 'T00:00:00').toLocaleDateString('id-ID', {
+    day: 'numeric', month: 'long', year: 'numeric',
   })
 
   // Cek role user
@@ -84,7 +89,7 @@ export async function KehadiranPribadiCard({ userId }: Props) {
   let dataGuru: any = null
   if (isGuru) {
     const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
-    const effectiveDates = ta ? await getEffectiveDatesInRange(db, monthStart, today) : []
+    const effectiveDates = ta ? await getEffectiveDatesInRange(db, rangeStart, today) : []
 
     if (ta && effectiveDates.length > 0) {
       const jadwalRes = await db.prepare(`
@@ -111,7 +116,7 @@ export async function KehadiranPribadiCard({ userId }: Props) {
       }
 
       const exceptionsByDate = new Map<string, Awaited<ReturnType<typeof getKbmExceptionsForRange>>>()
-      for (const exception of await getKbmExceptionsForRange(db, monthStart, today)) {
+      for (const exception of await getKbmExceptionsForRange(db, rangeStart, today)) {
         if (!exceptionsByDate.has(exception.tanggal)) exceptionsByDate.set(exception.tanggal, [])
         exceptionsByDate.get(exception.tanggal)!.push(exception)
       }
@@ -136,7 +141,7 @@ export async function KehadiranPribadiCard({ userId }: Props) {
           AND tanggal BETWEEN ? AND ?
           AND tanggal IN (${effectiveDates.map(() => '?').join(',')})
         GROUP BY status
-      `).bind(userId, monthStart, today, ...effectiveDates).all<any>()
+      `).bind(userId, rangeStart, today, ...effectiveDates).all<any>()
 
       const counts = { hadir: 0, sakit: 0, izin: 0, alfa: 0, telat: 0 }
       for (const row of agendaRes.results || []) {
@@ -172,7 +177,7 @@ export async function KehadiranPribadiCard({ userId }: Props) {
     <div className="flex flex-col gap-4">
       <BaseCard
         title="Performa Kehadiran"
-        subtitle={`${monthLabel} sampai hari ini`}
+        subtitle={monthStart < ATTENDANCE_CUTOFF_START ? `${cutoffLabel} sampai hari ini` : `${monthLabel} sampai hari ini`}
         hadir={dataGuru?.hadir ?? 0}
         sakit={dataGuru?.sakit ?? 0}
         izin={dataGuru?.izin ?? 0}
