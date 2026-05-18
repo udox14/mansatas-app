@@ -401,6 +401,7 @@ export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggara
   const canInput = await hasAnyRole(db, user.id, INPUT_PELANGGARAN_ROLES)
   if (!canInput) return { error: 'Anda tidak memiliki hak untuk import pelanggaran.' }
   if (!Array.isArray(dataExcel) || dataExcel.length === 0) return { error: 'File Excel kosong atau tidak terbaca.' }
+  if (dataExcel.length > 1000) return { error: 'Maksimal 1000 baris per import agar proses review tetap ringan.' }
 
   const [siswaRes, masterRes] = await Promise.all([
     db.prepare(`
@@ -420,16 +421,24 @@ export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggara
   const masterByExact = new Map<string, any[]>()
   const siswaList = siswaRes.results ?? []
   const masterList = masterRes.results ?? []
+  const siswaIndexed = siswaList.map((siswa: any) => ({
+    ...siswa,
+    normalizedNama: normalizeImportText(siswa.nama_lengkap),
+  }))
+  const masterIndexed = masterList.map((master: any) => ({
+    ...master,
+    normalizedNama: normalizeImportText(master.nama_pelanggaran),
+  }))
 
-  for (const siswa of siswaList) {
-    const key = normalizeImportText(siswa.nama_lengkap)
+  for (const siswa of siswaIndexed) {
+    const key = siswa.normalizedNama
     const current = siswaByExact.get(key) ?? []
     current.push(siswa)
     siswaByExact.set(key, current)
   }
 
-  for (const master of masterList) {
-    const key = normalizeImportText(master.nama_pelanggaran)
+  for (const master of masterIndexed) {
+    const key = master.normalizedNama
     const current = masterByExact.get(key) ?? []
     current.push(master)
     masterByExact.set(key, current)
@@ -451,7 +460,9 @@ export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggara
     if (!nama) blockingReasons.push('Nama siswa kosong.')
     if (!pelanggaran) blockingReasons.push('Jenis pelanggaran kosong.')
 
-    const siswaExactMatches = nama ? (siswaByExact.get(normalizeImportText(nama)) ?? []) : []
+    const normalizedNama = normalizeImportText(nama)
+    const normalizedPelanggaran = normalizeImportText(pelanggaran)
+    const siswaExactMatches = nama ? (siswaByExact.get(normalizedNama) ?? []) : []
     let siswaOptions: ImportPelanggaranOption[] = siswaExactMatches.map((siswa: any) => ({
       id: siswa.id,
       label: siswa.nama_lengkap,
@@ -460,9 +471,9 @@ export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggara
     }))
 
     if (siswaOptions.length === 0 && nama) {
-      siswaOptions = siswaList
-        .filter((siswa: any) => normalizeImportText(siswa.nama_lengkap).includes(normalizeImportText(nama)))
-        .slice(0, 8)
+      siswaOptions = siswaIndexed
+        .filter((siswa: any) => siswa.normalizedNama.includes(normalizedNama))
+        .slice(0, 5)
         .map((siswa: any) => ({
           id: siswa.id,
           label: siswa.nama_lengkap,
@@ -471,7 +482,7 @@ export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggara
         }))
     }
 
-    const masterExactMatches = pelanggaran ? (masterByExact.get(normalizeImportText(pelanggaran)) ?? []) : []
+    const masterExactMatches = pelanggaran ? (masterByExact.get(normalizedPelanggaran) ?? []) : []
     let masterOptions: ImportPelanggaranOption[] = masterExactMatches.map((master: any) => ({
       id: master.id,
       label: master.nama_pelanggaran,
@@ -479,9 +490,9 @@ export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggara
     }))
 
     if (masterOptions.length === 0 && pelanggaran) {
-      masterOptions = masterList
-        .filter((master: any) => normalizeImportText(master.nama_pelanggaran).includes(normalizeImportText(pelanggaran)))
-        .slice(0, 8)
+      masterOptions = masterIndexed
+        .filter((master: any) => master.normalizedNama.includes(normalizedPelanggaran))
+        .slice(0, 5)
         .map((master: any) => ({
           id: master.id,
           label: master.nama_pelanggaran,
@@ -492,6 +503,7 @@ export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggara
     let selectedSiswaId = ''
     if (siswaExactMatches.length === 1) {
       selectedSiswaId = siswaExactMatches[0].id
+      siswaOptions = [siswaOptions[0]]
       if (siswaExactMatches[0].status !== 'aktif') notices.push('Siswa cocok, tetapi statusnya nonaktif/sudah keluar.')
     } else if (siswaExactMatches.length > 1) {
       notices.push('Nama siswa ganda. Pilih siswa yang benar.')
@@ -502,6 +514,7 @@ export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggara
     let selectedMasterId = ''
     if (masterExactMatches.length === 1) {
       selectedMasterId = masterExactMatches[0].id
+      masterOptions = [masterOptions[0]]
     } else if (masterExactMatches.length > 1) {
       notices.push('Jenis pelanggaran ganda. Pilih kamus yang benar.')
     } else if (pelanggaran) {
