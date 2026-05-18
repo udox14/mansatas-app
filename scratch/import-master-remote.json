@@ -1,0 +1,284 @@
+﻿
+ ⛅️ wrangler 4.79.0 (update available 4.92.0)
+─────────────────────────────────────────────
+Resource location: remote 
+
+🌀 Executing on remote database mansatas-db (76b7b346-3f3f-4c1e-a347-2d51497bad97):
+🌀 To execute on your local development database, remove the --remote flag from your wrangler command.
+🚣 Executed 1 command in 0.26ms
+[
+  {
+    "results": [
+      {
+        "id": "c48b9c83179114738ba22b394179818f",
+        "nama_pelanggaran": "Atribut seragam tidak lengkap (tidak pakai dasi/sabuk hitam, kaus kaki, sepatu tidak hitam, baju dikeluarkan, pakai jaket di sekolah, atau bros tanpa logo)",
+        "kategori": "Ringan",
+        "poin": 5
+      },
+      {
+        "id": "e1a55e8c6573b09aaf586f1442f2590a",
+        "nama_pelanggaran": "Berada di kantin atau warung saat pergantian jam pelajaran",
+        "kategori": "Ringan",
+        "poin": 5
+      },
+      {
+        "id": "904f51b0486cec9e4516f60a275e48a2",
+        "nama_pelanggaran": "Berdiam diri (nongkrong) di luar kelas saat pergantian jam pelajaran",
+        "kategori": "Ringan",
+        "poin": 10
+      },
+      {
+        "id": "d6868e43c866cf948c47b6afff79047c",
+        "nama_pelanggaran": "Berkelahi dengan sesama siswa atau pihak lain",
+        "kategori": "Berat",
+        "poin": 30
+      },
+      {
+        "id": "e4ab59c5321873440077316b5b699068",
+        "nama_pelanggaran": "Bermain kartu, konsol (PS), atau pergi ke warnet pada jam sekolah",
+        "kategori": "Sedang",
+        "poin": 20
+      },
+      {
+        "id": "8fdc53361789adb0c28e75c3918083a3",
+        "nama_pelanggaran": "Berpacaran atau berkhalwat di lingkungan madrasah",
+        "kategori": "Sedang",
+        "poin": 20
+      },
+      {
+        "id": "31f3ebaaf95cb2aad3e7f06ad5393da5",
+        "nama_pelanggaran": "Bersikap tidak sopan atau menentang teguran Guru dan Karyawan",
+        "kategori": "Sedang",
+        "poin": 20
+      },
+      {
+        "id": "df041a7d683b07d5eb5dc391bf2c56db",
+        "nama_pelanggaran": "Bolos atau meninggalkan jam pelajaran tanpa izin guru",
+        "kategori": "Ringan",
+        "poin": 10
+      },
+      {
+        "id": "073786d05489ca7a7c14431e2fb9de7c",
+        "nama_pelanggaran": "Datang terlambat lebih dari 5 menit atau terlambat masuk saat pergantian jam pelajaran",
+        "kategori": "Ringan",
+        "poin": 5
+      },
+      {
+        "id": "24cbd77d3c3d3d7fa1798f9553f6b750",
+        "nama_pelanggaran": "Masuk atau keluar lingkungan sekolah melalui jalan yang tidak semestinya (melompat pagar)",
+        "kategori": "Sedang",
+        "poin": 20
+      },
+      {
+        "id": "956c9f8b16de13990f9401bad118e7da",
+        "nama_pelanggaran": "Melakukan intimidasi atau perundungan (bullying) terhadap sesama teman",
+        "kategori": "Sedang",
+        "poin": 20
+      },
+      {
+        "id": "32dc6fd4a42fde94a4331a30e1ab8414",
+        "nama_pelanggaran": "Melakukan pelecehan terhadap Kepala Sekolah, Karyawan, atau sesama teman",
+        "kategori": "Berat",
+        "poin": 75
+      },
+      {
+        "id": "366f3a01362b5db594df2e4aece2ac07",
+        "nama_pelanggaran": "Melakukan pemerasan atau penodongan terhadap warga sekolah",
+        "kategori": "Berat",
+        "poin": 100
+      },
+      {
+        "id": "4bedc0efef18c09ab161d70f5d31b4ec",
+        "nama_pelanggaran": "Melakukan perjudian atau pertaruhan di lingkungan sekolah",
+        "kategori": "Berat",
+        "poin": 75
+      },
+      {
+        "id": "49b7335d50643e46adaf82eb894d0e43",
+        "nama_pelanggaran": "Melakukan tindakan asusila",
+        "kategori": "Berat",
+        "poin": 100
+      },
+      {
+        "id": "25a50385b8679eedc0590e31f4b5d573",
+        "nama_pelanggaran": "Melakukan tindakan pencurian",
+        "kategori": "Berat",
+        "poin": 75
+      },
+      {
+        "id": "ac5f684e2c3d8c53480bc24d15341648",
+        "nama_pelanggaran": "Melanggar aturan bentuk seragam (terlalu ketat/longgar, rok di atas mata kaki, atau tidak pakai seragam sesuai hari)",
+        "kategori": "Ringan",
+        "poin": 10
+      },
+      {
+        "id": "2437c8c9f17c652d5407b384d1d6ff79",
+        "nama_pelanggaran": "Melanggar aturan rambut (dicat/bervariasi, tidak sesuai model, atau bagi putra melebihi kerah/telinga/alis)",
+        "kategori": "Ringan",
+        "poin": 10
+      },
+      {
+        "id": "230bfb3858c0be77d21a6bffac18af00",
+        "nama_pelanggaran": "Melanggar batas riasan (berhias/makeup berlebihan, memakai lipstik, bertato, atau memakai gelang/kalung bagi putra)",
+        "kategori": "Ringan",
+        "poin": 10
+      },
+      {
+        "id": "b4925d926d83f91a2996aa3da555b1ee",
+        "nama_pelanggaran": "Memalsukan tanda tangan (orang tua, guru, dll)",
+        "kategori": "Berat",
+        "poin": 30
+      },
+      {
+        "id": "bf48cddba8b50a8ef23403ceba4ebf33",
+        "nama_pelanggaran": "Membawa atau mengaktifkan telepon seluler (HP) saat KBM tanpa izin",
+        "kategori": "Sedang",
+        "poin": 20
+      },
+      {
+        "id": "e8a7f1619bed14821900baed99373cbd",
+        "nama_pelanggaran": "Membawa buku komik ke lingkungan sekolah",
+        "kategori": "Ringan",
+        "poin": 10
+      },
+      {
+        "id": "03fe30455b5d62f6ee78485bd26a2c45",
+        "nama_pelanggaran": "Membawa rokok ke lingkungan sekolah",
+        "kategori": "Sedang",
+        "poin": 20
+      },
+      {
+        "id": "8e2605d757b6d8f39bf0edf6026e512c",
+        "nama_pelanggaran": "Membawa senjata tajam atau senjata api",
+        "kategori": "Berat",
+        "poin": 75
+      },
+      {
+        "id": "10dd0e4898bd0ddf20271cb8c8e52695",
+        "nama_pelanggaran": "Membawa, meminum, menggunakan, atau mengedarkan Minuman Keras (Miras) dan Narkoba",
+        "kategori": "Berat",
+        "poin": 100
+      },
+      {
+        "id": "1bf01a25588fb10080ef6efa1a30a6a5",
+        "nama_pelanggaran": "Membawa, menyimpan, atau menyebarkan media pornografi (majalah/VCD/file digital)",
+        "kategori": "Berat",
+        "poin": 75
+      },
+      {
+        "id": "82c461c232cc65fef49923f214e14f6d",
+        "nama_pelanggaran": "Membiarkan ruang kelas atau halaman sekolah dalam keadaan kotor saat jadwal piket",
+        "kategori": "Ringan",
+        "poin": 5
+      },
+      {
+        "id": "d4476a276b8bbbf688e8072d48b0a5d5",
+        "nama_pelanggaran": "Membuang sampah sembarangan di lingkungan sekolah",
+        "kategori": "Ringan",
+        "poin": 5
+      },
+      {
+        "id": "ebea23efd016e7cb556075c166b09592",
+        "nama_pelanggaran": "Memukul atau melukai Kepala Sekolah, Guru, atau Karyawan",
+        "kategori": "Berat",
+        "poin": 75
+      },
+      {
+        "id": "b36ce25aff8e5b25beef839fafd9973a",
+        "nama_pelanggaran": "Mengancam Kepala Sekolah, Guru, atau Karyawan",
+        "kategori": "Berat",
+        "poin": 30
+      },
+      {
+        "id": "2f3f88e74da80d1cf00f6e3a38c0461c",
+        "nama_pelanggaran": "Mengganggu ketertiban kelas lain yang sedang belajar",
+        "kategori": "Ringan",
+        "poin": 10
+      },
+      {
+        "id": "fedf6de21704a2793bd03fb8b490b0d3",
+        "nama_pelanggaran": "Menggunakan alat-alat yang tidak berkaitan dengan KBM",
+        "kategori": "Sedang",
+        "poin": 20
+      },
+      {
+        "id": "568662d10e7424cb59173b37ead647e4",
+        "nama_pelanggaran": "Menyontek atau mencari jawaban/informasi secara curang saat ulangan",
+        "kategori": "Sedang",
+        "poin": 20
+      },
+      {
+        "id": "b21c313556a45bcaf10f841ad8a046a3",
+        "nama_pelanggaran": "Merusak sarana, prasarana sekolah, atau memalsukan/merusak fisik buku Rapor",
+        "kategori": "Sedang",
+        "poin": 20
+      },
+      {
+        "id": "f4a4453d51cecaef7989bfd30764f2ba",
+        "nama_pelanggaran": "Terlibat dalam tawuran antar pelajar",
+        "kategori": "Berat",
+        "poin": 100
+      },
+      {
+        "id": "20fd352c3df51309b0898dbdf22d880c",
+        "nama_pelanggaran": "Tertangkap merokok di lingkungan sekolah atau saat mengenakan seragam",
+        "kategori": "Berat",
+        "poin": 30
+      },
+      {
+        "id": "cba064b1eb6d59fedec23b3059a775be",
+        "nama_pelanggaran": "Tidak berdoa pada jam pelajaran pertama atau terakhir",
+        "kategori": "Ringan",
+        "poin": 10
+      },
+      {
+        "id": "45a2b5c61df97e237913b482fb6158a4",
+        "nama_pelanggaran": "Tidak hadir ke sekolah tanpa keterangan (Alpa)",
+        "kategori": "Ringan",
+        "poin": 10
+      },
+      {
+        "id": "376d5a16d3fbe6a9b4a64a93d5612efb",
+        "nama_pelanggaran": "Tidak melaksanakan salat berjemaah pada waktu yang telah dijadwalkan",
+        "kategori": "Sedang",
+        "poin": 20
+      },
+      {
+        "id": "e8689f08a6ca0f559b9c23d871be798f",
+        "nama_pelanggaran": "Tidak mengerjakan tugas yang diberikan oleh guru",
+        "kategori": "Ringan",
+        "poin": 10
+      },
+      {
+        "id": "5b142932107f41ddf8a24addd758d154",
+        "nama_pelanggaran": "Tidak mengikuti KBM dengan serius",
+        "kategori": "Ringan",
+        "poin": 5
+      },
+      {
+        "id": "c03710cc8fc377f7dcb15bd9b271d344",
+        "nama_pelanggaran": "Tidak mengikuti upacara bendera atau bersikap tidak disiplin saat upacara",
+        "kategori": "Ringan",
+        "poin": 5
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "SIN",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.2608
+      },
+      "duration": 0.2608,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 9433088,
+      "rows_read": 84,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]
