@@ -1,12 +1,12 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { CalendarDays, BarChart3, ClipboardList } from 'lucide-react'
-import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { checkFeatureAccess, getPrimaryRole, getUserRoles } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AnalitikKedisiplinanClient } from '../kedisiplinan/components/analitik-client'
 import { getAnalitikKedisiplinan, getSanksiList, type SanksiConfig } from '../kedisiplinan/actions'
 import { MonitoringKedisiplinanClient } from './components/monitoring-kedisiplinan-client'
@@ -129,28 +129,28 @@ export default async function MonitoringKedisiplinanPage() {
         </div>
       </PageHeader>
 
-      <TabsPrimitive.Root defaultValue="pelanggar">
-        <TabsPrimitive.List className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 w-fit mb-4">
-          <TabsPrimitive.Trigger value="pelanggar" className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+      <Tabs defaultValue="pelanggar" className="space-y-4">
+        <TabsList className="flex h-auto w-fit gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+          <TabsTrigger value="pelanggar" className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
             <ClipboardList className="h-3.5 w-3.5" /> Daftar Pelanggar
-          </TabsPrimitive.Trigger>
-          <TabsPrimitive.Trigger value="analitik" className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+          </TabsTrigger>
+          <TabsTrigger value="analitik" className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
             <BarChart3 className="h-3.5 w-3.5" /> Analitik &amp; Radar
-          </TabsPrimitive.Trigger>
-        </TabsPrimitive.List>
+          </TabsTrigger>
+        </TabsList>
 
-        <TabsPrimitive.Content value="pelanggar">
+        <TabsContent value="pelanggar" className="m-0">
           <Suspense fallback={<PageLoading text="Memuat daftar pelanggar..." />}>
             <MonitoringFetcher currentUser={currentUser} taAktifId={taAktif.id} />
           </Suspense>
-        </TabsPrimitive.Content>
+        </TabsContent>
 
-        <TabsPrimitive.Content value="analitik">
+        <TabsContent value="analitik" className="m-0">
           <Suspense fallback={<PageLoading text="Memuat analitik kedisiplinan..." />}>
             <AnalitikFetcher taAktifId={taAktif.id} isAdmin={isAdmin} />
           </Suspense>
-        </TabsPrimitive.Content>
-      </TabsPrimitive.Root>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
