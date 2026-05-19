@@ -11,11 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2, Play, Save, CheckCircle2, ArrowRight, Filter, AlertCircle, Search, Cloud, BarChart3, Users } from 'lucide-react'
 import { simpanPlottingMassal, setDraftPenjurusanMassal } from '../actions'
+import { CetakPenjurusanModal } from './cetak-penjurusan-modal'
 
-type SiswaType = { id: string; nama_lengkap: string; nisn: string; jenis_kelamin: string; kelas_lama: string; minat_jurusan?: string | null }
+type SiswaType = { id: string; nama_lengkap: string; nisn: string; nis_lokal?: string | null; jenis_kelamin: string; kelas_lama: string; minat_jurusan?: string | null }
 type KelasType = { id: string; nama: string; kelompok: string; kapasitas: number; jumlah_siswa: number }
 type HasilPlottingType = { siswa_id: string; nama_lengkap: string; jk: string; kelas_lama: string; kelas_id: string; kelas_nama: string }
-type PlottingContext = { source_tahun_ajaran_id: string; target_tahun_ajaran_id: string }
+type PlottingContext = { source_tahun_ajaran_id: string; target_tahun_ajaran_id: string; source_tahun_ajaran_label?: string }
 
 // ── Palet warna per jurusan ────────────────────────────────────────────────
 const JURUSAN_COLOR: Record<string, { bg: string; bar: string; text: string; border: string }> = {
@@ -414,6 +415,13 @@ export function TabPenjurusan({
                 <p className="text-base font-bold text-rose-700 leading-none">{belumDiset}</p>
                 <p className="text-[9px] text-rose-500 font-medium mt-0.5">Belum diset</p>
               </div>
+            </div>
+            <div className="shrink-0">
+              <CetakPenjurusanModal
+                siswaList={siswaList}
+                penjurusan={penjurusan}
+                tahunAjaranLabel={plottingContext.source_tahun_ajaran_label}
+              />
             </div>
           </div>
 
