@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2, Play, Save, CheckCircle2, ArrowRight, Filter, AlertCircle, Search, Cloud, BarChart3, Users } from 'lucide-react'
 import { simpanPlottingMassal, setDraftPenjurusanMassal } from '../actions'
 
@@ -233,6 +234,8 @@ export function TabPenjurusan({
   const [filterKelas, setFilterKelas] = useState('NONE')
   const [filterStatus, setFilterStatus] = useState('ALL')
   const [searchSiswa, setSearchSiswa] = useState('')
+  const [selectedJurusan, setSelectedJurusan] = useState('')
+  const [searchJurusanSiswa, setSearchJurusanSiswa] = useState('')
   const [selectedKelasIds, setSelectedKelasIds] = useState<string[]>([])
   const [simulasiResult, setSimulasiResult] = useState<HasilPlottingType[]>([])
   const [isSimulating, setIsSimulating] = useState(false)
@@ -243,6 +246,12 @@ export function TabPenjurusan({
   const [saveStatus, setSaveStatus] = useState('')
 
   const opsiJurusan = useMemo(() => daftarJurusan.filter(j => j !== 'UMUM'), [daftarJurusan])
+
+  useEffect(() => {
+    if (!selectedJurusan || (selectedJurusan !== 'UNSET' && !opsiJurusan.includes(selectedJurusan))) {
+      setSelectedJurusan(opsiJurusan[0] || 'UNSET')
+    }
+  }, [opsiJurusan, selectedJurusan])
 
   const kelasLamaUnik = useMemo(() =>
     Array.from(new Set(siswaList.map(s => s.kelas_lama)))
@@ -257,6 +266,23 @@ export function TabPenjurusan({
   )
 
   const plottedIds = useMemo(() => new Set(simulasiResult.map(r => r.siswa_id)), [simulasiResult])
+  const hasilPlottingBySiswa = useMemo(() => {
+    const map: Record<string, HasilPlottingType> = {}
+    simulasiResult.forEach(r => { map[r.siswa_id] = r })
+    return map
+  }, [simulasiResult])
+
+  const jurusanCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    opsiJurusan.forEach(j => { counts[j] = 0 })
+    let unset = 0
+    siswaList.forEach(s => {
+      const jur = penjurusan[s.id]
+      if (!jur) unset++
+      else counts[jur] = (counts[jur] || 0) + 1
+    })
+    return { counts, unset }
+  }, [siswaList, penjurusan, opsiJurusan])
 
   const displayedSiswa = useMemo(() => {
     if (filterKelas === 'NONE') return []
@@ -275,8 +301,27 @@ export function TabPenjurusan({
     })
   }, [siswaList, filterKelas, filterStatus, penjurusan, plottedIds, hasRunSimulation, searchSiswa])
 
+  const displayedJurusanSiswa = useMemo(() => {
+    const q = searchJurusanSiswa.trim().toLowerCase()
+    return siswaList.filter(s => {
+      const jur = penjurusan[s.id] || 'UNSET'
+      const matchJurusan = jur === selectedJurusan
+      const matchSearch = !q || s.nama_lengkap.toLowerCase().includes(q) || s.nisn.includes(q)
+      return matchJurusan && matchSearch
+    })
+  }, [siswaList, penjurusan, selectedJurusan, searchJurusanSiswa])
+
   const handleToggleKelas = (id: string) =>
     setSelectedKelasIds(prev => prev.includes(id) ? prev.filter(k => k !== id) : [...prev, id])
+
+  const setSiswaJurusan = (siswaId: string, jurusan: string | null) => {
+    setPenjurusan(prev => {
+      const next = { ...prev }
+      if (!jurusan) delete next[siswaId]
+      else next[siswaId] = jurusan
+      return next
+    })
+  }
 
   const handleSimpanDraft = async () => {
     setIsSavingDraft(true); setSaveStatus('Menyimpan...')
@@ -372,6 +417,17 @@ export function TabPenjurusan({
             </div>
           </div>
 
+          <Tabs defaultValue="tiket" className="w-full">
+            <TabsList className="mb-3 grid h-auto w-full grid-cols-2 rounded-lg border border-surface bg-surface-2 p-1">
+              <TabsTrigger value="tiket" className="rounded-md py-1.5 text-xs data-[state=active]:bg-violet-600 data-[state=active]:text-white">
+                Tiket Siswa
+              </TabsTrigger>
+              <TabsTrigger value="jurusan" className="rounded-md py-1.5 text-xs data-[state=active]:bg-violet-600 data-[state=active]:text-white">
+                Per Jurusan
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="tiket" className="m-0 focus-visible:ring-0">
           {/* Filter bar */}
           <div className="flex flex-col gap-2 mb-3">
             <div className="relative">
@@ -462,11 +518,7 @@ export function TabPenjurusan({
                               const isActive = penjurusan[s.id] === jur
                               const short = jur === 'SOSHUM' ? 'SOS' : jur === 'KEAGAMAAN' ? 'AGM' : jur.length > 6 ? jur.slice(0, 5) + '..' : jur
                               return (
-                                <button key={jur} onClick={() => setPenjurusan(prev => {
-                                  const n = { ...prev }
-                                  if (n[s.id] === jur) delete n[s.id]; else n[s.id] = jur
-                                  return n
-                                })} title={jur}
+                                <button key={jur} onClick={() => setSiswaJurusan(s.id, isActive ? null : jur)} title={jur}
                                   className={`px-2 py-1 text-[9px] font-semibold rounded transition-all border ${
                                     isActive
                                       ? 'bg-violet-600 text-white border-violet-700 scale-105'
@@ -484,6 +536,127 @@ export function TabPenjurusan({
               </Table>
             </div>
           </div>
+            </TabsContent>
+
+            <TabsContent value="jurusan" className="m-0 focus-visible:ring-0">
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {opsiJurusan.map(jur => {
+                    const active = selectedJurusan === jur
+                    const col = JURUSAN_COLOR[jur] ?? DEFAULT_COLOR
+                    return (
+                      <button
+                        key={jur}
+                        type="button"
+                        onClick={() => setSelectedJurusan(jur)}
+                        className={`rounded-md border px-2 py-2 text-left transition ${
+                          active ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/40' : `${col.border} ${col.bg} hover:border-violet-300`
+                        }`}
+                      >
+                        <span className={`block truncate text-[10px] font-bold uppercase ${active ? 'text-violet-700 dark:text-violet-300' : col.text}`}>{jur}</span>
+                        <span className="mt-1 block text-xs font-bold text-slate-800 dark:text-slate-100">{jurusanCounts.counts[jur] || 0} siswa</span>
+                      </button>
+                    )
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedJurusan('UNSET')}
+                    className={`rounded-md border px-2 py-2 text-left transition ${
+                      selectedJurusan === 'UNSET'
+                        ? 'border-rose-400 bg-rose-50 dark:bg-rose-950/40'
+                        : 'border-rose-200 bg-rose-50/70 hover:border-rose-300 dark:border-rose-900 dark:bg-rose-950/20'
+                    }`}
+                  >
+                    <span className="block truncate text-[10px] font-bold uppercase text-rose-600 dark:text-rose-400">Belum diset</span>
+                    <span className="mt-1 block text-xs font-bold text-slate-800 dark:text-slate-100">{jurusanCounts.unset} siswa</span>
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                  <Input
+                    placeholder="Cari siswa di jurusan ini..."
+                    value={searchJurusanSiswa}
+                    onChange={e => setSearchJurusanSiswa(e.target.value)}
+                    className="pl-8 h-8 text-xs rounded-md"
+                  />
+                </div>
+
+                {hasRunSimulation && hasUnsavedChanges && (
+                  <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>Preview kelas di kanan memakai simulasi lama. Simpan tiket lalu jalankan algoritma ulang sebelum simpan permanen.</span>
+                  </div>
+                )}
+
+                {hasUnsavedChanges && (
+                  <Button onClick={handleSimpanDraft} disabled={isSavingDraft}
+                    className="w-full h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-md">
+                    {isSavingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Cloud className="h-3.5 w-3.5" />}
+                    {isSavingDraft ? 'Menyimpan...' : saveStatus || 'Simpan tiket jurusan ke cloud'}
+                  </Button>
+                )}
+
+                <div className="rounded-md border border-surface overflow-hidden">
+                  <div className="overflow-auto max-h-[440px]">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-slate-50 dark:bg-slate-800/95 backdrop-blur-sm z-10">
+                        <TableRow>
+                          <TableHead className="text-xs h-8 pl-3">Siswa</TableHead>
+                          <TableHead className="text-xs h-8 text-center w-24">Tujuan</TableHead>
+                          <TableHead className="text-xs h-8 text-right pr-3 min-w-[150px]">Pindahkan</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {displayedJurusanSiswa.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={3} className="h-24 text-center text-xs text-slate-400 dark:text-slate-500">
+                              Tidak ada siswa di pilihan ini.
+                            </TableCell>
+                          </TableRow>
+                        ) : displayedJurusanSiswa.map(s => {
+                          const hasil = hasilPlottingBySiswa[s.id]
+                          return (
+                            <TableRow key={s.id} className="hover:bg-surface-2/50">
+                              <TableCell className="pl-3 py-2">
+                                <div className="flex items-center gap-1.5">
+                                  <p className="max-w-[150px] truncate text-xs font-medium text-slate-800 dark:text-slate-100">{s.nama_lengkap}</p>
+                                  <span className="rounded bg-surface-3 px-1 py-0.5 text-[9px] font-bold text-slate-500 dark:text-slate-400">{s.jenis_kelamin}</span>
+                                </div>
+                                <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">{s.kelas_lama} | {s.nisn}</p>
+                              </TableCell>
+                              <TableCell className="py-2 text-center">
+                                {hasil ? (
+                                  <span className="inline-flex rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400">
+                                    {hasil.kelas_nama}
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 dark:text-slate-500">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="pr-3 py-2">
+                                <Select value={penjurusan[s.id] || 'UNSET'} onValueChange={(value) => setSiswaJurusan(s.id, value === 'UNSET' ? null : value)}>
+                                  <SelectTrigger className="ml-auto h-8 w-[140px] rounded-md text-xs">
+                                    <SelectValue placeholder="Jurusan" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="UNSET" className="text-xs text-rose-600">Belum diset</SelectItem>
+                                    {opsiJurusan.map(jur => (
+                                      <SelectItem key={jur} value={jur} className="text-xs">{jur}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
 
@@ -534,13 +707,19 @@ export function TabPenjurusan({
               <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Siswa diurutkan dan disebar rata (L/P)</p>
             </div>
             {simulasiResult.length > 0 && (
-              <Button onClick={simpanPermanen} disabled={isSavingPermanent} size="sm"
+              <Button onClick={simpanPermanen} disabled={isSavingPermanent || hasUnsavedChanges} size="sm"
                 className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md">
                 {isSavingPermanent ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                 Simpan permanen
               </Button>
             )}
           </div>
+
+          {simulasiResult.length > 0 && hasUnsavedChanges && (
+            <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[10px] font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+              Ada perubahan tiket yang belum disimpan. Simpan tiket dan jalankan algoritma ulang sebelum simpan permanen.
+            </div>
+          )}
 
           <div className="flex-1 relative">
             {successMsg ? (

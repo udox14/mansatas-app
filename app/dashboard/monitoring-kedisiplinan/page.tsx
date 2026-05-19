@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { CalendarDays, BarChart3, ClipboardList } from 'lucide-react'
 import { getCurrentUser } from '@/utils/auth/server'
@@ -6,10 +7,10 @@ import { getDB } from '@/utils/db'
 import { checkFeatureAccess, getPrimaryRole, getUserRoles } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AnalitikKedisiplinanClient } from '../kedisiplinan/components/analitik-client'
 import { getAnalitikKedisiplinan, getSanksiList, type SanksiConfig } from '../kedisiplinan/actions'
 import { MonitoringKedisiplinanClient } from './components/monitoring-kedisiplinan-client'
+import { cn } from '@/lib/utils'
 
 export const metadata = { title: 'Monitoring Kedisiplinan - MANSATAS App' }
 export const dynamic = 'force-dynamic'
@@ -95,7 +96,12 @@ async function AnalitikFetcher({ taAktifId, isAdmin }: { taAktifId: string; isAd
   return <AnalitikKedisiplinanClient data={data} isAdmin={isAdmin} />
 }
 
-export default async function MonitoringKedisiplinanPage() {
+export default async function MonitoringKedisiplinanPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tab?: string }> | { tab?: string }
+}) {
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
@@ -109,6 +115,7 @@ export default async function MonitoringKedisiplinanPage() {
   ])
   const currentUser = { id: user.id, role, roles, nama: (user as any).nama_lengkap ?? user.name ?? '' }
   const isAdmin = ['super_admin', 'admin_tu', 'kepsek'].includes(role)
+  const activeTab = resolvedSearchParams?.tab === 'analitik' ? 'analitik' : 'pelanggar'
 
   const taAktif = await db.prepare('SELECT id, nama FROM tahun_ajaran WHERE is_active = 1').first<any>()
   if (!taAktif) return (
@@ -129,28 +136,42 @@ export default async function MonitoringKedisiplinanPage() {
         </div>
       </PageHeader>
 
-      <Tabs defaultValue="pelanggar" className="space-y-4">
-        <TabsList className="flex h-auto w-fit gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-          <TabsTrigger value="pelanggar" className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+      <div className="space-y-4">
+        <div className="flex h-auto w-fit gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+          <Link
+            href="/dashboard/monitoring-kedisiplinan?tab=pelanggar"
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-all',
+              activeTab === 'pelanggar'
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
+                : 'text-slate-600 dark:text-slate-300'
+            )}
+          >
             <ClipboardList className="h-3.5 w-3.5" /> Daftar Pelanggar
-          </TabsTrigger>
-          <TabsTrigger value="analitik" className="px-4 py-1.5 text-sm font-medium rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm transition-all text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+          </Link>
+          <Link
+            href="/dashboard/monitoring-kedisiplinan?tab=analitik"
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-all',
+              activeTab === 'analitik'
+                ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
+                : 'text-slate-600 dark:text-slate-300'
+            )}
+          >
             <BarChart3 className="h-3.5 w-3.5" /> Analitik &amp; Radar
-          </TabsTrigger>
-        </TabsList>
+          </Link>
+        </div>
 
-        <TabsContent value="pelanggar" className="m-0">
+        {activeTab === 'pelanggar' ? (
           <Suspense fallback={<PageLoading text="Memuat daftar pelanggar..." />}>
             <MonitoringFetcher currentUser={currentUser} taAktifId={taAktif.id} />
           </Suspense>
-        </TabsContent>
-
-        <TabsContent value="analitik" className="m-0">
+        ) : (
           <Suspense fallback={<PageLoading text="Memuat analitik kedisiplinan..." />}>
             <AnalitikFetcher taAktifId={taAktif.id} isAdmin={isAdmin} />
           </Suspense>
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
     </div>
   )
 }
