@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useReactToPrint } from 'react-to-print'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import { ChevronRight, FileText, Loader2, Printer, X } from 'lucide-react'
+import { ChevronRight, FileText, Printer, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { BlankoPenjurusanTemplate, type PenjurusanPrintData } from './blanko-penjurusan-template'
 
@@ -16,7 +16,7 @@ type SiswaPenjurusan = {
   kelas_lama: string
 }
 
-type Mode = 'satu' | 'semua'
+type Mode = 'satu' | 'semua' | 'jurusan'
 
 type Props = {
   siswaList: SiswaPenjurusan[]
@@ -29,6 +29,7 @@ export function CetakPenjurusanModal({ siswaList, penjurusan, tahunAjaranLabel =
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<Mode>('satu')
   const [selectedKelas, setSelectedKelas] = useState('')
+  const [selectedJurusan, setSelectedJurusan] = useState('')
   const printRef = useRef<HTMLDivElement>(null)
 
   const tanggalCetak = new Date().toLocaleDateString('id-ID', {
@@ -42,7 +43,13 @@ export function CetakPenjurusanModal({ siswaList, penjurusan, tahunAjaranLabel =
     [siswaList]
   )
 
-  const buildData = (kelas: string): PenjurusanPrintData => {
+  const jurusanOptions = useMemo(() =>
+    Array.from(new Set(Object.values(penjurusan).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })),
+    [penjurusan]
+  )
+
+  const buildKelasData = (kelas: string): PenjurusanPrintData => {
     const rows = siswaList
       .filter(s => s.kelas_lama === kelas)
       .sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
@@ -52,11 +59,39 @@ export function CetakPenjurusanModal({ siswaList, penjurusan, tahunAjaranLabel =
         nisn: s.nisn || '-',
         nama_lengkap: s.nama_lengkap,
         jenis_kelamin: s.jenis_kelamin,
-        tiket_jurusan: penjurusan[s.id] || '-',
+        jurusan_pilihan: penjurusan[s.id] || '-',
       }))
 
     return {
-      kelas_lama: kelas,
+      group_label: kelas,
+      group_type: 'kelas',
+      tahun_ajaran_label: tahunAjaranLabel,
+      siswa: rows,
+      jumlah_l: rows.filter(s => s.jenis_kelamin === 'L').length,
+      jumlah_p: rows.filter(s => s.jenis_kelamin === 'P').length,
+    }
+  }
+
+  const buildJurusanData = (jurusan: string): PenjurusanPrintData => {
+    const rows = siswaList
+      .filter(s => penjurusan[s.id] === jurusan)
+      .sort((a, b) => {
+        const kelasCompare = a.kelas_lama.localeCompare(b.kelas_lama, undefined, { numeric: true, sensitivity: 'base' })
+        if (kelasCompare !== 0) return kelasCompare
+        return a.nama_lengkap.localeCompare(b.nama_lengkap)
+      })
+      .map((s, i) => ({
+        urut: i + 1,
+        nis: s.nis_lokal || '-',
+        nisn: s.nisn || '-',
+        nama_lengkap: s.nama_lengkap,
+        jenis_kelamin: s.jenis_kelamin,
+        jurusan_pilihan: penjurusan[s.id] || '-',
+      }))
+
+    return {
+      group_label: jurusan,
+      group_type: 'jurusan',
       tahun_ajaran_label: tahunAjaranLabel,
       siswa: rows,
       jumlah_l: rows.filter(s => s.jenis_kelamin === 'L').length,
@@ -65,22 +100,27 @@ export function CetakPenjurusanModal({ siswaList, penjurusan, tahunAjaranLabel =
   }
 
   const previewDataList = useMemo(() => {
-    if (mode === 'semua') return kelasOptions.map(buildData)
+    if (mode === 'semua') return kelasOptions.map(buildKelasData)
+    if (mode === 'jurusan') {
+      if (selectedJurusan) return [buildJurusanData(selectedJurusan)]
+      return jurusanOptions.map(buildJurusanData)
+    }
     if (!selectedKelas) return []
-    return [buildData(selectedKelas)]
-  }, [mode, selectedKelas, kelasOptions, siswaList, penjurusan, tahunAjaranLabel])
+    return [buildKelasData(selectedKelas)]
+  }, [mode, selectedKelas, selectedJurusan, kelasOptions, jurusanOptions, siswaList, penjurusan, tahunAjaranLabel])
 
   const handleOpen = () => {
     setOpen(true)
     setMode('satu')
     setSelectedKelas(kelasOptions[0] || '')
+    setSelectedJurusan('')
   }
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: previewDataList.length === 1
-      ? `Tiket Jurusan Kelas ${previewDataList[0].kelas_lama}`
-      : 'Tiket Jurusan Per Kelas',
+      ? `Jurusan Pilihan ${previewDataList[0].group_label}`
+      : mode === 'jurusan' ? 'Jurusan Pilihan Per Jurusan' : 'Jurusan Pilihan Per Kelas',
     pageStyle: `
       @page { size: 215mm 330mm; margin: 0; }
       @media print {
@@ -100,10 +140,10 @@ export function CetakPenjurusanModal({ siswaList, penjurusan, tahunAjaranLabel =
   }
 
   const previewLabel = previewDataList.length === 1
-    ? `Kelas ${previewDataList[0].kelas_lama}`
+    ? `${previewDataList[0].group_type === 'kelas' ? 'Kelas' : 'Jurusan'} ${previewDataList[0].group_label}`
     : previewDataList.length > 1
-      ? `${previewDataList.length} kelas`
-      : 'Pilih kelas'
+      ? `${previewDataList.length} halaman`
+      : mode === 'jurusan' ? 'Pilih jurusan' : 'Pilih kelas'
 
   return (
     <>
@@ -139,9 +179,9 @@ export function CetakPenjurusanModal({ siswaList, penjurusan, tahunAjaranLabel =
                   <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Cetak Tiket Jurusan</h2>
+                  <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Cetak Jurusan Pilihan</h2>
                   <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                    Format F4 per kelas asal - <span className="text-indigo-500 font-medium">{previewLabel}</span>
+                    Format F4 per kelas atau jurusan - <span className="text-indigo-500 font-medium">{previewLabel}</span>
                   </p>
                 </div>
               </div>
@@ -179,6 +219,18 @@ export function CetakPenjurusanModal({ siswaList, penjurusan, tahunAjaranLabel =
                       </div>
                       {mode === 'semua' && <ChevronRight className="h-3 w-3 shrink-0 ml-1" />}
                     </button>
+                    <button
+                      onClick={() => setMode('jurusan')}
+                      className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-left transition-colors text-xs ${
+                        mode === 'jurusan' ? 'bg-indigo-600 text-white' : 'bg-surface hover:bg-surface-2 text-slate-700 dark:text-slate-200 border border-surface'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-medium leading-tight">Per Jurusan</div>
+                        <div className={`text-[10px] mt-0.5 ${mode === 'jurusan' ? 'text-indigo-200' : 'text-slate-400 dark:text-slate-500'}`}>{jurusanOptions.length} jurusan</div>
+                      </div>
+                      {mode === 'jurusan' && <ChevronRight className="h-3 w-3 shrink-0 ml-1" />}
+                    </button>
                   </div>
                 </div>
 
@@ -199,6 +251,42 @@ export function CetakPenjurusanModal({ siswaList, penjurusan, tahunAjaranLabel =
                             }`}
                           >
                             {kelas}
+                            <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500">({count})</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {mode === 'jurusan' && (
+                  <div className="mt-1">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Pilih Jurusan</p>
+                    <div className="space-y-0.5 max-h-64 overflow-y-auto pr-0.5">
+                      <button
+                        onClick={() => setSelectedJurusan('')}
+                        className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
+                          selectedJurusan === ''
+                            ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-200 dark:border-indigo-800'
+                            : 'hover:bg-surface-2 text-slate-600 dark:text-slate-300'
+                        }`}
+                      >
+                        Semua Jurusan
+                        <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500">({jurusanOptions.length})</span>
+                      </button>
+                      {jurusanOptions.map(jurusan => {
+                        const count = siswaList.filter(s => penjurusan[s.id] === jurusan).length
+                        return (
+                          <button
+                            key={jurusan}
+                            onClick={() => setSelectedJurusan(jurusan)}
+                            className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
+                              selectedJurusan === jurusan
+                                ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold border border-indigo-200 dark:border-indigo-800'
+                                : 'hover:bg-surface-2 text-slate-600 dark:text-slate-300'
+                            }`}
+                          >
+                            {jurusan}
                             <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500">({count})</span>
                           </button>
                         )
@@ -228,16 +316,18 @@ export function CetakPenjurusanModal({ siswaList, penjurusan, tahunAjaranLabel =
                     <div className="p-4 rounded-full bg-slate-200 dark:bg-slate-800">
                       <FileText className="h-8 w-8" />
                     </div>
-                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Pilih kelas untuk melihat preview</p>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                      {mode === 'jurusan' ? 'Pilih jurusan untuk melihat preview' : 'Pilih kelas untuk melihat preview'}
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-6">
                     {previewDataList.map((data, idx) => (
-                      <div key={data.kelas_lama}>
+                      <div key={`${data.group_type}-${data.group_label}`}>
                         {previewDataList.length > 1 && (
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded">
-                              Halaman {idx + 1} - Kelas {data.kelas_lama}
+                              Halaman {idx + 1} - {data.group_type === 'kelas' ? 'Kelas' : 'Jurusan'} {data.group_label}
                             </span>
                           </div>
                         )}
@@ -269,7 +359,7 @@ export function CetakPenjurusanModal({ siswaList, penjurusan, tahunAjaranLabel =
       >
         {previewDataList.map((data, idx) => (
           <BlankoPenjurusanTemplate
-            key={data.kelas_lama}
+            key={`${data.group_type}-${data.group_label}`}
             data={data}
             tanggalCetak={tanggalCetak}
             pageBreak={idx > 0}
