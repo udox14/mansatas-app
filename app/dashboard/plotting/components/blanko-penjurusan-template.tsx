@@ -8,11 +8,12 @@ export type PenjurusanPrintRow = {
   nisn: string
   nama_lengkap: string
   jenis_kelamin: string
-  tiket_jurusan: string
+  jurusan_pilihan: string
 }
 
 export type PenjurusanPrintData = {
-  kelas_lama: string
+  group_label: string
+  group_type: 'kelas' | 'jurusan'
   tahun_ajaran_label: string
   siswa: PenjurusanPrintRow[]
   jumlah_l: number
@@ -55,7 +56,7 @@ export const BlankoPenjurusanTemplate = React.forwardRef<HTMLDivElement, Props>(
 
         <div style={{ textAlign: 'center', marginBottom: '5pt', lineHeight: 1.4 }}>
           <div style={{ fontFamily: FONT, fontSize: '11pt', fontWeight: 700, letterSpacing: '0.3pt' }}>
-            DAFTAR TIKET JURUSAN SISWA KELAS {data.kelas_lama}
+            DAFTAR JURUSAN PILIHAN SISWA {data.group_type === 'kelas' ? 'KELAS' : 'JURUSAN'} {data.group_label}
           </div>
           <div style={{ fontFamily: FONT, fontSize: '11pt', fontWeight: 700 }}>
             TAHUN AJARAN {data.tahun_ajaran_label}
@@ -82,7 +83,7 @@ export const BlankoPenjurusanTemplate = React.forwardRef<HTMLDivElement, Props>(
               <th colSpan={2} style={thStyle}>Nomor</th>
               <th rowSpan={2} style={{ ...thStyle, textAlign: 'center', paddingLeft: '5pt' }}>N a m a</th>
               <th rowSpan={2} style={thStyle}>JK</th>
-              <th rowSpan={2} style={thStyle}>Tiket Jurusan</th>
+              <th rowSpan={2} style={thStyle}>Jurusan Pilihan</th>
             </tr>
             <tr>
               <th style={thStyle}>NIS</th>
@@ -97,7 +98,7 @@ export const BlankoPenjurusanTemplate = React.forwardRef<HTMLDivElement, Props>(
                 <td style={{ ...tdStyle, textAlign: 'center' }}>{sw.nisn}</td>
                 <td style={{ ...tdStyle, fontSize: '10pt', paddingLeft: '5pt', paddingRight: '3pt' }}>{sw.nama_lengkap}</td>
                 <td style={{ ...tdStyle, textAlign: 'center' }}>{sw.jenis_kelamin}</td>
-                <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 700 }}>{sw.tiket_jurusan}</td>
+                <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 700 }}>{sw.jurusan_pilihan}</td>
               </tr>
             ))}
             {Array.from({ length: emptyRows }).map((_, i) => (
