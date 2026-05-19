@@ -171,7 +171,7 @@ export async function getSiswaByTingkat(
   const result = await db
     .prepare(
       useCurrentClass
-        ? `SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin, s.kelas_id,
+        ? `SELECT s.id, s.nisn, s.nis_lokal, s.nama_lengkap, s.jenis_kelamin, s.kelas_id,
                   s.minat_jurusan as legacy_minat_jurusan,
                   d.id as draft_id, d.minat_jurusan as draft_minat_jurusan,
                   k.tingkat, k.kelompok, k.nomor_kelas
@@ -183,7 +183,7 @@ export async function getSiswaByTingkat(
             AND d.target_tahun_ajaran_id = ?
            WHERE k.tingkat = ? AND s.status = 'aktif'
            ORDER BY s.nama_lengkap ASC`
-        : `SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin, rk.kelas_id,
+        : `SELECT s.id, s.nisn, s.nis_lokal, s.nama_lengkap, s.jenis_kelamin, rk.kelas_id,
                   s.minat_jurusan as legacy_minat_jurusan,
                   d.id as draft_id, d.minat_jurusan as draft_minat_jurusan,
                   k.tingkat, k.kelompok, k.nomor_kelas
@@ -204,6 +204,7 @@ export async function getSiswaByTingkat(
   return (result.results ?? []).map((s: any) => ({
     id: s.id,
     nisn: s.nisn,
+    nis_lokal: s.nis_lokal,
     nama_lengkap: s.nama_lengkap,
     jenis_kelamin: s.jenis_kelamin,
     kelas_id: s.kelas_id,
