@@ -44,9 +44,12 @@ export function CetakPenjurusanModal({ siswaList, penjurusan, tahunAjaranLabel =
   )
 
   const jurusanOptions = useMemo(() =>
-    Array.from(new Set(Object.values(penjurusan).filter(Boolean)))
+    Array.from(new Set([
+      ...Object.values(penjurusan).filter(Boolean),
+      ...siswaList.map(s => penjurusan[s.id]).filter(Boolean),
+    ]))
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })),
-    [penjurusan]
+    [penjurusan, siswaList]
   )
 
   const buildKelasData = (kelas: string): PenjurusanPrintData => {
