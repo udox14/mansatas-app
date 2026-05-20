@@ -22,6 +22,7 @@ import {
   getSiswaTemplate,
 } from '../actions'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
+import { FinanceExportExcelDialog, type FinanceExportRow } from '../components/export-excel-dialog'
 
 interface DsptRow {
   id: string | null
@@ -169,6 +170,52 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
   const totalDiskon  = withDspt.reduce((s, r) => s + (r.total_diskon ?? 0), 0)
   const totalSisa    = totalTarget - totalDibayar - totalDiskon
 
+  const exportRows = useMemo<FinanceExportRow[]>(() => data.map(row => {
+    const kelas = row.tingkat && row.nomor_kelas
+      ? `${row.tingkat}-${row.nomor_kelas}${row.kelompok ? ' ' + row.kelompok : ''}`
+      : '-'
+    const target = row.nominal_target ?? 0
+    const dibayar = row.total_dibayar ?? 0
+    const diskon = row.total_diskon ?? 0
+    return {
+      source: 'DSPT',
+      siswa_id: row.siswa_id,
+      nama_lengkap: row.nama_lengkap,
+      nisn: row.nisn,
+      tahun_masuk: row.tahun_masuk,
+      kelas,
+      dspt_target: target,
+      dspt_dibayar: dibayar,
+      dspt_diskon: diskon,
+      dspt_sisa: Math.max(0, target - dibayar - diskon),
+      dspt_status: row.status,
+      dspt_catatan: row.catatan,
+    }
+  }), [data])
+
+  const currentExportRows = useMemo<FinanceExportRow[]>(() => filtered.map(row => {
+    const kelas = row.tingkat && row.nomor_kelas
+      ? `${row.tingkat}-${row.nomor_kelas}${row.kelompok ? ' ' + row.kelompok : ''}`
+      : '-'
+    const target = row.nominal_target ?? 0
+    const dibayar = row.total_dibayar ?? 0
+    const diskon = row.total_diskon ?? 0
+    return {
+      source: 'DSPT',
+      siswa_id: row.siswa_id,
+      nama_lengkap: row.nama_lengkap,
+      nisn: row.nisn,
+      tahun_masuk: row.tahun_masuk,
+      kelas,
+      dspt_target: target,
+      dspt_dibayar: dibayar,
+      dspt_diskon: diskon,
+      dspt_sisa: Math.max(0, target - dibayar - diskon),
+      dspt_status: row.status,
+      dspt_catatan: row.catatan,
+    }
+  }), [filtered])
+
   // ── Handlers ────────────────────────────────────────────────────────────────
   function openSetDspt(row: DsptRow) {
     setModalSiswa(row); setNominal(''); setCatatan(''); setModalMsg('')
@@ -315,6 +362,14 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           </SelectContent>
         </Select>
         <div className="ml-auto flex gap-2">
+          <FinanceExportExcelDialog
+            rows={exportRows}
+            currentRows={currentExportRows}
+            sources={['DSPT']}
+            defaultSources={['DSPT']}
+            triggerLabel="Export Excel"
+            filePrefix="MANSATAS_DSPT"
+          />
           <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
             onClick={() => { setMassalModal(true); setMassalMsg(''); setMassalAngkatan(angkatanList[0] ? String(angkatanList[0]) : ''); setMassalNominal('') }}>
             <Settings2 className="h-3.5 w-3.5" /> Set Nominal Massal

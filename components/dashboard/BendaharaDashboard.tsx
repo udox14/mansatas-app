@@ -7,6 +7,7 @@ import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
   Landmark, FileText, TrendingDown,
   ChevronRight, TrendingUp, AlertCircle, CheckCircle2, Clock,
+  FileSpreadsheet,
 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
 
@@ -67,6 +68,7 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
   const quickLinks = [
     { href: '/dashboard/keuangan/dspt',       label: 'DSPT',       icon: Landmark,     color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' },
     { href: '/dashboard/keuangan/spp',        label: 'SPP',        icon: FileText,     color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' },
+    { href: '/dashboard/keuangan/export',     label: 'Export',     icon: FileSpreadsheet, color: 'text-cyan-600 bg-cyan-50 dark:bg-cyan-900/20' },
     { href: '/dashboard/keuangan/kas-keluar', label: 'Kas Keluar', icon: TrendingDown, color: 'text-rose-600 bg-rose-50 dark:bg-rose-900/20' },
     { href: '/dashboard/keuangan/laporan',    label: 'Laporan',    icon: TrendingUp,   color: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20' },
   ]
@@ -82,7 +84,7 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
       {isGuruPiket && <PenugasanMasukCard userId={userId} />}
 
       {/* Quick Links */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-5 gap-2">
         {quickLinks.map(({ href, label, icon: Icon, color }) => (
           <Link key={href} href={href}
             className="flex flex-col items-center gap-1.5 bg-surface border border-surface rounded-xl py-3 px-2 hover:bg-surface-2 transition-colors">

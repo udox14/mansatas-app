@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 import { formatRupiah } from '@/lib/utils'
+import { FinanceExportExcelDialog, type FinanceExportRow } from '../components/export-excel-dialog'
 
 interface SppTunggakanRow {
   id: string
@@ -86,6 +87,34 @@ export function SppClient({
       : '-'
   }
 
+  const exportRows = useMemo<FinanceExportRow[]>(() => tunggakanList.map(row => ({
+    source: 'SPP',
+    siswa_id: row.siswa_id,
+    nama_lengkap: row.nama_lengkap,
+    nisn: row.nisn,
+    tahun_masuk: row.tahun_masuk,
+    kelas: getKelas(row),
+    spp_tunggakan: row.jumlah,
+    spp_dibayar: row.total_dibayar ?? 0,
+    spp_sisa: Math.max(0, row.jumlah - (row.total_dibayar ?? 0)),
+    spp_status: row.status,
+    spp_keterangan: row.keterangan,
+  })), [tunggakanList])
+
+  const currentExportRows = useMemo<FinanceExportRow[]>(() => filtered.map(row => ({
+    source: 'SPP',
+    siswa_id: row.siswa_id,
+    nama_lengkap: row.nama_lengkap,
+    nisn: row.nisn,
+    tahun_masuk: row.tahun_masuk,
+    kelas: getKelas(row),
+    spp_tunggakan: row.jumlah,
+    spp_dibayar: row.total_dibayar ?? 0,
+    spp_sisa: Math.max(0, row.jumlah - (row.total_dibayar ?? 0)),
+    spp_status: row.status,
+    spp_keterangan: row.keterangan,
+  })), [filtered])
+
   return (
     <div className="space-y-3">
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/10">
@@ -137,6 +166,16 @@ export function SppClient({
             ))}
           </SelectContent>
         </Select>
+        <div className="ml-auto">
+          <FinanceExportExcelDialog
+            rows={exportRows}
+            currentRows={currentExportRows}
+            sources={['SPP']}
+            defaultSources={['SPP']}
+            triggerLabel="Export Excel"
+            filePrefix="MANSATAS_SPP"
+          />
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
