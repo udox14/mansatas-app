@@ -79,7 +79,8 @@ export function Sidebar({
   const allowedSet = new Set(allowedFeatures)
   const allowedMenus = MENU_ITEMS.filter(item =>
     allowedSet.has(item.id) ||
-    (item.id === 'keuangan-transaksi' && allowedSet.has('keuangan-laporan'))
+    (item.id === 'keuangan-transaksi' && allowedSet.has('keuangan-laporan')) ||
+    (item.id === 'keuangan-export' && (allowedSet.has('keuangan-dspt') || allowedSet.has('keuangan-spp')))
   )
 
   const changeTheme = (id: ThemeKey) => { setThemeId(id); localStorage.setItem('mansatas_sidebar_theme', id) }

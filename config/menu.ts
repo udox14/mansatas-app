@@ -337,6 +337,13 @@ export const MENU_ITEMS: MenuItem[] = [
     roles: ['super_admin', 'bendahara_komite'],
   },
   {
+    id: 'keuangan-export',
+    title: 'Export Excel',
+    href: '/dashboard/keuangan/export',
+    icon: FileSpreadsheet,
+    roles: ['super_admin', 'bendahara_komite'],
+  },
+  {
     id: 'keuangan-kas-keluar',
     title: 'Kas Keluar',
     href: '/dashboard/keuangan/kas-keluar',
@@ -404,7 +411,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
-  { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-kas-keluar', 'keuangan-laporan'] },
+  { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan'] },
   { id: 'sistem', label: 'Sistem', items: ['settings', 'settings-notifications', 'settings-jadwal-notif', 'settings-fitur', 'pengumuman-ortu'] },
 ]
 
