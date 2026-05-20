@@ -81,7 +81,7 @@ function StatistikSebaran({
             <BarChart3 className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Sebaran tiket jurusan</p>
+            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">Sebaran jurusan pilihan</p>
             <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Distribusi & kebutuhan kelas sebelum plotting</p>
           </div>
         </div>
@@ -183,7 +183,7 @@ function StatistikSebaran({
         {/* Empty state */}
         {totalSiap === 0 && (
           <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center py-1">
-            Belum ada tiket yang ditetapkan
+            Belum ada jurusan pilihan yang ditetapkan
           </p>
         )}
       </div>
@@ -335,7 +335,7 @@ export function TabPenjurusan({
   }
 
   const jalankanSimulasi = () => {
-    if (hasUnsavedChanges) { alert("Simpan tiket jurusan terlebih dahulu sebelum simulasi!"); return }
+    if (hasUnsavedChanges) { alert("Simpan jurusan pilihan terlebih dahulu sebelum simulasi!"); return }
     setIsSimulating(true); setHasRunSimulation(false); setSimulasiResult([]); setSuccessMsg('')
     setTimeout(() => {
       const target = sortedKelas.filter(k => selectedKelasIds.includes(k.id)).map(k => ({ ...k, sisa: k.kapasitas - k.jumlah_siswa }))
@@ -357,7 +357,7 @@ export function TabPenjurusan({
       }
 
       const siap = siswaList.filter(s => !!penjurusan[s.id])
-      if (!siap.length) { alert('Belum ada siswa yang diberi tiket jurusan.'); setIsSimulating(false); return }
+      if (!siap.length) { alert('Belum ada siswa yang diberi jurusan pilihan.'); setIsSimulating(false); return }
 
       Array.from(new Set(siap.map(s => penjurusan[s.id]))).forEach(kel => {
         const g = siap.filter(s => penjurusan[s.id] === kel)
@@ -396,14 +396,14 @@ export function TabPenjurusan({
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
 
-      {/* PANEL KIRI — tiket jurusan */}
+      {/* PANEL KIRI — jurusan pilihan */}
       <div className="flex flex-col gap-3">
         <div className="rounded-lg border border-surface bg-surface p-4">
 
           {/* Header + counter */}
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">1. Tetapkan tiket jurusan</p>
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">1. Tetapkan jurusan pilihan</p>
               <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Pilih kelas asal untuk mulai menjuruskan siswa</p>
             </div>
             <div className="flex gap-2 shrink-0">
@@ -428,7 +428,7 @@ export function TabPenjurusan({
           <Tabs defaultValue="tiket" className="w-full">
             <TabsList className="mb-3 grid h-auto w-full grid-cols-2 rounded-lg border border-surface bg-surface-2 p-1">
               <TabsTrigger value="tiket" className="rounded-md py-1.5 text-xs data-[state=active]:bg-violet-600 data-[state=active]:text-white">
-                Tiket Siswa
+                Pilihan Siswa
               </TabsTrigger>
               <TabsTrigger value="jurusan" className="rounded-md py-1.5 text-xs data-[state=active]:bg-violet-600 data-[state=active]:text-white">
                 Per Jurusan
@@ -475,7 +475,7 @@ export function TabPenjurusan({
             <Button onClick={handleSimpanDraft} disabled={isSavingDraft}
               className="w-full h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-md mb-3">
               {isSavingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Cloud className="h-3.5 w-3.5" />}
-              {isSavingDraft ? 'Menyimpan...' : saveStatus || 'Simpan tiket jurusan ke cloud'}
+              {isSavingDraft ? 'Menyimpan...' : saveStatus || 'Simpan jurusan pilihan ke cloud'}
             </Button>
           )}
           {saveStatus && !hasUnsavedChanges && (
@@ -491,7 +491,7 @@ export function TabPenjurusan({
                 <TableHeader className="sticky top-0 bg-slate-50 dark:bg-slate-800/95 backdrop-blur-sm z-10">
                   <TableRow>
                     <TableHead className="text-xs h-8 pl-3">Siswa & kelas asal</TableHead>
-                    <TableHead className="text-xs h-8 text-right pr-3 min-w-[200px]">Tiket jurusan</TableHead>
+                    <TableHead className="text-xs h-8 text-right pr-3 min-w-[200px]">Jurusan pilihan</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -593,7 +593,7 @@ export function TabPenjurusan({
                 {hasRunSimulation && hasUnsavedChanges && (
                   <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
                     <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    <span>Preview kelas di kanan memakai simulasi lama. Simpan tiket lalu jalankan algoritma ulang sebelum simpan permanen.</span>
+                    <span>Preview kelas di kanan memakai simulasi lama. Simpan jurusan pilihan lalu jalankan algoritma ulang sebelum simpan permanen.</span>
                   </div>
                 )}
 
@@ -601,7 +601,7 @@ export function TabPenjurusan({
                   <Button onClick={handleSimpanDraft} disabled={isSavingDraft}
                     className="w-full h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-md">
                     {isSavingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Cloud className="h-3.5 w-3.5" />}
-                    {isSavingDraft ? 'Menyimpan...' : saveStatus || 'Simpan tiket jurusan ke cloud'}
+                    {isSavingDraft ? 'Menyimpan...' : saveStatus || 'Simpan jurusan pilihan ke cloud'}
                   </Button>
                 )}
 
@@ -725,7 +725,7 @@ export function TabPenjurusan({
 
           {simulasiResult.length > 0 && hasUnsavedChanges && (
             <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[10px] font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-              Ada perubahan tiket yang belum disimpan. Simpan tiket dan jalankan algoritma ulang sebelum simpan permanen.
+              Ada perubahan jurusan pilihan yang belum disimpan. Simpan jurusan pilihan dan jalankan algoritma ulang sebelum simpan permanen.
             </div>
           )}
 
