@@ -666,8 +666,8 @@ export async function KelasBinaanDashboard({
                   <div className="flex items-center gap-2.5 min-w-0">
                     <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{row.nama_lengkap}</p>
-                      <p className="text-[11px] text-slate-400 truncate">{row.nisn}</p>
+                      <p className="text-sm font-semibold leading-snug text-slate-800 break-words dark:text-slate-100">{row.nama_lengkap}</p>
+                      <p className="text-[11px] text-slate-400">{row.nisn}</p>
                     </div>
                   </div>
                   <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(statusHariIni)}`}>

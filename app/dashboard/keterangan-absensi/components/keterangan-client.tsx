@@ -4,7 +4,7 @@
 import { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import {
-  Thermometer, ShieldAlert, X, Save, Loader2,
+  CheckCircle2, Thermometer, ShieldAlert, X, Save, Loader2,
   Users, ChevronDown, MessageSquare, XCircle,
 } from 'lucide-react'
 import {
@@ -18,6 +18,7 @@ interface Props {
 }
 
 const STATUS_UI = {
+  HADIR: { bg: 'bg-emerald-50', border: 'border-emerald-300', text: 'text-emerald-700', icon: CheckCircle2, label: 'Hadir' },
   SAKIT: { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', icon: Thermometer, label: 'Sakit' },
   IZIN:  { bg: 'bg-blue-50',  border: 'border-blue-300',  text: 'text-blue-700',  icon: ShieldAlert,  label: 'Izin'  },
   ALFA:  { bg: 'bg-red-50',   border: 'border-red-300',   text: 'text-red-700',   icon: XCircle,      label: 'Alfa'  },
@@ -111,7 +112,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
     setCalendarInfo('')
   }
 
-  const setStatus = (siswaId: string, status: 'SAKIT' | 'IZIN' | 'ALFA' | null) => {
+  const setStatus = (siswaId: string, status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' | null) => {
     setSiswaList(prev => prev.map(s => s.siswa_id === siswaId ? { ...s, status } : s))
     setHasChanges(true)
   }
@@ -235,22 +236,31 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
                   key={s.siswa_id}
                   className={`rounded-lg border overflow-hidden transition-colors ${ui ? `${ui.bg} ${ui.border}` : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700'}`}
                 >
-                  <div className="flex items-center gap-2 px-3 py-2.5">
-                    <span className="text-[10px] text-slate-400 w-5 text-center shrink-0">{idx + 1}</span>
+                  <div className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center">
+                    <div className="flex min-w-0 flex-1 items-start gap-2">
+                      <span className="mt-0.5 w-5 shrink-0 text-center text-[10px] text-slate-400">{idx + 1}</span>
 
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-slate-800 dark:text-slate-100 truncate leading-tight">{s.nama_lengkap}</p>
-                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                        <span className="text-[10px] text-slate-400">{s.nisn}</span>
-                        <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${statusBadgeClass(s.status || s.status_akhir)}`}>
-                          {statusLabel(s.status || s.status_akhir)}
-                        </span>
-                        <span className="text-[10px] text-slate-400">{sourceLabel(s.sumber_status)}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-medium leading-tight text-slate-800 break-words dark:text-slate-100">{s.nama_lengkap}</p>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                          <span className="text-[10px] text-slate-400">{s.nisn}</span>
+                          <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${statusBadgeClass(s.status || s.status_akhir)}`}>
+                            {statusLabel(s.status || s.status_akhir)}
+                          </span>
+                          <span className="text-[10px] text-slate-400">{sourceLabel(s.sumber_status)}</span>
+                        </div>
                       </div>
                     </div>
 
                     {/* Tombol status */}
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="ml-7 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
+                      <button
+                        onClick={() => setStatus(s.siswa_id, s.status === 'HADIR' ? null : 'HADIR')}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-semibold transition-colors ${s.status === 'HADIR' ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:border-emerald-300 hover:text-emerald-600'}`}
+                      >
+                        <CheckCircle2 className="h-3 w-3" />
+                        Hadir
+                      </button>
                       <button
                         onClick={() => setStatus(s.siswa_id, s.status === 'SAKIT' ? null : 'SAKIT')}
                         className={`flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-semibold transition-colors ${s.status === 'SAKIT' ? 'bg-amber-100 border-amber-300 text-amber-700' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:border-amber-300 hover:text-amber-600'}`}

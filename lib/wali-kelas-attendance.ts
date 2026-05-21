@@ -31,7 +31,7 @@ export type FinalAttendanceDetail = {
   tanggal: string
   total_blok: number
   guru_status: FinalAttendanceStatus
-  wali_status: 'SAKIT' | 'IZIN' | 'ALFA' | null
+  wali_status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' | null
   status_akhir: FinalAttendanceStatus
   sumber_status: FinalAttendanceSource
   keterangan_wali_kelas: string | null
@@ -132,7 +132,7 @@ function deriveGuruStatusWithSession(
   return deriveGuruStatus(totalBlok, submittedBlok, records, skipIncompleteForDailyStatus)
 }
 
-function buildFinalStatus(guruStatus: FinalAttendanceStatus, waliStatus: 'SAKIT' | 'IZIN' | 'ALFA' | null) {
+function buildFinalStatus(guruStatus: FinalAttendanceStatus, waliStatus: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' | null) {
   if (!waliStatus) {
     return {
       status_akhir: guruStatus,
@@ -307,7 +307,7 @@ export async function getFinalAttendanceForClass(
       FROM keterangan_absensi_wali_kelas kawk
       JOIN siswa s ON kawk.siswa_id = s.id
       WHERE s.kelas_id = ? AND kawk.tanggal BETWEEN ? AND ?
-    `).bind(kelasId, endDate, startDate).all<any>(),
+    `).bind(kelasId, startDate, endDate).all<any>(),
     db.prepare(`
       SELECT itk.tanggal, itk.siswa_id, itk.alasan, itk.keterangan, itk.jam_pelajaran,
         u.nama_lengkap as pelapor_nama
@@ -414,7 +414,7 @@ export async function getFinalAttendanceForClass(
     sesiMap.get(row.tanggal)!.add(row.penugasan_id)
   }
 
-  const waliMap = new Map<string, { status: 'SAKIT' | 'IZIN' | 'ALFA'; keterangan: string | null }>()
+  const waliMap = new Map<string, { status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'; keterangan: string | null }>()
   for (const row of waliRes.results || []) {
     waliMap.set(`${row.siswa_id}__${row.tanggal}`, {
       status: row.status,

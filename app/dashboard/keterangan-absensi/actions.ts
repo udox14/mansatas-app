@@ -16,7 +16,7 @@ export type SiswaKeterangan = {
   siswa_id: string
   nama_lengkap: string
   nisn: string
-  status: 'SAKIT' | 'IZIN' | 'ALFA' | null
+  status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' | null
   keterangan: string
   keterangan_id: string | null
   guru_status: string
@@ -133,7 +133,7 @@ export async function loadSiswaKeterangan(kelasId: string, tanggal: string): Pro
 export async function simpanKeterangan(
   siswaId: string,
   tanggal: string,
-  status: 'SAKIT' | 'IZIN' | 'ALFA' | null,
+  status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' | null,
   keterangan: string
 ): Promise<{ error?: string; success?: string }> {
   return simpanKeputusanAbsensiWali(siswaId, tanggal, status, keterangan)
@@ -143,7 +143,7 @@ export async function simpanKeterangan(
 export async function simpanKeteranganBatch(
   kelasId: string,
   tanggal: string,
-  data: Array<{ siswa_id: string; status: 'SAKIT' | 'IZIN' | 'ALFA' | null; keterangan: string }>
+  data: Array<{ siswa_id: string; status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' | null; keterangan: string }>
 ): Promise<{ error?: string; success?: string }> {
   return simpanKeputusanAbsensiWaliBatch(kelasId, tanggal, data)
 }

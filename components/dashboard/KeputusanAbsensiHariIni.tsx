@@ -32,7 +32,7 @@ type SourceStatus =
   | 'belum_ada_input'
   | 'belum_ada_data'
 
-type WaliStatus = 'SAKIT' | 'IZIN' | 'ALFA'
+type WaliStatus = 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'
 
 export type KeputusanAbsensiRow = {
   siswa_id: string
@@ -62,6 +62,7 @@ type Props = {
 }
 
 const STATUS_OPTIONS: Array<{ status: WaliStatus; label: string; icon: any; className: string }> = [
+  { status: 'HADIR', label: 'Hadir', icon: CheckCircle2, className: 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' },
   { status: 'SAKIT', label: 'Sakit', icon: Thermometer, className: 'border-amber-200 text-amber-700 hover:bg-amber-50' },
   { status: 'IZIN', label: 'Izin', icon: ShieldAlert, className: 'border-blue-200 text-blue-700 hover:bg-blue-50' },
   { status: 'ALFA', label: 'Alfa', icon: XCircle, className: 'border-rose-200 text-rose-700 hover:bg-rose-50' },
@@ -245,7 +246,7 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
                     </div>
 
                     <div className="flex flex-col gap-2 xl:w-[360px]">
-                      <div className="grid grid-cols-3 gap-1.5 sm:flex sm:flex-wrap">
+                      <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
                         {STATUS_OPTIONS.map(option => {
                           const Icon = option.icon
                           const active = row.draft_status === option.status
@@ -267,7 +268,7 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
                           <button
                             type="button"
                             onClick={() => setStatus(row.siswa_id, null)}
-                            className="col-span-3 inline-flex items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 sm:col-span-auto"
+                            className="col-span-2 inline-flex items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 sm:col-span-auto"
                           >
                             <CheckCircle2 className="h-3 w-3" />
                             Ikuti Guru
@@ -276,7 +277,7 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
                         <button
                           type="button"
                           onClick={() => setExpanded(isExpanded ? null : row.siswa_id)}
-                          className="col-span-3 inline-flex items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 sm:col-span-auto"
+                          className="col-span-2 inline-flex items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 sm:col-span-auto"
                         >
                           <MessageSquare className="h-3 w-3" />
                           Catatan
