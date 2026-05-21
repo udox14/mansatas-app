@@ -5,7 +5,7 @@ import { getUserRoles } from '@/lib/features'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 
-type WaliStatus = 'SAKIT' | 'IZIN' | 'ALFA'
+type WaliStatus = 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'
 
 type KeputusanAbsensiInput = {
   siswa_id: string

@@ -157,6 +157,25 @@ async function isGuruPiketPadaHari(db: D1Database, userId: string, hari: number)
   return !!ppl
 }
 
+async function ensureAbsensiSessionTable(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS absensi_sesi_guru (
+      id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      penugasan_id TEXT NOT NULL REFERENCES penugasan_mengajar(id) ON DELETE CASCADE,
+      tanggal      TEXT NOT NULL,
+      submitted_at TEXT NOT NULL DEFAULT (datetime('now')),
+      diinput_oleh TEXT NOT NULL REFERENCES "user"(id),
+      created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(penugasan_id, tanggal)
+    )
+  `).run()
+  await db.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_absensi_sesi_guru_penugasan_tgl
+    ON absensi_sesi_guru(penugasan_id, tanggal)
+  `).run()
+}
+
 // ============================================================
 // 1. AMBIL JADWAL GURU HARI INI (untuk form kirim tugas)
 //    Mirip agenda, tapi juga cek apakah sudah didelegasikan
@@ -663,14 +682,23 @@ export async function simpanAbsensiDelegasi(
   }
 
   // Sparse: only save non-HADIR
+  await ensureAbsensiSessionTable(db)
   const toSave = dataAbsen.filter(d => d.status !== 'HADIR')
   const jumlahJam = jamKeSelesai - jamKeMulai + 1
   const delStmt = db.prepare(
     'DELETE FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?'
   ).bind(penugasanMengajarId, tanggal)
+  const upsertSesiStmt = db.prepare(`
+    INSERT INTO absensi_sesi_guru (penugasan_id, tanggal, submitted_at, diinput_oleh, updated_at)
+    VALUES (?, ?, datetime('now'), ?, datetime('now'))
+    ON CONFLICT(penugasan_id, tanggal) DO UPDATE SET
+      submitted_at = excluded.submitted_at,
+      diinput_oleh = excluded.diinput_oleh,
+      updated_at = excluded.updated_at
+  `).bind(penugasanMengajarId, tanggal, user.id)
 
   if (toSave.length === 0) {
-    try { await delStmt.run() } catch (e: any) { return { error: e.message } }
+    try { await db.batch([delStmt, upsertSesiStmt]) } catch (e: any) { return { error: e.message } }
   } else {
     const insStmts = toSave.map(d =>
       db.prepare(
@@ -678,7 +706,7 @@ export async function simpanAbsensiDelegasi(
       ).bind(penugasanMengajarId, d.siswa_id, tanggal, jamKeMulai, jamKeSelesai, jumlahJam, d.status, d.catatan || null, user.id)
     )
     try {
-      const all = [delStmt, ...insStmts]
+      const all = [delStmt, ...insStmts, upsertSesiStmt]
       for (let i = 0; i < all.length; i += 100) await db.batch(all.slice(i, i + 100))
     } catch (e: any) { return { error: e.message } }
   }
@@ -704,5 +732,6 @@ export async function simpanAbsensiDelegasi(
 
   revalidatePath('/dashboard/penugasan')
   revalidatePath('/dashboard/kehadiran')
+  revalidatePath('/dashboard/rekap-absensi')
   return { success: `Absensi disimpan! ${toSave.length} siswa tidak hadir.` }
 }
