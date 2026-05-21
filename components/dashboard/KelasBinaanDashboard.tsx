@@ -65,6 +65,7 @@ function attendanceStatusLabel(status: string | null | undefined) {
 
 function sourceLabel(source: string) {
   if (source === 'kalender') return 'Kalender Pendidikan'
+  if (source === 'perizinan') return 'Perizinan'
   if (source === 'wali_kelas') return 'Wali Kelas'
   if (source === 'koreksi_wali_kelas') return 'Koreksi Wali'
   if (source === 'guru') return 'Guru'
@@ -677,6 +678,9 @@ export async function KelasBinaanDashboard({
                   <div>
                     <p className="text-slate-400">Sumber</p>
                     <p className="font-medium text-slate-600 dark:text-slate-300">{sumberHariIni}</p>
+                    {row.todayStatus?.keterangan_wali_kelas ? (
+                      <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">{row.todayStatus.keterangan_wali_kelas}</p>
+                    ) : null}
                   </div>
                   <div>
                     <p className="text-slate-400">Poin</p>
@@ -742,9 +746,14 @@ export async function KelasBinaanDashboard({
                     </div>
                   </div>
                   <div className="flex items-center">
-                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(statusHariIni)}`}>
-                      {attendanceStatusLabel(statusHariIni)}
-                    </span>
+                    <div>
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(statusHariIni)}`}>
+                        {attendanceStatusLabel(statusHariIni)}
+                      </span>
+                      {row.todayStatus?.keterangan_wali_kelas ? (
+                        <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">{row.todayStatus.keterangan_wali_kelas}</p>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="flex flex-col justify-center text-[11px] text-slate-500">
                     <span>{row.komunikasi.unread > 0 ? `${row.komunikasi.unread} belum dibaca` : 'Terbaca'}</span>
