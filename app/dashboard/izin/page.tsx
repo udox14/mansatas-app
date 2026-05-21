@@ -19,11 +19,15 @@ function normalizeTanggalParam(value: string | undefined, fallback: string) {
 
 async function IzinDataFetcher({
   currentUserRole,
+  canDeleteIzin,
+  canEditIzin,
   alasanList,
   tanggal,
   today,
 }: {
   currentUserRole: string
+  canDeleteIzin: boolean
+  canEditIzin: boolean
   alasanList: any[]
   tanggal: string
   today: string
@@ -70,6 +74,8 @@ async function IzinDataFetcher({
       izinKeluarList={filteredKeluar}
       izinKelasList={formattedIzinKelas}
       currentUserRole={currentUserRole}
+      canDeleteIzin={canDeleteIzin}
+      canEditIzin={canEditIzin}
       initialAlasanList={alasanList}
       initialTanggal={tanggal}
       todayTanggal={today}
@@ -130,7 +136,14 @@ export default async function IzinPage({
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader title="Perizinan Siswa Harian" description="Posko pencatatan siswa keluar komplek dan izin meninggalkan jam pelajaran." />
       <Suspense fallback={<PageLoading text="Memuat data perizinan..." />} key={tanggal}>
-        <IzinDataFetcher currentUserRole={role} alasanList={alasanList} tanggal={tanggal} today={today} />
+        <IzinDataFetcher
+          currentUserRole={role}
+          canDeleteIzin={roles.includes('super_admin') || roles.includes('admin_tu')}
+          canEditIzin={roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam'].includes(role))}
+          alasanList={alasanList}
+          tanggal={tanggal}
+          today={today}
+        />
       </Suspense>
     </div>
   )
