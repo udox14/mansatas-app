@@ -9,9 +9,19 @@ import { nowWIBISO, todayWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 
 const INPUT_IZIN_ROLES = ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam']
+const DELETE_IZIN_ROLES = ['super_admin', 'admin_tu']
 
 function hasAnyRole(roles: string[], allowedRoles: string[]) {
   return roles.some(role => allowedRoles.includes(role))
+}
+
+function normalizeWIBDateTime(value: string | null | undefined) {
+  const raw = value?.trim()
+  if (!raw) return null
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)) return `${raw}:00.000+07:00`
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(raw)) return `${raw}.000+07:00`
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}\+07:00$/.test(raw)) return raw
+  return null
 }
 
 export type AlasanIzin = string
@@ -330,17 +340,76 @@ export async function tandaiSudahKembali(id: string) {
   return { success: 'Status siswa diperbarui menjadi SUDAH KEMBALI.' }
 }
 
+export async function editIzinKeluar(
+  id: string,
+  data: { waktu_keluar: string; waktu_kembali?: string | null; status: string; keterangan?: string | null }
+) {
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const roles = await getUserRoles(db, user.id)
+  if (!hasAnyRole(roles, INPUT_IZIN_ROLES)) return { error: 'Anda tidak memiliki hak untuk mengubah perizinan.' }
+
+  const waktuKeluar = normalizeWIBDateTime(data.waktu_keluar)
+  const waktuKembali = normalizeWIBDateTime(data.waktu_kembali)
+  const status = data.status === 'SUDAH KEMBALI' ? 'SUDAH KEMBALI' : 'BELUM KEMBALI'
+
+  if (!id) return { error: 'ID izin tidak valid.' }
+  if (!waktuKeluar) return { error: 'Waktu keluar tidak valid.' }
+  if (status === 'SUDAH KEMBALI' && !waktuKembali) return { error: 'Waktu kembali wajib diisi jika status sudah kembali.' }
+
+  const result = await dbUpdate(
+    db,
+    'izin_keluar_komplek',
+    {
+      waktu_keluar: waktuKeluar,
+      waktu_kembali: status === 'SUDAH KEMBALI' ? waktuKembali : null,
+      status,
+      keterangan: data.keterangan?.trim() || null,
+      updated_at: nowWIBISO(),
+    },
+    { id }
+  )
+
+  if (result.error) return { error: result.error }
+  revalidatePath('/dashboard/izin')
+  return { success: 'Riwayat izin keluar berhasil diperbarui.' }
+}
+
 export async function hapusIzinKeluar(id: string) {
   const db = await getDB()
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
   const roles = await getUserRoles(db, user.id)
-  if (!roles.includes('super_admin')) return { error: 'Hanya super admin yang dapat menghapus riwayat izin.' }
+  if (!hasAnyRole(roles, DELETE_IZIN_ROLES)) return { error: 'Hanya super admin dan admin TU yang dapat menghapus riwayat izin.' }
 
   const result = await dbDelete(db, 'izin_keluar_komplek', { id })
   if (result.error) return { error: result.error }
   revalidatePath('/dashboard/izin')
   return { success: 'Riwayat izin berhasil dihapus.' }
+}
+
+export async function hapusIzinKeluarBatch(ids: string[]) {
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const roles = await getUserRoles(db, user.id)
+  if (!hasAnyRole(roles, DELETE_IZIN_ROLES)) return { error: 'Hanya super admin dan admin TU yang dapat menghapus riwayat izin.' }
+
+  const cleanIds = Array.from(new Set(ids.filter(id => typeof id === 'string' && id.trim()).map(id => id.trim())))
+  if (cleanIds.length === 0) return { error: 'Pilih minimal satu riwayat izin keluar untuk dihapus.' }
+
+  try {
+    for (let i = 0; i < cleanIds.length; i += 50) {
+      const chunk = cleanIds.slice(i, i + 50)
+      const placeholders = chunk.map(() => '?').join(', ')
+      await db.prepare(`DELETE FROM izin_keluar_komplek WHERE id IN (${placeholders})`).bind(...chunk).run()
+    }
+    revalidatePath('/dashboard/izin')
+    return { success: `${cleanIds.length} riwayat izin keluar berhasil dihapus.` }
+  } catch (e: any) {
+    return { error: e.message }
+  }
 }
 
 // ============================================================
@@ -383,7 +452,7 @@ export async function hapusIzinTidakMasuk(id: string) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
   const roles = await getUserRoles(db, user.id)
-  if (!roles.includes('super_admin')) return { error: 'Hanya super admin yang dapat menghapus riwayat izin.' }
+  if (!hasAnyRole(roles, DELETE_IZIN_ROLES)) return { error: 'Hanya super admin dan admin TU yang dapat menghapus riwayat izin.' }
 
   const result = await dbDelete(db, 'izin_tidak_masuk_kelas', { id })
   if (result.error) return { error: result.error }
@@ -432,10 +501,73 @@ export async function hapusIzinKelas(id: string) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
   const roles = await getUserRoles(db, user.id)
-  if (!roles.includes('super_admin')) return { error: 'Hanya super admin yang dapat menghapus riwayat izin.' }
+  if (!hasAnyRole(roles, DELETE_IZIN_ROLES)) return { error: 'Hanya super admin dan admin TU yang dapat menghapus riwayat izin.' }
 
   const result = await dbDelete(db, 'izin_tidak_masuk_kelas', { id })
   if (result.error) return { error: result.error }
   revalidatePath('/dashboard/izin')
   return { success: 'Riwayat izin kelas berhasil dihapus.' }
+}
+
+export async function editIzinKelas(
+  id: string,
+  data: { jam_pelajaran: number[]; alasan: string; keterangan?: string | null }
+) {
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const roles = await getUserRoles(db, user.id)
+  if (!hasAnyRole(roles, INPUT_IZIN_ROLES)) return { error: 'Anda tidak memiliki hak untuk mengubah perizinan.' }
+
+  const jamPelajaran = Array.from(new Set((data.jam_pelajaran || [])
+    .map(jam => Number(jam))
+    .filter(jam => Number.isInteger(jam) && jam >= 1 && jam <= 10)))
+    .sort((a, b) => a - b)
+  const alasan = data.alasan?.trim()
+
+  if (!id) return { error: 'ID izin tidak valid.' }
+  if (jamPelajaran.length === 0) return { error: 'Pilih minimal 1 jam pelajaran.' }
+  if (!alasan) return { error: 'Alasan wajib dipilih.' }
+
+  const invalidAlasan = await validateAlasanIzin(db, alasan)
+  if (invalidAlasan) return { error: invalidAlasan }
+
+  const result = await dbUpdate(
+    db,
+    'izin_tidak_masuk_kelas',
+    {
+      jam_pelajaran: JSON.stringify(jamPelajaran),
+      alasan,
+      keterangan: data.keterangan?.trim() || null,
+      updated_at: nowWIBISO(),
+    },
+    { id }
+  )
+
+  if (result.error) return { error: result.error }
+  revalidatePath('/dashboard/izin')
+  return { success: 'Riwayat izin kelas berhasil diperbarui.' }
+}
+
+export async function hapusIzinKelasBatch(ids: string[]) {
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const roles = await getUserRoles(db, user.id)
+  if (!hasAnyRole(roles, DELETE_IZIN_ROLES)) return { error: 'Hanya super admin dan admin TU yang dapat menghapus riwayat izin.' }
+
+  const cleanIds = Array.from(new Set(ids.filter(id => typeof id === 'string' && id.trim()).map(id => id.trim())))
+  if (cleanIds.length === 0) return { error: 'Pilih minimal satu riwayat izin kelas untuk dihapus.' }
+
+  try {
+    for (let i = 0; i < cleanIds.length; i += 50) {
+      const chunk = cleanIds.slice(i, i + 50)
+      const placeholders = chunk.map(() => '?').join(', ')
+      await db.prepare(`DELETE FROM izin_tidak_masuk_kelas WHERE id IN (${placeholders})`).bind(...chunk).run()
+    }
+    revalidatePath('/dashboard/izin')
+    return { success: `${cleanIds.length} riwayat izin kelas berhasil dihapus.` }
+  } catch (e: any) {
+    return { error: e.message }
+  }
 }

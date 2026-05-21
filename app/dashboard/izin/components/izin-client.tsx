@@ -12,14 +12,21 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Search, Loader2, DoorOpen, UserX, AlertCircle, CheckCircle2, Trash2, LogIn, Clock, CalendarDays } from 'lucide-react'
-import { tambahIzinKeluar, tandaiSudahKembali, tambahIzinKelas, hapusIzinKeluar, hapusIzinKelas, searchSiswaIzin, type AlasanIzinRow } from '../actions'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Search, Loader2, DoorOpen, UserX, AlertCircle, CheckCircle2, Trash2, LogIn, Clock, CalendarDays, Pencil, Save } from 'lucide-react'
+import { tambahIzinKeluar, tandaiSudahKembali, tambahIzinKelas, editIzinKeluar, editIzinKelas, hapusIzinKeluar, hapusIzinKeluarBatch, hapusIzinKelas, hapusIzinKelasBatch, searchSiswaIzin, type AlasanIzinRow } from '../actions'
 import { KelolaAlasanModal } from './kelola-alasan-modal'
 import { cn, formatNamaKelas } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { formatTimeWIB } from '@/lib/time'
 
 const initialFormState = { error: null as string | null, success: null as string | null }
+
+function toDateTimeLocal(value: string | null | undefined) {
+  if (!value) return ''
+  const match = value.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/)
+  return match ? `${match[1]}T${match[2]}:${match[3]}` : ''
+}
 
 function SubmitBtn({ label }: { label: string }) {
   const { pending } = useFormStatus()
@@ -34,6 +41,8 @@ export function IzinClient({
   izinKeluarList,
   izinKelasList,
   currentUserRole,
+  canDeleteIzin,
+  canEditIzin,
   initialAlasanList,
   initialTanggal,
   todayTanggal
@@ -41,6 +50,8 @@ export function IzinClient({
   izinKeluarList: any[],
   izinKelasList: any[],
   currentUserRole: string,
+  canDeleteIzin: boolean,
+  canEditIzin: boolean,
   initialAlasanList: AlasanIzinRow[],
   initialTanggal: string,
   todayTanggal: string
@@ -57,6 +68,11 @@ export function IzinClient({
   const [filterStatus, setFilterStatus] = useState('SEMUA')
   const [isModalKeluarOpen, setIsModalKeluarOpen] = useState(false)
   const [stateKeluar, actionKeluar] = useActionState(tambahIzinKeluar, initialFormState)
+  const [selectedKeluarIds, setSelectedKeluarIds] = useState<string[]>([])
+  const [isBatchDeletingKeluar, setIsBatchDeletingKeluar] = useState(false)
+  const [editKeluarItem, setEditKeluarItem] = useState<any | null>(null)
+  const [editKeluarForm, setEditKeluarForm] = useState({ waktu_keluar: '', waktu_kembali: '', status: 'BELUM KEMBALI', keterangan: '' })
+  const [isSavingEditKeluar, setIsSavingEditKeluar] = useState(false)
 
   // Tab 2: Kelas
   const [searchKelas, setSearchKelas] = useState('')
@@ -64,6 +80,11 @@ export function IzinClient({
   const [isModalKelasOpen, setIsModalKelasOpen] = useState(false)
   const [stateKelas, actionKelas] = useActionState(tambahIzinKelas, initialFormState)
   const [selectedJam, setSelectedJam] = useState<number[]>([])
+  const [selectedKelasIds, setSelectedKelasIds] = useState<string[]>([])
+  const [isBatchDeletingKelas, setIsBatchDeletingKelas] = useState(false)
+  const [editKelasItem, setEditKelasItem] = useState<any | null>(null)
+  const [editKelasForm, setEditKelasForm] = useState<{ jam_pelajaran: number[]; alasan: string; keterangan: string }>({ jam_pelajaran: [], alasan: '', keterangan: '' })
+  const [isSavingEditKelas, setIsSavingEditKelas] = useState(false)
 
   // Autocomplete siswa — lazy via Server Action (bukan pre-load semua siswa)
   const [searchSiswa, setSearchSiswa] = useState('')
@@ -111,6 +132,99 @@ export function IzinClient({
   const handleDeleteKeluar = async (id: string) => { if (!confirm('Hapus riwayat ini?')) return; const res = await hapusIzinKeluar(id); if (res.error) alert(res.error) }
   const handleDeleteKelas = async (id: string) => { if (!confirm('Hapus riwayat ini?')) return; const res = await hapusIzinKelas(id); if (res.error) alert(res.error) }
 
+  const openEditKeluar = (item: any) => {
+    setEditKeluarItem(item)
+    setEditKeluarForm({
+      waktu_keluar: toDateTimeLocal(item.waktu_keluar),
+      waktu_kembali: toDateTimeLocal(item.waktu_kembali),
+      status: item.status === 'SUDAH KEMBALI' ? 'SUDAH KEMBALI' : 'BELUM KEMBALI',
+      keterangan: item.keterangan || '',
+    })
+  }
+
+  const saveEditKeluar = async () => {
+    if (!editKeluarItem) return
+    setIsSavingEditKeluar(true)
+    try {
+      const res = await editIzinKeluar(editKeluarItem.id, editKeluarForm)
+      if (res.error) alert(res.error)
+      else {
+        setEditKeluarItem(null)
+        router.refresh()
+      }
+    } finally {
+      setIsSavingEditKeluar(false)
+    }
+  }
+
+  const openEditKelas = (item: any) => {
+    setEditKelasItem(item)
+    setEditKelasForm({
+      jam_pelajaran: Array.isArray(item.jam_pelajaran) ? item.jam_pelajaran : [],
+      alasan: item.alasan || '',
+      keterangan: item.keterangan || '',
+    })
+  }
+
+  const toggleEditKelasJam = (jam: number) => {
+    setEditKelasForm(prev => ({
+      ...prev,
+      jam_pelajaran: prev.jam_pelajaran.includes(jam)
+        ? prev.jam_pelajaran.filter(item => item !== jam)
+        : [...prev.jam_pelajaran, jam].sort((a, b) => a - b),
+    }))
+  }
+
+  const saveEditKelas = async () => {
+    if (!editKelasItem) return
+    setIsSavingEditKelas(true)
+    try {
+      const res = await editIzinKelas(editKelasItem.id, editKelasForm)
+      if (res.error) alert(res.error)
+      else {
+        setEditKelasItem(null)
+        router.refresh()
+      }
+    } finally {
+      setIsSavingEditKelas(false)
+    }
+  }
+
+  const toggleSelection = (ids: string[], id: string, checked: boolean) =>
+    checked ? Array.from(new Set([...ids, id])) : ids.filter(item => item !== id)
+
+  const handleBatchDeleteKeluar = async () => {
+    if (selectedKeluarIds.length === 0) return
+    if (!confirm(`Hapus ${selectedKeluarIds.length} riwayat izin keluar terpilih?`)) return
+    setIsBatchDeletingKeluar(true)
+    try {
+      const res = await hapusIzinKeluarBatch(selectedKeluarIds)
+      if (res.error) alert(res.error)
+      else {
+        setSelectedKeluarIds([])
+        router.refresh()
+      }
+    } finally {
+      setIsBatchDeletingKeluar(false)
+    }
+  }
+
+  const handleBatchDeleteKelas = async () => {
+    if (selectedKelasIds.length === 0) return
+    if (!confirm(`Hapus ${selectedKelasIds.length} riwayat izin kelas terpilih?`)) return
+    setIsBatchDeletingKelas(true)
+    try {
+      const res = await hapusIzinKelasBatch(selectedKelasIds)
+      if (res.error) alert(res.error)
+      else {
+        setSelectedKelasIds([])
+        router.refresh()
+      }
+    } finally {
+      setIsBatchDeletingKelas(false)
+    }
+  }
+
   const displayKeluar = izinKeluarList.filter(k =>
     k.siswa?.nama_lengkap?.toLowerCase().includes(searchKeluar.toLowerCase()) &&
     (filterStatus === 'SEMUA' || k.status === filterStatus)
@@ -119,6 +233,35 @@ export function IzinClient({
     k.siswa?.nama_lengkap?.toLowerCase().includes(searchKelas.toLowerCase()) &&
     (filterAlasan === 'SEMUA' || k.alasan === filterAlasan)
   )
+
+  useEffect(() => {
+    const validIds = new Set(izinKeluarList.map(k => k.id))
+    setSelectedKeluarIds(prev => prev.filter(id => validIds.has(id)))
+  }, [izinKeluarList])
+
+  useEffect(() => {
+    const validIds = new Set(izinKelasList.map(k => k.id))
+    setSelectedKelasIds(prev => prev.filter(id => validIds.has(id)))
+  }, [izinKelasList])
+
+  const displayKeluarIds = displayKeluar.map(k => k.id)
+  const displayKelasIds = displayKelas.map(k => k.id)
+  const isAllDisplayKeluarSelected = displayKeluarIds.length > 0 && displayKeluarIds.every(id => selectedKeluarIds.includes(id))
+  const isAllDisplayKelasSelected = displayKelasIds.length > 0 && displayKelasIds.every(id => selectedKelasIds.includes(id))
+
+  const toggleAllDisplayKeluar = (checked: boolean) => {
+    setSelectedKeluarIds(prev => checked
+      ? Array.from(new Set([...prev, ...displayKeluarIds]))
+      : prev.filter(id => !displayKeluarIds.includes(id))
+    )
+  }
+
+  const toggleAllDisplayKelas = (checked: boolean) => {
+    setSelectedKelasIds(prev => checked
+      ? Array.from(new Set([...prev, ...displayKelasIds]))
+      : prev.filter(id => !displayKelasIds.includes(id))
+    )
+  }
 
   const formatTime = (iso: string) => formatTimeWIB(iso, { suffix: false })
 
@@ -284,6 +427,100 @@ export function IzinClient({
         </DialogContent>
       </Dialog>
 
+      {/* MODAL 3: EDIT KELUAR KOMPLEK */}
+      <Dialog open={!!editKeluarItem} onOpenChange={open => { if (!open) setEditKeluarItem(null) }}>
+        <DialogContent className="sm:max-w-md rounded-xl">
+          <DialogHeader className="border-b pb-3">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <Pencil className="h-4 w-4 text-blue-600" /> Edit Izin Keluar Komplek
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <p className="text-sm font-bold text-slate-800 leading-tight">{editKeluarItem?.siswa?.nama_lengkap}</p>
+              <p className="text-[11px] text-slate-500">{editKeluarItem?.siswa?.kelas ? formatNamaKelas(editKeluarItem.siswa.kelas.tingkat, editKeluarItem.siswa.kelas.nomor_kelas, editKeluarItem.siswa.kelas.kelompok) : ''}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">Waktu Keluar <span className="text-rose-500">*</span></Label>
+              <Input type="datetime-local" value={editKeluarForm.waktu_keluar} onChange={e => setEditKeluarForm(prev => ({ ...prev, waktu_keluar: e.target.value }))} className="h-9 text-sm rounded-lg" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">Status</Label>
+              <Select value={editKeluarForm.status} onValueChange={value => setEditKeluarForm(prev => ({ ...prev, status: value, waktu_kembali: value === 'BELUM KEMBALI' ? '' : prev.waktu_kembali }))}>
+                <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BELUM KEMBALI">Belum Kembali</SelectItem>
+                  <SelectItem value="SUDAH KEMBALI">Sudah Kembali</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {editKeluarForm.status === 'SUDAH KEMBALI' && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-600">Waktu Kembali <span className="text-rose-500">*</span></Label>
+                <Input type="datetime-local" value={editKeluarForm.waktu_kembali} onChange={e => setEditKeluarForm(prev => ({ ...prev, waktu_kembali: e.target.value }))} className="h-9 text-sm rounded-lg" />
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">Keterangan</Label>
+              <Input value={editKeluarForm.keterangan} onChange={e => setEditKeluarForm(prev => ({ ...prev, keterangan: e.target.value }))} placeholder="Keterangan / tujuan..." className="h-9 text-sm rounded-lg" />
+            </div>
+            <Button onClick={saveEditKeluar} disabled={isSavingEditKeluar} className="w-full h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm">
+              {isSavingEditKeluar ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-4 w-4 mr-1.5" /> Simpan Perubahan</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 4: EDIT IZIN KELAS */}
+      <Dialog open={!!editKelasItem} onOpenChange={open => { if (!open) setEditKelasItem(null) }}>
+        <DialogContent className="sm:max-w-md rounded-xl">
+          <DialogHeader className="border-b pb-3">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <Pencil className="h-4 w-4 text-indigo-600" /> Edit Izin Tidak Masuk Kelas
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <p className="text-sm font-bold text-slate-800 leading-tight">{editKelasItem?.siswa?.nama_lengkap}</p>
+              <p className="text-[11px] text-slate-500">{editKelasItem?.siswa?.kelas ? formatNamaKelas(editKelasItem.siswa.kelas.tingkat, editKelasItem.siswa.kelas.nomor_kelas, editKelasItem.siswa.kelas.kelompok) : ''}</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">Jam Pelajaran <span className="text-rose-500">*</span></Label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {[1,2,3,4,5,6,7,8,9,10].map(jam => (
+                  <button
+                    key={jam}
+                    type="button"
+                    onClick={() => toggleEditKelasJam(jam)}
+                    className={cn("h-9 rounded-lg border text-sm font-bold transition-all", editKelasForm.jam_pelajaran.includes(jam) ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-surface-2 text-slate-500 border-surface hover:bg-surface-3')}
+                  >
+                    {jam}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">Alasan <span className="text-rose-500">*</span></Label>
+              <Select value={editKelasForm.alasan} onValueChange={value => setEditKelasForm(prev => ({ ...prev, alasan: value }))}>
+                <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue placeholder="Pilih alasan..." /></SelectTrigger>
+                <SelectContent>
+                  {alasanList.map(a => (
+                    <SelectItem key={a.id} value={a.alasan}>{a.alasan}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600">Keterangan</Label>
+              <Input value={editKelasForm.keterangan} onChange={e => setEditKelasForm(prev => ({ ...prev, keterangan: e.target.value }))} placeholder="Keterangan tambahan..." className="h-9 text-sm rounded-lg" />
+            </div>
+            <Button onClick={saveEditKelas} disabled={isSavingEditKelas} className="w-full h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm">
+              {isSavingEditKelas ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-4 w-4 mr-1.5" /> Simpan Perubahan</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* MAIN TABS */}
       <Tabs defaultValue="keluar" className="space-y-3">
         <TabsList className="bg-surface border border-surface p-0.5 h-auto grid grid-cols-2 rounded-lg">
@@ -313,6 +550,30 @@ export function IzinClient({
             <Button onClick={() => setIsModalKeluarOpen(true)} size="sm" className="h-8 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-md shrink-0">
               <DoorOpen className="h-3.5 w-3.5 mr-1" /> Catat Keluar
             </Button>
+            {canDeleteIzin && (
+              <div className="flex flex-wrap items-center gap-2 border-t border-surface-2 pt-2 w-full sm:w-auto sm:border-t-0 sm:pt-0">
+                <label className="flex items-center gap-2 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  <Checkbox
+                    checked={isAllDisplayKeluarSelected}
+                    disabled={displayKeluarIds.length === 0}
+                    onCheckedChange={checked => toggleAllDisplayKeluar(Boolean(checked))}
+                    className="h-3.5 w-3.5"
+                  />
+                  Pilih tampil
+                </label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={selectedKeluarIds.length === 0 || isBatchDeletingKeluar}
+                  onClick={handleBatchDeleteKeluar}
+                  className="h-8 px-3 text-xs rounded-md border-rose-200 text-rose-600 hover:bg-rose-50"
+                >
+                  {isBatchDeletingKeluar ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
+                  Hapus {selectedKeluarIds.length > 0 ? selectedKeluarIds.length : ''}
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* MOBILE */}
@@ -322,10 +583,27 @@ export function IzinClient({
                 <p className="text-sm text-slate-400 dark:text-slate-500">Tidak ada data izin keluar.</p>
               </div>
             ) : displayKeluar.map(k => (
-              <div key={k.id} className={cn("bg-surface border rounded-lg p-3 relative", k.status === 'BELUM KEMBALI' ? 'border-amber-200 bg-amber-50/30' : 'border-surface')}>
-                {isSuperAdmin && (
-                  <button onClick={() => handleDeleteKeluar(k.id)} className="absolute top-2 right-2 p-1 text-slate-300 dark:text-slate-600 hover:text-rose-500 transition-colors">
-                    <Trash2 className="h-3.5 w-3.5" />
+              <div key={k.id} className={cn("bg-surface border rounded-lg p-3 relative", canDeleteIzin && "pl-9", k.status === 'BELUM KEMBALI' ? 'border-amber-200 bg-amber-50/30' : 'border-surface')}>
+                {canDeleteIzin && (
+                  <>
+                    <Checkbox
+                      checked={selectedKeluarIds.includes(k.id)}
+                      onCheckedChange={checked => setSelectedKeluarIds(prev => toggleSelection(prev, k.id, Boolean(checked)))}
+                      className="absolute left-3 top-3 h-3.5 w-3.5"
+                    />
+                    {canEditIzin && (
+                      <button onClick={() => openEditKeluar(k)} className="absolute top-2 right-8 p-1 text-slate-300 dark:text-slate-600 hover:text-blue-500 transition-colors">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <button onClick={() => handleDeleteKeluar(k.id)} className="absolute top-2 right-2 p-1 text-slate-300 dark:text-slate-600 hover:text-rose-500 transition-colors">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+                {canEditIzin && !canDeleteIzin && (
+                  <button onClick={() => openEditKeluar(k)} className="absolute top-2 right-2 p-1 text-slate-300 dark:text-slate-600 hover:text-blue-500 transition-colors">
+                    <Pencil className="h-3.5 w-3.5" />
                   </button>
                 )}
                 <div className="flex items-start justify-between pr-6 mb-1.5">
@@ -364,6 +642,16 @@ export function IzinClient({
             <Table>
               <TableHeader>
                 <TableRow className="bg-surface-2 hover:bg-surface-2">
+                  {canDeleteIzin && (
+                    <TableHead className="h-9 px-4 w-10">
+                      <Checkbox
+                        checked={isAllDisplayKeluarSelected}
+                        disabled={displayKeluarIds.length === 0}
+                        onCheckedChange={checked => toggleAllDisplayKeluar(Boolean(checked))}
+                        className="h-3.5 w-3.5"
+                      />
+                    </TableHead>
+                  )}
                   <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">Siswa</TableHead>
                   <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 w-24">Keluar</TableHead>
                   <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">Keterangan</TableHead>
@@ -373,9 +661,18 @@ export function IzinClient({
               </TableHeader>
               <TableBody>
                 {displayKeluar.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="h-24 text-center text-sm text-slate-400 dark:text-slate-500">Tidak ada data izin keluar.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={canDeleteIzin ? 6 : 5} className="h-24 text-center text-sm text-slate-400 dark:text-slate-500">Tidak ada data izin keluar.</TableCell></TableRow>
                 ) : displayKeluar.map(k => (
                   <TableRow key={k.id} className={cn("border-surface-2 group", k.status === 'BELUM KEMBALI' ? 'bg-amber-50/20 hover:bg-amber-50/40' : 'hover:bg-surface-2/60')}>
+                    {canDeleteIzin && (
+                      <TableCell className="px-4 py-2.5">
+                        <Checkbox
+                          checked={selectedKeluarIds.includes(k.id)}
+                          onCheckedChange={checked => setSelectedKeluarIds(prev => toggleSelection(prev, k.id, Boolean(checked)))}
+                          className="h-3.5 w-3.5"
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="px-4 py-2.5">
                       <div className="flex items-center gap-2.5">
                         <AvatarSiswa fotoUrl={k.siswa?.foto_url} nama={k.siswa?.nama_lengkap || ''} />
@@ -399,7 +696,12 @@ export function IzinClient({
                             <LogIn className="h-3 w-3 mr-1" />Tandai Kembali
                           </Button>
                         ) : null}
-                        {isSuperAdmin && (
+                        {canEditIzin && (
+                          <button onClick={() => openEditKeluar(k)} className="p-1.5 rounded text-blue-400 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-all">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {canDeleteIzin && (
                           <button onClick={() => handleDeleteKeluar(k.id)} className="p-1.5 rounded text-rose-400 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -435,6 +737,30 @@ export function IzinClient({
             {isSuperAdmin && (
               <KelolaAlasanModal alasanList={alasanList} onAlasanChange={setAlasanList} />
             )}
+            {canDeleteIzin && (
+              <div className="flex flex-wrap items-center gap-2 border-t border-surface-2 pt-2 w-full sm:w-auto sm:border-t-0 sm:pt-0">
+                <label className="flex items-center gap-2 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  <Checkbox
+                    checked={isAllDisplayKelasSelected}
+                    disabled={displayKelasIds.length === 0}
+                    onCheckedChange={checked => toggleAllDisplayKelas(Boolean(checked))}
+                    className="h-3.5 w-3.5"
+                  />
+                  Pilih tampil
+                </label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={selectedKelasIds.length === 0 || isBatchDeletingKelas}
+                  onClick={handleBatchDeleteKelas}
+                  className="h-8 px-3 text-xs rounded-md border-rose-200 text-rose-600 hover:bg-rose-50"
+                >
+                  {isBatchDeletingKelas ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
+                  Hapus {selectedKelasIds.length > 0 ? selectedKelasIds.length : ''}
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* MOBILE */}
@@ -444,10 +770,27 @@ export function IzinClient({
                 <p className="text-sm text-slate-400 dark:text-slate-500">Tidak ada data izin kelas.</p>
               </div>
             ) : displayKelas.map(k => (
-              <div key={k.id} className="bg-surface border border-surface rounded-lg p-3 relative">
-                {isSuperAdmin && (
-                  <button onClick={() => handleDeleteKelas(k.id)} className="absolute top-2 right-2 p-1 text-slate-300 dark:text-slate-600 hover:text-rose-500 transition-colors">
-                    <Trash2 className="h-3.5 w-3.5" />
+              <div key={k.id} className={cn("bg-surface border border-surface rounded-lg p-3 relative", canDeleteIzin && "pl-9")}>
+                {canDeleteIzin && (
+                  <>
+                    <Checkbox
+                      checked={selectedKelasIds.includes(k.id)}
+                      onCheckedChange={checked => setSelectedKelasIds(prev => toggleSelection(prev, k.id, Boolean(checked)))}
+                      className="absolute left-3 top-3 h-3.5 w-3.5"
+                    />
+                    {canEditIzin && (
+                      <button onClick={() => openEditKelas(k)} className="absolute top-2 right-8 p-1 text-slate-300 dark:text-slate-600 hover:text-indigo-500 transition-colors">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    <button onClick={() => handleDeleteKelas(k.id)} className="absolute top-2 right-2 p-1 text-slate-300 dark:text-slate-600 hover:text-rose-500 transition-colors">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+                {canEditIzin && !canDeleteIzin && (
+                  <button onClick={() => openEditKelas(k)} className="absolute top-2 right-2 p-1 text-slate-300 dark:text-slate-600 hover:text-indigo-500 transition-colors">
+                    <Pencil className="h-3.5 w-3.5" />
                   </button>
                 )}
                 <div className="flex items-start justify-between pr-6 mb-1.5">
@@ -479,6 +822,16 @@ export function IzinClient({
               <Table className="min-w-[700px]">
                 <TableHeader>
                   <TableRow className="bg-surface-2 hover:bg-surface-2">
+                    {canDeleteIzin && (
+                      <TableHead className="h-9 px-4 w-10">
+                        <Checkbox
+                          checked={isAllDisplayKelasSelected}
+                          disabled={displayKelasIds.length === 0}
+                          onCheckedChange={checked => toggleAllDisplayKelas(Boolean(checked))}
+                          className="h-3.5 w-3.5"
+                        />
+                      </TableHead>
+                    )}
                     <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">Siswa</TableHead>
                     <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center w-44">Jam Ke-</TableHead>
                     <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 w-44">Alasan</TableHead>
@@ -488,9 +841,18 @@ export function IzinClient({
                 </TableHeader>
                 <TableBody>
                   {displayKelas.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="h-24 text-center text-sm text-slate-400 dark:text-slate-500">Tidak ada data izin kelas.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={canDeleteIzin ? 6 : 5} className="h-24 text-center text-sm text-slate-400 dark:text-slate-500">Tidak ada data izin kelas.</TableCell></TableRow>
                   ) : displayKelas.map(k => (
                     <TableRow key={k.id} className="hover:bg-surface-2/60 border-surface-2 group">
+                      {canDeleteIzin && (
+                        <TableCell className="px-4 py-2.5">
+                          <Checkbox
+                            checked={selectedKelasIds.includes(k.id)}
+                            onCheckedChange={checked => setSelectedKelasIds(prev => toggleSelection(prev, k.id, Boolean(checked)))}
+                            className="h-3.5 w-3.5"
+                          />
+                        </TableCell>
+                      )}
                       <TableCell className="px-4 py-2.5">
                         <div className="flex items-center gap-2.5">
                           <AvatarSiswa fotoUrl={k.siswa?.foto_url} nama={k.siswa?.nama_lengkap || ''} />
@@ -515,7 +877,12 @@ export function IzinClient({
                         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Oleh: {k.pelapor?.nama_lengkap}</p>
                       </TableCell>
                       <TableCell className="py-2.5 px-4 text-right">
-                        {isSuperAdmin && (
+                        {canEditIzin && (
+                          <button onClick={() => openEditKelas(k)} className="p-1.5 rounded text-indigo-400 hover:bg-indigo-50 opacity-0 group-hover:opacity-100 transition-all">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {canDeleteIzin && (
                           <button onClick={() => handleDeleteKelas(k.id)} className="p-1.5 rounded text-rose-400 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
