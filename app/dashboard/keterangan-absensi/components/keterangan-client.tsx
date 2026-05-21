@@ -35,6 +35,7 @@ function statusLabel(status: string | null | undefined) {
 }
 
 function sourceLabel(source: string | null | undefined) {
+  if (source === 'perizinan') return 'Perizinan'
   if (source === 'wali_kelas') return 'Wali Kelas'
   if (source === 'koreksi_wali_kelas') return 'Koreksi Wali'
   if (source === 'guru') return 'Guru'
@@ -307,7 +308,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
                   )}
 
                   {/* Preview keterangan yang sudah tersimpan */}
-                  {s.status && s.keterangan && !noteOpen && (
+                  {s.keterangan && !noteOpen && (
                     <div className="px-10 pb-2">
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">"{s.keterangan}"</p>
                     </div>

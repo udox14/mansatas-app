@@ -15,6 +15,16 @@ function hasAnyRole(roles: string[], allowedRoles: string[]) {
   return roles.some(role => allowedRoles.includes(role))
 }
 
+function revalidateIzinViews() {
+  revalidatePath('/dashboard/izin')
+  revalidatePath('/dashboard/kehadiran')
+  revalidatePath('/dashboard/keterangan-absensi')
+  revalidatePath('/dashboard/kelas-binaan')
+  revalidatePath('/dashboard/rekap-absensi')
+  revalidatePath('/dashboard')
+  revalidatePath('/portal-ortu')
+}
+
 function normalizeWIBDateTime(value: string | null | undefined) {
   const raw = value?.trim()
   if (!raw) return null
@@ -70,7 +80,7 @@ export async function tambahAlasanIzin(alasan: string): Promise<{ error?: string
     await db.prepare(
       `INSERT INTO alasan_izin_kelas (id, alasan, urutan) VALUES (?, ?, ?)`
     ).bind(id, teks, (maxUrutan?.m ?? 0) + 1).run()
-    revalidatePath('/dashboard/izin')
+    revalidateIzinViews()
     return { success: 'Alasan berhasil ditambahkan' }
   } catch (e: any) {
     if (e.message?.includes('UNIQUE')) return { error: 'Alasan sudah ada' }
@@ -87,7 +97,7 @@ export async function hapusAlasanIzin(id: string): Promise<{ error?: string; suc
 
   try {
     await db.prepare(`DELETE FROM alasan_izin_kelas WHERE id = ?`).bind(id).run()
-    revalidatePath('/dashboard/izin')
+    revalidateIzinViews()
     return { success: 'Alasan dihapus' }
   } catch (e: any) {
     return { error: e.message }
@@ -252,7 +262,7 @@ export async function simpanIzinWaliKelasBatch(
       await db.batch(stmts.slice(i, i + 100))
     }
 
-    revalidatePath('/dashboard/izin')
+    revalidateIzinViews()
     return { success: toSimpan.length > 0 ? `${toSimpan.length} izin disimpan` : 'Izin dihapus' }
   } catch (e: any) {
     return { error: e.message }
@@ -313,7 +323,7 @@ export async function tambahIzinKeluar(prevState: any, formData: FormData) {
 
   if (result.error) return { error: result.error, success: null }
 
-  revalidatePath('/dashboard/izin')
+  revalidateIzinViews()
   return { error: null, success: 'Berhasil mencatat izin keluar komplek!' }
 }
 
@@ -336,7 +346,7 @@ export async function tandaiSudahKembali(id: string) {
   )
 
   if (result.error) return { error: result.error }
-  revalidatePath('/dashboard/izin')
+  revalidateIzinViews()
   return { success: 'Status siswa diperbarui menjadi SUDAH KEMBALI.' }
 }
 
@@ -372,7 +382,7 @@ export async function editIzinKeluar(
   )
 
   if (result.error) return { error: result.error }
-  revalidatePath('/dashboard/izin')
+  revalidateIzinViews()
   return { success: 'Riwayat izin keluar berhasil diperbarui.' }
 }
 
@@ -385,7 +395,7 @@ export async function hapusIzinKeluar(id: string) {
 
   const result = await dbDelete(db, 'izin_keluar_komplek', { id })
   if (result.error) return { error: result.error }
-  revalidatePath('/dashboard/izin')
+  revalidateIzinViews()
   return { success: 'Riwayat izin berhasil dihapus.' }
 }
 
@@ -405,7 +415,7 @@ export async function hapusIzinKeluarBatch(ids: string[]) {
       const placeholders = chunk.map(() => '?').join(', ')
       await db.prepare(`DELETE FROM izin_keluar_komplek WHERE id IN (${placeholders})`).bind(...chunk).run()
     }
-    revalidatePath('/dashboard/izin')
+    revalidateIzinViews()
     return { success: `${cleanIds.length} riwayat izin keluar berhasil dihapus.` }
   } catch (e: any) {
     return { error: e.message }
@@ -443,7 +453,7 @@ export async function tambahIzinTidakMasuk(prevState: any, formData: FormData) {
 
   if (result.error) return { error: result.error, success: null }
 
-  revalidatePath('/dashboard/izin')
+  revalidateIzinViews()
   return { error: null, success: 'Izin tidak masuk kelas berhasil dicatat!' }
 }
 
@@ -456,7 +466,7 @@ export async function hapusIzinTidakMasuk(id: string) {
 
   const result = await dbDelete(db, 'izin_tidak_masuk_kelas', { id })
   if (result.error) return { error: result.error }
-  revalidatePath('/dashboard/izin')
+  revalidateIzinViews()
   return { success: 'Data izin berhasil dihapus.' }
 }
 
@@ -492,7 +502,7 @@ export async function tambahIzinKelas(prevState: any, formData: FormData) {
   })
 
   if (result.error) return { error: result.error, success: null }
-  revalidatePath('/dashboard/izin')
+  revalidateIzinViews()
   return { error: null, success: 'Berhasil mencatat izin tidak masuk kelas!' }
 }
 
@@ -505,7 +515,7 @@ export async function hapusIzinKelas(id: string) {
 
   const result = await dbDelete(db, 'izin_tidak_masuk_kelas', { id })
   if (result.error) return { error: result.error }
-  revalidatePath('/dashboard/izin')
+  revalidateIzinViews()
   return { success: 'Riwayat izin kelas berhasil dihapus.' }
 }
 
@@ -545,7 +555,7 @@ export async function editIzinKelas(
   )
 
   if (result.error) return { error: result.error }
-  revalidatePath('/dashboard/izin')
+  revalidateIzinViews()
   return { success: 'Riwayat izin kelas berhasil diperbarui.' }
 }
 
@@ -565,7 +575,7 @@ export async function hapusIzinKelasBatch(ids: string[]) {
       const placeholders = chunk.map(() => '?').join(', ')
       await db.prepare(`DELETE FROM izin_tidak_masuk_kelas WHERE id IN (${placeholders})`).bind(...chunk).run()
     }
-    revalidatePath('/dashboard/izin')
+    revalidateIzinViews()
     return { success: `${cleanIds.length} riwayat izin kelas berhasil dihapus.` }
   } catch (e: any) {
     return { error: e.message }

@@ -154,6 +154,65 @@ function buildFinalStatus(guruStatus: FinalAttendanceStatus, waliStatus: 'SAKIT'
   }
 }
 
+function parseIzinJamPelajaran(raw: unknown): number[] {
+  if (raw === null || raw === undefined || raw === '') return []
+  if (typeof raw === 'number') return Number.isFinite(raw) ? [raw] : []
+  const text = String(raw).trim()
+  if (!text) return []
+  try {
+    const parsed = JSON.parse(text)
+    if (Array.isArray(parsed)) return parsed.map(Number).filter(Number.isFinite).sort((a, b) => a - b)
+    const n = Number(parsed)
+    return Number.isFinite(n) ? [n] : []
+  } catch {
+    const n = Number(text)
+    return Number.isFinite(n) ? [n] : []
+  }
+}
+
+function parseTimeMinutes(value: string | null | undefined) {
+  if (!value) return null
+  const match = value.match(/^(?:\d{4}-\d{2}-\d{2}[T\s])?(\d{2}):(\d{2})/)
+  if (!match) return null
+  return Number(match[1]) * 60 + Number(match[2])
+}
+
+function parseDatePart(value: string | null | undefined) {
+  return value?.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] || null
+}
+
+function izinKeluarOverlapsBlock(row: { waktu_keluar: string; waktu_kembali?: string | null }, tanggal: string, blockStart: number | null, blockEnd: number | null) {
+  if (blockStart === null || blockEnd === null) return false
+
+  const keluarDate = parseDatePart(row.waktu_keluar)
+  const kembaliDate = parseDatePart(row.waktu_kembali) || tanggal
+  if (!keluarDate || keluarDate > tanggal || kembaliDate < tanggal) return false
+
+  const keluarTime = keluarDate === tanggal ? parseTimeMinutes(row.waktu_keluar) ?? 0 : 0
+  const kembaliTime = row.waktu_kembali && kembaliDate === tanggal ? parseTimeMinutes(row.waktu_kembali) ?? (24 * 60) : (24 * 60)
+
+  return keluarTime < blockEnd && kembaliTime > blockStart
+}
+
+function formatIzinKeterangan(row: { alasan?: string | null; keterangan?: string | null; pelapor_nama?: string | null; jam_pelajaran?: unknown }) {
+  const parts = ['Perizinan']
+  if (row.pelapor_nama) parts.push(`oleh ${row.pelapor_nama}`)
+  if (row.alasan) parts.push(`- ${row.alasan}`)
+  const jam = parseIzinJamPelajaran(row.jam_pelajaran)
+  if (jam.length > 0) parts.push(`(Jam ${jam.join(', ')})`)
+  if (row.keterangan) parts.push(`: ${row.keterangan}`)
+  return parts.join(' ')
+}
+
+function getSlotsHari(raw: string | null | undefined, hari: number): Array<{ id: number; mulai?: string; selesai?: string }> {
+  try {
+    const list = JSON.parse(raw || '[]')
+    return list.find((p: any) => Array.isArray(p.hari) && p.hari.includes(hari))?.slots || []
+  } catch {
+    return []
+  }
+}
+
 export async function getAccessibleWaliKelasClasses(db: D1Database, userId: string, roles: string[]) {
   const isAdmin = roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
   const rows = isAdmin
@@ -210,7 +269,7 @@ export async function getFinalAttendanceForClass(
       WHERE kelas_id = ? AND status = 'aktif'
       ORDER BY nama_lengkap
     `).bind(kelasId).all<StudentRow>(),
-    db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>(),
+    db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string; jam_pelajaran: string | null }>(),
   ])
 
   if (!kelas) {
@@ -225,7 +284,7 @@ export async function getFinalAttendanceForClass(
     false
   )
 
-  const [jadwalRes, absensiRes, waliRes, sesiRes] = await Promise.all([
+  const [jadwalRes, absensiRes, waliRes, izinRes, izinKeluarRes, sesiRes] = await Promise.all([
     ta?.id
       ? db.prepare(`
           SELECT jm.hari, jm.jam_ke, jm.penugasan_id
@@ -248,6 +307,25 @@ export async function getFinalAttendanceForClass(
       FROM keterangan_absensi_wali_kelas kawk
       JOIN siswa s ON kawk.siswa_id = s.id
       WHERE s.kelas_id = ? AND kawk.tanggal BETWEEN ? AND ?
+    `).bind(kelasId, endDate, startDate).all<any>(),
+    db.prepare(`
+      SELECT itk.tanggal, itk.siswa_id, itk.alasan, itk.keterangan, itk.jam_pelajaran,
+        u.nama_lengkap as pelapor_nama
+      FROM izin_tidak_masuk_kelas itk
+      JOIN siswa s ON itk.siswa_id = s.id
+      LEFT JOIN "user" u ON itk.diinput_oleh = u.id
+      WHERE s.kelas_id = ? AND itk.tanggal BETWEEN ? AND ?
+      ORDER BY itk.created_at ASC
+    `).bind(kelasId, startDate, endDate).all<any>(),
+    db.prepare(`
+      SELECT ik.siswa_id, ik.keterangan, ik.waktu_keluar, ik.waktu_kembali,
+        u.nama_lengkap as pelapor_nama
+      FROM izin_keluar_komplek ik
+      JOIN siswa s ON ik.siswa_id = s.id
+      LEFT JOIN "user" u ON ik.diinput_oleh = u.id
+      WHERE s.kelas_id = ?
+        AND substr(ik.waktu_keluar, 1, 10) <= ?
+        AND (ik.waktu_kembali IS NULL OR substr(ik.waktu_kembali, 1, 10) >= ?)
     `).bind(kelasId, startDate, endDate).all<any>(),
     db.prepare(`
       SELECT asg.tanggal, asg.penugasan_id
@@ -282,6 +360,32 @@ export async function getFinalAttendanceForClass(
         jamList[jamList.length - 1]
       )
     }).length
+  }
+  const activeBlocksForDate = (tanggal: string) => {
+    const hari = hariNum(new Date(tanggal + 'T00:00:00'))
+    const slots = getSlotsHari(ta?.jam_pelajaran, hari)
+    return Array.from(jadwalByHari.get(hari)?.entries() || [])
+      .map(([penugasanId, jamSet]) => {
+        const jamList = Array.from(jamSet).sort((a, b) => a - b)
+        const jamKeMulai = jamList[0]
+        const jamKeSelesai = jamList[jamList.length - 1]
+        const startSlot = slots.find(slot => Number(slot.id) === jamKeMulai)
+        const endSlot = slots.find(slot => Number(slot.id) === jamKeSelesai)
+        return {
+          penugasan_id: penugasanId,
+          jam_ke_mulai: jamKeMulai,
+          jam_ke_selesai: jamKeSelesai,
+          block_start: parseTimeMinutes(startSlot?.mulai),
+          block_end: parseTimeMinutes(endSlot?.selesai),
+          is_exception: !!findTeachingBlockException(
+            exceptionsByDate.get(tanggal) || [],
+            { id: kelas.id, tingkat: kelas.tingkat },
+            jamKeMulai,
+            jamKeSelesai
+          ),
+        }
+      })
+      .filter(block => !block.is_exception)
   }
   const classDates = dates.filter(tanggal => activeBlockCountForDate(tanggal) > 0)
 
@@ -318,19 +422,65 @@ export async function getFinalAttendanceForClass(
     })
   }
 
+  const izinKelasMap = new Map<string, any[]>()
+  for (const row of izinRes.results || []) {
+    const key = `${row.siswa_id}__${row.tanggal}`
+    if (!izinKelasMap.has(key)) izinKelasMap.set(key, [])
+    izinKelasMap.get(key)!.push(row)
+  }
+  const izinKeluarMap = new Map<string, any[]>()
+  for (const row of izinKeluarRes.results || []) {
+    if (!izinKeluarMap.has(row.siswa_id)) izinKeluarMap.set(row.siswa_id, [])
+    izinKeluarMap.get(row.siswa_id)!.push(row)
+  }
+
   const statusByStudent = new Map<string, FinalAttendanceDetail[]>()
   for (const siswa of siswaList) {
     const perDay: FinalAttendanceDetail[] = []
     for (const tanggal of classDates) {
       const totalBlok = activeBlockCountForDate(tanggal)
-      const guruRecords = guruMap.get(`${siswa.id}__${tanggal}`) || []
+      const baseGuruRecords = guruMap.get(`${siswa.id}__${tanggal}`) || []
       const waliRecord = waliMap.get(`${siswa.id}__${tanggal}`)
+      const izinKelasRows = izinKelasMap.get(`${siswa.id}__${tanggal}`) || []
+      const izinKeluarRows = izinKeluarMap.get(siswa.id) || []
+      const izinBlocks = activeBlocksForDate(tanggal).flatMap(block => {
+        const izinKelasForBlock = izinKelasRows.filter(row => {
+          const jam = parseIzinJamPelajaran(row.jam_pelajaran)
+          return jam.length === 0 || jam.some(j => j >= block.jam_ke_mulai && j <= block.jam_ke_selesai)
+        })
+        const izinKeluarForBlock = izinKeluarRows.filter(row =>
+          izinKeluarOverlapsBlock(row, tanggal, block.block_start, block.block_end)
+        )
+        const notes = [
+          ...izinKelasForBlock.map(row => formatIzinKeterangan(row)),
+          ...izinKeluarForBlock.map(row => [
+            'Perizinan keluar komplek',
+            row.pelapor_nama ? `oleh ${row.pelapor_nama}` : '',
+            row.keterangan ? `: ${row.keterangan}` : '',
+          ].filter(Boolean).join(' ')),
+        ]
+        if (notes.length === 0) return []
+        return [{
+          status: 'IZIN',
+          nama_mapel: 'Perizinan',
+          jam_ke_mulai: block.jam_ke_mulai,
+          jam_ke_selesai: block.jam_ke_selesai,
+          catatan: notes.join('; '),
+        }]
+      })
+      const guruRecords = [
+        ...baseGuruRecords.filter(record => !izinBlocks.some(izin =>
+          record.jam_ke_mulai <= izin.jam_ke_selesai && record.jam_ke_selesai >= izin.jam_ke_mulai
+        )),
+        ...izinBlocks,
+      ].sort((a, b) => a.jam_ke_mulai - b.jam_ke_mulai)
       const submittedPenugasanCount = sesiMap.get(tanggal)?.size || 0
+      const effectiveSubmittedCount = Math.max(submittedPenugasanCount, guruRecords.length)
       if (totalBlok <= 0 && guruRecords.length === 0 && !waliRecord) continue
       const guruStatus = deriveGuruStatusWithSession(
         totalBlok,
         guruRecords,
-        submittedPenugasanCount,
+        effectiveSubmittedCount,
         skipIncompleteForDailyStatus
       )
       const finalState = buildFinalStatus(guruStatus, waliRecord?.status ?? null)

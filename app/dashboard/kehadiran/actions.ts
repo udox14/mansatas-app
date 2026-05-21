@@ -268,8 +268,18 @@ export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tan
   const [siswaRes, absensiRes, izinRes, izinKeluarRes, waliKelasRes] = await Promise.all([
     db.prepare(`SELECT id, nama_lengkap, nisn, foto_url FROM siswa WHERE kelas_id = ? AND status = 'aktif' ORDER BY nama_lengkap`).bind(kelasId).all<any>(),
     db.prepare(`SELECT siswa_id, status, catatan FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?`).bind(penugasanId, tanggal).all<any>(),
-    db.prepare(`SELECT siswa_id, alasan, jam_pelajaran FROM izin_tidak_masuk_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(tanggal, kelasId).all<any>(),
-    db.prepare(`SELECT siswa_id, keterangan FROM izin_keluar_komplek WHERE status = 'BELUM KEMBALI' AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(kelasId).all<any>(),
+    db.prepare(`
+      SELECT itk.siswa_id, itk.alasan, itk.keterangan, itk.jam_pelajaran, u.nama_lengkap as pelapor_nama
+      FROM izin_tidak_masuk_kelas itk
+      LEFT JOIN "user" u ON itk.diinput_oleh = u.id
+      WHERE itk.tanggal = ? AND itk.siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')
+    `).bind(tanggal, kelasId).all<any>(),
+    db.prepare(`
+      SELECT ik.siswa_id, ik.keterangan, u.nama_lengkap as pelapor_nama
+      FROM izin_keluar_komplek ik
+      LEFT JOIN "user" u ON ik.diinput_oleh = u.id
+      WHERE ik.status = 'BELUM KEMBALI' AND ik.siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')
+    `).bind(kelasId).all<any>(),
     db.prepare(`SELECT siswa_id, status, keterangan FROM keterangan_absensi_wali_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`).bind(tanggal, kelasId).all<any>(),
   ])
 
@@ -278,12 +288,21 @@ export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tan
   const izinMap = new Map<string, string>()
   for (const i of izinRes.results || []) {
     if (jamBeririsan(parseIzinJamPelajaran(i.jam_pelajaran), jamKeMulai, jamKeSelesai)) {
-      izinMap.set(i.siswa_id, i.alasan || 'Izin')
+      const detail = [
+        i.alasan || 'Izin',
+        i.pelapor_nama ? `oleh ${i.pelapor_nama}` : '',
+        i.keterangan ? `- ${i.keterangan}` : '',
+      ].filter(Boolean).join(' ')
+      izinMap.set(i.siswa_id, detail)
     }
   }
   for (const i of izinKeluarRes.results || []) {
     if (!izinMap.has(i.siswa_id)) {
-      izinMap.set(i.siswa_id, i.keterangan ? `Keluar komplek: ${i.keterangan}` : 'Keluar komplek')
+      izinMap.set(i.siswa_id, [
+        'Keluar komplek',
+        i.pelapor_nama ? `oleh ${i.pelapor_nama}` : '',
+        i.keterangan ? `- ${i.keterangan}` : '',
+      ].filter(Boolean).join(' '))
     }
   }
   const waliMap = new Map<string, { status: string; keterangan: string }>()
@@ -296,18 +315,19 @@ export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tan
       const adaIzin = izinMap.has(s.id)
       const wali = waliMap.get(s.id)
 
-      // Prioritas status: absensi guru (sudah disimpan) > keterangan wali kelas > izin_tidak_masuk_kelas > HADIR
+      // Prioritas status: perizinan per blok > absensi guru > keterangan wali kelas > HADIR.
+      // Perizinan bukan vonis harian wali kelas, tapi override untuk blok mengajar yang kena izin.
       let status: SiswaAbsensi['status']
       let catatan: string
-      if (ab) {
+      if (adaIzin) {
+        status = 'IZIN'
+        catatan = izinMap.get(s.id) || ''
+      } else if (ab) {
         status = ab.status as any
         catatan = ab.catatan
       } else if (wali) {
         status = wali.status as any
         catatan = `Keterangan dari wali kelas${wali.keterangan ? ': ' + wali.keterangan : ''}`
-      } else if (adaIzin) {
-        status = 'IZIN'
-        catatan = ''
       } else {
         status = 'HADIR'
         catatan = ''
