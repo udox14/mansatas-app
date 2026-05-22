@@ -114,7 +114,21 @@ function normalizeImportedDate(raw: unknown) {
   const text = String(raw ?? '').trim()
   if (!text) return ''
   const dateOnly = text.split(/[ T]/)[0].trim()
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return dateOnly
+  const iso = dateOnly.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (iso) {
+    const middle = Number(iso[2])
+    const last = Number(iso[3])
+
+    if (middle >= 1 && middle <= 12 && last >= 1 && last <= 31) {
+      return `${iso[1]}-${iso[2]}-${iso[3]}`
+    }
+
+    if (middle > 12 && middle <= 31 && last >= 1 && last <= 12) {
+      return `${iso[1]}-${iso[3]}-${iso[2]}`
+    }
+
+    return ''
+  }
 
   const slash = dateOnly.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/)
   if (slash) {

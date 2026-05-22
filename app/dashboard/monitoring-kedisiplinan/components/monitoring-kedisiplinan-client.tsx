@@ -33,6 +33,7 @@ function getSanksiStyle(urutan: number) {
 
 const AMAN_STYLE = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
 const naturalSorter = new Intl.Collator('id-ID', { numeric: true, sensitivity: 'base' })
+type SortMode = 'latest' | 'oldest' | 'case_desc' | 'case_asc' | 'point_desc' | 'point_asc' | 'lifetime_desc'
 
 function parseTanggalValue(raw: string | null | undefined) {
   const value = String(raw ?? '').trim()
@@ -73,6 +74,10 @@ function formatTanggalDisplay(raw: string | null | undefined) {
     month: 'long',
     year: 'numeric',
   })
+}
+
+function getLatestKasusDate(kasus: any[]) {
+  return Math.max(0, ...kasus.map(k => getTanggalTimestamp(k.tanggal)))
 }
 
 // ─── Modal Detail Kasus per Siswa ──────────────────────────────
@@ -228,6 +233,13 @@ export function MonitoringKedisiplinanClient({
   const [search, setSearch] = useState('')
   const [filterTingkat, setFilterTingkat] = useState('ALL')
   const [filterLevel, setFilterLevel] = useState('ALL')
+  const [filterKategori, setFilterKategori] = useState('ALL')
+  const [filterPelanggaran, setFilterPelanggaran] = useState('ALL')
+  const [sortMode, setSortMode] = useState<SortMode>('latest')
+  const [tglMulai, setTglMulai] = useState('')
+  const [tglSelesai, setTglSelesai] = useState('')
+  const [minKasus, setMinKasus] = useState('')
+  const [minPoin, setMinPoin] = useState('')
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
 
@@ -243,16 +255,46 @@ export function MonitoringKedisiplinanClient({
   const [isImportingKamus, setIsImportingKamus] = useState(false)
 
   // ── Group kasus per siswa ─────────────────────────────────
+  const kategoriOptions = useMemo(() => {
+    return Array.from(new Set(allKasus.map(k => k.master_pelanggaran?.kategori).filter(Boolean)))
+      .sort((a, b) => naturalSorter.compare(String(a), String(b)))
+  }, [allKasus])
+
+  const pelanggaranOptions = useMemo(() => {
+    return [...masterList]
+      .filter(m => allKasus.some(k => k.master_pelanggaran_id === m.id))
+      .sort((a, b) => naturalSorter.compare(a.nama_pelanggaran, b.nama_pelanggaran))
+  }, [allKasus, masterList])
+
+  const filteredKasus = useMemo(() => {
+    let result = [...allKasus]
+    if (search) {
+      const q = search.toLowerCase()
+      result = result.filter(k =>
+        k.siswa.nama_lengkap.toLowerCase().includes(q) ||
+        k.master_pelanggaran?.nama_pelanggaran?.toLowerCase().includes(q) ||
+        k.master_pelanggaran?.kategori?.toLowerCase().includes(q) ||
+        (k.siswa.kelas && `${k.siswa.kelas.tingkat}-${k.siswa.kelas.nomor_kelas}`.toLowerCase().includes(q))
+      )
+    }
+    if (filterTingkat !== 'ALL') result = result.filter(k => k.siswa.kelas?.tingkat?.toString() === filterTingkat)
+    if (filterKategori !== 'ALL') result = result.filter(k => k.master_pelanggaran?.kategori === filterKategori)
+    if (filterPelanggaran !== 'ALL') result = result.filter(k => k.master_pelanggaran_id === filterPelanggaran)
+    if (tglMulai) result = result.filter(k => getTanggalTimestamp(k.tanggal) >= getTanggalTimestamp(tglMulai))
+    if (tglSelesai) result = result.filter(k => getTanggalTimestamp(k.tanggal) <= getTanggalTimestamp(tglSelesai))
+    return result
+  }, [allKasus, search, filterTingkat, filterKategori, filterPelanggaran, tglMulai, tglSelesai])
+
   const grouped = useMemo(() => {
     const map = new Map<string, { siswa: any; kasus: any[]; totalPoin: number; siswaId: string }>()
-    for (const k of allKasus) {
+    for (const k of filteredKasus) {
       if (!map.has(k.siswa_id)) map.set(k.siswa_id, { siswa: k.siswa, kasus: [], totalPoin: 0, siswaId: k.siswa_id })
       const entry = map.get(k.siswa_id)!
       entry.kasus.push(k)
       entry.totalPoin += k.master_pelanggaran?.poin || 0
     }
     return Array.from(map.values())
-  }, [allKasus])
+  }, [filteredKasus])
 
   const tingkatOptions = useMemo(() => {
     const fromKasus = allKasus
@@ -266,14 +308,6 @@ export function MonitoringKedisiplinanClient({
 
   const filteredGrouped = useMemo(() => {
     let result = grouped
-    if (search) {
-      const q = search.toLowerCase()
-      result = result.filter(g =>
-        g.siswa.nama_lengkap.toLowerCase().includes(q) ||
-        (g.siswa.kelas && `${g.siswa.kelas.tingkat}-${g.siswa.kelas.nomor_kelas}`.toLowerCase().includes(q))
-      )
-    }
-    if (filterTingkat !== 'ALL') result = result.filter(g => g.siswa.kelas?.tingkat?.toString() === filterTingkat)
     if (filterLevel !== 'ALL') {
       result = result.filter(g => {
         const lt = lifetimePoin[g.siswaId] ?? g.totalPoin
@@ -282,15 +316,45 @@ export function MonitoringKedisiplinanClient({
         return sanksi?.id === filterLevel
       })
     }
-    result.sort((a, b) => b.totalPoin - a.totalPoin)
+
+    const minKasusValue = Number(minKasus)
+    if (minKasus && Number.isFinite(minKasusValue)) result = result.filter(g => g.kasus.length >= minKasusValue)
+
+    const minPoinValue = Number(minPoin)
+    if (minPoin && Number.isFinite(minPoinValue)) result = result.filter(g => g.totalPoin >= minPoinValue)
+
+    result = [...result].sort((a, b) => {
+      const lifetimeA = lifetimePoin[a.siswaId] ?? a.totalPoin
+      const lifetimeB = lifetimePoin[b.siswaId] ?? b.totalPoin
+      if (sortMode === 'oldest') return getLatestKasusDate(a.kasus) - getLatestKasusDate(b.kasus)
+      if (sortMode === 'case_desc') return b.kasus.length - a.kasus.length || b.totalPoin - a.totalPoin
+      if (sortMode === 'case_asc') return a.kasus.length - b.kasus.length || b.totalPoin - a.totalPoin
+      if (sortMode === 'point_desc') return b.totalPoin - a.totalPoin || b.kasus.length - a.kasus.length
+      if (sortMode === 'point_asc') return a.totalPoin - b.totalPoin || b.kasus.length - a.kasus.length
+      if (sortMode === 'lifetime_desc') return lifetimeB - lifetimeA || b.totalPoin - a.totalPoin
+      return getLatestKasusDate(b.kasus) - getLatestKasusDate(a.kasus)
+    })
     return result
-  }, [grouped, search, filterTingkat, filterLevel, sanksiList, lifetimePoin])
+  }, [grouped, filterLevel, minKasus, minPoin, sortMode, sanksiList, lifetimePoin])
 
   const totalPages = Math.max(1, Math.ceil(filteredGrouped.length / pageSize))
   const safePage = Math.min(page, totalPages)
   const pagedGroups = filteredGrouped.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   const resetPage = () => setPage(1)
+  const resetFilters = () => {
+    setSearch('')
+    setFilterTingkat('ALL')
+    setFilterLevel('ALL')
+    setFilterKategori('ALL')
+    setFilterPelanggaran('ALL')
+    setTglMulai('')
+    setTglSelesai('')
+    setMinKasus('')
+    setMinPoin('')
+    setSortMode('latest')
+    setPage(1)
+  }
 
   // ── Hapus ────────────────────────────────────────────────
   const handleHapusKasus = async (id: string) => {
@@ -384,12 +448,12 @@ export function MonitoringKedisiplinanClient({
           {/* ── TAB RIWAYAT ── */}
           <TabsContent value="riwayat" className="space-y-3 m-0">
             {/* TOOLBAR */}
-            <div className="bg-surface border border-surface rounded-lg p-3 space-y-2">
+            <div className="bg-surface border border-surface rounded-lg p-3 space-y-3">
               <div className="flex gap-2">
                 <div className="relative flex-1 min-w-0">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                   <Input
-                    placeholder="Cari nama siswa / kelas..."
+                    placeholder="Cari siswa, kelas, jenis, atau kategori..."
                     value={search}
                     onChange={e => { setSearch(e.target.value); resetPage() }}
                     className="pl-8 h-8 text-sm rounded-md"
@@ -406,10 +470,21 @@ export function MonitoringKedisiplinanClient({
                 )}
               </div>
 
-              {/* Filter row */}
-              <div className="flex gap-2 flex-wrap">
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
+                <Select value={sortMode} onValueChange={v => { setSortMode(v as SortMode); resetPage() }}>
+                  <SelectTrigger className="h-8 text-xs rounded"><SelectValue placeholder="Urutkan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="latest">Terbaru</SelectItem>
+                    <SelectItem value="oldest">Terlama</SelectItem>
+                    <SelectItem value="case_desc">Terbanyak Kasus</SelectItem>
+                    <SelectItem value="case_asc">Tersedikit Kasus</SelectItem>
+                    <SelectItem value="point_desc">Terbanyak Poin</SelectItem>
+                    <SelectItem value="point_asc">Tersedikit Poin</SelectItem>
+                    <SelectItem value="lifetime_desc">Poin Seumur Terbesar</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Select value={filterTingkat} onValueChange={v => { setFilterTingkat(v); resetPage() }}>
-                  <SelectTrigger className="h-7 text-xs rounded flex-1 min-w-[90px]"><SelectValue placeholder="Tingkat" /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs rounded"><SelectValue placeholder="Tingkat" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">Semua Kelas</SelectItem>
                     {tingkatOptions.map(tingkat => (
@@ -418,7 +493,7 @@ export function MonitoringKedisiplinanClient({
                   </SelectContent>
                 </Select>
                 <Select value={filterLevel} onValueChange={v => { setFilterLevel(v); resetPage() }}>
-                  <SelectTrigger className="h-7 text-xs rounded flex-1 min-w-[90px]"><SelectValue placeholder="Sanksi" /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs rounded"><SelectValue placeholder="Sanksi" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">Semua Level</SelectItem>
                     <SelectItem value="baik">Belum Ada Sanksi</SelectItem>
@@ -427,8 +502,26 @@ export function MonitoringKedisiplinanClient({
                     ))}
                   </SelectContent>
                 </Select>
+                <Select value={filterKategori} onValueChange={v => { setFilterKategori(v); resetPage() }}>
+                  <SelectTrigger className="h-8 text-xs rounded"><SelectValue placeholder="Kategori" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Semua Kategori</SelectItem>
+                    {kategoriOptions.map(kategori => (
+                      <SelectItem key={String(kategori)} value={String(kategori)}>{String(kategori)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={filterPelanggaran} onValueChange={v => { setFilterPelanggaran(v); resetPage() }}>
+                  <SelectTrigger className="h-8 text-xs rounded"><SelectValue placeholder="Jenis" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Semua Jenis</SelectItem>
+                    {pelanggaranOptions.map(m => (
+                      <SelectItem key={m.id} value={m.id}>{m.nama_pelanggaran}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); resetPage() }}>
-                  <SelectTrigger className="h-7 text-xs rounded w-[70px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs rounded"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="10">10 / hal</SelectItem>
                     <SelectItem value="20">20 / hal</SelectItem>
@@ -437,6 +530,18 @@ export function MonitoringKedisiplinanClient({
                   </SelectContent>
                 </Select>
               </div>
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+                <Input type="date" value={tglMulai} onChange={e => { setTglMulai(e.target.value); resetPage() }} className="h-8 text-xs rounded" />
+                <Input type="date" value={tglSelesai} onChange={e => { setTglSelesai(e.target.value); resetPage() }} className="h-8 text-xs rounded" />
+                <Input type="number" min="0" value={minKasus} onChange={e => { setMinKasus(e.target.value); resetPage() }} placeholder="Min kasus" className="h-8 text-xs rounded" />
+                <Input type="number" min="0" value={minPoin} onChange={e => { setMinPoin(e.target.value); resetPage() }} placeholder="Min poin" className="h-8 text-xs rounded" />
+                <Button type="button" variant="outline" onClick={resetFilters} className="h-8 text-xs rounded">
+                  Reset Filter
+                </Button>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Menampilkan {filteredGrouped.length} siswa dari {filteredKasus.length} catatan yang cocok.
+              </p>
             </div>
 
             {/* LIST */}
@@ -455,6 +560,9 @@ export function MonitoringKedisiplinanClient({
                     const kelas = group.siswa.kelas
                       ? `${group.siswa.kelas.tingkat}-${group.siswa.kelas.nomor_kelas}`
                       : '-'
+                    const latestKasus = [...group.kasus].sort(
+                      (a, b) => getTanggalTimestamp(b.tanggal) - getTanggalTimestamp(a.tanggal)
+                    )[0]
 
                     return (
                       <button
@@ -479,6 +587,12 @@ export function MonitoringKedisiplinanClient({
                           <p className="text-[11px] text-slate-400 dark:text-slate-500">
                             Kelas {kelas} · <span className="font-semibold">{group.kasus.length} kasus</span>
                           </p>
+                          {latestKasus && (
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                              Terakhir: {formatTanggalDisplay(latestKasus.tanggal)} · {latestKasus.master_pelanggaran?.kategori ? `${latestKasus.master_pelanggaran.kategori} · ` : ''}
+                              {latestKasus.master_pelanggaran?.nama_pelanggaran}
+                            </p>
+                          )}
                         </div>
 
                         {/* Poin TA ini */}

@@ -27,7 +27,7 @@ async function MonitoringDataFetcher({ currentUser, taAktifId, sanksiList, lifet
     db.prepare(`
       SELECT sp.id, sp.tanggal, sp.jam_input, sp.keterangan, sp.foto_url, sp.siswa_id, sp.master_pelanggaran_id, sp.diinput_oleh,
         s.nama_lengkap as siswa_nama, s.foto_url as siswa_foto, k.tingkat, k.nomor_kelas, k.kelompok,
-        mp.nama_pelanggaran, mp.poin, u.nama_lengkap as pelapor_nama
+        mp.nama_pelanggaran, mp.kategori, mp.poin, u.nama_lengkap as pelapor_nama
       FROM siswa_pelanggaran sp
       JOIN siswa s ON sp.siswa_id = s.id
       LEFT JOIN kelas k ON s.kelas_id = k.id
@@ -54,7 +54,7 @@ async function MonitoringDataFetcher({ currentUser, taAktifId, sanksiList, lifet
       foto_url: p.siswa_foto ?? null,
       kelas: p.tingkat ? { tingkat: p.tingkat, nomor_kelas: p.nomor_kelas, kelompok: p.kelompok } : null,
     },
-    master_pelanggaran: { nama_pelanggaran: p.nama_pelanggaran, poin: p.poin },
+    master_pelanggaran: { nama_pelanggaran: p.nama_pelanggaran, kategori: p.kategori, poin: p.poin },
     pelapor: { nama_lengkap: p.pelapor_nama },
   }))
 

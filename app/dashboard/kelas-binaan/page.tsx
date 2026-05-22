@@ -6,7 +6,7 @@ import { nowWIB } from '@/lib/time'
 import { getUserRoles } from '@/lib/features'
 import { getAccessibleWaliKelasClasses } from '@/lib/wali-kelas-attendance'
 import { PageHeader } from '@/components/layout/page-header'
-import { KelasBinaanDashboard } from '@/components/dashboard/KelasBinaanDashboard'
+import { KelasBinaanDashboard, type KelasBinaanView } from '@/components/dashboard/KelasBinaanDashboard'
 import { KelasSelector } from './components/kelas-selector'
 
 export const metadata = { title: 'Kelas Binaan - MANSATAS App' }
@@ -28,12 +28,14 @@ const ROLE_LABEL: Record<string, string> = {
   wali_kelas: 'Wali Kelas',
 }
 
+const KELAS_BINAAN_VIEWS: KelasBinaanView[] = ['home', 'keputusan', 'siswa', 'rekap', 'perhatian', 'agenda']
+
 export default async function KelasBinaanPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kelas?: string; risiko?: string }>
+  searchParams: Promise<{ kelas?: string; risiko?: string; view?: string }>
 }) {
-  const { kelas: kelasId, risiko } = await searchParams
+  const { kelas: kelasId, risiko, view } = await searchParams
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
@@ -66,6 +68,14 @@ export default async function KelasBinaanPage({
   const isWaliKelasOnly =
     roles.includes('wali_kelas') &&
     !roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
+  const activeView: KelasBinaanView = KELAS_BINAAN_VIEWS.includes(view as KelasBinaanView)
+    ? view as KelasBinaanView
+    : 'home'
+  const buildKelasHref = (nextKelasId: string) => {
+    const params = new URLSearchParams({ kelas: nextKelasId, view: activeView })
+    if (risiko) params.set('risiko', risiko)
+    return `/dashboard/kelas-binaan?${params.toString()}`
+  }
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -82,7 +92,7 @@ export default async function KelasBinaanPage({
               {kelasList.map(item => (
                 <Link
                   key={item.id}
-                  href={`/dashboard/kelas-binaan?kelas=${item.id}`}
+                  href={buildKelasHref(item.id)}
                   className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
                     item.id === selectedKelasId
                       ? 'border-amber-300 bg-amber-50 text-amber-700'
@@ -98,6 +108,8 @@ export default async function KelasBinaanPage({
           <KelasSelector
             kelasList={kelasList.map(({ id, label }) => ({ id, label }))}
             selectedKelasId={selectedKelasId}
+            view={activeView}
+            risiko={risiko}
           />
         )
       )}
@@ -113,6 +125,7 @@ export default async function KelasBinaanPage({
         taAktif={taAktif ?? null}
         kelasIdOverride={selectedKelasId}
         riskFilter={risiko || 'all'}
+        view={activeView}
         showWelcome={false}
         showTopCards={false}
         showFeatureShortcuts={false}
