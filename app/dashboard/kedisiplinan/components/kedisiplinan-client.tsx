@@ -44,6 +44,47 @@ function getSanksiStyle(urutan: number) {
 const AMAN_STYLE = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
 const naturalSorter = new Intl.Collator('id-ID', { numeric: true, sensitivity: 'base' })
 
+function parseTanggalValue(raw: string | null | undefined) {
+  const value = String(raw ?? '').trim()
+  if (!value) return null
+
+  const normalized = value.split(/[ T]/)[0]?.trim() || value
+  const isoMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (isoMatch) {
+    const year = Number(isoMatch[1])
+    const middle = Number(isoMatch[2])
+    const last = Number(isoMatch[3])
+
+    if (middle >= 1 && middle <= 12 && last >= 1 && last <= 31) {
+      return new Date(year, middle - 1, last)
+    }
+
+    if (middle > 12 && middle <= 31 && last >= 1 && last <= 12) {
+      return new Date(year, last - 1, middle)
+    }
+  }
+
+  const fallback = new Date(value)
+  if (Number.isNaN(fallback.getTime())) return null
+  return fallback
+}
+
+function getTanggalTimestamp(raw: string | null | undefined) {
+  return parseTanggalValue(raw)?.getTime() ?? 0
+}
+
+function formatTanggalDisplay(raw: string | null | undefined, options?: Intl.DateTimeFormatOptions) {
+  const parsed = parseTanggalValue(raw)
+  if (!parsed) return raw || '-'
+
+  return parsed.toLocaleDateString('id-ID', options ?? {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 function getReviewResolvedCount(rows: ImportPelanggaranPreviewRow[]) {
   return rows.filter(row => row.blockingReasons.length === 0 && row.selectedSiswaId && row.selectedMasterId).length
 }
@@ -86,7 +127,7 @@ function DetailKasusModal({
     : '-'
 
   const sortedKasus = [...group.kasus].sort(
-    (a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime()
+    (a, b) => getTanggalTimestamp(b.tanggal) - getTanggalTimestamp(a.tanggal)
   )
 
   return (
@@ -142,7 +183,7 @@ function DetailKasusModal({
                       {k.master_pelanggaran?.nama_pelanggaran}
                     </p>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
-                      {new Date(k.tanggal).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                      {formatTanggalDisplay(k.tanggal)}
                       {k.jam_input ? ` • ${k.jam_input}` : ''}
                     </p>
                     {k.keterangan && (
@@ -268,7 +309,7 @@ export function KedisiplinanClient({
         return sanksi?.id === filterLevel
       })
     }
-    result.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime())
+    result.sort((a, b) => getTanggalTimestamp(b.tanggal) - getTanggalTimestamp(a.tanggal))
     return result
   }, [allKasus, search, filterTingkat, filterLevel, sanksiList, lifetimePoin])
 
@@ -690,7 +731,7 @@ export function KedisiplinanClient({
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                            Kelas {kelas} · {new Date(kasus.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}{kasus.jam_input ? ` • ${kasus.jam_input}` : ''}
+                            Kelas {kelas} · {formatTanggalDisplay(kasus.tanggal, { day: 'numeric', month: 'short', year: 'numeric' })}{kasus.jam_input ? ` • ${kasus.jam_input}` : ''}
                           </p>
                           <p className="text-xs font-semibold text-rose-700 dark:text-rose-400 truncate mt-0.5">
                             {kasus.master_pelanggaran?.nama_pelanggaran}

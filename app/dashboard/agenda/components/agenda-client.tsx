@@ -52,6 +52,20 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label:
 }
 
 const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+const REQUEST_TIMEOUT_MS = 45000
+
+async function withTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), REQUEST_TIMEOUT_MS)
+  })
+
+  try {
+    return await Promise.race([promise, timeout])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+}
 
 export function AgendaClient({ initialData, userRole, isActingAs = false }: AgendaClientProps) {
   const [data, setData] = useState(initialData)
@@ -65,20 +79,37 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleRefresh = async () => {
+  const handleRefresh = async ({ clearMessage = true }: { clearMessage?: boolean } = {}) => {
     setIsRefreshing(true)
-    const result = await getJadwalGuruHariIni()
-    setData(result)
-    setIsRefreshing(false)
+    if (clearMessage) setPesan(null)
+    try {
+      const result = await withTimeout(
+        getJadwalGuruHariIni(),
+        'Memuat ulang jadwal terlalu lama. Periksa koneksi lalu coba refresh lagi.'
+      )
+      setData(result)
+    } catch (error: any) {
+      setPesan({ tipe: 'error', teks: error?.message || 'Gagal memuat ulang jadwal.' })
+    } finally {
+      setIsRefreshing(false)
+    }
   }
 
   const handleFotoCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setPesan(null)
-    const compressed = await compressAgendaImage(file)
-    setFotoFile(compressed)
-    setFotoPreview(URL.createObjectURL(compressed))
+    try {
+      const compressed = await compressAgendaImage(file)
+      setFotoFile(compressed)
+      setFotoPreview(URL.createObjectURL(compressed))
+    } catch {
+      setPesan({ tipe: 'error', teks: 'Foto gagal diproses. Silakan ambil ulang foto.' })
+      setFotoFile(null)
+      setFotoPreview(null)
+    } finally {
+      e.target.value = ''
+    }
   }, [])
 
   const handleSubmit = async (block: JadwalBlock) => {
@@ -98,18 +129,26 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
     fd.append('materi', materi.trim())
     if (fotoFile) fd.append('foto', fotoFile)
 
-    const result = await submitAgenda(fd)
-    if (result.error) {
-      setPesan({ tipe: 'error', teks: result.error })
-    } else {
-      setPesan({ tipe: 'sukses', teks: result.success || 'Berhasil!' })
-      setMateri('')
-      setFotoFile(null)
-      setFotoPreview(null)
-      setExpandedBlock(null)
-      handleRefresh()
+    try {
+      const result = await withTimeout(
+        submitAgenda(fd),
+        'Pengiriman agenda terlalu lama. Periksa koneksi lalu tekan Refresh untuk memastikan status agenda.'
+      )
+      if (result.error) {
+        setPesan({ tipe: 'error', teks: result.error })
+      } else {
+        setPesan({ tipe: 'sukses', teks: result.success || 'Berhasil!' })
+        setMateri('')
+        setFotoFile(null)
+        setFotoPreview(null)
+        setExpandedBlock(null)
+        await handleRefresh({ clearMessage: false })
+      }
+    } catch (error: any) {
+      setPesan({ tipe: 'error', teks: error?.message || 'Agenda gagal dikirim. Silakan coba lagi.' })
+    } finally {
+      setIsSubmitting(false)
     }
-    setIsSubmitting(false)
   }
 
   const { blocks, tanggal, hari, error, calendarStatus } = data
@@ -166,7 +205,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400">{blocks.length} blok mengajar</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+        <Button variant="outline" size="sm" onClick={() => handleRefresh()} disabled={isRefreshing}>
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
           Refresh
         </Button>

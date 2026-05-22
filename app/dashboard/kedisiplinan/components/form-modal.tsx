@@ -15,6 +15,22 @@ import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 const initialState = null as any
 
+function toDateInputValue(raw: string | null | undefined, fallback: string) {
+  const value = String(raw ?? '').trim()
+  if (!value) return fallback
+
+  const normalized = value.split(/[ T]/)[0]?.trim() || value
+  const iso = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (iso) {
+    const middle = Number(iso[2])
+    const last = Number(iso[3])
+    if (middle >= 1 && middle <= 12 && last >= 1 && last <= 31) return `${iso[1]}-${iso[2]}-${iso[3]}`
+    if (middle > 12 && middle <= 31 && last >= 1 && last <= 12) return `${iso[1]}-${iso[3]}-${iso[2]}`
+  }
+
+  return fallback
+}
+
 const compressImage = async (file: File): Promise<File> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -58,6 +74,7 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
   const [sanksiNotif, setSanksiNotif] = useState<{ nama: string; deskripsi?: string; total_poin: number } | null>(null)
   const today = todayWIB()
   const currentTime = currentTimeWIB().hhmm
+  const tanggalDefault = toDateInputValue(editData?.tanggal, today)
 
   const [searchSiswaQuery, setSearchSiswaQuery] = useState('')
   const [selectedSiswaId, setSelectedSiswaId] = useState('')
@@ -230,7 +247,7 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Tanggal <span className="text-rose-500">*</span></Label>
-              <Input type="date" name="tanggal" defaultValue={editData?.tanggal || today} required className="h-8 text-xs rounded-md bg-surface-2" />
+              <Input type="date" name="tanggal" defaultValue={tanggalDefault} required className="h-8 text-xs rounded-md bg-surface-2" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Jam Input <span className="text-rose-500">*</span></Label>
