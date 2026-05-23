@@ -60,6 +60,29 @@ const workstreams = [
   },
 ]
 
+const parentPortalFeatures = [
+  {
+    title: 'Pengumuman sekolah',
+    description: 'Orang tua menerima informasi resmi yang ditargetkan untuk semua wali murid, angkatan, atau kelas tertentu.',
+    icon: BellRing,
+  },
+  {
+    title: 'Jadwal dan kehadiran',
+    description: 'Jadwal pelajaran, status hadir, izin, sakit, alfa, dan riwayat kehadiran anak bisa dipantau dari ponsel.',
+    icon: CalendarCheck2,
+  },
+  {
+    title: 'Akademik dan kedisiplinan',
+    description: 'Nilai semester, rata-rata akademik, poin pelanggaran, dan catatan tindak lanjut tersaji dalam satu portal.',
+    icon: GraduationCap,
+  },
+  {
+    title: 'Keuangan siswa',
+    description: 'Orang tua dapat melihat informasi DSPT, tunggakan SPP lama, dan riwayat pembayaran terakhir.',
+    icon: PieChart,
+  },
+]
+
 const timeline = [
   { time: '07.00', title: 'Presensi dimulai', detail: 'Kelas X-1 sampai XII-7 dipantau otomatis.' },
   { time: '09.30', title: 'Surat masuk diverifikasi', detail: '3 dokumen menunggu disposisi pimpinan.' },
@@ -256,7 +279,7 @@ export default async function LandingPage() {
               </h1>
 
               <p className="mx-auto mt-6 max-w-xl text-base font-semibold leading-7 text-slate-600 sm:mx-0 sm:text-lg sm:leading-8">
-                Satu pusat kendali untuk menyatukan layanan akademik, kesiswaan, administrasi, keuangan, dan agenda harian MAN 1 Tasikmalaya.
+                Satu pusat kendali untuk menyatukan layanan akademik, kesiswaan, administrasi, keuangan, agenda harian, dan portal informasi orang tua MAN 1 Tasikmalaya.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -472,6 +495,67 @@ export default async function LandingPage() {
                     </article>
                   )
                 })}
+              </div>
+            </div>
+          </section>
+
+          <section className="bg-white">
+            <div className="mx-auto grid max-w-7xl gap-8 px-5 py-14 sm:px-8 lg:grid-cols-[0.92fr_1.08fr] lg:px-10">
+              <div className="flex flex-col justify-between rounded-2xl bg-slate-950 p-6 text-white shadow-[0_24px_70px_rgba(15,23,42,0.18)] sm:p-7">
+                <div>
+                  <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500 text-white">
+                    <UsersRound className="h-6 w-6" />
+                  </div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">Portal Orang Tua</p>
+                  <h2 className="mt-3 text-3xl font-black tracking-normal sm:text-4xl">
+                    Orang tua ikut memantau perkembangan anak secara resmi.
+                  </h2>
+                  <p className="mt-5 text-sm font-semibold leading-7 text-slate-300">
+                    MANSATAS App menyediakan akses khusus wali murid untuk melihat informasi penting siswa tanpa masuk ke dashboard pegawai.
+                  </p>
+                </div>
+
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                  <Link
+                    href="/portal-ortu/login"
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-slate-950 transition hover:-translate-y-0.5 hover:bg-emerald-100"
+                  >
+                    Login Orang Tua
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="inline-flex h-12 items-center justify-center rounded-xl border border-white/15 px-5 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white/10"
+                  >
+                    Login Pegawai
+                  </Link>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {parentPortalFeatures.map((feature) => {
+                  const ParentIcon = feature.icon
+                  return (
+                    <article key={feature.title} className="rounded-xl border border-slate-200 bg-[#f9fbf6] p-5 shadow-sm">
+                      <div className="mb-6 flex h-11 w-11 items-center justify-center rounded-xl bg-white text-emerald-800 shadow-sm">
+                        <ParentIcon className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-lg font-black text-slate-950">{feature.title}</h3>
+                      <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">{feature.description}</p>
+                    </article>
+                  )
+                })}
+                <article className="rounded-xl border border-emerald-900/10 bg-emerald-50 p-5 shadow-sm sm:col-span-2">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-lg font-black text-emerald-950">Komunikasi dan tindak lanjut</h3>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-emerald-900/75">
+                        Panggilan orang tua, konfirmasi hadir, permintaan jadwal ulang, dan riwayat catatan sekolah dapat ditindaklanjuti dari portal.
+                      </p>
+                    </div>
+                    <MessageSquareText className="hidden h-10 w-10 shrink-0 text-emerald-700 sm:block" />
+                  </div>
+                </article>
               </div>
             </div>
           </section>
