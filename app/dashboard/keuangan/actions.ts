@@ -16,6 +16,18 @@ async function requireAuth(featureId: string) {
   return { db, userId: session.user.id }
 }
 
+async function requireAnyAuth(featureIds: string[]) {
+  const session = await getSession()
+  if (!session?.user) throw new Error('Unauthorized')
+  const db = await getDB()
+  for (const featureId of featureIds) {
+    if (await checkFeatureAccess(db, session.user.id, featureId)) {
+      return { db, userId: session.user.id }
+    }
+  }
+  throw new Error('Forbidden')
+}
+
 function generateId() {
   return crypto.randomUUID()
 }
@@ -851,7 +863,7 @@ export async function catatTransaksi(payload: {
     if (tabel) {
       stmts.push(db.prepare(`
         UPDATE ${tabel}
-        SET total_dibayar = total_dibayar + ?, updated_at = datetime('now')
+        SET total_dibayar = COALESCE(total_dibayar, 0) + ?, updated_at = datetime('now')
         WHERE id = ?
       `).bind(d.jumlah, d.refId))
     }
@@ -863,11 +875,14 @@ export async function catatTransaksi(payload: {
   await recalcTagihanStatus(db, payload.details)
 
   revalidatePath('/dashboard/keuangan')
+  revalidatePath('/dashboard/keuangan/dspt')
+  revalidatePath('/dashboard/keuangan/transaksi')
+  revalidatePath(`/dashboard/keuangan/siswa/${payload.siswaId}`)
   return { error: null, success: 'Transaksi berhasil disimpan', data: { transaksiId, nomorKuitansi } }
 }
 
 export async function voidTransaksi(transaksiId: string, alasan: string) {
-  const { db, userId } = await requireAuth('keuangan-koperasi')
+  const { db, userId } = await requireAnyAuth(['keuangan-dspt', 'keuangan-spp'])
 
   const trx = await db.prepare('SELECT * FROM fin_transaksi WHERE id = ?').bind(transaksiId).first<any>()
   if (!trx) return { error: 'Transaksi tidak ditemukan', success: null }
@@ -892,7 +907,7 @@ export async function voidTransaksi(transaksiId: string, alasan: string) {
     if (tabel) {
       stmts.push(db.prepare(`
         UPDATE ${tabel}
-        SET total_dibayar = MAX(0, total_dibayar - ?), updated_at = datetime('now')
+        SET total_dibayar = MAX(0, COALESCE(total_dibayar, 0) - ?), updated_at = datetime('now')
         WHERE id = ?
       `).bind(d.jumlah, d.ref_id))
     }
@@ -902,6 +917,9 @@ export async function voidTransaksi(transaksiId: string, alasan: string) {
   await recalcTagihanStatus(db, (details.results ?? []).map(d => ({ refType: d.ref_type, refId: d.ref_id, jumlah: d.jumlah })))
 
   revalidatePath('/dashboard/keuangan')
+  revalidatePath('/dashboard/keuangan/dspt')
+  revalidatePath('/dashboard/keuangan/transaksi')
+  if (trx.siswa_id) revalidatePath(`/dashboard/keuangan/siswa/${trx.siswa_id}`)
   return { error: null, success: 'Transaksi berhasil di-void' }
 }
 
@@ -928,13 +946,14 @@ export async function beriDiskon(payload: {
 
   await db.prepare(`
     UPDATE ${tabel}
-    SET total_diskon = total_diskon + ?, updated_at = datetime('now')
+    SET total_diskon = COALESCE(total_diskon, 0) + ?, updated_at = datetime('now')
     WHERE id = ?
   `).bind(payload.jumlah, payload.targetId).run()
 
   await recalcTagihanStatus(db, [{ refType: payload.targetType, refId: payload.targetId, jumlah: 0 }])
 
   revalidatePath('/dashboard/keuangan')
+  revalidatePath('/dashboard/keuangan/dspt')
   return { error: null, success: 'Keringanan berhasil diberikan' }
 }
 
@@ -950,7 +969,7 @@ export async function batalkanDiskon(diskonId: string) {
   await db.batch([
     db.prepare(`
       UPDATE ${tabel}
-      SET total_diskon = MAX(0, total_diskon - ?), updated_at = datetime('now')
+      SET total_diskon = MAX(0, COALESCE(total_diskon, 0) - ?), updated_at = datetime('now')
       WHERE id = ?
     `).bind(diskon.jumlah, diskon.target_id),
     db.prepare('DELETE FROM fin_diskon WHERE id = ?').bind(diskonId),
@@ -959,6 +978,7 @@ export async function batalkanDiskon(diskonId: string) {
   await recalcTagihanStatus(db, [{ refType: diskon.target_type, refId: diskon.target_id, jumlah: 0 }])
 
   revalidatePath('/dashboard/keuangan')
+  revalidatePath('/dashboard/keuangan/dspt')
   revalidatePath(`/dashboard/keuangan/siswa/${diskon.siswa_id}`)
   return { error: null, success: 'Keringanan berhasil dibatalkan' }
 }
@@ -1094,7 +1114,7 @@ export async function getDashboardStats(tahunAjaran?: string) {
 // ─── Buku Besar Siswa ───────────────────────────────────────────────────────
 
 export async function getBukuBesarSiswa(siswaId: string) {
-  const { db } = await requireAuth('keuangan-dspt')
+  const { db } = await requireAnyAuth(['keuangan-dspt', 'keuangan-spp'])
 
   const [siswa, dspt, sppTagihan, sppMulaiRow, sppSaldoAwal, transaksi, janjiList, diskonList] = await Promise.all([
     db.prepare(`

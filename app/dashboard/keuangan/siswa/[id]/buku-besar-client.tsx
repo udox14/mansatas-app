@@ -278,9 +278,13 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
     if (!voidModal) return
     if (!voidAlasan.trim()) { setMsg('Wajib mengisi alasan pembatalan'); return }
     startTransition(async () => {
-      const res = await voidTransaksi(voidModal, voidAlasan)
-      setMsg(res.error ?? res.success ?? '')
-      if (!res.error) { setVoidModal(null); setVoidAlasan(''); router.refresh() }
+      try {
+        const res = await voidTransaksi(voidModal, voidAlasan)
+        setMsg(res.error ?? res.success ?? '')
+        if (!res.error) { setVoidModal(null); setVoidAlasan(''); router.refresh() }
+      } catch {
+        setMsg('Gagal membatalkan transaksi. Periksa hak akses atau coba muat ulang halaman.')
+      }
     })
   }
 

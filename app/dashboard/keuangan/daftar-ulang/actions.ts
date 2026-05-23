@@ -126,7 +126,7 @@ export async function processDaftarUlang(
         userId,
       ))
       stmts.push(db.prepare(
-        "UPDATE fin_dspt SET total_diskon = total_diskon + ?, updated_at = datetime('now') WHERE id = ?"
+        "UPDATE fin_dspt SET total_diskon = COALESCE(total_diskon, 0) + ?, updated_at = datetime('now') WHERE id = ?"
       ).bind(params.dspt.diskon, dsptId))
     }
 
@@ -147,7 +147,7 @@ export async function processDaftarUlang(
         "INSERT INTO fin_transaksi_detail (id, transaksi_id, ref_type, ref_id, jumlah) VALUES (?, ?, 'dspt', ?, ?)"
       ).bind(generateId(), transaksiDsptId, dsptId, params.dspt.bayarSekarang))
       stmts.push(db.prepare(
-        "UPDATE fin_dspt SET total_dibayar = total_dibayar + ?, updated_at = datetime('now') WHERE id = ?"
+        "UPDATE fin_dspt SET total_dibayar = COALESCE(total_dibayar, 0) + ?, updated_at = datetime('now') WHERE id = ?"
       ).bind(params.dspt.bayarSekarang, dsptId))
     }
 
@@ -159,6 +159,8 @@ export async function processDaftarUlang(
     }
 
     revalidatePath('/dashboard/keuangan')
+    revalidatePath('/dashboard/keuangan/dspt')
+    revalidatePath('/dashboard/keuangan/transaksi')
     revalidatePath('/dashboard/keuangan/daftar-ulang')
     revalidatePath(`/dashboard/keuangan/siswa/${params.siswaId}`)
 
