@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { CheckCircle2, XCircle, AlertTriangle, CalendarCheck } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertTriangle, CalendarCheck, Clock3 } from 'lucide-react'
 
 type Row = { 
   jam_ke: number; 
@@ -32,6 +32,26 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
   }, [])
   const [active, setActive] = useState(defaultDay)
   const rows = jadwalByDay[Number(active)] || []
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'HADIR':
+        return 'Siswa hadir'
+      case 'SAKIT':
+        return 'Siswa sakit'
+      case 'IZIN':
+        return 'Siswa izin'
+      case 'ALFA':
+        return 'Siswa alfa'
+      case 'KBM_EXCEPTION':
+        return 'Kegiatan'
+      case 'BELUM_ADA_DATA':
+        return 'Belum diinput'
+      case 'LIBUR':
+        return 'Libur'
+      default:
+        return status
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -66,33 +86,48 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
           </div>
         ) : rows.map((j, idx) => {
           let statusColor = ''
+          let iconColor = ''
           let StatusIcon = null
           
           if (j.isToday && j.absensi) {
             switch (j.absensi.status) {
               case 'HADIR':
-                statusColor = 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                statusColor = 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                iconColor = 'bg-emerald-100 text-emerald-700'
                 StatusIcon = CheckCircle2
                 break
               case 'SAKIT':
               case 'IZIN':
-                statusColor = 'bg-amber-50 text-amber-600 border-amber-100'
+                statusColor = 'bg-amber-50 text-amber-700 border-amber-200'
+                iconColor = 'bg-amber-100 text-amber-700'
                 StatusIcon = AlertTriangle
                 break
               case 'ALFA':
-                statusColor = 'bg-rose-50 text-rose-600 border-rose-100'
+                statusColor = 'bg-rose-50 text-rose-700 border-rose-200'
+                iconColor = 'bg-rose-100 text-rose-700'
                 StatusIcon = XCircle
                 break
               case 'KBM_EXCEPTION':
-                statusColor = 'bg-sky-50 text-sky-600 border-sky-100'
+                statusColor = 'bg-sky-50 text-sky-700 border-sky-200'
+                iconColor = 'bg-sky-100 text-sky-700'
                 StatusIcon = CalendarCheck
+                break
+              case 'LIBUR':
+                statusColor = 'bg-slate-50 text-slate-700 border-slate-200'
+                iconColor = 'bg-slate-200 text-slate-700'
+                StatusIcon = CalendarCheck
+                break
+              case 'BELUM_ADA_DATA':
+                statusColor = 'bg-slate-50 text-slate-600 border-slate-200'
+                iconColor = 'bg-slate-200 text-slate-600'
+                StatusIcon = Clock3
                 break
             }
           }
 
           return (
             <div key={`${active}-${idx}`} className={`bg-white rounded-xl border p-4 flex items-stretch gap-4 shadow-sm transition-colors ${
-              j.isToday && j.absensi && !['HADIR', 'KBM_EXCEPTION'].includes(j.absensi.status) ? 'border-amber-200 hover:border-amber-300' : 'border-slate-200 hover:border-slate-300'
+              j.isToday && j.absensi && ['SAKIT', 'IZIN', 'ALFA'].includes(j.absensi.status) ? 'border-amber-200 hover:border-amber-300' : 'border-slate-200 hover:border-slate-300'
             }`}>
               {/* Time Badge */}
               <div className={`flex flex-col items-center justify-center rounded-lg px-3 py-2 min-w-[70px] shrink-0 border ${
@@ -102,14 +137,16 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
                 <span className={`font-semibold text-[12px] ${j.isToday ? 'text-sky-900' : 'text-slate-700'}`}>{j.waktu.split(' - ')[0]}</span>
               </div>
               
-              <div className="flex flex-col justify-center flex-1">
-                <div className="flex justify-between items-start gap-2">
-                  <h3 className="text-sm font-semibold text-slate-800 leading-tight">{j.mapel}</h3>
+              <div className="flex flex-col justify-center flex-1 min-w-0">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <h3 className="text-sm font-semibold text-slate-800 leading-tight min-w-0">{j.mapel}</h3>
                   
                   {j.isToday && j.absensi && StatusIcon && (
-                    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border text-[10px] font-bold tracking-wide ${statusColor}`} title="Status kehadiran anak pada jam pelajaran ini">
-                      <StatusIcon className="w-3 h-3" />
-                      {j.absensi.status === 'KBM_EXCEPTION' ? 'Kegiatan' : `Anak: ${j.absensi.status}`}
+                    <div className={`inline-flex w-fit max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none shadow-sm ${statusColor}`} title="Status kehadiran siswa pada jam pelajaran ini">
+                      <span className={`grid h-4 w-4 shrink-0 place-items-center rounded-full ${iconColor}`}>
+                        <StatusIcon className="h-2.5 w-2.5" />
+                      </span>
+                      <span className="truncate">{getStatusLabel(j.absensi.status)}</span>
                     </div>
                   )}
                 </div>

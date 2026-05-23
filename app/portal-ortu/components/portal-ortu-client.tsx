@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, XCircle, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, Send, ArrowLeft } from 'lucide-react'
+import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, XCircle, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, Send, ArrowLeft, Download } from 'lucide-react'
 import { MobileBottomNav } from './mobile-bottom-nav'
 import { ScheduleTabs } from './schedule-tabs'
 import { ChangePasswordForm } from './change-password-form'
@@ -386,7 +386,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Jadwal Pelajaran</h1>
-          <p className="text-sm text-slate-500 mt-1">Pantau rutinitas kelas harian.</p>
+          <p className="text-sm text-slate-500 mt-1">
+            Lihat jadwal kelas dan status absensi anak per jam pelajaran berdasarkan input guru.
+          </p>
         </div>
         <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-400">
           <CalendarDays className="h-6 w-6" />
@@ -661,8 +663,31 @@ export function PortalOrtuClient({ data }: { data: any }) {
                           <p className="text-sm font-semibold text-slate-800">Scan QRIS atau transfer rekening</p>
                           <p className="mt-1 text-xs leading-5 text-slate-500">Setelah membayar, lanjutkan ke konfirmasi WhatsApp dan kirim bukti pembayaran.</p>
                         </div>
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                          <img src="/QRISkomite.jpeg" alt="QRIS Komite MAN 1 Tasikmalaya" className="mx-auto max-h-[260px] w-full rounded-lg object-contain bg-white" />
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <button type="button" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100" aria-label="Perbesar QRIS Komite">
+                              <img src="/QRISkomite.jpeg" alt="QRIS Komite MAN 1 Tasikmalaya" className="mx-auto max-h-[260px] w-full rounded-lg object-contain bg-white" />
+                              <span className="mt-2 block text-center text-[11px] font-semibold text-slate-500">Ketuk gambar untuk memperbesar</span>
+                            </button>
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-xl rounded-2xl border-0 bg-white p-0 overflow-hidden">
+                            <DialogHeader className="border-b border-slate-100 p-5">
+                              <DialogTitle className="text-lg font-semibold text-slate-800">QRIS Komite</DialogTitle>
+                            </DialogHeader>
+                            <div className="bg-slate-50 p-4">
+                              <img src="/QRISkomite.jpeg" alt="QRIS Komite MAN 1 Tasikmalaya diperbesar" className="mx-auto max-h-[78vh] w-full rounded-xl object-contain bg-white" />
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                        <div>
+                          <a
+                            href="/QRISkomite.jpeg"
+                            download="QRISkomite.jpeg"
+                            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-emerald-600 hover:text-emerald-700"
+                          >
+                            <Download className="h-4 w-4" />
+                            Download QRIS
+                          </a>
                         </div>
                         <div className="grid gap-3">
                           <div className="rounded-xl border border-slate-200 p-4">
