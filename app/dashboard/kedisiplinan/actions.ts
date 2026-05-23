@@ -5,7 +5,7 @@ import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { uploadBuktiFoto, deleteFromR2, validateImageFile } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
-import { currentTimeWIB } from '@/lib/time'
+import { currentTimeWIB, todayWIB } from '@/lib/time'
 // import { formatNamaKelas } from '@/lib/utils'
 import { revalidatePath } from 'next/cache'
 
@@ -93,12 +93,32 @@ function excelSerialToDate(serial: number) {
   return new Date(utcValue * 1000)
 }
 
+function formatValidDateParts(year: number, month: number, day: number) {
+  const date = new Date(year, month - 1, day)
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return ''
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function isNotFutureDate(dateStr: string) {
+  return !!dateStr && dateStr <= todayWIB()
+}
+
+function chooseNonFutureDate(year: number, month: number, day: number, swappedMonth?: number, swappedDay?: number) {
+  const primary = formatValidDateParts(year, month, day)
+  const swapped = swappedMonth && swappedDay ? formatValidDateParts(year, swappedMonth, swappedDay) : ''
+
+  if (isNotFutureDate(primary)) return primary
+  if (isNotFutureDate(swapped)) return swapped
+  return ''
+}
+
 function normalizeImportedDate(raw: unknown) {
   if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
     const y = raw.getFullYear()
     const m = String(raw.getMonth() + 1).padStart(2, '0')
     const d = String(raw.getDate()).padStart(2, '0')
-    return `${y}-${m}-${d}`
+    const normalized = `${y}-${m}-${d}`
+    return isNotFutureDate(normalized) ? normalized : ''
   }
 
   if (typeof raw === 'number' && Number.isFinite(raw)) {
@@ -107,7 +127,8 @@ function normalizeImportedDate(raw: unknown) {
       const y = date.getUTCFullYear()
       const m = String(date.getUTCMonth() + 1).padStart(2, '0')
       const d = String(date.getUTCDate()).padStart(2, '0')
-      return `${y}-${m}-${d}`
+      const normalized = `${y}-${m}-${d}`
+      return isNotFutureDate(normalized) ? normalized : ''
     }
   }
 
@@ -116,25 +137,15 @@ function normalizeImportedDate(raw: unknown) {
   const dateOnly = text.split(/[ T]/)[0].trim()
   const iso = dateOnly.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (iso) {
+    const year = Number(iso[1])
     const middle = Number(iso[2])
     const last = Number(iso[3])
-
-    if (middle >= 1 && middle <= 12 && last >= 1 && last <= 31) {
-      return `${iso[1]}-${iso[2]}-${iso[3]}`
-    }
-
-    if (middle > 12 && middle <= 31 && last >= 1 && last <= 12) {
-      return `${iso[1]}-${iso[3]}-${iso[2]}`
-    }
-
-    return ''
+    return chooseNonFutureDate(year, middle, last, last, middle)
   }
 
   const slash = dateOnly.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/)
   if (slash) {
-    const day = slash[1].padStart(2, '0')
-    const month = slash[2].padStart(2, '0')
-    return `${slash[3]}-${month}-${day}`
+    return chooseNonFutureDate(Number(slash[3]), Number(slash[2]), Number(slash[1]), Number(slash[1]), Number(slash[2]))
   }
 
   const parsed = new Date(dateOnly)
@@ -142,7 +153,8 @@ function normalizeImportedDate(raw: unknown) {
   const y = parsed.getFullYear()
   const m = String(parsed.getMonth() + 1).padStart(2, '0')
   const d = String(parsed.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+  const normalized = `${y}-${m}-${d}`
+  return isNotFutureDate(normalized) ? normalized : ''
 }
 
 function normalizeImportedTime(raw: unknown) {

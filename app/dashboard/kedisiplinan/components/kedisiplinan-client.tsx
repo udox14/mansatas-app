@@ -28,6 +28,7 @@ import {
 } from '../actions'
 import { cn } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
+import { todayWIB } from '@/lib/time'
 
 // ── Sanksi helpers ──────────────────────────────────────────
 function getSanksiForPoin(poin: number, sanksiList: SanksiConfig[]): SanksiConfig | null {
@@ -44,6 +45,27 @@ function getSanksiStyle(urutan: number) {
 const AMAN_STYLE = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
 const naturalSorter = new Intl.Collator('id-ID', { numeric: true, sensitivity: 'base' })
 
+function buildTanggalDate(year: number, month: number, day: number) {
+  const date = new Date(year, month - 1, day)
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null
+  return date
+}
+
+function todayDateValue() {
+  const [year, month, day] = todayWIB().split('-').map(Number)
+  return buildTanggalDate(year, month, day) ?? new Date()
+}
+
+function chooseTanggalDate(year: number, month: number, day: number, swappedMonth?: number, swappedDay?: number) {
+  const primary = buildTanggalDate(year, month, day)
+  const swapped = swappedMonth && swappedDay ? buildTanggalDate(year, swappedMonth, swappedDay) : null
+  const today = todayDateValue()
+
+  if (primary && primary.getTime() <= today.getTime()) return primary
+  if (swapped && swapped.getTime() <= today.getTime()) return swapped
+  return null
+}
+
 function parseTanggalValue(raw: string | null | undefined) {
   const value = String(raw ?? '').trim()
   if (!value) return null
@@ -55,17 +77,12 @@ function parseTanggalValue(raw: string | null | undefined) {
     const middle = Number(isoMatch[2])
     const last = Number(isoMatch[3])
 
-    if (middle >= 1 && middle <= 12 && last >= 1 && last <= 31) {
-      return new Date(year, middle - 1, last)
-    }
-
-    if (middle > 12 && middle <= 31 && last >= 1 && last <= 12) {
-      return new Date(year, last - 1, middle)
-    }
+    return chooseTanggalDate(year, middle, last, last, middle)
   }
 
   const fallback = new Date(value)
   if (Number.isNaN(fallback.getTime())) return null
+  if (fallback.getTime() > todayDateValue().getTime()) return null
   return fallback
 }
 

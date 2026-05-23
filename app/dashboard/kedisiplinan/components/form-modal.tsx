@@ -15,6 +15,22 @@ import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 const initialState = null as any
 
+function formatDateInputParts(year: number, month: number, day: number) {
+  const date = new Date(year, month - 1, day)
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return ''
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function chooseDateInputValue(year: number, month: number, day: number, fallback: string, swappedMonth?: number, swappedDay?: number) {
+  const primary = formatDateInputParts(year, month, day)
+  const swapped = swappedMonth && swappedDay ? formatDateInputParts(year, swappedMonth, swappedDay) : ''
+  const today = todayWIB()
+
+  if (primary && primary <= today) return primary
+  if (swapped && swapped <= today) return swapped
+  return fallback
+}
+
 function toDateInputValue(raw: string | null | undefined, fallback: string) {
   const value = String(raw ?? '').trim()
   if (!value) return fallback
@@ -22,10 +38,10 @@ function toDateInputValue(raw: string | null | undefined, fallback: string) {
   const normalized = value.split(/[ T]/)[0]?.trim() || value
   const iso = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (iso) {
+    const year = Number(iso[1])
     const middle = Number(iso[2])
     const last = Number(iso[3])
-    if (middle >= 1 && middle <= 12 && last >= 1 && last <= 31) return `${iso[1]}-${iso[2]}-${iso[3]}`
-    if (middle > 12 && middle <= 31 && last >= 1 && last <= 12) return `${iso[1]}-${iso[3]}-${iso[2]}`
+    return chooseDateInputValue(year, middle, last, fallback, last, middle)
   }
 
   return fallback
