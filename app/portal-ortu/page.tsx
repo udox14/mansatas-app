@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAppSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { PortalOrtuClient } from './components/portal-ortu-client'
-import { findSlotException, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
+import { findSlotException, getKalenderDateStatus, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +14,8 @@ type SlotJam = { id: number; mulai: string; selesai: string }
 type PolaJam = { hari: number[]; slots: SlotJam[] }
 type TodayAbsensiRow = {
   penugasan_id: string
+  jam_ke_mulai: number | null
+  jam_ke_selesai: number | null
   status: string
   catatan: string | null
 }
@@ -386,21 +388,11 @@ export default async function PortalOrtuPage() {
   const semesterAvg = semesterNumeric.length ? Number((semesterNumeric.reduce((a, b) => a + b, 0) / semesterNumeric.length).toFixed(1)) : null
 
   const todayRaw = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
-  const todayDayMap = new Date(todayRaw).getDay()
+  const todayDayMap = new Date(`${todayRaw}T00:00:00`).getDay()
   const todayDay = todayDayMap === 0 ? 7 : todayDayMap
 
-  const todayAbsensiRows = await db.prepare(`
-    SELECT penugasan_id, status, catatan
-    FROM absensi_siswa
-    WHERE siswa_id = ? AND tanggal = ?
-  `).bind(siswaId, todayRaw).all<TodayAbsensiRow>()
-  
-  const todayAbsensiMap = new Map<string, { status: string; catatan: string | null }>()
-  for (const row of todayAbsensiRows.results || []) {
-    todayAbsensiMap.set(row.penugasan_id, { status: row.status, catatan: row.catatan })
-  }
-
   const jamMap = parseJamPelajaran(taAktif?.jam_pelajaran)
+  const calendarStatus = await getKalenderDateStatus(db, todayRaw)
   const kbmExceptions = profil.kelas_id ? await getKbmExceptionsForDate(db, todayRaw) : []
   const jadwalRows = profil.kelas_id
     ? await db.prepare(`
@@ -416,25 +408,70 @@ export default async function PortalOrtuPage() {
     `).bind(profil.kelas_id, taAktif?.id || '', todayRaw).all<any>()
     : { results: [] as any[] }
 
+  const todayPenugasanIds = Array.from(
+    new Set(
+      (jadwalRows.results || [])
+        .filter((row: any) => Number(row.hari) === todayDay)
+        .map((row: any) => row.penugasan_id)
+        .filter(Boolean)
+    )
+  )
+  const todaySubmittedSet = new Set<string>()
+  if (todayPenugasanIds.length > 0) {
+    const placeholders = todayPenugasanIds.map(() => '?').join(',')
+    const sesiRows = await db.prepare(`
+      SELECT penugasan_id
+      FROM absensi_sesi_guru
+      WHERE tanggal = ? AND penugasan_id IN (${placeholders})
+    `).bind(todayRaw, ...todayPenugasanIds).all<{ penugasan_id: string }>()
+    for (const row of sesiRows.results || []) {
+      todaySubmittedSet.add(row.penugasan_id)
+    }
+  }
+
+  const todayAbsensiRows = await db.prepare(`
+    SELECT penugasan_id, jam_ke_mulai, jam_ke_selesai, status, catatan
+    FROM absensi_siswa
+    WHERE siswa_id = ? AND tanggal = ?
+  `).bind(siswaId, todayRaw).all<TodayAbsensiRow>()
+
+  const todayAbsensiMap = new Map<string, { status: string; catatan: string | null }>()
+  for (const row of todayAbsensiRows.results || []) {
+    const start = Number(row.jam_ke_mulai || 0)
+    const end = Number(row.jam_ke_selesai || start)
+    if (start > 0 && end >= start) {
+      for (let jam = start; jam <= end; jam++) {
+        todayAbsensiMap.set(`${row.penugasan_id}__${jam}`, { status: row.status, catatan: row.catatan })
+      }
+    } else {
+      todayAbsensiMap.set(`${row.penugasan_id}__all`, { status: row.status, catatan: row.catatan })
+    }
+  }
+
   const jadwalByDay = new Map<number, any[]>()
   for (const row of (jadwalRows.results || [])) {
     const hari = Number(row.hari)
     if (!jadwalByDay.has(hari)) jadwalByDay.set(hari, [])
+    const jamKe = Number(row.jam_ke)
     const slot = jamMap.get(hari)?.get(Number(row.jam_ke))
     let absensi = null
     if (hari === todayDay) {
       const exception = findSlotException(
         kbmExceptions,
         { id: profil.kelas_id, tingkat: Number(profil.tingkat) },
-        Number(row.jam_ke)
+        jamKe
       )
-      const absRecord = todayAbsensiMap.get(row.penugasan_id)
-      if (exception) {
+      const absRecord = todayAbsensiMap.get(`${row.penugasan_id}__${jamKe}`) || todayAbsensiMap.get(`${row.penugasan_id}__all`)
+      if (!calendarStatus.isEffective) {
+        absensi = { status: 'LIBUR', catatan: calendarStatus.reason || 'Hari libur' }
+      } else if (exception) {
         absensi = { status: 'KBM_EXCEPTION', catatan: exception.description || exception.judul }
       } else if (absRecord) {
         absensi = absRecord
-      } else {
+      } else if (todaySubmittedSet.has(row.penugasan_id)) {
         absensi = { status: 'HADIR', catatan: null }
+      } else {
+        absensi = { status: 'BELUM_ADA_DATA', catatan: 'Absensi jam ini belum diinput oleh guru.' }
       }
     }
 
