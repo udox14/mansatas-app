@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { Mail, Lock, Loader2, ArrowRight, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react'
-import Link from 'next/link'
 
 export default function LoginClient() {
   const [email, setEmail] = useState('')
@@ -93,12 +92,7 @@ export default function LoginClient() {
           </form>
 
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[10px] text-slate-400">
-            <ShieldCheck className="h-3 w-3 text-emerald-500" /> Sistem terenkripsi & aman
-          </div>
-          <div className="mt-2 text-center">
-            <Link href="/portal-ortu/login" className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800">
-              Login Orang Tua Siswa
-            </Link>
+            <ShieldCheck className="h-3 w-3 text-emerald-500" /> Akses khusus pegawai MAN 1 Tasikmalaya
           </div>
         </div>
       </div>

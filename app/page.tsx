@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { getCurrentUser } from '@/utils/auth/server'
+import { getAppSession } from '@/utils/auth/server'
 import { MENU_ITEMS } from '@/config/menu'
 import {
   ArrowRight,
@@ -167,10 +167,12 @@ const advantages = [
 ]
 
 export default async function LandingPage() {
-  const user = await getCurrentUser()
-  const primaryHref = user ? '/dashboard' : '/login'
-  const primaryLabel = user ? 'Buka Dashboard' : 'Masuk ke MANSATAS'
-  const PrimaryIcon = user ? LayoutDashboard : LogIn
+  const session = await getAppSession()
+  const isStaff = session?.kind === 'staff'
+  const isParent = session?.kind === 'parent'
+  const primaryHref = isParent ? '/portal-ortu' : isStaff ? '/dashboard' : '/login'
+  const primaryLabel = isParent ? 'Buka Portal Orang Tua' : isStaff ? 'Buka Dashboard' : 'Login Pegawai'
+  const PrimaryIcon = isParent || isStaff ? LayoutDashboard : LogIn
 
   return (
     <div className="h-[100dvh] overflow-y-auto bg-[#f5f8f2] text-[#111827] selection:bg-emerald-200 selection:text-emerald-950">
@@ -211,14 +213,34 @@ export default async function LandingPage() {
             <a href="#keamanan" className="hover:text-emerald-800">Keamanan</a>
           </nav>
 
-          <Link
-            href={primaryHref}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-bold text-white shadow-[0_10px_30px_rgba(15,23,42,0.16)] transition hover:-translate-y-0.5 hover:bg-emerald-950 sm:px-5"
-          >
-            <PrimaryIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">{primaryLabel}</span>
-            <span className="sm:hidden">Masuk</span>
-          </Link>
+          {session ? (
+            <Link
+              href={primaryHref}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-bold text-white shadow-[0_10px_30px_rgba(15,23,42,0.16)] transition hover:-translate-y-0.5 hover:bg-emerald-950 sm:px-5"
+            >
+              <PrimaryIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">{primaryLabel}</span>
+              <span className="sm:hidden">Buka</span>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link
+                href="/login"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 text-sm font-bold text-white shadow-[0_10px_30px_rgba(15,23,42,0.16)] transition hover:-translate-y-0.5 hover:bg-emerald-950 sm:px-4"
+              >
+                <LogIn className="h-4 w-4" />
+                <span className="hidden sm:inline">Login Pegawai</span>
+                <span className="sm:hidden">Pegawai</span>
+              </Link>
+              <Link
+                href="/portal-ortu/login"
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-900/20 bg-white/90 px-3 text-sm font-bold text-emerald-950 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-700 hover:bg-white sm:px-4"
+              >
+                <span className="hidden sm:inline">Login Orang Tua</span>
+                <span className="sm:hidden">Ortu</span>
+              </Link>
+            </div>
+          )}
         </header>
 
         <main className="relative z-10">
@@ -238,13 +260,34 @@ export default async function LandingPage() {
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  href={primaryHref}
-                  className="group inline-flex h-14 items-center justify-center gap-3 rounded-xl bg-emerald-700 px-6 text-sm font-black text-white shadow-[0_18px_40px_rgba(4,120,87,0.24)] transition hover:-translate-y-0.5 hover:bg-emerald-800"
-                >
-                  <span>{primaryLabel}</span>
-                  <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-                </Link>
+                {session ? (
+                  <Link
+                    href={primaryHref}
+                    className="group inline-flex h-14 items-center justify-center gap-3 rounded-xl bg-emerald-700 px-6 text-sm font-black text-white shadow-[0_18px_40px_rgba(4,120,87,0.24)] transition hover:-translate-y-0.5 hover:bg-emerald-800"
+                  >
+                    <span>{primaryLabel}</span>
+                    <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      href="/login"
+                      className="group inline-flex h-14 items-center justify-center gap-3 rounded-xl bg-emerald-700 px-6 text-sm font-black text-white shadow-[0_18px_40px_rgba(4,120,87,0.24)] transition hover:-translate-y-0.5 hover:bg-emerald-800"
+                    >
+                      <LogIn className="h-4 w-4" />
+                      <span>Login Pegawai</span>
+                      <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                    </Link>
+                    <Link
+                      href="/portal-ortu/login"
+                      className="group inline-flex h-14 items-center justify-center gap-3 rounded-xl border border-emerald-900/20 bg-white/90 px-6 text-sm font-black text-emerald-950 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-700 hover:bg-white"
+                    >
+                      <UsersRound className="h-4 w-4" />
+                      <span>Login Orang Tua</span>
+                      <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                    </Link>
+                  </>
+                )}
                 <a
                   href="#layanan"
                   className="inline-flex h-14 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white/85 px-6 text-sm font-black text-slate-800 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-700 hover:text-emerald-900"
