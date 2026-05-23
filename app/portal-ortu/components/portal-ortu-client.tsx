@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, XCircle, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone } from 'lucide-react'
+import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, XCircle, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, Send, ArrowLeft } from 'lucide-react'
 import { MobileBottomNav } from './mobile-bottom-nav'
 import { ScheduleTabs } from './schedule-tabs'
 import { ChangePasswordForm } from './change-password-form'
@@ -18,6 +18,9 @@ function rupiah(v: number) {
 export function PortalOrtuClient({ data }: { data: any }) {
   const [activeTab, setActiveTab] = useState('beranda')
   const [hiddenNotifications, setHiddenNotifications] = useState<Set<string>>(new Set())
+  const [paymentOpen, setPaymentOpen] = useState(false)
+  const [paymentStep, setPaymentStep] = useState<1 | 2 | 3>(1)
+  const [paymentAmount, setPaymentAmount] = useState('')
 
   const {
     profil,
@@ -46,6 +49,52 @@ export function PortalOrtuClient({ data }: { data: any }) {
   } = data
 
   const initialLetter = String(profil.nama_lengkap || 'S').slice(0, 1)
+  const paymentAmountNumber = Number(paymentAmount || 0)
+  const isPaymentAmountValid = paymentAmountNumber > 0 && paymentAmountNumber <= Number(dsptSisa || 0)
+  const komiteWaNumber = '6282215860650'
+  const komiteAccount = 'BJB Syariah: 5160256984318 a.n. Komite MAN 1 Tasikmalaya'
+
+  const resetPaymentWizard = () => {
+    setPaymentStep(1)
+    setPaymentAmount('')
+  }
+
+  const buildWaUrl = (message: string) => `https://wa.me/${komiteWaNumber}?text=${encodeURIComponent(message)}`
+
+  const dsptWaUrl = buildWaUrl([
+    "Assalamu'alaikum Pak Dindin Solahudin.",
+    '',
+    'Saya orang tua/wali dari:',
+    `Nama siswa: ${profil.nama_lengkap || '-'}`,
+    `Kelas: ${kelasLabel}`,
+    `NISN: ${profil.nisn || '-'}`,
+    '',
+    `Saya telah melakukan pembayaran DSPT sebesar Rp ${rupiah(paymentAmountNumber)} melalui QRIS/Rekening Komite MAN 1 Tasikmalaya.`,
+    '',
+    'Mohon dibantu konfirmasi pembayaran. Saya akan mengirimkan foto atau screenshot bukti pembayaran pada chat ini.',
+    '',
+    'Terima kasih.',
+  ].join('\n'))
+
+  const sppWaUrl = buildWaUrl([
+    "Assalamu'alaikum Pak Dindin Solahudin.",
+    '',
+    'Saya orang tua/wali dari:',
+    `Nama siswa: ${profil.nama_lengkap || '-'}`,
+    `Kelas: ${kelasLabel}`,
+    `NISN: ${profil.nisn || '-'}`,
+    '',
+    `Saya ingin konsultasi/konfirmasi penyelesaian tunggakan SPP sebesar Rp ${rupiah(Number(sppSisa || 0))}.`,
+    '',
+    'Mohon arahan untuk pembayaran via WhatsApp atau datang langsung ke sekolah.',
+    '',
+    'Terima kasih.',
+  ].join('\n'))
+  const quickPaymentAmounts = [
+    { label: 'Bayar Sisa', value: Number(dsptSisa || 0) },
+    { label: 'Rp 500.000', value: 500000 },
+    { label: 'Rp 1.000.000', value: 1000000 },
+  ].filter((item) => item.value > 0 && item.value <= Number(dsptSisa || 0))
 
   const StandardCard = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
     <div className={`bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 ${className}`}>
@@ -506,16 +555,21 @@ export function PortalOrtuClient({ data }: { data: any }) {
             <Wallet className="w-32 h-32 -mr-8 -mt-8" />
           </div>
           <div className="relative z-10 flex flex-col h-full justify-between gap-6">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center gap-3">
               <span className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                  <span className="p-1.5 bg-slate-100 rounded-md"><Wallet className="w-4 h-4 text-slate-600" /></span>
                  DSPT
               </span>
+              {dsptSisa <= 0 && (
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                  Lunas
+                </span>
+              )}
             </div>
             
             <div>
               <p className="text-slate-500 text-xs font-medium uppercase tracking-wide mb-1">Sisa Tagihan</p>
-              <p className="text-2xl font-bold text-rose-600">Rp {rupiah(dsptSisa)}</p>
+              <p className={`text-2xl font-bold ${dsptSisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>Rp {rupiah(dsptSisa)}</p>
             </div>
             
             <div className="flex justify-between items-end border-t border-slate-100 pt-4 mt-2">
@@ -528,41 +582,201 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 <p className="text-sm font-semibold text-emerald-600 mt-0.5">Rp {rupiah(dsptBayar + dsptDiskon)}</p>
               </div>
             </div>
+            {dsptSisa > 0 && (
+              <Dialog
+                open={paymentOpen}
+                onOpenChange={(open) => {
+                  setPaymentOpen(open)
+                  if (!open) resetPaymentWizard()
+                }}
+              >
+                <DialogTrigger asChild>
+                  <button className="h-11 w-full rounded-xl bg-slate-900 px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800">
+                    Bayar DSPT
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md rounded-2xl p-0 border-0 overflow-hidden bg-white">
+                  <DialogHeader className="border-b border-slate-100 bg-slate-950 p-5 text-left text-white">
+                    <DialogTitle className="text-lg font-semibold">Pembayaran DSPT</DialogTitle>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      {[1, 2, 3].map((step) => (
+                        <div key={step} className={`h-1.5 rounded-full ${paymentStep >= step ? 'bg-emerald-400' : 'bg-white/15'}`} />
+                      ))}
+                    </div>
+                  </DialogHeader>
+
+                  <div className="p-5">
+                    {paymentStep === 1 && (
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">Masukkan nominal pembayaran</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">Boleh membayar sebagian atau melunasi sesuai sisa DSPT.</p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sisa DSPT</p>
+                          <p className="mt-1 text-2xl font-bold text-rose-600">Rp {rupiah(dsptSisa)}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wide text-slate-500">Nominal dibayar</label>
+                          <div className="relative mt-1">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">Rp</span>
+                            <input
+                              inputMode="numeric"
+                              value={paymentAmount ? rupiah(paymentAmountNumber) : ''}
+                              onChange={(e) => setPaymentAmount(e.target.value.replace(/\D/g, ''))}
+                              placeholder="0"
+                              className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-base font-bold text-slate-900 outline-none focus:border-emerald-600"
+                            />
+                          </div>
+                          {paymentAmount && !isPaymentAmountValid && (
+                            <p className="mt-2 text-xs font-medium text-rose-600">Nominal harus lebih dari 0 dan tidak boleh melebihi sisa DSPT.</p>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {quickPaymentAmounts.map((item) => (
+                            <button
+                              key={item.label}
+                              type="button"
+                              onClick={() => setPaymentAmount(String(item.value))}
+                              className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 hover:border-emerald-600 hover:text-emerald-700"
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!isPaymentAmountValid}
+                          onClick={() => setPaymentStep(2)}
+                          className="h-11 w-full rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Lanjut ke Pembayaran
+                        </button>
+                      </div>
+                    )}
+
+                    {paymentStep === 2 && (
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800">Scan QRIS atau transfer rekening</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">Setelah membayar, lanjutkan ke konfirmasi WhatsApp dan kirim bukti pembayaran.</p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <img src="/QRISkomite.jpeg" alt="QRIS Komite MAN 1 Tasikmalaya" className="mx-auto max-h-[260px] w-full rounded-lg object-contain bg-white" />
+                        </div>
+                        <div className="grid gap-3">
+                          <div className="rounded-xl border border-slate-200 p-4">
+                            <div className="flex items-start gap-3">
+                              <QrCode className="mt-0.5 h-5 w-5 text-emerald-600" />
+                              <div>
+                                <p className="text-sm font-bold text-slate-800">QRIS Komite</p>
+                                <p className="text-xs text-slate-500">Gunakan QRIS di atas jika membayar dari e-wallet/mobile banking.</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-slate-200 p-4">
+                            <div className="flex items-start gap-3">
+                              <Landmark className="mt-0.5 h-5 w-5 text-sky-600" />
+                              <div>
+                                <p className="text-sm font-bold text-slate-800">{komiteAccount}</p>
+                                <p className="mt-1 text-xs text-slate-500">Nominal DSPT: Rp {rupiah(paymentAmountNumber)}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => setPaymentStep(1)} className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700">
+                            <ArrowLeft className="mr-1 inline h-4 w-4" />
+                            Kembali
+                          </button>
+                          <button type="button" onClick={() => setPaymentStep(3)} className="h-11 flex-1 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white">
+                            Saya Sudah Bayar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {paymentStep === 3 && (
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+                          <p className="text-sm font-bold text-emerald-900">Konfirmasi pembayaran ke komite</p>
+                          <p className="mt-2 text-xs leading-5 text-emerald-800">Pembayaran akan tercatat di riwayat setelah komite memverifikasi dan memasukkannya di menu keuangan.</p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 p-4 text-sm text-slate-700">
+                          <div className="flex justify-between gap-3">
+                            <span className="text-slate-500">Nama siswa</span>
+                            <span className="text-right font-semibold">{profil.nama_lengkap}</span>
+                          </div>
+                          <div className="mt-2 flex justify-between gap-3">
+                            <span className="text-slate-500">Kelas</span>
+                            <span className="text-right font-semibold">{kelasLabel}</span>
+                          </div>
+                          <div className="mt-2 flex justify-between gap-3">
+                            <span className="text-slate-500">Nominal</span>
+                            <span className="text-right font-semibold">Rp {rupiah(paymentAmountNumber)}</span>
+                          </div>
+                        </div>
+                        <a href={dsptWaUrl} target="_blank" className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white">
+                          <Send className="h-4 w-4" />
+                          Konfirmasi via WhatsApp
+                        </a>
+                        <button type="button" onClick={() => setPaymentOpen(false)} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700">
+                          Tutup
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </div>
 
-        {/* SPP Card */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm relative overflow-hidden">
-          <div className="relative z-10 flex flex-col h-full justify-between gap-4">
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm font-semibold text-slate-800">Tunggakan SPP</span>
-              </div>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Keterangan: Sekolah sudah tidak memberlakukan SPP bulanan. Tunggakan ini hanya berlaku untuk siswa yang sudah bersekolah di sini sebelum kebijakan SPP dihapuskan.
-              </p>
-            </div>
-            
-            <div className="flex items-end justify-between bg-slate-50 border border-slate-100 p-4 rounded-xl">
+        {sppSisa > 0 && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm relative overflow-hidden">
+            <div className="relative z-10 flex flex-col h-full justify-between gap-4">
               <div>
-                <p className="text-slate-500 text-[10px] font-medium uppercase tracking-wide mb-1">Total Tagihan Awal</p>
-                <p className="text-lg font-bold text-slate-800">Rp {rupiah(sppNominal)}</p>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-sm font-semibold text-slate-800">Tunggakan SPP</span>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  SPP bulanan sudah tidak diberlakukan. Tunggakan ini hanya berlaku untuk siswa/angkatan sebelum kebijakan penghapusan kewajiban SPP. Penyelesaian dapat dilakukan via WhatsApp komite atau datang langsung ke sekolah.
+                </p>
               </div>
-              <div className="text-right">
-                <p className="text-slate-500 text-[10px] font-medium uppercase tracking-wide mb-1">Sisa Tunggakan</p>
-                <p className="text-xl font-bold text-rose-600">Rp {rupiah(sppSisa)}</p>
+              
+              <div className="flex items-end justify-between bg-slate-50 border border-slate-100 p-4 rounded-xl">
+                <div>
+                  <p className="text-slate-500 text-[10px] font-medium uppercase tracking-wide mb-1">Total Tagihan Awal</p>
+                  <p className="text-lg font-bold text-slate-800">Rp {rupiah(sppNominal)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-slate-500 text-[10px] font-medium uppercase tracking-wide mb-1">Sisa Tunggakan</p>
+                  <p className="text-xl font-bold text-rose-600">Rp {rupiah(sppSisa)}</p>
+                </div>
               </div>
+
+              <a
+                href={sppWaUrl}
+                target="_blank"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-bold text-emerald-700 hover:bg-emerald-100"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Hubungi Komite
+              </a>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="pt-2">
-        <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1 mb-3">Riwayat Pembayaran Terakhir</h2>
+        <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1 mb-1">Riwayat Pembayaran Terkonfirmasi</h2>
+        <p className="text-xs text-slate-500 leading-5 ml-1 mb-3">
+          Pembayaran DSPT/SPP akan muncul di sini setelah diverifikasi dan dicatat oleh komite.
+        </p>
         <div className="space-y-3">
           {(transaksiTerbaru.results || []).length === 0 ? (
             <div className="text-center py-6 bg-white border border-slate-200 border-dashed rounded-2xl">
-              <p className="text-sm text-slate-500">Belum ada transaksi terekam.</p>
+              <p className="text-sm text-slate-500">Belum ada pembayaran terkonfirmasi.</p>
             </div>
           ) : (transaksiTerbaru.results || []).map((t: any, i: number) => (
             <StandardCard key={`${t.nomor_kuitansi}-${i}`} className="flex items-center justify-between py-4">
