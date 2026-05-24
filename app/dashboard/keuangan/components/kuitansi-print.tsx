@@ -585,6 +585,22 @@ function KuitansiDuplikatPage({ data }: { data: KuitansiData }) {
   )
 }
 
+function KuitansiPembayarPage({ data }: { data: KuitansiData }) {
+  return (
+    <div style={{
+      width: A4_WIDTH,
+      height: A4_HEIGHT,
+      margin: '0 auto',
+      backgroundColor: '#fff',
+      position: 'relative',
+      boxSizing: 'border-box',
+      overflow: 'hidden',
+    }}>
+      <KuitansiContent data={data} copyLabel="Lembar Pembayar" />
+    </div>
+  )
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 //  Modal Pengaturan Nama Petugas
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -739,9 +755,10 @@ interface KuitansiModalProps {
   data: KuitansiData | null
   open: boolean
   onClose: () => void
+  mode?: 'duplikat' | 'pembayar'
 }
 
-export function KuitansiModal({ data, open, onClose }: KuitansiModalProps) {
+export function KuitansiModal({ data, open, onClose, mode = 'duplikat' }: KuitansiModalProps) {
   const printRef = useRef<HTMLDivElement>(null)
 
   const handlePrint = useReactToPrint({
@@ -754,6 +771,7 @@ export function KuitansiModal({ data, open, onClose }: KuitansiModalProps) {
 
   const isKoperasi = data.kategori === 'Koperasi'
   const accentCls  = isKoperasi ? 'bg-green-50 dark:bg-green-900/20 border-green-200' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800'
+  const isPembayarOnly = mode === 'pembayar'
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
@@ -776,7 +794,7 @@ export function KuitansiModal({ data, open, onClose }: KuitansiModalProps) {
                 className={`h-8 text-xs gap-1.5 ${isKoperasi ? 'bg-green-700 hover:bg-green-800' : ''}`}
                 onClick={() => handlePrint()}
               >
-                <Printer className="h-3.5 w-3.5" /> Cetak A4 Ganda
+                <Printer className="h-3.5 w-3.5" /> {isPembayarOnly ? 'Simpan/Cetak PDF' : 'Cetak A4 Ganda'}
               </Button>
             </div>
           </div>
@@ -792,7 +810,7 @@ export function KuitansiModal({ data, open, onClose }: KuitansiModalProps) {
               width: '100%',
             }}>
               <div ref={printRef}>
-                <KuitansiDuplikatPage data={data} />
+                {isPembayarOnly ? <KuitansiPembayarPage data={data} /> : <KuitansiDuplikatPage data={data} />}
               </div>
             </div>
           </div>
