@@ -10,6 +10,7 @@ import { SummonResponseForm } from './summon-response-form'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { getParentSemesterGrades, markParentNotificationRead } from '../actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
+import { KuitansiModal, type KuitansiData } from '@/app/dashboard/keuangan/components/kuitansi-print'
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
@@ -31,6 +32,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [paymentAmount, setPaymentAmount] = useState('')
   const [expandedSemester, setExpandedSemester] = useState<number | null>(null)
   const [semesterDetails, setSemesterDetails] = useState<Record<number, SemesterDetailState>>({})
+  const [kuitansiData, setKuitansiData] = useState<KuitansiData | null>(null)
+  const [kuitansiOpen, setKuitansiOpen] = useState(false)
 
   const {
     profil,
@@ -146,6 +149,37 @@ export function PortalOrtuClient({ data }: { data: any }) {
         [semesterNumber]: { loading: false, error: 'Gagal memuat nilai semester.' },
       }))
     }
+  }
+
+  const openKuitansi = (row: any) => {
+    const kategoriLabel = row.kategori === 'dspt' ? 'DSPT' : row.kategori === 'spp' ? 'SPP' : 'Koperasi'
+    const sisaTunggakan = row.kategori === 'dspt'
+      ? Number(dsptSisa || 0)
+      : row.kategori === 'spp'
+        ? Number(sppSisa || 0)
+        : 0
+
+    setKuitansiData({
+      nomorKuitansi: row.nomor_kuitansi,
+      tanggal: row.created_at,
+      kategori: kategoriLabel,
+      namaSiswa: profil.nama_lengkap || '-',
+      nisn: profil.nisn || '-',
+      kelas: kelasLabel || '-',
+      namaPerugas: row.nama_input || 'Bendahara Komite',
+      metodeBayar: row.metode_bayar === 'tunai' ? 'Tunai' : 'Transfer Bank',
+      jumlahDiserahkan: Number(row.jumlah_total || 0),
+      jumlahTagihan: Number(row.jumlah_total || 0),
+      rincianBayar: [{
+        label: row.kategori === 'dspt'
+          ? 'DSPT - Dana Sumbangan Pendidikan Tahunan'
+          : `Pembayaran ${kategoriLabel}`,
+        nominal: Number(row.jumlah_total || 0),
+      }],
+      sisaTunggakan: sisaTunggakan > 0 ? [{ label: `Sisa ${kategoriLabel}`, sisa: sisaTunggakan }] : [],
+      isLunas: true,
+    })
+    setKuitansiOpen(true)
   }
 
   const StandardCard = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
@@ -939,15 +973,14 @@ export function PortalOrtuClient({ data }: { data: any }) {
               </div>
               <div className="flex items-center justify-between gap-3 sm:justify-end">
                 <p className="text-sm font-bold text-slate-800">Rp {rupiah(Number(t.jumlah_total || 0))}</p>
-                <a
-                  href={`/portal-ortu/kuitansi/${t.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => openKuitansi(t)}
                   className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
                 >
                   <Download className="h-3.5 w-3.5" />
                   Kuitansi
-                </a>
+                </button>
               </div>
             </StandardCard>
           ))}
@@ -1044,6 +1077,15 @@ export function PortalOrtuClient({ data }: { data: any }) {
       </main>
 
       <MobileBottomNav activeTab={activeTab} onChange={setActiveTab} />
+      <KuitansiModal
+        data={kuitansiData}
+        open={kuitansiOpen}
+        onClose={() => {
+          setKuitansiOpen(false)
+          setKuitansiData(null)
+        }}
+        mode="pembayar"
+      />
     </div>
   )
 }

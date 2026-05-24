@@ -307,10 +307,12 @@ export default async function PortalOrtuPage() {
       WHERE siswa_id = ?
     `).bind(siswaId).first<any>(),
     db.prepare(`
-      SELECT id, nomor_kuitansi, kategori, metode_bayar, jumlah_total, created_at
-      FROM fin_transaksi
-      WHERE siswa_id = ? AND is_void = 0
-      ORDER BY created_at DESC
+      SELECT t.id, t.nomor_kuitansi, t.kategori, t.metode_bayar, t.jumlah_total, t.created_at,
+             u.nama_lengkap AS nama_input
+      FROM fin_transaksi t
+      LEFT JOIN "user" u ON u.id = t.input_oleh
+      WHERE t.siswa_id = ? AND t.is_void = 0
+      ORDER BY t.created_at DESC
       LIMIT 6
     `).bind(siswaId).all<any>(),
     db.prepare(`
