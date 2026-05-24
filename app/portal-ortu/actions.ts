@@ -7,6 +7,7 @@ import { createAuth } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 type SummonResponse = 'hadir' | 'reschedule'
+const SEMESTER_NILAI_COLUMNS = ['nilai_smt1', 'nilai_smt2', 'nilai_smt3', 'nilai_smt4', 'nilai_smt5', 'nilai_smt6'] as const
 
 async function ensureParentCommunicationTables(db: D1Database) {
   await db.prepare(`
@@ -62,6 +63,38 @@ async function requireParentSession() {
   const session = await getAppSession()
   if (!session || session.kind !== 'parent') throw new Error('Unauthorized')
   return session
+}
+
+export async function getParentSemesterGrades(semester: number) {
+  const session = await requireParentSession()
+  const semesterIndex = Number(semester)
+  const targetColumn = SEMESTER_NILAI_COLUMNS[semesterIndex - 1]
+  if (!targetColumn) return { error: 'Semester tidak valid.' }
+
+  const db = await getDB()
+  const row = await db.prepare(`
+    SELECT ${targetColumn} AS nilai
+    FROM rekap_nilai_akademik
+    WHERE siswa_id = ?
+    LIMIT 1
+  `).bind(session.user.siswa_id).first<{ nilai: string | null }>()
+
+  let parsed: Record<string, number> = {}
+  try {
+    parsed = row?.nilai ? JSON.parse(row.nilai) : {}
+  } catch {
+    parsed = {}
+  }
+
+  const grades = Object.entries(parsed)
+    .map(([mapel, nilai]) => ({ mapel, nilai: Number(nilai) }))
+    .filter(item => item.mapel && !Number.isNaN(item.nilai))
+
+  const average = grades.length
+    ? Number((grades.reduce((total, item) => total + item.nilai, 0) / grades.length).toFixed(2))
+    : null
+
+  return { grades, average }
 }
 
 export async function respondParentSummons(payload: { summonId: string; response: SummonResponse; note?: string }) {

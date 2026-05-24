@@ -2,17 +2,25 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, XCircle, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, Send, ArrowLeft, Download } from 'lucide-react'
+import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, XCircle, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, Send, ArrowLeft, Download, Loader2 } from 'lucide-react'
 import { MobileBottomNav } from './mobile-bottom-nav'
 import { ScheduleTabs } from './schedule-tabs'
 import { ChangePasswordForm } from './change-password-form'
 import { SummonResponseForm } from './summon-response-form'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { markParentNotificationRead } from '../actions'
+import { getParentSemesterGrades, markParentNotificationRead } from '../actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
+}
+
+type SemesterGrade = { mapel: string; nilai: number }
+type SemesterDetailState = {
+  loading?: boolean
+  error?: string
+  average?: number | null
+  grades?: SemesterGrade[]
 }
 
 export function PortalOrtuClient({ data }: { data: any }) {
@@ -21,6 +29,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [paymentStep, setPaymentStep] = useState<1 | 2 | 3>(1)
   const [paymentAmount, setPaymentAmount] = useState('')
+  const [expandedSemester, setExpandedSemester] = useState<number | null>(null)
+  const [semesterDetails, setSemesterDetails] = useState<Record<number, SemesterDetailState>>({})
 
   const {
     profil,
@@ -95,6 +105,48 @@ export function PortalOrtuClient({ data }: { data: any }) {
     { label: 'Rp 500.000', value: 500000 },
     { label: 'Rp 1.000.000', value: 1000000 },
   ].filter((item) => item.value > 0 && item.value <= Number(dsptSisa || 0))
+
+  const toggleSemesterDetail = async (semesterNumber: number, hasAverage: boolean) => {
+    if (!hasAverage) return
+
+    if (expandedSemester === semesterNumber) {
+      setExpandedSemester(null)
+      return
+    }
+
+    setExpandedSemester(semesterNumber)
+    if (semesterDetails[semesterNumber]?.grades || semesterDetails[semesterNumber]?.loading) return
+
+    setSemesterDetails(prev => ({
+      ...prev,
+      [semesterNumber]: { loading: true },
+    }))
+
+    try {
+      const result = await getParentSemesterGrades(semesterNumber)
+      if ('error' in result && result.error) {
+        setSemesterDetails(prev => ({
+          ...prev,
+          [semesterNumber]: { loading: false, error: result.error },
+        }))
+        return
+      }
+
+      setSemesterDetails(prev => ({
+        ...prev,
+        [semesterNumber]: {
+          loading: false,
+          average: result.average,
+          grades: result.grades || [],
+        },
+      }))
+    } catch {
+      setSemesterDetails(prev => ({
+        ...prev,
+        [semesterNumber]: { loading: false, error: 'Gagal memuat nilai semester.' },
+      }))
+    }
+  }
 
   const StandardCard = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
     <div className={`bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 ${className}`}>
@@ -520,19 +572,89 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
       <div className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1">Rata-rata Per Semester</h2>
-        <div className="grid grid-cols-2 gap-3">
-          {semesters.map((s: any) => {
-            const isFilled = s.value !== null && s.value !== undefined
+        <div className="space-y-3">
+          {semesters.map((s: any, index: number) => {
+            const semesterNumber = index + 1
+            const isFilled = s.value !== null && s.value !== undefined && s.value !== ''
+            const isExpanded = expandedSemester === semesterNumber
+            const detail = semesterDetails[semesterNumber]
             return (
-              <div key={s.label} className={`rounded-xl border p-4 flex flex-col items-center justify-center text-center transition-all ${
+              <div key={s.label} className={`overflow-hidden rounded-2xl border transition-all ${
                 isFilled 
                   ? 'bg-white border-slate-200 shadow-sm' 
                   : 'bg-slate-50 border-slate-100 border-dashed'
               }`}>
-                <span className="text-xs font-medium text-slate-500 mb-2">{s.label}</span>
-                <span className={`text-2xl font-bold ${isFilled ? 'text-indigo-600' : 'text-slate-300'}`}>
-                  {s.value ?? '-'}
-                </span>
+                <button
+                  type="button"
+                  disabled={!isFilled}
+                  onClick={() => toggleSemesterDetail(semesterNumber, isFilled)}
+                  aria-expanded={isExpanded}
+                  className="flex w-full items-center justify-between gap-4 p-4 text-left disabled:cursor-not-allowed"
+                >
+                  <div className="min-w-0">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{s.label}</span>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <span className={`text-2xl font-bold ${isFilled ? 'text-indigo-600' : 'text-slate-300'}`}>
+                        {s.value ?? '-'}
+                      </span>
+                      <span className="text-xs font-medium text-slate-400">rata-rata</span>
+                    </div>
+                  </div>
+                  <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition-colors ${
+                    isFilled ? 'border-indigo-100 bg-indigo-50 text-indigo-600' : 'border-slate-100 bg-white text-slate-300'
+                  }`}>
+                    <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                  </div>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.22 }}
+                      className="border-t border-slate-100"
+                    >
+                      <div className="p-4 pt-3">
+                        {detail?.loading ? (
+                          <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-3 text-sm font-medium text-slate-500">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Memuat nilai semester...
+                          </div>
+                        ) : detail?.error ? (
+                          <div className="flex items-start gap-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-medium text-rose-700">
+                            <AlertOctagon className="mt-0.5 h-4 w-4 shrink-0" />
+                            {detail.error}
+                          </div>
+                        ) : detail?.grades?.length ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-3 px-1">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nilai per mata pelajaran</p>
+                              <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700">
+                                Rata-rata {detail.average ?? s.value}
+                              </span>
+                            </div>
+                            <div className="divide-y divide-slate-100 rounded-xl border border-slate-100 bg-slate-50/60">
+                              {detail.grades.map((item) => (
+                                <div key={item.mapel} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                                  <span className="min-w-0 text-sm font-medium leading-snug text-slate-700">{item.mapel}</span>
+                                  <span className="shrink-0 rounded-lg bg-white px-2.5 py-1 text-sm font-bold text-slate-800 shadow-sm ring-1 ring-slate-100">
+                                    {item.nilai}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-sm font-medium text-slate-500">
+                            Belum ada rincian nilai mata pelajaran untuk semester ini.
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )
           })}
@@ -804,18 +926,28 @@ export function PortalOrtuClient({ data }: { data: any }) {
               <p className="text-sm text-slate-500">Belum ada pembayaran terkonfirmasi.</p>
             </div>
           ) : (transaksiTerbaru.results || []).map((t: any, i: number) => (
-            <StandardCard key={`${t.nomor_kuitansi}-${i}`} className="flex items-center justify-between py-4">
+            <StandardCard key={`${t.nomor_kuitansi}-${i}`} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-emerald-50 rounded-full text-emerald-500 flex items-center justify-center shrink-0">
                   <CheckCircle2 className="h-5 w-5" />
                 </div>
                 <div>
                   <h4 className="text-sm font-semibold text-slate-800">{t.kategori}</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{t.nomor_kuitansi}</p>
                   <p className="text-[11px] text-slate-500 mt-0.5">{t.created_at.split(' ')[0]} • {t.metode_bayar}</p>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="flex items-center justify-between gap-3 sm:justify-end">
                 <p className="text-sm font-bold text-slate-800">Rp {rupiah(Number(t.jumlah_total || 0))}</p>
+                <a
+                  href={`/portal-ortu/kuitansi/${t.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Kuitansi
+                </a>
               </div>
             </StandardCard>
           ))}
