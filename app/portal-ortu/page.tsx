@@ -307,7 +307,7 @@ export default async function PortalOrtuPage() {
       WHERE siswa_id = ?
     `).bind(siswaId).first<any>(),
     db.prepare(`
-      SELECT nomor_kuitansi, kategori, metode_bayar, jumlah_total, created_at
+      SELECT id, nomor_kuitansi, kategori, metode_bayar, jumlah_total, created_at
       FROM fin_transaksi
       WHERE siswa_id = ? AND is_void = 0
       ORDER BY created_at DESC
