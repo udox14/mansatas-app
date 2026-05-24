@@ -119,41 +119,53 @@ function drawReceiptPdf(data: {
   sisaTunggakan: number | null
 }) {
   const ops: string[] = []
-  const text = (value: string, xPt: number, yPt: number, size = 10, font = 'F1') => {
-    ops.push(`BT /${font} ${size} Tf ${xPt.toFixed(2)} ${yPt.toFixed(2)} Td (${pdfText(value)}) Tj ET`)
+  const text = (value: string, xPt: number, yPt: number, size = 10, font = 'F1', gray = 0) => {
+    ops.push(`q ${gray} g BT /${font} ${size} Tf ${xPt.toFixed(2)} ${yPt.toFixed(2)} Td (${pdfText(value)}) Tj ET Q`)
   }
   const line = (x1: number, y1: number, x2: number, y2: number, width = 1) => {
-    ops.push(`${width} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`)
+    ops.push(`q 0 G ${width} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S Q`)
   }
-  const rect = (xPt: number, yPt: number, wPt: number, hPt: number, mode: 'S' | 'f' = 'S') => {
-    ops.push(`${xPt.toFixed(2)} ${yPt.toFixed(2)} ${wPt.toFixed(2)} ${hPt.toFixed(2)} re ${mode}`)
+  const rect = (xPt: number, yPt: number, wPt: number, hPt: number, mode: 'S' | 'f' = 'S', gray = 0) => {
+    ops.push(`q ${gray} ${mode === 'S' ? 'G' : 'g'} ${xPt.toFixed(2)} ${yPt.toFixed(2)} ${wPt.toFixed(2)} ${hPt.toFixed(2)} re ${mode} Q`)
+  }
+  const textRight = (value: string, rightPt: number, yPt: number, size = 10, font = 'F1', gray = 0) => {
+    const approxWidth = pdfText(value).length * size * 0.5
+    text(value, rightPt - approxWidth, yPt, size, font, gray)
   }
 
-  const left = mm(18)
-  const right = PAGE_WIDTH - mm(18)
+  const left = mm(10)
+  const right = PAGE_WIDTH - mm(10)
   const center = PAGE_WIDTH / 2
   const kategori = data.kategori.toUpperCase()
   const metode = data.metodeBayar === 'tunai' ? 'Tunai' : 'Transfer Bank'
   const tanggalFmt = tanggalIndonesia(data.tanggal)
 
-  text('KOMITE MAN 1 TASIKMALAYA', center - mm(40), y(18), 15, 'F2')
-  text('Jl. Pendidikan No. 31, Kota Tasikmalaya', center - mm(34), y(25), 9)
-  text('BUKTI PEMBAYARAN', center - mm(27), y(37), 16, 'F2')
-  text(`Pembayaran ${kategori} - Pegangan Pembayar`, center - mm(33), y(44), 9)
-  line(left, y(50), right, y(50), 1.4)
-  line(left, y(52), right, y(52), 0.4)
+  rect(0, y(148.5), PAGE_WIDTH, mm(148.5), 'S', 0.88)
+  rect(left, y(147), right - left, mm(144), 'S', 0)
+  rect(left + mm(0.8), y(146.2), right - left - mm(1.6), mm(142.4), 'S', 0.75)
 
-  rect(left, y(66), mm(38), mm(8), 'S')
-  text('Lembar Pembayar', left + mm(4), y(63.7), 8)
+  rect(left, y(23), right - left, mm(20), 'S', 0.85)
+  text('KOMITE MADRASAH ALIYAH NEGERI 1 TASIKMALAYA', center - mm(66), y(10.5), 12, 'F2')
+  text('MAN 1 TASIKMALAYA', center - mm(25), y(16), 11, 'F2')
+  text('Jl. Pendidikan No. 31, Kota Tasikmalaya', center - mm(31), y(20.7), 7.5, 'F1', 0.25)
+  line(left, y(24.5), right, y(24.5), 2)
+  line(left, y(26), right, y(26), 0.6)
 
-  const infoLeftX = left
-  const infoRightX = left + mm(93)
-  const infoTop = 76
-  const rowGap = 7
+  rect(left + mm(2), y(36), mm(34), mm(6.5), 'S', 0.55)
+  text('Lembar Pembayar', left + mm(5), y(33.9), 7, 'F1', 0.25)
+
+  text('BUKTI PEMBAYARAN', right - mm(60), y(33), 13, 'F2')
+  line(right - mm(60), y(34.8), right - mm(8), y(34.8), 1)
+  text(`Pembayaran ${kategori} - Tahun Pelajaran 2024/2025`, right - mm(60), y(39), 7.5, 'F1', 0.35)
+
+  const infoLeftX = left + mm(6)
+  const infoRightX = left + mm(105)
+  const infoTop = 50
+  const rowGap = 5.4
   const info = (label: string, value: string, x: number, top: number, bold = false) => {
-    text(label, x, y(top), 8)
-    text(':', x + mm(28), y(top), 8)
-    text(value, x + mm(32), y(top), 8, bold ? 'F2' : 'F1')
+    text(label, x, y(top), 7.6, 'F1', 0.3)
+    text(':', x + mm(27), y(top), 7.6)
+    text(value, x + mm(31), y(top), 7.6, bold ? 'F2' : 'F1')
   }
 
   info('Nama Siswa', data.namaSiswa, infoLeftX, infoTop, true)
@@ -164,54 +176,65 @@ function drawReceiptPdf(data: {
   info('Metode', metode, infoRightX, infoTop + rowGap * 2)
   info('Petugas', data.petugas, infoRightX, infoTop + rowGap * 3)
 
-  const terbilangTop = 110
-  rect(left, y(terbilangTop + 10), right - left, mm(10), 'S')
-  text('Terbilang:', left + mm(4), y(terbilangTop + 6.4), 8)
-  text(`${terbilang(data.jumlah)} Rupiah`, left + mm(25), y(terbilangTop + 6.4), 8, 'F2')
+  const terbilangTop = 75
+  rect(left + mm(6), y(terbilangTop + 8), right - left - mm(12), mm(8), 'S', 0.65)
+  text('Terbilang:', left + mm(10), y(terbilangTop + 5.2), 7.6, 'F1', 0.3)
+  text(`${terbilang(data.jumlah)} Rupiah`, left + mm(31), y(terbilangTop + 5.2), 7.8, 'F2')
 
-  const tableTop = 128
-  const rowHeight = 9
-  rect(left, y(tableTop + rowHeight), right - left, mm(rowHeight), 'S')
-  text('No.', left + mm(4), y(tableTop + 6), 8, 'F2')
-  text('Uraian Pembayaran', left + mm(18), y(tableTop + 6), 8, 'F2')
-  text('Jumlah (Rp)', right - mm(35), y(tableTop + 6), 8, 'F2')
+  const tableTop = 90
+  const rowHeight = 6.5
+  const tableLeft = left + mm(6)
+  const tableRight = right - mm(6)
+  rect(tableLeft, y(tableTop + rowHeight), tableRight - tableLeft, mm(rowHeight), 'S')
+  text('No.', tableLeft + mm(4), y(tableTop + 4.5), 7.5, 'F2')
+  text('Uraian Pembayaran', tableLeft + mm(18), y(tableTop + 4.5), 7.5, 'F2')
+  text('Jumlah (Rp)', tableRight - mm(34), y(tableTop + 4.5), 7.5, 'F2')
 
   data.rincian.forEach((item, index) => {
     const top = tableTop + rowHeight * (index + 1)
-    rect(left, y(top + rowHeight), right - left, mm(rowHeight), 'S')
-    text(String(index + 1), left + mm(5), y(top + 6), 8)
-    text(item.label, left + mm(18), y(top + 6), 8)
-    text(rupiah(item.jumlah), right - mm(33), y(top + 6), 8, 'F2')
+    rect(tableLeft, y(top + rowHeight), tableRight - tableLeft, mm(rowHeight), 'S', 0.7)
+    text(String(index + 1), tableLeft + mm(5), y(top + 4.4), 7.2)
+    text(item.label, tableLeft + mm(18), y(top + 4.4), 7.2)
+    textRight(rupiah(item.jumlah), tableRight - mm(5), y(top + 4.4), 7.2, 'F2')
   })
 
   const totalTop = tableTop + rowHeight * (data.rincian.length + 1)
-  rect(left, y(totalTop + rowHeight), right - left, mm(rowHeight), 'S')
-  text('TOTAL PEMBAYARAN INI', right - mm(84), y(totalTop + 6), 8, 'F2')
-  text(rupiah(data.jumlah), right - mm(33), y(totalTop + 6), 8, 'F2')
+  rect(tableLeft, y(totalTop + rowHeight), tableRight - tableLeft, mm(rowHeight), 'S', 0.82)
+  text('TOTAL PEMBAYARAN INI', tableRight - mm(82), y(totalTop + 4.5), 7.5, 'F2')
+  textRight(rupiah(data.jumlah), tableRight - mm(5), y(totalTop + 4.5), 7.6, 'F2')
 
-  const jumlahTop = totalTop + 20
-  text('JUMLAH', right - mm(70), y(jumlahTop), 8)
-  text(':', right - mm(34), y(jumlahTop), 8)
-  text(`Rp ${rupiah(data.jumlah)}`, right - mm(28), y(jumlahTop), 9, 'F2')
-  text('PEMBAYARAN', right - mm(70), y(jumlahTop + 7), 8)
-  text(':', right - mm(34), y(jumlahTop + 7), 8)
-  text(`Rp ${rupiah(data.jumlah)}`, right - mm(28), y(jumlahTop + 7), 8)
+  const jumlahTop = totalTop + 11
+  text('JUMLAH', right - mm(76), y(jumlahTop), 7.6)
+  text(':', right - mm(42), y(jumlahTop), 7.6)
+  textRight(`Rp ${rupiah(data.jumlah)}`, right - mm(8), y(jumlahTop), 8.5, 'F2')
+  text('PEMBAYARAN', right - mm(76), y(jumlahTop + 5.5), 7.6)
+  text(':', right - mm(42), y(jumlahTop + 5.5), 7.6)
+  textRight(`Rp ${rupiah(data.jumlah)}`, right - mm(8), y(jumlahTop + 5.5), 7.6)
+  line(right - mm(78), y(jumlahTop + 8), right - mm(8), y(jumlahTop + 8), 0.7)
+  text('KEMBALI', right - mm(76), y(jumlahTop + 11), 7.6, 'F2')
+  text(':', right - mm(42), y(jumlahTop + 11), 7.6)
+  textRight('Rp 0', right - mm(8), y(jumlahTop + 11), 7.6, 'F2')
 
   if (data.sisaTunggakan !== null && data.sisaTunggakan > 0) {
-    text(`Catatan: sisa tagihan ${kategori} Rp ${rupiah(data.sisaTunggakan)}`, left, y(jumlahTop + 18), 8)
+    rect(left + mm(6), y(jumlahTop + 24), mm(82), mm(7), 'S', 0.85)
+    text(`Catatan: sisa tagihan ${kategori} Rp ${rupiah(data.sisaTunggakan)}`, left + mm(9), y(jumlahTop + 20), 7.2, 'F1', 0.25)
   }
 
-  const ttdTop = 205
-  text('Penyetor / Siswa', left + mm(28), y(ttdTop), 8)
-  text(`Tasikmalaya, ${tanggalFmt}`, right - mm(65), y(ttdTop), 8)
-  text('Bendahara Komite', right - mm(55), y(ttdTop + 8), 8)
-  line(left + mm(13), y(ttdTop + 35), left + mm(82), y(ttdTop + 35), 0.7)
-  line(right - mm(78), y(ttdTop + 35), right - mm(10), y(ttdTop + 35), 0.7)
-  text(`( ${data.namaSiswa} )`, left + mm(18), y(ttdTop + 42), 8, 'F2')
-  text(`( ${data.petugas} )`, right - mm(73), y(ttdTop + 42), 8, 'F2')
+  const ttdTop = 118
+  text('Penyetor / Siswa', left + mm(36), y(ttdTop), 7.6)
+  text(`Tasikmalaya, ${tanggalFmt}`, right - mm(70), y(ttdTop), 7.6)
+  text('Bendahara Komite', right - mm(58), y(ttdTop + 5.5), 7.6)
+  line(left + mm(24), y(ttdTop + 25), left + mm(87), y(ttdTop + 25), 0.7)
+  line(right - mm(80), y(ttdTop + 25), right - mm(16), y(ttdTop + 25), 0.7)
+  text(`( ${data.namaSiswa} )`, left + mm(29), y(ttdTop + 30), 7.6, 'F2')
+  text(`( ${data.petugas} )`, right - mm(75), y(ttdTop + 30), 7.6, 'F2')
 
-  text('Dokumen ini sah sebagai kuitansi pegangan pembayar jika diunduh dari Portal Orang Tua.', left, y(282), 7)
-  text(data.nomorKuitansi, right - mm(38), y(282), 7)
+  text('LUNAS', center - mm(35), y(99), 34, 'F2', 0.82)
+
+  line(left, y(143), right, y(143), 0.4)
+  text(`Dicetak: ${new Date().toLocaleString('id-ID')}`, left + mm(3), y(146), 6.5, 'F1', 0.45)
+  text('Dokumen ini sah tanpa tanda tangan basah jika diunduh dari Portal Orang Tua', center - mm(61), y(146), 6.5, 'F1', 0.45)
+  textRight(data.nomorKuitansi, right - mm(3), y(146), 6.5, 'F1', 0.45)
 
   const stream = ops.join('\n')
   const objects = [
