@@ -585,7 +585,7 @@ function KuitansiDuplikatPage({ data }: { data: KuitansiData }) {
   )
 }
 
-function KuitansiPembayarPage({ data }: { data: KuitansiData }) {
+export function KuitansiPembayarPage({ data }: { data: KuitansiData }) {
   return (
     <div style={{
       width: A4_WIDTH,
