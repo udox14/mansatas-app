@@ -630,7 +630,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        {!trx.is_void && (
+                        {!trx.is_void && !trx.is_synthetic && (
                           <>
                             <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 gap-1"
                               onClick={() => openKuitansiFromTrx(trx)}>
