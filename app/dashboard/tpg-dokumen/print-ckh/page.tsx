@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { getUserRoles } from '@/lib/features'
 import { ensureTpgSchema } from '@/lib/tpg-schema'
-import { CKH_DEFAULT_SATUAN, CKH_DEFAULT_VOL, formatCkhDate, formatCkhMonth } from '@/lib/ckh'
+import { CKH_DEFAULT_SATUAN, CKH_DEFAULT_VOL, buildCkhDateRowSpans, formatCkhDate, formatCkhMonth } from '@/lib/ckh'
 import { PrintToolbar } from './print-toolbar'
 
 export const metadata = { title: 'Cetak CKH Massal - MANSATAS App' }
@@ -158,16 +158,23 @@ function CkhPrintBlock({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => (
-            <tr key={row.id}>
-              <td style={td('center')}>{index + 1}</td>
-              <td style={td('center')}>{formatCkhDate(row.tanggal)}</td>
-              <td style={td('left')}>{row.kegiatan_bulanan}</td>
-              <td style={td('left')}>{row.catatan_harian}</td>
-              <td style={td('center')}>{row.vol || CKH_DEFAULT_VOL}</td>
-              <td style={td('center')}>{row.satuan || CKH_DEFAULT_SATUAN}</td>
-            </tr>
-          ))}
+          {rows.map(row => {
+            const span = buildCkhDateRowSpans(rows).get(row)
+            return (
+              <tr key={row.id}>
+                {span?.isFirstOfDate ? (
+                  <>
+                    <td rowSpan={span.dateRowSpan} style={td('center')}>{span.dateIndex}</td>
+                    <td rowSpan={span.dateRowSpan} style={td('center')}>{formatCkhDate(row.tanggal)}</td>
+                  </>
+                ) : null}
+                <td style={td('left')}>{row.kegiatan_bulanan}</td>
+                <td style={td('left')}>{row.catatan_harian}</td>
+                <td style={td('center')}>{row.vol || CKH_DEFAULT_VOL}</td>
+                <td style={td('center')}>{row.satuan || CKH_DEFAULT_SATUAN}</td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
 

@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { CKH_DEFAULT_SATUAN, CKH_DEFAULT_VOL, countCkhItems, formatCkhDate, formatCkhMonth } from '@/lib/ckh'
+import { CKH_DEFAULT_SATUAN, CKH_DEFAULT_VOL, CKH_SATUAN_OPTIONS, buildCkhDateRowSpans, countCkhItems, formatCkhDate, formatCkhMonth } from '@/lib/ckh'
 import {
   acceptCkhSuggestion,
   addCkhRow,
@@ -193,6 +193,7 @@ function CkhPrintDocument({
   const missingSignerLabel = shouldUseKepalaTu(user, userRoles) ? 'KEPALA TU BELUM DIATUR' : 'KEPALA MADRASAH BELUM DIATUR'
   const monthLabel = formatCkhMonth(year, month)
   const lastRow = rows[rows.length - 1]
+  const dateSpans = buildCkhDateRowSpans(rows)
   const tanggalCetak = lastRow?.tanggal
     ? new Date(lastRow.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
     : new Date(year, month, 0).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -234,16 +235,23 @@ function CkhPrintDocument({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => (
-            <tr key={row.id}>
-              <td style={td('center')}>{index + 1}</td>
-              <td style={td('center')}>{formatCkhDate(row.tanggal)}</td>
-              <td style={td('left')}>{row.kegiatan_bulanan}</td>
-              <td style={td('left')}>{row.catatan_harian}</td>
-              <td style={td('center')}>{row.vol || CKH_DEFAULT_VOL}</td>
-              <td style={td('center')}>{row.satuan || CKH_DEFAULT_SATUAN}</td>
-            </tr>
-          ))}
+          {rows.map(row => {
+            const span = dateSpans.get(row)
+            return (
+              <tr key={row.id}>
+                {span?.isFirstOfDate ? (
+                  <>
+                    <td rowSpan={span.dateRowSpan} style={td('center')}>{span.dateIndex}</td>
+                    <td rowSpan={span.dateRowSpan} style={td('center')}>{formatCkhDate(row.tanggal)}</td>
+                  </>
+                ) : null}
+                <td style={td('left')}>{row.kegiatan_bulanan}</td>
+                <td style={td('left')}>{row.catatan_harian}</td>
+                <td style={td('center')}>{row.vol || CKH_DEFAULT_VOL}</td>
+                <td style={td('center')}>{row.satuan || CKH_DEFAULT_SATUAN}</td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
 
@@ -362,7 +370,7 @@ function PrintDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button className="h-10 gap-2 bg-slate-900 text-white hover:bg-slate-800">
+        <Button className="h-10 gap-2 whitespace-nowrap bg-slate-900 text-white hover:bg-slate-800">
           <Printer className="h-4 w-4" />
           Cetak / Simpan PDF
         </Button>
@@ -475,7 +483,7 @@ function SignatureSettingsDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" className="h-10 gap-2">
+        <Button variant="outline" className="h-10 gap-2 whitespace-nowrap">
           <Settings2 className="h-4 w-4" />
           Tanda Tangan
         </Button>
@@ -606,6 +614,7 @@ export function CkhGeneratorClient({
       : allTemplates.filter(template => template.user_id === initialData.user.id),
     [allTemplates, canManageTemplates, initialData.user.id],
   )
+  const rowDateSpans = useMemo(() => buildCkhDateRowSpans(rows), [rows])
 
   useEffect(() => {
     setRows(initialData.rows)
@@ -633,6 +642,7 @@ export function CkhGeneratorClient({
         kegiatan_bulanan: row.kegiatan_bulanan,
         catatan_harian: row.catatan_harian,
         vol: row.vol,
+        satuan: row.satuan,
       })
       if (res?.row) updateRowLocal(row.id, res.row as Partial<Row>)
       if (!res?.error) setDocumentStatus('DRAFT')
@@ -756,89 +766,90 @@ export function CkhGeneratorClient({
 
   return (
     <Tabs defaultValue="dokumen" className="space-y-4">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="dokumen" className="gap-1.5"><FileText className="h-3.5 w-3.5" /> Dokumen</TabsTrigger>
-          <TabsTrigger value="template" className="gap-1.5"><Settings2 className="h-3.5 w-3.5" /> {canManageTemplates ? 'Template' : 'Template Saya'}</TabsTrigger>
-        </TabsList>
-        <div className="flex w-full flex-col gap-2 xl:w-auto xl:items-end">
-          <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-end xl:w-auto">
-            <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-surface bg-surface p-1 md:flex-nowrap">
-              <Button size="sm" variant="ghost" onClick={() => shiftMonth(-1)} className="h-8 w-8 p-0" title="Bulan sebelumnya">
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <CalendarDays className="ml-2 h-4 w-4 text-slate-400" />
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="h-8 w-32 border-0 bg-transparent text-sm shadow-none focus:ring-0">
-                  <SelectValue aria-label="Bulan CKH" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MONTHS.map((label, index) => (
-                    <SelectItem key={label} value={String(index + 1)}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger className="h-8 w-24 border-0 bg-transparent text-sm shadow-none focus:ring-0">
-                  <SelectValue aria-label="Tahun CKH" />
-                </SelectTrigger>
-                <SelectContent>
-                  {yearOptions.map(option => (
-                    <SelectItem key={option} value={String(option)}>{option}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button size="sm" variant="outline" onClick={goMonth} className="h-8">Buka</Button>
-              <Button size="sm" variant="ghost" onClick={() => shiftMonth(1)} className="h-8 w-8 p-0" title="Bulan berikutnya">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
-              <Button variant="outline" onClick={syncDraft} disabled={isSyncing} className="h-10 gap-2">
-                {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-                Sinkronkan Agenda
-              </Button>
-              <Button variant="outline" onClick={copyFromPreviousMonth} disabled={isCopying} className="h-10 gap-2">
-                {isCopying ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-                Salin Bulan Lalu
-              </Button>
-              <SignatureSettingsDialog
-                documentId={initialData.document.id}
-                signatureUrl={initialData.user.signature_url}
-                settings={signatureSettings}
-                onApply={settings => {
-                  setSignatureSettings(settings)
-                  setDocumentStatus('DRAFT')
-                }}
-              />
-              <PrintDialog
-                rows={rows}
-                user={initialData.user}
-                kepsek={initialData.kepsek}
-                kepalaTu={initialData.kepalaTu}
-                userRoles={initialData.userRoles}
-                signatureSettings={signatureSettings}
-                year={year}
-                month={month}
-              />
-              <Button onClick={finalizeDocument} disabled={isPending} className="h-10 gap-2 bg-emerald-600 text-white hover:bg-emerald-700">
-                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                Kirim CKH
-              </Button>
-            </div>
+      <div className="space-y-3 rounded-xl border border-surface bg-surface/70 p-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <TabsList className="grid w-full max-w-xl grid-cols-2">
+            <TabsTrigger value="dokumen" className="gap-1.5"><FileText className="h-3.5 w-3.5" /> Dokumen</TabsTrigger>
+            <TabsTrigger value="template" className="gap-1.5"><Settings2 className="h-3.5 w-3.5" /> {canManageTemplates ? 'Template' : 'Template Saya'}</TabsTrigger>
+          </TabsList>
+          <div className="flex w-full min-w-0 items-center gap-1 rounded-lg border border-surface bg-surface p-1 sm:w-auto">
+            <Button size="sm" variant="ghost" onClick={() => shiftMonth(-1)} className="h-8 w-8 shrink-0 p-0" title="Bulan sebelumnya">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <CalendarDays className="ml-1 h-4 w-4 shrink-0 text-slate-400" />
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger className="h-8 min-w-0 flex-1 border-0 bg-transparent text-sm shadow-none focus:ring-0 sm:w-32 sm:flex-none">
+                <SelectValue aria-label="Bulan CKH" />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTHS.map((label, index) => (
+                  <SelectItem key={label} value={String(index + 1)}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
+              <SelectTrigger className="h-8 w-24 shrink-0 border-0 bg-transparent text-sm shadow-none focus:ring-0">
+                <SelectValue aria-label="Tahun CKH" />
+              </SelectTrigger>
+              <SelectContent>
+                {yearOptions.map(option => (
+                  <SelectItem key={option} value={String(option)}>{option}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" onClick={goMonth} className="h-8 shrink-0">Buka</Button>
+            <Button size="sm" variant="ghost" onClick={() => shiftMonth(1)} className="h-8 w-8 shrink-0 p-0" title="Bulan berikutnya">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
+        </div>
+
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className={cn(
-            'flex w-full flex-col gap-1 rounded-lg border px-3 py-2 text-xs md:flex-row md:items-center md:justify-between xl:max-w-2xl',
+            'flex min-w-0 flex-col gap-1 rounded-lg border px-3 py-2 text-xs sm:flex-row sm:items-center sm:justify-between xl:max-w-xl xl:flex-1',
             documentStatus === 'FINAL'
               ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
               : 'border-amber-200 bg-amber-50 text-amber-800',
           )}>
-            <span className="font-semibold">{documentStatus === 'FINAL' ? 'Siap diambil TU' : 'Belum dikirim'}</span>
-            <span className="opacity-80">
+            <span className="shrink-0 font-semibold">{documentStatus === 'FINAL' ? 'Siap diambil TU' : 'Belum dikirim'}</span>
+            <span className="text-left opacity-80 sm:text-right">
               {documentStatus === 'FINAL'
                 ? 'Dokumen ini akan muncul di Dokumen TPG TU.'
                 : 'Klik Kirim CKH setelah data sudah benar.'}
             </span>
+          </div>
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
+            <Button variant="outline" onClick={syncDraft} disabled={isSyncing} className="h-10 gap-2 whitespace-nowrap">
+              {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+              Sinkronkan Agenda
+            </Button>
+            <Button variant="outline" onClick={copyFromPreviousMonth} disabled={isCopying} className="h-10 gap-2 whitespace-nowrap">
+              {isCopying ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+              Salin Bulan Lalu
+            </Button>
+            <SignatureSettingsDialog
+              documentId={initialData.document.id}
+              signatureUrl={initialData.user.signature_url}
+              settings={signatureSettings}
+              onApply={settings => {
+                setSignatureSettings(settings)
+                setDocumentStatus('DRAFT')
+              }}
+            />
+            <PrintDialog
+              rows={rows}
+              user={initialData.user}
+              kepsek={initialData.kepsek}
+              kepalaTu={initialData.kepalaTu}
+              userRoles={initialData.userRoles}
+              signatureSettings={signatureSettings}
+              year={year}
+              month={month}
+            />
+            <Button onClick={finalizeDocument} disabled={isPending} className="h-10 gap-2 whitespace-nowrap bg-emerald-600 text-white hover:bg-emerald-700">
+              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              Kirim CKH
+            </Button>
           </div>
         </div>
       </div>
@@ -882,31 +893,37 @@ export function CkhGeneratorClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, index) => (
+                  {rows.map(row => {
+                    const span = rowDateSpans.get(row)
+                    return (
                     <tr key={row.id} className={cn('bg-white transition-colors hover:bg-slate-50', row.has_conflict && 'bg-amber-50 hover:bg-amber-50')}>
-                      <td className="border border-slate-300 p-2 text-center align-top font-medium text-slate-500">{index + 1}</td>
-                      <td className="border border-slate-300 p-1.5 align-top">
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="DD/MM/YYYY"
-                          value={isoToDisplayDate(row.tanggal)}
-                          onChange={e => {
-                            const iso = displayToIsoDate(e.target.value)
-                            if (iso) updateRowLocal(row.id, { tanggal: iso })
-                          }}
-                          onBlur={e => {
-                            const iso = displayToIsoDate(e.target.value)
-                            if (!iso) {
-                              setMessage({ type: 'error', text: 'Format tanggal harus DD/MM/YYYY.' })
-                              return
-                            }
-                            updateRowLocal(row.id, { tanggal: iso })
-                            saveRow({ ...row, tanggal: iso })
-                          }}
-                          className="h-8 rounded-md border-slate-200 bg-white px-1 text-center text-[12px] shadow-none focus-visible:ring-1"
-                        />
-                      </td>
+                      {span?.isFirstOfDate ? (
+                        <>
+                          <td rowSpan={span.dateRowSpan} className="border border-slate-300 p-2 text-center align-middle font-medium text-slate-500">{span.dateIndex}</td>
+                          <td rowSpan={span.dateRowSpan} className="border border-slate-300 p-1.5 align-middle">
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="DD/MM/YYYY"
+                              value={isoToDisplayDate(row.tanggal)}
+                              onChange={e => {
+                                const iso = displayToIsoDate(e.target.value)
+                                if (iso) updateRowLocal(row.id, { tanggal: iso })
+                              }}
+                              onBlur={e => {
+                                const iso = displayToIsoDate(e.target.value)
+                                if (!iso) {
+                                  setMessage({ type: 'error', text: 'Format tanggal harus DD/MM/YYYY.' })
+                                  return
+                                }
+                                updateRowLocal(row.id, { tanggal: iso })
+                                saveRow({ ...row, tanggal: iso })
+                              }}
+                              className="h-8 rounded-md border-slate-200 bg-white px-1 text-center text-[12px] shadow-none focus-visible:ring-1"
+                            />
+                          </td>
+                        </>
+                      ) : null}
                       <td className="border border-slate-300 p-1.5 align-top">
                         <div className="flex items-start gap-1">
                           <textarea
@@ -965,6 +982,7 @@ export function CkhGeneratorClient({
                                   kegiatan_bulanan: row.kegiatan_bulanan,
                                   catatan_harian: catatan,
                                   vol,
+                                  satuan: row.satuan,
                                 })
                                 if (res?.row) updateRowLocal(row.id, res.row as Partial<Row>)
                                 if (!res?.error) setDocumentStatus('DRAFT')
@@ -1001,7 +1019,21 @@ export function CkhGeneratorClient({
                           className="h-8 rounded-md border-slate-200 bg-white px-1 text-center text-[12px] shadow-none focus-visible:ring-1"
                         />
                       </td>
-                      <td className="border border-slate-300 p-2 text-center align-top">{row.satuan || CKH_DEFAULT_SATUAN}</td>
+                      <td className="border border-slate-300 p-1.5 text-center align-top">
+                        <select
+                          value={row.satuan || CKH_DEFAULT_SATUAN}
+                          onChange={e => {
+                            const satuan = e.target.value
+                            updateRowLocal(row.id, { satuan })
+                            saveRow({ ...row, satuan })
+                          }}
+                          className="h-8 w-full rounded-md border border-slate-200 bg-white px-1 text-center text-[12px] outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+                        >
+                          {CKH_SATUAN_OPTIONS.map(option => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="border border-slate-300 p-1.5 align-top print:hidden">
                         <div className="flex items-center justify-center gap-1">
                           <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500">{sourceLabel(row.source)}</span>
@@ -1011,7 +1043,7 @@ export function CkhGeneratorClient({
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
               <datalist id="ckh-activities">

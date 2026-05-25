@@ -14,6 +14,7 @@ import {
   getCkhEffectiveDates,
   monthRange,
   normalizeCkhText,
+  normalizeCkhSatuan,
   type CkhGeneratedRow,
   type CkhTemplate,
   type CkhTemplateNote,
@@ -444,6 +445,7 @@ export async function saveCkhRow(rowId: string, payload: {
   catatan_harian: string
   tanggal: string
   vol?: number
+  satuan?: string
 }) {
   const authUser = await getCurrentUser()
   if (!authUser) return { error: 'Unauthorized' }
@@ -451,6 +453,7 @@ export async function saveCkhRow(rowId: string, payload: {
   const kegiatan = cleanCkhMultiline(payload.kegiatan_bulanan)
   const catatan = cleanCkhMultiline(payload.catatan_harian)
   const vol = cleanCkhVolume(payload.vol, catatan)
+  const satuan = normalizeCkhSatuan(payload.satuan)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.tanggal)) return { error: 'Tanggal tidak valid.' }
 
   const db = await getDB()
@@ -466,15 +469,15 @@ export async function saveCkhRow(rowId: string, payload: {
   await markCkhDocumentDraft(db, row.document_id)
   await db.prepare(`
     UPDATE ckh_rows
-    SET tanggal = ?, kegiatan_bulanan = ?, catatan_harian = ?, vol = ?, is_manual = 1,
+    SET tanggal = ?, kegiatan_bulanan = ?, catatan_harian = ?, vol = ?, satuan = ?, is_manual = 1,
         has_conflict = 0, suggested_kegiatan_bulanan = NULL, suggested_catatan_harian = NULL,
         updated_at = datetime('now')
     WHERE id = ?
-  `).bind(payload.tanggal, kegiatan, catatan, vol, rowId).run()
+  `).bind(payload.tanggal, kegiatan, catatan, vol, satuan, rowId).run()
 
   revalidatePath('/dashboard/ckh-generator')
   revalidatePath('/dashboard/tpg-dokumen')
-  return { success: true, row: { id: rowId, tanggal: payload.tanggal, kegiatan_bulanan: kegiatan, catatan_harian: catatan, vol } }
+  return { success: true, row: { id: rowId, tanggal: payload.tanggal, kegiatan_bulanan: kegiatan, catatan_harian: catatan, vol, satuan } }
 }
 
 export async function finalizeCkhDocument(documentId: string) {
