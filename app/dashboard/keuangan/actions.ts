@@ -287,17 +287,40 @@ export async function setSppSaldoAwal(siswaId: string, jumlah: number, keteranga
 }
 
 export async function bayarSaldoAwalSpp(saldoAwalId: string, jumlahBayar: number) {
-  const { db } = await requireAuth('keuangan-spp')
+  const { db, userId } = await requireAuth('keuangan-spp')
   const rec = await db.prepare('SELECT siswa_id, jumlah, total_dibayar FROM fin_spp_saldo_awal WHERE id = ?').bind(saldoAwalId).first<any>()
   if (!rec) return { error: 'Data tidak ditemukan', success: null }
   if (jumlahBayar <= 0) return { error: 'Jumlah bayar harus lebih dari 0', success: null }
-  const newDibayar = Math.min(rec.jumlah, (rec.total_dibayar ?? 0) + jumlahBayar)
+  const currentDibayar = rec.total_dibayar ?? 0
+  const sisa = Math.max(0, rec.jumlah - currentDibayar)
+  if (sisa <= 0) return { error: 'Tunggakan awal SPP sudah lunas', success: null }
+
+  const jumlahTercatat = Math.min(sisa, jumlahBayar)
+  const newDibayar = currentDibayar + jumlahTercatat
   const status = newDibayar >= rec.jumlah ? 'lunas' : newDibayar > 0 ? 'nyicil' : 'belum_bayar'
-  await db.prepare(`
-    UPDATE fin_spp_saldo_awal SET total_dibayar=?, status=?, updated_at=datetime('now') WHERE id=?
-  `).bind(newDibayar, status, saldoAwalId).run()
+  const seq = await db.prepare(
+    "UPDATE fin_nomor_kuitansi_seq SET counter = counter + 1 WHERE id = 'singleton' RETURNING counter"
+  ).first<{ counter: number }>()
+  const year = new Date().getFullYear()
+  const nomorKuitansi = `KWT-SPP-${year}-${String(seq?.counter ?? 0).padStart(5, '0')}`
+  const transaksiId = generateId()
+
+  await db.batch([
+    db.prepare(`
+      UPDATE fin_spp_saldo_awal SET total_dibayar=?, status=?, updated_at=datetime('now') WHERE id=?
+    `).bind(newDibayar, status, saldoAwalId),
+    db.prepare(`
+      INSERT INTO fin_transaksi (id, siswa_id, kategori, metode_bayar, jumlah_total, input_oleh, nomor_kuitansi)
+      VALUES (?, ?, 'spp', 'tunai', ?, ?, ?)
+    `).bind(transaksiId, rec.siswa_id, jumlahTercatat, userId, nomorKuitansi),
+    db.prepare(`
+      INSERT INTO fin_transaksi_detail (id, transaksi_id, ref_type, ref_id, jumlah)
+      VALUES (?, ?, 'spp_saldo_awal', ?, ?)
+    `).bind(generateId(), transaksiId, saldoAwalId, jumlahTercatat),
+  ])
   revalidatePath(`/dashboard/keuangan/siswa/${rec.siswa_id}`)
   revalidatePath('/dashboard/keuangan/spp')
+  revalidatePath('/dashboard/keuangan/transaksi')
   return { error: null, success: `Pembayaran ${status === 'lunas' ? '— Tunggakan awal LUNAS!' : 'berhasil dicatat'}` }
 }
 
@@ -1198,6 +1221,33 @@ export async function getBukuBesarSiswa(siswaId: string) {
     }
   }
 
+  const transaksiRows = transaksi.results ?? []
+  if (sppSaldoAwal && (sppSaldoAwal.total_dibayar ?? 0) > 0) {
+    const recorded = await db.prepare(`
+      SELECT SUM(CASE WHEN t.is_void = 0 THEN d.jumlah ELSE 0 END) AS total_recorded
+      FROM fin_transaksi_detail d
+      JOIN fin_transaksi t ON t.id = d.transaksi_id
+      WHERE d.ref_type = 'spp_saldo_awal' AND d.ref_id = ?
+    `).bind(sppSaldoAwal.id).first<{ total_recorded: number | null }>()
+    const unrecorded = (sppSaldoAwal.total_dibayar ?? 0) - (recorded?.total_recorded ?? 0)
+    if (unrecorded > 0) {
+      transaksiRows.push({
+        id: `spp-saldo-awal-${sppSaldoAwal.id}`,
+        nomor_kuitansi: `SPP-AWAL-${String(sppSaldoAwal.id).slice(0, 8)}`,
+        siswa_id: siswaId,
+        kategori: 'spp',
+        metode_bayar: 'tunai',
+        jumlah_total: unrecorded,
+        is_void: 0,
+        void_alasan: null,
+        created_at: sppSaldoAwal.updated_at ?? sppSaldoAwal.created_at,
+        nama_input: 'Sistem',
+        is_synthetic: 1,
+      })
+      transaksiRows.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    }
+  }
+
   return {
     siswa,
     dspt,
@@ -1206,7 +1256,7 @@ export async function getBukuBesarSiswa(siswaId: string) {
     sppSaldoAwal: sppSaldoAwal ?? null,
     kopTagihan: null,
     kopItems: [],
-    transaksi: transaksi.results ?? [],
+    transaksi: transaksiRows,
     janjiList: janjiList.results ?? [],
     diskonList: diskonList.results ?? [],
     error: null,
@@ -1267,6 +1317,7 @@ function refTypeToTable(refType: string): string | null {
   switch (refType) {
     case 'dspt': return 'fin_dspt'
     case 'spp_tagihan': return 'fin_spp_tagihan'
+    case 'spp_saldo_awal': return 'fin_spp_saldo_awal'
     default: return null
   }
 }
@@ -1291,9 +1342,14 @@ async function recalcTagihanStatus(db: D1Database, details: Array<{ refType: str
     const tabel = refTypeToTable(refType)
     if (!tabel) continue
     const ph = ids.map(() => '?').join(',')
-    const nomField = refType === 'dspt' ? 'nominal_target AS nominal' : 'nominal'
+    const nomField = refType === 'dspt'
+      ? 'nominal_target AS nominal'
+      : refType === 'spp_saldo_awal'
+        ? 'jumlah AS nominal'
+        : 'nominal'
+    const diskonField = refType === 'spp_saldo_awal' ? '0 AS total_diskon' : 'total_diskon'
     const res = await db.prepare(
-      `SELECT id, total_dibayar, total_diskon, ${nomField} FROM ${tabel} WHERE id IN (${ph})`
+      `SELECT id, total_dibayar, ${diskonField}, ${nomField} FROM ${tabel} WHERE id IN (${ph})`
     ).bind(...ids).all<any>()
     for (const row of res.results ?? []) {
       updateStmts.push(db.prepare(
