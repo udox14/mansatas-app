@@ -5,6 +5,8 @@ export const CKH_TEACHING_ACTIVITY = 'Melaksanakan proses pembelajaran'
 export const CKH_OTHER_DUTY_ACTIVITY = 'Melaksanakan tugas dinas lainnya'
 export const CKH_DEFAULT_VOL = 1
 export const CKH_DEFAULT_SATUAN = 'Kegiatan'
+export const CKH_SATUAN_OPTIONS = ['Kegiatan', 'Orang', 'Dokumen'] as const
+export type CkhSatuan = typeof CKH_SATUAN_OPTIONS[number]
 
 export type CkhGeneratedRow = {
   tanggal: string
@@ -53,8 +55,42 @@ export function formatCkhMonth(year: number, month: number) {
   }).toUpperCase()
 }
 
+export type CkhDateRowSpan = {
+  isFirstOfDate: boolean
+  dateRowSpan: number
+  dateIndex: number
+}
+
+export function buildCkhDateRowSpans<T extends { tanggal: string }>(rows: T[]) {
+  const spans = new Map<T, CkhDateRowSpan>()
+  let dateIndex = 0
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index]
+    if (index > 0 && rows[index - 1].tanggal === row.tanggal) continue
+
+    dateIndex += 1
+    const dateRowSpan = rows.slice(index).findIndex(item => item.tanggal !== row.tanggal)
+    const span = dateRowSpan === -1 ? rows.length - index : dateRowSpan
+    for (let offset = 0; offset < span; offset += 1) {
+      spans.set(rows[index + offset], {
+        isFirstOfDate: offset === 0,
+        dateRowSpan: span,
+        dateIndex,
+      })
+    }
+  }
+
+  return spans
+}
+
 export function normalizeCkhText(value: string | null | undefined) {
   return String(value || '').trim().replace(/\s+/g, ' ')
+}
+
+export function normalizeCkhSatuan(value: string | null | undefined): CkhSatuan {
+  const clean = normalizeCkhText(value)
+  return CKH_SATUAN_OPTIONS.find(option => option.toLowerCase() === clean.toLowerCase()) || CKH_DEFAULT_SATUAN
 }
 
 export function splitCkhItems(value: string | null | undefined) {
