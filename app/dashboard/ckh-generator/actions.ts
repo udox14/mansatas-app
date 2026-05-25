@@ -149,10 +149,10 @@ async function markCkhDocumentDraft(db: D1Database, documentId: string) {
   `).bind(documentId).run()
 }
 
-async function getTemplatesForUser(db: D1Database, roles: string[], jabatanCetak: string | null) {
+async function getTemplatesForUser(db: D1Database, userId: string, roles: string[], jabatanCetak: string | null) {
   const roleList = roles.length > 0 ? roles : ['guru']
   const placeholders = roleList.map(() => '?').join(',')
-  const params: unknown[] = [...roleList]
+  const params: unknown[] = [userId, ...roleList]
   let jabatanClause = 'jabatan_cetak IS NULL'
   if (jabatanCetak) {
     jabatanClause = '(jabatan_cetak IS NULL OR LOWER(jabatan_cetak) = LOWER(?))'
@@ -160,10 +160,16 @@ async function getTemplatesForUser(db: D1Database, roles: string[], jabatanCetak
   }
 
   const templatesRes = await db.prepare(`
-    SELECT id, role, jabatan_cetak, title, sort_order, is_active
+    SELECT id, user_id, role, jabatan_cetak, title, sort_order, is_active
     FROM ckh_templates
-    WHERE role IN (${placeholders}) AND ${jabatanClause} AND is_active = 1
-    ORDER BY CASE WHEN jabatan_cetak IS NULL THEN 0 ELSE 1 END DESC, role ASC, sort_order ASC, title ASC
+    WHERE is_active = 1
+      AND (
+        user_id = ?
+        OR (user_id IS NULL AND role IN (${placeholders}) AND ${jabatanClause})
+      )
+    ORDER BY CASE WHEN user_id IS NULL THEN 1 ELSE 0 END ASC,
+             CASE WHEN jabatan_cetak IS NULL THEN 0 ELSE 1 END DESC,
+             role ASC, sort_order ASC, title ASC
   `).bind(...params).all<Omit<CkhTemplate, 'notes'>>()
 
   const templates = templatesRes.results || []
@@ -185,7 +191,7 @@ async function getTemplatesForUser(db: D1Database, roles: string[], jabatanCetak
   const byTitle = new Map<string, CkhTemplate>()
   for (const template of templates) {
     const key = template.title.toLowerCase()
-    if (!byTitle.has(key) || template.jabatan_cetak) {
+    if (!byTitle.has(key) || template.user_id || template.jabatan_cetak) {
       byTitle.set(key, {
         ...template,
         notes: notesByTemplate.get(template.id) || [],
@@ -357,14 +363,15 @@ export async function getCkhPageData(year: number, month: number) {
 
   const [rows, templates, allTemplatesRes, kepsek, kepalaTu] = await Promise.all([
     getRows(db, doc.id),
-    getTemplatesForUser(db, roles, freshUser.jabatan_cetak),
+    getTemplatesForUser(db, authUser.id, roles, freshUser.jabatan_cetak),
     db.prepare(`
-      SELECT t.id, t.role, t.jabatan_cetak, t.title, t.sort_order, t.is_active,
+      SELECT t.id, t.user_id, t.role, t.jabatan_cetak, t.title, t.sort_order, t.is_active,
              n.id as note_id, n.note, n.sort_order as note_sort_order, n.is_active as note_active
       FROM ckh_templates t
       LEFT JOIN ckh_template_notes n ON n.template_id = t.id
+      WHERE t.user_id IS NULL OR t.user_id = ?
       ORDER BY t.role ASC, t.jabatan_cetak ASC, t.sort_order ASC, t.title ASC, n.sort_order ASC, n.note ASC
-    `).all<any>(),
+    `).bind(authUser.id).all<any>(),
     db.prepare(`
       SELECT u.id, COALESCE(u.nama_lengkap, u.name) as nama_lengkap, u.nip, COALESCE(u.jabatan_cetak, 'Kepala Madrasah') as jabatan_cetak
       FROM "user" u
@@ -398,6 +405,7 @@ export async function getCkhPageData(year: number, month: number) {
     if (!templateMap.has(item.id)) {
       templateMap.set(item.id, {
         id: item.id,
+        user_id: item.user_id || null,
         role: item.role,
         jabatan_cetak: item.jabatan_cetak,
         title: item.title,
@@ -562,6 +570,97 @@ export async function addCkhRow(documentId: string, tanggal: string) {
   return { success: true, row: inserted }
 }
 
+export async function copyCkhRowsFromPreviousMonth(documentId: string) {
+  const authUser = await getCurrentUser()
+  if (!authUser) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  await requireCkhAccess(db, authUser.id)
+  const doc = await db.prepare('SELECT id, user_id, year, month FROM ckh_documents WHERE id = ?')
+    .bind(documentId).first<CkhDocument>()
+  if (!doc || doc.user_id !== authUser.id) return { error: 'Dokumen CKH tidak ditemukan.' }
+
+  const previous = new Date(doc.year, doc.month - 2, 1)
+  const previousDoc = await db.prepare(`
+    SELECT id FROM ckh_documents
+    WHERE user_id = ? AND year = ? AND month = ?
+  `).bind(authUser.id, previous.getFullYear(), previous.getMonth() + 1).first<{ id: string }>()
+  if (!previousDoc) return { error: 'Belum ada CKH bulan lalu untuk disalin.' }
+
+  const sourceRows = (await db.prepare(`
+    SELECT *
+    FROM ckh_rows
+    WHERE document_id = ?
+      AND (TRIM(kegiatan_bulanan) <> '' OR TRIM(catatan_harian) <> '')
+    ORDER BY tanggal ASC, row_order ASC, created_at ASC
+  `).bind(previousDoc.id).all<CkhRow>()).results || []
+  if (sourceRows.length === 0) return { error: 'CKH bulan lalu belum berisi data.' }
+
+  const targetRows = await getRows(db, documentId)
+  const targetByDate = new Map<string, CkhRow[]>()
+  for (const row of targetRows) {
+    if (!targetByDate.has(row.tanggal)) targetByDate.set(row.tanggal, [])
+    targetByDate.get(row.tanggal)!.push(row)
+  }
+
+  const effectiveDates = new Set(await getCkhEffectiveDates(db, doc.year, doc.month))
+  const lastDay = new Date(doc.year, doc.month, 0).getDate()
+  const statements: D1PreparedStatement[] = []
+  let copied = 0
+  const maxOrderByDate = new Map<string, number>()
+  for (const row of targetRows) {
+    maxOrderByDate.set(row.tanggal, Math.max(maxOrderByDate.get(row.tanggal) || 0, Number(row.row_order || 0)))
+  }
+
+  for (const source of sourceRows) {
+    const day = Number(source.tanggal.slice(8, 10))
+    if (!Number.isInteger(day) || day < 1 || day > lastDay) continue
+
+    const targetDate = `${doc.year}-${String(doc.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    if (!effectiveDates.has(targetDate)) continue
+
+    const sameDateRows = targetByDate.get(targetDate) || []
+    const hasContent = sameDateRows.some(row => row.catatan_harian.trim() || (row.kegiatan_bulanan.trim() && row.source !== 'autofill'))
+    if (hasContent) continue
+
+    const blankRow = sameDateRows.find(row => !row.kegiatan_bulanan.trim() && !row.catatan_harian.trim())
+    const kegiatan = cleanCkhMultiline(source.kegiatan_bulanan)
+    const catatan = cleanCkhMultiline(source.catatan_harian)
+    const vol = cleanCkhVolume(source.vol, catatan)
+
+    if (blankRow) {
+      statements.push(db.prepare(`
+        UPDATE ckh_rows
+        SET kegiatan_bulanan = ?, catatan_harian = ?, vol = ?, is_manual = 1,
+            source = 'manual', source_key = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `).bind(kegiatan, catatan, vol, `copy:${previousDoc.id}:${source.id}:${targetDate}`, blankRow.id))
+      targetByDate.set(targetDate, sameDateRows.filter(row => row.id !== blankRow.id))
+    } else {
+      const nextOrder = (maxOrderByDate.get(targetDate) || 0) + 1
+      maxOrderByDate.set(targetDate, nextOrder)
+      statements.push(db.prepare(`
+        INSERT INTO ckh_rows
+          (document_id, tanggal, row_order, kegiatan_bulanan, catatan_harian, vol, satuan, source, source_key, is_manual)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', ?, 1)
+      `).bind(documentId, targetDate, nextOrder, kegiatan, catatan, vol, source.satuan || CKH_DEFAULT_SATUAN, `copy:${previousDoc.id}:${source.id}:${targetDate}`))
+    }
+    copied += 1
+  }
+
+  if (copied === 0) return { error: 'Tidak ada baris bulan lalu yang bisa disalin ke bulan ini.' }
+
+  await markCkhDocumentDraft(db, documentId)
+  for (let i = 0; i < statements.length; i += 50) {
+    await db.batch(statements.slice(i, i + 50))
+  }
+
+  const rows = await getRows(db, documentId)
+  revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/tpg-dokumen')
+  return { success: `${copied} baris berhasil disalin dari bulan lalu.`, rows }
+}
+
 export async function deleteCkhRow(rowId: string) {
   const authUser = await getCurrentUser()
   if (!authUser) return { error: 'Unauthorized' }
@@ -690,16 +789,21 @@ export async function saveCkhTemplate(formData: FormData) {
 
   const db = await getDB()
   const roles = await getUserRoles(db, authUser.id)
-  if (!roles.includes('super_admin') && !roles.includes('admin_tu')) return { error: 'Hanya admin yang bisa mengelola template CKH.' }
+  const canManageGlobal = roles.includes('super_admin') || roles.includes('admin_tu')
 
   const id = cleanNullable(formData.get('id'))
-  const role = normalizeCkhText(String(formData.get('role') || 'guru'))
-  const jabatan = cleanNullable(formData.get('jabatan_cetak'))
+  const role = canManageGlobal
+    ? normalizeCkhText(String(formData.get('role') || 'guru'))
+    : getPrimaryRoleFromRows(roles, (await getFreshUser(db, authUser.id)).role)
+  const jabatan = canManageGlobal ? cleanNullable(formData.get('jabatan_cetak')) : null
   const title = normalizeCkhText(String(formData.get('title') || ''))
   const sortOrder = Number(formData.get('sort_order')) || 0
   if (!role || !title) return { error: 'Role dan kegiatan bulanan wajib diisi.' }
 
   if (id) {
+    const existing = await db.prepare('SELECT id, user_id FROM ckh_templates WHERE id = ?').bind(id).first<{ id: string; user_id: string | null }>()
+    if (!existing) return { error: 'Template CKH tidak ditemukan.' }
+    if (!canManageGlobal && existing.user_id !== authUser.id) return { error: 'Template ini bukan milik Anda.' }
     await db.prepare(`
       UPDATE ckh_templates
       SET role = ?, jabatan_cetak = ?, title = ?, sort_order = ?, updated_at = datetime('now')
@@ -707,20 +811,21 @@ export async function saveCkhTemplate(formData: FormData) {
     `).bind(role, jabatan, title, sortOrder, id).run()
   } else {
     await db.prepare(`
-      INSERT INTO ckh_templates (role, jabatan_cetak, title, sort_order)
-      VALUES (?, ?, ?, ?)
-    `).bind(role, jabatan, title, sortOrder).run()
+      INSERT INTO ckh_templates (user_id, role, jabatan_cetak, title, sort_order)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(canManageGlobal ? null : authUser.id, role, jabatan, title, sortOrder).run()
   }
 
   const saved = id
-    ? await db.prepare('SELECT id, role, jabatan_cetak, title, sort_order, is_active FROM ckh_templates WHERE id = ?').bind(id).first<Omit<CkhTemplate, 'notes'>>()
+    ? await db.prepare('SELECT id, user_id, role, jabatan_cetak, title, sort_order, is_active FROM ckh_templates WHERE id = ?').bind(id).first<Omit<CkhTemplate, 'notes'>>()
     : await db.prepare(`
-        SELECT id, role, jabatan_cetak, title, sort_order, is_active
+        SELECT id, user_id, role, jabatan_cetak, title, sort_order, is_active
         FROM ckh_templates
-        WHERE role = ? AND COALESCE(jabatan_cetak, '') = COALESCE(?, '') AND title = ?
+        WHERE COALESCE(user_id, '') = COALESCE(?, '')
+          AND role = ? AND COALESCE(jabatan_cetak, '') = COALESCE(?, '') AND title = ?
         ORDER BY created_at DESC
         LIMIT 1
-      `).bind(role, jabatan, title).first<Omit<CkhTemplate, 'notes'>>()
+      `).bind(canManageGlobal ? null : authUser.id, role, jabatan, title).first<Omit<CkhTemplate, 'notes'>>()
 
   revalidatePath('/dashboard/ckh-generator')
   return { success: 'Template CKH disimpan.', template: saved ? { ...saved, notes: [] } : null }
@@ -732,7 +837,10 @@ export async function deleteCkhTemplate(id: string) {
 
   const db = await getDB()
   const roles = await getUserRoles(db, authUser.id)
-  if (!roles.includes('super_admin') && !roles.includes('admin_tu')) return { error: 'Hanya admin yang bisa mengelola template CKH.' }
+  const canManageGlobal = roles.includes('super_admin') || roles.includes('admin_tu')
+  const existing = await db.prepare('SELECT id, user_id FROM ckh_templates WHERE id = ?').bind(id).first<{ id: string; user_id: string | null }>()
+  if (!existing) return { error: 'Template CKH tidak ditemukan.' }
+  if (!canManageGlobal && existing.user_id !== authUser.id) return { error: 'Template ini bukan milik Anda.' }
 
   await db.prepare('DELETE FROM ckh_templates WHERE id = ?').bind(id).run()
   revalidatePath('/dashboard/ckh-generator')
@@ -745,15 +853,26 @@ export async function saveCkhTemplateNote(formData: FormData) {
 
   const db = await getDB()
   const roles = await getUserRoles(db, authUser.id)
-  if (!roles.includes('super_admin') && !roles.includes('admin_tu')) return { error: 'Hanya admin yang bisa mengelola template CKH.' }
+  const canManageGlobal = roles.includes('super_admin') || roles.includes('admin_tu')
 
   const id = cleanNullable(formData.get('id'))
   const templateId = normalizeCkhText(String(formData.get('template_id') || ''))
   const note = normalizeCkhText(String(formData.get('note') || ''))
   const sortOrder = Number(formData.get('sort_order')) || 0
   if (!templateId || !note) return { error: 'Template dan catatan wajib diisi.' }
+  const template = await db.prepare('SELECT id, user_id FROM ckh_templates WHERE id = ?').bind(templateId).first<{ id: string; user_id: string | null }>()
+  if (!template) return { error: 'Template CKH tidak ditemukan.' }
+  if (!canManageGlobal && template.user_id !== authUser.id) return { error: 'Template ini bukan milik Anda.' }
 
   if (id) {
+    const existing = await db.prepare(`
+      SELECT n.id, t.user_id
+      FROM ckh_template_notes n
+      JOIN ckh_templates t ON t.id = n.template_id
+      WHERE n.id = ?
+    `).bind(id).first<{ id: string; user_id: string | null }>()
+    if (!existing) return { error: 'Catatan template tidak ditemukan.' }
+    if (!canManageGlobal && existing.user_id !== authUser.id) return { error: 'Catatan template ini bukan milik Anda.' }
     await db.prepare(`
       UPDATE ckh_template_notes
       SET template_id = ?, note = ?, sort_order = ?, updated_at = datetime('now')
@@ -786,7 +905,15 @@ export async function deleteCkhTemplateNote(id: string) {
 
   const db = await getDB()
   const roles = await getUserRoles(db, authUser.id)
-  if (!roles.includes('super_admin') && !roles.includes('admin_tu')) return { error: 'Hanya admin yang bisa mengelola template CKH.' }
+  const canManageGlobal = roles.includes('super_admin') || roles.includes('admin_tu')
+  const existing = await db.prepare(`
+    SELECT n.id, t.user_id
+    FROM ckh_template_notes n
+    JOIN ckh_templates t ON t.id = n.template_id
+    WHERE n.id = ?
+  `).bind(id).first<{ id: string; user_id: string | null }>()
+  if (!existing) return { error: 'Catatan template tidak ditemukan.' }
+  if (!canManageGlobal && existing.user_id !== authUser.id) return { error: 'Catatan template ini bukan milik Anda.' }
 
   await db.prepare('DELETE FROM ckh_template_notes WHERE id = ?').bind(id).run()
   revalidatePath('/dashboard/ckh-generator')

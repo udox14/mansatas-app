@@ -9,8 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Loader2, Play, Save, CheckCircle2, ArrowRight, Filter, AlertCircle, Search, Cloud, BarChart3, Users } from 'lucide-react'
-import { simpanPlottingMassal, setDraftPenjurusanMassal } from '../actions'
+import { Loader2, Play, Save, CheckCircle2, ArrowRight, Filter, AlertCircle, Search, BarChart3, Users } from 'lucide-react'
+import { simpanPlottingMassal, setDraftPenjurusan } from '../actions'
 import { CetakPenjurusanModal } from './cetak-penjurusan-modal'
 
 type SiswaType = { id: string; nama_lengkap: string; nisn: string; nis_lokal?: string | null; jenis_kelamin: string; kelas_lama: string; minat_jurusan?: string | null }
@@ -222,16 +222,6 @@ export function TabPenjurusan({
     setPenjurusan(init)
   }, [siswaList])
 
-  const hasUnsavedChanges = useMemo(() => {
-    for (const s of siswaList) {
-      let dbVal = s.minat_jurusan || null
-      if (dbVal === 'AGM') dbVal = 'KEAGAMAAN'
-      if (dbVal === 'SOS') dbVal = 'SOSHUM'
-      if ((penjurusan[s.id] || null) !== dbVal) return true
-    }
-    return false
-  }, [siswaList, penjurusan])
-
   const [filterKelas, setFilterKelas] = useState('NONE')
   const [filterStatus, setFilterStatus] = useState('ALL')
   const [searchSiswa, setSearchSiswa] = useState('')
@@ -241,10 +231,11 @@ export function TabPenjurusan({
   const [simulasiResult, setSimulasiResult] = useState<HasilPlottingType[]>([])
   const [isSimulating, setIsSimulating] = useState(false)
   const [hasRunSimulation, setHasRunSimulation] = useState(false)
-  const [isSavingDraft, setIsSavingDraft] = useState(false)
+  const [savingJurusanIds, setSavingJurusanIds] = useState<Record<string, boolean>>({})
   const [isSavingPermanent, setIsSavingPermanent] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
   const [saveStatus, setSaveStatus] = useState('')
+  const isSavingDraft = useMemo(() => Object.values(savingJurusanIds).some(Boolean), [savingJurusanIds])
 
   const opsiJurusan = useMemo(() => daftarJurusan.filter(j => j !== 'UMUM'), [daftarJurusan])
 
@@ -315,27 +306,41 @@ export function TabPenjurusan({
   const handleToggleKelas = (id: string) =>
     setSelectedKelasIds(prev => prev.includes(id) ? prev.filter(k => k !== id) : [...prev, id])
 
-  const setSiswaJurusan = (siswaId: string, jurusan: string | null) => {
+  const setSiswaJurusan = async (siswaId: string, jurusan: string | null) => {
+    const previousJurusan = penjurusan[siswaId] || null
     setPenjurusan(prev => {
       const next = { ...prev }
       if (!jurusan) delete next[siswaId]
       else next[siswaId] = jurusan
       return next
     })
-  }
+    setSavingJurusanIds(prev => ({ ...prev, [siswaId]: true }))
+    setSaveStatus('Menyimpan...')
 
-  const handleSimpanDraft = async () => {
-    setIsSavingDraft(true); setSaveStatus('Menyimpan...')
-    const payload = Object.entries(penjurusan).map(([id, minat_jurusan]) => ({ id, minat_jurusan }))
-    siswaList.forEach(s => { if (s.minat_jurusan && !penjurusan[s.id]) payload.push({ id: s.id, minat_jurusan: '' }) })
-    const res = await setDraftPenjurusanMassal(payload, plottingContext) as { error?: string; success?: boolean }
-    if (res.error) { alert(res.error); setSaveStatus('') }
-    else { setSaveStatus('Tersimpan'); setTimeout(() => setSaveStatus(''), 2000) }
-    setIsSavingDraft(false)
+    const res = await setDraftPenjurusan(siswaId, jurusan, plottingContext) as { error?: string; success?: boolean }
+    if (res.error) {
+      setPenjurusan(prev => {
+        const next = { ...prev }
+        if (!previousJurusan) delete next[siswaId]
+        else next[siswaId] = previousJurusan
+        return next
+      })
+      setSaveStatus('')
+      alert(res.error)
+    } else {
+      setSaveStatus('Tersimpan otomatis')
+      setTimeout(() => setSaveStatus(''), 2000)
+    }
+
+    setSavingJurusanIds(prev => {
+      const next = { ...prev }
+      delete next[siswaId]
+      return next
+    })
   }
 
   const jalankanSimulasi = () => {
-    if (hasUnsavedChanges) { alert("Simpan jurusan pilihan terlebih dahulu sebelum simulasi!"); return }
+    if (isSavingDraft) { alert("Tunggu pilihan jurusan selesai tersimpan otomatis sebelum simulasi."); return }
     setIsSimulating(true); setHasRunSimulation(false); setSimulasiResult([]); setSuccessMsg('')
     setTimeout(() => {
       const target = sortedKelas.filter(k => selectedKelasIds.includes(k.id)).map(k => ({ ...k, sisa: k.kapasitas - k.jumlah_siswa }))
@@ -470,17 +475,10 @@ export function TabPenjurusan({
             </div>
           </div>
 
-          {/* Tombol simpan draft — muncul hanya bila ada perubahan */}
-          {hasUnsavedChanges && (
-            <Button onClick={handleSimpanDraft} disabled={isSavingDraft}
-              className="w-full h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-md mb-3">
-              {isSavingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Cloud className="h-3.5 w-3.5" />}
-              {isSavingDraft ? 'Menyimpan...' : saveStatus || 'Simpan jurusan pilihan ke cloud'}
-            </Button>
-          )}
-          {saveStatus && !hasUnsavedChanges && (
+          {/* Status auto-save pilihan jurusan */}
+          {saveStatus && (
             <div className="flex items-center gap-1.5 text-[10px] text-emerald-600 font-medium mb-2">
-              <CheckCircle2 className="h-3 w-3" /> {saveStatus}
+              {isSavingDraft ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />} {saveStatus}
             </div>
           )}
 
@@ -508,6 +506,7 @@ export function TabPenjurusan({
                     <TableRow><TableCell colSpan={2} className="text-center text-xs text-slate-400 dark:text-slate-500 h-20">Tidak ada siswa yang cocok.</TableCell></TableRow>
                   ) : displayedSiswa.map(s => {
                     const hasTicket = !!penjurusan[s.id]
+                    const isSavingJurusan = !!savingJurusanIds[s.id]
                     const isPlotted = plottedIds.has(s.id)
                     const failed = hasRunSimulation && hasTicket && !isPlotted
                     return (
@@ -515,6 +514,7 @@ export function TabPenjurusan({
                         <TableCell className="pl-3 py-2">
                           <div className="flex items-center gap-1.5">
                             <p className={`text-xs font-medium ${failed ? 'text-rose-800' : 'text-slate-800 dark:text-slate-200 dark:text-slate-100'} truncate max-w-[140px]`}>{s.nama_lengkap}</p>
+                            {isSavingJurusan && <Loader2 className="h-3 w-3 animate-spin text-violet-500 shrink-0" />}
                             {isPlotted && <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />}
                             {failed && <AlertCircle className="h-3 w-3 text-rose-500 shrink-0" />}
                           </div>
@@ -526,11 +526,11 @@ export function TabPenjurusan({
                               const isActive = penjurusan[s.id] === jur
                               const short = jur === 'SOSHUM' ? 'SOS' : jur === 'KEAGAMAAN' ? 'AGM' : jur.length > 6 ? jur.slice(0, 5) + '..' : jur
                               return (
-                                <button key={jur} onClick={() => setSiswaJurusan(s.id, isActive ? null : jur)} title={jur}
+                                <button key={jur} onClick={() => setSiswaJurusan(s.id, isActive ? null : jur)} title={jur} disabled={isSavingJurusan}
                                   className={`px-2 py-1 text-[9px] font-semibold rounded transition-all border ${
                                     isActive
                                       ? 'bg-violet-600 text-white border-violet-700 scale-105'
-                                      : 'bg-surface-2 text-slate-500 dark:text-slate-400 dark:text-slate-500 border-surface hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200'
+                                      : 'bg-surface-2 text-slate-500 dark:text-slate-400 dark:text-slate-500 border-surface hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 disabled:opacity-50'
                                   }`}
                                 >{short}</button>
                               )
@@ -590,19 +590,11 @@ export function TabPenjurusan({
                   />
                 </div>
 
-                {hasRunSimulation && hasUnsavedChanges && (
+                {hasRunSimulation && isSavingDraft && (
                   <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
                     <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    <span>Preview kelas di kanan memakai simulasi lama. Simpan jurusan pilihan lalu jalankan algoritma ulang sebelum simpan permanen.</span>
+                    <span>Preview kelas di kanan memakai simulasi lama. Tunggu auto-save selesai lalu jalankan algoritma ulang sebelum simpan permanen.</span>
                   </div>
-                )}
-
-                {hasUnsavedChanges && (
-                  <Button onClick={handleSimpanDraft} disabled={isSavingDraft}
-                    className="w-full h-9 text-xs gap-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-md">
-                    {isSavingDraft ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Cloud className="h-3.5 w-3.5" />}
-                    {isSavingDraft ? 'Menyimpan...' : saveStatus || 'Simpan jurusan pilihan ke cloud'}
-                  </Button>
                 )}
 
                 <div className="rounded-md border border-surface overflow-hidden">
@@ -624,6 +616,7 @@ export function TabPenjurusan({
                           </TableRow>
                         ) : displayedJurusanSiswa.map(s => {
                           const hasil = hasilPlottingBySiswa[s.id]
+                          const isSavingJurusan = !!savingJurusanIds[s.id]
                           return (
                             <TableRow key={s.id} className="hover:bg-surface-2/50">
                               <TableCell className="pl-3 py-2">
@@ -643,7 +636,7 @@ export function TabPenjurusan({
                                 )}
                               </TableCell>
                               <TableCell className="pr-3 py-2">
-                                <Select value={penjurusan[s.id] || 'UNSET'} onValueChange={(value) => setSiswaJurusan(s.id, value === 'UNSET' ? null : value)}>
+                                <Select value={penjurusan[s.id] || 'UNSET'} onValueChange={(value) => setSiswaJurusan(s.id, value === 'UNSET' ? null : value)} disabled={isSavingJurusan}>
                                   <SelectTrigger className="ml-auto h-8 w-[140px] rounded-md text-xs">
                                     <SelectValue placeholder="Jurusan" />
                                   </SelectTrigger>
@@ -715,7 +708,7 @@ export function TabPenjurusan({
               <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Siswa diurutkan dan disebar rata (L/P)</p>
             </div>
             {simulasiResult.length > 0 && (
-              <Button onClick={simpanPermanen} disabled={isSavingPermanent || hasUnsavedChanges} size="sm"
+              <Button onClick={simpanPermanen} disabled={isSavingPermanent || isSavingDraft} size="sm"
                 className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md">
                 {isSavingPermanent ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
                 Simpan permanen
@@ -723,9 +716,9 @@ export function TabPenjurusan({
             )}
           </div>
 
-          {simulasiResult.length > 0 && hasUnsavedChanges && (
+          {simulasiResult.length > 0 && isSavingDraft && (
             <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[10px] font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-              Ada perubahan jurusan pilihan yang belum disimpan. Simpan jurusan pilihan dan jalankan algoritma ulang sebelum simpan permanen.
+              Ada perubahan jurusan pilihan yang sedang tersimpan otomatis. Jalankan algoritma ulang sebelum simpan permanen.
             </div>
           )}
 

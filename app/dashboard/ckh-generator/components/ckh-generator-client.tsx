@@ -17,6 +17,8 @@ import { cn } from '@/lib/utils'
 import { CKH_DEFAULT_SATUAN, CKH_DEFAULT_VOL, countCkhItems, formatCkhDate, formatCkhMonth } from '@/lib/ckh'
 import {
   acceptCkhSuggestion,
+  addCkhRow,
+  copyCkhRowsFromPreviousMonth,
   deleteCkhRow,
   deleteCkhTemplate,
   deleteCkhTemplateNote,
@@ -46,6 +48,7 @@ type Row = {
 
 type Template = {
   id: string
+  user_id: string | null
   role: string
   jabatan_cetak: string | null
   title: string
@@ -116,10 +119,6 @@ function displayToIsoDate(value: string) {
   if (Number.isNaN(date.getTime())) return null
   if (date.getFullYear() !== Number(year) || date.getMonth() + 1 !== Number(month) || date.getDate() !== Number(day)) return null
   return `${year}-${month}-${day}`
-}
-
-function appendCkhLine(value: string) {
-  return value.trim() ? `${value.replace(/\s+$/, '')}\n` : ''
 }
 
 function shouldUseKepalaTu(user: any, userRoles: string[] = []) {
@@ -570,7 +569,9 @@ export function CkhGeneratorClient({
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
   const [isSyncing, setIsSyncing] = useState(false)
+  const [isCopying, setIsCopying] = useState(false)
   const [busyRowId, setBusyRowId] = useState<string | null>(null)
+  const [addingForRowId, setAddingForRowId] = useState<string | null>(null)
   const [selectedMonth, setSelectedMonth] = useState(String(month))
   const [selectedYear, setSelectedYear] = useState(String(year))
   const [allTemplates, setAllTemplates] = useState<Template[]>(initialData.allTemplates)
@@ -599,6 +600,12 @@ export function CkhGeneratorClient({
   const primarySigner = signatureUsesKepalaTu ? initialData.kepalaTu : initialData.kepsek
   const primarySignerLabel = signatureUsesKepalaTu ? 'KEPALA TU' : 'KEPALA MAN 1 TASIKMALAYA'
   const missingSignerLabel = signatureUsesKepalaTu ? 'KEPALA TU BELUM DIATUR' : 'KEPALA MADRASAH BELUM DIATUR'
+  const manageableTemplates = useMemo(
+    () => canManageTemplates
+      ? allTemplates
+      : allTemplates.filter(template => template.user_id === initialData.user.id),
+    [allTemplates, canManageTemplates, initialData.user.id],
+  )
 
   useEffect(() => {
     setRows(initialData.rows)
@@ -661,6 +668,23 @@ export function CkhGeneratorClient({
     }
   }
 
+  const copyFromPreviousMonth = async () => {
+    if (!confirm('Salin isi CKH dari bulan lalu ke tanggal yang sama? Baris yang sudah berisi data tidak akan ditimpa.')) return
+    setIsCopying(true)
+    try {
+      const res = await copyCkhRowsFromPreviousMonth(initialData.document.id)
+      if (res?.error) {
+        setMessage({ type: 'error', text: res.error })
+        return
+      }
+      if (res?.rows) setRows(sortCkhRows(res.rows as Row[]))
+      setDocumentStatus('DRAFT')
+      setMessage({ type: 'success', text: res.success || 'Data bulan lalu disalin.' })
+    } finally {
+      setIsCopying(false)
+    }
+  }
+
   const goMonth = () => {
     const nextYear = Number(selectedYear)
     const nextMonth = Number(selectedMonth)
@@ -691,6 +715,24 @@ export function CkhGeneratorClient({
     })
   }
 
+  const addRowForDate = (row: Row) => {
+    startTransition(async () => {
+      setAddingForRowId(row.id)
+      try {
+        const res = await addCkhRow(initialData.document.id, row.tanggal)
+        if (res?.error) {
+          setMessage({ type: 'error', text: res.error })
+          return
+        }
+        if (res?.row) setRows(prev => sortCkhRows([...prev, res.row as Row]))
+        setDocumentStatus('DRAFT')
+        setMessage({ type: 'success', text: `Baris baru ditambahkan untuk ${isoToDisplayDate(row.tanggal)}.` })
+      } finally {
+        setAddingForRowId(null)
+      }
+    })
+  }
+
   const acceptSuggestion = (rowId: string) => {
     startTransition(async () => {
       const res = await acceptCkhSuggestion(rowId)
@@ -715,9 +757,9 @@ export function CkhGeneratorClient({
   return (
     <Tabs defaultValue="dokumen" className="space-y-4">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <TabsList className={cn('grid w-full max-w-md', canManageTemplates ? 'grid-cols-2' : 'grid-cols-1')}>
+        <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="dokumen" className="gap-1.5"><FileText className="h-3.5 w-3.5" /> Dokumen</TabsTrigger>
-          {canManageTemplates && <TabsTrigger value="template" className="gap-1.5"><Settings2 className="h-3.5 w-3.5" /> Template</TabsTrigger>}
+          <TabsTrigger value="template" className="gap-1.5"><Settings2 className="h-3.5 w-3.5" /> {canManageTemplates ? 'Template' : 'Template Saya'}</TabsTrigger>
         </TabsList>
         <div className="flex w-full flex-col gap-2 xl:w-auto xl:items-end">
           <div className="flex w-full flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-end xl:w-auto">
@@ -755,6 +797,10 @@ export function CkhGeneratorClient({
               <Button variant="outline" onClick={syncDraft} disabled={isSyncing} className="h-10 gap-2">
                 {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
                 Sinkronkan Agenda
+              </Button>
+              <Button variant="outline" onClick={copyFromPreviousMonth} disabled={isCopying} className="h-10 gap-2">
+                {isCopying ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+                Salin Bulan Lalu
               </Button>
               <SignatureSettingsDialog
                 documentId={initialData.document.id}
@@ -873,11 +919,12 @@ export function CkhGeneratorClient({
                           <button
                             type="button"
                             onMouseDown={e => e.preventDefault()}
-                            onClick={() => updateRowLocal(row.id, { kegiatan_bulanan: appendCkhLine(row.kegiatan_bulanan) })}
+                            onClick={() => addRowForDate(row)}
+                            disabled={addingForRowId === row.id}
                             className="rounded-md p-1 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 print:hidden"
-                            title="Tambah kegiatan bulanan di tanggal ini"
+                            title="Tambah baris CKH di tanggal ini"
                           >
-                            <Plus className="h-3.5 w-3.5" />
+                            {addingForRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                           </button>
                         </div>
                       </td>
@@ -896,14 +943,12 @@ export function CkhGeneratorClient({
                           <button
                             type="button"
                             onMouseDown={e => e.preventDefault()}
-                            onClick={() => {
-                              const catatan = appendCkhLine(row.catatan_harian)
-                              updateRowLocal(row.id, { catatan_harian: catatan, vol: countCkhItems(catatan) })
-                            }}
+                            onClick={() => addRowForDate(row)}
+                            disabled={addingForRowId === row.id}
                             className="rounded-md p-1 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 print:hidden"
-                            title="Tambah catatan kinerja di tanggal ini"
+                            title="Tambah baris CKH di tanggal ini"
                           >
-                            <Plus className="h-3.5 w-3.5" />
+                            {addingForRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                           </button>
                         </div>
                         {(notesByActivity.get(row.kegiatan_bulanan) || []).length > 0 && (
@@ -1000,17 +1045,34 @@ export function CkhGeneratorClient({
         </div>
       </TabsContent>
 
-      {canManageTemplates && (
-        <TabsContent value="template" className="mt-0">
-          <TemplateAdmin templates={allTemplates} onTemplatesChange={setAllTemplates} />
-        </TabsContent>
-      )}
+      <TabsContent value="template" className="mt-0">
+        <TemplateAdmin
+          templates={manageableTemplates}
+          canManageGlobal={canManageTemplates}
+          primaryRole={initialData.primaryRole || 'guru'}
+          onTemplatesChange={nextTemplates => {
+            setAllTemplates(prev => canManageTemplates
+              ? nextTemplates
+              : [...prev.filter(template => template.user_id !== initialData.user.id), ...nextTemplates])
+          }}
+        />
+      </TabsContent>
 
     </Tabs>
   )
 }
 
-function TemplateAdmin({ templates, onTemplatesChange }: { templates: Template[]; onTemplatesChange: (templates: Template[]) => void }) {
+function TemplateAdmin({
+  templates,
+  canManageGlobal,
+  primaryRole,
+  onTemplatesChange,
+}: {
+  templates: Template[]
+  canManageGlobal: boolean
+  primaryRole: string
+  onTemplatesChange: (templates: Template[]) => void
+}) {
   const [isPending, startTransition] = useTransition()
   const [templateList, setTemplateList] = useState<Template[]>(templates)
   const [templateForm, setTemplateForm] = useState<Template | null>(null)
@@ -1094,10 +1156,12 @@ function TemplateAdmin({ templates, onTemplatesChange }: { templates: Template[]
         <div className="flex items-center justify-between border-b border-surface-2 px-4 py-3">
           <div>
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Template CKH</p>
-            <p className="text-xs text-slate-500">Kegiatan bulanan per role dan opsional jabatan cetak.</p>
+            <p className="text-xs text-slate-500">
+              {canManageGlobal ? 'Kegiatan bulanan per role dan opsional jabatan cetak.' : 'Template pribadi untuk autofill catatan CKH Anda.'}
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
+            {canManageGlobal && <Select value={roleFilter} onValueChange={setRoleFilter}>
               <SelectTrigger className="h-9 w-40 text-xs">
                 <SelectValue />
               </SelectTrigger>
@@ -1107,8 +1171,8 @@ function TemplateAdmin({ templates, onTemplatesChange }: { templates: Template[]
                   <SelectItem key={role} value={role} className="text-xs">{role}</SelectItem>
                 ))}
               </SelectContent>
-            </Select>
-            <Button size="sm" onClick={() => setTemplateForm({ id: '', role: roleFilter === '_all' ? 'guru' : roleFilter, jabatan_cetak: null, title: '', sort_order: 0, is_active: 1, notes: [] })} className="gap-1.5">
+            </Select>}
+            <Button size="sm" onClick={() => setTemplateForm({ id: '', user_id: null, role: roleFilter === '_all' ? primaryRole : roleFilter, jabatan_cetak: null, title: '', sort_order: 0, is_active: 1, notes: [] })} className="gap-1.5">
               <Plus className="h-4 w-4" /> Template
             </Button>
           </div>
@@ -1121,7 +1185,9 @@ function TemplateAdmin({ templates, onTemplatesChange }: { templates: Template[]
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{template.title}</p>
-                  <p className="mt-0.5 text-xs text-slate-500">{template.role}{template.jabatan_cetak ? ` | ${template.jabatan_cetak}` : ' | Semua jabatan'}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {template.user_id ? 'Personal' : 'Global'} | {template.role}{template.jabatan_cetak ? ` | ${template.jabatan_cetak}` : ' | Semua jabatan'}
+                  </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <Button size="sm" variant="outline" onClick={() => setNoteForm({ template_id: template.id, note: '', sort_order: 0 })} className="h-8 px-2 text-xs">
@@ -1163,21 +1229,22 @@ function TemplateAdmin({ templates, onTemplatesChange }: { templates: Template[]
         ) : templateForm ? (
           <form action={submitTemplate} className="space-y-3">
             <input type="hidden" name="id" value={templateForm.id} />
+            {!canManageGlobal && <input type="hidden" name="role" value={primaryRole} />}
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold">Form Template</p>
               <Button type="button" variant="ghost" size="sm" onClick={() => setTemplateForm(null)}><X className="h-4 w-4" /></Button>
             </div>
-            <div className="space-y-1.5">
+            {canManageGlobal && <div className="space-y-1.5">
               <Label className="text-xs">Role</Label>
               <Select name="role" defaultValue={templateForm.role}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{roleOptions.map(role => <SelectItem key={role} value={role}>{role}</SelectItem>)}</SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1.5">
+            </div>}
+            {canManageGlobal && <div className="space-y-1.5">
               <Label className="text-xs">Jabatan cetak khusus</Label>
               <Input name="jabatan_cetak" defaultValue={templateForm.jabatan_cetak || ''} placeholder="Kosongkan untuk semua jabatan" />
-            </div>
+            </div>}
             <div className="space-y-1.5">
               <Label className="text-xs">Kegiatan bulanan</Label>
               <Input name="title" defaultValue={templateForm.title} required />

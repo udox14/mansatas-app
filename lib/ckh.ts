@@ -17,6 +17,7 @@ export type CkhGeneratedRow = {
 
 export type CkhTemplate = {
   id: string
+  user_id: string | null
   role: string
   jabatan_cetak: string | null
   title: string
