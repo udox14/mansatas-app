@@ -60,6 +60,25 @@ const HARI_COLORS = [
   'bg-amber-100 text-amber-700 border-amber-200',
 ]
 
+function parseAgendaLateThresholdByJam(raw: string): Record<string, string> {
+  try {
+    const parsed = JSON.parse(raw || '{}')
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .map(([jamKe, minutes]) => {
+          const jamNumber = Number(jamKe)
+          const minuteNumber = Number(minutes)
+          if (!Number.isInteger(jamNumber) || jamNumber < 1 || !Number.isFinite(minuteNumber) || minuteNumber < 0) return null
+          return [String(jamNumber), String(Math.floor(minuteNumber))]
+        })
+        .filter((entry): entry is [string, string] => Boolean(entry))
+    )
+  } catch {
+    return {}
+  }
+}
+
 function SubmitBtn() {
   const { pending } = useFormStatus()
   return (
@@ -358,6 +377,7 @@ export function SettingsClient({
   agendaTimeRestrictionEnabled,
   agendaLateEnabled,
   agendaLateThresholdMinutes,
+  agendaLateThresholdByJam,
   attendanceTimeRestrictionEnabled,
   attendanceSkipIncompleteForDailyStatusEnabled,
 }: {
@@ -365,12 +385,16 @@ export function SettingsClient({
   agendaTimeRestrictionEnabled: boolean
   agendaLateEnabled: boolean
   agendaLateThresholdMinutes: number
+  agendaLateThresholdByJam: string
   attendanceTimeRestrictionEnabled: boolean
   attendanceSkipIncompleteForDailyStatusEnabled: boolean
 }) {
   const [agendaTimeRestricted, setAgendaTimeRestricted] = useState(agendaTimeRestrictionEnabled)
   const [agendaLateActive, setAgendaLateActive] = useState(agendaLateEnabled)
   const [agendaLateMinutes, setAgendaLateMinutes] = useState(String(agendaLateThresholdMinutes))
+  const [agendaLateByJam, setAgendaLateByJam] = useState<Record<string, string>>(
+    () => parseAgendaLateThresholdByJam(agendaLateThresholdByJam)
+  )
   const [attendanceTimeRestricted, setAttendanceTimeRestricted] = useState(attendanceTimeRestrictionEnabled)
   const [attendanceSkipIncomplete, setAttendanceSkipIncomplete] = useState(attendanceSkipIncompleteForDailyStatusEnabled)
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -483,9 +507,20 @@ export function SettingsClient({
       alert('Batas telat harus berupa angka 0 menit atau lebih.')
       return
     }
+    const thresholdByJam: Record<string, number> = {}
+    for (const [jamKe, value] of Object.entries(agendaLateByJam)) {
+      const jamNumber = Number(jamKe)
+      const minuteNumber = Number(value)
+      if (!value.trim()) continue
+      if (!Number.isInteger(jamNumber) || jamNumber < 1 || !Number.isFinite(minuteNumber) || minuteNumber < 0) {
+        alert(`Batas telat jam ke-${jamKe} harus berupa angka 0 menit atau lebih.`)
+        return
+      }
+      thresholdByJam[jamKe] = minuteNumber
+    }
 
     setIsSavingAgendaLateSetting(true)
-    const res = await setAgendaLateSetting(agendaLateActive, minutes)
+    const res = await setAgendaLateSetting(agendaLateActive, minutes, thresholdByJam)
     setIsSavingAgendaLateSetting(false)
     if (res?.error) alert(res.error)
     else alert('Pengaturan batas telat agenda berhasil disimpan.')
@@ -521,6 +556,15 @@ export function SettingsClient({
     const totalSlot = pola.reduce((a, p) => a + p.slots.length, 0)
     const maxJam = Math.max(...pola.map(p => p.slots.length))
     return { pola: pola.length, maxJam, totalSlot }
+  }
+  const activeTA = taData.find(ta => ta.is_active) || taData[0]
+  const activePolaJam = ensurePolaArray(activeTA?.jam_pelajaran)
+  const maxJamPelajaran = activePolaJam.length > 0
+    ? Math.max(...activePolaJam.flatMap(p => p.slots.map(s => s.id)), 0)
+    : 0
+  const agendaLateJamList = Array.from({ length: maxJamPelajaran }, (_, i) => i + 1)
+  const updateAgendaLateByJam = (jamKe: number, value: string) => {
+    setAgendaLateByJam(prev => ({ ...prev, [String(jamKe)]: value }))
   }
 
   return (
@@ -599,7 +643,7 @@ export function SettingsClient({
 
           <div className="mt-3 flex flex-col sm:flex-row sm:items-end gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Batas dianggap telat</Label>
+              <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Batas default dianggap telat</Label>
               <div className="flex items-center gap-2">
                 <Input
                   type="number"
@@ -613,6 +657,49 @@ export function SettingsClient({
                 <span className="text-xs text-slate-500 dark:text-slate-400">menit setelah jam mulai</span>
               </div>
             </div>
+          </div>
+
+          <div className="mt-4 rounded-lg border border-surface bg-surface-2 p-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Batas per jam pelajaran</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Kosongkan jam tertentu untuk memakai batas default {agendaLateMinutes || 0} menit.
+                </p>
+              </div>
+              {activeTA && (
+                <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                  TA aktif: {activeTA.nama}
+                </span>
+              )}
+            </div>
+            {agendaLateJamList.length === 0 ? (
+              <p className="mt-3 text-xs text-amber-600">Jam pelajaran TA aktif belum dikonfigurasi.</p>
+            ) : (
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                {agendaLateJamList.map(jamKe => (
+                  <div key={jamKe} className="rounded-md border border-surface bg-surface px-2 py-2">
+                    <Label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Jam {jamKe}</Label>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={240}
+                        placeholder={agendaLateMinutes}
+                        value={agendaLateByJam[String(jamKe)] ?? ''}
+                        onChange={e => updateAgendaLateByJam(jamKe, e.target.value)}
+                        disabled={!agendaLateActive || isSavingAgendaLateSetting}
+                        className="h-8 rounded-md bg-surface-2 text-xs"
+                      />
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">m</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3 flex flex-col sm:flex-row sm:items-end gap-3">
             <Button
               type="button"
               onClick={handleSaveAgendaLateSetting}
