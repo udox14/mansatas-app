@@ -9,7 +9,7 @@ import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import { nowWIB, currentTimeWIB, nowWIBISO } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
-import { getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { getSystemSetting, getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import {
   findTeachingBlockException,
   getKbmExceptionsForDate,
@@ -197,10 +197,29 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
   return { error: null, blocks, slots, tanggal, hari, kbmExceptions }
 }
 
+function parseAgendaLateThresholdByJam(raw: string): Record<string, number> {
+  try {
+    const parsed = JSON.parse(raw || '{}')
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .map(([jamKe, minutes]) => {
+          const jamNumber = Number(jamKe)
+          const minuteNumber = Number(minutes)
+          if (!Number.isInteger(jamNumber) || jamNumber < 1 || !Number.isFinite(minuteNumber) || minuteNumber < 0) return null
+          return [String(jamNumber), Math.floor(minuteNumber)]
+        })
+        .filter((entry): entry is [string, number] => Boolean(entry))
+    )
+  } catch {
+    return {}
+  }
+}
+
 // ============================================================
 // 2. SUBMIT AGENDA (guru)
 //    Validasi: hanya bisa di jam pelajarannya (BYPASS untuk Act As)
-//    Status: TEPAT_WAKTU jika ≤10 menit dari jam mulai, TELAT jika >10 menit
+//    Status: TEPAT_WAKTU jika masih dalam batas menit per jam, TELAT jika lewat
 // ============================================================
 export async function submitAgenda(formData: FormData): Promise<{ error?: string; success?: string }> {
   const user = await getCurrentUser()
@@ -238,6 +257,10 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
     SYSTEM_SETTING_KEYS.agendaLateThresholdMinutes,
     10
   ))
+  const agendaLateThresholdByJam = parseAgendaLateThresholdByJam(await getSystemSetting(
+    SYSTEM_SETTING_KEYS.agendaLateThresholdByJam,
+    '{}'
+  ))
 
   // Cek apakah sudah diisi
   const existing = await db.prepare(
@@ -269,7 +292,8 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
 
   // Hitung status
   const [mulaiH2, mulaiM2] = slotMulai.split(':').map(Number)
-  const batasTepat = mulaiH2 * 60 + mulaiM2 + agendaLateThresholdMinutes
+  const blockThreshold = agendaLateThresholdByJam[String(jamKeMulai)] ?? agendaLateThresholdMinutes
+  const batasTepat = mulaiH2 * 60 + mulaiM2 + blockThreshold
   const [curH2, curM2] = currentTime.split(':').map(Number)
   const currentMinutes2 = curH2 * 60 + curM2
   // Jika act-as, selalu TEPAT_WAKTU karena diinput oleh admin

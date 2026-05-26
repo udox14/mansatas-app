@@ -155,7 +155,11 @@ export async function setAgendaTimeRestrictionEnabled(enabled: boolean) {
   return { success: true }
 }
 
-export async function setAgendaLateSetting(enabled: boolean, thresholdMinutes: number) {
+export async function setAgendaLateSetting(
+  enabled: boolean,
+  thresholdMinutes: number,
+  thresholdByJam: Record<string, number> = {}
+) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -166,9 +170,18 @@ export async function setAgendaLateSetting(enabled: boolean, thresholdMinutes: n
   }
 
   const sanitizedMinutes = Math.max(0, Math.min(240, Math.floor(Number(thresholdMinutes) || 0)))
+  const sanitizedByJam = Object.fromEntries(
+    Object.entries(thresholdByJam)
+      .map(([jamKe, minutes]) => [
+        String(Math.floor(Number(jamKe))),
+        Math.max(0, Math.min(240, Math.floor(Number(minutes) || 0))),
+      ])
+      .filter(([jamKe]) => Number.isInteger(Number(jamKe)) && Number(jamKe) > 0)
+  )
 
   await setSystemSetting(SYSTEM_SETTING_KEYS.agendaLateEnabled, enabled ? '1' : '0')
   await setSystemSetting(SYSTEM_SETTING_KEYS.agendaLateThresholdMinutes, String(sanitizedMinutes))
+  await setSystemSetting(SYSTEM_SETTING_KEYS.agendaLateThresholdByJam, JSON.stringify(sanitizedByJam))
 
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard/agenda')

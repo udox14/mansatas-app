@@ -4,6 +4,7 @@ export const SYSTEM_SETTING_KEYS = {
   agendaTimeRestriction: 'agenda_time_restriction_enabled',
   agendaLateEnabled: 'agenda_late_enabled',
   agendaLateThresholdMinutes: 'agenda_late_threshold_minutes',
+  agendaLateThresholdByJam: 'agenda_late_threshold_by_jam',
   attendanceTimeRestriction: 'attendance_time_restriction_enabled',
   attendanceSkipIncompleteForDailyStatus: 'attendance_skip_incomplete_for_daily_status',
 } as const
