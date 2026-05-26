@@ -20,8 +20,9 @@ import {
   tambahSesiPenanganan, hapusSesiPenanganan,
   tambahTopikBK, editTopikBK, hapusTopikBK,
   sinkronKelasBinaanDariPenugasan, getKelasBinaanPerGuru,
+  getLaporanBKSiswa, getLaporanBKKelas,
 } from '../actions'
-import type { BidangBK, TipePenanganan, SesiPenanganan } from '../actions'
+import type { BidangBK, TipePenanganan, SesiPenanganan, LaporanBKSiswa, LaporanBKKelas } from '../actions'
 import { cn, formatNamaKelas } from '@/lib/utils'
 import { todayWIB } from '@/lib/time'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
@@ -58,6 +59,226 @@ const NO_TOPIK_VALUE = '__no_topik__'
 
 function Badge({ label, colorClass }: { label: string; colorClass: string }) {
   return <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', colorClass)}>{label}</span>
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function formatTanggalCetak(value?: string | null) {
+  if (!value) return '-'
+  try {
+    return new Date(value).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+  } catch {
+    return value
+  }
+}
+
+function formatNamaKelasLaporan(kelas: { tingkat?: number | null; nomor_kelas?: string | number | null; kelas_kelompok?: string | null; kelompok?: string | null }) {
+  if (!kelas.tingkat) return '-'
+  return formatNamaKelas(kelas.tingkat, String(kelas.nomor_kelas ?? ''), kelas.kelas_kelompok ?? kelas.kelompok ?? '')
+}
+
+function sesiLabel(tipe: TipePenanganan | string) {
+  return TIPE_PENANGANAN.find(t => t.value === tipe)?.label ?? String(tipe || '-')
+}
+
+function absoluteAssetUrl(path: string, origin: string) {
+  if (!path) return ''
+  if (/^(https?:|data:|blob:)/i.test(path)) return path
+  return `${origin}${path.startsWith('/') ? path : `/${path}`}`
+}
+
+const BK_PRINT_CSS = `
+  @page { size: A4; margin: 15mm 16mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; line-height: 1.45; }
+  .page { width: 100%; }
+  .kop { width: 100%; display: block; margin-bottom: 8pt; }
+  .title { text-align: center; margin: 8pt 0 12pt; }
+  .title h1 { margin: 0 0 3pt; font-size: 13.5pt; text-transform: uppercase; letter-spacing: .3pt; }
+  .title p { margin: 0; font-size: 10.5pt; }
+  table { width: 100%; border-collapse: collapse; }
+  .meta { margin-bottom: 10pt; }
+  .meta td { padding: 1.5pt 0; vertical-align: top; }
+  .meta td:first-child { width: 118pt; }
+  .meta td:nth-child(2) { width: 10pt; text-align: center; }
+  .summary { margin: 8pt 0 12pt; }
+  .summary th, .summary td, .main th, .main td { border: .75pt solid #333; padding: 4pt 5pt; vertical-align: top; }
+  .summary th, .main th { background: #e8e8e8; text-align: center; font-weight: 700; }
+  .main { font-size: 9pt; }
+  .main thead { display: table-header-group; }
+  .main tr { break-inside: avoid; page-break-inside: avoid; }
+  .section-title { margin: 12pt 0 5pt; padding-bottom: 2pt; border-bottom: .75pt solid #000; font-size: 11pt; font-weight: 700; text-transform: uppercase; }
+  .record { break-inside: avoid; page-break-inside: avoid; border: .75pt solid #555; margin-bottom: 7pt; }
+  .record-head { display: flex; justify-content: space-between; gap: 8pt; background: #f0f0f0; border-bottom: .75pt solid #555; padding: 4pt 6pt; font-weight: 700; }
+  .record-body { padding: 5pt 6pt; }
+  .muted { color: #555; }
+  .empty { padding: 10pt; text-align: center; border: .75pt solid #555; color: #555; }
+  .conclusion { margin-top: 10pt; padding: 6pt 8pt; border: .75pt solid #555; }
+  .signature { margin-top: 22pt; display: flex; justify-content: flex-end; }
+  .signature-box { width: 185pt; text-align: center; }
+  .signature-img { max-width: 125pt; max-height: 52pt; object-fit: contain; display: block; margin: 5pt auto 2pt; }
+  .signature-space { height: 58pt; }
+  .signature-name { display: inline-block; min-width: 150pt; border-top: .75pt solid #000; padding-top: 2pt; font-weight: 700; }
+  .small { font-size: 8.5pt; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+`
+
+function signatureHtml(guru: LaporanBKSiswa['guru_bk'] | LaporanBKKelas['guru_bk'], origin: string) {
+  const signatureUrl = guru.signature_url ? absoluteAssetUrl(guru.signature_url, origin) : ''
+  return `
+    <div class="signature">
+      <div class="signature-box">
+        <div>Tasikmalaya, ${escapeHtml(formatTanggalCetak(new Date().toISOString()))}</div>
+        <div>Guru BK</div>
+        ${signatureUrl ? `<img class="signature-img" src="${escapeHtml(signatureUrl)}" alt="Tanda tangan" />` : '<div class="signature-space"></div>'}
+        <div class="signature-name">${escapeHtml(guru.nama_lengkap || 'Guru BK')}</div>
+        <div>${guru.nip ? `NIP. ${escapeHtml(guru.nip)}` : '&nbsp;'}</div>
+      </div>
+    </div>
+  `
+}
+
+function wrapPrintDocument(title: string, body: string, origin: string) {
+  return `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>${BK_PRINT_CSS}</style></head>
+    <body><div class="page"><img class="kop" src="${origin}/kopsurat.png" alt="Kop Surat" />${body}</div>
+    <script>
+      window.onload = function() {
+        var images = Array.from(document.images);
+        Promise.all(images.map(function(img) {
+          if (img.complete) return Promise.resolve();
+          return new Promise(function(resolve) { img.onload = img.onerror = resolve; });
+        })).then(function() { setTimeout(function() { window.print(); }, 250); });
+      };
+    </script></body></html>`
+}
+
+function openPrintHtml(title: string, html: string) {
+  const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=800')
+  if (!printWindow) {
+    alert('Popup export PDF diblokir browser.')
+    return
+  }
+  printWindow.document.open()
+  printWindow.document.write(html)
+  printWindow.document.close()
+}
+
+function buildLaporanSiswaHtml(data: LaporanBKSiswa) {
+  const origin = window.location.origin
+  const bidangList = Array.from(new Set(data.rekaman.map(r => r.bidang))).filter(Boolean)
+  const sesiCount = data.rekaman.reduce((sum, r) => sum + r.penanganan.length, 0)
+  const tindakLanjutCount = data.rekaman.filter(r => r.tindak_lanjut?.trim()).length
+  const kelas = formatNamaKelasLaporan(data.siswa)
+  const riwayat = data.rekaman.length
+    ? data.rekaman.map((r, idx) => `
+      <div class="record">
+        <div class="record-head">
+          <span>${idx + 1}. ${escapeHtml(formatTanggalCetak(r.created_at))} - ${escapeHtml(r.bidang)}</span>
+          <span>${escapeHtml(r.topik_nama || 'Tanpa topik')}</span>
+        </div>
+        <div class="record-body">
+          <div><strong>Uraian masalah:</strong><br>${escapeHtml(r.deskripsi || '-').replace(/\n/g, '<br>')}</div>
+          <div style="margin-top:5pt"><strong>Penanganan:</strong> ${
+            r.penanganan.length
+              ? `<ol style="margin:3pt 0 0 16pt;padding:0">${r.penanganan.map(s => `<li>${escapeHtml(formatTanggalCetak(s.tanggal))} - ${escapeHtml(sesiLabel(s.tipe))}${s.catatan ? `: ${escapeHtml(s.catatan)}` : ''}</li>`).join('')}</ol>`
+              : '<span class="muted">Belum ada sesi penanganan.</span>'
+          }</div>
+          <div style="margin-top:5pt"><strong>Tindak lanjut:</strong> ${escapeHtml(r.tindak_lanjut || '-')}</div>
+          ${r.catatan_tindak_lanjut ? `<div><strong>Catatan tindak lanjut:</strong> ${escapeHtml(r.catatan_tindak_lanjut)}</div>` : ''}
+        </div>
+      </div>`).join('')
+    : '<div class="empty">Belum ada rekaman BK pada tahun ajaran ini.</div>'
+
+  const kesimpulanBidang = bidangList.length ? bidangList.join(', ') : 'belum ada bidang layanan tercatat'
+  const body = `
+    <div class="title">
+      <h1>Laporan Layanan Bimbingan Konseling Perorangan</h1>
+      <p>Tahun Ajaran ${escapeHtml(data.ta.nama)} - Semester ${data.ta.semester === 1 ? 'Ganjil' : 'Genap'}</p>
+    </div>
+    <table class="meta">
+      <tr><td>Nama Siswa</td><td>:</td><td><strong>${escapeHtml(data.siswa.nama_lengkap)}</strong></td></tr>
+      <tr><td>NISN</td><td>:</td><td>${escapeHtml(data.siswa.nisn || '-')}</td></tr>
+      <tr><td>Kelas</td><td>:</td><td>${escapeHtml(kelas)}</td></tr>
+      <tr><td>Guru BK</td><td>:</td><td>${escapeHtml(data.guru_bk.nama_lengkap)}</td></tr>
+      <tr><td>Tanggal Cetak</td><td>:</td><td>${escapeHtml(formatTanggalCetak(new Date().toISOString()))}</td></tr>
+    </table>
+    <table class="summary">
+      <thead><tr><th>Jumlah Rekaman</th><th>Bidang Layanan</th><th>Sesi Penanganan</th><th>Tindak Lanjut</th></tr></thead>
+      <tbody><tr><td style="text-align:center">${data.rekaman.length}</td><td>${escapeHtml(bidangList.join(', ') || '-')}</td><td style="text-align:center">${sesiCount}</td><td style="text-align:center">${tindakLanjutCount}</td></tr></tbody>
+    </table>
+    <div class="section-title">Riwayat Layanan</div>
+    ${riwayat}
+    <div class="conclusion"><strong>Kesimpulan:</strong> Berdasarkan catatan layanan, siswa telah mendapatkan pendampingan pada bidang ${escapeHtml(kesimpulanBidang)}.</div>
+    ${signatureHtml(data.guru_bk, origin)}
+  `
+  return wrapPrintDocument(`Laporan BK - ${data.siswa.nama_lengkap}`, body, origin)
+}
+
+function buildLaporanKelasHtml(data: LaporanBKKelas) {
+  const origin = window.location.origin
+  const kelas = formatNamaKelasLaporan(data.kelas)
+  const totalRekaman = data.siswa.reduce((sum, s) => sum + Number(s.jumlah_rekaman || 0), 0)
+  const totalSesi = data.siswa.reduce((sum, s) => sum + Number(s.sesi_count || 0), 0)
+  const totalTindakLanjut = data.siswa.reduce((sum, s) => sum + Number(s.tindak_lanjut_count || 0), 0)
+  const bidangCount = data.siswa.reduce<Record<string, number>>((acc, row) => {
+    row.bidang_list.split(',').map(b => b.trim()).filter(Boolean).forEach(b => { acc[b] = (acc[b] || 0) + 1 })
+    return acc
+  }, {})
+  const bidangSummary = Object.entries(bidangCount).map(([bidang, count]) => `${bidang}: ${count}`).join(', ') || '-'
+  const rows = data.siswa.length
+    ? data.siswa.map((s, idx) => `
+      <tr>
+        <td style="text-align:center;width:22pt">${idx + 1}</td>
+        <td>${escapeHtml(s.nama_lengkap)}</td>
+        <td>${escapeHtml(s.nisn || '-')}</td>
+        <td style="text-align:center">${s.jumlah_rekaman}</td>
+        <td>${escapeHtml(s.bidang_list || '-')}</td>
+        <td>${escapeHtml(formatTanggalCetak(s.rekaman_terakhir))}</td>
+        <td style="text-align:center">${s.tindak_lanjut_count}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="7" style="text-align:center">Belum ada siswa tercatat pada kelas ini.</td></tr>'
+  const lampiran = data.siswa.length
+    ? data.siswa.map((s, idx) => `
+      <tr>
+        <td style="text-align:center;width:22pt">${idx + 1}</td>
+        <td><strong>${escapeHtml(s.nama_lengkap)}</strong><br><span class="small">Topik: ${escapeHtml(s.topik_terakhir || '-')}</span></td>
+        <td>${escapeHtml(s.ringkasan_terakhir || '-')}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="3" style="text-align:center">Belum ada lampiran ringkas.</td></tr>'
+  const body = `
+    <div class="title">
+      <h1>Rekapitulasi Layanan Bimbingan Konseling Per Kelas</h1>
+      <p>Tahun Ajaran ${escapeHtml(data.ta.nama)} - Semester ${data.ta.semester === 1 ? 'Ganjil' : 'Genap'}</p>
+    </div>
+    <table class="meta">
+      <tr><td>Kelas</td><td>:</td><td><strong>${escapeHtml(kelas)}</strong></td></tr>
+      <tr><td>Guru BK</td><td>:</td><td>${escapeHtml(data.guru_bk.nama_lengkap)}</td></tr>
+      <tr><td>Tanggal Cetak</td><td>:</td><td>${escapeHtml(formatTanggalCetak(new Date().toISOString()))}</td></tr>
+    </table>
+    <table class="summary">
+      <thead><tr><th>Siswa Tercatat</th><th>Total Rekaman</th><th>Sesi Penanganan</th><th>Tindak Lanjut</th><th>Distribusi Bidang</th></tr></thead>
+      <tbody><tr><td style="text-align:center">${data.siswa.length}</td><td style="text-align:center">${totalRekaman}</td><td style="text-align:center">${totalSesi}</td><td style="text-align:center">${totalTindakLanjut}</td><td>${escapeHtml(bidangSummary)}</td></tr></tbody>
+    </table>
+    <div class="section-title">Rekap Siswa</div>
+    <table class="main">
+      <thead><tr><th>No</th><th>Nama</th><th>NISN</th><th>Rekaman</th><th>Bidang</th><th>Terakhir</th><th>TL</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="section-title">Lampiran Ringkas Per Siswa</div>
+    <table class="main">
+      <thead><tr><th>No</th><th>Siswa</th><th>Uraian Terakhir</th></tr></thead>
+      <tbody>${lampiran}</tbody>
+    </table>
+    ${signatureHtml(data.guru_bk, origin)}
+  `
+  return wrapPrintDocument(`Rekap BK Kelas ${kelas}`, body, origin)
 }
 
 // ── Sesi Lokal (belum tersimpan ke DB, untuk form tambah rekaman baru) ─
@@ -504,14 +725,15 @@ function ModalCariSiswa({ isOpen, taId, currentUserId, onSelect, onClose }: {
 }
 
 // ── Modal Detail Siswa (2 tab) ─────────────────────────────────────────
-function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, topikAll, onClose, onDataChanged }: {
-  siswa: SiswaResult; taId: string; guruBkId: string; userRole: string
+function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, isAdmin, topikAll, onClose, onDataChanged }: {
+  siswa: SiswaResult; taId: string; guruBkId: string; userRole: string; isAdmin: boolean
   topikAll: Topik[]; onClose: () => void; onDataChanged: () => void
 }) {
   const [rekamanList, setRekamanList] = useState<Rekaman[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'input' | 'riwayat'>('input')
   const [bidangFilter, setBidangFilter] = useState<BidangBK | 'Semua'>('Semua')
+  const [isExporting, setIsExporting] = useState(false)
   const canEdit = userRole === 'guru_bk'
 
   useEffect(() => {
@@ -530,6 +752,20 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, topikAll, onClose, 
   }
 
   const rekamanFiltered = bidangFilter === 'Semua' ? rekamanList : rekamanList.filter(r => r.bidang === bidangFilter)
+
+  const handleExportSiswa = async () => {
+    setIsExporting(true)
+    try {
+      const res = await getLaporanBKSiswa(siswa.id, taId, guruBkId, isAdmin)
+      if (res.error || !res.data) {
+        alert(res.error || 'Data laporan tidak ditemukan.')
+        return
+      }
+      openPrintHtml(`Laporan BK - ${siswa.nama_lengkap}`, buildLaporanSiswaHtml(res.data))
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
@@ -662,11 +898,19 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, topikAll, onClose, 
           <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
             <HeartHandshake className="h-3.5 w-3.5" /> Bimbingan Konseling
           </div>
-          {activeTab === 'riwayat' && canEdit && (
-            <Button size="sm" onClick={() => setActiveTab('input')}
-              className="h-7 text-xs gap-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg">
-              <Plus className="h-3 w-3" /> Tambah Kasus
-            </Button>
+          {activeTab === 'riwayat' && (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={handleExportSiswa} disabled={isExporting || isLoading}
+                className="h-7 text-xs gap-1.5 rounded-lg">
+                {isExporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />} Export PDF
+              </Button>
+              {canEdit && (
+                <Button size="sm" onClick={() => setActiveTab('input')}
+                  className="h-7 text-xs gap-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg">
+                  <Plus className="h-3 w-3" /> Tambah Kasus
+                </Button>
+              )}
+            </div>
           )}
           {activeTab === 'input' && rekamanList.length > 0 && (
             <button onClick={() => setActiveTab('riwayat')} className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1">
@@ -694,6 +938,7 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
   const [page, setPage] = useState(1)
   const [showCariSiswa, setShowCariSiswa] = useState(false)
   const [selectedSiswa, setSelectedSiswa] = useState<SiswaResult | null>(null)
+  const [isExportingKelas, setIsExportingKelas] = useState(false)
 
   const PAGE_SIZE = 10
   const totalPages = Math.ceil(total / PAGE_SIZE)
@@ -712,6 +957,28 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
   const rowsFiltered = searchTercatat.trim().length >= 2
     ? rows.filter(r => r.nama_lengkap?.toLowerCase().includes(searchTercatat.toLowerCase()) || r.nisn?.includes(searchTercatat))
     : rows
+
+  const selectedKelas = kelasBinaan.find(k => k.id === filterKelas)
+
+  const handleExportKelas = async () => {
+    if (!taAktif) return
+    if (!filterKelas) {
+      alert('Pilih kelas terlebih dahulu.')
+      return
+    }
+    setIsExportingKelas(true)
+    try {
+      const res = await getLaporanBKKelas(filterKelas, taAktif.id, currentUserId, isAdmin)
+      if (res.error || !res.data) {
+        alert(res.error || 'Data laporan kelas tidak ditemukan.')
+        return
+      }
+      const kelasLabel = selectedKelas ? formatNamaKelas(selectedKelas.tingkat, selectedKelas.nomor_kelas, selectedKelas.kelompok) : 'Kelas'
+      openPrintHtml(`Rekap BK Kelas ${kelasLabel}`, buildLaporanKelasHtml(res.data))
+    } finally {
+      setIsExportingKelas(false)
+    }
+  }
 
   if (!taAktif) {
     return (
@@ -740,7 +1007,7 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
               {BIDANG_LIST.map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
             </SelectContent>
           </Select>
-          {isAdmin && kelasBinaan.length > 0 && (
+          {kelasBinaan.length > 0 && (
             <Select value={filterKelas || 'all'} onValueChange={v => setFilterKelas(v === 'all' ? '' : v)}>
               <SelectTrigger className="h-9 w-36 text-xs rounded-xl border-surface"><SelectValue placeholder="Semua kelas" /></SelectTrigger>
               <SelectContent>
@@ -749,6 +1016,10 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
               </SelectContent>
             </Select>
           )}
+          <Button variant="outline" size="sm" onClick={handleExportKelas} disabled={!filterKelas || isExportingKelas}
+            className="h-9 text-xs gap-1.5 rounded-xl">
+            {isExportingKelas ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />} Export Kelas
+          </Button>
           {(filterBidang || filterKelas) && (
             <button onClick={() => { setFilterBidang(''); setFilterKelas('') }}
               className="h-9 px-3 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 hover:bg-surface-2 rounded-xl border border-surface transition-colors">
@@ -872,7 +1143,7 @@ function TabBimbinganKonseling({ currentUserId, userRole, taAktif, topikAll, isA
 
       {selectedSiswa && (
         <ModalDetailSiswa siswa={selectedSiswa} taId={taAktif.id} guruBkId={currentUserId}
-          userRole={userRole} topikAll={topikAll}
+          userRole={userRole} isAdmin={isAdmin} topikAll={topikAll}
           onClose={() => setSelectedSiswa(null)} onDataChanged={() => loadData(page)} />
       )}
     </div>

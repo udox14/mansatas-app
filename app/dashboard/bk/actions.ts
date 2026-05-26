@@ -18,11 +18,115 @@ export type SesiPenanganan = {
   catatan: string
 }
 
+export type GuruBKSignature = {
+  id: string
+  nama_lengkap: string
+  nip: string | null
+  signature_url: string | null
+}
+
+export type RekamanBKLaporan = {
+  id: string
+  siswa_id: string
+  bidang: BidangBK
+  topik_nama: string | null
+  deskripsi: string
+  penanganan: SesiPenanganan[]
+  tindak_lanjut: string
+  catatan_tindak_lanjut: string | null
+  created_at: string
+  updated_at: string
+  guru_nama: string | null
+}
+
+export type LaporanBKSiswa = {
+  siswa: {
+    id: string
+    nama_lengkap: string
+    nisn: string | null
+    tingkat: number | null
+    nomor_kelas: string | null
+    kelas_kelompok: string | null
+  }
+  ta: { id: string; nama: string; semester: number }
+  guru_bk: GuruBKSignature
+  rekaman: RekamanBKLaporan[]
+}
+
+export type LaporanBKKelas = {
+  kelas: {
+    id: string
+    tingkat: number
+    nomor_kelas: string
+    kelompok: string
+  }
+  ta: { id: string; nama: string; semester: number }
+  guru_bk: GuruBKSignature
+  siswa: Array<{
+    id: string
+    nama_lengkap: string
+    nisn: string | null
+    jumlah_rekaman: number
+    bidang_list: string
+    rekaman_terakhir: string | null
+    tindak_lanjut_count: number
+    sesi_count: number
+    ringkasan_terakhir: string | null
+    topik_terakhir: string | null
+  }>
+}
+
 // ============================================================
 // HELPER: Ambil TA aktif
 // ============================================================
 async function getTaAktif(db: D1Database) {
   return db.prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string; nama: string; semester: number }>()
+}
+
+function parsePenanganan(value: string | null | undefined): SesiPenanganan[] {
+  try {
+    const parsed = JSON.parse(value || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+async function isKelasBinaan(db: D1Database, guru_bk_id: string, tahun_ajaran_id: string, kelas_id: string) {
+  const row = await db.prepare(`
+    SELECT 1 as ok
+    FROM kelas_binaan_bk
+    WHERE guru_bk_id = ? AND tahun_ajaran_id = ? AND kelas_id = ?
+    LIMIT 1
+  `).bind(guru_bk_id, tahun_ajaran_id, kelas_id).first<{ ok: number }>()
+  return Boolean(row)
+}
+
+async function getGuruBKPenandaTangan(
+  db: D1Database,
+  guru_bk_id: string,
+  tahun_ajaran_id: string,
+  is_admin: boolean,
+  kelas_id?: string | null
+): Promise<GuruBKSignature | null> {
+  if (is_admin && kelas_id) {
+    const assigned = await db.prepare(`
+      SELECT u.id, COALESCE(u.nama_lengkap, u.name) as nama_lengkap, u.nip, u.signature_url
+      FROM kelas_binaan_bk kb
+      JOIN "user" u ON kb.guru_bk_id = u.id
+      WHERE kb.kelas_id = ? AND kb.tahun_ajaran_id = ?
+      ORDER BY u.nama_lengkap ASC, u.name ASC
+      LIMIT 1
+    `).bind(kelas_id, tahun_ajaran_id).first<GuruBKSignature>()
+    if (assigned) return assigned
+  }
+
+  return db.prepare(`
+    SELECT id, COALESCE(nama_lengkap, name) as nama_lengkap, nip, signature_url
+    FROM "user"
+    WHERE id = ?
+    LIMIT 1
+  `).bind(guru_bk_id).first<GuruBKSignature>()
 }
 
 // ============================================================
@@ -225,8 +329,14 @@ export async function getListSiswaBerrekaman(
     ).bind(guru_bk_id, tahun_ajaran_id).all<{ kelas_id: string }>()
     const kelasIds = (binaanRes.results || []).map(r => r.kelas_id)
     if (kelasIds.length === 0) return { rows: [], total: 0 }
-    conditions.push(`s.kelas_id IN (${kelasIds.map(() => '?').join(',')})`)
-    params.push(...kelasIds)
+    if (filter.kelas_id) {
+      if (!kelasIds.includes(filter.kelas_id)) return { rows: [], total: 0 }
+      conditions.push('s.kelas_id = ?')
+      params.push(filter.kelas_id)
+    } else {
+      conditions.push(`s.kelas_id IN (${kelasIds.map(() => '?').join(',')})`)
+      params.push(...kelasIds)
+    }
   } else if (filter.kelas_id) {
     conditions.push('s.kelas_id = ?')
     params.push(filter.kelas_id)
@@ -261,7 +371,144 @@ export async function getListSiswaBerrekaman(
 }
 
 // ============================================================
-// 5. SINKRONISASI & VIEW PER GURU BK
+// 5. LAPORAN PDF BK
+// ============================================================
+
+export async function getLaporanBKSiswa(siswa_id: string, tahun_ajaran_id: string, guru_bk_id: string, is_admin: boolean) {
+  const db = await getDB()
+  try {
+    const siswa = await db.prepare(`
+      SELECT s.id, s.nama_lengkap, s.nisn,
+        k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok as kelas_kelompok
+      FROM siswa s
+      LEFT JOIN kelas k ON s.kelas_id = k.id
+      WHERE s.id = ?
+      LIMIT 1
+    `).bind(siswa_id).first<any>()
+    if (!siswa) return { error: 'Siswa tidak ditemukan.' }
+    if (!is_admin && siswa.kelas_id && !(await isKelasBinaan(db, guru_bk_id, tahun_ajaran_id, siswa.kelas_id))) {
+      return { error: 'Anda tidak memiliki akses laporan siswa ini.' }
+    }
+
+    const ta = await db.prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE id = ? LIMIT 1').bind(tahun_ajaran_id).first<any>()
+    if (!ta) return { error: 'Tahun ajaran tidak ditemukan.' }
+
+    const guru = await getGuruBKPenandaTangan(db, guru_bk_id, tahun_ajaran_id, is_admin, siswa.kelas_id)
+    if (!guru) return { error: 'Data Guru BK penanda tangan tidak ditemukan.' }
+
+    const rekamanRes = await db.prepare(`
+      SELECT r.id, r.siswa_id, r.bidang, r.deskripsi, r.penanganan,
+        r.tindak_lanjut, r.catatan_tindak_lanjut, r.created_at, r.updated_at,
+        t.nama as topik_nama,
+        u.nama_lengkap as guru_nama
+      FROM bk_rekaman r
+      LEFT JOIN bk_topik t ON r.topik_id = t.id
+      LEFT JOIN "user" u ON r.guru_bk_id = u.id
+      WHERE r.siswa_id = ? AND r.tahun_ajaran_id = ?
+      ORDER BY r.created_at DESC
+    `).bind(siswa_id, tahun_ajaran_id).all<any>()
+
+    const laporan: LaporanBKSiswa = {
+      siswa: {
+        id: siswa.id,
+        nama_lengkap: siswa.nama_lengkap,
+        nisn: siswa.nisn,
+        tingkat: siswa.tingkat,
+        nomor_kelas: siswa.nomor_kelas,
+        kelas_kelompok: siswa.kelas_kelompok,
+      },
+      ta,
+      guru_bk: guru,
+      rekaman: (rekamanRes.results || []).map((r: any) => ({
+        id: r.id,
+        siswa_id: r.siswa_id,
+        bidang: r.bidang,
+        topik_nama: r.topik_nama,
+        deskripsi: r.deskripsi || '',
+        penanganan: parsePenanganan(r.penanganan),
+        tindak_lanjut: r.tindak_lanjut || '',
+        catatan_tindak_lanjut: r.catatan_tindak_lanjut || '',
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        guru_nama: r.guru_nama || null,
+      })),
+    }
+    return { data: laporan }
+  } catch (e: any) {
+    return { error: e?.message ?? 'Gagal mengambil data laporan siswa.' }
+  }
+}
+
+export async function getLaporanBKKelas(kelas_id: string, tahun_ajaran_id: string, guru_bk_id: string, is_admin: boolean) {
+  const db = await getDB()
+  try {
+    if (!is_admin && !(await isKelasBinaan(db, guru_bk_id, tahun_ajaran_id, kelas_id))) {
+      return { error: 'Anda tidak memiliki akses laporan kelas ini.' }
+    }
+
+    const [kelas, ta, guru] = await Promise.all([
+      db.prepare('SELECT id, tingkat, nomor_kelas, kelompok FROM kelas WHERE id = ? LIMIT 1').bind(kelas_id).first<any>(),
+      db.prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE id = ? LIMIT 1').bind(tahun_ajaran_id).first<any>(),
+      getGuruBKPenandaTangan(db, guru_bk_id, tahun_ajaran_id, is_admin, kelas_id),
+    ])
+    if (!kelas) return { error: 'Kelas tidak ditemukan.' }
+    if (!ta) return { error: 'Tahun ajaran tidak ditemukan.' }
+    if (!guru) return { error: 'Data Guru BK penanda tangan tidak ditemukan.' }
+
+    const rowsRes = await db.prepare(`
+      SELECT s.id as siswa_id, s.nama_lengkap, s.nisn,
+        r.id as rekaman_id, r.bidang, r.deskripsi, r.penanganan, r.tindak_lanjut,
+        r.created_at, t.nama as topik_nama
+      FROM bk_rekaman r
+      JOIN siswa s ON r.siswa_id = s.id
+      LEFT JOIN bk_topik t ON r.topik_id = t.id
+      WHERE s.kelas_id = ? AND r.tahun_ajaran_id = ?
+      ORDER BY s.nama_lengkap ASC, r.created_at DESC
+    `).bind(kelas_id, tahun_ajaran_id).all<any>()
+
+    const siswaMap = new Map<string, LaporanBKKelas['siswa'][number] & { bidangSet: Set<string> }>()
+    for (const row of rowsRes.results || []) {
+      if (!siswaMap.has(row.siswa_id)) {
+        siswaMap.set(row.siswa_id, {
+          id: row.siswa_id,
+          nama_lengkap: row.nama_lengkap,
+          nisn: row.nisn,
+          jumlah_rekaman: 0,
+          bidang_list: '',
+          rekaman_terakhir: null,
+          tindak_lanjut_count: 0,
+          sesi_count: 0,
+          ringkasan_terakhir: null,
+          topik_terakhir: null,
+          bidangSet: new Set<string>(),
+        })
+      }
+      const item = siswaMap.get(row.siswa_id)!
+      item.jumlah_rekaman += 1
+      item.bidangSet.add(row.bidang)
+      item.sesi_count += parsePenanganan(row.penanganan).length
+      if (String(row.tindak_lanjut || '').trim()) item.tindak_lanjut_count += 1
+      if (!item.rekaman_terakhir || String(row.created_at) > String(item.rekaman_terakhir)) {
+        item.rekaman_terakhir = row.created_at
+        item.ringkasan_terakhir = row.deskripsi || null
+        item.topik_terakhir = row.topik_nama || null
+      }
+    }
+
+    const siswa = Array.from(siswaMap.values()).map(({ bidangSet, ...row }) => ({
+      ...row,
+      bidang_list: Array.from(bidangSet).join(', '),
+    }))
+
+    const laporan: LaporanBKKelas = { kelas, ta, guru_bk: guru, siswa }
+    return { data: laporan }
+  } catch (e: any) {
+    return { error: e?.message ?? 'Gagal mengambil data laporan kelas.' }
+  }
+}
+
+// ============================================================
+// 6. SINKRONISASI & VIEW PER GURU BK
 // ============================================================
 
 export async function sinkronKelasBinaanDariPenugasan() {
@@ -320,7 +567,7 @@ export async function getKelasBinaanPerGuru(tahun_ajaran_id: string) {
 }
 
 // ============================================================
-// 6. DATA UNTUK PAGE
+// 7. DATA UNTUK PAGE
 // ============================================================
 export async function getInitialDataBK(guru_bk_id: string, is_admin: boolean) {
   const db = await getDB()
