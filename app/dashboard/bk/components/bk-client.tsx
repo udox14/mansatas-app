@@ -160,7 +160,7 @@ function wrapPrintDocument(title: string, body: string, origin: string) {
 }
 
 function openPrintHtml(title: string, html: string) {
-  const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1100,height=800')
+  const printWindow = window.open('', '_blank', 'width=1100,height=800')
   if (!printWindow) {
     alert('Popup export PDF diblokir browser.')
     return
