@@ -1,7 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
-import { useReactToPrint } from 'react-to-print'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, FileText, Loader2, Printer, Search, X } from 'lucide-react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { Button } from '@/components/ui/button'
@@ -95,11 +94,11 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
   return (
     <div className="space-y-3">
       <style>{`
+        @page {
+          size: 330mm 215mm;
+          margin: 0;
+        }
         @media print {
-          @page {
-            size: 330mm 215mm landscape !important;
-            margin: 0 !important;
-          }
           [data-radix-dialog-overlay],
           [data-radix-dialog-content],
           .agenda-kelas-no-print {
@@ -275,16 +274,30 @@ function CetakAgendaKelasModal({ daftarKelas, initialKelasId }: { daftarKelas: A
     }
   }
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: 'Agenda Kelas',
-    pageStyle: `
-      @page { size: 330mm 215mm landscape; margin: 0; }
-      @media print {
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-      }
-    `,
-  })
+  const handlePrint = useCallback(() => {
+    const el = printRef.current
+    if (!el) return
+    const w = window.open('', '_blank')
+    if (!w) { alert('Popup diblokir browser. Izinkan popup untuk mencetak.'); return }
+    w.document.write(`<!DOCTYPE html><html><head><title>Agenda Kelas</title>
+<style>
+@page { size: 330mm 215mm; margin: 0; }
+html, body { margin: 0; padding: 0; background: #fff; }
+* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+</style>
+</head><body>${el.innerHTML}</body></html>`)
+    w.document.close()
+    // Wait for images to load before printing
+    const imgs = Array.from(w.document.images)
+    const ready = imgs.length === 0
+      ? Promise.resolve()
+      : Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r })))
+    ready.then(() => {
+      w.focus()
+      w.print()
+      // Don't auto-close – let user close after print dialog
+    })
+  }, [])
 
   return (
     <>
@@ -398,7 +411,7 @@ function CetakAgendaKelasModal({ daftarKelas, initialKelasId }: { daftarKelas: A
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>
 
-      <div ref={printRef} className="absolute -left-[100000px] top-0 print:static print:left-auto">
+      <div ref={printRef} style={{ position: 'absolute', left: '-99999px', top: 0 }}>
         {pages.map((page, index) => (
           <AgendaKelasTemplate key={`${page.kelas.id}-${page.tanggal}-print`} data={page} pageBreak={index > 0} />
         ))}
