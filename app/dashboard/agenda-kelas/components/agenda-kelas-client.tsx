@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import type { AgendaKelasOption, AgendaKelasPageData } from '../actions'
-import { getAdjacentAgendaKelasDate, getAgendaKelasCetakBulanan, getAgendaKelasHari } from '../actions'
+import { getAdjacentAgendaKelasDate, getAgendaKelasCetakBulanan, getAgendaKelasHari, getAgendaKelasCetakJobs, getAgendaKelasCetakBatch } from '../actions'
 import { AgendaKelasTemplate } from './agenda-kelas-template'
 
 type Props = {
@@ -219,12 +219,13 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
 
 function CetakAgendaKelasModal({ daftarKelas, initialKelasId }: { daftarKelas: AgendaKelasOption[]; initialKelasId: string }) {
   const [open, setOpen] = useState(false)
-  const [mode, setMode] = useState<'kelas' | 'bulan'>('kelas')
   const [selectedKelasIds, setSelectedKelasIds] = useState<string[]>([])
   const [selectedMonths, setSelectedMonths] = useState<string[]>([currentMonth()])
   const [monthInput, setMonthInput] = useState(currentMonth())
   const [pages, setPages] = useState<AgendaKelasPageData[]>([])
   const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [progressText, setProgressText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const printRef = useRef<HTMLDivElement>(null)
 
@@ -239,6 +240,8 @@ function CetakAgendaKelasModal({ daftarKelas, initialKelasId }: { daftarKelas: A
     setOpen(true)
     setPages([])
     setError(null)
+    setProgress(0)
+    setProgressText('')
     if (initialKelasId) setSelectedKelasIds([initialKelasId])
   }
 
@@ -262,11 +265,49 @@ function CetakAgendaKelasModal({ daftarKelas, initialKelasId }: { daftarKelas: A
     setLoading(true)
     setError(null)
     setPages([])
+    setProgress(0)
+    setProgressText('Menghubungkan...')
     try {
-      const res = await getAgendaKelasCetakBulanan(selectedKelasIds, selectedMonths)
-      if (res.error) setError(res.error)
-      else if (res.pages.length === 0) setError('Tidak ada halaman agenda untuk pilihan ini.')
-      else setPages(res.pages)
+      const jobRes = await getAgendaKelasCetakJobs(selectedKelasIds, selectedMonths)
+      if (jobRes.error) {
+        setError(jobRes.error)
+        setLoading(false)
+        return
+      }
+
+      const jobs = jobRes.jobs
+      if (jobs.length === 0) {
+        setError('Tidak ada tanggal efektif KBM pada bulan yang dipilih.')
+        setLoading(false)
+        return
+      }
+
+      const allPages: AgendaKelasPageData[] = []
+      const batchSize = 6
+      
+      for (let i = 0; i < jobs.length; i += batchSize) {
+        const batch = jobs.slice(i, i + batchSize)
+        const percent = Math.round((i / jobs.length) * 100)
+        setProgress(percent)
+        setProgressText(`Memuat ${i} dari ${jobs.length} hari...`)
+
+        const batchRes = await getAgendaKelasCetakBatch(batch)
+        if (batchRes.error) {
+          setError(batchRes.error)
+          setLoading(false)
+          return
+        }
+        allPages.push(...batchRes.pages)
+      }
+
+      setProgress(100)
+      setProgressText('Selesai memproses!')
+
+      if (allPages.length === 0) {
+        setError('Tidak ada halaman agenda dengan jam aktif pada bulan ini.')
+      } else {
+        setPages(allPages)
+      }
     } catch {
       setError('Gagal memuat data cetak.')
     } finally {
@@ -327,12 +368,7 @@ html, body { margin: 0; padding: 0; background: #fff; }
 
             <div className="flex h-[calc(84vh-53px)] flex-col sm:flex-row">
               <div className="w-full shrink-0 border-b border-surface-2 bg-surface-2/40 p-3 sm:w-72 sm:border-b-0 sm:border-r">
-                <div className="grid grid-cols-2 gap-1 rounded-lg bg-surface p-1">
-                  <button type="button" onClick={() => setMode('kelas')} className={cn('rounded-md px-2 py-1.5 text-xs font-medium', mode === 'kelas' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-surface-2')}>Kelas dulu</button>
-                  <button type="button" onClick={() => setMode('bulan')} className={cn('rounded-md px-2 py-1.5 text-xs font-medium', mode === 'bulan' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-surface-2')}>Bulan dulu</button>
-                </div>
-
-                <div className={cn('mt-3 space-y-3', mode === 'bulan' && 'flex flex-col-reverse gap-3 space-y-0')}>
+                <div className="space-y-3">
                   <div>
                     <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pilih Kelas</p>
                     <div className="max-h-52 space-y-1 overflow-auto rounded-lg border border-surface bg-surface p-1.5">
@@ -380,9 +416,23 @@ html, body { margin: 0; padding: 0; background: #fff; }
 
               <div className="flex-1 overflow-auto bg-slate-100 p-4 dark:bg-slate-900">
                 {loading && (
-                  <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-500">
-                    <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-                    <p className="text-sm">Memuat halaman cetak...</p>
+                  <div className="flex h-full flex-col items-center justify-center p-6 bg-white dark:bg-slate-950 rounded-xl shadow-sm border border-surface max-w-md mx-auto my-12">
+                    <div className="relative flex items-center justify-center mb-4">
+                      <div className="h-16 w-16 rounded-full border-4 border-indigo-100 dark:border-indigo-950 border-t-indigo-600 dark:border-t-indigo-400 animate-spin" />
+                      <span className="absolute text-xs font-bold text-indigo-600 dark:text-indigo-400">{progress}%</span>
+                    </div>
+                    <div className="w-full space-y-2.5">
+                      <div className="flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        <span>{progressText}</span>
+                        <span>{progress}%</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                        <div 
+                          className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-600 transition-all duration-300 ease-out"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
                 {!loading && pages.length === 0 && (
