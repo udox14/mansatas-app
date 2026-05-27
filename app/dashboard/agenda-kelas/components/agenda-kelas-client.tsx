@@ -39,10 +39,19 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
   const [data, setData] = useState<AgendaKelasPageData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const dayCacheRef = useRef<Map<string, AgendaKelasPageData | null>>(new Map())
 
   const selectedKelas = daftarKelas.find(k => k.id === selectedKelasId)
 
   const loadDay = async (kelasId: string, date: string) => {
+    const cacheKey = `${kelasId}:${date}`
+    if (dayCacheRef.current.has(cacheKey)) {
+      setTanggal(date)
+      setData(dayCacheRef.current.get(cacheKey) || null)
+      setError(null)
+      return
+    }
+
     setLoading(true)
     setError(null)
     try {
@@ -51,6 +60,7 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
         setError(res.error)
         setData(null)
       } else {
+        dayCacheRef.current.set(cacheKey, res.data)
         setTanggal(date)
         setData(res.data)
       }
@@ -393,4 +403,3 @@ function CetakAgendaKelasModal({ daftarKelas, initialKelasId }: { daftarKelas: A
     </>
   )
 }
-
