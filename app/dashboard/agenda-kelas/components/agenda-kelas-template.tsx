@@ -34,7 +34,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
         style={{
           width: '330mm',
           height: '215mm',
-          padding: '6mm 8mm 6mm 8mm',
+          padding: '10mm',
           boxSizing: 'border-box',
           backgroundColor: '#fff',
           color: '#000',
@@ -187,111 +187,128 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           </div>
         </div>
 
-        {/* 2 & 3 & 4. FOOTER & SIGNATURE SECTION */}
-        <div style={{ display: 'grid', gridTemplateColumns: '32% 32% 36%', gap: '4mm', marginTop: '3mm', fontSize: '8.5pt' }}>
-          {/* Left Column (Rekapitulasi & Kepala) */}
-          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '40mm' }}>
-            <div>
-              <div style={{ fontWeight: 'bold', marginBottom: '1.2mm', fontSize: '9pt' }}>REKAPITULASI KEGIATAN</div>
-              <table style={{ width: '100%', fontSize: '8.5pt', borderCollapse: 'collapse' }}>
-                <tbody>
-                  <tr>
-                    <td style={{ width: '4mm', verticalAlign: 'top' }}>1.</td>
-                    <td style={{ width: '12mm', verticalAlign: 'top' }}>Terisi</td>
-                    <td style={{ width: '3mm', verticalAlign: 'top', textAlign: 'center' }}>:</td>
-                    {/* 4. Dotted lines shortened */}
-                    <td style={{ borderBottom: '1px dotted #000', paddingLeft: '1.5mm', width: '15mm', fontWeight: 'bold' }}>
-                      {data.rekap.terisi !== undefined ? data.rekap.terisi : ''}
-                    </td>
-                    <td style={{ verticalAlign: 'bottom', paddingLeft: '1.5mm' }}>Jam</td>
-                  </tr>
-                  <tr style={{ height: '0.8mm' }}><td colSpan={5} /></tr>
-                  <tr>
-                    <td style={{ verticalAlign: 'top' }}>2.</td>
-                    <td style={{ verticalAlign: 'top' }}>Tugas</td>
-                    <td style={{ verticalAlign: 'top', textAlign: 'center' }}>:</td>
-                    {/* 4. Dotted lines shortened */}
-                    <td style={{ borderBottom: '1px dotted #000', paddingLeft: '1.5mm', fontWeight: 'bold' }}>
-                      {data.rekap.tugas !== undefined ? data.rekap.tugas : ''}
-                    </td>
-                    <td style={{ verticalAlign: 'bottom', paddingLeft: '1.5mm' }}>Jam</td>
-                  </tr>
-                  <tr style={{ height: '0.8mm' }}><td colSpan={5} /></tr>
-                  <tr>
-                    <td style={{ verticalAlign: 'top' }}>3.</td>
-                    <td style={{ verticalAlign: 'top' }}>Kosong</td>
-                    <td style={{ verticalAlign: 'top', textAlign: 'center' }}>:</td>
-                    {/* 4. Dotted lines shortened */}
-                    <td style={{ borderBottom: '1px dotted #000', paddingLeft: '1.5mm', fontWeight: 'bold' }}>
-                      {data.rekap.kosong !== undefined ? data.rekap.kosong : ''}
-                    </td>
-                    <td style={{ verticalAlign: 'bottom', paddingLeft: '1.5mm' }}>Jam</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div style={{ lineHeight: 1.35, marginTop: '3mm' }}>
-              <div>Kepala MAN 1 Tasikmalaya,</div>
-              <div style={{ height: '15mm' }} />
-              <div style={{ fontWeight: 'bold' }}>{data.kepala.nama}</div>
-              <div>NIP. {data.kepala.nip}</div>
-            </div>
+        {/* 1, 2, 3, 4, 5. PIXEL-PERFECT FOOTER GRID LAYOUT */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '32% 32% 36%',
+            gridTemplateRows: 'auto auto auto auto auto auto auto auto auto',
+            gap: '0.6mm 0mm',
+            marginTop: '3.5mm',
+            fontSize: '8.5pt',
+            fontFamily: FONT,
+          }}
+        >
+          {/* Row 1 */}
+          <div style={{ gridRow: 1, gridColumn: 1, fontWeight: 'bold', fontSize: '9pt' }}>
+            REKAPITULASI KEGIATAN
+          </div>
+          <div style={{ gridRow: 1, gridColumn: 3, paddingLeft: '4mm' }}>
+            Tasikmalaya, <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '35mm' }}>&nbsp;</span>
           </div>
 
-          {/* Middle Column (Wali Kelas & Mengetahui) */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', paddingLeft: '6mm', height: '40mm', justifyContent: 'space-between' }}>
-            <div style={{ height: '9pt', marginBottom: '1.2mm', alignSelf: 'center' }} /> {/* Spacer */}
-            
-            <div style={{ marginTop: '2mm', marginBottom: 'auto', alignSelf: 'center' }}>
-              <div>Mengetahui :</div>
-            </div>
-
-            <div style={{ lineHeight: 1.35 }}>
-              <div>Wali Kelas,</div>
-              <div style={{ height: '15mm' }} />
-              <div>
-                {data.kelas.wali_kelas_nama ? (
-                  <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', minWidth: '50mm', fontWeight: 'bold' }}>
-                    {data.kelas.wali_kelas_nama}
-                  </span>
-                ) : (
-                  <span>...........................................................</span>
-                )}
-              </div>
-              <div style={{ marginTop: '0.8mm' }}>
-                NIP. {data.kelas.wali_kelas_nip || '...........................................................'}
-              </div>
-            </div>
+          {/* Row 2 */}
+          <div style={{ gridRow: 2, gridColumn: 1 }}>
+            <table style={{ width: '100%', fontSize: '8.5pt', borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr>
+                  <td style={{ width: '4mm', verticalAlign: 'top' }}>1.</td>
+                  <td style={{ width: '12mm', verticalAlign: 'top' }}>Terisi</td>
+                  <td style={{ width: '3mm', verticalAlign: 'top', textAlign: 'center' }}>:</td>
+                  <td style={{ borderBottom: '1px dotted #000', paddingLeft: '1.5mm', width: '15mm', fontWeight: 'bold' }}>
+                    {data.rekap.terisi !== undefined ? data.rekap.terisi : ''}
+                  </td>
+                  <td style={{ verticalAlign: 'bottom', paddingLeft: '1.5mm' }}>Jam</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style={{ gridRow: 2, gridColumn: 3, paddingLeft: '4mm' }}>
+            KM Kelas <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '25mm' }}>{data.kelas.label || ''}</span>,
           </div>
 
-          {/* Right Column (KM Kelas & Date) */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', paddingLeft: '4mm', height: '40mm', justifyContent: 'space-between' }}>
-            <div style={{ marginBottom: '1.5mm' }}>
-              Tasikmalaya, <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '35mm' }}>&nbsp;</span>
-            </div>
-            
-            <div style={{ lineHeight: 1.35, width: '100%', display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
-              <div>
-                KM Kelas <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '25mm' }}>{data.kelas.label || ''}</span>,
-              </div>
-              
-              <div style={{ marginTop: 'auto' }}>
-                <div style={{ height: '15mm' }} />
-                <div>
-                  {data.kelas.km_nama ? (
-                    <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', minWidth: '50mm', fontWeight: 'bold' }}>
-                      {data.kelas.km_nama}
-                    </span>
-                  ) : (
-                    <span>...........................................................</span>
-                  )}
-                </div>
-                <div style={{ marginTop: '0.8mm' }}>
-                  NIS. <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '35mm' }}>&nbsp;</span>
-                </div>
-              </div>
-            </div>
+          {/* Row 3 */}
+          <div style={{ gridRow: 3, gridColumn: 1 }}>
+            <table style={{ width: '100%', fontSize: '8.5pt', borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr>
+                  <td style={{ width: '4mm', verticalAlign: 'top' }}>2.</td>
+                  <td style={{ width: '12mm', verticalAlign: 'top' }}>Tugas</td>
+                  <td style={{ width: '3mm', verticalAlign: 'top', textAlign: 'center' }}>:</td>
+                  <td style={{ borderBottom: '1px dotted #000', paddingLeft: '1.5mm', width: '15mm', fontWeight: 'bold' }}>
+                    {data.rekap.tugas !== undefined ? data.rekap.tugas : ''}
+                  </td>
+                  <td style={{ verticalAlign: 'bottom', paddingLeft: '1.5mm' }}>Jam</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Row 4 */}
+          <div style={{ gridRow: 4, gridColumn: 1 }}>
+            <table style={{ width: '100%', fontSize: '8.5pt', borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr>
+                  <td style={{ width: '4mm', verticalAlign: 'top' }}>3.</td>
+                  <td style={{ width: '12mm', verticalAlign: 'top' }}>Kosong</td>
+                  <td style={{ width: '3mm', verticalAlign: 'top', textAlign: 'center' }}>:</td>
+                  <td style={{ borderBottom: '1px dotted #000', paddingLeft: '1.5mm', width: '15mm', fontWeight: 'bold' }}>
+                    {data.rekap.kosong !== undefined ? data.rekap.kosong : ''}
+                  </td>
+                  <td style={{ verticalAlign: 'bottom', paddingLeft: '1.5mm' }}>Jam</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Row 5 */}
+          <div style={{ gridRow: 5, gridColumn: 2, paddingLeft: '6mm', marginTop: '1.5mm' }}>
+            Mengetahui :
+          </div>
+          <div style={{ gridRow: 5, gridColumn: 3, paddingLeft: '4mm', marginTop: '1.5mm' }}>
+            {data.kelas.km_nama ? (
+              <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', minWidth: '50mm', fontWeight: 'bold' }}>
+                {data.kelas.km_nama}
+              </span>
+            ) : (
+              <span>...........................................................</span>
+            )}
+          </div>
+
+          {/* Row 6 */}
+          <div style={{ gridRow: 6, gridColumn: 1, marginTop: '1mm' }}>
+            Kepala MAN 1 Tasikmalaya,
+          </div>
+          <div style={{ gridRow: 6, gridColumn: 2, paddingLeft: '6mm', marginTop: '1mm' }}>
+            Wali Kelas,
+          </div>
+          <div style={{ gridRow: 6, gridColumn: 3, paddingLeft: '4mm', marginTop: '1mm' }}>
+            NIS
+          </div>
+
+          {/* Row 7 (Signature Spacer) */}
+          <div style={{ gridRow: 7, gridColumn: '1 / span 3', height: '14mm' }} />
+
+          {/* Row 8 */}
+          <div style={{ gridRow: 8, gridColumn: 1, fontWeight: 'bold' }}>
+            {data.kepala.nama}
+          </div>
+          <div style={{ gridRow: 8, gridColumn: 2, paddingLeft: '6mm' }}>
+            {data.kelas.wali_kelas_nama ? (
+              <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', minWidth: '50mm', fontWeight: 'bold' }}>
+                {data.kelas.wali_kelas_nama}
+              </span>
+            ) : (
+              <span>...........................................................</span>
+            )}
+          </div>
+
+          {/* Row 9 */}
+          <div style={{ gridRow: 9, gridColumn: 1 }}>
+            NIP. {data.kepala.nip}
+          </div>
+          <div style={{ gridRow: 9, gridColumn: 2, paddingLeft: '6mm' }}>
+            NIP. {data.kelas.wali_kelas_nip || '...........................................................'}
           </div>
         </div>
 
