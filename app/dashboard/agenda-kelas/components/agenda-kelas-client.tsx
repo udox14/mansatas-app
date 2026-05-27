@@ -276,7 +276,7 @@ function CetakAgendaKelasModal({ daftarKelas, initialKelasId }: { daftarKelas: A
     contentRef: printRef,
     documentTitle: 'Agenda Kelas',
     pageStyle: `
-      @page { size: 330mm 215mm; margin: 0; }
+      @page { size: 330mm 215mm landscape; margin: 0; }
       @media print {
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       }
