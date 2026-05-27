@@ -48,8 +48,12 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           ...(pageBreak ? { pageBreakBefore: 'always' as const } : {}),
         }}
       >
-        <div style={{ margin: '-6mm -8mm 3mm -8mm' }}>
-          <img src="/kopsurat.png" alt="Kop Surat" style={{ width: '100%', display: 'block' }} />
+        <div style={{ margin: '-2mm 0 3mm 0', textAlign: 'center' }}>
+          <img
+            src="/kopsurat.png"
+            alt="Kop Surat"
+            style={{ width: '255mm', maxWidth: '86%', display: 'inline-block' }}
+          />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6mm', marginBottom: '2.5mm', fontSize: '10pt', fontWeight: 700 }}>
