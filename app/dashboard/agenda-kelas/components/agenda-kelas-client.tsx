@@ -96,6 +96,10 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
     <div className="space-y-3">
       <style>{`
         @media print {
+          @page {
+            size: 330mm 215mm landscape !important;
+            margin: 0 !important;
+          }
           [data-radix-dialog-overlay],
           [data-radix-dialog-content],
           .agenda-kelas-no-print {
