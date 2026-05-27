@@ -275,11 +275,13 @@ export async function getAgendaKelasHari(kelasId: string, tanggal = todayWIB()):
 
   const attendance = await getFinalAttendanceForClass(db, kelasId, tanggal, tanggal)
   const statusRows: AgendaKelasAbsensiRow[] = []
-  for (const [index, siswa] of (attendance?.siswa || []).entries()) {
+  for (const siswa of (attendance?.siswa || [])) {
     const dayStatus = attendance?.statusByStudent.get(siswa.id)?.find(item => item.tanggal === tanggal)
     const status = dayStatus?.status_akhir || 'HADIR'
+    if (status === 'HADIR') continue
+
     statusRows.push({
-      no: index + 1,
+      no: statusRows.length + 1,
       nama: abbreviateStudentName(siswa.nama_lengkap),
       status,
       sakit: status === 'SAKIT',
@@ -350,4 +352,3 @@ export async function getAgendaKelasCetakBulanan(kelasIds: string[], months: str
 
   return { error: null, pages }
 }
-
