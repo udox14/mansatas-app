@@ -261,7 +261,7 @@ function CetakAgendaKelasModal({ daftarKelas, initialKelasId }: { daftarKelas: A
     setPages([])
   }
 
-  const loadPrintData = async () => {
+  const loadPrintData = async (shouldPrintAfterLoad = false) => {
     setLoading(true)
     setError(null)
     setPages([])
@@ -307,6 +307,30 @@ function CetakAgendaKelasModal({ daftarKelas, initialKelasId }: { daftarKelas: A
         setError('Tidak ada halaman agenda dengan jam aktif pada bulan ini.')
       } else {
         setPages(allPages)
+        if (shouldPrintAfterLoad) {
+          setTimeout(() => {
+            const el = printRef.current
+            if (!el) return
+            const w = window.open('', '_blank')
+            if (!w) { alert('Popup diblokir browser. Izinkan popup untuk mencetak.'); return }
+            w.document.write(`<!DOCTYPE html><html><head><title>Agenda Kelas</title>
+<style>
+@page { size: landscape; margin: 0; }
+html, body { margin: 0; padding: 0; background: #fff; }
+* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+</style>
+</head><body>${el.innerHTML}</body></html>`)
+            w.document.close()
+            const imgs = Array.from(w.document.images)
+            const ready = imgs.length === 0
+              ? Promise.resolve()
+              : Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r })))
+            ready.then(() => {
+              w.focus()
+              w.print()
+            })
+          }, 300)
+        }
       }
     } catch {
       setError('Gagal memuat data cetak.')
@@ -336,9 +360,16 @@ html, body { margin: 0; padding: 0; background: #fff; }
     ready.then(() => {
       w.focus()
       w.print()
-      // Don't auto-close – let user close after print dialog
     })
   }, [])
+
+  const handlePrintClick = () => {
+    if (pages.length > 0) {
+      handlePrint()
+    } else {
+      loadPrintData(true)
+    }
+  }
 
   return (
     <>
@@ -403,11 +434,11 @@ html, body { margin: 0; padding: 0; background: #fff; }
                 {error && <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">{error}</div>}
 
                 <div className="mt-3 space-y-1.5">
-                  <Button type="button" onClick={loadPrintData} disabled={loading || selectedKelasIds.length === 0 || selectedMonths.length === 0} className="h-9 w-full gap-2 text-xs">
+                  <Button type="button" onClick={() => loadPrintData(false)} disabled={loading || selectedKelasIds.length === 0 || selectedMonths.length === 0} className="h-9 w-full gap-2 text-xs">
                     {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
                     Muat Preview
                   </Button>
-                  <Button type="button" onClick={handlePrint} disabled={pages.length === 0 || loading} variant="outline" className="h-9 w-full gap-2 text-xs">
+                  <Button type="button" onClick={handlePrintClick} disabled={loading || selectedKelasIds.length === 0 || selectedMonths.length === 0} variant="outline" className="h-9 w-full gap-2 text-xs">
                     <Printer className="h-3.5 w-3.5" />
                     Cetak Sekarang
                   </Button>
@@ -416,17 +447,17 @@ html, body { margin: 0; padding: 0; background: #fff; }
 
               <div className="flex-1 overflow-auto bg-slate-100 p-4 dark:bg-slate-900">
                 {loading && (
-                  <div className="flex h-full flex-col items-center justify-center p-6 bg-white dark:bg-slate-950 rounded-xl shadow-sm border border-surface max-w-md mx-auto my-12">
-                    <div className="relative flex items-center justify-center mb-4">
-                      <div className="h-16 w-16 rounded-full border-4 border-indigo-100 dark:border-indigo-950 border-t-indigo-600 dark:border-t-indigo-400 animate-spin" />
+                  <div className="flex h-full flex-col items-center justify-center max-w-sm mx-auto px-4 py-12">
+                    <div className="relative flex items-center justify-center mb-5">
+                      <div className="h-16 w-16 rounded-full border-4 border-indigo-200/50 dark:border-indigo-950 border-t-indigo-600 dark:border-t-indigo-400 animate-spin" />
                       <span className="absolute text-xs font-bold text-indigo-600 dark:text-indigo-400">{progress}%</span>
                     </div>
-                    <div className="w-full space-y-2.5">
-                      <div className="flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <div className="w-full space-y-3">
+                      <div className="flex justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
                         <span>{progressText}</span>
                         <span>{progress}%</span>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                      <div className="h-2 w-full rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
                         <div 
                           className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-600 transition-all duration-300 ease-out"
                           style={{ width: `${progress}%` }}
