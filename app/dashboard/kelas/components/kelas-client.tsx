@@ -19,9 +19,11 @@ import { cn, formatNamaKelas } from '@/lib/utils'
 type KelasData = {
   id: string; tingkat: number; nomor_kelas: string; kelompok: string
   kapasitas: number; wali_kelas_id: string; wali_kelas_nama: string; jumlah_siswa: number
+  km_siswa_id: string; km_siswa_nama: string
   kbm_nonaktif_mulai: string | null
 }
 type GuruType = { id: string; nama_lengkap: string }
+type SiswaOption = { id: string; nama_lengkap: string }
 
 function defaultDateInputValue() {
   const now = new Date()
@@ -75,7 +77,19 @@ function WaliKelasSelector({ value, onChange, daftarGuru, disabled }: { value: s
   )
 }
 
-export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userRole = 'admin_tu' }: { initialData: KelasData[], daftarGuru: GuruType[], daftarJurusan?: string[], userRole?: string }) {
+export function KelasClient({
+  initialData,
+  daftarGuru,
+  daftarSiswaByKelas = {},
+  daftarJurusan = [],
+  userRole = 'admin_tu',
+}: {
+  initialData: KelasData[]
+  daftarGuru: GuruType[]
+  daftarSiswaByKelas?: Record<string, SiswaOption[]>
+  daftarJurusan?: string[]
+  userRole?: string
+}) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
   const [filterTingkat, setFilterTingkat] = useState('Semua')
@@ -166,7 +180,14 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
 
   return (
     <div className="space-y-3 pb-20">
-      <EditModal isOpen={!!editingKelas} onClose={() => setEditingKelas(null)} kelasData={editingKelas} daftarGuru={daftarGuru} daftarJurusan={daftarJurusan} />
+      <EditModal
+        isOpen={!!editingKelas}
+        onClose={() => setEditingKelas(null)}
+        kelasData={editingKelas}
+        daftarGuru={daftarGuru}
+        daftarSiswa={editingKelas ? (daftarSiswaByKelas[editingKelas.id] || []) : []}
+        daftarJurusan={daftarJurusan}
+      />
 
       {/* TOOLBAR */}
       <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
@@ -277,6 +298,9 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
                       KBM nonaktif
                     </span>
                   )}
+                  <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    KM: {k.km_siswa_nama || 'Belum Ditentukan'}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 border-surface')}>
@@ -372,6 +396,9 @@ export function KelasClient({ initialData, daftarGuru, daftarJurusan = [], userR
                         Nonaktif sejak {k.kbm_nonaktif_mulai}
                       </span>
                     )}
+                    <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                      KM: {k.km_siswa_nama || 'Belum Ditentukan'}
+                    </div>
                   </TableCell>
                   <TableCell className="py-2.5">
                     <Select value={currentKelompok} onValueChange={v => handleQueueChange(k.id, 'kelompok', v)} disabled={isSavingBatch}>

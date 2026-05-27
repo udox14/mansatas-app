@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS kelas (
   kelompok       TEXT NOT NULL DEFAULT 'KEAGAMAAN',
   kapasitas      INTEGER NOT NULL DEFAULT 36,
   wali_kelas_id  TEXT REFERENCES "user"(id) ON DELETE SET NULL,
+  km_siswa_id     TEXT REFERENCES siswa(id) ON DELETE SET NULL,
   kbm_nonaktif_mulai TEXT,
   created_at     TEXT NOT NULL DEFAULT (datetime('now'))
 );

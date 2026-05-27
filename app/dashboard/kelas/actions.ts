@@ -141,11 +141,22 @@ export async function editKelasForm(prevState: any, formData: FormData) {
 
   const wali_raw = formData.get('wali_kelas_id') as string
   const guruIdBaru = wali_raw === 'none' ? null : wali_raw
+  const kmRaw = formData.get('km_siswa_id') as string
+  const kmSiswaId = kmRaw === 'none' ? null : kmRaw
+
+  if (kmSiswaId) {
+    const kmValid = await db.prepare(
+      'SELECT 1 FROM siswa WHERE id = ? AND kelas_id = ? AND status = ? LIMIT 1'
+    ).bind(kmSiswaId, id, 'aktif').first()
+    if (!kmValid) return { error: 'KM Kelas harus dipilih dari siswa aktif di kelas ini.', success: null }
+  }
+
   const payload = {
     tingkat: parseInt(formData.get('tingkat') as string),
     kelompok: formData.get('kelompok') as string,
     nomor_kelas: formData.get('nomor_kelas') as string,
     wali_kelas_id: guruIdBaru,
+    km_siswa_id: kmSiswaId,
     kapasitas: parseInt(formData.get('kapasitas') as string) || 36,
   }
 
@@ -156,6 +167,7 @@ export async function editKelasForm(prevState: any, formData: FormData) {
   await syncWaliKelasRole(db, guruIdBaru, guruIdLama)
 
   revalidatePath('/dashboard/kelas')
+  revalidatePath('/dashboard/agenda-kelas')
   revalidatePath(`/dashboard/kelas/${id}`)
   return { error: null, success: 'Data Rombongan Belajar berhasil diperbarui!' }
 }
@@ -201,6 +213,7 @@ export async function setStatusKbmKelas(kelasId: string, aktif: boolean, tanggal
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/monitoring-agenda')
   revalidatePath('/dashboard/rekap-absensi')
+  revalidatePath('/dashboard/agenda-kelas')
   return {
     error: null,
     success: aktif
@@ -225,6 +238,7 @@ export async function setStatusKbmTingkat(tingkat: number, aktif: boolean, tangg
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/monitoring-agenda')
   revalidatePath('/dashboard/rekap-absensi')
+  revalidatePath('/dashboard/agenda-kelas')
   return {
     error: null,
     success: aktif

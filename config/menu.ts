@@ -40,6 +40,7 @@ import {
   Landmark,
   UserCheck,
   NotebookPen,
+  BookOpenCheck,
   BookCheck,
   ClipboardSignature,
   FilePenLine,
@@ -158,6 +159,13 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/agenda',
     icon: NotebookPen,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_ppl']
+  },
+  {
+    id: 'agenda-kelas',
+    title: 'Agenda Kelas',
+    href: '/dashboard/agenda-kelas',
+    icon: BookOpenCheck,
+    roles: ['super_admin', 'admin_tu']
   },
   {
     id: 'ckh-generator',
@@ -405,7 +413,7 @@ export const MENU_ITEMS: MenuItem[] = [
 export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'utama', label: 'Utama', items: ['dashboard'] },
   { id: 'data-master', label: 'Data Master', items: ['siswa', 'guru', 'kelas', 'plotting'] },
-  { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'ckh-generator', 'rppm-generator', 'kehadiran', 'nilai-harian', 'penugasan'] },
+  { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'agenda-kelas', 'ckh-generator', 'rppm-generator', 'kehadiran', 'nilai-harian', 'penugasan'] },
   { id: 'monitoring-akademik', label: 'Monitoring Akademik', items: ['akademik', 'kalender-pendidikan', 'analitik'] },
   { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'monitoring-penugasan', 'monitoring-kedisiplinan', 'rekap-absensi', 'akademik-nilai'] },
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
