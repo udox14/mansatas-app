@@ -95,7 +95,7 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
     <div className="space-y-3">
       <style>{`
         @page {
-          size: 330mm 215mm;
+          size: landscape;
           margin: 0;
         }
         @media print {
@@ -281,7 +281,7 @@ function CetakAgendaKelasModal({ daftarKelas, initialKelasId }: { daftarKelas: A
     if (!w) { alert('Popup diblokir browser. Izinkan popup untuk mencetak.'); return }
     w.document.write(`<!DOCTYPE html><html><head><title>Agenda Kelas</title>
 <style>
-@page { size: 330mm 215mm; margin: 0; }
+@page { size: landscape; margin: 0; }
 html, body { margin: 0; padding: 0; background: #fff; }
 * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 </style>
