@@ -250,11 +250,12 @@ export async function getAgendaKelasOptions() {
   }
 }
 
-export async function getAgendaKelasHari(kelasId: string, tanggal = todayWIB()): Promise<{ error: string | null; data: AgendaKelasPageData | null }> {
+async function buildAgendaKelasHari(
+  db: D1Database,
+  kelasId: string,
+  tanggal = todayWIB()
+): Promise<{ error: string | null; data: AgendaKelasPageData | null }> {
   assertDate(tanggal)
-  const access = await ensureAccess()
-  if (access.error || !access.db) return { error: access.error, data: null }
-  const db = access.db
   const hari = hariNum(tanggal)
   const hariNama = HARI[hari] || ''
 
@@ -314,7 +315,7 @@ export async function getAgendaKelasHari(kelasId: string, tanggal = todayWIB()):
   if (!ta?.id) return { error: 'Tahun ajaran aktif belum diatur.', data: null }
 
   const slots = getSlots(ta.jam_pelajaran, hari)
-  const [exceptions, jadwalRes, statusRows] = await Promise.all([
+  const [exceptions, jadwalRes] = await Promise.all([
     getKbmExceptionsForDate(db, tanggal),
     db.prepare(`
       SELECT jm.penugasan_id, jm.jam_ke,
@@ -335,7 +336,6 @@ export async function getAgendaKelasHari(kelasId: string, tanggal = todayWIB()):
       WHERE pm.kelas_id = ? AND jm.tahun_ajaran_id = ? AND jm.hari = ?
       ORDER BY jm.jam_ke ASC
     `).bind(tanggal, tanggal, kelasId, ta.id, hari).all<any>(),
-    getNonHadirRowsForAgenda(db, kelasId, tanggal),
   ])
 
   const grouped = new Map<string, any[]>()
@@ -374,6 +374,8 @@ export async function getAgendaKelasHari(kelasId: string, tanggal = todayWIB()):
   const terisi = baseRows.filter(row => row.pokok_bahasan.trim()).length
   const tugas = baseRows.filter(row => row.tugas.trim()).length
   const activeJam = occupied.size
+  const hasActiveBlocks = activeJam > 0 && slots.length > 0
+  const statusRows = hasActiveBlocks ? await getNonHadirRowsForAgenda(db, kelasId, tanggal) : []
 
   return {
     error: null,
@@ -386,20 +388,29 @@ export async function getAgendaKelasHari(kelasId: string, tanggal = todayWIB()):
         tugas,
         kosong: Math.max(0, activeJam - terisi - tugas),
       },
-      hasActiveBlocks: activeJam > 0 && slots.length > 0,
+      hasActiveBlocks,
     },
   }
 }
 
+export async function getAgendaKelasHari(kelasId: string, tanggal = todayWIB()): Promise<{ error: string | null; data: AgendaKelasPageData | null }> {
+  const access = await ensureAccess()
+  if (access.error || !access.db) return { error: access.error, data: null }
+  return buildAgendaKelasHari(access.db, kelasId, tanggal)
+}
+
 export async function getAdjacentAgendaKelasDate(kelasId: string, tanggal: string, direction: 'prev' | 'next') {
   assertDate(tanggal)
+  const access = await ensureAccess()
+  if (access.error || !access.db) return { error: access.error, tanggal: null }
+
   const step = direction === 'next' ? 1 : -1
   const cursor = new Date(tanggal + 'T00:00:00')
 
   for (let i = 0; i < 120; i++) {
     cursor.setDate(cursor.getDate() + step)
     const candidate = cursor.toISOString().split('T')[0]
-    const res = await getAgendaKelasHari(kelasId, candidate)
+    const res = await buildAgendaKelasHari(access.db, kelasId, candidate)
     if (res.data?.calendarStatus.isEffective && res.data.hasActiveBlocks) {
       return { error: null, tanggal: candidate }
     }
@@ -415,17 +426,22 @@ export async function getAgendaKelasCetakBulanan(kelasIds: string[], months: str
   if (uniqueKelas.length === 0) return { error: 'Pilih minimal satu kelas.', pages: [] }
   if (uniqueMonths.length === 0) return { error: 'Pilih minimal satu bulan.', pages: [] }
 
+  const access = await ensureAccess()
+  if (access.error || !access.db) return { error: access.error, pages: [] }
+  const db = access.db
+
   const pages: AgendaKelasPageData[] = []
   for (const kelasId of uniqueKelas) {
     for (const month of uniqueMonths) {
       const { start, end } = monthRange(month)
-      const access = await ensureAccess()
-      if (access.error || !access.db) return { error: access.error, pages: [] }
-      const effectiveDates = await getEffectiveDatesInRange(access.db, start, end)
-      for (const tanggal of effectiveDates) {
-        const res = await getAgendaKelasHari(kelasId, tanggal)
-        if (res.error) return { error: res.error, pages: [] }
-        if (res.data?.hasActiveBlocks) pages.push(res.data)
+      const effectiveDates = await getEffectiveDatesInRange(db, start, end)
+      for (let i = 0; i < effectiveDates.length; i += 6) {
+        const chunk = effectiveDates.slice(i, i + 6)
+        const results = await Promise.all(chunk.map(tanggal => buildAgendaKelasHari(db, kelasId, tanggal)))
+        for (const res of results) {
+          if (res.error) return { error: res.error, pages: [] }
+          if (res.data?.hasActiveBlocks) pages.push(res.data)
+        }
       }
     }
   }
