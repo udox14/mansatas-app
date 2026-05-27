@@ -26,7 +26,6 @@ function Check({ active }: { active: boolean }) {
 
 export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
   ({ data, pageBreak = false }, ref) => {
-    // 3. Absensi siswa maksimal menampilkan 20 siswa saja sesuai gambar (yang gak hadir doang yang tampil ya)
     const absensiList = data.absensiRows.slice(0, 20)
 
     return (
@@ -46,28 +45,31 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           ...(pageBreak ? { pageBreakBefore: 'always' as const } : {}),
         }}
       >
-        {/* KOP / HEADER TEXT BASED WITH logohitam.png ON THE LEFT */}
-        <div style={{ display: 'flex', alignItems: 'center', borderBottom: '3.5px double #000', paddingBottom: '1.5mm', marginBottom: '2.5mm' }}>
-          <img src="/logohitam.png" alt="Logo" style={{ height: '17mm', width: 'auto', marginRight: '4mm' }} />
-          <div style={{ flex: 1, textAlign: 'center', color: '#000' }}>
-            <div style={{ fontSize: '11pt', fontWeight: 'bold', lineHeight: 1.15 }}>KEMENTERIAN AGAMA REPUBLIK INDONESIA</div>
-            <div style={{ fontSize: '10.5pt', fontWeight: 'bold', lineHeight: 1.15 }}>KANTOR KEMENTERIAN AGAMA KABUPATEN TASIKMALAYA</div>
-            <div style={{ fontSize: '13pt', fontWeight: 'bold', lineHeight: 1.2, margin: '0.3mm 0' }}>MADRASAH ALIYAH NEGERI 1 TASIKMALAYA</div>
-            <div style={{ fontSize: '7.8pt', lineHeight: 1.15 }}>Jl. Pahlawan KHZ. Musthafa Sukamanah Desa Sukarapih Kec. Sukarame Kode Pos 46461</div>
-            <div style={{ fontSize: '7.8pt', fontWeight: 'bold', lineHeight: 1.15 }}>website : www.man1tasikmalaya.sch.id email : manegerisukamanah@gmail.com</div>
+        {/* 1. KOP / HEADER - CENTERED FLEX GROUP SO LOGO SITS ADJACENT TO TEXT */}
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', borderBottom: '3.5px double #000', paddingBottom: '2.5mm', marginBottom: '3.5mm', height: '21mm' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5mm' }}>
+            <img src="/logohitam.png" alt="Logo" style={{ height: '19mm', width: 'auto' }} />
+            <div style={{ textAlign: 'center', color: '#000' }}>
+              <div style={{ fontSize: '11.5pt', fontWeight: 'bold', lineHeight: 1.1 }}>KEMENTERIAN AGAMA REPUBLIK INDONESIA</div>
+              <div style={{ fontSize: '10.5pt', fontWeight: 'bold', lineHeight: 1.1 }}>KANTOR KEMENTERIAN AGAMA KABUPATEN TASIKMALAYA</div>
+              <div style={{ fontSize: '13.5pt', fontWeight: 'bold', lineHeight: 1.15, margin: '0.4mm 0' }}>MADRASAH ALIYAH NEGERI 1 TASIKMALAYA</div>
+              <div style={{ fontSize: '8.2pt', lineHeight: 1.1 }}>Jl. Pahlawan KHZ. Musthafa Sukamanah Desa Sukarapih Kec. Sukarame Kode Pos 46461</div>
+              <div style={{ fontSize: '8.2pt', fontWeight: 'bold', lineHeight: 1.1 }}>website : www.man1tasikmalaya.sch.id email : manegerisukamanah@gmail.com</div>
+            </div>
           </div>
         </div>
 
         {/* HARI & TANGGAL SECTION */}
-        <div style={{ display: 'grid', gridTemplateColumns: '52% 48%', gap: '4mm', marginBottom: '2.5mm', fontSize: '9.5pt', fontWeight: 'bold' }}>
-          <div>HARI : <span style={{ fontWeight: 'normal', borderBottom: '1px dotted #000', display: 'inline-block', width: '70%', paddingLeft: '2mm' }}>{data.hariNama || ''}&nbsp;</span></div>
-          <div>TANGGAL : <span style={{ fontWeight: 'normal', borderBottom: '1px dotted #000', display: 'inline-block', width: '70%', paddingLeft: '2mm' }}>{data.tanggal ? formatTanggal(data.tanggal) : ''}&nbsp;</span></div>
+        <div style={{ display: 'grid', gridTemplateColumns: '52% 48%', gap: '4mm', marginBottom: '3mm', fontSize: '9.5pt', fontWeight: 'bold' }}>
+          <div>HARI : <span style={{ fontWeight: 'normal', borderBottom: '1px dotted #000', display: 'inline-block', width: '65%', paddingLeft: '2mm' }}>{data.hariNama || ''}&nbsp;</span></div>
+          <div>TANGGAL : <span style={{ fontWeight: 'normal', borderBottom: '1px dotted #000', display: 'inline-block', width: '65%', paddingLeft: '2mm' }}>{data.tanggal ? formatTanggal(data.tanggal) : ''}&nbsp;</span></div>
         </div>
 
-        {/* TABLES SECTION */}
-        <div style={{ display: 'grid', gridTemplateColumns: '52% 48%', gap: '4mm', marginBottom: '2mm' }}>
+        {/* 6. TABLES SECTION - IDENTICAL ROW AND HEADER HEIGHTS */}
+        <div style={{ display: 'grid', gridTemplateColumns: '52% 48%', gap: '4mm', marginBottom: '3.5mm' }}>
           {/* AGENDA KELAS TABLE */}
           <div>
+            {/* 5. Gapped header box */}
             <div style={sectionTitle}>AGENDA KELAS</div>
             <table style={tableStyle}>
               <colgroup>
@@ -78,7 +80,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                 <col style={{ width: '16mm' }} />
               </colgroup>
               <thead>
-                <tr>
+                <tr style={{ height: '9mm' }}>
                   <th style={thStyle}>JAM<br />KE</th>
                   <th style={thStyle}>MATA PELAJARAN</th>
                   <th style={thStyle}>POKOK<br />BAHASAN</th>
@@ -90,7 +92,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                 {Array.from({ length: 10 }).map((_, index) => {
                   const row = data.agendaRows[index]
                   return (
-                    <tr key={index} style={{ height: '7.9mm' }}>
+                    <tr key={index} style={{ height: '8.1mm' }}>
                       <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{index + 1}</td>
                       <td style={tdStyle}>{row?.mapel_nama || ''}</td>
                       <td style={tdStyle}>{row?.pokok_bahasan || ''}</td>
@@ -105,6 +107,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
 
           {/* ABSENSI SISWA SECTION */}
           <div>
+            {/* 5. Gapped header box */}
             <div style={sectionTitle}>ABSENSI SISWA</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2mm' }}>
               {/* Left Sub-table (1-10) */}
@@ -118,7 +121,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                   <col style={{ width: '13mm' }} />
                 </colgroup>
                 <thead>
-                  <tr>
+                  <tr style={{ height: '9mm' }}>
                     <th style={thStyle}>NO</th>
                     <th style={thStyle}>NAMA</th>
                     <th style={thStyle}>S</th>
@@ -131,7 +134,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                   {Array.from({ length: 10 }).map((_, index) => {
                     const row = absensiList[index]
                     return (
-                      <tr key={index} style={{ height: '7.9mm' }}>
+                      <tr key={index} style={{ height: '8.1mm' }}>
                         <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{index + 1}</td>
                         <td style={tdName}>{row?.nama || ''}</td>
                         <td style={tdCenter}>{row?.sakit ? <Check active={true} /> : ''}</td>
@@ -155,7 +158,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                   <col style={{ width: '13mm' }} />
                 </colgroup>
                 <thead>
-                  <tr>
+                  <tr style={{ height: '9mm' }}>
                     <th style={thStyle}>NO</th>
                     <th style={thStyle}>NAMA</th>
                     <th style={thStyle}>S</th>
@@ -168,7 +171,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                   {Array.from({ length: 10 }).map((_, index) => {
                     const row = absensiList[index + 10]
                     return (
-                      <tr key={index} style={{ height: '7.9mm' }}>
+                      <tr key={index} style={{ height: '8.1mm' }}>
                         <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{index + 11}</td>
                         <td style={tdName}>{row?.nama || ''}</td>
                         <td style={tdCenter}>{row?.sakit ? <Check active={true} /> : ''}</td>
@@ -184,91 +187,110 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           </div>
         </div>
 
-        {/* FOOTER SECTION */}
-        <div style={{ display: 'grid', gridTemplateColumns: '32% 32% 36%', gap: '4mm', marginTop: '3mm', alignItems: 'start', fontSize: '8.5pt' }}>
-          {/* Left Column (Rekapitulasi & Kepala) */}
+        {/* 2 & 3 & 4. FOOTER & SIGNATURE SECTION */}
+        <div style={{ display: 'grid', gridTemplateColumns: '32% 32% 36%', gap: '4mm', alignItems: 'start', fontSize: '8.5pt' }}>
+          {/* Left Column (Rekapitulasi) */}
           <div>
-            <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '9pt' }}>REKAPITULASI KEGIATAN</div>
+            <div style={{ fontWeight: 'bold', marginBottom: '1.5mm', fontSize: '9pt' }}>REKAPITULASI KEGIATAN</div>
             <table style={{ width: '100%', fontSize: '8.5pt', borderCollapse: 'collapse' }}>
               <tbody>
                 <tr>
                   <td style={{ width: '4mm', verticalAlign: 'top' }}>1.</td>
                   <td style={{ width: '12mm', verticalAlign: 'top' }}>Terisi</td>
                   <td style={{ width: '3mm', verticalAlign: 'top', textAlign: 'center' }}>:</td>
-                  <td style={{ borderBottom: '1px dotted #000', paddingLeft: '1mm' }}>{data.rekap.terisi !== undefined ? `${data.rekap.terisi} ` : ''}</td>
-                  <td style={{ width: '8mm', verticalAlign: 'bottom', paddingLeft: '1mm' }}>Jam</td>
+                  {/* 4. Dotted lines shortened */}
+                  <td style={{ borderBottom: '1px dotted #000', paddingLeft: '1.5mm', width: '15mm', fontWeight: 'bold' }}>
+                    {data.rekap.terisi !== undefined ? data.rekap.terisi : ''}
+                  </td>
+                  <td style={{ verticalAlign: 'bottom', paddingLeft: '1.5mm' }}>Jam</td>
                 </tr>
-                <tr style={{ height: '0.8mm' }}><td colSpan={5} /></tr>
+                <tr style={{ height: '1mm' }}><td colSpan={5} /></tr>
                 <tr>
                   <td style={{ verticalAlign: 'top' }}>2.</td>
                   <td style={{ verticalAlign: 'top' }}>Tugas</td>
                   <td style={{ verticalAlign: 'top', textAlign: 'center' }}>:</td>
-                  <td style={{ borderBottom: '1px dotted #000', paddingLeft: '1mm' }}>{data.rekap.tugas !== undefined ? `${data.rekap.tugas} ` : ''}</td>
-                  <td style={{ verticalAlign: 'bottom', paddingLeft: '1mm' }}>Jam</td>
+                  {/* 4. Dotted lines shortened */}
+                  <td style={{ borderBottom: '1px dotted #000', paddingLeft: '1.5mm', fontWeight: 'bold' }}>
+                    {data.rekap.tugas !== undefined ? data.rekap.tugas : ''}
+                  </td>
+                  <td style={{ verticalAlign: 'bottom', paddingLeft: '1.5mm' }}>Jam</td>
                 </tr>
-                <tr style={{ height: '0.8mm' }}><td colSpan={5} /></tr>
+                <tr style={{ height: '1mm' }}><td colSpan={5} /></tr>
                 <tr>
                   <td style={{ verticalAlign: 'top' }}>3.</td>
                   <td style={{ verticalAlign: 'top' }}>Kosong</td>
                   <td style={{ verticalAlign: 'top', textAlign: 'center' }}>:</td>
-                  <td style={{ borderBottom: '1px dotted #000', paddingLeft: '1mm' }}>{data.rekap.kosong !== undefined ? `${data.rekap.kosong} ` : ''}</td>
-                  <td style={{ verticalAlign: 'bottom', paddingLeft: '1mm' }}>Jam</td>
+                  {/* 4. Dotted lines shortened */}
+                  <td style={{ borderBottom: '1px dotted #000', paddingLeft: '1.5mm', fontWeight: 'bold' }}>
+                    {data.rekap.kosong !== undefined ? data.rekap.kosong : ''}
+                  </td>
+                  <td style={{ verticalAlign: 'bottom', paddingLeft: '1.5mm' }}>Jam</td>
                 </tr>
               </tbody>
             </table>
-
-            <div style={{ marginTop: '5mm', lineHeight: 1.3 }}>
-              <div>Kepala MAN 1 Tasikmalaya,</div>
-              <div style={{ height: '14mm' }} />
-              <div style={{ fontWeight: 'bold' }}>{data.kepala.nama}</div>
-              <div>NIP. {data.kepala.nip}</div>
-            </div>
           </div>
 
-          {/* Middle Column (Wali Kelas & Mengetahui) */}
+          {/* Middle Column (Blank/Spacer for alignment) */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-            <div style={{ marginBottom: '4mm', fontStyle: 'normal' }}>Mengetahui :</div>
-            <div style={{ lineHeight: 1.3 }}>
-              <div>Wali Kelas,</div>
-              <div style={{ height: '18mm' }} />
-              <div>
-                {data.kelas.wali_kelas_nama ? (
-                  <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', minWidth: '50mm', fontWeight: 'bold' }}>
-                    {data.kelas.wali_kelas_nama}
-                  </span>
-                ) : (
-                  <span>...........................................................</span>
-                )}
-              </div>
-              <div style={{ marginTop: '1mm' }}>
-                NIP. {data.kelas.wali_kelas_nip || '...........................................................'}
-              </div>
-            </div>
+            {/* 2. Mengetahui is placed centered on its own row, above Wali Kelas & Kepala */}
+            <div style={{ fontSize: '9pt', marginTop: '1.5mm' }}>Mengetahui :</div>
           </div>
 
-          {/* Right Column (KM Kelas & Date) */}
+          {/* Right Column (Date / Tasikmalaya) */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', paddingLeft: '4mm' }}>
             <div style={{ marginBottom: '1.5mm' }}>
               Tasikmalaya, <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '35mm' }}>&nbsp;</span>
             </div>
-            <div style={{ lineHeight: 1.3, width: '100%' }}>
-              <div>KM Kelas <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '25mm' }}>{data.kelas.label || ''}</span>,</div>
-              <div style={{ height: '17mm' }} />
-              <div>
-                {data.kelas.km_nama ? (
-                  <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', minWidth: '50mm', fontWeight: 'bold' }}>
-                    {data.kelas.km_nama}
-                  </span>
-                ) : (
-                  <span>...........................................................</span>
-                )}
-              </div>
-              <div style={{ marginTop: '1mm' }}>
-                NIS. <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '35mm' }}>&nbsp;</span>
-              </div>
+          </div>
+        </div>
+
+        {/* 3. PARALLEL SIGNATURE COLUMNS - HEADED BY KEPALA, WALI KELAS, AND KM KELAS */}
+        <div style={{ display: 'grid', gridTemplateColumns: '32% 32% 36%', gap: '4mm', marginTop: '1.5mm', alignItems: 'start', fontSize: '8.5pt' }}>
+          {/* Left Column (Kepala) */}
+          <div style={{ lineHeight: 1.35 }}>
+            <div>Kepala MAN 1 Tasikmalaya,</div>
+            <div style={{ height: '16mm' }} />
+            <div style={{ fontWeight: 'bold' }}>{data.kepala.nama}</div>
+            <div>NIP. {data.kepala.nip}</div>
+          </div>
+
+          {/* Middle Column (Wali Kelas) */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', lineHeight: 1.35 }}>
+            <div>Wali Kelas,</div>
+            <div style={{ height: '16mm' }} />
+            <div>
+              {data.kelas.wali_kelas_nama ? (
+                <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', minWidth: '50mm', fontWeight: 'bold' }}>
+                  {data.kelas.wali_kelas_nama}
+                </span>
+              ) : (
+                <span>...........................................................</span>
+              )}
+            </div>
+            <div style={{ marginTop: '0.8mm' }}>
+              NIP. {data.kelas.wali_kelas_nip || '...........................................................'}
+            </div>
+          </div>
+
+          {/* Right Column (KM Kelas) */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', paddingLeft: '4mm', lineHeight: 1.35 }}>
+            <div>KM Kelas <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '25mm' }}>{data.kelas.label || ''}</span>,</div>
+            <div style={{ height: '16mm' }} />
+            <div>
+              {data.kelas.km_nama ? (
+                <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', minWidth: '50mm', fontWeight: 'bold' }}>
+                  {data.kelas.km_nama}
+                </span>
+              ) : (
+                <span>...........................................................</span>
+              )}
+            </div>
+            <div style={{ marginTop: '0.8mm' }}>
+              NIS. <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '35mm' }}>&nbsp;</span>
             </div>
           </div>
         </div>
+
       </div>
     )
   }
@@ -285,12 +307,12 @@ const tableStyle: React.CSSProperties = {
 
 const sectionTitle: React.CSSProperties = {
   border: BORDER,
-  borderBottom: 0,
   textAlign: 'center',
   fontWeight: 'bold',
   fontSize: '10.5pt',
   padding: '1mm 0',
   fontFamily: FONT,
+  marginBottom: '2mm',
 }
 
 const thStyle: React.CSSProperties = {
@@ -329,4 +351,5 @@ const tdCenter: React.CSSProperties = {
   textAlign: 'center',
   padding: 0,
 }
+
 
