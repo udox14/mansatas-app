@@ -234,7 +234,7 @@ export async function getAgendaKelasOptions() {
     FROM kelas k
     LEFT JOIN siswa s ON s.kelas_id = k.id
     GROUP BY k.id, k.tingkat, k.nomor_kelas, k.kelompok
-    ORDER BY k.tingkat ASC, k.kelompok ASC, CAST(k.nomor_kelas AS INTEGER) ASC
+    ORDER BY CAST(k.tingkat AS INTEGER) ASC, CAST(k.nomor_kelas AS INTEGER) ASC, k.kelompok ASC
   `).all<any>()
 
   return {
