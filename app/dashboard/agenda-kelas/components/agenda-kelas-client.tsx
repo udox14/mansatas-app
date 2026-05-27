@@ -35,7 +35,7 @@ function currentMonth() {
 
 export function AgendaKelasClient({ daftarKelas, today }: Props) {
   const [selectedKelasId, setSelectedKelasId] = useState('')
-  const [tanggal, setTanggal] = useState(today)
+  const [tanggal, setTanggal] = useState('')
   const [data, setData] = useState<AgendaKelasPageData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -74,30 +74,22 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
 
   const handleSelectKelas = (kelasId: string) => {
     setSelectedKelasId(kelasId)
-    loadDay(kelasId, today)
+    setTanggal('')
+    setData(null)
+    setError(null)
   }
 
   const handleDateChange = (value: string) => {
     setTanggal(value)
-    if (selectedKelasId) loadDay(selectedKelasId, value)
+    if (selectedKelasId && value) loadDay(selectedKelasId, value)
   }
 
-  const moveEffectiveDate = async (direction: 'prev' | 'next') => {
-    if (!selectedKelasId || loading) return
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await getAdjacentAgendaKelasDate(selectedKelasId, tanggal, direction)
-      if (res.error || !res.tanggal) {
-        setError(res.error || 'Tanggal efektif tidak ditemukan.')
-      } else {
-        await loadDay(selectedKelasId, res.tanggal)
-      }
-    } catch {
-      setError('Gagal mencari tanggal efektif.')
-    } finally {
-      setLoading(false)
-    }
+  const moveEffectiveDate = (direction: 'prev' | 'next') => {
+    if (!tanggal || !selectedKelasId) return
+    const cursor = new Date(tanggal + 'T00:00:00')
+    cursor.setDate(cursor.getDate() + (direction === 'next' ? 1 : -1))
+    const nextDate = cursor.toISOString().split('T')[0]
+    handleDateChange(nextDate)
   }
 
   return (
@@ -125,7 +117,7 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
           <div className="min-w-0">
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Preview Agenda Kelas</p>
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-              {selectedKelas ? `${selectedKelas.label} - ${formatInfoDate(tanggal)}` : 'Pilih kelas untuk memuat agenda hari ini'}
+              {selectedKelas ? `${selectedKelas.label} ${tanggal ? '- ' + formatInfoDate(tanggal) : ''}` : 'Pilih kelas untuk memuat agenda'}
             </p>
           </div>
         </div>
@@ -145,7 +137,7 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
           </Select>
 
           <div className="flex items-center rounded-md border border-surface bg-surface-2">
-            <Button type="button" variant="ghost" size="sm" disabled={!selectedKelasId || loading} onClick={() => moveEffectiveDate('prev')} className="h-8 w-8 p-0">
+            <Button type="button" variant="ghost" size="sm" disabled={!selectedKelasId || !tanggal || loading} onClick={() => moveEffectiveDate('prev')} className="h-8 w-8 p-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Input
@@ -155,7 +147,7 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
               disabled={!selectedKelasId || loading}
               className="h-8 w-36 border-0 bg-transparent text-xs shadow-none focus-visible:ring-0"
             />
-            <Button type="button" variant="ghost" size="sm" disabled={!selectedKelasId || loading} onClick={() => moveEffectiveDate('next')} className="h-8 w-8 p-0">
+            <Button type="button" variant="ghost" size="sm" disabled={!selectedKelasId || !tanggal || loading} onClick={() => moveEffectiveDate('next')} className="h-8 w-8 p-0">
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
@@ -177,26 +169,33 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
         </div>
       )}
 
-      {loading && (
+      {selectedKelasId && !tanggal && (
+        <div className="agenda-kelas-no-print h-72 rounded-lg border border-dashed border-surface bg-surface/60 flex flex-col items-center justify-center gap-3 text-slate-400">
+          <CalendarDays className="h-10 w-10 text-indigo-500 animate-pulse" />
+          <p className="text-sm font-medium">Pilih tanggal terlebih dahulu untuk memuat agenda kelas.</p>
+        </div>
+      )}
+
+      {loading && tanggal && (
         <div className="agenda-kelas-no-print h-72 rounded-lg border border-surface bg-surface flex flex-col items-center justify-center gap-3">
           <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
           <p className="text-sm text-slate-500 dark:text-slate-400">Memuat agenda kelas...</p>
         </div>
       )}
 
-      {!loading && data && !data.calendarStatus.isEffective && (
+      {!loading && tanggal && data && !data.calendarStatus.isEffective && (
         <div className="agenda-kelas-no-print rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           {formatInfoDate(data.tanggal)} bukan hari efektif pembelajaran{data.calendarStatus.reason ? `: ${data.calendarStatus.reason}` : ''}.
         </div>
       )}
 
-      {!loading && data && data.calendarStatus.isEffective && !data.hasActiveBlocks && (
+      {!loading && tanggal && data && data.calendarStatus.isEffective && !data.hasActiveBlocks && (
         <div className="agenda-kelas-no-print rounded-lg border border-slate-200 bg-surface p-4 text-sm text-slate-600 dark:text-slate-300">
           Tidak ada blok KBM aktif untuk kelas ini pada {formatInfoDate(data.tanggal)}.
         </div>
       )}
 
-      {!loading && data && data.calendarStatus.isEffective && data.hasActiveBlocks && (
+      {!loading && tanggal && data && data.calendarStatus.isEffective && data.hasActiveBlocks && (
         <div className="overflow-auto rounded-lg border border-surface bg-slate-100 dark:bg-slate-900 p-4">
           <div
             className="bg-white shadow-xl ring-1 ring-black/10 origin-top-left"

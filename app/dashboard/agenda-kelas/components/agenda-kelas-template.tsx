@@ -275,7 +275,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           </div>
 
           {/* Row 5 */}
-          <div style={{ gridRow: 5, gridColumn: 2, textAlign: 'center', marginTop: '1.5mm' }}>
+          <div style={{ gridRow: 5, gridColumn: 2, paddingLeft: '6mm', marginTop: '1.5mm' }}>
             Mengetahui :
           </div>
           {/* 4. Hilangkan titik-titik pada nama KM jika terisi */}
@@ -293,7 +293,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           <div style={{ gridRow: 6, gridColumn: 1, marginTop: '1mm' }}>
             Kepala MAN 1 Tasikmalaya,
           </div>
-          <div style={{ gridRow: 6, gridColumn: 2, textAlign: 'center', marginTop: '1mm' }}>
+          <div style={{ gridRow: 6, gridColumn: 2, paddingLeft: '6mm', marginTop: '1mm' }}>
             Wali Kelas,
           </div>
           <div style={{ gridRow: 6, gridColumn: 3, marginTop: '1mm' }}>
@@ -307,11 +307,11 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           <div style={{ gridRow: 8, gridColumn: 1, fontWeight: 'bold' }}>
             {data.kepala.nama}
           </div>
-          {/* 4. Hilangkan titik-titik pada nama Wali Kelas jika terisi */}
-          <div style={{ gridRow: 8, gridColumn: 2, textAlign: 'center' }}>
+          {/* 4. Hilangkan titik-titik pada nama Wali Kelas jika terisi + Kapital semua */}
+          <div style={{ gridRow: 8, gridColumn: 2, paddingLeft: '6mm' }}>
             {data.kelas.wali_kelas_nama ? (
               <span style={{ fontWeight: 'bold', textDecoration: 'underline' }}>
-                {data.kelas.wali_kelas_nama}
+                {data.kelas.wali_kelas_nama.toUpperCase()}
               </span>
             ) : (
               <span>...........................................................</span>
@@ -323,7 +323,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
             NIP. {data.kepala.nip}
           </div>
           {/* 4. Hilangkan titik-titik pada NIP jika terisi */}
-          <div style={{ gridRow: 9, gridColumn: 2, textAlign: 'center' }}>
+          <div style={{ gridRow: 9, gridColumn: 2, paddingLeft: '6mm' }}>
             {data.kelas.wali_kelas_nip ? (
               <span>NIP. {data.kelas.wali_kelas_nip}</span>
             ) : (
