@@ -61,8 +61,8 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
 
         {/* HARI & TANGGAL SECTION */}
         <div style={{ display: 'grid', gridTemplateColumns: '52% 48%', gap: '4mm', marginBottom: '3mm', fontSize: '9.5pt', fontWeight: 'bold' }}>
-          <div>HARI : <span style={{ fontWeight: 'normal', borderBottom: '1px dotted #000', display: 'inline-block', width: '65%', paddingLeft: '2mm' }}>{data.hariNama || ''}&nbsp;</span></div>
-          <div>TANGGAL : <span style={{ fontWeight: 'normal', borderBottom: '1px dotted #000', display: 'inline-block', width: '65%', paddingLeft: '2mm' }}>{data.tanggal ? formatTanggal(data.tanggal) : ''}&nbsp;</span></div>
+          <div>HARI : <span style={{ fontWeight: 'normal' }}>{data.hariNama || '..............................................'}</span></div>
+          <div>TANGGAL : <span style={{ fontWeight: 'normal' }}>{data.tanggal ? formatTanggal(data.tanggal) : '..............................................'}</span></div>
         </div>
 
         {/* 6. TABLES SECTION - IDENTICAL ROW AND HEADER HEIGHTS */}
@@ -94,9 +94,16 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                   return (
                     <tr key={index} style={{ height: '8.1mm' }}>
                       <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{index + 1}</td>
-                      <td style={tdStyle}>{row?.mapel_nama || ''}</td>
-                      <td style={tdStyle}>{row?.pokok_bahasan || ''}</td>
-                      <td style={tdStyle}>{row?.tugas || ''}</td>
+                      {/* 1. Mata Pelajaran Kapital Semua */}
+                      <td style={tdStyle}>{row?.mapel_nama ? row.mapel_nama.toUpperCase() : ''}</td>
+                      {/* 2. Pokok Bahasan max 2 baris */}
+                      <td style={tdStyle}>
+                        <div style={lineClampStyle}>{row?.pokok_bahasan || ''}</div>
+                      </td>
+                      {/* 2. Tugas max 2 baris */}
+                      <td style={tdStyle}>
+                        <div style={lineClampStyle}>{row?.tugas || ''}</div>
+                      </td>
                       <td style={{ ...tdStyle, textAlign: 'center' }}>{row?.paraf || ''}</td>
                     </tr>
                   )
@@ -133,6 +140,8 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                 <tbody>
                   {Array.from({ length: 10 }).map((_, index) => {
                     const row = absensiList[index]
+                    {/* 3. Singkat "Keterangan dari Wali Kelas" jadi "Ket. Wali Kelas" */}
+                    const displayKet = (row?.ket || '').replace(/Keterangan dari wali kelas/gi, 'Ket. Wali Kelas')
                     return (
                       <tr key={index} style={{ height: '8.1mm' }}>
                         <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{index + 1}</td>
@@ -140,7 +149,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                         <td style={tdCenter}>{row?.sakit ? <Check active={true} /> : ''}</td>
                         <td style={tdCenter}>{row?.izin ? <Check active={true} /> : ''}</td>
                         <td style={tdCenter}>{row?.alfa ? <Check active={true} /> : ''}</td>
-                        <td style={tdSmall}>{row?.ket || ''}</td>
+                        <td style={tdSmall}>{displayKet}</td>
                       </tr>
                     )
                   })}
@@ -170,6 +179,8 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                 <tbody>
                   {Array.from({ length: 10 }).map((_, index) => {
                     const row = absensiList[index + 10]
+                    {/* 3. Singkat "Keterangan dari Wali Kelas" jadi "Ket. Wali Kelas" */}
+                    const displayKet = (row?.ket || '').replace(/Keterangan dari wali kelas/gi, 'Ket. Wali Kelas')
                     return (
                       <tr key={index} style={{ height: '8.1mm' }}>
                         <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{index + 11}</td>
@@ -177,7 +188,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                         <td style={tdCenter}>{row?.sakit ? <Check active={true} /> : ''}</td>
                         <td style={tdCenter}>{row?.izin ? <Check active={true} /> : ''}</td>
                         <td style={tdCenter}>{row?.alfa ? <Check active={true} /> : ''}</td>
-                        <td style={tdSmall}>{row?.ket || ''}</td>
+                        <td style={tdSmall}>{displayKet}</td>
                       </tr>
                     )
                   })}
@@ -191,10 +202,9 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '52% 23.5% 24.5%',
+            gridTemplateColumns: '38% 38% 24%',
             gridTemplateRows: 'auto auto auto auto auto auto auto auto auto',
             gap: '0.6mm 0mm',
-            columnGap: '4mm',
             marginTop: '3.5mm',
             fontSize: '8.5pt',
             fontFamily: FONT,
@@ -204,8 +214,9 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           <div style={{ gridRow: 1, gridColumn: 1, fontWeight: 'bold', fontSize: '9pt' }}>
             REKAPITULASI KEGIATAN
           </div>
+          {/* 5. Tanggal Tasikmalaya disamakan dengan Kop */}
           <div style={{ gridRow: 1, gridColumn: 3 }}>
-            Tasikmalaya, <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '35mm' }}>&nbsp;</span>
+            Tasikmalaya, {data.tanggal ? formatTanggal(data.tanggal) : '..............................................'}
           </div>
 
           {/* Row 2 */}
@@ -224,8 +235,9 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
               </tbody>
             </table>
           </div>
+          {/* 4. Hilangkan titik-titik pada label KM Kelas jika ada teksnya */}
           <div style={{ gridRow: 2, gridColumn: 3 }}>
-            KM Kelas <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '25mm' }}>{data.kelas.label || ''}</span>,
+            KM Kelas {data.kelas.label ? `${data.kelas.label},` : '...................,'}
           </div>
 
           {/* Row 3 */}
@@ -263,12 +275,13 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           </div>
 
           {/* Row 5 */}
-          <div style={{ gridRow: 5, gridColumn: 2, paddingLeft: '6mm', marginTop: '1.5mm' }}>
+          <div style={{ gridRow: 5, gridColumn: 2, textAlign: 'center', marginTop: '1.5mm' }}>
             Mengetahui :
           </div>
+          {/* 4. Hilangkan titik-titik pada nama KM jika terisi */}
           <div style={{ gridRow: 5, gridColumn: 3, marginTop: '1.5mm' }}>
             {data.kelas.km_nama ? (
-              <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', minWidth: '50mm', fontWeight: 'bold' }}>
+              <span style={{ fontWeight: 'bold', textDecoration: 'underline' }}>
                 {data.kelas.km_nama}
               </span>
             ) : (
@@ -280,7 +293,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           <div style={{ gridRow: 6, gridColumn: 1, marginTop: '1mm' }}>
             Kepala MAN 1 Tasikmalaya,
           </div>
-          <div style={{ gridRow: 6, gridColumn: 2, paddingLeft: '6mm', marginTop: '1mm' }}>
+          <div style={{ gridRow: 6, gridColumn: 2, textAlign: 'center', marginTop: '1mm' }}>
             Wali Kelas,
           </div>
           <div style={{ gridRow: 6, gridColumn: 3, marginTop: '1mm' }}>
@@ -294,9 +307,10 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           <div style={{ gridRow: 8, gridColumn: 1, fontWeight: 'bold' }}>
             {data.kepala.nama}
           </div>
-          <div style={{ gridRow: 8, gridColumn: 2, paddingLeft: '6mm' }}>
+          {/* 4. Hilangkan titik-titik pada nama Wali Kelas jika terisi */}
+          <div style={{ gridRow: 8, gridColumn: 2, textAlign: 'center' }}>
             {data.kelas.wali_kelas_nama ? (
-              <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', minWidth: '50mm', fontWeight: 'bold' }}>
+              <span style={{ fontWeight: 'bold', textDecoration: 'underline' }}>
                 {data.kelas.wali_kelas_nama}
               </span>
             ) : (
@@ -308,8 +322,13 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           <div style={{ gridRow: 9, gridColumn: 1 }}>
             NIP. {data.kepala.nip}
           </div>
-          <div style={{ gridRow: 9, gridColumn: 2, paddingLeft: '6mm' }}>
-            NIP. {data.kelas.wali_kelas_nip || '...........................................................'}
+          {/* 4. Hilangkan titik-titik pada NIP jika terisi */}
+          <div style={{ gridRow: 9, gridColumn: 2, textAlign: 'center' }}>
+            {data.kelas.wali_kelas_nip ? (
+              <span>NIP. {data.kelas.wali_kelas_nip}</span>
+            ) : (
+              <span>NIP. ...........................................................</span>
+            )}
           </div>
         </div>
 
@@ -374,4 +393,12 @@ const tdCenter: React.CSSProperties = {
   padding: 0,
 }
 
-
+const lineClampStyle: React.CSSProperties = {
+  display: '-webkit-box',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  lineHeight: '1.25',
+  maxHeight: '2.5em',
+}
