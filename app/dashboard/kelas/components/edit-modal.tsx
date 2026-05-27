@@ -22,8 +22,8 @@ function SubmitButton() {
   )
 }
 
-export function EditModal({ isOpen, onClose, kelasData, daftarGuru = [], daftarJurusan = [] }: {
-  isOpen: boolean; onClose: () => void; kelasData: any; daftarGuru?: any[]; daftarJurusan?: string[]
+export function EditModal({ isOpen, onClose, kelasData, daftarGuru = [], daftarSiswa = [], daftarJurusan = [] }: {
+  isOpen: boolean; onClose: () => void; kelasData: any; daftarGuru?: any[]; daftarSiswa?: any[]; daftarJurusan?: string[]
 }) {
   const [state, formAction] = useActionState(editKelasForm, initialState)
 
@@ -114,6 +114,19 @@ export function EditModal({ isOpen, onClose, kelasData, daftarGuru = [], daftarJ
                 <SelectItem value="none" className="text-xs text-slate-400 dark:text-slate-500 italic">-- Kosongkan --</SelectItem>
                 {daftarGuru.map(g => (
                   <SelectItem key={g.id} value={g.id} className="text-xs">{g.nama_lengkap}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">KM Kelas</Label>
+            <Select name="km_siswa_id" defaultValue={kelasData.km_siswa_id || 'none'}>
+              <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50 dark:bg-slate-800"><SelectValue placeholder="-- Kosong --" /></SelectTrigger>
+              <SelectContent className="max-h-56">
+                <SelectItem value="none" className="text-xs text-slate-400 dark:text-slate-500 italic">-- Kosongkan --</SelectItem>
+                {daftarSiswa.map(s => (
+                  <SelectItem key={s.id} value={s.id} className="text-xs">{s.nama_lengkap}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

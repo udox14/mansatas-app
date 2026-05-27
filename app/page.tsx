@@ -151,6 +151,7 @@ const featureDescriptions: Record<string, string> = {
   'rekap-absensi': 'Menyajikan rekap kehadiran siswa agar wali kelas, TU, wakamad, dan pimpinan bisa melihat kondisi absensi dengan cepat.',
   'keterangan-absensi': 'Wali kelas bisa memberi keterangan ketidakhadiran siswa per tanggal, baik satu per satu maupun sekaligus satu kelas.',
   agenda: 'Guru mencatat agenda mengajar dan materi pembelajaran, sementara guru piket dapat mengisi agenda piket harian.',
+  'agenda-kelas': 'TU dapat memeriksa dan mencetak agenda kelas harian atau bulanan sesuai format resmi dengan data agenda guru dan absensi siswa.',
   'nilai-harian': 'Guru bisa membuat sesi penilaian, mengisi nilai siswa, mengatur KKM, dan melihat rata-rata nilai harian per kelas.',
   penugasan: 'Memudahkan guru atau pegawai mendelegasikan tugas, menerima tugas masuk, dan melihat pekerjaan yang sudah dikirim.',
   'monitoring-agenda': 'Pimpinan dan admin dapat memantau agenda guru, rekap kehadiran mengajar, agenda piket, serta mencetak laporan.',

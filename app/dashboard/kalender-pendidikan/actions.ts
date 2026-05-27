@@ -226,6 +226,7 @@ export async function saveKalenderEvent(payload: {
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/agenda')
   revalidatePath('/dashboard/monitoring-agenda')
+  revalidatePath('/dashboard/agenda-kelas')
   revalidatePath('/dashboard/rekap-absensi')
   return { success: 'Kalender pendidikan disimpan.' }
 }
@@ -310,6 +311,7 @@ export async function saveKbmException(payload: {
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/agenda')
   revalidatePath('/dashboard/monitoring-agenda')
+  revalidatePath('/dashboard/agenda-kelas')
   revalidatePath('/dashboard/rekap-absensi')
   return { success: 'Pengecualian jam KBM disimpan.' }
 }
@@ -326,6 +328,7 @@ export async function deleteKbmException(id: string) {
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/agenda')
   revalidatePath('/dashboard/monitoring-agenda')
+  revalidatePath('/dashboard/agenda-kelas')
   revalidatePath('/dashboard/rekap-absensi')
   return { success: 'Pengecualian jam KBM dihapus.' }
 }
@@ -414,6 +417,7 @@ export async function importKalenderResmi(year: number, rows: KalenderImportRow[
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/agenda')
   revalidatePath('/dashboard/monitoring-agenda')
+  revalidatePath('/dashboard/agenda-kelas')
   revalidatePath('/dashboard/rekap-absensi')
   return { success: `${cleanRows.length} data SKB resmi berhasil diimpor.`, count: cleanRows.length }
 }
@@ -430,6 +434,7 @@ export async function deleteKalenderEvent(id: string) {
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/agenda')
   revalidatePath('/dashboard/monitoring-agenda')
+  revalidatePath('/dashboard/agenda-kelas')
   revalidatePath('/dashboard/rekap-absensi')
   return { success: 'Event kalender dihapus.' }
 }
