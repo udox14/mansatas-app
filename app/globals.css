@@ -181,12 +181,8 @@ body {
   overflow-y: auto;
 }
 
-/* Print styles for Surat (F4 / Folio paper) */
+/* Print styles – base resets only (each component defines its own @page size) */
 @media print {
-  @page {
-    size: 215mm 330mm;
-    margin: 0;
-  }
   body {
     height: auto !important;
     overflow: visible !important;
