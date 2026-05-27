@@ -191,9 +191,10 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '32% 32% 36%',
+            gridTemplateColumns: '52% 23.5% 24.5%',
             gridTemplateRows: 'auto auto auto auto auto auto auto auto auto',
             gap: '0.6mm 0mm',
+            columnGap: '4mm',
             marginTop: '3.5mm',
             fontSize: '8.5pt',
             fontFamily: FONT,
@@ -203,7 +204,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           <div style={{ gridRow: 1, gridColumn: 1, fontWeight: 'bold', fontSize: '9pt' }}>
             REKAPITULASI KEGIATAN
           </div>
-          <div style={{ gridRow: 1, gridColumn: 3, paddingLeft: '4mm' }}>
+          <div style={{ gridRow: 1, gridColumn: 3 }}>
             Tasikmalaya, <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '35mm' }}>&nbsp;</span>
           </div>
 
@@ -223,7 +224,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
               </tbody>
             </table>
           </div>
-          <div style={{ gridRow: 2, gridColumn: 3, paddingLeft: '4mm' }}>
+          <div style={{ gridRow: 2, gridColumn: 3 }}>
             KM Kelas <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', width: '25mm' }}>{data.kelas.label || ''}</span>,
           </div>
 
@@ -265,7 +266,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           <div style={{ gridRow: 5, gridColumn: 2, paddingLeft: '6mm', marginTop: '1.5mm' }}>
             Mengetahui :
           </div>
-          <div style={{ gridRow: 5, gridColumn: 3, paddingLeft: '4mm', marginTop: '1.5mm' }}>
+          <div style={{ gridRow: 5, gridColumn: 3, marginTop: '1.5mm' }}>
             {data.kelas.km_nama ? (
               <span style={{ borderBottom: '1px dotted #000', display: 'inline-block', minWidth: '50mm', fontWeight: 'bold' }}>
                 {data.kelas.km_nama}
@@ -282,7 +283,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           <div style={{ gridRow: 6, gridColumn: 2, paddingLeft: '6mm', marginTop: '1mm' }}>
             Wali Kelas,
           </div>
-          <div style={{ gridRow: 6, gridColumn: 3, paddingLeft: '4mm', marginTop: '1mm' }}>
+          <div style={{ gridRow: 6, gridColumn: 3, marginTop: '1mm' }}>
             NIS
           </div>
 
