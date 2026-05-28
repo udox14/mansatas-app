@@ -16,7 +16,11 @@ export default {
     console.log("Cron trigger fired:", event.cron, "at", new Date(event.scheduledTime).toISOString());
 
     const baseUrl = env.BETTER_AUTH_URL || "https://mansatas-app.drudox.workers.dev";
-    const cronSecret = env.CRON_SECRET || "mansatas-cron-xB2kLp9QrT";
+    const cronSecret = env.CRON_SECRET;
+    if (!cronSecret) {
+      console.error("CRON_SECRET is not configured; skipping cron dispatcher.");
+      return;
+    }
 
     try {
       const response = await fetch(`${baseUrl}/api/cron/reminder-jadwal`, {
@@ -38,4 +42,3 @@ export default {
 // Re-export vital Cloudflare handlers (ISR, Durable Objects, etc)
 // @ts-ignore
 export * from "./.open-next/worker.js";
-

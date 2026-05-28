@@ -14,8 +14,8 @@ import { findTeachingBlockException, getKbmExceptionsForDate } from '@/lib/kalen
 export async function GET(req: NextRequest) {
   // Auth check
   const authHeader = req.headers.get('Authorization')
-  const isCron = req.headers.get('cf-cron') !== null // Cloudflare internal header
-  if (!isCron && authHeader !== `Bearer ${process.env.CRON_SECRET || 'mansatas-cron-xB2kLp9QrT'}`) {
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

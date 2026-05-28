@@ -78,6 +78,7 @@ export async function hapusSiswa(id: string) {
 // 3. EDIT SISWA (Basic)
 // ============================================================
 export async function editSiswa(id: string, payload: any) {
+  if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.', success: null }
   const db = await getDB()
 
   // Bersihkan FK kosong agar tidak simpan string kosong
@@ -110,6 +111,7 @@ export async function editSiswa(id: string, payload: any) {
 // 4. EDIT DETAIL LENGKAP SISWA (Buku Induk)
 // ============================================================
 export async function editDetailSiswa(id: string, payload: any) {
+  if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.', success: null }
   const db = await getDB()
 
   for (const field of FK_FIELDS) {
@@ -136,6 +138,7 @@ export async function editDetailSiswa(id: string, payload: any) {
 // 5. UBAH STATUS SISWA
 // ============================================================
 export async function ubahStatusSiswa(id: string, status: string) {
+  if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
   const result = await dbUpdate(
     db,
@@ -190,6 +193,7 @@ export async function batalkanKeluarSiswa(siswa_id: string) {
 
 // Ambil daftar siswa keluar — lazy load, dipanggil saat tab Keluar dibuka
 export async function getSiswaKeluar(search?: string) {
+  if (!(await verifyAdminAccess())) return []
   const db = await getDB()
   const params: any[] = []
   let whereExtra = ''
@@ -216,6 +220,7 @@ export async function getSiswaKeluar(search?: string) {
 // Nama file tetap per siswa (overwrite otomatis), tidak perlu hapus lama
 // ============================================================
 export async function uploadFotoSiswaAction(siswaId: string, formData: FormData) {
+  if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const file = formData.get('foto') as File
   if (!file || file.size === 0) return { error: 'Tidak ada file.' }
 
@@ -545,6 +550,7 @@ export async function bulkSetTahunMasuk(kelasId: string, tahunMasuk: number) {
 
 // getDetailSiswaLengkap — dipakai oleh siswa-client.tsx (lazy load detail)
 export async function getDetailSiswaLengkap(id: string) {
+  if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.', data: null }
   const db = await getDB()
   const data = await dbSelectOne<any>(db, 'siswa', { id })
   if (!data) return { error: 'Data tidak ditemukan', data: null }

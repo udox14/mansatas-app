@@ -15,7 +15,7 @@ Ringkasan semua perubahan dari base MTs KH. A. Wahab Muhsin → MAN 1 Tasikmalay
   - KV: `NEXT_INC_CACHE_KV` (ID: `d71a11d5f8ec47318b96e52f52715749`)
   - Account ID: `89389959c60ad166fb81698c4289aab0`
   - Workers name: `mansatas-app`
-  - Cron secret: `mansatas-cron-xB2kLp9QrT`
+  - Cron secret: disimpan sebagai Cloudflare secret `CRON_SECRET`
 - ✅ `package.json` name: `mansatas-app`
 - ✅ 75 file di-rename massal dari `mtskhwm` → `mansatas-app`
 

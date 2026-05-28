@@ -25,13 +25,15 @@ binding = "R2"
 bucket_name = "mansatas-storage"
 
 [vars]
-BETTER_AUTH_SECRET = "Kfa9zVehGtjD2ARODz5GX9C0wbxO756J3bssf6nyTOk="
 BETTER_AUTH_URL = "http://localhost:3000"
 R2_PUBLIC_URL = "https://pub-84873e7206c44c4ba6e4aa405b6a8192.r2.dev"
-CRON_SECRET = "mansatas-cron-xB2kLp9QrT"
-NEXT_PUBLIC_VAPID_PUBLIC_KEY = "BEid0JOqK1rANP4eBIxkIcjJ52J0b1zuzVx0KaspUQWEy2WjceusyWP6-pEEVXFcRKnRRcZboC4u7RIDleawKNc"
-VAPID_PRIVATE_KEY = "GB10S4v4nrTNt8g3vViOSKTLTAq2jqfWxLgw36fmhBM"
+NEXT_PUBLIC_VAPID_PUBLIC_KEY = "BG7sMarahv_R_wuzNUqUpCTEs38OCkK-wX5or0DzWKc4c0G1SlXNiVUMc1h0Rn8aLdhzCfC5y4SWY6MHGCUvmBk"
 VAPID_SUBJECT = "mailto:admin@man1tasikmalaya.sch.id"
+
+# Set private values with Wrangler secrets, never plain vars:
+# wrangler secret put CRON_SECRET
+# wrangler secret put VAPID_PRIVATE_KEY
+# wrangler secret put BETTER_AUTH_SECRET
 
 [triggers]
 crons = ["* * * * *"]
