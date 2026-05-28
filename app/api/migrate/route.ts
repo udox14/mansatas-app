@@ -1,7 +1,13 @@
 import { NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 
-export async function GET() {
+export async function GET(request: Request) {
+  const migrateSecret = process.env.MIGRATE_SECRET || process.env.CRON_SECRET
+  const authHeader = request.headers.get('Authorization')
+  if (!migrateSecret || authHeader !== `Bearer ${migrateSecret}`) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   try {
     const { env } = await getCloudflareContext({ async: true })
     const db = env.DB

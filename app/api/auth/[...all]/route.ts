@@ -29,18 +29,9 @@ export async function POST(request: Request) {
     }
   }
 
-  // POST /api/auth/sign-up/email (used internally by guru/actions)
+  // Account creation must go through guarded server actions, not this public API.
   if (pathname.endsWith('/sign-up/email')) {
-    try {
-      const body = await request.json()
-      const auth = await getAuth()
-      const result = await auth.api.signUpEmail({
-        body: { name: body.name, email: body.email, password: body.password },
-      })
-      return NextResponse.json(result)
-    } catch (e: any) {
-      return NextResponse.json({ error: e.message }, { status: 400 })
-    }
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
   // POST /api/auth/sign-out
@@ -49,7 +40,8 @@ export async function POST(request: Request) {
     await auth.api.signOut({ headers: request.headers })
     const res = NextResponse.json({ success: true })
     // Clear cookie
-    res.headers.set('Set-Cookie', `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`)
+    const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
+    res.headers.set('Set-Cookie', `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`)
     return res
   }
 

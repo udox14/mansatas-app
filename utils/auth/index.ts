@@ -55,7 +55,8 @@ function getExpiresAt(): string {
 }
 
 function buildSetCookie(token: string, maxAge: number): string {
-  return `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
+  return `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`
 }
 
 // ============================================================
@@ -367,12 +368,12 @@ export function createAuth(db: D1Database) {
           `SELECT password_hash FROM parent_credentials WHERE siswa_id = ? LIMIT 1`
         ).bind(siswa.id).first<{ password_hash: string }>()
 
-        // Tahap 1: fallback default NISN jika belum punya password custom
         let valid = false
         if (credential?.password_hash) {
           valid = await verifyPassword(credential.password_hash, password)
         } else {
-          valid = password === siswa.nisn
+          if (opts.asResponse) return new Response('Invalid credentials', { status: 401 })
+          throw new Error('Invalid credentials')
         }
         if (!valid) {
           if (opts.asResponse) return new Response('Invalid credentials', { status: 401 })

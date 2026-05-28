@@ -3,6 +3,11 @@
 
 import { getDB, dbUpdate, parseJsonCol } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
+import { SEMESTER_KEYS } from '@/app/dashboard/akademik/nilai/constants'
+
+function isValidNilaiColumn(targetKolom: string): targetKolom is typeof SEMESTER_KEYS[number] {
+  return SEMESTER_KEYS.includes(targetKolom)
+}
 
 // ============================================================
 // 1. PENGATURAN AKADEMIK (singleton row 'global')
@@ -54,6 +59,7 @@ export async function simpanPengaturanAkademik(payload: any) {
 // FIX: Chunk upsert per 50 baris agar tidak spike memory di Worker
 // ============================================================
 export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string) {
+  if (!isValidNilaiColumn(targetKolom)) return { error: 'Kolom target tidak valid.', logs: [] }
   const db = await getDB()
 
   const [dbSiswa, dbMapel] = await Promise.all([
@@ -186,6 +192,7 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
 // 3. RESET NILAI SATU KOLOM
 // ============================================================
 export async function resetNilaiKolom(targetKolom: string) {
+  if (!isValidNilaiColumn(targetKolom)) return { error: 'Kolom target tidak valid.' }
   const db = await getDB()
   try {
     await db

@@ -6,10 +6,20 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { createAuth, hashPassword } from '@/utils/auth'
 import { revalidatePath } from 'next/cache'
 import { uploadFotoSiswa, validateImageFile } from '@/utils/r2'
+import { getCurrentUser } from '@/utils/auth/server'
+import { getUserRoles } from '@/lib/features'
 
 async function getAuth() {
   const { env } = await getCloudflareContext({ async: true })
   return createAuth(env.DB)
+}
+
+async function verifyStaffAdminAccess() {
+  const user = await getCurrentUser()
+  if (!user) return false
+  const db = await getDB()
+  const roles = await getUserRoles(db, user.id)
+  return roles.some(role => ['super_admin', 'admin_tu'].includes(role))
 }
 
 export async function ensureJabatanStrukturalSchema(db?: D1Database) {
@@ -51,6 +61,7 @@ export async function ensureJabatanStrukturalSchema(db?: D1Database) {
 // TAMBAH PEGAWAI (1 user)
 // ============================================================
 export async function tambahPegawai(prevState: any, formData: FormData) {
+  if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.', success: null }
   const nama_lengkap = (formData.get('nama_lengkap') as string).trim()
   const email = (formData.get('email') as string).trim()
   const role = formData.get('role') as string
@@ -90,6 +101,7 @@ export async function tambahPegawai(prevState: any, formData: FormData) {
 // EDIT PEGAWAI
 // ============================================================
 export async function editPegawai(id: string, nama_lengkap: string, email: string, nip?: string, jabatan_cetak?: string, jabatan_struktural_id?: string) {
+  if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
   await ensureJabatanStrukturalSchema(db)
   const strukturalId = jabatan_struktural_id?.trim() && jabatan_struktural_id !== '_none' ? jabatan_struktural_id : null
@@ -115,6 +127,7 @@ export async function editPegawai(id: string, nama_lengkap: string, email: strin
 // RESET PASSWORD
 // ============================================================
 export async function resetPasswordPegawai(id: string) {
+  if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
   try {
     const passwordHash = await hashPassword('mansatas2026')
@@ -130,6 +143,7 @@ export async function resetPasswordPegawai(id: string) {
 // SET USER ROLES (multi-role)
 // ============================================================
 export async function setUserRoles(userId: string, roles: string[], primaryRole: string) {
+  if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   if (roles.length === 0) return { error: 'User harus memiliki minimal 1 role.' }
   if (!roles.includes(primaryRole)) return { error: 'Role utama harus termasuk dalam daftar role.' }
 
@@ -161,6 +175,7 @@ export async function setUserRoles(userId: string, roles: string[], primaryRole:
 // UBAH ROLE PEGAWAI (legacy single-role — tetap berfungsi)
 // ============================================================
 export async function ubahRolePegawai(id: string, newRole: string) {
+  if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
 
   const stmts: D1PreparedStatement[] = [
@@ -183,6 +198,7 @@ export async function ubahRolePegawai(id: string, newRole: string) {
 // HAPUS PEGAWAI
 // ============================================================
 export async function hapusPegawai(id: string) {
+  if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
   try {
     await db.prepare('DELETE FROM user_feature_overrides WHERE user_id = ?').bind(id).run()
@@ -201,6 +217,7 @@ export async function hapusPegawai(id: string) {
 // IMPORT MASSAL
 // ============================================================
 export async function importPegawaiMassal(dataExcel: any[]) {
+  if (!(await verifyStaffAdminAccess())) return { success: null, error: 'Akses Ditolak: Hanya Super Admin / Admin TU.', logs: [] }
   const db = await getDB()
   const errorLogs: string[] = []
 
@@ -302,6 +319,7 @@ export async function importPegawaiMassal(dataExcel: any[]) {
 // ASSIGN JABATAN STRUKTURAL
 // ============================================================
 export async function uploadFotoPegawaiAction(userId: string, formData: FormData) {
+  if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const file = formData.get('foto') as File
   if (!file || file.size === 0) return { error: 'Tidak ada file.' }
 
