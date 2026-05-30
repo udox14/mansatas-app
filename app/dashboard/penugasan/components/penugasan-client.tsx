@@ -41,6 +41,8 @@ interface PenugasanClientProps {
       delegasi_id: string
       kepada_user_nama: string
       status: string
+      alasan_ketidakhadiran: 'SAKIT' | 'IZIN'
+      deskripsi_ketidakhadiran: string
       items: Array<{ kelas_label: string; tugas: string; absen_selesai: boolean; pelaksana_nama?: string | null }>
     }>
   }
@@ -49,6 +51,27 @@ interface PenugasanClientProps {
 }
 
 const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+const ALASAN_STYLE: Record<'SAKIT' | 'IZIN', { label: string; badge: string; panel: string }> = {
+  SAKIT: {
+    label: 'Sakit',
+    badge: 'bg-blue-100 text-blue-700 border-blue-200',
+    panel: 'bg-blue-50 border-blue-100 text-blue-800',
+  },
+  IZIN: {
+    label: 'Izin',
+    badge: 'bg-sky-100 text-sky-700 border-sky-200',
+    panel: 'bg-sky-50 border-sky-100 text-sky-800',
+  },
+}
+
+function AlasanBadge({ alasan }: { alasan: 'SAKIT' | 'IZIN' }) {
+  const style = ALASAN_STYLE[alasan]
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${style.badge}`}>
+      {style.label}
+    </span>
+  )
+}
 
 // ============================================================
 // MAIN COMPONENT
@@ -117,6 +140,8 @@ function TabKirimTugas({
   // Form state
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [tugasMap, setTugasMap] = useState<Record<string, string>>({})
+  const [alasanKetidakhadiran, setAlasanKetidakhadiran] = useState<'SAKIT' | 'IZIN' | ''>('')
+  const [deskripsiKetidakhadiran, setDeskripsiKetidakhadiran] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [pesan, setPesan] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null)
 
@@ -151,10 +176,12 @@ function TabKirimTugas({
 
     const empty = items.find(i => !i.tugas.trim())
     if (empty) return setPesan({ tipe: 'error', teks: 'Tugas untuk setiap kelas wajib diisi.' })
+    if (!alasanKetidakhadiran) return setPesan({ tipe: 'error', teks: 'Pilih alasan ketidakhadiran: SAKIT atau IZIN.' })
+    if (!deskripsiKetidakhadiran.trim()) return setPesan({ tipe: 'error', teks: 'Deskripsi singkat alasan ketidakhadiran wajib diisi.' })
 
     setIsSubmitting(true)
     setPesan(null)
-    const result = await kirimDelegasiTugas(tanggalHariIni, items)
+    const result = await kirimDelegasiTugas(tanggalHariIni, items, alasanKetidakhadiran, deskripsiKetidakhadiran)
     setIsSubmitting(false)
 
     if (result.error) {
@@ -163,6 +190,8 @@ function TabKirimTugas({
       setPesan({ tipe: 'sukses', teks: result.success || 'Berhasil!' })
       setSelected(new Set())
       setTugasMap({})
+      setAlasanKetidakhadiran('')
+      setDeskripsiKetidakhadiran('')
       // Refresh terkirim
       const fresh = await getDelegasiTerkirim(tanggalHariIni)
       setTerkirim(fresh.data)
@@ -264,11 +293,48 @@ function TabKirimTugas({
             </div>
           </div>
 
-          {/* Step 2: Info Penerima */}
+          {/* Step 2: Alasan */}
           {selected.size > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-xl border overflow-hidden">
               <div className="px-3 py-2.5 bg-gray-50 border-b">
-                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">2. Penerima Tugas</p>
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">2. Alasan Ketidakhadiran</p>
+              </div>
+              <div className="p-3 space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  {(['SAKIT', 'IZIN'] as const).map(alasan => {
+                    const active = alasanKetidakhadiran === alasan
+                    return (
+                      <button
+                        key={alasan}
+                        type="button"
+                        onClick={() => setAlasanKetidakhadiran(alasan)}
+                        className={`h-10 rounded-lg border text-sm font-semibold transition-colors ${
+                          active
+                            ? alasan === 'SAKIT' ? 'border-blue-300 bg-blue-100 text-blue-700' : 'border-sky-300 bg-sky-100 text-sky-700'
+                            : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {ALASAN_STYLE[alasan].label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <textarea
+                  className="w-full text-sm border rounded-lg p-2.5 resize-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none"
+                  rows={2}
+                  placeholder="Tulis deskripsi singkat alasan ketidakhadiran..."
+                  value={deskripsiKetidakhadiran}
+                  onChange={e => setDeskripsiKetidakhadiran(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Info Penerima */}
+          {selected.size > 0 && (
+            <div className="bg-white dark:bg-slate-900 rounded-xl border overflow-hidden">
+              <div className="px-3 py-2.5 bg-gray-50 border-b">
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">3. Penerima Tugas</p>
               </div>
               <div className="p-3">
                 {users.length === 0 ? (
@@ -288,12 +354,12 @@ function TabKirimTugas({
             </div>
           )}
 
-          {/* Step 3: Kirim */}
+          {/* Step 4: Kirim */}
           {selected.size > 0 && users.length > 0 && (
             <Button
               className="w-full h-12 text-sm font-semibold bg-violet-600 hover:bg-violet-700"
               onClick={handleSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !alasanKetidakhadiran || !deskripsiKetidakhadiran.trim()}
             >
               {isSubmitting ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Mengirim...</>
@@ -356,14 +422,19 @@ function DelegasiTerkirimCard({
             }`}>
               {isSelesai ? 'Selesai' : 'Dikirim'}
             </span>
+            <AlasanBadge alasan={data.alasan_ketidakhadiran} />
           </div>
           <p className="text-[11px] text-gray-400 mt-0.5">{data.items.length} kelas</p>
+          <p className="text-[11px] text-gray-500 mt-0.5 truncate">{data.deskripsi_ketidakhadiran}</p>
         </div>
         {expanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
       </button>
 
       {expanded && (
         <div className="border-t">
+          <div className={`mx-3 mt-3 rounded-lg border p-2 text-xs ${ALASAN_STYLE[data.alasan_ketidakhadiran].panel}`}>
+            <span className="font-semibold">Alasan {ALASAN_STYLE[data.alasan_ketidakhadiran].label}:</span> {data.deskripsi_ketidakhadiran}
+          </div>
           <div className="divide-y">
             {data.items.map((item, i) => (
               <div key={i} className="px-3 py-2 flex items-start gap-2">
@@ -445,9 +516,17 @@ function TabTugasMasuk({
         <div key={delegasiId} className="bg-white dark:bg-slate-900 rounded-xl border overflow-hidden">
           {/* Header: dari siapa */}
           <div className="px-3 py-2.5 bg-violet-50 border-b border-violet-100">
-            <div className="flex items-center gap-2">
-              <Send className="h-3.5 w-3.5 text-violet-500" />
-              <span className="text-xs font-medium text-violet-700">Dari: {items[0].dari_user_nama}</span>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Send className="h-3.5 w-3.5 text-violet-500" />
+                  <span className="text-xs font-medium text-violet-700">Dari: {items[0].dari_user_nama}</span>
+                </div>
+                <p className="mt-1 text-xs text-violet-700 break-words">
+                  <span className="font-semibold">Alasan {ALASAN_STYLE[items[0].alasan_ketidakhadiran].label}:</span> {items[0].deskripsi_ketidakhadiran}
+                </p>
+              </div>
+              <AlasanBadge alasan={items[0].alasan_ketidakhadiran} />
             </div>
           </div>
 

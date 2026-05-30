@@ -217,7 +217,8 @@ export default async function PortalOrtuPage() {
     absensiTerbaru,
     nilaiRekap,
     disiplinRekap,
-    disiplinRiwayat,
+    disiplinTerakhir,
+    sanksiConfig,
     dspt,
     sppSaldoAwal,
     sppSummary,
@@ -264,6 +265,7 @@ export default async function PortalOrtuPage() {
       SELECT tanggal, status, catatan
       FROM absensi_siswa
       WHERE siswa_id = ?
+        AND (status <> 'HADIR' OR (catatan IS NOT NULL AND TRIM(catatan) <> ''))
       ORDER BY tanggal DESC
       LIMIT 10
     `).bind(siswaId).all<any>(),
@@ -280,13 +282,11 @@ export default async function PortalOrtuPage() {
       WHERE sp.siswa_id = ?
     `).bind(siswaId).first<any>(),
     db.prepare(`
-      SELECT sp.tanggal, mp.nama_pelanggaran, mp.kategori, mp.poin, sp.keterangan
+      SELECT MAX(sp.tanggal) AS tanggal_terakhir
       FROM siswa_pelanggaran sp
-      JOIN master_pelanggaran mp ON mp.id = sp.master_pelanggaran_id
       WHERE sp.siswa_id = ?
-      ORDER BY sp.tanggal DESC
-      LIMIT 8
     `).bind(siswaId).all<any>(),
+    db.prepare(`SELECT nama, poin_minimal FROM sanksi_config ORDER BY poin_minimal DESC`).all<any>(),
     db.prepare(`
       SELECT nominal_target, total_dibayar, total_diskon, status
       FROM fin_dspt
@@ -350,7 +350,7 @@ export default async function PortalOrtuPage() {
     db.prepare(`
       SELECT actor_type, note_type, content, created_at
       FROM parent_thread_notes
-      WHERE siswa_id = ?
+      WHERE siswa_id = ? AND actor_type = 'orang_tua'
       ORDER BY created_at DESC
       LIMIT 12
     `).bind(siswaId).all<any>(),
@@ -365,6 +365,18 @@ export default async function PortalOrtuPage() {
   const sppNominal = Number(sppSummary?.total_nominal || 0) + Number(sppSaldoAwal?.jumlah || 0)
   const sppBayar = Number(sppSummary?.total_dibayar || 0) + Number(sppSaldoAwal?.total_dibayar || 0)
   const sppSisa = Math.max(0, sppNominal - sppBayar)
+  const totalDisiplinPoin = Number(disiplinRekap?.total_poin || 0)
+  const totalDisiplinKasus = Number(disiplinRekap?.total_kasus || 0)
+  const activeSanksi = totalDisiplinPoin > 0
+    ? (sanksiConfig.results || []).find((s: any) => totalDisiplinPoin >= Math.max(1, Number(s.poin_minimal || 0)))
+    : null
+  const disciplineSummary = {
+    totalPoin: totalDisiplinPoin,
+    totalKasus: totalDisiplinKasus,
+    levelLabel: activeSanksi?.nama || (totalDisiplinKasus > 0 ? 'Perlu dipantau' : 'Baik'),
+    lastDate: disiplinTerakhir.results?.[0]?.tanggal_terakhir || null,
+    needsFollowUp: Boolean(activeSanksi) || totalDisiplinKasus > 0,
+  }
 
   const avgSemester = (raw: string | null | undefined) => {
     if (!raw) return null
@@ -499,8 +511,7 @@ export default async function PortalOrtuPage() {
     pengumumanRows,
     absensiRekap,
     absensiTerbaru,
-    disiplinRekap,
-    disiplinRiwayat,
+    disciplineSummary,
     semesters,
     semesterAvg,
     dsptTarget,

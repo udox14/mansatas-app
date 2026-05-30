@@ -10,6 +10,8 @@ export type MonitoringDelegasi = {
   dari_nama: string
   kepada_nama: string
   status: string
+  alasan_ketidakhadiran: 'SAKIT' | 'IZIN'
+  deskripsi_ketidakhadiran: string
   tanggal: string
   created_at: string
   items: Array<{
@@ -33,6 +35,7 @@ export async function getMonitoringData(tanggal: string): Promise<{ error: strin
   const rows = await db.prepare(`
     SELECT 
       dt.id as delegasi_id, dt.status, dt.tanggal, dt.created_at,
+      dt.alasan_ketidakhadiran, dt.deskripsi_ketidakhadiran,
       u1.nama_lengkap as dari_nama,
       u2.nama_lengkap as kepada_nama,
       dtk.id as dtk_id, dtk.tugas, dtk.absen_selesai,
@@ -60,6 +63,8 @@ export async function getMonitoringData(tanggal: string): Promise<{ error: strin
         dari_nama: r.dari_nama || 'Tanpa Nama',
         kepada_nama: r.kepada_nama || 'Semua guru piket hari itu',
         status: r.status,
+        alasan_ketidakhadiran: r.alasan_ketidakhadiran,
+        deskripsi_ketidakhadiran: r.deskripsi_ketidakhadiran,
         tanggal: r.tanggal,
         created_at: r.created_at,
         items: []

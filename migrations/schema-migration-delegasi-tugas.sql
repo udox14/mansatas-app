@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS delegasi_tugas (
   dari_user_id    TEXT NOT NULL REFERENCES "user"(id),
   kepada_user_id  TEXT REFERENCES "user"(id),
   tanggal         TEXT NOT NULL,
+  alasan_ketidakhadiran TEXT NOT NULL CHECK(alasan_ketidakhadiran IN ('SAKIT','IZIN')),
+  deskripsi_ketidakhadiran TEXT NOT NULL,
   status          TEXT NOT NULL DEFAULT 'DIKIRIM' CHECK(status IN ('DIKIRIM','SELESAI')),
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))

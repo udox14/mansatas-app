@@ -29,6 +29,8 @@ export type DelegasiMasuk = {
   delegasi_id: string
   delegasi_kelas_id: string
   dari_user_nama: string
+  alasan_ketidakhadiran: 'SAKIT' | 'IZIN'
+  deskripsi_ketidakhadiran: string
   pelaksana_user_id: string | null
   pelaksana_nama: string | null
   tanggal: string
@@ -157,6 +159,8 @@ async function isGuruPiketPadaHari(db: D1Database, userId: string, hari: number)
   return !!ppl
 }
 
+type AlasanKetidakhadiran = 'SAKIT' | 'IZIN'
+
 async function ensureAbsensiSessionTable(db: D1Database) {
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS absensi_sesi_guru (
@@ -282,13 +286,24 @@ export async function getDaftarUser(tanggal: string): Promise<UserOption[]> {
 // ============================================================
 export async function kirimDelegasiTugas(
   tanggal: string,
-  items: Array<{ penugasan_mengajar_id: string; kelas_id: string; tugas: string }>
+  items: Array<{ penugasan_mengajar_id: string; kelas_id: string; tugas: string }>,
+  alasanKetidakhadiran: AlasanKetidakhadiran,
+  deskripsiKetidakhadiran: string
 ): Promise<{ error?: string; success?: string }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
   if (!tanggal || items.length === 0) {
     return { error: 'Data tidak lengkap. Pilih minimal satu kelas.' }
+  }
+
+  if (!['SAKIT', 'IZIN'].includes(alasanKetidakhadiran)) {
+    return { error: 'Pilih alasan ketidakhadiran: SAKIT atau IZIN.' }
+  }
+
+  const deskripsiAlasan = deskripsiKetidakhadiran.trim()
+  if (!deskripsiAlasan) {
+    return { error: 'Deskripsi singkat alasan ketidakhadiran wajib diisi.' }
   }
 
   for (const item of items) {
@@ -321,6 +336,8 @@ export async function kirimDelegasiTugas(
     dari_user_id: user.id,
     kepada_user_id: null,
     tanggal,
+    alasan_ketidakhadiran: alasanKetidakhadiran,
+    deskripsi_ketidakhadiran: deskripsiAlasan,
     status: 'DIKIRIM',
   })
   if (delegasiResult.error) return { error: delegasiResult.error }
@@ -349,7 +366,7 @@ export async function kirimDelegasiTugas(
     await Promise.allSettled(guruPiket.map(piket =>
       sendPushNotification({
         title: 'Tugas Baru Masuk!',
-        body: `Ada penugasan piket dari ${user.name || 'Guru'} untuk ${jumlahSesi} sesi kelas pada tanggal ${tanggal}. Siapa pun guru piket hari ini bisa melaksanakan.`,
+        body: `Ada penugasan piket dari ${user.name || 'Guru'} (${alasanKetidakhadiran}) untuk ${jumlahSesi} sesi kelas pada tanggal ${tanggal}.`,
         url: '/dashboard/penugasan'
       }, { userId: piket.id })
     ));
@@ -358,6 +375,8 @@ export async function kirimDelegasiTugas(
   }
 
   revalidatePath('/dashboard/penugasan')
+  revalidatePath('/dashboard/monitoring-agenda')
+  revalidatePath('/dashboard/monitoring-penugasan')
   return { success: `Tugas berhasil dikirim ke ${guruPiket.length} guru piket yang bertugas hari ini.` }
 }
 
@@ -387,6 +406,8 @@ export async function getTugasMasuk(tanggal: string): Promise<{
       dt.id as delegasi_id,
       dtk.id as delegasi_kelas_id,
       u_dari.nama_lengkap as dari_user_nama,
+      dt.alasan_ketidakhadiran,
+      dt.deskripsi_ketidakhadiran,
       dt.tanggal,
       dtk.kelas_id,
       k.tingkat, k.nomor_kelas, k.kelompok,
@@ -443,6 +464,8 @@ export async function getTugasMasuk(tanggal: string): Promise<{
       delegasi_id: r.delegasi_id,
       delegasi_kelas_id: r.delegasi_kelas_id,
       dari_user_nama: r.dari_user_nama,
+      alasan_ketidakhadiran: r.alasan_ketidakhadiran,
+      deskripsi_ketidakhadiran: r.deskripsi_ketidakhadiran,
       pelaksana_user_id: r.pelaksana_user_id || null,
       pelaksana_nama: r.pelaksana_nama || null,
       tanggal: r.tanggal,
@@ -472,6 +495,8 @@ export async function getDelegasiTerkirim(tanggal: string): Promise<{
     delegasi_id: string
     kepada_user_nama: string
     status: string
+    alasan_ketidakhadiran: 'SAKIT' | 'IZIN'
+    deskripsi_ketidakhadiran: string
     items: Array<{ kelas_label: string; tugas: string; absen_selesai: boolean; pelaksana_nama: string | null }>
   }>
 }> {
@@ -485,6 +510,8 @@ export async function getDelegasiTerkirim(tanggal: string): Promise<{
       dt.id as delegasi_id,
       u_kepada.nama_lengkap as kepada_user_nama,
       dt.status,
+      dt.alasan_ketidakhadiran,
+      dt.deskripsi_ketidakhadiran,
       dtk.id as dtk_id,
       k.tingkat, k.nomor_kelas, k.kelompok,
       dtk.tugas,
@@ -507,6 +534,8 @@ export async function getDelegasiTerkirim(tanggal: string): Promise<{
         delegasi_id: r.delegasi_id,
         kepada_user_nama: r.kepada_user_nama || 'Semua guru piket hari ini',
         status: r.status,
+        alasan_ketidakhadiran: r.alasan_ketidakhadiran,
+        deskripsi_ketidakhadiran: r.deskripsi_ketidakhadiran,
         items: [],
       })
     }
@@ -548,6 +577,8 @@ export async function batalkanDelegasi(delegasiId: string): Promise<{ error?: st
   if (result.error) return { error: result.error }
 
   revalidatePath('/dashboard/penugasan')
+  revalidatePath('/dashboard/monitoring-agenda')
+  revalidatePath('/dashboard/monitoring-penugasan')
   return { success: 'Delegasi berhasil dibatalkan.' }
 }
 
@@ -731,6 +762,8 @@ export async function simpanAbsensiDelegasi(
   }
 
   revalidatePath('/dashboard/penugasan')
+  revalidatePath('/dashboard/monitoring-agenda')
+  revalidatePath('/dashboard/monitoring-penugasan')
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/rekap-absensi')
   return { success: `Absensi disimpan! ${toSave.length} siswa tidak hadir.` }

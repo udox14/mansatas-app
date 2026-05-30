@@ -45,6 +45,10 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label:
 const STATUS_OPTIONS = ['TEPAT_WAKTU', 'TELAT', 'TUGAS', 'ALFA', 'SAKIT', 'IZIN']
 const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 type SlotOption = { id: number; nama: string; mulai: string; selesai: string }
+const ALASAN_STYLE: Record<'SAKIT' | 'IZIN', { label: string; text: string }> = {
+  SAKIT: { label: 'Sakit', text: 'text-blue-600' },
+  IZIN: { label: 'Izin', text: 'text-sky-600' },
+}
 
 function formatTanggal(tgl: string) {
   return new Date(tgl + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -325,6 +329,12 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                       {item.status === 'TUGAS' && item.pelaksana_nama && (
                         <p className="text-[10px] text-violet-500 mt-0.5">Pelaksana: {item.pelaksana_nama}</p>
                       )}
+                      {item.status === 'TUGAS' && item.alasan_ketidakhadiran && (
+                        <p className={`text-[10px] mt-0.5 ${ALASAN_STYLE[item.alasan_ketidakhadiran as 'SAKIT' | 'IZIN']?.text || 'text-slate-500'}`}>
+                          Alasan: {ALASAN_STYLE[item.alasan_ketidakhadiran as 'SAKIT' | 'IZIN']?.label || item.alasan_ketidakhadiran}
+                          {item.deskripsi_ketidakhadiran ? ` - ${item.deskripsi_ketidakhadiran}` : ''}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell className="text-right space-x-1">
                       {item.agenda_id && (
@@ -367,6 +377,12 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                   <p className="text-[11px] text-slate-400">{item.jam_label} &middot; {item.slot_mulai}-{item.slot_selesai}</p>
                   {item.status === 'TUGAS' && item.pelaksana_nama && (
                     <p className="mt-0.5 truncate text-[11px] text-violet-500">Pelaksana: {item.pelaksana_nama}</p>
+                  )}
+                  {item.status === 'TUGAS' && item.alasan_ketidakhadiran && (
+                    <p className={`mt-0.5 text-[11px] ${ALASAN_STYLE[item.alasan_ketidakhadiran as 'SAKIT' | 'IZIN']?.text || 'text-slate-500'}`}>
+                      Alasan: {ALASAN_STYLE[item.alasan_ketidakhadiran as 'SAKIT' | 'IZIN']?.label || item.alasan_ketidakhadiran}
+                      {item.deskripsi_ketidakhadiran ? ` - ${item.deskripsi_ketidakhadiran}` : ''}
+                    </p>
                   )}
                 </div>
 
@@ -586,6 +602,8 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
                 <TableHead className="text-xs text-center">Tepat</TableHead>
                 <TableHead className="text-xs text-center">Telat</TableHead>
                 <TableHead className="text-xs text-center">Tugas</TableHead>
+                <TableHead className="text-xs text-center">Tugas Sakit</TableHead>
+                <TableHead className="text-xs text-center">Tugas Izin</TableHead>
                 <TableHead className="text-xs text-center">Alfa</TableHead>
                 <TableHead className="text-xs text-center">Sakit</TableHead>
                 <TableHead className="text-xs text-center">Izin</TableHead>
@@ -605,6 +623,8 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
                     <TableCell className="text-xs text-center text-emerald-600 font-medium">{item.tepat_waktu}</TableCell>
                     <TableCell className="text-xs text-center text-amber-600 font-medium">{item.telat}</TableCell>
                     <TableCell className="text-xs text-center text-violet-600 font-medium">{item.tugas || 0}</TableCell>
+                    <TableCell className="text-xs text-center text-blue-600 font-medium">{item.tugas_sakit || 0}</TableCell>
+                    <TableCell className="text-xs text-center text-sky-600 font-medium">{item.tugas_izin || 0}</TableCell>
                     <TableCell className="text-xs text-center text-red-600 font-medium">{item.alfa}</TableCell>
                     <TableCell className="text-xs text-center text-blue-600 font-medium">{item.sakit}</TableCell>
                     <TableCell className="text-xs text-center text-sky-600 font-medium">{item.izin}</TableCell>
