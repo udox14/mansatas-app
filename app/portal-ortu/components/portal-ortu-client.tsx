@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, XCircle, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, Send, ArrowLeft, Download, Loader2 } from 'lucide-react'
+import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, Send, ArrowLeft, Download, Loader2 } from 'lucide-react'
 import { MobileBottomNav } from './mobile-bottom-nav'
 import { ScheduleTabs } from './schedule-tabs'
 import { ChangePasswordForm } from './change-password-form'
@@ -40,8 +40,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
     pengumumanRows,
     absensiRekap,
     absensiTerbaru,
-    disiplinRekap,
-    disiplinRiwayat,
+    disciplineSummary,
     semesters,
     semesterAvg,
     dsptTarget,
@@ -105,6 +104,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
     { label: 'Rp 500.000', value: 500000 },
     { label: 'Rp 1.000.000', value: 1000000 },
   ].filter((item) => item.value > 0 && item.value <= Number(dsptSisa || 0))
+  const needsDisciplineAttention = Boolean(disciplineSummary?.needsFollowUp)
+  const disciplineLevelLabel = disciplineSummary?.levelLabel || 'Baik'
+  const recentAttendanceRows = absensiTerbaru.results || []
 
   const toggleSemesterDetail = async (semesterNumber: number, hasAverage: boolean) => {
     if (!hasAverage) return
@@ -244,9 +246,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
               <span className="text-2xl font-bold text-emerald-600">{absensiRekap?.hadir || 0}</span>
               <span className="text-[11px] font-medium text-slate-500 mt-1">Kehadiran</span>
             </div>
-            <div className="bg-white rounded-2xl border border-rose-100 p-4 flex flex-col items-center justify-center text-center shadow-sm">
-              <span className="text-2xl font-bold text-rose-600">{disiplinRekap?.total_poin || 0}</span>
-              <span className="text-[11px] font-medium text-slate-500 mt-1">Poin Min</span>
+            <div className={`bg-white rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-sm ${needsDisciplineAttention ? 'border border-amber-100' : 'border border-emerald-100'}`}>
+              <span className={`text-sm font-bold leading-tight ${needsDisciplineAttention ? 'text-amber-700' : 'text-emerald-600'}`}>{disciplineLevelLabel}</span>
+              <span className="text-[11px] font-medium text-slate-500 mt-1">Perlu Perhatian</span>
             </div>
             <div className="col-span-2 bg-white rounded-2xl border border-amber-100 p-4 flex items-center justify-between shadow-sm">
               <div>
@@ -396,22 +398,22 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </div>
         </div>
 
-        {/* Riwayat Komunikasi & Tindak Lanjut */}
+        {/* Riwayat Respons Orang Tua */}
         {(notes.results || []).length > 0 && (
           <div className="pt-2">
             <div className="flex items-center justify-between mb-3 ml-1">
-              <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">Riwayat Tindak Lanjut</h2>
+              <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">Riwayat Respons Anda</h2>
             </div>
             
             <div className="space-y-3">
               {(notes.results || []).map((note: any) => (
                 <StandardCard key={note.id} className="flex gap-4 items-start">
-                  <div className={`p-2 rounded-lg shrink-0 ${note.actor_type === 'orang_tua' ? 'bg-indigo-50 text-indigo-600' : 'bg-sky-50 text-sky-600'}`}>
+                  <div className="p-2 rounded-lg shrink-0 bg-indigo-50 text-indigo-600">
                     <MessageSquareText className="w-5 h-5" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-sm font-semibold text-slate-800">{note.actor_type === 'orang_tua' ? 'Anda (Orang Tua)' : 'Pihak Sekolah'}</h3>
+                      <h3 className="text-sm font-semibold text-slate-800">Anda (Orang Tua)</h3>
                       <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md uppercase">{note.note_type.replace('_', ' ')}</span>
                     </div>
                     <p className="text-sm text-slate-600 leading-relaxed">{note.content}</p>
@@ -489,13 +491,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
       </div>
 
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1">Riwayat Kehadiran Terkini</h2>
+        <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1">Catatan Kehadiran Terbaru</h2>
         <StandardCard className="p-0 overflow-hidden">
-          {(absensiTerbaru.results || []).length === 0 ? (
-            <p className="text-sm text-slate-500 p-6 text-center">Belum ada catatan kehadiran.</p>
+          {recentAttendanceRows.length === 0 ? (
+            <p className="text-sm text-slate-500 p-6 text-center">Belum ada catatan izin, sakit, tanpa keterangan, atau catatan khusus dari guru.</p>
           ) : (
             <div className="divide-y divide-slate-100">
-              {(absensiTerbaru.results || []).map((r: any, i: number) => {
+              {recentAttendanceRows.map((r: any, i: number) => {
                 const isHadir = r.status === 'HADIR';
                 return (
                   <div key={i} className="flex items-center gap-4 p-4 hover:bg-slate-50 transition-colors">
@@ -522,33 +524,47 @@ export function PortalOrtuClient({ data }: { data: any }) {
       </div>
 
       <div className="pt-4 mt-4 border-t border-slate-200">
-        <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1 mb-3">Catatan Kedisiplinan</h2>
+        <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1 mb-3">Ringkasan Perhatian Siswa</h2>
         
-        <div className="bg-slate-800 rounded-2xl p-6 text-white shadow-md flex items-center justify-between">
+        <div className={`rounded-2xl p-6 shadow-md flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between ${
+          needsDisciplineAttention ? 'bg-amber-50 border border-amber-100 text-amber-950' : 'bg-emerald-50 border border-emerald-100 text-emerald-950'
+        }`}>
           <div>
-            <p className="text-slate-400 text-xs font-medium uppercase tracking-wide mb-1">Total Poin Min</p>
-            <p className="text-3xl font-bold text-rose-400">{disiplinRekap?.total_poin || 0}</p>
+            <p className={`text-xs font-medium uppercase tracking-wide mb-1 ${needsDisciplineAttention ? 'text-amber-700' : 'text-emerald-700'}`}>Status Pendampingan</p>
+            <p className="text-2xl font-bold">{disciplineLevelLabel}</p>
+            <p className={`mt-2 text-sm leading-6 ${needsDisciplineAttention ? 'text-amber-800' : 'text-emerald-800'}`}>
+              {needsDisciplineAttention
+                ? 'Ada catatan yang perlu didampingi bersama wali kelas atau BK. Detail lengkap disampaikan melalui jalur resmi sekolah.'
+                : 'Belum ada catatan kedisiplinan yang perlu tindak lanjut khusus.'}
+            </p>
           </div>
-          <div className="text-right">
-            <p className="text-slate-400 text-xs font-medium uppercase tracking-wide mb-1">Kasus Tercatat</p>
-            <p className="text-xl font-semibold text-white">{disiplinRekap?.total_kasus || 0}</p>
+          <div className="shrink-0 rounded-xl bg-white/70 px-4 py-3 text-left sm:text-right">
+            <p className={`text-[10px] font-bold uppercase tracking-wide ${needsDisciplineAttention ? 'text-amber-700' : 'text-emerald-700'}`}>Catatan Tercatat</p>
+            <p className="mt-1 text-xl font-bold">{disciplineSummary?.totalKasus || 0}</p>
+            {disciplineSummary?.lastDate && (
+              <p className="mt-1 text-[11px] font-medium opacity-75">Terakhir {disciplineSummary.lastDate}</p>
+            )}
           </div>
         </div>
 
-        <div className="mt-4 space-y-3">
-          {(disiplinRiwayat.results || []).map((r: any, i: number) => (
-            <StandardCard key={i} className="flex gap-4 items-start border-l-4 border-l-rose-500">
-              <div className="bg-rose-50 text-rose-600 font-bold text-sm px-3 py-1.5 rounded-lg shrink-0">
-                +{r.poin}
-              </div>
+        {needsDisciplineAttention && (
+          <StandardCard className="mt-4 border-l-4 border-l-sky-500">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h4 className="text-sm font-semibold text-slate-800">{r.nama_pelanggaran}</h4>
-                <p className="text-xs text-slate-500 mt-1">{r.tanggal} · {r.kategori}</p>
-                {r.keterangan && <p className="text-sm text-slate-600 mt-2 bg-slate-50 rounded-lg p-3 border border-slate-100">{r.keterangan}</p>}
+                <h4 className="text-sm font-semibold text-slate-800">Koordinasi dengan sekolah</h4>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Orang tua dapat menghubungi wali kelas untuk memahami langkah pendampingan yang tepat.
+                </p>
               </div>
-            </StandardCard>
-          ))}
-        </div>
+              {waUrl && (
+                <a href={waUrl} target="_blank" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-sky-50 px-4 text-sm font-bold text-sky-700 hover:bg-sky-100">
+                  <MessageCircle className="h-4 w-4" />
+                  Hubungi Wali Kelas
+                </a>
+              )}
+            </div>
+          </StandardCard>
+        )}
       </div>
     </motion.div>
   )
@@ -568,6 +584,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
         </div>
         <p className="text-slate-500 text-sm font-medium mb-1">Rata-rata Nilai Keseluruhan</p>
         <h1 className="text-4xl font-bold text-slate-800">{semesterAvg ?? '-'}</h1>
+        {semesterAvg === null && (
+          <p className="mt-3 text-sm leading-6 text-slate-500">Rekap nilai semester belum tersedia di portal orang tua.</p>
+        )}
       </div>
 
       <div className="space-y-3">

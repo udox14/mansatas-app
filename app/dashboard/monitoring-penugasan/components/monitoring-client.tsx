@@ -9,6 +9,16 @@ import { Label } from '@/components/ui/label'
 import { Send, Users, CheckCircle2, Clock, CalendarDays, ArrowRight } from 'lucide-react'
 import type { MonitoringDelegasi } from '../actions'
 
+const ALASAN_STYLE: Record<'SAKIT' | 'IZIN', { label: string; badge: string; panel: string }> = {
+  SAKIT: { label: 'Sakit', badge: 'bg-blue-100 text-blue-700 border-blue-200', panel: 'bg-blue-50 border-blue-100 text-blue-800' },
+  IZIN: { label: 'Izin', badge: 'bg-sky-100 text-sky-700 border-sky-200', panel: 'bg-sky-50 border-sky-100 text-sky-800' },
+}
+
+function AlasanBadge({ alasan }: { alasan: 'SAKIT' | 'IZIN' }) {
+  const style = ALASAN_STYLE[alasan]
+  return <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold uppercase tracking-wider ${style.badge}`}>{style.label}</span>
+}
+
 export function MonitoringClient({
   initialData, initialTanggal
 }: {
@@ -69,7 +79,11 @@ export function MonitoringClient({
                   }`}>
                     {dt.status}
                   </span>
+                  <AlasanBadge alasan={dt.alasan_ketidakhadiran} />
                 </CardTitle>
+                <div className={`mt-2 rounded-lg border px-2.5 py-2 text-xs ${ALASAN_STYLE[dt.alasan_ketidakhadiran].panel}`}>
+                  <span className="font-semibold">Alasan {ALASAN_STYLE[dt.alasan_ketidakhadiran].label}:</span> {dt.deskripsi_ketidakhadiran}
+                </div>
               </CardHeader>
               <CardContent className="p-0 divide-y">
                 {dt.items.map((item, i) => (

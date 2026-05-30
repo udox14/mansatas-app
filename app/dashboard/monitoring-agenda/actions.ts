@@ -110,6 +110,8 @@ export async function getMonitoringHarian(
       ag.waktu_input,
       ag.catatan_admin,
       dtk.id as delegasi_kelas_id,
+      dt_info.alasan_ketidakhadiran,
+      dt_info.deskripsi_ketidakhadiran,
       COALESCE(u_pelaksana_kelas.nama_lengkap, u_pelaksana_delegasi.nama_lengkap) as pelaksana_nama
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
@@ -211,6 +213,8 @@ export async function getMonitoringHarian(
       waktu_input: first.waktu_input,
       catatan_admin: first.catatan_admin,
       pelaksana_nama: first.pelaksana_nama || null,
+      alasan_ketidakhadiran: first.alasan_ketidakhadiran || null,
+      deskripsi_ketidakhadiran: first.deskripsi_ketidakhadiran || null,
     })
   }
 
@@ -364,7 +368,11 @@ export async function getRekapKehadiranGuru(
 
   // 3b. Ambil delegasi tugas (count per guru = berapa blok yang didelegasikan)
   const delegasiRes = effectiveDates.length > 0 ? await db.prepare(`
-    SELECT dt.dari_user_id as guru_id, COUNT(DISTINCT dtk.penugasan_mengajar_id) as cnt
+    SELECT
+      dt.dari_user_id as guru_id,
+      COUNT(DISTINCT dtk.penugasan_mengajar_id) as cnt,
+      SUM(CASE WHEN dt.alasan_ketidakhadiran = 'SAKIT' THEN 1 ELSE 0 END) as sakit_cnt,
+      SUM(CASE WHEN dt.alasan_ketidakhadiran = 'IZIN' THEN 1 ELSE 0 END) as izin_cnt
     FROM delegasi_tugas dt
     JOIN delegasi_tugas_kelas dtk ON dtk.delegasi_id = dt.id
     WHERE dt.tanggal BETWEEN ? AND ?
@@ -372,9 +380,13 @@ export async function getRekapKehadiranGuru(
     GROUP BY dt.dari_user_id
   `).bind(tanggalMulai, tanggalSelesai, ...effectiveDates).all<any>() : { results: [] }
 
-  const delegasiCountMap = new Map<string, number>()
+  const delegasiCountMap = new Map<string, { total: number; sakit: number; izin: number }>()
   for (const row of delegasiRes.results || []) {
-    delegasiCountMap.set(row.guru_id, row.cnt)
+    delegasiCountMap.set(row.guru_id, {
+      total: row.cnt || 0,
+      sakit: row.sakit_cnt || 0,
+      izin: row.izin_cnt || 0,
+    })
   }
 
   // Build rekap per guru
@@ -404,7 +416,8 @@ export async function getRekapKehadiranGuru(
   const data = guruIds.map(gid => {
     const totalBlok = totalBlokPerGuru.get(gid) || 0
     const r = rekapMap.get(gid) || { tepat: 0, telat: 0, alfa: 0, sakit: 0, izin: 0 }
-    const tugasCount = delegasiCountMap.get(gid) || 0
+    const tugasBreakdown = delegasiCountMap.get(gid) || { total: 0, sakit: 0, izin: 0 }
+    const tugasCount = tugasBreakdown.total
     const totalIsi = r.tepat + r.telat + r.sakit + r.izin + r.alfa + tugasCount
     const alfaHitung = Math.max(0, totalBlok - totalIsi) + r.alfa
     const kepatuhan = totalBlok > 0 ? Math.round(((r.tepat + r.telat + tugasCount) / totalBlok) * 100) : 0
@@ -416,6 +429,8 @@ export async function getRekapKehadiranGuru(
       tepat_waktu: r.tepat,
       telat: r.telat,
       tugas: tugasCount,
+      tugas_sakit: tugasBreakdown.sakit,
+      tugas_izin: tugasBreakdown.izin,
       alfa: alfaHitung,
       sakit: r.sakit,
       izin: r.izin,
