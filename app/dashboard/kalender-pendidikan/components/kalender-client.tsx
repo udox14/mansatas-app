@@ -97,6 +97,7 @@ const MONTHS = [
 ]
 
 const WEEKDAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
+const CKH_WORKDAY_CATEGORIES = new Set(['RAPAT', 'UJIAN', 'KEGIATAN_MADRASAH', 'LAINNYA'])
 
 function isoDate(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
@@ -135,6 +136,47 @@ function targetLabel(item: KbmException, kelasOptions: KelasOption[]) {
   if (item.target_type === 'TINGKAT') return `Kelas ${item.target_value}`
   const kelas = kelasOptions.find(k => k.id === item.target_value)
   return kelas?.label || 'Kelas tertentu'
+}
+
+function isCkhWorkdayCategory(category: string | null | undefined) {
+  return !!category && CKH_WORKDAY_CATEGORIES.has(category)
+}
+
+function getStatusMeta(status: Pick<KalenderDateStatus, 'isEffective' | 'category'> | null | undefined) {
+  if (status?.isEffective) {
+    return {
+      label: 'Hari efektif KBM',
+      text: 'text-emerald-700',
+      badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      cell: 'bg-white dark:bg-slate-900 hover:bg-emerald-50/70',
+      icon: 'effective',
+    }
+  }
+
+  if (isCkhWorkdayCategory(status?.category)) {
+    return {
+      label: 'Non-KBM, masuk CKH',
+      text: 'text-blue-700',
+      badge: 'bg-blue-50 text-blue-700 border-blue-200',
+      cell: 'bg-blue-50/70 dark:bg-blue-950/20 hover:bg-blue-100/70',
+      icon: 'ckh',
+    }
+  }
+
+  return {
+    label: 'Libur/tidak masuk CKH',
+    text: 'text-rose-700',
+    badge: 'bg-rose-50 text-rose-700 border-rose-200',
+    cell: 'bg-rose-50/70 dark:bg-rose-950/20 hover:bg-rose-100/70',
+    icon: 'off',
+  }
+}
+
+function getEventStatusMeta(event: Pick<KalenderEvent, 'category' | 'is_effective'>) {
+  return getStatusMeta({
+    isEffective: Number(event.is_effective) === 1,
+    category: event.category,
+  })
 }
 
 export function KalenderPendidikanClient({ initialData }: { initialData: KalenderData }) {
@@ -333,12 +375,12 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
         catatan: 'SKB resmi',
       },
       {
-        tanggal: `${year}-07-20`,
-        tanggal_selesai: `${year}-07-20`,
-        nama: 'Kegiatan Awal Tahun',
-        jenis: 'Kegiatan Madrasah',
-        status: 'Hari Efektif',
-        catatan: 'Masuk seperti biasa',
+        tanggal: `${year}-12-07`,
+        tanggal_selesai: `${year}-12-12`,
+        nama: 'Ujian Semester',
+        jenis: 'Ujian',
+        status: 'Non-KBM',
+        catatan: 'Guru bertugas, masuk CKH',
       },
     ]
     const worksheet = XLSX.utils.json_to_sheet(rows)
@@ -406,8 +448,8 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
-          ['Hari efektif', data.summary.effective, 'text-emerald-700 bg-emerald-50 border-emerald-200'],
-          ['Tidak efektif', data.summary.nonEffective, 'text-rose-700 bg-rose-50 border-rose-200'],
+          ['Hari efektif KBM', data.summary.effective, 'text-emerald-700 bg-emerald-50 border-emerald-200'],
+          ['Non-KBM/Libur', data.summary.nonEffective, 'text-blue-700 bg-blue-50 border-blue-200'],
           ['Tanggal merah', data.summary.tanggalMerah, 'text-amber-700 bg-amber-50 border-amber-200'],
           ['Pengecualian KBM', data.summary.kbmExceptions || 0, 'text-blue-700 bg-blue-50 border-blue-200'],
         ].map(([label, value, tone]) => (
@@ -477,9 +519,7 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
             {calendarCells.map((cell, idx) => {
               const status = cell.status
               const events = status?.events || []
-              const tone = status?.isEffective
-                ? 'bg-white dark:bg-slate-900 hover:bg-emerald-50/70'
-                : 'bg-rose-50/70 dark:bg-rose-950/20 hover:bg-rose-100/70'
+              const statusMeta = getStatusMeta(status)
               return (
                 <button
                   key={`${cell.date || 'blank'}-${idx}`}
@@ -487,15 +527,17 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
                   onClick={() => setSelectedDate(cell.date)}
                   className={cn(
                     'min-h-[92px] border-r border-b border-surface-2 p-2 text-left transition-colors disabled:bg-surface-2/50 disabled:cursor-default',
-                    cell.date && tone,
+                    cell.date && statusMeta.cell,
                     selectedDate === cell.date && 'ring-2 ring-inset ring-emerald-500',
                   )}
                 >
                   {cell.date && (
                     <>
                       <div className="flex items-center justify-between">
-                        <span className={cn('text-sm font-semibold', status?.isEffective ? 'text-slate-800 dark:text-slate-100' : 'text-rose-700')}>{cell.day}</span>
-                        {status?.isEffective ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <XCircle className="h-3.5 w-3.5 text-rose-500" />}
+                        <span className={cn('text-sm font-semibold', status?.isEffective ? 'text-slate-800 dark:text-slate-100' : statusMeta.text)}>{cell.day}</span>
+                        {statusMeta.icon === 'off'
+                          ? <XCircle className="h-3.5 w-3.5 text-rose-500" />
+                          : <CheckCircle2 className={cn('h-3.5 w-3.5', statusMeta.icon === 'ckh' ? 'text-blue-500' : 'text-emerald-500')} />}
                       </div>
                       <div className="mt-2 space-y-1">
                         {events.slice(0, 2).map(event => (
@@ -534,13 +576,20 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
             ) : (
               <div className="mt-3 space-y-3">
                 <div>
+                  {(() => {
+                    const statusMeta = getStatusMeta(selectedStatus)
+                    return (
+                      <>
                   <p className="text-lg font-bold text-slate-900 dark:text-slate-50">{formatDate(selectedStatus.tanggal)}</p>
                   <span className={cn(
                     'mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold',
-                    selectedStatus.isEffective ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200',
+                    statusMeta.badge,
                   )}>
-                    {selectedStatus.isEffective ? 'Hari efektif' : 'Tidak efektif'}
+                    {statusMeta.label}
                   </span>
+                      </>
+                    )
+                  })()}
                 </div>
                 {selectedStatus.events.length === 0 ? (
                   <p className="text-sm text-slate-500 dark:text-slate-400">{selectedStatus.reason || 'Tidak ada event.'}</p>
@@ -658,8 +707,8 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
                   <Select value={form.is_effective ? 'effective' : 'non-effective'} onValueChange={value => setForm({ ...form, is_effective: value === 'effective' })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="non-effective">Tidak efektif</SelectItem>
-                      <SelectItem value="effective">Hari efektif</SelectItem>
+                      <SelectItem value="non-effective">Non-KBM / Libur</SelectItem>
+                      <SelectItem value="effective">Hari efektif KBM</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -809,7 +858,7 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
               <pre className="mt-2 overflow-x-auto rounded-md bg-white dark:bg-slate-900 p-2 text-[11px] text-slate-600 dark:text-slate-300">{`tanggal,nama,jenis,status,catatan
 2027-01-01,Tahun Baru 2027 Masehi,Tanggal Merah,Tidak Efektif,SKB resmi
 2027-03-10,Cuti Bersama Idulfitri,Tanggal Merah,Tidak Efektif,SKB resmi
-2027-07-20,Kegiatan Awal Tahun,Kegiatan Madrasah,Hari Efektif,Masuk seperti biasa`}</pre>
+2027-12-07,Ujian Semester,Ujian,Non-KBM,Guru bertugas masuk CKH`}</pre>
             </div>
 
             {importError && (
@@ -835,7 +884,9 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
                           <td className="px-2 py-2 whitespace-nowrap">{row.start_date}{row.end_date !== row.start_date ? ` s/d ${row.end_date}` : ''}</td>
                           <td className="px-2 py-2">{row.title}</td>
                           <td className="px-2 py-2">{KALENDER_CATEGORY_LABELS[row.category]}</td>
-                          <td className={cn('px-2 py-2 font-semibold', row.is_effective ? 'text-emerald-600' : 'text-rose-600')}>{row.is_effective ? 'Hari efektif' : 'Tidak efektif'}</td>
+                          <td className={cn('px-2 py-2 font-semibold', getStatusMeta({ isEffective: row.is_effective, category: row.category }).text)}>
+                            {getStatusMeta({ isEffective: row.is_effective, category: row.category }).label}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -868,6 +919,8 @@ function EventRow({
   onEdit: (event: KalenderEvent) => void
   onDelete: (event: KalenderEvent) => void
 }) {
+  const statusMeta = getEventStatusMeta(event)
+
   return (
     <div className="rounded-lg border border-surface-2 bg-surface-2 p-3">
       <div className="flex items-start gap-2">
@@ -881,8 +934,8 @@ function EventRow({
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             {formatDate(event.start_date)}{event.start_date !== event.end_date ? ` s/d ${formatDate(event.end_date)}` : ''}
           </p>
-          <p className={cn('mt-1 text-[11px] font-semibold', Number(event.is_effective) === 1 ? 'text-emerald-600' : 'text-rose-600')}>
-            {Number(event.is_effective) === 1 ? 'Hari efektif' : 'Tidak efektif'} | {event.source === 'official' ? 'SKB Resmi' : event.source === 'sync' ? 'API Publik' : 'Manual'}
+          <p className={cn('mt-1 text-[11px] font-semibold', statusMeta.text)}>
+            {statusMeta.label} | {event.source === 'official' ? 'SKB Resmi' : event.source === 'sync' ? 'API Publik' : 'Manual'}
           </p>
           {event.description && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{event.description}</p>}
         </div>

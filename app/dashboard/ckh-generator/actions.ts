@@ -281,7 +281,7 @@ async function buildGeneratedRows(db: D1Database, userId: string, year: number, 
     SELECT id, start_date, end_date, title
     FROM kalender_pendidikan_events
     WHERE source = 'manual'
-      AND category IN ('RAPAT','KEGIATAN_MADRASAH','LAINNYA')
+      AND category IN ('RAPAT','UJIAN','KEGIATAN_MADRASAH','LAINNYA')
       AND start_date <= ?
       AND end_date >= ?
     ORDER BY start_date ASC, title ASC

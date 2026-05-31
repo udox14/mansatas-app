@@ -228,6 +228,7 @@ export async function saveKalenderEvent(payload: {
   revalidatePath('/dashboard/monitoring-agenda')
   revalidatePath('/dashboard/agenda-kelas')
   revalidatePath('/dashboard/rekap-absensi')
+  revalidatePath('/dashboard/ckh-generator')
   return { success: 'Kalender pendidikan disimpan.' }
 }
 
@@ -313,6 +314,7 @@ export async function saveKbmException(payload: {
   revalidatePath('/dashboard/monitoring-agenda')
   revalidatePath('/dashboard/agenda-kelas')
   revalidatePath('/dashboard/rekap-absensi')
+  revalidatePath('/dashboard/ckh-generator')
   return { success: 'Pengecualian jam KBM disimpan.' }
 }
 
@@ -330,6 +332,7 @@ export async function deleteKbmException(id: string) {
   revalidatePath('/dashboard/monitoring-agenda')
   revalidatePath('/dashboard/agenda-kelas')
   revalidatePath('/dashboard/rekap-absensi')
+  revalidatePath('/dashboard/ckh-generator')
   return { success: 'Pengecualian jam KBM dihapus.' }
 }
 
@@ -419,6 +422,7 @@ export async function importKalenderResmi(year: number, rows: KalenderImportRow[
   revalidatePath('/dashboard/monitoring-agenda')
   revalidatePath('/dashboard/agenda-kelas')
   revalidatePath('/dashboard/rekap-absensi')
+  revalidatePath('/dashboard/ckh-generator')
   return { success: `${cleanRows.length} data SKB resmi berhasil diimpor.`, count: cleanRows.length }
 }
 
@@ -436,6 +440,7 @@ export async function deleteKalenderEvent(id: string) {
   revalidatePath('/dashboard/monitoring-agenda')
   revalidatePath('/dashboard/agenda-kelas')
   revalidatePath('/dashboard/rekap-absensi')
+  revalidatePath('/dashboard/ckh-generator')
   return { success: 'Event kalender dihapus.' }
 }
 
@@ -490,6 +495,7 @@ export async function syncTanggalMerah(year: number) {
     `).bind(year, source, data.length, 'Sinkron berhasil', user.id).run()
 
     revalidatePath('/dashboard/kalender-pendidikan')
+    revalidatePath('/dashboard/ckh-generator')
     return { success: `${data.length} tanggal merah berhasil disinkronkan.`, count: data.length }
   } catch (error: any) {
     const message = error?.message || 'Sinkron gagal.'

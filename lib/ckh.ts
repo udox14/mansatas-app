@@ -6,6 +6,7 @@ export const CKH_OTHER_DUTY_ACTIVITY = 'Melaksanakan tugas dinas lainnya'
 export const CKH_DEFAULT_VOL = 1
 export const CKH_DEFAULT_SATUAN = 'Kegiatan'
 export const CKH_SATUAN_OPTIONS = ['Kegiatan', 'Orang', 'Dokumen'] as const
+const CKH_WORKDAY_CALENDAR_CATEGORIES = ['RAPAT', 'UJIAN', 'KEGIATAN_MADRASAH', 'LAINNYA']
 export type CkhSatuan = typeof CKH_SATUAN_OPTIONS[number]
 
 export type CkhGeneratedRow = {
@@ -132,7 +133,7 @@ export async function getCkhEffectiveDates(db: D1Database, year: number, month: 
     const deciding = manual || official || dayEvents[0] || null
     if (!deciding) return true
     if (Number(deciding.is_effective) === 1) return true
-    return !['TANGGAL_MERAH', 'LIBUR_SEMESTER'].includes(deciding.category)
+    return CKH_WORKDAY_CALENDAR_CATEGORIES.includes(deciding.category)
   })
 }
 
