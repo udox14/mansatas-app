@@ -332,6 +332,8 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     }
     return null
   }
+  // Helper: cek apakah minimal satu kolom ada dan berisi nilai.
+  const has = (row: any, ...keys: string[]): boolean => s(row, ...keys) !== null
 
   // -------------------------------------------------------
   // WHITELIST kolom tabel siswa
@@ -390,30 +392,37 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     const tingkat = n(row, 'Tingkat Kelas', 'TINGKAT', 'tingkat')
     const kelompok = s(row, 'Kelompok Kelas', 'KELOMPOK', 'kelompok')?.toUpperCase() ?? 'UMUM'
     const nomor_kelas = s(row, 'Nomor Kelas', 'NOMOR_KELAS', 'nomor_kelas')
+    const hasKelasInfo = has(row, 'Tingkat Kelas', 'TINGKAT', 'tingkat', 'Nomor Kelas', 'NOMOR_KELAS', 'nomor_kelas')
     const kelasKey = tingkat && nomor_kelas ? `${tingkat}-${kelompok}-${nomor_kelas}` : null
     const kelas_id = kelasKey ? (kelasMap.get(kelasKey) ?? null) : null
+    if (hasKelasInfo && (!kelasKey || !kelas_id)) {
+      errors.push(`Kelas tidak ditemukan untuk ${nama_lengkap}: ${tingkat ?? '-'}-${kelompok}-${nomor_kelas ?? '-'}`)
+    }
 
     // --- Tempat tinggal (enum aplikasi) ---
     const pesantrenRaw = s(row, 'Tempat Tinggal', 'Pesantren', 'PESANTREN', 'TEMPAT_TINGGAL', 'tempat_tinggal') ?? ''
-    const tempat_tinggal = VALID_TEMPAT_TINGGAL.includes(pesantrenRaw) ? pesantrenRaw : 'Non-Pesantren'
+    const hasTempatTinggal = pesantrenRaw !== ''
+    const tempat_tinggal = VALID_TEMPAT_TINGGAL.includes(pesantrenRaw) ? pesantrenRaw : null
 
     // --- JK ---
     const jkRaw = s(row, 'JK', 'JENIS_KELAMIN', 'jenis_kelamin') ?? ''
+    const hasJenisKelamin = jkRaw !== ''
     const jkUpper = jkRaw.toUpperCase()
     const jenis_kelamin = jkUpper === 'P' || jkUpper === 'PEREMPUAN' ? 'P' : 'L'
 
     // --- Status siswa ---
-    const statusRaw = (s(row, 'Status Siswa', 'Status', 'STATUS', 'status') ?? 'aktif').toLowerCase()
-    const status = ['aktif', 'lulus', 'pindah', 'keluar'].includes(statusRaw) ? statusRaw : 'aktif'
+    const statusInput = s(row, 'Status Siswa', 'Status', 'STATUS', 'status')
+    const statusRaw = (statusInput ?? '').toLowerCase()
+    const status = ['aktif', 'lulus', 'pindah', 'keluar'].includes(statusRaw) ? statusRaw : null
 
     // --- Build payload sesuai kolom tabel siswa ---
     const fullPayload: any = {
       nisn: nisn || null,
       nis_lokal: s(row, 'NIS Lokal', 'NIS_LOKAL', 'nis_lokal'),
       nama_lengkap,
-      jenis_kelamin,
-      tempat_tinggal,
-      kelas_id,
+      jenis_kelamin: hasJenisKelamin ? jenis_kelamin : null,
+      tempat_tinggal: hasTempatTinggal ? tempat_tinggal : null,
+      kelas_id: hasKelasInfo ? kelas_id : null,
       status,
       tahun_masuk:      n(row, 'Tahun Masuk', 'TAHUN_MASUK', 'tahun_masuk'),
       asal_sekolah:     s(row, 'Asal Sekolah', 'ASAL_SEKOLAH', 'asal_sekolah'),
@@ -471,10 +480,10 @@ export async function importSiswaMassal(dataSiswa: any[]) {
 
     // Pastikan field wajib siswa selalu ada (termasuk setelah filter null di atas)
     siswaPayload.nama_lengkap  = nama_lengkap
-    siswaPayload.jenis_kelamin = jenis_kelamin
-    siswaPayload.tempat_tinggal = tempat_tinggal
-    siswaPayload.kelas_id      = kelas_id
-    siswaPayload.status        = status
+    if (hasJenisKelamin) siswaPayload.jenis_kelamin = jenis_kelamin
+    if (hasTempatTinggal && tempat_tinggal) siswaPayload.tempat_tinggal = tempat_tinggal
+    if (hasKelasInfo && kelas_id) siswaPayload.kelas_id = kelas_id
+    if (status) siswaPayload.status = status
 
     const existBySisn = nisn ? existingByNisn.get(nisn) : null
     const existByNama = existingByNama.get(nama_lengkap.toLowerCase())
@@ -491,6 +500,9 @@ export async function importSiswaMassal(dataSiswa: any[]) {
         continue
       }
       siswaPayload.nisn = nisn
+      siswaPayload.jenis_kelamin = siswaPayload.jenis_kelamin ?? jenis_kelamin
+      siswaPayload.tempat_tinggal = siswaPayload.tempat_tinggal ?? 'Non-Pesantren'
+      siswaPayload.status = siswaPayload.status ?? 'aktif'
       // Pre-generate ID agar batch insert tetap bisa dipetakan dengan jelas.
       const newId = crypto.randomUUID().replace(/-/g, '')
       siswaPayload.id = newId
