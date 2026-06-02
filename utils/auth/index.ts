@@ -59,6 +59,23 @@ function buildSetCookie(token: string, maxAge: number): string {
   return `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`
 }
 
+function formatBirthDatePassword(raw: string | null | undefined): string | null {
+  const value = String(raw || '').trim()
+  if (!value) return null
+
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (isoMatch) return `${isoMatch[3]}${isoMatch[2]}${isoMatch[1]}`
+
+  const localMatch = value.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
+  if (localMatch) {
+    const day = localMatch[1].padStart(2, '0')
+    const month = localMatch[2].padStart(2, '0')
+    return `${day}${month}${localMatch[3]}`
+  }
+
+  return null
+}
+
 // ============================================================
 // TYPES
 // ============================================================
@@ -333,7 +350,7 @@ export function createAuth(db: D1Database) {
         }
       },
 
-      // ---- SIGN IN PARENT (NISN + tanggal lahir siswa) ----
+      // ---- SIGN IN PARENT (NISN + password parent) ----
       async signInParent(opts: {
         body: { nisn: string; password: string }
         asResponse?: boolean
@@ -372,8 +389,15 @@ export function createAuth(db: D1Database) {
         if (credential?.password_hash) {
           valid = await verifyPassword(credential.password_hash, password)
         } else {
-          if (opts.asResponse) return new Response('Invalid credentials', { status: 401 })
-          throw new Error('Invalid credentials')
+          valid = password === formatBirthDatePassword(siswa.tanggal_lahir)
+          if (valid) {
+            const passwordHash = await hashPassword(password)
+            await db.prepare(`
+              INSERT INTO parent_credentials (siswa_id, password_hash, updated_at)
+              VALUES (?, ?, datetime('now'))
+              ON CONFLICT(siswa_id) DO NOTHING
+            `).bind(siswa.id, passwordHash).run()
+          }
         }
         if (!valid) {
           if (opts.asResponse) return new Response('Invalid credentials', { status: 401 })
