@@ -250,7 +250,7 @@ export function DetailSiswaClient({
               </span>
               {siswa.tempat_tinggal !== 'Non-Pesantren' && (
                  <span className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-orange-100 text-orange-800 border border-orange-200 shadow-sm flex items-center gap-1.5">
-                   <MapPin className="h-3.5 w-3.5" /> {siswa.asrama ? `${siswa.asrama}${siswa.kamar ? ` · ${siswa.kamar}` : ''}` : 'Anak Pesantren'}
+                   <MapPin className="h-3.5 w-3.5" /> {siswa.asrama ? `${siswa.tempat_tinggal} · ${siswa.asrama}${siswa.kamar ? ` · ${siswa.kamar}` : ''}` : siswa.tempat_tinggal}
                  </span>
               )}
               <Button

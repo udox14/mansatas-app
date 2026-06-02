@@ -295,7 +295,9 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                 <div className="flex items-center gap-1.5 shrink-0">
                   {canExport && (
                     <ExportModalSiswa
+                      allRows={initialData}
                       currentFilteredRows={filteredData}
+                      kelasList={kelasList}
                       filterKelas={filterKelas}
                       filterAngkatan={filterAngkatan}
                       filterStatus={filterStatus}
