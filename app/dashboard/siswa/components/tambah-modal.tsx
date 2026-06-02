@@ -75,6 +75,11 @@ export function TambahModal() {
             <Input id="nis_lokal" name="nis_lokal" placeholder="Nomor Induk Siswa internal" className="h-8 text-sm rounded-md bg-slate-50 dark:bg-slate-800" />
           </div>
 
+          <div className="space-y-1.5">
+            <Label htmlFor="asal_sekolah" className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Asal Sekolah <span className="text-slate-400 dark:text-slate-500 font-normal">(opsional)</span></Label>
+            <Input id="asal_sekolah" name="asal_sekolah" placeholder="Contoh: MTsN 1 Tasikmalaya" className="h-8 text-sm rounded-md bg-slate-50 dark:bg-slate-800" />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="tahun_masuk" className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Tahun Masuk (Angkatan) <span className="text-rose-500">*</span></Label>

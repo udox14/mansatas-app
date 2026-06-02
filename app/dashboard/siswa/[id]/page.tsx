@@ -31,7 +31,7 @@ export default async function DetailSiswaPage({
     SELECT
       s.id, s.nisn, s.nis_lokal, s.nama_lengkap, s.jenis_kelamin, s.status,
       s.foto_url, s.tempat_tinggal, s.kelas_id, s.minat_jurusan,
-      s.nik, s.tempat_lahir, s.tanggal_lahir, s.agama,
+      s.nik, s.asal_sekolah, s.tempat_lahir, s.tanggal_lahir, s.agama,
       s.jumlah_saudara, s.anak_ke, s.status_anak,
       s.alamat_lengkap, s.rt, s.rw, s.desa_kelurahan, s.kecamatan,
       s.kabupaten_kota, s.provinsi, s.kode_pos, s.nomor_whatsapp, s.nomor_kk,

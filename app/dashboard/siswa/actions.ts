@@ -29,6 +29,7 @@ export async function tambahSiswa(prevState: any, formData: FormData) {
     nisn: formData.get('nisn') as string,
     nis_lokal: (formData.get('nis_lokal') as string) || null,
     nama_lengkap: formData.get('nama_lengkap') as string,
+    asal_sekolah: (formData.get('asal_sekolah') as string) || null,
     jenis_kelamin: formData.get('jenis_kelamin') as string,
     tempat_tinggal: formData.get('tempat_tinggal') as string,
     tahun_masuk: tahunMasukRaw ? parseInt(tahunMasukRaw) : null,
@@ -215,6 +216,60 @@ export async function getSiswaKeluar(search?: string) {
   return res.results || []
 }
 
+// Ambil data lengkap untuk export XLSX.
+// Hak akses mengikuti daftar siswa: pimpinan/TU dapat semua, guru terkait hanya kelas yang terhubung.
+export async function getSiswaExportData() {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized', data: [] }
+
+  const db = await getDB()
+  const roles = await getUserRoles(db, user.id)
+  const isFullListAccess = roles.some(r => [
+    'super_admin', 'admin_tu', 'kepsek', 'wakamad', 'resepsionis', 'guru_piket', 'guru_ppl',
+  ].includes(r))
+
+  let where = ''
+  let params: string[] = []
+
+  if (!isFullListAccess) {
+    const allowedKelasIds = new Set<string>()
+    const [penugasan, wali, waliBk] = await Promise.all([
+      db.prepare('SELECT DISTINCT kelas_id FROM penugasan_mengajar WHERE guru_id = ?').bind(user.id).all<{ kelas_id: string }>(),
+      db.prepare('SELECT id FROM kelas WHERE wali_kelas_id = ?').bind(user.id).all<{ id: string }>(),
+      db.prepare('SELECT DISTINCT kelas_id FROM kelas_binaan_bk WHERE guru_bk_id = ?').bind(user.id).all<{ kelas_id: string }>(),
+    ])
+
+    penugasan.results?.forEach(row => allowedKelasIds.add(row.kelas_id))
+    wali.results?.forEach(row => allowedKelasIds.add(row.id))
+    waliBk.results?.forEach(row => allowedKelasIds.add(row.kelas_id))
+
+    if (allowedKelasIds.size === 0) return { error: null, data: [] }
+    params = Array.from(allowedKelasIds)
+    where = `WHERE s.kelas_id IN (${params.map(() => '?').join(',')})`
+  }
+
+  const res = await db.prepare(`
+    SELECT
+      s.id, s.nisn, s.nis_lokal, s.nama_lengkap, s.jenis_kelamin, s.status,
+      s.tahun_masuk, s.tempat_tinggal, s.asrama, s.kamar, s.asal_sekolah,
+      s.minat_jurusan, s.nik, s.tempat_lahir, s.tanggal_lahir, s.agama,
+      s.jumlah_saudara, s.anak_ke, s.status_anak,
+      s.alamat_lengkap, s.rt, s.rw, s.desa_kelurahan, s.kecamatan,
+      s.kabupaten_kota, s.provinsi, s.kode_pos, s.nomor_whatsapp, s.nomor_kk,
+      s.nama_ayah, s.nik_ayah, s.tempat_lahir_ayah, s.tanggal_lahir_ayah,
+      s.status_ayah, s.pendidikan_ayah, s.pekerjaan_ayah, s.penghasilan_ayah,
+      s.nama_ibu, s.nik_ibu, s.tempat_lahir_ibu, s.tanggal_lahir_ibu,
+      s.status_ibu, s.pendidikan_ibu, s.pekerjaan_ibu, s.penghasilan_ibu,
+      k.id AS kelas_id, k.tingkat, k.kelompok, k.nomor_kelas
+    FROM siswa s
+    LEFT JOIN kelas k ON s.kelas_id = k.id
+    ${where}
+    ORDER BY k.tingkat ASC, k.kelompok ASC, k.nomor_kelas ASC, s.nama_lengkap ASC
+  `).bind(...params).all<any>()
+
+  return { error: null, data: res.results || [] }
+}
+
 // ============================================================
 // 6. UPLOAD FOTO SISWA KE R2
 // Nama file tetap per siswa (overwrite otomatis), tidak perlu hapus lama
@@ -284,7 +339,8 @@ export async function importSiswaMassal(dataSiswa: any[]) {
   const SISWA_COLS = new Set([
     'id', 'nisn', 'nis_lokal', 'nama_lengkap', 'jenis_kelamin', 'tempat_tinggal',
     'kelas_id', 'wali_murid_id', 'status', 'foto_url', 'minat_jurusan',
-    'nik', 'tempat_lahir', 'tanggal_lahir', 'agama',
+    'nik', 'asal_sekolah', 'tempat_lahir', 'tanggal_lahir', 'agama',
+    'asrama', 'kamar',
     'jumlah_saudara', 'anak_ke', 'status_anak',
     'alamat_lengkap', 'rt', 'rw', 'desa_kelurahan', 'kecamatan', 'kabupaten_kota',
     'provinsi', 'kode_pos', 'nomor_whatsapp', 'nomor_kk',
@@ -343,7 +399,12 @@ export async function importSiswaMassal(dataSiswa: any[]) {
 
     // --- JK ---
     const jkRaw = s(row, 'JK', 'JENIS_KELAMIN', 'jenis_kelamin') ?? ''
-    const jenis_kelamin = jkRaw.toUpperCase() === 'P' ? 'P' : 'L'
+    const jkUpper = jkRaw.toUpperCase()
+    const jenis_kelamin = jkUpper === 'P' || jkUpper === 'PEREMPUAN' ? 'P' : 'L'
+
+    // --- Status siswa ---
+    const statusRaw = (s(row, 'Status Siswa', 'Status', 'STATUS', 'status') ?? 'aktif').toLowerCase()
+    const status = ['aktif', 'lulus', 'pindah', 'keluar'].includes(statusRaw) ? statusRaw : 'aktif'
 
     // --- Build payload sesuai kolom tabel siswa ---
     const fullPayload: any = {
@@ -353,9 +414,12 @@ export async function importSiswaMassal(dataSiswa: any[]) {
       jenis_kelamin,
       tempat_tinggal,
       kelas_id,
-      status: 'aktif',
+      status,
       tahun_masuk:      n(row, 'Tahun Masuk', 'TAHUN_MASUK', 'tahun_masuk'),
+      asal_sekolah:     s(row, 'Asal Sekolah', 'ASAL_SEKOLAH', 'asal_sekolah'),
       minat_jurusan:    s(row, 'Minat Jurusan', 'Jurusan Pilihan 1', 'MINAT_JURUSAN'),
+      asrama:           s(row, 'Asrama', 'ASRAMA', 'asrama'),
+      kamar:            s(row, 'Kamar', 'KAMAR', 'kamar'),
       tempat_lahir:     s(row, 'Tempat Lahir', 'TEMPAT_LAHIR'),
       tanggal_lahir:    s(row, 'Tanggal Lahir', 'TANGGAL_LAHIR'),
       agama:            s(row, 'Agama', 'AGAMA'),
@@ -410,7 +474,7 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     siswaPayload.jenis_kelamin = jenis_kelamin
     siswaPayload.tempat_tinggal = tempat_tinggal
     siswaPayload.kelas_id      = kelas_id
-    siswaPayload.status        = 'aktif'
+    siswaPayload.status        = status
 
     const existBySisn = nisn ? existingByNisn.get(nisn) : null
     const existByNama = existingByNama.get(nama_lengkap.toLowerCase())
