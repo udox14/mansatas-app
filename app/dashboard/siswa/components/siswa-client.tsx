@@ -13,6 +13,7 @@ import { TambahModal } from './tambah-modal'
 import { ImportModalSiswa } from './import-modal'
 import { hapusSiswa, uploadFotoSiswaAction, getDetailSiswaLengkap, bulkSetTahunMasuk } from '../actions'
 import { EditSiswaModal } from './edit-modal'
+import { ExportModalSiswa } from './export-modal'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatNamaKelas, cn } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
@@ -140,6 +141,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
   
   // Who can perform Edit/Delete/Upload actions? ONLY super_admin & admin_tu.
   const canFullEdit = isAdminTu
+  const canExport = isAdminTu || isKepsekWakamad
 
   // Function to determine if a specific student row is allowed to be opened to its detail page
   const hasDetailAccess = (s: any) => {
@@ -153,7 +155,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
 
   const filteredData = initialData.filter(s => {
     const matchSearch = s.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) || s.nisn.includes(searchTerm)
-    const matchKelas = filterKelas === 'Semua' || s.kelas?.id === filterKelas
+    const matchKelas = filterKelas === 'Semua' || (filterKelas === 'null' ? !s.kelas?.id : s.kelas?.id === filterKelas)
     const matchStatus = filterStatus === 'Semua' || s.status === filterStatus
     const matchAngkatan = filterAngkatan === 'Semua' || String(s.tahun_masuk) === filterAngkatan
     return matchSearch && matchKelas && matchStatus && matchAngkatan
@@ -289,10 +291,22 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
               </div>
 
               {/* Action buttons */}
-              {canFullEdit && (
+              {(canExport || canFullEdit) && (
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <ImportModalSiswa />
-                  <TambahModal />
+                  {canExport && (
+                    <ExportModalSiswa
+                      currentFilteredRows={filteredData}
+                      filterKelas={filterKelas}
+                      filterAngkatan={filterAngkatan}
+                      filterStatus={filterStatus}
+                    />
+                  )}
+                  {canFullEdit && (
+                    <>
+                      <ImportModalSiswa />
+                      <TambahModal />
+                    </>
+                  )}
                 </div>
               )}
             </div>

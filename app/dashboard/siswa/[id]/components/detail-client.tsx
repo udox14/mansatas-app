@@ -317,6 +317,7 @@ export function DetailSiswaClient({
             <div className="bg-surface p-4 rounded-lg shadow-sm border border-surface">
               <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 border-b border-surface-2 pb-4 mb-4 flex items-center gap-2"><User className="text-emerald-600 h-5 w-5"/> Data Pribadi Siswa</h3>
               <DataItem label="NIK" value={siswa.nik} />
+              <DataItem label="Asal Sekolah" value={siswa.asal_sekolah} />
               <DataItem label="Tempat, Tanggal Lahir" value={`${siswa.tempat_lahir || '-'}, ${siswa.tanggal_lahir ? new Date(siswa.tanggal_lahir).toLocaleDateString('id-ID') : '-'}`} />
               <DataItem label="Agama" value={siswa.agama} />
               <div className="grid grid-cols-2 gap-4">

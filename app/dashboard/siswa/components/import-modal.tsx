@@ -27,6 +27,7 @@ export function ImportModalSiswa() {
       'JK': 'L',
       'Tempat Tinggal': 'Non-Pesantren',
       'Tahun Masuk': '2024',
+      'Asal Sekolah': 'MTsN 1 Tasikmalaya',
       'Tingkat Kelas': '7',
       'Kelompok Kelas': 'KEAGAMAAN',
       'Nomor Kelas': '1',

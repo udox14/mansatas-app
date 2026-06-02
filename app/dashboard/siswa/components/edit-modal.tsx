@@ -111,6 +111,10 @@ export function EditSiswaModal({ isOpen, onClose, siswa, kelasList }: {
                   <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Nama Lengkap</Label>
                   <Input name="nama_lengkap" defaultValue={siswa.nama_lengkap} required className="h-8 text-sm rounded-md bg-surface-2" />
                 </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Asal Sekolah</Label>
+                  <Input name="asal_sekolah" defaultValue={siswa.asal_sekolah} placeholder="cth: MTsN 1 Tasikmalaya" className="h-8 text-sm rounded-md bg-surface-2" />
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">NIK</Label>
