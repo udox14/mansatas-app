@@ -66,9 +66,6 @@ export default function ParentLoginClient() {
             </div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-200">Portal Orang Tua</p>
             <h1 className="mt-2 text-2xl font-black tracking-normal">Pantau perkembangan anak dari satu tempat.</h1>
-            <p className="mt-3 text-sm font-medium leading-6 text-slate-300">
-              Masuk dengan NISN siswa. Password awal adalah NISN dan bisa diganti setelah berhasil masuk.
-            </p>
           </div>
 
           <form onSubmit={onSubmit} className="space-y-4 p-6">
@@ -80,7 +77,7 @@ export default function ParentLoginClient() {
           )}
 
           <div className="space-y-1.5">
-            <label htmlFor="nisn" className="text-xs font-bold uppercase tracking-wide text-slate-500">NISN Siswa</label>
+            <label htmlFor="nisn" className="text-xs font-bold uppercase tracking-wide text-slate-500">Username</label>
             <div className="relative">
               <UserSquare2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
@@ -90,7 +87,7 @@ export default function ParentLoginClient() {
                 value={nisn}
                 onChange={(e) => setNisn(e.target.value.replace(/\D/g, ''))}
                 className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-base font-semibold text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-emerald-600 focus:bg-white"
-                placeholder="Contoh: 0051234567"
+                placeholder="Username"
                 required
               />
             </div>
@@ -108,7 +105,7 @@ export default function ParentLoginClient() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value.replace(/\D/g, '').slice(0, 20))}
                 className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-12 text-base font-semibold text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-emerald-600 focus:bg-white"
-                placeholder="Password default: NISN"
+                placeholder="Password"
                 required
               />
               <button
