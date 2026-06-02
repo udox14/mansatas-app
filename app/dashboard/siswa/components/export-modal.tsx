@@ -93,18 +93,21 @@ function valueFor(row: SiswaExportRow, key: string) {
 }
 
 export function ExportModalSiswa({
+  allRows,
   currentFilteredRows,
+  kelasList,
   filterKelas,
   filterAngkatan,
   filterStatus,
 }: {
+  allRows: any[]
   currentFilteredRows: any[]
+  kelasList: any[]
   filterKelas: string
   filterAngkatan: string
   filterStatus: string
 }) {
   const [open, setOpen] = useState(false)
-  const [rows, setRows] = useState<SiswaExportRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [scope, setScope] = useState('current')
@@ -115,51 +118,68 @@ export function ExportModalSiswa({
   const [selectedFields, setSelectedFields] = useState<string[]>(DEFAULT_FIELDS)
 
   async function loadRows() {
-    if (rows.length || loading) return
     setLoading(true)
     setError('')
-    const res = await getSiswaExportData()
-    if (res.error) setError(res.error)
-    else setRows(res.data)
-    setLoading(false)
+    try {
+      const res = await getSiswaExportData()
+      if (res.error) {
+        setError(res.error)
+        return []
+      }
+      return res.data
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Gagal memuat data siswa untuk export.')
+      return []
+    } finally {
+      setLoading(false)
+    }
   }
 
   function openDialog(nextOpen: boolean) {
     setOpen(nextOpen)
-    if (nextOpen) loadRows()
   }
 
-  const normalizedRows = useMemo<SiswaExportRow[]>(() => rows.map(row => ({
+  const previewRows = useMemo<SiswaExportRow[]>(() => allRows.map(row => ({
     ...row,
-    kelas: row.tingkat ? formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok) : '',
-  })), [rows])
+    kelas_id: row.kelas_id ?? row.kelas?.id ?? null,
+    kelas: row.kelas
+      ? formatNamaKelas(row.kelas.tingkat, row.kelas.nomor_kelas, row.kelas.kelompok)
+      : row.kelas_id && row.tingkat
+        ? formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok)
+        : '',
+  })), [allRows])
 
   const currentIds = useMemo(() => new Set(currentFilteredRows.map(row => row.id)), [currentFilteredRows])
 
   const kelasOptions = useMemo(() => (
-    [...new Map(normalizedRows.filter(row => row.kelas_id).map(row => [row.kelas_id, row.kelas])).entries()]
+    kelasList.map(kelas => [kelas.id, formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok)] as const)
       .sort((a, b) => String(a[1]).localeCompare(String(b[1]), undefined, { numeric: true, sensitivity: 'base' }))
-  ), [normalizedRows])
+  ), [kelasList])
 
   const angkatanOptions = useMemo(() => (
-    [...new Set(normalizedRows.map(row => row.tahun_masuk).filter(Boolean))]
+    [...new Set(previewRows.map(row => row.tahun_masuk).filter(Boolean))]
       .sort((a, b) => Number(b) - Number(a))
-  ), [normalizedRows])
+  ), [previewRows])
 
   const domisiliOptions = useMemo(() => (
-    [...new Set(normalizedRows.map(row => row.tempat_tinggal).filter(Boolean))]
+    [...new Set(previewRows.map(row => row.tempat_tinggal).filter(Boolean))]
       .sort((a, b) => String(a).localeCompare(String(b)))
-  ), [normalizedRows])
+  ), [previewRows])
 
-  const exportRows = useMemo(() => {
-    let base = normalizedRows
+  function applyScope(baseRows: SiswaExportRow[]) {
+    let base = baseRows
     if (scope === 'current') base = base.filter(row => currentIds.has(row.id))
     if (scope === 'kelas') base = base.filter(row => selectedKelas === '__none' ? !row.kelas_id : row.kelas_id === selectedKelas)
     if (scope === 'angkatan') base = base.filter(row => String(row.tahun_masuk ?? '') === selectedAngkatan)
     if (scope === 'status') base = base.filter(row => row.status === selectedStatus)
     if (scope === 'domisili') base = base.filter(row => row.tempat_tinggal === selectedDomisili)
     return base
-  }, [currentIds, normalizedRows, scope, selectedAngkatan, selectedDomisili, selectedKelas, selectedStatus])
+  }
+
+  const exportRows = useMemo(() => {
+    return applyScope(previewRows)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIds, previewRows, scope, selectedAngkatan, selectedDomisili, selectedKelas, selectedStatus])
 
   const groupedFields = useMemo(() => {
     return EXPORT_FIELDS.reduce<Record<string, ExportField[]>>((acc, field) => {
@@ -177,10 +197,18 @@ export function ExportModalSiswa({
   }
 
   async function handleExport() {
-    if (!exportRows.length || !selectedFields.length) return
+    if (!selectedFields.length) return
+    const rawRows = await loadRows()
+    const normalizedExportRows = rawRows.map(row => ({
+      ...row,
+      kelas: row.tingkat ? formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok) : '',
+    }))
+    const scopedRows = applyScope(normalizedExportRows)
+    if (!scopedRows.length) return
+
     const XLSX = await import('xlsx')
     const fields = EXPORT_FIELDS.filter(field => selectedFields.includes(field.key))
-    const data = exportRows.map(row => {
+    const data = scopedRows.map(row => {
       const item: Record<string, string | number> = {}
       fields.forEach(field => {
         item[field.label] = valueFor(row, field.key)
@@ -315,7 +343,7 @@ export function ExportModalSiswa({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
-            <Input readOnly value={loading ? 'Memuat data siswa...' : `${exportRows.length} siswa siap diexport`} className="h-9 w-full bg-slate-50 text-sm md:w-56 dark:bg-slate-900" />
+            <Input readOnly value={loading ? 'Menyiapkan export...' : `${exportRows.length} siswa siap diexport`} className="h-9 w-full bg-slate-50 text-sm md:w-56 dark:bg-slate-900" />
             <div className="ml-auto flex gap-2">
               <Button type="button" variant="outline" size="sm" className="h-9 text-sm" onClick={() => setOpen(false)}>Batal</Button>
               <Button type="button" size="sm" className="h-9 gap-1.5 text-sm" disabled={loading || !exportRows.length || !selectedFields.length} onClick={handleExport}>
