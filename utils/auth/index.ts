@@ -389,7 +389,8 @@ export function createAuth(db: D1Database) {
         if (credential?.password_hash) {
           valid = await verifyPassword(credential.password_hash, password)
         } else {
-          valid = password === formatBirthDatePassword(siswa.tanggal_lahir)
+          const birthDatePassword = formatBirthDatePassword(siswa.tanggal_lahir)
+          valid = birthDatePassword ? password === birthDatePassword : password === siswa.nisn
           if (valid) {
             const passwordHash = await hashPassword(password)
             await db.prepare(`

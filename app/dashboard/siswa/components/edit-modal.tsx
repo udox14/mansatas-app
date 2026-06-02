@@ -144,7 +144,7 @@ export function EditSiswaModal({ isOpen, onClose, siswa, kelasList }: {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Kelas</Label>
-                    <Select name="kelas_id" defaultValue={siswa.kelas?.id || 'none'}>
+                    <Select name="kelas_id" defaultValue={siswa.kelas?.id || siswa.kelas_id || 'none'}>
                       <SelectTrigger className="h-8 text-xs rounded-md bg-surface-2"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none" className="text-xs text-slate-400">Tanpa Kelas</SelectItem>

@@ -561,21 +561,26 @@ export async function editSiswaLengkap(prevState: any, formData: FormData) {
   const payload: any = Object.fromEntries(formData.entries())
   delete payload.id
 
-  // Sanitasi menyeluruh:
-  // 1. Field FK (kelas_id, wali_murid_id): string kosong / "none" → null
-  // 2. Semua field lain: string kosong / "undefined" / "null" → null
-  // Ini mencegah FOREIGN KEY constraint failed karena string kosong dikirim sebagai value
+  const existing = await dbSelectOne<any>(db, 'siswa', { id })
+  if (!existing) return { error: 'Data siswa tidak ditemukan', success: null }
+
+  // Sanitasi aman:
+  // - Field kosong dari form edit tidak menimpa data lama.
+  // - FK "none" hanya mengosongkan kelas jika data lama memang kosong atau user membuka detail lengkap
+  //   dengan default yang benar. Ini mencegah kasus daftar siswa mengirim "none" palsu.
   Object.keys(payload).forEach(key => {
     const val = payload[key]
     if (FK_FIELDS.includes(key)) {
-      // FK field: hanya boleh null atau UUID valid — "none", "", dll → null
       if (!val || val === 'none' || val === 'null' || val === 'undefined') {
-        payload[key] = null
+        if (existing[key]) {
+          delete payload[key]
+        } else {
+          payload[key] = null
+        }
       }
     } else {
-      // Non-FK field: kosong → null agar tidak simpan string kosong
       if (val === '' || val === 'undefined' || val === 'null') {
-        payload[key] = null
+        delete payload[key]
       }
     }
   })
