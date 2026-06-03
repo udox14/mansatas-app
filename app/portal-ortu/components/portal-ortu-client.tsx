@@ -9,8 +9,9 @@ import { ScheduleTabs } from './schedule-tabs'
 import { ChangePasswordForm } from './change-password-form'
 import { SummonResponseForm } from './summon-response-form'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { createParentDsptPaymentSubmission, getParentSemesterGrades, markParentNotificationRead, uploadParentPaymentProof } from '../actions'
+import { createParentDsptPaymentSubmission, createParentSuggestion, getParentSemesterGrades, markParentNotificationRead, uploadParentPaymentProof } from '../actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
+import { PARENT_SUGGESTION_CATEGORIES } from '@/lib/parent-suggestions'
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
@@ -70,6 +71,11 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [proofFile, setProofFile] = useState<File | null>(null)
   const [expandedSemester, setExpandedSemester] = useState<number | null>(null)
   const [semesterDetails, setSemesterDetails] = useState<Record<number, SemesterDetailState>>({})
+  const [suggestionCategory, setSuggestionCategory] = useState('')
+  const [suggestionTitle, setSuggestionTitle] = useState('')
+  const [suggestionMessage, setSuggestionMessage] = useState('')
+  const [suggestionSubmitting, setSuggestionSubmitting] = useState(false)
+  const [suggestionFeedback, setSuggestionFeedback] = useState('')
 
   const {
     profil,
@@ -87,6 +93,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
     dsptDiskon,
     dsptSisa,
     paymentSubmissions,
+    parentSuggestions,
     komitePaymentSettings,
     sppNominal,
     sppBayar,
@@ -141,6 +148,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const needsDisciplineAttention = Boolean(disciplineSummary?.needsFollowUp)
   const disciplineLevelLabel = disciplineSummary?.levelLabel || 'Baik'
   const recentAttendanceRows = absensiTerbaru.results || []
+  const suggestionRows = parentSuggestions?.results || []
 
   const startSubmission = async () => {
     if (!isPaymentAmountValid || paymentSubmitting) return
@@ -243,6 +251,27 @@ export function PortalOrtuClient({ data }: { data: any }) {
         [semesterNumber]: { loading: false, error: 'Gagal memuat nilai semester.' },
       }))
     }
+  }
+
+  const submitSuggestion = async () => {
+    if (suggestionSubmitting) return
+    setSuggestionFeedback('')
+    setSuggestionSubmitting(true)
+    const res = await createParentSuggestion({
+      category: suggestionCategory,
+      title: suggestionTitle,
+      message: suggestionMessage,
+    })
+    setSuggestionSubmitting(false)
+    if (res.error) {
+      setSuggestionFeedback(res.error)
+      return
+    }
+    setSuggestionCategory('')
+    setSuggestionTitle('')
+    setSuggestionMessage('')
+    setSuggestionFeedback(res.success || 'Terima kasih, saran Bapak/Ibu sudah kami terima.')
+    router.refresh()
   }
 
   const StandardCard = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
@@ -1207,6 +1236,126 @@ export function PortalOrtuClient({ data }: { data: any }) {
     </motion.div>
   )
 
+  const renderSaran = () => {
+    const statusMeta: Record<string, { label: string; className: string }> = {
+      baru: { label: 'Baru', className: 'bg-rose-50 text-rose-700 border-rose-100' },
+      dibaca: { label: 'Dibaca', className: 'bg-sky-50 text-sky-700 border-sky-100' },
+      diproses: { label: 'Diproses', className: 'bg-amber-50 text-amber-700 border-amber-100' },
+      selesai: { label: 'Selesai', className: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+    }
+
+    return (
+      <motion.div
+        key="saran"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.3 }}
+        className="space-y-5 pb-24 sm:pb-8"
+      >
+        <div className="rounded-[28px] bg-slate-900 p-6 text-white shadow-md">
+          <div className="flex items-start gap-4">
+            <div className="rounded-2xl bg-white/10 p-3 text-white">
+              <MessageSquareText className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Kotak Saran</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight">Sampaikan masukan untuk sekolah</h1>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                Saran Bapak/Ibu akan diterima oleh pimpinan madrasah dan Tata Usaha untuk ditindaklanjuti.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <StandardCard className="space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-800">Form Saran</h2>
+            <p className="mt-1 text-xs text-slate-500">Isi kategori, judul, dan saran secara singkat namun jelas.</p>
+          </div>
+          <div className="grid gap-3">
+            <label className="grid gap-1.5">
+              <span className="text-xs font-semibold text-slate-600">Kategori</span>
+              <select
+                value={suggestionCategory}
+                onChange={(event) => setSuggestionCategory(event.target.value)}
+                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-slate-400"
+              >
+                <option value="">Pilih kategori</option>
+                {PARENT_SUGGESTION_CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-semibold text-slate-600">Judul</span>
+              <input
+                value={suggestionTitle}
+                onChange={(event) => setSuggestionTitle(event.target.value)}
+                maxLength={120}
+                placeholder="Contoh: Perbaikan fasilitas parkir"
+                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-slate-400"
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-semibold text-slate-600">Isi saran</span>
+              <textarea
+                value={suggestionMessage}
+                onChange={(event) => setSuggestionMessage(event.target.value)}
+                maxLength={2000}
+                rows={6}
+                placeholder="Tuliskan saran Bapak/Ibu..."
+                className="resize-none rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-slate-400"
+              />
+              <span className="text-right text-[11px] text-slate-400">{suggestionMessage.length}/2000</span>
+            </label>
+          </div>
+          {suggestionFeedback && (
+            <p className={`rounded-xl px-3 py-2 text-xs font-semibold ${suggestionFeedback.startsWith('Terima kasih') ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+              {suggestionFeedback}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={submitSuggestion}
+            disabled={suggestionSubmitting}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          >
+            {suggestionSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            Kirim Saran
+          </button>
+        </StandardCard>
+
+        <div className="space-y-3">
+          <div className="ml-1">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-800">Saran Saya</h2>
+            <p className="mt-1 text-xs text-slate-500">Riwayat saran dan status tindak lanjut dari sekolah.</p>
+          </div>
+          {suggestionRows.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-8 text-center">
+              <p className="text-sm text-slate-500">Belum ada saran yang dikirim.</p>
+            </div>
+          ) : suggestionRows.map((item: any) => {
+            const meta = statusMeta[item.status] || statusMeta.baru
+            return (
+              <StandardCard key={item.id} className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">{item.category}</span>
+                    <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${meta.className}`}>{meta.label}</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400">{String(item.created_at || '').slice(0, 16)}</span>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">{item.title}</h3>
+                  <p className="mt-1 whitespace-pre-line text-sm leading-6 text-slate-600">{item.message}</p>
+                </div>
+              </StandardCard>
+            )
+          })}
+        </div>
+      </motion.div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-slate-50/50 text-slate-900 [font-family:'Plus_Jakarta_Sans',ui-sans-serif,system-ui]">
       <style dangerouslySetInnerHTML={{__html: `
@@ -1230,6 +1379,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             { id: 'kehadiran', label: 'Kehadiran', Icon: BookOpenCheck },
             { id: 'nilai', label: 'Akademik', Icon: GraduationCap },
             { id: 'keuangan', label: 'Keuangan', Icon: Wallet },
+            { id: 'saran', label: 'Kotak Saran', Icon: MessageSquareText },
           ].map(({ id, label, Icon }) => {
             const isActive = activeTab === id
             return (
@@ -1290,6 +1440,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             {activeTab === 'kehadiran' && renderKehadiran()}
             {activeTab === 'nilai' && renderNilai()}
             {activeTab === 'keuangan' && renderKeuangan()}
+            {activeTab === 'saran' && renderSaran()}
           </AnimatePresence>
         </div>
       </main>

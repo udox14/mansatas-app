@@ -4,6 +4,7 @@ import { getDB } from '@/utils/db'
 import { PortalOrtuClient } from './components/portal-ortu-client'
 import { findSlotException, getKalenderDateStatus, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
 import { getSystemSetting } from '@/lib/system-settings'
+import { ensureParentSuggestionTable } from '@/lib/parent-suggestions'
 
 export const dynamic = 'force-dynamic'
 
@@ -201,6 +202,7 @@ export default async function PortalOrtuPage() {
   const db = await getDB()
   await ensureParentCommunicationTables(db)
   await ensurePaymentSubmissionTable(db)
+  await ensureParentSuggestionTable(db)
   await seedParentCommunication(db, siswaId)
 
   const profil = await db.prepare(`
@@ -250,6 +252,7 @@ export default async function PortalOrtuPage() {
     sppSummary,
     transaksiTerbaru,
     paymentSubmissions,
+    parentSuggestions,
     waliKelasRow,
     notifications,
     summons,
@@ -352,6 +355,13 @@ export default async function PortalOrtuPage() {
              bukti_url, bukti_uploaded_at, reject_reason, transaksi_id, created_at, updated_at
       FROM fin_payment_submissions
       WHERE siswa_id = ? AND kategori = 'dspt'
+      ORDER BY datetime(created_at) DESC
+      LIMIT 20
+    `).bind(siswaId).all<any>(),
+    db.prepare(`
+      SELECT id, category, title, message, is_anonymous, status, read_at, handled_at, created_at, updated_at
+      FROM parent_suggestions
+      WHERE siswa_id = ?
       ORDER BY datetime(created_at) DESC
       LIMIT 20
     `).bind(siswaId).all<any>(),
@@ -564,6 +574,7 @@ export default async function PortalOrtuPage() {
     dsptDiskon,
     dsptSisa,
     paymentSubmissions,
+    parentSuggestions,
     komitePaymentSettings: {
       bankLabel: komiteBankLabel,
       rekening: komiteRekening,

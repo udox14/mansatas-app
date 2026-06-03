@@ -23,6 +23,7 @@ import {
   Eye,
   Calendar,
   Megaphone,
+  MessageSquarePlus,
   Radio,
   AlarmClock,
   ClipboardEdit,
@@ -409,6 +410,13 @@ export const MENU_ITEMS: MenuItem[] = [
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas']
   },
   {
+    id: 'kotak-saran-ortu',
+    title: 'Kotak Saran Ortu',
+    href: '/dashboard/kotak-saran-ortu',
+    icon: MessageSquarePlus,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad']
+  },
+  {
     id: 'portal-ortu',
     title: 'Portal Orang Tua',
     href: '/portal-ortu',
@@ -427,7 +435,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
   { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
-  { id: 'sistem', label: 'Sistem', items: ['settings', 'settings-notifications', 'settings-jadwal-notif', 'settings-fitur', 'pengumuman-ortu'] },
+  { id: 'sistem', label: 'Sistem', items: ['settings', 'settings-notifications', 'settings-jadwal-notif', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
 ]
 
 // Registry semua role yang tersedia di sistem

@@ -82,6 +82,13 @@ export function Sidebar({
     (item.id === 'keuangan-transaksi' && allowedSet.has('keuangan-laporan')) ||
     (item.id === 'keuangan-export' && (allowedSet.has('keuangan-dspt') || allowedSet.has('keuangan-spp')))
   )
+  const configuredMenuIds = new Set(sidebarGroups.flatMap(group => group.items))
+  const unconfiguredAllowedIds = allowedMenus
+    .map(item => item.id)
+    .filter(id => !configuredMenuIds.has(id))
+  const effectiveSidebarGroups = unconfiguredAllowedIds.length > 0
+    ? [...sidebarGroups, { id: 'lainnya', label: 'Lainnya', items: unconfiguredAllowedIds }]
+    : sidebarGroups
 
   const changeTheme = (id: ThemeKey) => { setThemeId(id); localStorage.setItem('mansatas_sidebar_theme', id) }
 
@@ -159,7 +166,7 @@ export function Sidebar({
             .sidebar-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); border-radius: 10px; }
             .sidebar-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.25); }
           `}</style>
-          {sidebarGroups.map((group, gi) => {
+          {effectiveSidebarGroups.map((group, gi) => {
             const groupItems = group.items
               .map(id => allowedMenus.find(m => m.id === id))
               .filter(Boolean) as typeof MENU_ITEMS
