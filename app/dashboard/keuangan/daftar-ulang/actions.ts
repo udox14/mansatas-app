@@ -33,6 +33,31 @@ async function recalcItem(db: D1Database, refId: string) {
   await db.prepare("UPDATE fin_dspt SET status = ?, updated_at = datetime('now') WHERE id = ?").bind(status, refId).run()
 }
 
+async function logDsptNominalAudit(db: D1Database, payload: {
+  dsptId: string
+  siswaId: string
+  oldValue: number | null
+  newValue: number
+  action: 'create' | 'update'
+  userId: string
+}) {
+  if (payload.action === 'update' && payload.oldValue === payload.newValue) return
+  await db.prepare(`
+    INSERT INTO fin_dspt_audit_log (
+      id, dspt_id, siswa_id, field_name, old_value, new_value, action, source, dibuat_oleh
+    )
+    VALUES (?, ?, ?, 'nominal_target', ?, ?, ?, 'kasir_daftar_ulang', ?)
+  `).bind(
+    generateId(),
+    payload.dsptId,
+    payload.siswaId,
+    payload.oldValue,
+    payload.newValue,
+    payload.action,
+    payload.userId,
+  ).run()
+}
+
 export interface DaftarUlangParams {
   siswaId: string
   tahunAjaranId: string
@@ -142,7 +167,7 @@ export async function getSiswaBaruDsptPage(params: SiswaBaruDsptPageParams = {})
 }
 
 export async function upsertSiswaBaruDsptTarget(siswaId: string, nominalTarget: number) {
-  const { db } = await requireAuth()
+  const { db, userId } = await requireAuth()
   const siswa = await db.prepare(`
     SELECT id
     FROM siswa
@@ -152,12 +177,13 @@ export async function upsertSiswaBaruDsptTarget(siswaId: string, nominalTarget: 
 
   const nominal = Math.max(0, nominalTarget || 0)
   const existing = await db.prepare(`
-    SELECT id, total_dibayar, total_diskon
+    SELECT id, nominal_target, total_dibayar, total_diskon
     FROM fin_dspt
     WHERE siswa_id = ?
   `).bind(siswaId).first<any>()
 
   let dsptId = existing?.id as string | undefined
+  const oldNominal = existing ? Number(existing.nominal_target ?? 0) : null
   const status = recalcStatusVal(existing?.total_dibayar ?? 0, existing?.total_diskon ?? 0, nominal)
   if (dsptId) {
     await db.prepare(`
@@ -172,6 +198,15 @@ export async function upsertSiswaBaruDsptTarget(siswaId: string, nominalTarget: 
       VALUES (?, ?, ?, 0, 0, ?)
     `).bind(dsptId, siswaId, nominal, status).run()
   }
+
+  await logDsptNominalAudit(db, {
+    dsptId,
+    siswaId,
+    oldValue: oldNominal,
+    newValue: nominal,
+    action: oldNominal === null ? 'create' : 'update',
+    userId,
+  })
 
   const row = await db.prepare(`
     SELECT
@@ -343,12 +378,15 @@ export async function processDaftarUlang(
     const stmts: D1PreparedStatement[] = []
 
     let dsptId = params.dspt.existingDsptId
+    let oldNominal: number | null = null
     if (!dsptId) {
       dsptId = generateId()
       stmts.push(db.prepare(
         'INSERT INTO fin_dspt (id, siswa_id, nominal_target) VALUES (?, ?, ?)'
       ).bind(dsptId, params.siswaId, params.dspt.nominalTarget))
     } else {
+      const existingDspt = await db.prepare('SELECT nominal_target FROM fin_dspt WHERE id = ?').bind(dsptId).first<any>()
+      oldNominal = existingDspt ? Number(existingDspt.nominal_target ?? 0) : null
       stmts.push(db.prepare(
         "UPDATE fin_dspt SET nominal_target = ?, updated_at = datetime('now') WHERE id = ?"
       ).bind(params.dspt.nominalTarget, dsptId))
@@ -392,6 +430,14 @@ export async function processDaftarUlang(
     }
 
     if (stmts.length > 0) await db.batch(stmts)
+    await logDsptNominalAudit(db, {
+      dsptId,
+      siswaId: params.siswaId,
+      oldValue: oldNominal,
+      newValue: params.dspt.nominalTarget,
+      action: oldNominal === null ? 'create' : 'update',
+      userId,
+    })
     if (dsptId) await recalcItem(db, dsptId)
 
     if (!params.dspt.existingDsptId && params.dspt.bayarSekarang === 0 && dsptId) {
