@@ -14,15 +14,17 @@ import {
 import { DataPagination } from '@/components/ui/data-pagination'
 import {
   Search, X, CheckCircle2, AlertCircle, ChevronRight, Printer,
-  User, Banknote, Info, RotateCcw, Clock, XCircle, Minus,
+  User, Banknote, Info, RotateCcw, Clock, XCircle, Minus, Ban, ReceiptText,
 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
 import {
+  getDaftarUlangTransaksiPage,
   getDaftarUlangSiswaData,
   getSiswaBaruDsptPage,
   processDaftarUlang,
   searchSiswaBaruDaftarUlang,
   upsertSiswaBaruDsptTarget,
+  voidDaftarUlangTransaksi,
 } from './actions'
 import { KuitansiModal, useNamaPerugas } from '../components/kuitansi-print'
 import type { KuitansiData } from '../components/kuitansi-print'
@@ -59,6 +61,23 @@ interface SiswaBaruDsptRow {
   status: 'belum_bayar' | 'nyicil' | 'lunas' | 'tidak_ada' | string
 }
 
+interface DaftarUlangTransaksiRow {
+  id: string
+  nomor_kuitansi: string
+  siswa_id: string
+  kategori: string
+  metode_bayar: string
+  jumlah_total: number
+  is_void: number
+  void_at: string | null
+  void_alasan: string | null
+  created_at: string
+  nama_lengkap: string
+  nisn: string | null
+  nama_input: string | null
+  nama_void: string | null
+}
+
 function parseNum(s: string) { return parseInt(s.replace(/\D/g, ''), 10) || 0 }
 
 function fmtKelas(s: SiswaResult) {
@@ -89,6 +108,17 @@ function normalizeDsptRow(row: SiswaBaruDsptRow): SiswaBaruDsptRow {
     status = sisa <= 0 ? 'lunas' : dibayar > 0 ? 'nyicil' : 'belum_bayar'
   }
   return { ...row, status }
+}
+
+function formatTanggal(dateString: string | null) {
+  if (!dateString) return '-'
+  return new Date(dateString).toLocaleString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 function NumInput({
@@ -350,6 +380,203 @@ function SiswaBaruDsptTab() {
   )
 }
 
+function RiwayatKasirTab() {
+  const [rows, setRows] = useState<DaftarUlangTransaksiRow[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number | 'semua'>(25)
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState<'aktif' | 'void' | 'semua'>('aktif')
+  const [loading, setLoading] = useState(true)
+  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const loadRows = useCallback(async (nextPage = page, nextPageSize = pageSize, q = search, nextStatus = status) => {
+    setLoading(true)
+    const res = await getDaftarUlangTransaksiPage({
+      page: nextPage,
+      pageSize: nextPageSize,
+      q,
+      status: nextStatus,
+    })
+    if (res.error) {
+      setMsg({ type: 'error', text: res.error })
+      setLoading(false)
+      return
+    }
+    setRows(res.data as DaftarUlangTransaksiRow[])
+    setTotal(res.total)
+    setLoading(false)
+  }, [page, pageSize, search, status])
+
+  useEffect(() => {
+    loadRows(1, pageSize, search, status)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function handleSearch(val: string) {
+    setSearch(val)
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      setPage(1)
+      loadRows(1, pageSize, val, status)
+    }, 350)
+  }
+
+  function handleStatus(nextStatus: 'aktif' | 'void' | 'semua') {
+    setStatus(nextStatus)
+    setPage(1)
+    loadRows(1, pageSize, search, nextStatus)
+  }
+
+  function handlePageChange(nextPage: number) {
+    setPage(nextPage)
+    loadRows(nextPage, pageSize, search, status)
+  }
+
+  function handlePageSizeChange(nextSize: number | 'semua') {
+    setPageSize(nextSize)
+    setPage(1)
+    loadRows(1, nextSize, search, status)
+  }
+
+  async function handleVoid(row: DaftarUlangTransaksiRow) {
+    const alasan = window.prompt(`Alasan VOID untuk kuitansi ${row.nomor_kuitansi}`)
+    if (alasan === null) return
+    setMsg(null)
+    const res = await voidDaftarUlangTransaksi(row.id, alasan)
+    if (res.error) {
+      setMsg({ type: 'error', text: res.error })
+      return
+    }
+    setMsg({ type: 'success', text: res.success ?? 'Transaksi berhasil di-void' })
+    await loadRows(page, pageSize, search, status)
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={search}
+            onChange={e => handleSearch(e.target.value)}
+            placeholder="Cari siswa, NISN, atau nomor kuitansi..."
+            className="h-8 pl-8 text-sm"
+          />
+        </div>
+        <Select value={status} onValueChange={v => handleStatus(v as 'aktif' | 'void' | 'semua')}>
+          <SelectTrigger className="h-8 w-32 rounded-md text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="aktif">Aktif</SelectItem>
+            <SelectItem value="semua">Semua</SelectItem>
+            <SelectItem value="void">Void</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {msg && (
+        <div className={`rounded-lg border px-3 py-2 text-sm ${
+          msg.type === 'success'
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
+            : 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400'
+        }`}>
+          {msg.text}
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <Table>
+          <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
+            <TableRow>
+              <TableHead className="min-w-[140px]">Waktu</TableHead>
+              <TableHead className="min-w-[220px]">Siswa</TableHead>
+              <TableHead className="min-w-[160px]">No. Kuitansi</TableHead>
+              <TableHead className="min-w-[120px] text-right">Jumlah</TableHead>
+              <TableHead className="min-w-[140px]">Petugas</TableHead>
+              <TableHead className="min-w-[180px]">Status</TableHead>
+              <TableHead className="w-24">Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading && (
+              <TableRow>
+                <TableCell colSpan={7} className="h-24 text-center text-sm text-slate-400">
+                  Memuat riwayat kasir...
+                </TableCell>
+              </TableRow>
+            )}
+            {!loading && rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={7} className="h-24 text-center text-sm text-slate-400">
+                  Tidak ada transaksi daftar ulang.
+                </TableCell>
+              </TableRow>
+            )}
+            {!loading && rows.map(row => (
+              <TableRow key={row.id} className={row.is_void ? 'opacity-70' : ''}>
+                <TableCell className="text-xs text-slate-500 dark:text-slate-400">
+                  {formatTanggal(row.created_at)}
+                </TableCell>
+                <TableCell>
+                  <p className="font-semibold text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
+                  <p className="text-[11px] text-slate-400">NISN: {row.nisn ?? '-'}</p>
+                </TableCell>
+                <TableCell className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                  {row.nomor_kuitansi}
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm font-semibold text-emerald-600">
+                  {formatRupiah(row.jumlah_total)}
+                </TableCell>
+                <TableCell className="text-xs text-slate-500 dark:text-slate-400">
+                  {row.nama_input ?? '-'}
+                </TableCell>
+                <TableCell>
+                  {row.is_void ? (
+                    <div className="space-y-1">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-100 px-2 py-1 text-[11px] font-semibold text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">
+                        <Ban className="h-3 w-3" /> VOID
+                      </span>
+                      <p className="text-[10px] text-rose-500">{row.void_alasan}</p>
+                      <p className="text-[10px] text-slate-400">
+                        {row.nama_void ?? '-'} · {formatTanggal(row.void_at)}
+                      </p>
+                    </div>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3 w-3" /> Aktif
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!!row.is_void}
+                    className="h-7 gap-1 px-2 text-[11px] text-rose-600 hover:text-rose-700"
+                    onClick={() => handleVoid(row)}
+                  >
+                    <Ban className="h-3 w-3" /> Void
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <DataPagination
+          total={total}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          entityLabel="transaksi"
+        />
+      </div>
+    </div>
+  )
+}
+
 export function DaftarUlangClient({
   tahunAjaranId,
   tahunAjaranNama,
@@ -501,6 +728,9 @@ export function DaftarUlangClient({
             </TabsTrigger>
             <TabsTrigger value="siswa-baru" className="gap-1.5">
               <User className="h-3.5 w-3.5" /> Siswa Baru
+            </TabsTrigger>
+            <TabsTrigger value="riwayat" className="gap-1.5">
+              <ReceiptText className="h-3.5 w-3.5" /> Riwayat
             </TabsTrigger>
           </TabsList>
 
@@ -726,6 +956,10 @@ export function DaftarUlangClient({
 
           <TabsContent value="siswa-baru" className="space-y-4">
             <SiswaBaruDsptTab />
+          </TabsContent>
+
+          <TabsContent value="riwayat" className="space-y-4">
+            <RiwayatKasirTab />
           </TabsContent>
         </Tabs>
       </div>

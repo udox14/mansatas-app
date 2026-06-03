@@ -57,6 +57,13 @@ export interface SiswaBaruDsptPageParams {
   q?: string
 }
 
+export interface DaftarUlangTransaksiPageParams {
+  page?: number
+  pageSize?: number | 'semua'
+  q?: string
+  status?: 'aktif' | 'void' | 'semua'
+}
+
 function siswaBaruWhere(q?: string) {
   const params: any[] = []
   let where = "WHERE s.kelas_id IS NULL AND s.status = 'aktif'"
@@ -179,6 +186,105 @@ export async function upsertSiswaBaruDsptTarget(siswaId: string, nominalTarget: 
 
   revalidateDsptViews(siswaId)
   return { error: null, data: row }
+}
+
+export async function getDaftarUlangTransaksiPage(params: DaftarUlangTransaksiPageParams = {}) {
+  const { db } = await requireAuth()
+  const page = Math.max(1, params.page ?? 1)
+  const pageSize = params.pageSize ?? 25
+  const status = params.status ?? 'aktif'
+  const whereParts = ["t.kategori = 'dspt'"]
+  const bindParams: any[] = []
+
+  if (status === 'aktif') whereParts.push('t.is_void = 0')
+  if (status === 'void') whereParts.push('t.is_void = 1')
+  if (params.q?.trim()) {
+    whereParts.push('(s.nama_lengkap LIKE ? OR s.nisn LIKE ? OR t.nomor_kuitansi LIKE ?)')
+    const term = `%${params.q.trim()}%`
+    bindParams.push(term, term, term)
+  }
+  const where = `WHERE ${whereParts.join(' AND ')}`
+
+  const totalRow = await db.prepare(`
+    SELECT COUNT(*) AS total
+    FROM fin_transaksi t
+    JOIN siswa s ON s.id = t.siswa_id
+    ${where}
+  `).bind(...bindParams).first<{ total: number }>()
+
+  let query = `
+    SELECT
+      t.id, t.nomor_kuitansi, t.siswa_id, t.kategori, t.metode_bayar,
+      t.jumlah_total, t.is_void, t.void_at, t.void_alasan, t.created_at,
+      s.nama_lengkap, s.nisn,
+      input_user.nama_lengkap AS nama_input,
+      void_user.nama_lengkap AS nama_void
+    FROM fin_transaksi t
+    JOIN siswa s ON s.id = t.siswa_id
+    LEFT JOIN "user" input_user ON input_user.id = t.input_oleh
+    LEFT JOIN "user" void_user ON void_user.id = t.void_oleh
+    ${where}
+    ORDER BY t.created_at DESC
+  `
+  const queryParams = [...bindParams]
+  if (pageSize !== 'semua') {
+    const size = Math.max(1, pageSize)
+    query += ' LIMIT ? OFFSET ?'
+    queryParams.push(size, (page - 1) * size)
+  }
+
+  const result = await db.prepare(query).bind(...queryParams).all<any>()
+  return {
+    data: result.results ?? [],
+    total: totalRow?.total ?? 0,
+    page,
+    pageSize,
+    error: null,
+  }
+}
+
+export async function voidDaftarUlangTransaksi(transaksiId: string, alasan: string) {
+  const { db, userId } = await requireAuth()
+  const cleanAlasan = alasan.trim()
+  if (cleanAlasan.length < 5) return { error: 'Alasan void wajib diisi minimal 5 karakter', success: null }
+
+  const trx = await db.prepare(`
+    SELECT *
+    FROM fin_transaksi
+    WHERE id = ? AND kategori = 'dspt'
+  `).bind(transaksiId).first<any>()
+  if (!trx) return { error: 'Transaksi daftar ulang tidak ditemukan', success: null }
+  if (trx.is_void) return { error: 'Transaksi sudah di-void sebelumnya', success: null }
+
+  const details = await db.prepare(`
+    SELECT *
+    FROM fin_transaksi_detail
+    WHERE transaksi_id = ? AND ref_type = 'dspt'
+  `).bind(transaksiId).all<any>()
+  const detailRows = details.results ?? []
+  if (!detailRows.length) return { error: 'Detail transaksi DSPT tidak ditemukan', success: null }
+
+  const stmts: D1PreparedStatement[] = [
+    db.prepare(`
+      UPDATE fin_transaksi
+      SET is_void = 1, void_at = datetime('now'), void_oleh = ?, void_alasan = ?
+      WHERE id = ?
+    `).bind(userId, cleanAlasan, transaksiId),
+  ]
+
+  for (const detail of detailRows) {
+    stmts.push(db.prepare(`
+      UPDATE fin_dspt
+      SET total_dibayar = MAX(0, COALESCE(total_dibayar, 0) - ?), updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(detail.jumlah, detail.ref_id))
+  }
+
+  await db.batch(stmts)
+  for (const detail of detailRows) await recalcItem(db, detail.ref_id)
+
+  revalidateDsptViews(trx.siswa_id)
+  return { error: null, success: 'Transaksi berhasil di-void' }
 }
 
 export async function getDaftarUlangSiswaData(siswaId: string, tahunAjaranId: string) {
