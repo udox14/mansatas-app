@@ -165,9 +165,9 @@ function ModeSwitch({ mode, setMode }: { mode: Mode; setMode: (mode: Mode) => vo
 function AngkatanSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: number[] }) {
   return (
     <div>
-      <Label className="text-xs text-slate-500">Angkatan</Label>
+      <Label className="text-xs text-slate-500">Tingkat</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="mt-1 h-9 w-[150px] text-sm"><SelectValue placeholder="Pilih angkatan" /></SelectTrigger>
+        <SelectTrigger className="mt-1 h-9 w-[150px] text-sm"><SelectValue placeholder="Pilih tingkat" /></SelectTrigger>
         <SelectContent>
           {options.map(tingkat => <SelectItem key={tingkat} value={String(tingkat)}>Kelas {tingkat}</SelectItem>)}
         </SelectContent>
@@ -743,49 +743,53 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
     }
   }
 
-  const load = async () => {
+  const load = async (printAfterLoad = false) => {
     setLoading(true)
     setPrintData(null)
     try {
+      let nextPrintData: any = null
       if (printKind === 'monitoring') {
-        if (kelasId === 'all') {
-          setPrintData({ error: 'Pilih satu kelas untuk cetak Monitoring Siswa.', sections: [] })
-          return
-        }
         if (monitoringMode === 'bulanan') {
           const yearNum = Number(tahun)
           const monthNum = Number(bulan)
           const range = monthRange(yearNum, monthNum)
-          setPrintData(await getCetakMonitoringSiswa({
-            kelasId,
+          nextPrintData = await getCetakMonitoringSiswa({
+            kelasId: kelasId !== 'all' ? kelasId : undefined,
+            tingkat: kelasId === 'all' ? Number(tingkat) : undefined,
             mode: 'bulanan',
             tglMulai: range.start,
             tglSelesai: range.end,
             months: [monthNum],
             labelPeriode: `${MONTH_OPTIONS[monthNum - 1]} ${yearNum}`,
-          }))
+          })
         } else {
           const range = semesterRange(Number(tahunAjaranStart), semester)
-          setPrintData(await getCetakMonitoringSiswa({
-            kelasId,
+          nextPrintData = await getCetakMonitoringSiswa({
+            kelasId: kelasId !== 'all' ? kelasId : undefined,
+            tingkat: kelasId === 'all' ? Number(tingkat) : undefined,
             mode: 'semester',
             tglMulai: range.start,
             tglSelesai: range.end,
             months: range.months,
             labelPeriode: range.label,
-          }))
+          })
         }
       } else if (printKind === 'kelas') {
-        setPrintData(await getCetakRekapKelas({
+        nextPrintData = await getCetakRekapKelas({
           mode,
           tanggal,
           tglMulai,
           tglSelesai,
           tingkat: Number(tingkat),
           kelasId: kelasId !== 'all' ? kelasId : undefined,
-        }))
+        })
       } else if (siswaId) {
-        setPrintData(await getCetakRekapSiswa(siswaId, tglMulai, tglSelesai))
+        nextPrintData = await getCetakRekapSiswa(siswaId, tglMulai, tglSelesai)
+      }
+
+      setPrintData(nextPrintData)
+      if (printAfterLoad && nextPrintData && !nextPrintData.error) {
+        setTimeout(() => handlePrint(), 250)
       }
     } catch (error) {
       console.error('Gagal memuat data cetak rekap absensi:', error)
@@ -804,7 +808,7 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
       return
     }
     const title = printKind === 'monitoring'
-      ? `Monitoring Siswa ${monitoringMode}`
+      ? `Rekap Absensi ${monitoringMode}`
       : `Rekap Absensi ${printKind}`
     w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
 <style>
@@ -849,8 +853,7 @@ html, body { margin: 0; padding: 0; background: #fff; }
                 <Select value={kelasId} onValueChange={(v) => { setKelasId(v); setPrintData(null) }}>
                   <SelectTrigger className="mt-1 h-9 w-[170px] text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {printKind === 'kelas' && <SelectItem value="all">Semua Kelas</SelectItem>}
-                    {printKind === 'monitoring' && <SelectItem value="all">Pilih Kelas</SelectItem>}
+                    <SelectItem value="all">Semua Kelas</SelectItem>
                     {kelasByTingkat.map(k => <SelectItem key={k.id} value={k.id}>{k.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -929,10 +932,10 @@ html, body { margin: 0; padding: 0; background: #fff; }
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={load} disabled={loading || (printKind === 'siswa' && !siswaId) || (printKind === 'monitoring' && kelasId === 'all')} size="sm" className="bg-indigo-600 text-white hover:bg-indigo-700">
+          <Button onClick={() => load(false)} disabled={loading || (printKind === 'siswa' && !siswaId)} size="sm" className="bg-indigo-600 text-white hover:bg-indigo-700">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Search className="mr-1 h-4 w-4" />Muat Data</>}
           </Button>
-          <Button onClick={() => handlePrint()} disabled={!printData || loading} size="sm" variant="outline">
+          <Button onClick={() => printData ? handlePrint() : load(true)} disabled={loading || (printKind === 'siswa' && !siswaId)} size="sm" variant="outline">
             <Printer className="mr-1 h-4 w-4" />{isMobile ? 'Simpan PDF' : 'Cetak'}
           </Button>
         </div>
@@ -984,9 +987,7 @@ function MonitoringPrintPage({ section, pageBreak }: { section: any; pageBreak: 
   const dates = section.dates || []
   const months = section.months || []
   const namaKelas = section.kelas?.label || '-'
-  const title = mode === 'bulanan'
-    ? `MONITORING ABSENSI SISWA KELAS ${namaKelas}`
-    : `REKAP MONITORING ABSENSI SISWA KELAS ${namaKelas}`
+  const title = `REKAP ABSENSI KELAS ${namaKelas}`
   const subtitle = mode === 'bulanan'
     ? `BULAN ${String(section.labelPeriode || '').toUpperCase()}`
     : String(section.labelPeriode || '').toUpperCase()
@@ -1048,16 +1049,16 @@ function MonitoringPrintPage({ section, pageBreak }: { section: any; pageBreak: 
           </thead>
           <tbody>
             {rows.map((row: any) => (
-              <tr key={row.siswa_id} style={{ height: '13pt' }}>
+              <tr key={row.siswa_id} style={{ height: '16pt' }}>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.urut}</td>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.nis}</td>
                 <td style={{ ...printTd, fontSize: '8.5pt', paddingLeft: '4pt' }}>{row.nama_lengkap}</td>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.jenis_kelamin}</td>
-                {(row.cells || []).map((cell: any) => <td key={cell.tanggal} style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{cell.mark}</td>)}
+                {(row.cells || []).map((cell: any) => <td key={cell.tanggal} style={{ ...printTd, textAlign: 'center' }}>{cell.mark}</td>)}
                 {dates.length === 0 && <td style={printTd} />}
-                <td style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{row.totals?.S || 0}</td>
-                <td style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{row.totals?.I || 0}</td>
-                <td style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{row.totals?.A || 0}</td>
+                <td style={{ ...printTd, textAlign: 'center' }}>{row.totals?.S || 0}</td>
+                <td style={{ ...printTd, textAlign: 'center' }}>{row.totals?.I || 0}</td>
+                <td style={{ ...printTd, textAlign: 'center' }}>{row.totals?.A || 0}</td>
               </tr>
             ))}
           </tbody>
@@ -1080,7 +1081,7 @@ function MonitoringPrintPage({ section, pageBreak }: { section: any; pageBreak: 
               <th rowSpan={2} style={printTh}>NIS</th>
               <th rowSpan={2} style={{ ...printTh, letterSpacing: '2pt' }}>Nama</th>
               <th rowSpan={2} style={printTh}>JK</th>
-              {months.map((month: any) => <th key={month.month} colSpan={3} style={printTh}>{month.label}</th>)}
+              {months.map((month: any) => <th key={month.month} colSpan={3} style={{ ...printTh, fontSize: '7pt', fontWeight: 400 }}>{month.label}</th>)}
               <th colSpan={3} style={printTh}>Jumlah</th>
             </tr>
             <tr>
@@ -1092,19 +1093,19 @@ function MonitoringPrintPage({ section, pageBreak }: { section: any; pageBreak: 
           </thead>
           <tbody>
             {rows.map((row: any) => (
-              <tr key={row.siswa_id} style={{ height: '13pt' }}>
+              <tr key={row.siswa_id} style={{ height: '16pt' }}>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.urut}</td>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.nis}</td>
                 <td style={{ ...printTd, fontSize: '8.5pt', paddingLeft: '4pt' }}>{row.nama_lengkap}</td>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.jenis_kelamin}</td>
                 {(row.monthTotals || []).flatMap((item: any) => [
-                  <td key={`${item.month}-S`} style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{item.S || 0}</td>,
-                  <td key={`${item.month}-I`} style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{item.I || 0}</td>,
-                  <td key={`${item.month}-A`} style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{item.A || 0}</td>,
+                  <td key={`${item.month}-S`} style={{ ...printTd, textAlign: 'center' }}>{item.S || 0}</td>,
+                  <td key={`${item.month}-I`} style={{ ...printTd, textAlign: 'center' }}>{item.I || 0}</td>,
+                  <td key={`${item.month}-A`} style={{ ...printTd, textAlign: 'center' }}>{item.A || 0}</td>,
                 ])}
-                <td style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{row.semesterTotal?.S || 0}</td>
-                <td style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{row.semesterTotal?.I || 0}</td>
-                <td style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{row.semesterTotal?.A || 0}</td>
+                <td style={{ ...printTd, textAlign: 'center' }}>{row.semesterTotal?.S || 0}</td>
+                <td style={{ ...printTd, textAlign: 'center' }}>{row.semesterTotal?.I || 0}</td>
+                <td style={{ ...printTd, textAlign: 'center' }}>{row.semesterTotal?.A || 0}</td>
               </tr>
             ))}
           </tbody>
@@ -1140,6 +1141,7 @@ const printTd = {
   lineHeight: 1.05,
   overflow: 'hidden',
   whiteSpace: 'nowrap' as const,
+  fontWeight: 400,
 }
 
 function PrintHeader({ title, subtitle }: { title: string; subtitle: string }) {
