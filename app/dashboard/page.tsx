@@ -88,6 +88,8 @@ export default async function DashboardPage() {
     sapaan,
     taAktif:   taAktif ?? null,
     isGuruPiket,
+    userRoles,
+    primaryRole: userRole,
   }
 
   switch (userRole) {
