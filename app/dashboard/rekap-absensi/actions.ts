@@ -683,18 +683,19 @@ function monitoringPrintMark(status: string | null | undefined): '' | 'S' | 'I' 
 }
 
 function monthLabel(month: number) {
-  return new Date(Date.UTC(2026, month - 1, 1)).toLocaleDateString('id-ID', { month: 'long' }).toUpperCase()
+  return ['JAN', 'FEB', 'MAR', 'APR', 'MEI', 'JUNI', 'JULI', 'AGT', 'SEP', 'OKT', 'NOV', 'DES'][month - 1] || ''
 }
 
 export async function getCetakMonitoringSiswa(params: {
-  kelasId: string
+  kelasId?: string
+  tingkat?: number
   mode: MonitoringPrintMode
   tglMulai: string
   tglSelesai: string
   months?: number[]
   labelPeriode?: string
 }) {
-  if (!params.kelasId) return { error: 'Kelas wajib dipilih.', sections: [] }
+  if (!params.kelasId && !params.tingkat) return { error: 'Kelas atau tingkat wajib dipilih.', sections: [] }
   if (!params.tglMulai || !params.tglSelesai || params.tglMulai > params.tglSelesai) {
     return { error: 'Rentang tanggal tidak valid.', sections: [] }
   }
@@ -704,62 +705,66 @@ export async function getCetakMonitoringSiswa(params: {
   if (!user) return { error: 'Unauthorized', sections: [] }
 
   const scope = await getRekapScope(db, user.id)
-  if (!(await canAccessClass(db, scope, params.kelasId))) {
-    return { error: 'Anda tidak punya akses ke kelas ini.', sections: [] }
+  const kelasList = params.kelasId
+    ? (await getClassRows(db, scope)).filter(kelas => kelas.id === params.kelasId)
+    : await getClassRows(db, scope, params.tingkat)
+
+  if (kelasList.length === 0) {
+    return { error: 'Tidak ada kelas yang bisa dicetak.', sections: [] }
   }
 
-  const classData = await getFinalAttendanceForClass(db, params.kelasId, params.tglMulai, params.tglSelesai)
-  if (!classData) return { error: 'Kelas tidak ditemukan.', sections: [] }
+  const sections: any[] = []
+  for (const kelas of kelasList) {
+    if (!(await canAccessClass(db, scope, kelas.id))) continue
+    const classData = await getFinalAttendanceForClass(db, kelas.id, params.tglMulai, params.tglSelesai)
+    if (!classData) continue
 
-  const dates = classData.dates
-  const months = params.months?.length
-    ? params.months.map(month => ({ month, label: monthLabel(month) }))
-    : Array.from(new Set(dates.map(tanggal => Number(tanggal.slice(5, 7)))))
-      .map(month => ({ month, label: monthLabel(month) }))
+    const dates = classData.dates
+    const months = params.months?.length
+      ? params.months.map(month => ({ month, label: monthLabel(month) }))
+      : Array.from(new Set(dates.map(tanggal => Number(tanggal.slice(5, 7)))))
+        .map(month => ({ month, label: monthLabel(month) }))
 
-  const rows = classData.siswa.map((siswa, idx) => {
-    const dayMap = new Map((classData.statusByStudent.get(siswa.id) || []).map(day => [day.tanggal, day]))
-    const totals = { S: 0, I: 0, A: 0 }
-    const cells = dates.map(tanggal => {
-      const mark = monitoringPrintMark(dayMap.get(tanggal)?.status_akhir)
-      if (mark) totals[mark] += 1
-      return { tanggal, mark }
-    })
-
-    const monthTotals = months.map(({ month, label }) => {
-      const total = { S: 0, I: 0, A: 0 }
-      for (const tanggal of dates) {
-        if (Number(tanggal.slice(5, 7)) !== month) continue
+    const rows = classData.siswa.map((siswa, idx) => {
+      const dayMap = new Map((classData.statusByStudent.get(siswa.id) || []).map(day => [day.tanggal, day]))
+      const totals = { S: 0, I: 0, A: 0 }
+      const cells = dates.map(tanggal => {
         const mark = monitoringPrintMark(dayMap.get(tanggal)?.status_akhir)
-        if (mark) total[mark] += 1
+        if (mark) totals[mark] += 1
+        return { tanggal, mark }
+      })
+
+      const monthTotals = months.map(({ month, label }) => {
+        const total = { S: 0, I: 0, A: 0 }
+        for (const tanggal of dates) {
+          if (Number(tanggal.slice(5, 7)) !== month) continue
+          const mark = monitoringPrintMark(dayMap.get(tanggal)?.status_akhir)
+          if (mark) total[mark] += 1
+        }
+        return { month, label, ...total }
+      })
+
+      const semesterTotal = monthTotals.reduce((acc, item) => {
+        acc.S += item.S
+        acc.I += item.I
+        acc.A += item.A
+        return acc
+      }, { S: 0, I: 0, A: 0 })
+
+      return {
+        siswa_id: siswa.id,
+        urut: idx + 1,
+        nis: siswa.nis_lokal || siswa.nisn || '-',
+        nama_lengkap: siswa.nama_lengkap,
+        jenis_kelamin: siswa.jenis_kelamin || '',
+        cells,
+        totals,
+        monthTotals,
+        semesterTotal,
       }
-      return { month, label, ...total }
     })
 
-    const semesterTotal = monthTotals.reduce((acc, item) => {
-      acc.S += item.S
-      acc.I += item.I
-      acc.A += item.A
-      return acc
-    }, { S: 0, I: 0, A: 0 })
-
-    return {
-      siswa_id: siswa.id,
-      urut: idx + 1,
-      nis: siswa.nis_lokal || siswa.nisn || '-',
-      nisn: siswa.nisn || '-',
-      nama_lengkap: siswa.nama_lengkap,
-      jenis_kelamin: siswa.jenis_kelamin || '',
-      cells,
-      totals,
-      monthTotals,
-      semesterTotal,
-    }
-  })
-
-  return {
-    error: null,
-    sections: [{
+    sections.push({
       mode: params.mode,
       kelas: classData.kelas,
       tglMulai: params.tglMulai,
@@ -768,7 +773,12 @@ export async function getCetakMonitoringSiswa(params: {
       dates,
       months,
       rows,
-    }],
+    })
+  }
+
+  return {
+    error: null,
+    sections,
   }
 }
 
