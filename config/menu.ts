@@ -365,6 +365,13 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: BarChart3,
     roles: ['super_admin', 'bendahara_komite'],
   },
+  {
+    id: 'keuangan-pengaturan',
+    title: 'Pengaturan Komite',
+    href: '/dashboard/keuangan/pengaturan',
+    icon: Settings,
+    roles: ['super_admin', 'bendahara_komite'],
+  },
   // ──────────────────────────────────────────────────────────────────
   {
     id: 'settings',
@@ -419,7 +426,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
-  { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan'] },
+  { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
   { id: 'sistem', label: 'Sistem', items: ['settings', 'settings-notifications', 'settings-jadwal-notif', 'settings-fitur', 'pengumuman-ortu'] },
 ]
 

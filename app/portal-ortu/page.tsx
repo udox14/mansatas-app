@@ -3,6 +3,7 @@ import { getAppSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { PortalOrtuClient } from './components/portal-ortu-client'
 import { findSlotException, getKalenderDateStatus, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
+import { getSystemSetting } from '@/lib/system-settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,6 +75,30 @@ async function ensureParentCommunicationTables(db: D1Database) {
       note_type TEXT NOT NULL DEFAULT 'tindak_lanjut',
       content TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `).run()
+}
+
+async function ensurePaymentSubmissionTable(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS fin_payment_submissions (
+      id TEXT PRIMARY KEY,
+      siswa_id TEXT NOT NULL REFERENCES siswa(id),
+      dspt_id TEXT NOT NULL REFERENCES fin_dspt(id),
+      kategori TEXT NOT NULL DEFAULT 'dspt' CHECK(kategori IN ('dspt')),
+      metode_bayar TEXT NOT NULL DEFAULT 'transfer' CHECK(metode_bayar IN ('transfer', 'qris')),
+      jumlah INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'belum_upload' CHECK(status IN ('belum_upload', 'menunggu_konfirmasi', 'terkonfirmasi', 'ditolak')),
+      bukti_url TEXT,
+      bukti_uploaded_at TEXT,
+      confirmed_by TEXT REFERENCES "user"(id),
+      confirmed_at TEXT,
+      rejected_by TEXT REFERENCES "user"(id),
+      rejected_at TEXT,
+      reject_reason TEXT,
+      transaksi_id TEXT REFERENCES fin_transaksi(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `).run()
 }
@@ -175,6 +200,7 @@ export default async function PortalOrtuPage() {
   const siswaId = session.user.siswa_id
   const db = await getDB()
   await ensureParentCommunicationTables(db)
+  await ensurePaymentSubmissionTable(db)
   await seedParentCommunication(db, siswaId)
 
   const profil = await db.prepare(`
@@ -223,11 +249,17 @@ export default async function PortalOrtuPage() {
     sppSaldoAwal,
     sppSummary,
     transaksiTerbaru,
+    paymentSubmissions,
     waliKelasRow,
     notifications,
     summons,
     notes,
     taAktif,
+    komiteBankLabel,
+    komiteRekening,
+    komiteAtasNama,
+    komiteWhatsapp,
+    komiteQrisUrl,
   ] = await Promise.all([
     db.prepare(`
       SELECT pa.id, pa.title, pa.body, pa.publish_at, u.nama_lengkap AS pengirim
@@ -316,6 +348,14 @@ export default async function PortalOrtuPage() {
       LIMIT 6
     `).bind(siswaId).all<any>(),
     db.prepare(`
+      SELECT id, siswa_id, dspt_id, kategori, metode_bayar, jumlah, status,
+             bukti_url, bukti_uploaded_at, reject_reason, transaksi_id, created_at, updated_at
+      FROM fin_payment_submissions
+      WHERE siswa_id = ? AND kategori = 'dspt'
+      ORDER BY datetime(created_at) DESC
+      LIMIT 20
+    `).bind(siswaId).all<any>(),
+    db.prepare(`
       SELECT u.id, u.nama_lengkap,
              COALESCE(u.nomor_whatsapp, s.nomor_whatsapp) AS nomor_kontak
       FROM siswa s
@@ -355,6 +395,11 @@ export default async function PortalOrtuPage() {
       LIMIT 12
     `).bind(siswaId).all<any>(),
     db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>(),
+    getSystemSetting('keuangan_komite_bank_label', 'BJB Syariah'),
+    getSystemSetting('keuangan_komite_rekening', '5160256984318'),
+    getSystemSetting('keuangan_komite_atas_nama', 'Komite MAN 1 Tasikmalaya'),
+    getSystemSetting('keuangan_komite_whatsapp', '6282215860650'),
+    getSystemSetting('keuangan_komite_qris_url', '/QRISkomite.jpeg'),
   ])
 
   const kelasLabel = profil.tingkat ? `${profil.tingkat}-${profil.nomor_kelas}${profil.kelompok ? ` ${profil.kelompok}` : ''}` : '-'
@@ -518,6 +563,14 @@ export default async function PortalOrtuPage() {
     dsptBayar,
     dsptDiskon,
     dsptSisa,
+    paymentSubmissions,
+    komitePaymentSettings: {
+      bankLabel: komiteBankLabel,
+      rekening: komiteRekening,
+      atasNama: komiteAtasNama,
+      whatsapp: komiteWhatsapp,
+      qrisUrl: komiteQrisUrl,
+    },
     sppNominal,
     sppBayar,
     sppSisa,

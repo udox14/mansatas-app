@@ -1,14 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, Send, ArrowLeft, Download, Loader2 } from 'lucide-react'
+import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, ArrowLeft, Download, Loader2, UploadCloud, Image as ImageIcon, RefreshCw } from 'lucide-react'
 import { MobileBottomNav } from './mobile-bottom-nav'
 import { ScheduleTabs } from './schedule-tabs'
 import { ChangePasswordForm } from './change-password-form'
 import { SummonResponseForm } from './summon-response-form'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { getParentSemesterGrades, markParentNotificationRead } from '../actions'
+import { createParentDsptPaymentSubmission, getParentSemesterGrades, markParentNotificationRead, uploadParentPaymentProof } from '../actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
 function rupiah(v: number) {
@@ -23,12 +24,50 @@ type SemesterDetailState = {
   grades?: SemesterGrade[]
 }
 
+async function compressPaymentProofImage(file: File, targetKb = 80): Promise<File> {
+  const imageUrl = URL.createObjectURL(file)
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image()
+      image.onload = () => resolve(image)
+      image.onerror = reject
+      image.src = imageUrl
+    })
+    const maxSide = 1280
+    const scale = Math.min(1, maxSide / Math.max(img.width, img.height))
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(img.width * scale))
+    canvas.height = Math.max(1, Math.round(img.height * scale))
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Canvas tidak tersedia')
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+    let quality = 0.82
+    let blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', quality))
+    while (blob && blob.size > targetKb * 1024 && quality > 0.42) {
+      quality -= 0.08
+      blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', quality))
+    }
+    if (!blob) throw new Error('Gagal memproses gambar')
+    return new File([blob], 'bukti-pembayaran.webp', { type: 'image/webp' })
+  } finally {
+    URL.revokeObjectURL(imageUrl)
+  }
+}
+
 export function PortalOrtuClient({ data }: { data: any }) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState('beranda')
   const [hiddenNotifications, setHiddenNotifications] = useState<Set<string>>(new Set())
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [paymentStep, setPaymentStep] = useState<1 | 2 | 3>(1)
   const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState<'qris' | 'transfer'>('qris')
+  const [currentSubmissionId, setCurrentSubmissionId] = useState('')
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false)
+  const [paymentMessage, setPaymentMessage] = useState('')
+  const [proofPreviewUrl, setProofPreviewUrl] = useState('')
+  const [proofFile, setProofFile] = useState<File | null>(null)
   const [expandedSemester, setExpandedSemester] = useState<number | null>(null)
   const [semesterDetails, setSemesterDetails] = useState<Record<number, SemesterDetailState>>({})
 
@@ -47,6 +86,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
     dsptBayar,
     dsptDiskon,
     dsptSisa,
+    paymentSubmissions,
+    komitePaymentSettings,
     sppNominal,
     sppBayar,
     sppSisa,
@@ -60,30 +101,23 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const initialLetter = String(profil.nama_lengkap || 'S').slice(0, 1)
   const paymentAmountNumber = Number(paymentAmount || 0)
   const isPaymentAmountValid = paymentAmountNumber > 0 && paymentAmountNumber <= Number(dsptSisa || 0)
-  const komiteWaNumber = '6282215860650'
-  const komiteAccount = 'BJB Syariah: 5160256984318 a.n. Komite MAN 1 Tasikmalaya'
+  const komiteWaNumber = komitePaymentSettings?.whatsapp || '6282215860650'
+  const komiteAccount = `${komitePaymentSettings?.bankLabel || 'BJB Syariah'}: ${komitePaymentSettings?.rekening || '5160256984318'} a.n. ${komitePaymentSettings?.atasNama || 'Komite MAN 1 Tasikmalaya'}`
+  const komiteQrisUrl = komitePaymentSettings?.qrisUrl || '/QRISkomite.jpeg'
 
   const resetPaymentWizard = () => {
     setPaymentStep(1)
     setPaymentAmount('')
+    setPaymentMethod('qris')
+    setCurrentSubmissionId('')
+    setPaymentSubmitting(false)
+    setPaymentMessage('')
+    setProofFile(null)
+    if (proofPreviewUrl) URL.revokeObjectURL(proofPreviewUrl)
+    setProofPreviewUrl('')
   }
 
   const buildWaUrl = (message: string) => `https://wa.me/${komiteWaNumber}?text=${encodeURIComponent(message)}`
-
-  const dsptWaUrl = buildWaUrl([
-    "Assalamu'alaikum Pak Dindin Solahudin.",
-    '',
-    'Saya orang tua/wali dari:',
-    `Nama siswa: ${profil.nama_lengkap || '-'}`,
-    `Kelas: ${kelasLabel}`,
-    `NISN: ${profil.nisn || '-'}`,
-    '',
-    `Saya telah melakukan pembayaran DSPT sebesar Rp ${rupiah(paymentAmountNumber)} melalui QRIS/Rekening Komite MAN 1 Tasikmalaya.`,
-    '',
-    'Mohon dibantu konfirmasi pembayaran. Saya akan mengirimkan foto atau screenshot bukti pembayaran pada chat ini.',
-    '',
-    'Terima kasih.',
-  ].join('\n'))
 
   const sppWaUrl = buildWaUrl([
     "Assalamu'alaikum Pak Dindin Solahudin.",
@@ -107,6 +141,67 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const needsDisciplineAttention = Boolean(disciplineSummary?.needsFollowUp)
   const disciplineLevelLabel = disciplineSummary?.levelLabel || 'Baik'
   const recentAttendanceRows = absensiTerbaru.results || []
+
+  const startSubmission = async () => {
+    if (!isPaymentAmountValid || paymentSubmitting) return
+    setPaymentSubmitting(true)
+    setPaymentMessage('')
+    const res = await createParentDsptPaymentSubmission({ amount: paymentAmountNumber, method: paymentMethod })
+    setPaymentSubmitting(false)
+    if (res.error || !res.submissionId) {
+      setPaymentMessage(res.error || 'Gagal membuat pengajuan pembayaran')
+      return
+    }
+    setCurrentSubmissionId(res.submissionId)
+    setPaymentStep(3)
+    router.refresh()
+  }
+
+  const handleProofFile = async (file?: File | null) => {
+    if (!file) return
+    setPaymentMessage('')
+    if (!file.type.startsWith('image/')) {
+      setPaymentMessage('File bukti harus berupa gambar.')
+      return
+    }
+    try {
+      const compressed = await compressPaymentProofImage(file)
+      if (proofPreviewUrl) URL.revokeObjectURL(proofPreviewUrl)
+      setProofFile(compressed)
+      setProofPreviewUrl(URL.createObjectURL(compressed))
+    } catch {
+      setPaymentMessage('Gagal mengompres gambar bukti pembayaran.')
+    }
+  }
+
+  const submitProof = async () => {
+    if (!currentSubmissionId || !proofFile || paymentSubmitting) return
+    setPaymentSubmitting(true)
+    setPaymentMessage('')
+    const fd = new FormData()
+    fd.append('submissionId', currentSubmissionId)
+    fd.append('bukti', proofFile)
+    const res = await uploadParentPaymentProof(fd)
+    setPaymentSubmitting(false)
+    if (res.error) {
+      setPaymentMessage(res.error)
+      return
+    }
+    setPaymentMessage(res.success || 'Bukti pembayaran berhasil diupload')
+    router.refresh()
+  }
+
+  const openProofUpload = (submission: any) => {
+    setPaymentAmount(String(Number(submission.jumlah || 0)))
+    setPaymentMethod(submission.metode_bayar === 'transfer' ? 'transfer' : 'qris')
+    setCurrentSubmissionId(submission.id)
+    setPaymentStep(3)
+    setPaymentMessage('')
+    setProofFile(null)
+    if (proofPreviewUrl) URL.revokeObjectURL(proofPreviewUrl)
+    setProofPreviewUrl('')
+    setPaymentOpen(true)
+  }
 
   const toggleSemesterDetail = async (semesterNumber: number, hasAverage: boolean) => {
     if (!hasAverage) return
@@ -738,7 +833,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                     Bayar DSPT
                   </button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-md rounded-2xl p-0 border-0 overflow-hidden bg-white">
+                <DialogContent className="sm:max-w-md max-h-[92vh] rounded-2xl p-0 border-0 overflow-hidden bg-white">
                   <DialogHeader className="border-b border-slate-100 bg-slate-950 p-5 text-left text-white">
                     <DialogTitle className="text-lg font-semibold">Pembayaran DSPT</DialogTitle>
                     <div className="mt-3 grid grid-cols-3 gap-2">
@@ -748,7 +843,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                     </div>
                   </DialogHeader>
 
-                  <div className="p-5">
+                  <div className="max-h-[calc(92vh-104px)] overflow-y-auto p-5">
                     {paymentStep === 1 && (
                       <div className="space-y-4">
                         <div>
@@ -802,12 +897,32 @@ export function PortalOrtuClient({ data }: { data: any }) {
                       <div className="space-y-4">
                         <div>
                           <p className="text-sm font-semibold text-slate-800">Scan QRIS atau transfer rekening</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-500">Setelah membayar, lanjutkan ke konfirmasi WhatsApp dan kirim bukti pembayaran.</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">Pilih metode, lakukan pembayaran, lalu upload bukti transfer di langkah berikutnya.</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { value: 'qris', label: 'QRIS', icon: QrCode },
+                            { value: 'transfer', label: 'Transfer', icon: Landmark },
+                          ].map((item) => {
+                            const Icon = item.icon
+                            const active = paymentMethod === item.value
+                            return (
+                              <button
+                                key={item.value}
+                                type="button"
+                                onClick={() => setPaymentMethod(item.value as 'qris' | 'transfer')}
+                                className={`flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold ${active ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'}`}
+                              >
+                                <Icon className="h-4 w-4" />
+                                {item.label}
+                              </button>
+                            )
+                          })}
                         </div>
                         <Dialog>
                           <DialogTrigger asChild>
                             <button type="button" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100" aria-label="Perbesar QRIS Komite">
-                              <img src="/QRISkomite.jpeg" alt="QRIS Komite MAN 1 Tasikmalaya" className="mx-auto max-h-[260px] w-full rounded-lg object-contain bg-white" />
+                              <img src={komiteQrisUrl} alt="QRIS Komite MAN 1 Tasikmalaya" className="mx-auto max-h-[260px] w-full rounded-lg object-contain bg-white" />
                               <span className="mt-2 block text-center text-[11px] font-semibold text-slate-500">Ketuk gambar untuk memperbesar</span>
                             </button>
                           </DialogTrigger>
@@ -816,13 +931,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
                               <DialogTitle className="text-lg font-semibold text-slate-800">QRIS Komite</DialogTitle>
                             </DialogHeader>
                             <div className="bg-slate-50 p-4">
-                              <img src="/QRISkomite.jpeg" alt="QRIS Komite MAN 1 Tasikmalaya diperbesar" className="mx-auto max-h-[78vh] w-full rounded-xl object-contain bg-white" />
+                              <img src={komiteQrisUrl} alt="QRIS Komite MAN 1 Tasikmalaya diperbesar" className="mx-auto max-h-[78vh] w-full rounded-xl object-contain bg-white" />
                             </div>
                           </DialogContent>
                         </Dialog>
                         <div>
                           <a
-                            href="/QRISkomite.jpeg"
+                            href={komiteQrisUrl}
                             download="QRISkomite.jpeg"
                             className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-emerald-600 hover:text-emerald-700"
                           >
@@ -855,18 +970,19 @@ export function PortalOrtuClient({ data }: { data: any }) {
                             <ArrowLeft className="mr-1 inline h-4 w-4" />
                             Kembali
                           </button>
-                          <button type="button" onClick={() => setPaymentStep(3)} className="h-11 flex-1 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white">
-                            Saya Sudah Bayar
+                          <button type="button" onClick={startSubmission} disabled={paymentSubmitting} className="h-11 flex-1 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:opacity-50">
+                            {paymentSubmitting ? 'Mencatat...' : 'Saya Sudah Bayar'}
                           </button>
                         </div>
+                        {paymentMessage && <p className="text-xs font-medium text-rose-600">{paymentMessage}</p>}
                       </div>
                     )}
 
                     {paymentStep === 3 && (
                       <div className="space-y-4">
                         <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
-                          <p className="text-sm font-bold text-emerald-900">Konfirmasi pembayaran ke komite</p>
-                          <p className="mt-2 text-xs leading-5 text-emerald-800">Pembayaran akan tercatat di riwayat setelah komite memverifikasi dan memasukkannya di menu keuangan.</p>
+                          <p className="text-sm font-bold text-emerald-900">Upload bukti pembayaran</p>
+                          <p className="mt-2 text-xs leading-5 text-emerald-800">Bukti akan masuk ke bendahara komite untuk dikonfirmasi. Transaksi resmi dibuat setelah bukti disetujui.</p>
                         </div>
                         <div className="rounded-xl border border-slate-200 p-4 text-sm text-slate-700">
                           <div className="flex justify-between gap-3">
@@ -881,11 +997,42 @@ export function PortalOrtuClient({ data }: { data: any }) {
                             <span className="text-slate-500">Nominal</span>
                             <span className="text-right font-semibold">Rp {rupiah(paymentAmountNumber)}</span>
                           </div>
+                          <div className="mt-2 flex justify-between gap-3">
+                            <span className="text-slate-500">Metode</span>
+                            <span className="text-right font-semibold">{paymentMethod === 'qris' ? 'QRIS' : 'Transfer'}</span>
+                          </div>
                         </div>
-                        <a href={dsptWaUrl} target="_blank" className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white">
-                          <Send className="h-4 w-4" />
-                          Konfirmasi via WhatsApp
-                        </a>
+                        <label className="block cursor-pointer rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center hover:border-emerald-500">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleProofFile(e.target.files?.[0])}
+                          />
+                          {proofPreviewUrl ? (
+                            <img src={proofPreviewUrl} alt="Preview bukti pembayaran" className="mx-auto max-h-56 w-full rounded-lg object-contain bg-white" />
+                          ) : (
+                            <div className="flex flex-col items-center gap-2 text-slate-500">
+                              <ImageIcon className="h-8 w-8" />
+                              <span className="text-xs font-semibold">Pilih foto/screenshot bukti transfer</span>
+                              <span className="text-[11px]">Gambar otomatis dikompres menjadi WebP.</span>
+                            </div>
+                          )}
+                        </label>
+                        <button
+                          type="button"
+                          disabled={!proofFile || !currentSubmissionId || paymentSubmitting}
+                          onClick={submitProof}
+                          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {paymentSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+                          {paymentSubmitting ? 'Mengupload...' : 'Upload Bukti'}
+                        </button>
+                        {paymentMessage && (
+                          <p className={`rounded-xl px-3 py-2 text-xs font-medium ${paymentMessage.includes('berhasil') ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
+                            {paymentMessage}
+                          </p>
+                        )}
                         <button type="button" onClick={() => setPaymentOpen(false)} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700">
                           Tutup
                         </button>
@@ -932,6 +1079,91 @@ export function PortalOrtuClient({ data }: { data: any }) {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="pt-2">
+        <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1 mb-1">Pengajuan Pembayaran DSPT</h2>
+        <p className="text-xs text-slate-500 leading-5 ml-1 mb-3">
+          Bukti yang sudah diupload akan diperiksa bendahara komite sebelum kuitansi diterbitkan.
+        </p>
+        <div className="space-y-3">
+          {(paymentSubmissions?.results || []).length === 0 ? (
+            <div className="text-center py-6 bg-white border border-slate-200 border-dashed rounded-2xl">
+              <p className="text-sm text-slate-500">Belum ada pengajuan pembayaran.</p>
+            </div>
+          ) : (paymentSubmissions.results || []).map((s: any) => {
+            const statusLabel: Record<string, string> = {
+              belum_upload: 'Belum upload',
+              menunggu_konfirmasi: 'Menunggu konfirmasi',
+              terkonfirmasi: 'Terkonfirmasi',
+              ditolak: 'Ditolak',
+            }
+            const statusClass: Record<string, string> = {
+              belum_upload: 'bg-amber-50 text-amber-700',
+              menunggu_konfirmasi: 'bg-sky-50 text-sky-700',
+              terkonfirmasi: 'bg-emerald-50 text-emerald-700',
+              ditolak: 'bg-rose-50 text-rose-700',
+            }
+            const canUpload = s.status === 'belum_upload' || s.status === 'ditolak' || s.status === 'menunggu_konfirmasi'
+            return (
+              <StandardCard key={s.id} className="space-y-3 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-800">DSPT - Rp {rupiah(Number(s.jumlah || 0))}</h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">{String(s.created_at || '').split(' ')[0]} - {s.metode_bayar === 'qris' ? 'QRIS' : 'Transfer'}</p>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusClass[s.status] || 'bg-slate-100 text-slate-600'}`}>
+                    {statusLabel[s.status] || s.status}
+                  </span>
+                </div>
+                {s.status === 'ditolak' && s.reject_reason && (
+                  <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700">Alasan: {s.reject_reason}</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {s.bukti_url && (
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button type="button" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700">
+                          <ImageIcon className="h-3.5 w-3.5" />
+                          Lihat Bukti
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-xl rounded-2xl border-0 bg-white p-0 overflow-hidden">
+                        <DialogHeader className="border-b border-slate-100 p-5">
+                          <DialogTitle className="text-lg font-semibold text-slate-800">Bukti Pembayaran</DialogTitle>
+                        </DialogHeader>
+                        <div className="bg-slate-50 p-4">
+                          <img src={s.bukti_url} alt="Bukti pembayaran DSPT" className="mx-auto max-h-[78vh] w-full rounded-xl object-contain bg-white" />
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  )}
+                  {canUpload && (
+                    <button
+                      type="button"
+                      onClick={() => openProofUpload(s)}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700"
+                    >
+                      {s.bukti_url ? <RefreshCw className="h-3.5 w-3.5" /> : <UploadCloud className="h-3.5 w-3.5" />}
+                      {s.bukti_url ? 'Ganti Bukti' : 'Upload Bukti'}
+                    </button>
+                  )}
+                  {s.status === 'terkonfirmasi' && s.transaksi_id && (
+                    <a
+                      href={`/portal-ortu/kuitansi/${s.transaksi_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Kuitansi
+                    </a>
+                  )}
+                </div>
+              </StandardCard>
+            )
+          })}
+        </div>
       </div>
 
       <div className="pt-2">

@@ -14,7 +14,7 @@ import {
 import { DataPagination } from '@/components/ui/data-pagination'
 import {
   Search, X, CheckCircle2, AlertCircle, ChevronRight, Printer,
-  User, Banknote, Info, RotateCcw, Clock, XCircle, Minus, Ban, ReceiptText,
+  User, Banknote, Info, RotateCcw, Clock, XCircle, Minus, Ban, ReceiptText, Eye,
 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
 import {
@@ -26,7 +26,7 @@ import {
   upsertSiswaBaruDsptTarget,
   voidDaftarUlangTransaksi,
 } from './actions'
-import { KuitansiModal, useNamaPerugas } from '../components/kuitansi-print'
+import { KuitansiModal, NamaPerugasSettingModal, useNamaPerugas } from '../components/kuitansi-print'
 import type { KuitansiData } from '../components/kuitansi-print'
 
 interface SiswaResult {
@@ -712,6 +712,29 @@ export function DaftarUlangClient({
     })
   }
 
+  function handlePreviewKuitansi() {
+    if (!selectedSiswa || !canSubmit) return
+    const tanggal = new Date().toISOString().slice(0, 10)
+    const jumlahPreview = dsptBayar > 0 ? dsptBayar : dsptTarget
+    const previewSisa = Math.max(0, dsptTarget - dsptBayar - dsptDiskon)
+    setKuitansiDspt({
+      nomorKuitansi: 'PREVIEW-BELUM-TERSIMPAN',
+      tanggal,
+      kategori: 'DSPT',
+      namaSiswa: selectedSiswa.nama_lengkap,
+      nisn: selectedSiswa.nisn ?? '-',
+      kelas: fmtKelas(selectedSiswa),
+      namaPerugas: namaKomite,
+      metodeBayar: dspt.metode === 'tunai' ? 'Tunai' : 'Transfer Bank',
+      jumlahDiserahkan: jumlahPreview,
+      jumlahTagihan: jumlahPreview,
+      rincianBayar: [{ label: 'DSPT - Dana Sumbangan Pendidikan Tahunan', nominal: jumlahPreview }],
+      sisaTunggakan: previewSisa > 0 ? [{ label: 'Sisa DSPT', sisa: previewSisa }] : [],
+      isLunas: previewSisa <= 0,
+    })
+    setShowKuitansi(true)
+  }
+
   return (
     <>
       <div className="space-y-4">
@@ -719,6 +742,7 @@ export function DaftarUlangClient({
           <Info className="h-3.5 w-3.5 flex-shrink-0" />
           Tahun Ajaran Aktif: <span className="font-semibold text-slate-700 dark:text-slate-300">{tahunAjaranNama}</span>
           <span className="ml-auto text-slate-400">Petugas: {namaKomite}</span>
+          <NamaPerugasSettingModal />
         </div>
 
         <Tabs defaultValue="kasir" className="space-y-4">
@@ -937,6 +961,15 @@ export function DaftarUlangClient({
               disabled={isPending}
             >
               <RotateCcw className="h-3.5 w-3.5" /> Reset
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 text-xs gap-1.5"
+              onClick={handlePreviewKuitansi}
+              disabled={!canSubmit || isPending}
+            >
+              <Eye className="h-3.5 w-3.5" /> Preview Kuitansi
             </Button>
             <Button
               size="sm"

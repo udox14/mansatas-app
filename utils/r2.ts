@@ -156,6 +156,20 @@ export async function uploadBuktiFoto(file: File) {
 }
 
 // Upload foto presensi — nama file: presensi/{tanggal}/{userId}_{action}.jpg
+export async function uploadPaymentProof(file: File, submissionId: string) {
+  const validationError = validateImageFile(file)
+  if (validationError) return { url: null, error: validationError }
+
+  return uploadToR2(file, 'payment_proofs', `${submissionId}/bukti.webp`)
+}
+
+export async function uploadKomiteQris(file: File) {
+  const validationError = validateImageFile(file)
+  if (validationError) return { url: null, error: validationError }
+
+  return uploadToR2(file, 'keuangan_settings', 'komite-qris.webp')
+}
+
 export async function uploadFotoPresensi(file: File, userId: string, action: string, tanggal: string) {
   const validationError = validateImageFile(file)
   if (validationError) return { url: null, error: validationError }

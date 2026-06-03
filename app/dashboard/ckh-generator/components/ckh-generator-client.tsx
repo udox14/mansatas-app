@@ -811,7 +811,7 @@ export function CkhGeneratorClient({
               ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
               : 'border-amber-200 bg-amber-50 text-amber-800',
           )}>
-            <span className="shrink-0 font-semibold">{documentStatus === 'FINAL' ? 'Siap diambil TU' : 'Belum dikirim'}</span>
+            <span className="shrink-0 font-semibold">{documentStatus === 'FINAL' ? 'Tuntas' : 'Belum dikirim'}</span>
             <span className="text-left opacity-80 sm:text-right">
               {documentStatus === 'FINAL'
                 ? 'Dokumen ini akan muncul di Dokumen TPG TU.'

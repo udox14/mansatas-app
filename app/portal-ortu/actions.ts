@@ -5,6 +5,7 @@ import { getAppSession } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { createAuth } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { uploadPaymentProof } from '@/utils/r2'
 
 type SummonResponse = 'hadir' | 'reschedule'
 const SEMESTER_NILAI_COLUMNS = ['nilai_smt1', 'nilai_smt2', 'nilai_smt3', 'nilai_smt4', 'nilai_smt5', 'nilai_smt6'] as const
@@ -63,6 +64,99 @@ async function requireParentSession() {
   const session = await getAppSession()
   if (!session || session.kind !== 'parent') throw new Error('Unauthorized')
   return session
+}
+
+function generateId() {
+  return crypto.randomUUID()
+}
+
+async function ensurePaymentSubmissionTable(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS fin_payment_submissions (
+      id TEXT PRIMARY KEY,
+      siswa_id TEXT NOT NULL REFERENCES siswa(id),
+      dspt_id TEXT NOT NULL REFERENCES fin_dspt(id),
+      kategori TEXT NOT NULL DEFAULT 'dspt',
+      metode_bayar TEXT NOT NULL DEFAULT 'transfer',
+      jumlah INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'belum_upload',
+      bukti_url TEXT,
+      bukti_uploaded_at TEXT,
+      confirmed_by TEXT REFERENCES "user"(id),
+      confirmed_at TEXT,
+      rejected_by TEXT REFERENCES "user"(id),
+      rejected_at TEXT,
+      reject_reason TEXT,
+      transaksi_id TEXT REFERENCES fin_transaksi(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `).run()
+}
+
+export async function createParentDsptPaymentSubmission(payload: {
+  amount: number
+  method: 'transfer' | 'qris'
+}) {
+  const session = await requireParentSession()
+  const db = await getDB()
+  await ensurePaymentSubmissionTable(db)
+
+  const amount = Math.floor(Number(payload.amount || 0))
+  if (amount <= 0) return { error: 'Nominal pembayaran harus lebih dari 0.' }
+
+  const dspt = await db.prepare(`
+    SELECT id, nominal_target, total_dibayar, total_diskon
+    FROM fin_dspt
+    WHERE siswa_id = ?
+    LIMIT 1
+  `).bind(session.user.siswa_id).first<any>()
+  if (!dspt) return { error: 'Data DSPT belum tersedia.' }
+
+  const sisa = Math.max(0, Number(dspt.nominal_target || 0) - Number(dspt.total_dibayar || 0) - Number(dspt.total_diskon || 0))
+  if (sisa <= 0) return { error: 'DSPT sudah lunas.' }
+  if (amount > sisa) return { error: 'Nominal tidak boleh melebihi sisa DSPT.' }
+
+  const id = generateId()
+  await db.prepare(`
+    INSERT INTO fin_payment_submissions (id, siswa_id, dspt_id, kategori, metode_bayar, jumlah, status)
+    VALUES (?, ?, ?, 'dspt', ?, ?, 'belum_upload')
+  `).bind(id, session.user.siswa_id, dspt.id, payload.method || 'transfer', amount).run()
+
+  revalidatePath('/portal-ortu')
+  return { success: 'Pengajuan pembayaran dibuat.', submissionId: id }
+}
+
+export async function uploadParentPaymentProof(formData: FormData) {
+  const session = await requireParentSession()
+  const db = await getDB()
+  await ensurePaymentSubmissionTable(db)
+
+  const submissionId = String(formData.get('submissionId') || '')
+  const file = formData.get('bukti') as File | null
+  if (!submissionId) return { error: 'Pengajuan pembayaran tidak ditemukan.' }
+  if (!file || file.size <= 0) return { error: 'File bukti pembayaran wajib diupload.' }
+
+  const submission = await db.prepare(`
+    SELECT id, siswa_id, status
+    FROM fin_payment_submissions
+    WHERE id = ? AND siswa_id = ?
+  `).bind(submissionId, session.user.siswa_id).first<any>()
+  if (!submission) return { error: 'Pengajuan pembayaran tidak ditemukan.' }
+  if (submission.status === 'terkonfirmasi') return { error: 'Pembayaran sudah dikonfirmasi dan tidak bisa diganti.' }
+
+  const uploaded = await uploadPaymentProof(file, submissionId)
+  if (uploaded.error || !uploaded.url) return { error: uploaded.error || 'Upload bukti pembayaran gagal.' }
+
+  await db.prepare(`
+    UPDATE fin_payment_submissions
+    SET bukti_url = ?, bukti_uploaded_at = datetime('now'), status = 'menunggu_konfirmasi',
+        reject_reason = NULL, rejected_by = NULL, rejected_at = NULL, updated_at = datetime('now')
+    WHERE id = ? AND siswa_id = ?
+  `).bind(uploaded.url, submissionId, session.user.siswa_id).run()
+
+  revalidatePath('/portal-ortu')
+  return { success: 'Bukti pembayaran berhasil diupload.', buktiUrl: uploaded.url }
 }
 
 export async function getParentSemesterGrades(semester: number) {
