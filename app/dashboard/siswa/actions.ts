@@ -365,10 +365,13 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     kelasMap.set(key, k.id)
   })
 
-  const existingByNama = new Map<string, { id: string; nisn: string }>()
+  const existingByNama = new Map<string, { id: string; nisn: string }[]>()
   const existingByNisn = new Map<string, { id: string; nama_lengkap: string }>()
   existingDb.results.forEach((s2: any) => {
-    existingByNama.set(s2.nama_lengkap.toLowerCase().trim(), { id: s2.id, nisn: s2.nisn })
+    const namaKey = s2.nama_lengkap.toLowerCase().trim()
+    const rows = existingByNama.get(namaKey) ?? []
+    rows.push({ id: s2.id, nisn: s2.nisn })
+    existingByNama.set(namaKey, rows)
     if (s2.nisn) existingByNisn.set(s2.nisn.trim(), { id: s2.id, nama_lengkap: s2.nama_lengkap })
   })
 
@@ -485,19 +488,25 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     if (hasKelasInfo && kelas_id) siswaPayload.kelas_id = kelas_id
     if (status) siswaPayload.status = status
 
-    const existBySisn = nisn ? existingByNisn.get(nisn) : null
-    const existByNama = existingByNama.get(nama_lengkap.toLowerCase())
-    const existing = existBySisn || existByNama
+    const existing = nisn ? existingByNisn.get(nisn) : null
+    const sameNameRows = existingByNama.get(nama_lengkap.toLowerCase()) ?? []
 
     if (existing) {
-      // UPDATE: siswa sudah ada — update saja, NISN tidak perlu diset ulang jika kosong
+      // UPDATE hanya berdasarkan NISN. Nama sama tidak boleh menimpa data siswa lama.
       if (nisn) siswaPayload.nisn = nisn
       toUpdate.push({ id: existing.id, siswaData: siswaPayload })
     } else {
       // INSERT: siswa baru — NISN wajib (NOT NULL UNIQUE constraint di DB)
       if (!nisn) {
-        errors.push(`Dilewati (NISN kosong): ${nama_lengkap}`)
+        const suffix = sameNameRows.length > 0
+          ? ` Nama ini sudah ada di database (${sameNameRows.map(row => row.nisn || 'NISN kosong').join(', ')}), jadi tidak diupdate otomatis.`
+          : ''
+        errors.push(`Dilewati (NISN kosong): ${nama_lengkap}.${suffix}`)
         continue
+      }
+
+      if (sameNameRows.length > 0) {
+        errors.push(`Konflik nama, disimpan sebagai siswa baru karena NISN berbeda: ${nama_lengkap} (${nisn}). Data lama tidak ditimpa.`)
       }
       siswaPayload.nisn = nisn
       siswaPayload.jenis_kelamin = siswaPayload.jenis_kelamin ?? jenis_kelamin

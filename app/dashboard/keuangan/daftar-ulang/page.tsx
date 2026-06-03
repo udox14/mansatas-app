@@ -15,7 +15,7 @@ async function DaftarUlangDataFetcher() {
   if (!user) redirect('/login')
 
   const db = await getDB()
-  const allowed = await checkFeatureAccess(db, user.id, 'keuangan-dspt')
+  const allowed = await checkFeatureAccess(db, user.id, 'keuangan-daftar-ulang')
   if (!allowed) redirect('/dashboard')
 
   const taAktif = await db.prepare('SELECT id, nama FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string; nama: string }>()
