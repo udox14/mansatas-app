@@ -3,14 +3,11 @@
 > next dev
 
 ▲ Next.js 16.2.2 (Turbopack)
-- Local:         http://localhost:3000
-- Network:       http://192.168.1.11:3000
+- Local:         http://localhost:3001
+- Network:       http://192.168.88.96:3001
 - Environments: .env.local, .env
-✓ Ready in 868ms
+✓ Ready in 1127ms
 - Experiments (use with caution):
   · optimizePackageImports
   · serverActions
 
- GET / 200 in 2.6s (next.js: 337ms, application-code: 2.3s)
- GET / 200 in 347ms (next.js: 8ms, application-code: 340ms)
- GET / 200 in 348ms (next.js: 94ms, application-code: 254ms)

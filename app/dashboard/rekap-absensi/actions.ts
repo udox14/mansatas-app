@@ -673,6 +673,105 @@ export async function getCetakRekapSiswa(siswaId: string, tglMulai: string, tglS
   return { rekap, waliKelas }
 }
 
+type MonitoringPrintMode = 'bulanan' | 'semester'
+
+function monitoringPrintMark(status: string | null | undefined): '' | 'S' | 'I' | 'A' {
+  if (status === 'SAKIT') return 'S'
+  if (status === 'IZIN') return 'I'
+  if (status === 'ALFA' || status === 'PARSIAL' || status === 'BOLOS') return 'A'
+  return ''
+}
+
+function monthLabel(month: number) {
+  return new Date(Date.UTC(2026, month - 1, 1)).toLocaleDateString('id-ID', { month: 'long' }).toUpperCase()
+}
+
+export async function getCetakMonitoringSiswa(params: {
+  kelasId: string
+  mode: MonitoringPrintMode
+  tglMulai: string
+  tglSelesai: string
+  months?: number[]
+  labelPeriode?: string
+}) {
+  if (!params.kelasId) return { error: 'Kelas wajib dipilih.', sections: [] }
+  if (!params.tglMulai || !params.tglSelesai || params.tglMulai > params.tglSelesai) {
+    return { error: 'Rentang tanggal tidak valid.', sections: [] }
+  }
+
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized', sections: [] }
+
+  const scope = await getRekapScope(db, user.id)
+  if (!(await canAccessClass(db, scope, params.kelasId))) {
+    return { error: 'Anda tidak punya akses ke kelas ini.', sections: [] }
+  }
+
+  const classData = await getFinalAttendanceForClass(db, params.kelasId, params.tglMulai, params.tglSelesai)
+  if (!classData) return { error: 'Kelas tidak ditemukan.', sections: [] }
+
+  const dates = classData.dates
+  const months = params.months?.length
+    ? params.months.map(month => ({ month, label: monthLabel(month) }))
+    : Array.from(new Set(dates.map(tanggal => Number(tanggal.slice(5, 7)))))
+      .map(month => ({ month, label: monthLabel(month) }))
+
+  const rows = classData.siswa.map((siswa, idx) => {
+    const dayMap = new Map((classData.statusByStudent.get(siswa.id) || []).map(day => [day.tanggal, day]))
+    const totals = { S: 0, I: 0, A: 0 }
+    const cells = dates.map(tanggal => {
+      const mark = monitoringPrintMark(dayMap.get(tanggal)?.status_akhir)
+      if (mark) totals[mark] += 1
+      return { tanggal, mark }
+    })
+
+    const monthTotals = months.map(({ month, label }) => {
+      const total = { S: 0, I: 0, A: 0 }
+      for (const tanggal of dates) {
+        if (Number(tanggal.slice(5, 7)) !== month) continue
+        const mark = monitoringPrintMark(dayMap.get(tanggal)?.status_akhir)
+        if (mark) total[mark] += 1
+      }
+      return { month, label, ...total }
+    })
+
+    const semesterTotal = monthTotals.reduce((acc, item) => {
+      acc.S += item.S
+      acc.I += item.I
+      acc.A += item.A
+      return acc
+    }, { S: 0, I: 0, A: 0 })
+
+    return {
+      siswa_id: siswa.id,
+      urut: idx + 1,
+      nis: siswa.nis_lokal || siswa.nisn || '-',
+      nisn: siswa.nisn || '-',
+      nama_lengkap: siswa.nama_lengkap,
+      jenis_kelamin: siswa.jenis_kelamin || '',
+      cells,
+      totals,
+      monthTotals,
+      semesterTotal,
+    }
+  })
+
+  return {
+    error: null,
+    sections: [{
+      mode: params.mode,
+      kelas: classData.kelas,
+      tglMulai: params.tglMulai,
+      tglSelesai: params.tglSelesai,
+      labelPeriode: params.labelPeriode,
+      dates,
+      months,
+      rows,
+    }],
+  }
+}
+
 export async function getWaliKelasForSiswa(siswaId: string) {
   const db = await getDB()
   const row = await db.prepare(`

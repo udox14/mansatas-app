@@ -1,8 +1,7 @@
 // Lokasi: app/dashboard/rekap-absensi/components/rekap-client.tsx
 'use client'
 
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import { useReactToPrint } from 'react-to-print'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,6 +17,7 @@ import {
   getAbsensiPerKelasRentang,
   getAbsensiSiswaKelasHarian,
   getAbsensiSiswaKelasRentang,
+  getCetakMonitoringSiswa,
   getCetakRekapKelas,
   getCetakRekapSiswa,
   getSiswaByKelas,
@@ -62,6 +62,48 @@ function monthStart() {
   d.setUTCDate(1)
   return d.toISOString().split('T')[0]
 }
+
+function currentYear() {
+  return nowWIB().getUTCFullYear()
+}
+
+function currentMonth() {
+  return nowWIB().getUTCMonth() + 1
+}
+
+function pad2(n: number) {
+  return String(n).padStart(2, '0')
+}
+
+function monthRange(year: number, month: number) {
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  return {
+    start: `${year}-${pad2(month)}-01`,
+    end: `${year}-${pad2(month)}-${pad2(last)}`,
+  }
+}
+
+function semesterRange(tahunAjaranStart: number, semester: 'ganjil' | 'genap') {
+  if (semester === 'ganjil') {
+    return {
+      start: `${tahunAjaranStart}-07-01`,
+      end: `${tahunAjaranStart}-12-31`,
+      months: [7, 8, 9, 10, 11, 12],
+      label: `Semester Ganjil ${tahunAjaranStart}/${tahunAjaranStart + 1}`,
+    }
+  }
+  return {
+    start: `${tahunAjaranStart + 1}-01-01`,
+    end: `${tahunAjaranStart + 1}-06-30`,
+    months: [1, 2, 3, 4, 5, 6],
+    label: `Semester Genap ${tahunAjaranStart}/${tahunAjaranStart + 1}`,
+  }
+}
+
+const MONTH_OPTIONS = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+]
 
 function fmtTgl(t: string) {
   if (!t) return '-'
@@ -665,13 +707,18 @@ function TabJam({ filterOptions, initialTingkat }: { filterOptions: FilterOpt; i
 }
 
 function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt; initialTingkat: string }) {
-  const [printKind, setPrintKind] = useState<'kelas' | 'siswa'>('kelas')
+  const [printKind, setPrintKind] = useState<'monitoring' | 'kelas' | 'siswa'>('monitoring')
   const [mode, setMode] = useState<Mode>('hari')
+  const [monitoringMode, setMonitoringMode] = useState<'bulanan' | 'semester'>('bulanan')
   const [tingkat, setTingkat] = useState(initialTingkat)
   const [kelasId, setKelasId] = useState('all')
   const [tanggal, setTanggal] = useState(today())
   const [tglMulai, setTglMulai] = useState(monthStart())
   const [tglSelesai, setTglSelesai] = useState(today())
+  const [bulan, setBulan] = useState(String(currentMonth()))
+  const [tahun, setTahun] = useState(String(currentYear()))
+  const [tahunAjaranStart, setTahunAjaranStart] = useState(String(currentMonth() >= 7 ? currentYear() : currentYear() - 1))
+  const [semester, setSemester] = useState<'ganjil' | 'genap'>('ganjil')
   const [siswaKelasId, setSiswaKelasId] = useState('')
   const [siswaList, setSiswaList] = useState<any[]>([])
   const [siswaId, setSiswaId] = useState('')
@@ -700,7 +747,35 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
     setLoading(true)
     setPrintData(null)
     try {
-      if (printKind === 'kelas') {
+      if (printKind === 'monitoring') {
+        if (kelasId === 'all') {
+          setPrintData({ error: 'Pilih satu kelas untuk cetak Monitoring Siswa.', sections: [] })
+          return
+        }
+        if (monitoringMode === 'bulanan') {
+          const yearNum = Number(tahun)
+          const monthNum = Number(bulan)
+          const range = monthRange(yearNum, monthNum)
+          setPrintData(await getCetakMonitoringSiswa({
+            kelasId,
+            mode: 'bulanan',
+            tglMulai: range.start,
+            tglSelesai: range.end,
+            months: [monthNum],
+            labelPeriode: `${MONTH_OPTIONS[monthNum - 1]} ${yearNum}`,
+          }))
+        } else {
+          const range = semesterRange(Number(tahunAjaranStart), semester)
+          setPrintData(await getCetakMonitoringSiswa({
+            kelasId,
+            mode: 'semester',
+            tglMulai: range.start,
+            tglSelesai: range.end,
+            months: range.months,
+            labelPeriode: range.label,
+          }))
+        }
+      } else if (printKind === 'kelas') {
         setPrintData(await getCetakRekapKelas({
           mode,
           tanggal,
@@ -720,17 +795,35 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
     }
   }
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: `rekap_absensi_${printKind}_${mode}_${tanggal || tglMulai}`,
-    pageStyle: `
-      @page { size: A4 portrait; margin: 10mm; }
-      @media print {
-        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .page-break { break-before: page; page-break-before: always; }
-      }
-    `,
-  })
+  const handlePrint = useCallback(() => {
+    const el = printRef.current
+    if (!el) return
+    const w = window.open('', '_blank')
+    if (!w) {
+      alert('Popup diblokir browser. Izinkan popup untuk mencetak.')
+      return
+    }
+    const title = printKind === 'monitoring'
+      ? `Monitoring Siswa ${monitoringMode}`
+      : `Rekap Absensi ${printKind}`
+    w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
+<style>
+@page { size: A4 portrait; margin: 0; }
+html, body { margin: 0; padding: 0; background: #fff; }
+* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+.page-break { break-before: page; page-break-before: always; }
+</style>
+</head><body>${el.innerHTML}</body></html>`)
+    w.document.close()
+    const imgs = Array.from(w.document.images)
+    const ready = imgs.length === 0
+      ? Promise.resolve()
+      : Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r })))
+    ready.then(() => {
+      w.focus()
+      w.print()
+    })
+  }, [monitoringMode, printKind])
 
   return (
     <div className="space-y-3">
@@ -741,13 +834,14 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
             <Select value={printKind} onValueChange={(v) => { setPrintKind(v as any); setPrintData(null) }}>
               <SelectTrigger className="mt-1 h-9 w-[160px] text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="monitoring">Monitoring Siswa</SelectItem>
                 <SelectItem value="kelas">Per Kelas</SelectItem>
                 <SelectItem value="siswa">Per Siswa</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {printKind === 'kelas' && <ModeSwitch mode={mode} setMode={(m) => { setMode(m); setPrintData(null) }} />}
-          {printKind === 'kelas' ? (
+          {printKind === 'kelas' || printKind === 'monitoring' ? (
             <>
               <AngkatanSelect value={tingkat} onChange={(v) => { setTingkat(v); setKelasId('all'); setPrintData(null) }} options={filterOptions.angkatan} />
               <div>
@@ -755,7 +849,8 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
                 <Select value={kelasId} onValueChange={(v) => { setKelasId(v); setPrintData(null) }}>
                   <SelectTrigger className="mt-1 h-9 w-[170px] text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Semua Kelas</SelectItem>
+                    {printKind === 'kelas' && <SelectItem value="all">Semua Kelas</SelectItem>}
+                    {printKind === 'monitoring' && <SelectItem value="all">Pilih Kelas</SelectItem>}
                     {kelasByTingkat.map(k => <SelectItem key={k.id} value={k.id}>{k.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -775,7 +870,56 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
               </div>
             </>
           )}
-          {printKind === 'kelas' && mode === 'hari' ? (
+          {printKind === 'monitoring' ? (
+            monitoringMode === 'bulanan' ? (
+              <>
+                <div>
+                  <Label className="text-xs text-slate-500">Mode</Label>
+                  <Select value={monitoringMode} onValueChange={(v) => { setMonitoringMode(v as any); setPrintData(null) }}>
+                    <SelectTrigger className="mt-1 h-9 w-[135px] text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bulanan">Per Bulan</SelectItem>
+                      <SelectItem value="semester">Per Semester</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs text-slate-500">Bulan</Label>
+                  <Select value={bulan} onValueChange={(v) => { setBulan(v); setPrintData(null) }}>
+                    <SelectTrigger className="mt-1 h-9 w-[135px] text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {MONTH_OPTIONS.map((label, idx) => <SelectItem key={label} value={String(idx + 1)}>{label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label className="text-xs text-slate-500">Tahun</Label><Input type="number" value={tahun} onChange={e => { setTahun(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[105px] text-sm" /></div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <Label className="text-xs text-slate-500">Mode</Label>
+                  <Select value={monitoringMode} onValueChange={(v) => { setMonitoringMode(v as any); setPrintData(null) }}>
+                    <SelectTrigger className="mt-1 h-9 w-[135px] text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bulanan">Per Bulan</SelectItem>
+                      <SelectItem value="semester">Per Semester</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label className="text-xs text-slate-500">Awal TA</Label><Input type="number" value={tahunAjaranStart} onChange={e => { setTahunAjaranStart(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[105px] text-sm" /></div>
+                <div>
+                  <Label className="text-xs text-slate-500">Semester</Label>
+                  <Select value={semester} onValueChange={(v) => { setSemester(v as any); setPrintData(null) }}>
+                    <SelectTrigger className="mt-1 h-9 w-[135px] text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ganjil">Ganjil</SelectItem>
+                      <SelectItem value="genap">Genap</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )
+          ) : printKind === 'kelas' && mode === 'hari' ? (
             <div><Label className="text-xs text-slate-500">Tanggal</Label><Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="mt-1 h-9 w-[155px] text-sm" /></div>
           ) : (
             <>
@@ -785,7 +929,7 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={load} disabled={loading || (printKind === 'siswa' && !siswaId)} size="sm" className="bg-indigo-600 text-white hover:bg-indigo-700">
+          <Button onClick={load} disabled={loading || (printKind === 'siswa' && !siswaId) || (printKind === 'monitoring' && kelasId === 'all')} size="sm" className="bg-indigo-600 text-white hover:bg-indigo-700">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Search className="mr-1 h-4 w-4" />Muat Data</>}
           </Button>
           <Button onClick={() => handlePrint()} disabled={!printData || loading} size="sm" variant="outline">
@@ -803,7 +947,9 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
       {printData && (
         <div className="rounded-lg border bg-white p-4 dark:bg-slate-900">
           <div ref={printRef} className="space-y-6 text-black">
-            {printKind === 'kelas' ? (
+            {printKind === 'monitoring' ? (
+              <PrintMonitoringSiswa data={printData} />
+            ) : printKind === 'kelas' ? (
               <PrintKelas data={printData} mode={mode} tanggal={tanggal} tglMulai={tglMulai} tglSelesai={tglSelesai} />
             ) : (
               <PrintSiswa data={printData} tglMulai={tglMulai} tglSelesai={tglSelesai} />
@@ -813,6 +959,187 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
       )}
     </div>
   )
+}
+
+const PRINT_FONT = '"Book Antiqua", "Palatino Linotype", Palatino, "Times New Roman", serif'
+const PRINT_BORDER = '0.6pt solid #000'
+
+function PrintMonitoringSiswa({ data }: { data: any }) {
+  if (data?.error) {
+    return <div style={{ color: '#b91c1c', fontSize: 12 }}>{data.error}</div>
+  }
+  const sections = data.sections || []
+  return (
+    <>
+      {sections.map((section: any, idx: number) => (
+        <MonitoringPrintPage key={section.kelas?.id || idx} section={section} pageBreak={idx > 0} />
+      ))}
+    </>
+  )
+}
+
+function MonitoringPrintPage({ section, pageBreak }: { section: any; pageBreak: boolean }) {
+  const mode = section.mode as 'bulanan' | 'semester'
+  const rows = section.rows || []
+  const dates = section.dates || []
+  const months = section.months || []
+  const namaKelas = section.kelas?.label || '-'
+  const title = mode === 'bulanan'
+    ? `MONITORING ABSENSI SISWA KELAS ${namaKelas}`
+    : `REKAP MONITORING ABSENSI SISWA KELAS ${namaKelas}`
+  const subtitle = mode === 'bulanan'
+    ? `BULAN ${String(section.labelPeriode || '').toUpperCase()}`
+    : String(section.labelPeriode || '').toUpperCase()
+  const dateColWidth = dates.length > 0 ? `${Math.max(3, Math.min(6, 78 / dates.length)).toFixed(1)}mm` : '6mm'
+
+  return (
+    <div
+      className={pageBreak ? 'page-break' : ''}
+      style={{
+        width: '210mm',
+        minHeight: '297mm',
+        padding: '8mm 7mm 10mm 7mm',
+        boxSizing: 'border-box',
+        backgroundColor: '#fff',
+        color: '#000',
+        fontFamily: PRINT_FONT,
+        fontSize: '8pt',
+        pageBreakBefore: pageBreak ? 'always' : 'auto',
+      }}
+    >
+      <div style={{ marginLeft: '-7mm', marginRight: '-7mm', marginBottom: '5pt' }}>
+        <img src="/kopsurat.png" alt="Kop Surat" style={{ width: '100%', display: 'block' }} />
+      </div>
+
+      <div style={{ textAlign: 'center', marginBottom: '5pt', lineHeight: 1.35 }}>
+        <div style={{ fontSize: '11pt', fontWeight: 700 }}>{title}</div>
+        <div style={{ fontSize: '10pt', fontWeight: 700 }}>{subtitle}</div>
+      </div>
+
+      {mode === 'bulanan' ? (
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontFamily: PRINT_FONT }}>
+          <colgroup>
+            <col style={{ width: '18pt' }} />
+            <col style={{ width: '42pt' }} />
+            <col />
+            <col style={{ width: '18pt' }} />
+            {dates.map((tanggal: string) => <col key={tanggal} style={{ width: dateColWidth }} />)}
+            <col style={{ width: '18pt' }} />
+            <col style={{ width: '18pt' }} />
+            <col style={{ width: '18pt' }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th rowSpan={2} style={printTh}>Urut</th>
+              <th rowSpan={2} style={printTh}>NIS</th>
+              <th rowSpan={2} style={{ ...printTh, letterSpacing: '2pt' }}>Nama</th>
+              <th rowSpan={2} style={printTh}>JK</th>
+              <th colSpan={dates.length || 1} style={printTh}>Tanggal</th>
+              <th colSpan={3} style={printTh}>Jumlah</th>
+            </tr>
+            <tr>
+              {dates.length > 0
+                ? dates.map((tanggal: string) => <th key={tanggal} style={{ ...printTh, fontSize: '7pt', padding: '1pt 0' }}>{Number(tanggal.slice(8, 10))}</th>)
+                : <th style={printTh}>-</th>}
+              <th style={printTh}>S</th>
+              <th style={printTh}>I</th>
+              <th style={printTh}>A</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row: any) => (
+              <tr key={row.siswa_id} style={{ height: '13pt' }}>
+                <td style={{ ...printTd, textAlign: 'center' }}>{row.urut}</td>
+                <td style={{ ...printTd, textAlign: 'center' }}>{row.nis}</td>
+                <td style={{ ...printTd, fontSize: '8.5pt', paddingLeft: '4pt' }}>{row.nama_lengkap}</td>
+                <td style={{ ...printTd, textAlign: 'center' }}>{row.jenis_kelamin}</td>
+                {(row.cells || []).map((cell: any) => <td key={cell.tanggal} style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{cell.mark}</td>)}
+                {dates.length === 0 && <td style={printTd} />}
+                <td style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{row.totals?.S || 0}</td>
+                <td style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{row.totals?.I || 0}</td>
+                <td style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{row.totals?.A || 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontFamily: PRINT_FONT }}>
+          <colgroup>
+            <col style={{ width: '18pt' }} />
+            <col style={{ width: '42pt' }} />
+            <col />
+            <col style={{ width: '18pt' }} />
+            {months.flatMap((month: any) => ['S', 'I', 'A'].map(key => <col key={`${month.month}-${key}`} style={{ width: '15pt' }} />))}
+            <col style={{ width: '16pt' }} />
+            <col style={{ width: '16pt' }} />
+            <col style={{ width: '16pt' }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th rowSpan={2} style={printTh}>Urut</th>
+              <th rowSpan={2} style={printTh}>NIS</th>
+              <th rowSpan={2} style={{ ...printTh, letterSpacing: '2pt' }}>Nama</th>
+              <th rowSpan={2} style={printTh}>JK</th>
+              {months.map((month: any) => <th key={month.month} colSpan={3} style={printTh}>{month.label}</th>)}
+              <th colSpan={3} style={printTh}>Jumlah</th>
+            </tr>
+            <tr>
+              {months.flatMap((month: any) => ['S', 'I', 'A'].map(key => <th key={`${month.month}-${key}`} style={printTh}>{key}</th>))}
+              <th style={printTh}>S</th>
+              <th style={printTh}>I</th>
+              <th style={printTh}>A</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row: any) => (
+              <tr key={row.siswa_id} style={{ height: '13pt' }}>
+                <td style={{ ...printTd, textAlign: 'center' }}>{row.urut}</td>
+                <td style={{ ...printTd, textAlign: 'center' }}>{row.nis}</td>
+                <td style={{ ...printTd, fontSize: '8.5pt', paddingLeft: '4pt' }}>{row.nama_lengkap}</td>
+                <td style={{ ...printTd, textAlign: 'center' }}>{row.jenis_kelamin}</td>
+                {(row.monthTotals || []).flatMap((item: any) => [
+                  <td key={`${item.month}-S`} style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{item.S || 0}</td>,
+                  <td key={`${item.month}-I`} style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{item.I || 0}</td>,
+                  <td key={`${item.month}-A`} style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{item.A || 0}</td>,
+                ])}
+                <td style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{row.semesterTotal?.S || 0}</td>
+                <td style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{row.semesterTotal?.I || 0}</td>
+                <td style={{ ...printTd, textAlign: 'center', fontWeight: 700 }}>{row.semesterTotal?.A || 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <div style={{ marginTop: '8pt', display: 'flex', justifyContent: 'space-between', fontSize: '8pt' }}>
+        <span>Dicetak pada: {formatTimeWIB(new Date().toISOString())}</span>
+        <span>Wali Kelas: {section.kelas?.wali_kelas_nama || '................................'}</span>
+      </div>
+    </div>
+  )
+}
+
+const printTh = {
+  border: PRINT_BORDER,
+  padding: '1.5pt 1pt',
+  fontFamily: PRINT_FONT,
+  fontSize: '8pt',
+  fontWeight: 700,
+  textAlign: 'center' as const,
+  verticalAlign: 'middle' as const,
+  lineHeight: 1.05,
+  backgroundColor: '#fff',
+}
+
+const printTd = {
+  border: PRINT_BORDER,
+  padding: '1pt 1.5pt',
+  fontFamily: PRINT_FONT,
+  fontSize: '8pt',
+  verticalAlign: 'middle' as const,
+  lineHeight: 1.05,
+  overflow: 'hidden',
+  whiteSpace: 'nowrap' as const,
 }
 
 function PrintHeader({ title, subtitle }: { title: string; subtitle: string }) {
