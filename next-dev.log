@@ -11,3 +11,14 @@
   · optimizePackageImports
   · serverActions
 
+○ Compiling /dashboard ...
+ GET /dashboard 500 in 10.4s (next.js: 5.9s, application-code: 4.5s)
+ GET /dashboard 307 in 165ms (next.js: 14ms, application-code: 152ms)
+ GET /login 200 in 155ms (next.js: 72ms, application-code: 84ms)
+✓ Compiled in 146ms
+✓ Compiled in 181ms
+✓ Compiled in 142ms
+✓ Compiled in 330ms
+✓ Compiled in 168ms
+✓ Compiled in 145ms
+✓ Compiled in 710ms

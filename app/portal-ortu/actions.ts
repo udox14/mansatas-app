@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { createAuth } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { uploadPaymentProof } from '@/utils/r2'
+import { ensureParentSuggestionTable, normalizeParentSuggestionCategory } from '@/lib/parent-suggestions'
 
 type SummonResponse = 'hadir' | 'reschedule'
 const SEMESTER_NILAI_COLUMNS = ['nilai_smt1', 'nilai_smt2', 'nilai_smt3', 'nilai_smt4', 'nilai_smt5', 'nilai_smt6'] as const
@@ -238,6 +239,42 @@ export async function markParentNotificationRead(notificationId: string) {
 
   revalidatePath('/portal-ortu')
   return { success: true }
+}
+
+export async function createParentSuggestion(payload: {
+  category: string
+  title: string
+  message: string
+}) {
+  const session = await requireParentSession()
+  const db = await getDB()
+  await ensureParentSuggestionTable(db)
+
+  const category = normalizeParentSuggestionCategory(payload.category)
+  const title = String(payload.title || '').trim()
+  const message = String(payload.message || '').trim()
+
+  if (!category) return { error: 'Kategori saran wajib dipilih.' }
+  if (!title) return { error: 'Judul saran wajib diisi.' }
+  if (!message) return { error: 'Isi saran wajib diisi.' }
+  if (title.length > 120) return { error: 'Judul saran maksimal 120 karakter.' }
+  if (message.length > 2000) return { error: 'Isi saran maksimal 2000 karakter.' }
+
+  await db.prepare(`
+    INSERT INTO parent_suggestions
+      (id, parent_user_id, siswa_id, category, title, message, is_anonymous, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 0, 'baru', datetime('now'), datetime('now'))
+  `).bind(
+    generateId(),
+    session.user.nisn || null,
+    session.user.siswa_id,
+    category,
+    title,
+    message
+  ).run()
+
+  revalidatePath('/portal-ortu')
+  return { success: 'Terima kasih, saran Bapak/Ibu sudah kami terima.' }
 }
 
 export async function changeOwnParentPassword(payload: {

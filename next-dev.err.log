@@ -1,1 +1,18 @@
 ⚠ Port 3000 is in use by process 29728, using available port 3001 instead.
+*** std::terminate() called with no exception
+stack: 7ff9aa551239 7ff74d6b67c5 7ff9aa5604ff 7ff9aa553a90 7ff9aa55f977 7ff9aa552c77 7ff9aa560310 7ff9d66e645e 7ff9d6595702 7ff9aa55fe75 7ff9aa5518f1 7ff9aa551d16 7ff9aa552d60 7ff9aa560310 7ff9d66e63de 7ff9d6599496 7ff9d65f0730 7ff9d3b9fe09 7ff9aa555276 7ff74ec5c77f 7ff74d6b1f0f 7ff74d6b63f4 7ff74ec61e56 7ff74ec69846 7ff74ec62064 7ff74ec69846 7ff74ec5f3b4 7ff74d6a20a5 7ff75098a27f
+⨯ MiniflareCoreError [ERR_RUNTIME_FAILURE]: The Workers runtime failed to start. There is likely additional logging output above.
+    at async getAuth (utils\auth\server.ts:11:19)
+    at async getSession (utils\auth\server.ts:17:16)
+    at async DashboardLayout (app\dashboard\layout.tsx:23:19)
+   9 | // Ambil instance auth dengan D1 binding
+  10 | async function getAuth() {
+> 11 |   const { env } = await getCloudflareContext({ async: true })
+     |                   ^
+  12 |   return createAuth(env.DB)
+  13 | }
+  14 | {
+  code: 'ERR_RUNTIME_FAILURE',
+  cause: undefined,
+  digest: '3445195440'
+}
