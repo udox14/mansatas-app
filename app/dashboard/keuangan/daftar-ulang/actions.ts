@@ -19,7 +19,7 @@ async function requireAuth() {
   const session = await getSession()
   if (!session?.user) throw new Error('Unauthorized')
   const db = await getDB()
-  const allowed = await checkFeatureAccess(db, session.user.id, 'keuangan-dspt')
+  const allowed = await checkFeatureAccess(db, session.user.id, 'keuangan-daftar-ulang')
   if (!allowed) throw new Error('Forbidden')
   return { db, userId: session.user.id }
 }
@@ -51,6 +51,136 @@ export interface DaftarUlangResult {
   kuitansiDspt: KuitansiData | null
 }
 
+export interface SiswaBaruDsptPageParams {
+  page?: number
+  pageSize?: number | 'semua'
+  q?: string
+}
+
+function siswaBaruWhere(q?: string) {
+  const params: any[] = []
+  let where = "WHERE s.kelas_id IS NULL AND s.status = 'aktif'"
+  if (q?.trim()) {
+    where += ' AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ? OR s.asal_sekolah LIKE ?)'
+    const term = `%${q.trim()}%`
+    params.push(term, term, term)
+  }
+  return { where, params }
+}
+
+function revalidateDsptViews(siswaId?: string) {
+  revalidatePath('/dashboard/keuangan')
+  revalidatePath('/dashboard/keuangan/dspt')
+  revalidatePath('/dashboard/keuangan/transaksi')
+  revalidatePath('/dashboard/keuangan/daftar-ulang')
+  if (siswaId) revalidatePath(`/dashboard/keuangan/siswa/${siswaId}`)
+}
+
+export async function searchSiswaBaruDaftarUlang(q: string) {
+  const { db } = await requireAuth()
+  if (!q || q.trim().length < 2) return { data: [] }
+  const term = `%${q.trim()}%`
+  const result = await db.prepare(`
+    SELECT s.id, s.nama_lengkap, s.nisn,
+           NULL AS tingkat, NULL AS nomor_kelas, NULL AS kelompok,
+           s.tahun_masuk
+    FROM siswa s
+    WHERE s.kelas_id IS NULL
+      AND s.status = 'aktif'
+      AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)
+    ORDER BY s.nama_lengkap ASC
+    LIMIT 20
+  `).bind(term, term).all<any>()
+  return { data: result.results ?? [] }
+}
+
+export async function getSiswaBaruDsptPage(params: SiswaBaruDsptPageParams = {}) {
+  const { db } = await requireAuth()
+  const page = Math.max(1, params.page ?? 1)
+  const pageSize = params.pageSize ?? 25
+  const { where, params: whereParams } = siswaBaruWhere(params.q)
+
+  const totalRow = await db.prepare(`
+    SELECT COUNT(*) AS total
+    FROM siswa s
+    ${where}
+  `).bind(...whereParams).first<{ total: number }>()
+
+  let query = `
+    SELECT
+      s.id AS siswa_id, s.nama_lengkap, s.nisn, s.jenis_kelamin,
+      s.asal_sekolah, s.tahun_masuk,
+      d.id AS dspt_id, d.nominal_target, d.total_dibayar, d.total_diskon,
+      COALESCE(d.status, 'tidak_ada') AS status
+    FROM siswa s
+    LEFT JOIN fin_dspt d ON d.siswa_id = s.id
+    ${where}
+    ORDER BY s.nama_lengkap ASC
+  `
+  const bindParams = [...whereParams]
+  if (pageSize !== 'semua') {
+    const size = Math.max(1, pageSize)
+    query += ' LIMIT ? OFFSET ?'
+    bindParams.push(size, (page - 1) * size)
+  }
+
+  const result = await db.prepare(query).bind(...bindParams).all<any>()
+  return {
+    data: result.results ?? [],
+    total: totalRow?.total ?? 0,
+    page,
+    pageSize,
+    error: null,
+  }
+}
+
+export async function upsertSiswaBaruDsptTarget(siswaId: string, nominalTarget: number) {
+  const { db } = await requireAuth()
+  const siswa = await db.prepare(`
+    SELECT id
+    FROM siswa
+    WHERE id = ? AND kelas_id IS NULL AND status = 'aktif'
+  `).bind(siswaId).first<{ id: string }>()
+  if (!siswa) return { error: 'Siswa baru tidak ditemukan atau sudah memiliki kelas', data: null }
+
+  const nominal = Math.max(0, nominalTarget || 0)
+  const existing = await db.prepare(`
+    SELECT id, total_dibayar, total_diskon
+    FROM fin_dspt
+    WHERE siswa_id = ?
+  `).bind(siswaId).first<any>()
+
+  let dsptId = existing?.id as string | undefined
+  const status = recalcStatusVal(existing?.total_dibayar ?? 0, existing?.total_diskon ?? 0, nominal)
+  if (dsptId) {
+    await db.prepare(`
+      UPDATE fin_dspt
+      SET nominal_target = ?, status = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(nominal, status, dsptId).run()
+  } else {
+    dsptId = generateId()
+    await db.prepare(`
+      INSERT INTO fin_dspt (id, siswa_id, nominal_target, total_dibayar, total_diskon, status)
+      VALUES (?, ?, ?, 0, 0, ?)
+    `).bind(dsptId, siswaId, nominal, status).run()
+  }
+
+  const row = await db.prepare(`
+    SELECT
+      s.id AS siswa_id, s.nama_lengkap, s.nisn, s.jenis_kelamin,
+      s.asal_sekolah, s.tahun_masuk,
+      d.id AS dspt_id, d.nominal_target, d.total_dibayar, d.total_diskon,
+      d.status
+    FROM siswa s
+    JOIN fin_dspt d ON d.siswa_id = s.id
+    WHERE s.id = ?
+  `).bind(siswaId).first<any>()
+
+  revalidateDsptViews(siswaId)
+  return { error: null, data: row }
+}
+
 export async function getDaftarUlangSiswaData(siswaId: string, tahunAjaranId: string) {
   const { db } = await requireAuth()
   void tahunAjaranId
@@ -62,6 +192,8 @@ export async function getDaftarUlangSiswaData(siswaId: string, tahunAjaranId: st
       FROM siswa s
       LEFT JOIN kelas k ON k.id = s.kelas_id
       WHERE s.id = ?
+        AND s.kelas_id IS NULL
+        AND s.status = 'aktif'
     `).bind(siswaId).first<any>(),
     db.prepare('SELECT * FROM fin_dspt WHERE siswa_id = ?').bind(siswaId).first<any>(),
   ])
@@ -85,8 +217,10 @@ export async function processDaftarUlang(
       FROM siswa s
       LEFT JOIN kelas k ON k.id = s.kelas_id
       WHERE s.id = ?
+        AND s.kelas_id IS NULL
+        AND s.status = 'aktif'
     `).bind(params.siswaId).first<any>()
-    if (!siswa) return { error: 'Siswa tidak ditemukan', kuitansiDspt: null }
+    if (!siswa) return { error: 'Siswa baru tidak ditemukan atau sudah memiliki kelas', kuitansiDspt: null }
 
     const kelas = siswa.tingkat
       ? `${siswa.tingkat}-${siswa.nomor_kelas}${siswa.kelompok ? ' ' + siswa.kelompok : ''}`
@@ -158,11 +292,7 @@ export async function processDaftarUlang(
       await db.prepare("UPDATE fin_dspt SET status='belum_bayar' WHERE id = ?").bind(dsptId).run()
     }
 
-    revalidatePath('/dashboard/keuangan')
-    revalidatePath('/dashboard/keuangan/dspt')
-    revalidatePath('/dashboard/keuangan/transaksi')
-    revalidatePath('/dashboard/keuangan/daftar-ulang')
-    revalidatePath(`/dashboard/keuangan/siswa/${params.siswaId}`)
+    revalidateDsptViews(params.siswaId)
 
     let kuitansiDspt: KuitansiData | null = null
     if (nomorDspt && dsptId) {

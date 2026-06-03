@@ -7,13 +7,23 @@ import { Label } from '@/components/ui/label'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table'
+import { DataPagination } from '@/components/ui/data-pagination'
 import {
   Search, X, CheckCircle2, AlertCircle, ChevronRight, Printer,
-  User, Banknote, Info, RotateCcw,
+  User, Banknote, Info, RotateCcw, Clock, XCircle, Minus,
 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
-import { searchSiswa } from '../actions'
-import { getDaftarUlangSiswaData, processDaftarUlang } from './actions'
+import {
+  getDaftarUlangSiswaData,
+  getSiswaBaruDsptPage,
+  processDaftarUlang,
+  searchSiswaBaruDaftarUlang,
+  upsertSiswaBaruDsptTarget,
+} from './actions'
 import { KuitansiModal, useNamaPerugas } from '../components/kuitansi-print'
 import type { KuitansiData } from '../components/kuitansi-print'
 
@@ -35,11 +45,50 @@ interface DsptForm {
   alasanDiskon: string
 }
 
+interface SiswaBaruDsptRow {
+  siswa_id: string
+  nama_lengkap: string
+  nisn: string | null
+  jenis_kelamin: 'L' | 'P' | string | null
+  asal_sekolah: string | null
+  tahun_masuk: number | null
+  dspt_id: string | null
+  nominal_target: number | null
+  total_dibayar: number | null
+  total_diskon: number | null
+  status: 'belum_bayar' | 'nyicil' | 'lunas' | 'tidak_ada' | string
+}
+
 function parseNum(s: string) { return parseInt(s.replace(/\D/g, ''), 10) || 0 }
 
 function fmtKelas(s: SiswaResult) {
   if (!s.tingkat) return '-'
   return `${s.tingkat}-${s.nomor_kelas}${s.kelompok ? ' ' + s.kelompok : ''}`
+}
+
+function statusInfo(status: string) {
+  switch (status) {
+    case 'lunas':
+      return { label: 'Lunas', icon: CheckCircle2, cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' }
+    case 'nyicil':
+      return { label: 'Nyicil', icon: Clock, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }
+    case 'belum_bayar':
+      return { label: 'Belum Bayar', icon: XCircle, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' }
+    default:
+      return { label: 'Belum Diinput', icon: Minus, cls: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' }
+  }
+}
+
+function normalizeDsptRow(row: SiswaBaruDsptRow): SiswaBaruDsptRow {
+  const target = row.nominal_target ?? 0
+  const dibayar = row.total_dibayar ?? 0
+  const diskon = row.total_diskon ?? 0
+  let status = row.dspt_id ? row.status : 'tidak_ada'
+  if (row.dspt_id) {
+    const sisa = Math.max(0, target - dibayar - diskon)
+    status = sisa <= 0 ? 'lunas' : dibayar > 0 ? 'nyicil' : 'belum_bayar'
+  }
+  return { ...row, status }
 }
 
 function NumInput({
@@ -77,6 +126,226 @@ function NumInput({
         }}
       />
       {hint && <p className="text-[11px] text-slate-400">{hint}</p>}
+    </div>
+  )
+}
+
+function InlineDsptInput({
+  row,
+  onSaved,
+}: {
+  row: SiswaBaruDsptRow
+  onSaved: (row: SiswaBaruDsptRow) => void
+}) {
+  const [value, setValue] = useState(row.nominal_target ? String(row.nominal_target) : '')
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSavedRef = useRef(row.nominal_target ?? 0)
+
+  useEffect(() => {
+    const next = row.nominal_target ?? 0
+    lastSavedRef.current = next
+    setValue(next > 0 ? String(next) : '')
+    setState('idle')
+  }, [row.siswa_id, row.nominal_target])
+
+  const save = useCallback(async (raw: string) => {
+    const nominal = parseNum(raw)
+    if (nominal === lastSavedRef.current) return
+    setState('saving')
+    const res = await upsertSiswaBaruDsptTarget(row.siswa_id, nominal)
+    if (res.error || !res.data) {
+      setState('error')
+      return
+    }
+    const fresh = normalizeDsptRow(res.data as SiswaBaruDsptRow)
+    lastSavedRef.current = fresh.nominal_target ?? 0
+    onSaved(fresh)
+    setState('saved')
+    window.setTimeout(() => setState('idle'), 1200)
+  }, [onSaved, row.siswa_id])
+
+  function scheduleSave(raw: string) {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => save(raw), 800)
+  }
+
+  return (
+    <div className="space-y-1">
+      <Input
+        value={value}
+        inputMode="numeric"
+        className="h-8 min-w-[140px] text-sm font-mono"
+        placeholder="0"
+        onChange={e => {
+          const raw = e.target.value.replace(/\D/g, '')
+          setValue(raw)
+          setState('idle')
+          scheduleSave(raw)
+        }}
+        onBlur={() => {
+          if (timerRef.current) clearTimeout(timerRef.current)
+          save(value)
+        }}
+      />
+      <p className={`text-[10px] ${
+        state === 'error' ? 'text-rose-500' : state === 'saved' ? 'text-emerald-600' : 'text-slate-400'
+      }`}>
+        {state === 'saving' ? 'Menyimpan...' : state === 'saved' ? 'Tersimpan' : state === 'error' ? 'Gagal simpan' : 'Auto-save'}
+      </p>
+    </div>
+  )
+}
+
+function SiswaBaruDsptTab() {
+  const [rows, setRows] = useState<SiswaBaruDsptRow[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number | 'semua'>(25)
+  const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const loadRows = useCallback(async (nextPage = page, nextPageSize = pageSize, q = search) => {
+    setLoading(true)
+    setError(null)
+    const res = await getSiswaBaruDsptPage({ page: nextPage, pageSize: nextPageSize, q })
+    if (res.error) {
+      setError(res.error)
+      setLoading(false)
+      return
+    }
+    setRows((res.data as SiswaBaruDsptRow[]).map(normalizeDsptRow))
+    setTotal(res.total)
+    setLoading(false)
+  }, [page, pageSize, search])
+
+  useEffect(() => {
+    loadRows(1, pageSize, search)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function handleSearch(val: string) {
+    setSearch(val)
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      setPage(1)
+      loadRows(1, pageSize, val)
+    }, 350)
+  }
+
+  function handlePageChange(nextPage: number) {
+    setPage(nextPage)
+    loadRows(nextPage, pageSize, search)
+  }
+
+  function handlePageSizeChange(nextSize: number | 'semua') {
+    setPageSize(nextSize)
+    setPage(1)
+    loadRows(1, nextSize, search)
+  }
+
+  function handleSaved(fresh: SiswaBaruDsptRow) {
+    setRows(prev => prev.map(row => row.siswa_id === fresh.siswa_id ? fresh : row))
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+        <div className="relative max-w-md">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          <Input
+            value={search}
+            onChange={e => handleSearch(e.target.value)}
+            placeholder="Cari nama, NISN, atau asal sekolah..."
+            className="h-8 pl-8 text-sm"
+          />
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400">
+          {error}
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <Table>
+          <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
+            <TableRow>
+              <TableHead className="min-w-[220px]">Nama</TableHead>
+              <TableHead className="w-16 text-center">L/P</TableHead>
+              <TableHead className="min-w-[180px]">Asal Sekolah</TableHead>
+              <TableHead className="min-w-[170px]">Nominal DSPT</TableHead>
+              <TableHead className="w-36">Status</TableHead>
+              <TableHead className="min-w-[130px] text-right">Sisa</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading && (
+              <TableRow>
+                <TableCell colSpan={6} className="h-24 text-center text-sm text-slate-400">
+                  Memuat siswa baru...
+                </TableCell>
+              </TableRow>
+            )}
+            {!loading && rows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="h-24 text-center text-sm text-slate-400">
+                  Tidak ada siswa baru tanpa kelas.
+                </TableCell>
+              </TableRow>
+            )}
+            {!loading && rows.map(row => {
+              const target = row.nominal_target ?? 0
+              const dibayar = row.total_dibayar ?? 0
+              const diskon = row.total_diskon ?? 0
+              const sisa = Math.max(0, target - dibayar - diskon)
+              const info = statusInfo(row.status)
+              const StatusIcon = info.icon
+              return (
+                <TableRow key={row.siswa_id}>
+                  <TableCell>
+                    <div>
+                      <p className="font-semibold text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
+                      <p className="text-[11px] text-slate-400">NISN: {row.nisn ?? '-'}</p>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <span className="inline-flex h-6 min-w-6 items-center justify-center rounded bg-slate-100 px-1.5 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                      {row.jenis_kelamin ?? '-'}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-sm text-slate-600 dark:text-slate-300">
+                    {row.asal_sekolah ?? '-'}
+                  </TableCell>
+                  <TableCell>
+                    <InlineDsptInput row={row} onSaved={handleSaved} />
+                  </TableCell>
+                  <TableCell>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-semibold ${info.cls}`}>
+                      <StatusIcon className="h-3 w-3" />
+                      {info.label}
+                    </span>
+                  </TableCell>
+                  <TableCell className={`text-right font-mono text-sm font-semibold ${sisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {formatRupiah(sisa)}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+        <DataPagination
+          total={total}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          entityLabel="siswa baru"
+        />
+      </div>
     </div>
   )
 }
@@ -128,7 +397,7 @@ export function DaftarUlangClient({
     }
     debounceRef.current = setTimeout(async () => {
       setIsSearching(true)
-      const res = await searchSiswa(val)
+      const res = await searchSiswaBaruDaftarUlang(val)
       setSearchResults(res.data as SiswaResult[])
       setShowDropdown(true)
       setIsSearching(false)
@@ -146,6 +415,12 @@ export function DaftarUlangClient({
 
     const data = await getDaftarUlangSiswaData(s.id, tahunAjaranId)
     setIsLoadingData(false)
+
+    if (!data.siswa) {
+      setSelectedSiswa(null)
+      setMsg({ type: 'error', text: 'Siswa baru tidak ditemukan atau sudah memiliki kelas' })
+      return
+    }
 
     if (data.dspt) {
       setExistingDsptId(data.dspt.id)
@@ -219,6 +494,17 @@ export function DaftarUlangClient({
           <span className="ml-auto text-slate-400">Petugas: {namaKomite}</span>
         </div>
 
+        <Tabs defaultValue="kasir" className="space-y-4">
+          <TabsList className="bg-slate-100 dark:bg-slate-800">
+            <TabsTrigger value="kasir" className="gap-1.5">
+              <Printer className="h-3.5 w-3.5" /> Kasir
+            </TabsTrigger>
+            <TabsTrigger value="siswa-baru" className="gap-1.5">
+              <User className="h-3.5 w-3.5" /> Siswa Baru
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="kasir" className="space-y-4">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <User className="h-4 w-4 text-indigo-500" />
@@ -248,7 +534,7 @@ export function DaftarUlangClient({
               <Input
                 value={query}
                 onChange={e => handleSearch(e.target.value)}
-                placeholder="Cari nama siswa atau NISN..."
+                placeholder="Cari siswa baru tanpa kelas..."
                 className="pl-10 h-10"
               />
               {isSearching && (
@@ -436,6 +722,12 @@ export function DaftarUlangClient({
             </Button>
           </div>
         )}
+          </TabsContent>
+
+          <TabsContent value="siswa-baru" className="space-y-4">
+            <SiswaBaruDsptTab />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <KuitansiModal
