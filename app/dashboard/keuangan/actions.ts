@@ -39,6 +39,30 @@ function recalcStatus(totalDibayar: number, totalDiskon: number, nominal: number
   return 'belum_bayar'
 }
 
+async function ensurePaymentSubmissionTable(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS fin_payment_submissions (
+      id TEXT PRIMARY KEY,
+      siswa_id TEXT NOT NULL REFERENCES siswa(id),
+      dspt_id TEXT NOT NULL REFERENCES fin_dspt(id),
+      kategori TEXT NOT NULL DEFAULT 'dspt' CHECK(kategori IN ('dspt')),
+      metode_bayar TEXT NOT NULL DEFAULT 'transfer' CHECK(metode_bayar IN ('transfer', 'qris')),
+      jumlah INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'belum_upload' CHECK(status IN ('belum_upload', 'menunggu_konfirmasi', 'terkonfirmasi', 'ditolak')),
+      bukti_url TEXT,
+      bukti_uploaded_at TEXT,
+      confirmed_by TEXT REFERENCES "user"(id),
+      confirmed_at TEXT,
+      rejected_by TEXT REFERENCES "user"(id),
+      rejected_at TEXT,
+      reject_reason TEXT,
+      transaksi_id TEXT REFERENCES fin_transaksi(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `).run()
+}
+
 const SPP_REGULER_DISABLED_MESSAGE = 'SPP reguler dinonaktifkan. Gunakan pembayaran tunggakan awal SPP saja.'
 
 // ─── DSPT ───────────────────────────────────────────────────────────────────
@@ -902,6 +926,113 @@ export async function catatTransaksi(payload: {
   revalidatePath('/dashboard/keuangan/transaksi')
   revalidatePath(`/dashboard/keuangan/siswa/${payload.siswaId}`)
   return { error: null, success: 'Transaksi berhasil disimpan', data: { transaksiId, nomorKuitansi } }
+}
+
+export async function getPendingDsptPaymentSubmissions() {
+  const { db } = await requireAuth('keuangan-dspt')
+  await ensurePaymentSubmissionTable(db)
+  const result = await db.prepare(`
+    SELECT
+      p.id, p.siswa_id, p.dspt_id, p.metode_bayar, p.jumlah, p.status,
+      p.bukti_url, p.bukti_uploaded_at, p.created_at,
+      s.nama_lengkap, s.nisn, s.tahun_masuk,
+      k.tingkat, k.nomor_kelas, k.kelompok,
+      d.nominal_target, d.total_dibayar, d.total_diskon, d.status AS dspt_status
+    FROM fin_payment_submissions p
+    JOIN siswa s ON s.id = p.siswa_id
+    LEFT JOIN kelas k ON k.id = s.kelas_id
+    JOIN fin_dspt d ON d.id = p.dspt_id
+    WHERE p.kategori = 'dspt' AND p.status = 'menunggu_konfirmasi'
+    ORDER BY datetime(p.bukti_uploaded_at) ASC, datetime(p.created_at) ASC
+  `).all<any>()
+  return { data: result.results ?? [], error: null }
+}
+
+export async function konfirmasiDsptPaymentSubmission(submissionId: string) {
+  const { db, userId } = await requireAuth('keuangan-dspt')
+  await ensurePaymentSubmissionTable(db)
+
+  const submission = await db.prepare(`
+    SELECT p.*, d.nominal_target, d.total_dibayar, d.total_diskon
+    FROM fin_payment_submissions p
+    JOIN fin_dspt d ON d.id = p.dspt_id
+    WHERE p.id = ?
+  `).bind(submissionId).first<any>()
+  if (!submission) return { error: 'Pengajuan pembayaran tidak ditemukan', success: null }
+  if (submission.status !== 'menunggu_konfirmasi') return { error: 'Bukti pembayaran belum siap dikonfirmasi', success: null }
+  if (!submission.bukti_url) return { error: 'Bukti pembayaran belum diupload', success: null }
+
+  const jumlah = Number(submission.jumlah || 0)
+  const sisa = Math.max(0, Number(submission.nominal_target || 0) - Number(submission.total_dibayar || 0) - Number(submission.total_diskon || 0))
+  if (jumlah <= 0) return { error: 'Nominal pembayaran tidak valid', success: null }
+  if (jumlah > sisa) return { error: `Nominal bukti melebihi sisa DSPT saat ini (Rp ${sisa.toLocaleString('id-ID')})`, success: null }
+
+  const seq = await db.prepare(
+    "UPDATE fin_nomor_kuitansi_seq SET counter = counter + 1 WHERE id = 'singleton' RETURNING counter"
+  ).first<{ counter: number }>()
+  const year = new Date().getFullYear()
+  const nomorKuitansi = `KWT-DSPT-${year}-${String(seq?.counter ?? 0).padStart(5, '0')}`
+  const transaksiId = generateId()
+  const metodeBayar = submission.metode_bayar === 'qris' ? 'qris' : 'transfer'
+
+  await db.batch([
+    db.prepare(`
+      INSERT INTO fin_transaksi (id, siswa_id, kategori, metode_bayar, bukti_transfer_url, jumlah_total, input_oleh, nomor_kuitansi)
+      VALUES (?, ?, 'dspt', ?, ?, ?, ?, ?)
+    `).bind(transaksiId, submission.siswa_id, metodeBayar, submission.bukti_url, jumlah, userId, nomorKuitansi),
+    db.prepare(`
+      INSERT INTO fin_transaksi_detail (id, transaksi_id, ref_type, ref_id, jumlah)
+      VALUES (?, ?, 'dspt', ?, ?)
+    `).bind(generateId(), transaksiId, submission.dspt_id, jumlah),
+    db.prepare(`
+      UPDATE fin_dspt
+      SET total_dibayar = COALESCE(total_dibayar, 0) + ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(jumlah, submission.dspt_id),
+    db.prepare(`
+      UPDATE fin_payment_submissions
+      SET status = 'terkonfirmasi',
+          confirmed_by = ?,
+          confirmed_at = datetime('now'),
+          transaksi_id = ?,
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(userId, transaksiId, submissionId),
+  ])
+
+  await recalcTagihanStatus(db, [{ refType: 'dspt', refId: submission.dspt_id, jumlah }])
+
+  revalidatePath('/dashboard/keuangan')
+  revalidatePath('/dashboard/keuangan/dspt')
+  revalidatePath('/dashboard/keuangan/transaksi')
+  revalidatePath(`/dashboard/keuangan/siswa/${submission.siswa_id}`)
+  revalidatePath('/portal-ortu')
+  return { error: null, success: 'Bukti pembayaran berhasil dikonfirmasi', data: { transaksiId, nomorKuitansi } }
+}
+
+export async function tolakDsptPaymentSubmission(submissionId: string, reason: string) {
+  const { db, userId } = await requireAuth('keuangan-dspt')
+  await ensurePaymentSubmissionTable(db)
+  const alasan = reason.trim()
+  if (alasan.length < 3) return { error: 'Alasan penolakan wajib diisi', success: null }
+
+  const submission = await db.prepare('SELECT siswa_id, status FROM fin_payment_submissions WHERE id = ?').bind(submissionId).first<any>()
+  if (!submission) return { error: 'Pengajuan pembayaran tidak ditemukan', success: null }
+  if (submission.status === 'terkonfirmasi') return { error: 'Pengajuan sudah terkonfirmasi dan tidak bisa ditolak', success: null }
+
+  await db.prepare(`
+    UPDATE fin_payment_submissions
+    SET status = 'ditolak',
+        rejected_by = ?,
+        rejected_at = datetime('now'),
+        reject_reason = ?,
+        updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(userId, alasan, submissionId).run()
+
+  revalidatePath('/dashboard/keuangan/dspt')
+  revalidatePath('/portal-ortu')
+  return { error: null, success: 'Bukti pembayaran ditolak' }
 }
 
 export async function voidTransaksi(transaksiId: string, alasan: string) {

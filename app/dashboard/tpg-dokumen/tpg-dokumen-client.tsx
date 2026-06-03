@@ -348,7 +348,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                       {hasS36(row) && <p className="mt-1 text-xs text-slate-400">{formatSize(row.s36_file_size)} | {formatDateTime(row.s36_uploaded_at)}</p>}
                     </td>
                     <td className="px-4 py-3">
-                      <StatusPill ok={isCkhFinal(row)} label={isCkhFinal(row) ? 'Siap diambil TU' : 'Belum save'} />
+                      <StatusPill ok={isCkhFinal(row)} label={isCkhFinal(row) ? 'Tuntas' : 'Belum save'} />
                       <p className="mt-1 text-xs text-slate-400">{row.ckh_row_count || 0} baris</p>
                     </td>
                     <td className="px-4 py-3">

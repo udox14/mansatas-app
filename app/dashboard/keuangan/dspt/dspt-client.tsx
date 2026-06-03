@@ -14,12 +14,12 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Search, CheckCircle2, Clock, XCircle, Minus, Plus, Upload, Settings2, Pencil, Check } from 'lucide-react'
+import { Search, CheckCircle2, Clock, XCircle, Minus, Plus, Upload, Settings2, Pencil, Check, Image as ImageIcon, Eye } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
 import {
   createDspt, searchSiswa, updateDsptTarget, updateDsptPembayaran,
   tandaiDsptLunas, setNominalDsptMassal, importDsptBulk, getDsptList,
-  getSiswaTemplate,
+  getSiswaTemplate, getPendingDsptPaymentSubmissions, konfirmasiDsptPaymentSubmission, tolakDsptPaymentSubmission,
 } from '../actions'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 import { FinanceExportExcelDialog, type FinanceExportRow } from '../components/export-excel-dialog'
@@ -38,6 +38,25 @@ interface DsptRow {
   nomor_kelas: string | null
   kelompok: string | null
   catatan?: string | null
+}
+
+interface PendingPaymentSubmission {
+  id: string
+  siswa_id: string
+  dspt_id: string
+  metode_bayar: string
+  jumlah: number
+  bukti_url: string
+  bukti_uploaded_at: string | null
+  created_at: string
+  nama_lengkap: string
+  nisn?: string
+  tingkat?: number
+  nomor_kelas?: number
+  kelompok?: string
+  nominal_target: number
+  total_dibayar: number
+  total_diskon: number
 }
 
 const STATUS_MAP = {
@@ -92,11 +111,22 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
   // ── Data state ──────────────────────────────────────────────────────────────
   const [data, setData] = useState<DsptRow[]>(initialData)
   useEffect(() => { setData(initialData) }, [initialData])
+  const [pendingPayments, setPendingPayments] = useState<PendingPaymentSubmission[]>([])
+  const [proofModal, setProofModal] = useState<PendingPaymentSubmission | null>(null)
+  const [pendingModalOpen, setPendingModalOpen] = useState(false)
 
   async function reloadData() {
-    const fresh = await getDsptList()
+    const [fresh, pending] = await Promise.all([
+      getDsptList(),
+      getPendingDsptPaymentSubmissions(),
+    ])
     setData(fresh.data as DsptRow[])
+    setPendingPayments(pending.data as PendingPaymentSubmission[])
   }
+
+  useEffect(() => {
+    getPendingDsptPaymentSubmissions().then((res) => setPendingPayments(res.data as PendingPaymentSubmission[])).catch(() => {})
+  }, [])
 
   // ── Modal: Input DSPT baru (siswa belum diinput) ────────────────────────────
   const [modalSiswa, setModalSiswa] = useState<DsptRow | null>(null)
@@ -267,6 +297,30 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
     })
   }
 
+  async function handleConfirmPayment(submissionId: string) {
+    startTransition(async () => {
+      const res = await konfirmasiDsptPaymentSubmission(submissionId)
+      setMsg(res.error ?? res.success ?? '')
+      if (!res.error) {
+        setProofModal(null)
+        await reloadData()
+      }
+    })
+  }
+
+  async function handleRejectPayment(submissionId: string) {
+    const reason = window.prompt('Alasan penolakan bukti pembayaran:')
+    if (!reason) return
+    startTransition(async () => {
+      const res = await tolakDsptPaymentSubmission(submissionId, reason)
+      setMsg(res.error ?? res.success ?? '')
+      if (!res.error) {
+        setProofModal(null)
+        await reloadData()
+      }
+    })
+  }
+
   async function handleAddSearch() {
     if (addSearch.trim().length < 2) return
     const res = await searchSiswa(addSearch)
@@ -362,6 +416,11 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           </SelectContent>
         </Select>
         <div className="ml-auto flex gap-2">
+          <Button size="sm" variant={pendingPayments.length ? 'default' : 'outline'} className="h-8 text-xs gap-1.5"
+            onClick={() => setPendingModalOpen(true)}>
+            <ImageIcon className="h-3.5 w-3.5" /> Bukti Masuk
+            {pendingPayments.length > 0 && <span className="ml-1 rounded-full bg-white/20 px-1.5 text-[10px]">{pendingPayments.length}</span>}
+          </Button>
           <FinanceExportExcelDialog
             rows={exportRows}
             currentRows={currentExportRows}
@@ -386,6 +445,20 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
       </div>
 
       {msg && <p className={`text-xs px-3 py-2 rounded-md ${msg.includes('berhasil') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50' : 'text-rose-600 bg-rose-50'}`}>{msg}</p>}
+
+      {pendingPayments.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/60 dark:bg-amber-950/30">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">{pendingPayments.length} bukti pembayaran menunggu konfirmasi</p>
+              <p className="text-xs text-amber-700 dark:text-amber-300">Klik Bukti Masuk untuk melihat gambar, konfirmasi, atau tolak.</p>
+            </div>
+            <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => setPendingModalOpen(true)}>
+              <Eye className="h-3.5 w-3.5" /> Periksa
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Summary Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -491,6 +564,73 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           {withDspt.length} dari {filtered.length} sudah diinput DSPT
         </div>
       </div>
+
+      <Dialog open={pendingModalOpen} onOpenChange={setPendingModalOpen}>
+        <DialogContent className="sm:max-w-3xl rounded-xl p-0 overflow-hidden">
+          <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
+            <DialogTitle className="text-sm font-semibold">Bukti Pembayaran Masuk</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[78vh] overflow-y-auto p-5 space-y-3">
+            {pendingPayments.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200 py-8 text-center text-sm text-slate-500">
+                Belum ada bukti pembayaran yang menunggu konfirmasi.
+              </div>
+            ) : pendingPayments.map((p) => {
+              const kelas = p.tingkat && p.nomor_kelas ? `${p.tingkat}-${p.nomor_kelas}${p.kelompok ? ' ' + p.kelompok : ''}` : '-'
+              const sisa = Math.max(0, (p.nominal_target ?? 0) - (p.total_dibayar ?? 0) - (p.total_diskon ?? 0))
+              return (
+                <div key={p.id} className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">{p.nama_lengkap}</p>
+                      <p className="text-[11px] text-slate-500">{p.nisn ?? '-'} - Kelas {kelas}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Bukti: {p.bukti_uploaded_at ? String(p.bukti_uploaded_at).replace('T', ' ') : '-'} - {p.metode_bayar === 'qris' ? 'QRIS' : 'Transfer'}
+                      </p>
+                    </div>
+                    <div className="text-left sm:text-right">
+                      <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{formatRupiah(Number(p.jumlah || 0))}</p>
+                      <p className="text-[11px] text-slate-500">Sisa DSPT: {formatRupiah(sisa)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setProofModal(p)}>
+                      <ImageIcon className="h-3.5 w-3.5" /> Lihat Bukti
+                    </Button>
+                    <Button size="sm" className="h-8 text-xs gap-1.5" disabled={isPending} onClick={() => handleConfirmPayment(p.id)}>
+                      <Check className="h-3.5 w-3.5" /> Konfirmasi
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 border-rose-200 text-rose-600 hover:bg-rose-50" disabled={isPending} onClick={() => handleRejectPayment(p.id)}>
+                      <XCircle className="h-3.5 w-3.5" /> Tolak
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!proofModal} onOpenChange={v => { if (!v) setProofModal(null) }}>
+        <DialogContent className="sm:max-w-2xl rounded-xl p-0 overflow-hidden">
+          <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
+            <DialogTitle className="text-sm font-semibold">Bukti Pembayaran</DialogTitle>
+          </DialogHeader>
+          <div className="bg-slate-50 p-4 dark:bg-slate-950">
+            {proofModal?.bukti_url && (
+              <img src={proofModal.bukti_url} alt="Bukti pembayaran DSPT" className="mx-auto max-h-[72vh] w-full rounded-lg bg-white object-contain" />
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2 border-t border-slate-200 p-4 dark:border-slate-800">
+            <Button size="sm" className="h-8 text-xs gap-1.5" disabled={!proofModal || isPending} onClick={() => proofModal && handleConfirmPayment(proofModal.id)}>
+              <Check className="h-3.5 w-3.5" /> Konfirmasi
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 border-rose-200 text-rose-600 hover:bg-rose-50" disabled={!proofModal || isPending} onClick={() => proofModal && handleRejectPayment(proofModal.id)}>
+              <XCircle className="h-3.5 w-3.5" /> Tolak
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Modal: Input DSPT baru ─────────────────────────────────────────── */}
       <Dialog open={!!modalSiswa} onOpenChange={v => { if (!v) setModalSiswa(null) }}>
