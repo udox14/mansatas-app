@@ -342,9 +342,66 @@ export async function getDaftarUlangSiswaData(siswaId: string, tahunAjaranId: st
   return { siswa, dspt, error: null }
 }
 
+export async function getDaftarUlangKuitansi(transaksiId: string): Promise<{ error: string | null; data: KuitansiData | null }> {
+  const { db } = await requireAuth()
+
+  const trx = await db.prepare(`
+    SELECT
+      t.id, t.nomor_kuitansi, t.metode_bayar, t.jumlah_total, t.created_at, t.is_void,
+      s.nama_lengkap, s.nisn,
+      k.tingkat, k.nomor_kelas, k.kelompok,
+      input_user.nama_lengkap AS nama_input
+    FROM fin_transaksi t
+    JOIN siswa s ON s.id = t.siswa_id
+    LEFT JOIN kelas k ON k.id = s.kelas_id
+    LEFT JOIN "user" input_user ON input_user.id = t.input_oleh
+    WHERE t.id = ? AND t.kategori = 'dspt'
+    LIMIT 1
+  `).bind(transaksiId).first<any>()
+
+  if (!trx) return { error: 'Transaksi daftar ulang tidak ditemukan', data: null }
+  if (trx.is_void) return { error: 'Transaksi void tidak bisa dicetak ulang', data: null }
+
+  const detail = await db.prepare(`
+    SELECT d.jumlah, dspt.nominal_target, dspt.total_dibayar, dspt.total_diskon, dspt.status
+    FROM fin_transaksi_detail d
+    JOIN fin_dspt dspt ON dspt.id = d.ref_id
+    WHERE d.transaksi_id = ? AND d.ref_type = 'dspt'
+    LIMIT 1
+  `).bind(transaksiId).first<any>()
+
+  const kelas = trx.tingkat
+    ? `${trx.tingkat}-${trx.nomor_kelas}${trx.kelompok ? ' ' + trx.kelompok : ''}`
+    : '-'
+  const sisa = Math.max(
+    0,
+    Number(detail?.nominal_target ?? 0) - Number(detail?.total_dibayar ?? 0) - Number(detail?.total_diskon ?? 0),
+  )
+  const jumlah = Number(detail?.jumlah ?? trx.jumlah_total ?? 0)
+
+  return {
+    error: null,
+    data: {
+      nomorKuitansi: trx.nomor_kuitansi,
+      tanggal: String(trx.created_at || '').slice(0, 10),
+      kategori: 'DSPT',
+      namaSiswa: trx.nama_lengkap,
+      nisn: trx.nisn ?? '-',
+      kelas,
+      namaPerugas: trx.nama_input?.trim() || 'Petugas',
+      jabatanPenerima: 'Petugas',
+      metodeBayar: trx.metode_bayar === 'tunai' ? 'Tunai' : 'Transfer Bank',
+      jumlahDiserahkan: jumlah,
+      jumlahTagihan: jumlah,
+      rincianBayar: [{ label: 'DSPT - Dana Sumbangan Pendidikan Tahunan', nominal: jumlah }],
+      sisaTunggakan: sisa > 0 ? [{ label: 'Sisa DSPT', sisa }] : [],
+      isLunas: detail?.status === 'lunas',
+    },
+  }
+}
+
 export async function processDaftarUlang(
   params: DaftarUlangParams,
-  namaKomite: string,
 ): Promise<DaftarUlangResult> {
   const { db, userId } = await requireAuth()
 
@@ -366,6 +423,8 @@ export async function processDaftarUlang(
     const kelas = siswa.tingkat
       ? `${siswa.tingkat}-${siswa.nomor_kelas}${siswa.kelompok ? ' ' + siswa.kelompok : ''}`
       : '-'
+    const petugas = await db.prepare('SELECT nama_lengkap FROM "user" WHERE id = ?').bind(userId).first<{ nama_lengkap: string | null }>()
+    const namaPetugas = petugas?.nama_lengkap?.trim() || 'Petugas'
 
     let nomorDspt: string | null = null
     if (params.dspt.bayarSekarang > 0) {
@@ -457,7 +516,8 @@ export async function processDaftarUlang(
         namaSiswa: siswa.nama_lengkap,
         nisn: siswa.nisn ?? '-',
         kelas,
-        namaPerugas: namaKomite,
+        namaPerugas: namaPetugas,
+        jabatanPenerima: 'Petugas',
         metodeBayar: params.dspt.metode === 'tunai' ? 'Tunai' : 'Transfer Bank',
         jumlahDiserahkan: params.dspt.bayarSekarang,
         jumlahTagihan: params.dspt.bayarSekarang,

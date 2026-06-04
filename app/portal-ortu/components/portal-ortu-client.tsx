@@ -25,6 +25,14 @@ type SemesterDetailState = {
   grades?: SemesterGrade[]
 }
 
+function StandardCard({ children, className = '' }: { children: React.ReactNode, className?: string }) {
+  return (
+    <div className={`bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 ${className}`}>
+      {children}
+    </div>
+  )
+}
+
 async function compressPaymentProofImage(file: File, targetKb = 80): Promise<File> {
   const imageUrl = URL.createObjectURL(file)
   try {
@@ -109,13 +117,21 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const paymentAmountNumber = Number(paymentAmount || 0)
   const isPaymentAmountValid = paymentAmountNumber > 0 && paymentAmountNumber <= Number(dsptSisa || 0)
   const komiteWaNumber = komitePaymentSettings?.whatsapp || '6282215860650'
-  const komiteAccount = `${komitePaymentSettings?.bankLabel || 'BJB Syariah'}: ${komitePaymentSettings?.rekening || '5160256984318'} a.n. ${komitePaymentSettings?.atasNama || 'Komite MAN 1 Tasikmalaya'}`
+  const activePaymentAccounts = (komitePaymentSettings?.accounts || []).filter((account: any) => account?.isActive !== false)
+  const primaryPaymentAccount = activePaymentAccounts[0]
+  const komiteAccount = primaryPaymentAccount
+    ? `${primaryPaymentAccount.bankLabel || 'Rekening'}: ${primaryPaymentAccount.accountNumber || '-'} a.n. ${primaryPaymentAccount.accountName || '-'}`
+    : `${komitePaymentSettings?.bankLabel || 'BJB Syariah'}: ${komitePaymentSettings?.rekening || '5160256984318'} a.n. ${komitePaymentSettings?.atasNama || 'Komite MAN 1 Tasikmalaya'}`
+  const qrisEnabled = komitePaymentSettings?.qrisEnabled !== false
   const komiteQrisUrl = komitePaymentSettings?.qrisUrl || '/QRISkomite.jpeg'
+  const hasQrisMethod = qrisEnabled && Boolean(komiteQrisUrl)
+  const hasTransferMethod = activePaymentAccounts.length > 0
+  const getDefaultPaymentMethod = (): 'qris' | 'transfer' => hasQrisMethod ? 'qris' : 'transfer'
 
   const resetPaymentWizard = () => {
     setPaymentStep(1)
     setPaymentAmount('')
-    setPaymentMethod('qris')
+    setPaymentMethod(getDefaultPaymentMethod())
     setCurrentSubmissionId('')
     setPaymentSubmitting(false)
     setPaymentMessage('')
@@ -152,6 +168,14 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
   const startSubmission = async () => {
     if (!isPaymentAmountValid || paymentSubmitting) return
+    if (paymentMethod === 'qris' && !hasQrisMethod) {
+      setPaymentMessage('Metode QRIS sedang tidak aktif.')
+      return
+    }
+    if (paymentMethod === 'transfer' && !hasTransferMethod) {
+      setPaymentMessage('Metode transfer rekening sedang tidak aktif.')
+      return
+    }
     setPaymentSubmitting(true)
     setPaymentMessage('')
     const res = await createParentDsptPaymentSubmission({ amount: paymentAmountNumber, method: paymentMethod })
@@ -201,7 +225,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
   const openProofUpload = (submission: any) => {
     setPaymentAmount(String(Number(submission.jumlah || 0)))
-    setPaymentMethod(submission.metode_bayar === 'transfer' ? 'transfer' : 'qris')
+    setPaymentMethod(submission.metode_bayar === 'transfer' ? 'transfer' : getDefaultPaymentMethod())
     setCurrentSubmissionId(submission.id)
     setPaymentStep(3)
     setPaymentMessage('')
@@ -253,6 +277,16 @@ export function PortalOrtuClient({ data }: { data: any }) {
     }
   }
 
+  const continueToPayment = () => {
+    const nextMethod = paymentMethod === 'qris' && hasQrisMethod
+      ? 'qris'
+      : paymentMethod === 'transfer' && hasTransferMethod
+        ? 'transfer'
+        : getDefaultPaymentMethod()
+    setPaymentMethod(nextMethod)
+    setPaymentStep(2)
+  }
+
   const submitSuggestion = async () => {
     if (suggestionSubmitting) return
     setSuggestionFeedback('')
@@ -273,12 +307,6 @@ export function PortalOrtuClient({ data }: { data: any }) {
     setSuggestionFeedback(res.success || 'Terima kasih, saran Bapak/Ibu sudah kami terima.')
     router.refresh()
   }
-
-  const StandardCard = ({ children, className = '' }: { children: React.ReactNode, className?: string }) => (
-    <div className={`bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 ${className}`}>
-      {children}
-    </div>
-  )
 
   const renderBeranda = () => {
     const activeSummons = (summons.results || []).filter((s: any) => s.status === 'terkirim' && !s.parent_response)
@@ -914,7 +942,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                         <button
                           type="button"
                           disabled={!isPaymentAmountValid}
-                          onClick={() => setPaymentStep(2)}
+                          onClick={continueToPayment}
                           className="h-11 w-full rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Lanjut ke Pembayaran
@@ -925,81 +953,94 @@ export function PortalOrtuClient({ data }: { data: any }) {
                     {paymentStep === 2 && (
                       <div className="space-y-4">
                         <div>
-                          <p className="text-sm font-semibold text-slate-800">Scan QRIS atau transfer rekening</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-500">Pilih metode, lakukan pembayaran, lalu upload bukti transfer di langkah berikutnya.</p>
+                          <p className="text-sm font-semibold text-slate-800">Pilih metode pembayaran</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">Metode yang nonaktif di pengaturan tidak akan muncul di sini.</p>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          {[
-                            { value: 'qris', label: 'QRIS', icon: QrCode },
-                            { value: 'transfer', label: 'Transfer', icon: Landmark },
-                          ].map((item) => {
-                            const Icon = item.icon
-                            const active = paymentMethod === item.value
-                            return (
-                              <button
-                                key={item.value}
-                                type="button"
-                                onClick={() => setPaymentMethod(item.value as 'qris' | 'transfer')}
-                                className={`flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold ${active ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'}`}
-                              >
-                                <Icon className="h-4 w-4" />
-                                {item.label}
-                              </button>
-                            )
-                          })}
-                        </div>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <button type="button" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100" aria-label="Perbesar QRIS Komite">
-                              <img src={komiteQrisUrl} alt="QRIS Komite MAN 1 Tasikmalaya" className="mx-auto max-h-[260px] w-full rounded-lg object-contain bg-white" />
-                              <span className="mt-2 block text-center text-[11px] font-semibold text-slate-500">Ketuk gambar untuk memperbesar</span>
-                            </button>
-                          </DialogTrigger>
-                          <DialogContent className="sm:max-w-xl rounded-2xl border-0 bg-white p-0 overflow-hidden">
-                            <DialogHeader className="border-b border-slate-100 p-5">
-                              <DialogTitle className="text-lg font-semibold text-slate-800">QRIS Komite</DialogTitle>
-                            </DialogHeader>
-                            <div className="bg-slate-50 p-4">
-                              <img src={komiteQrisUrl} alt="QRIS Komite MAN 1 Tasikmalaya diperbesar" className="mx-auto max-h-[78vh] w-full rounded-xl object-contain bg-white" />
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                        <div>
-                          <a
-                            href={komiteQrisUrl}
-                            download="QRISkomite.jpeg"
-                            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-emerald-600 hover:text-emerald-700"
-                          >
-                            <Download className="h-4 w-4" />
-                            Download QRIS
-                          </a>
-                        </div>
+                        {(hasQrisMethod || hasTransferMethod) ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              hasQrisMethod ? { value: 'qris', label: 'QRIS', icon: QrCode } : null,
+                              hasTransferMethod ? { value: 'transfer', label: 'Transfer', icon: Landmark } : null,
+                            ].filter(Boolean).map((item: any) => {
+                              const Icon = item.icon
+                              const active = paymentMethod === item.value
+                              return (
+                                <button
+                                  key={item.value}
+                                  type="button"
+                                  onClick={() => setPaymentMethod(item.value as 'qris' | 'transfer')}
+                                  className={`flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold ${active ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'}`}
+                                >
+                                  <Icon className="h-4 w-4" />
+                                  {item.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-rose-100 bg-rose-50 p-4 text-sm font-medium text-rose-700">
+                            Metode pembayaran portal sedang dinonaktifkan. Silakan hubungi komite.
+                          </div>
+                        )}
+                        {paymentMethod === 'qris' && hasQrisMethod && (
+                          <>
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <button type="button" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100" aria-label="Perbesar QRIS Komite">
+                                  <img src={komiteQrisUrl} alt="QRIS Komite MAN 1 Tasikmalaya" className="mx-auto max-h-[260px] w-full rounded-lg object-contain bg-white" />
+                                  <span className="mt-2 block text-center text-[11px] font-semibold text-slate-500">Ketuk gambar untuk memperbesar</span>
+                                </button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-xl rounded-2xl border-0 bg-white p-0 overflow-hidden">
+                                <DialogHeader className="border-b border-slate-100 p-5">
+                                  <DialogTitle className="text-lg font-semibold text-slate-800">QRIS Komite</DialogTitle>
+                                </DialogHeader>
+                                <div className="bg-slate-50 p-4">
+                                  <img src={komiteQrisUrl} alt="QRIS Komite MAN 1 Tasikmalaya diperbesar" className="mx-auto max-h-[78vh] w-full rounded-xl object-contain bg-white" />
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                            <a
+                              href={komiteQrisUrl}
+                              download="QRISkomite.jpeg"
+                              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-emerald-600 hover:text-emerald-700"
+                            >
+                              <Download className="h-4 w-4" />
+                              Download QRIS
+                            </a>
+                          </>
+                        )}
                         <div className="grid gap-3">
-                          <div className="rounded-xl border border-slate-200 p-4">
-                            <div className="flex items-start gap-3">
-                              <QrCode className="mt-0.5 h-5 w-5 text-emerald-600" />
-                              <div>
-                                <p className="text-sm font-bold text-slate-800">QRIS Komite</p>
-                                <p className="text-xs text-slate-500">Gunakan QRIS di atas jika membayar dari e-wallet/mobile banking.</p>
+                          {paymentMethod === 'qris' && hasQrisMethod && (
+                            <div className="rounded-xl border border-slate-200 p-4">
+                              <div className="flex items-start gap-3">
+                                <QrCode className="mt-0.5 h-5 w-5 text-emerald-600" />
+                                <div>
+                                  <p className="text-sm font-bold text-slate-800">QRIS Komite</p>
+                                  <p className="text-xs text-slate-500">Gunakan QRIS di atas jika membayar dari e-wallet/mobile banking.</p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <div className="rounded-xl border border-slate-200 p-4">
-                            <div className="flex items-start gap-3">
-                              <Landmark className="mt-0.5 h-5 w-5 text-sky-600" />
-                              <div>
-                                <p className="text-sm font-bold text-slate-800">{komiteAccount}</p>
-                                <p className="mt-1 text-xs text-slate-500">Nominal DSPT: Rp {rupiah(paymentAmountNumber)}</p>
+                          )}
+                          {paymentMethod === 'transfer' && hasTransferMethod && activePaymentAccounts.map((account: any) => (
+                            <div key={account.id || account.rekening} className="rounded-xl border border-slate-200 p-4">
+                              <div className="flex items-start gap-3">
+                                <Landmark className="mt-0.5 h-5 w-5 text-sky-600" />
+                                <div>
+                                  <p className="text-sm font-bold text-slate-800">{account.bankLabel}: {account.rekening}</p>
+                                  <p className="mt-1 text-xs text-slate-500">a.n. {account.atasNama}</p>
+                                  <p className="mt-1 text-xs text-slate-500">Nominal DSPT: Rp {rupiah(paymentAmountNumber)}</p>
+                                </div>
                               </div>
                             </div>
-                          </div>
+                          ))}
                         </div>
                         <div className="flex gap-2">
                           <button type="button" onClick={() => setPaymentStep(1)} className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700">
                             <ArrowLeft className="mr-1 inline h-4 w-4" />
                             Kembali
                           </button>
-                          <button type="button" onClick={startSubmission} disabled={paymentSubmitting} className="h-11 flex-1 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:opacity-50">
+                          <button type="button" onClick={startSubmission} disabled={paymentSubmitting || (!hasQrisMethod && !hasTransferMethod)} className="h-11 flex-1 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:opacity-50">
                             {paymentSubmitting ? 'Mencatat...' : 'Saya Sudah Bayar'}
                           </button>
                         </div>

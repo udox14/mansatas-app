@@ -49,6 +49,7 @@ export interface KuitansiData {
   nisn: string
   kelas: string
   namaPerugas: string
+  jabatanPenerima?: string
   metodeBayar: 'Tunai' | 'Transfer Bank'
   jumlahDiserahkan: number
   jumlahTagihan: number
@@ -402,7 +403,7 @@ function KuitansiKomiteContent({ data, copyLabel }: { data: KuitansiData; copyLa
           tanggalFmt={tanggalFmt}
           namaSiswa={data.namaSiswa}
           namaPerugas={data.namaPerugas}
-          jabatanPenerima="Bendahara Komite"
+          jabatanPenerima={data.jabatanPenerima ?? 'Bendahara Komite'}
         />
 
         {/* Cap Lunas */}
@@ -525,7 +526,7 @@ function KuitansiKoperasiContent({ data, copyLabel }: { data: KuitansiData; copy
           tanggalFmt={tanggalFmt}
           namaSiswa={data.namaSiswa}
           namaPerugas={data.namaPerugas}
-          jabatanPenerima="Pengurus Koperasi"
+          jabatanPenerima={data.jabatanPenerima ?? 'Pengurus Koperasi'}
         />
 
         {/* Cap Lunas */}
@@ -678,11 +679,8 @@ export function KuitansiGandaModal({
   dspt, koperasi, open, onClose, namaKomite, namaKoperasi,
 }: KuitansiGandaModalProps) {
   const printRef = useRef<HTMLDivElement>(null)
-  const { namaKomite: storedKomite } = useNamaPerugas()
 
-  const resolvedKomite = namaKomite ?? storedKomite
-
-  const dsptData = dspt ? { ...dspt, namaPerugas: resolvedKomite } : null
+  const dsptData = dspt ? { ...dspt, namaPerugas: namaKomite ?? dspt.namaPerugas } : null
   const koperasiData = koperasi ? { ...koperasi, namaPerugas: namaKoperasi ?? koperasi.namaPerugas } : null
 
   const handlePrint = useReactToPrint({
@@ -710,7 +708,6 @@ export function KuitansiGandaModal({
               </span>
             </div>
             <div className="flex gap-2">
-              <NamaPerugasSettingModal />
               <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onClose}>
                 Tutup
               </Button>
@@ -756,9 +753,10 @@ interface KuitansiModalProps {
   open: boolean
   onClose: () => void
   mode?: 'duplikat' | 'pembayar'
+  showPetugasSetting?: boolean
 }
 
-export function KuitansiModal({ data, open, onClose, mode = 'duplikat' }: KuitansiModalProps) {
+export function KuitansiModal({ data, open, onClose, mode = 'duplikat', showPetugasSetting = true }: KuitansiModalProps) {
   const printRef = useRef<HTMLDivElement>(null)
 
   const handlePrint = useReactToPrint({
@@ -785,7 +783,7 @@ export function KuitansiModal({ data, open, onClose, mode = 'duplikat' }: Kuitan
               <span className="text-[11px] font-mono text-slate-400">{data.nomorKuitansi}</span>
             </div>
             <div className="flex gap-2">
-              <NamaPerugasSettingModal />
+              {showPetugasSetting && <NamaPerugasSettingModal />}
               <Button size="sm" variant="outline" className="h-8 text-xs" onClick={onClose}>
                 Tutup
               </Button>
