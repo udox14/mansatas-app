@@ -18,7 +18,11 @@ async function DaftarUlangDataFetcher() {
   const allowed = await checkFeatureAccess(db, user.id, 'keuangan-daftar-ulang')
   if (!allowed) redirect('/dashboard')
 
-  const taAktif = await db.prepare('SELECT id, nama FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string; nama: string }>()
+  const [taAktif, userRow] = await Promise.all([
+    db.prepare('SELECT id, nama FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string; nama: string }>(),
+    db.prepare('SELECT nama_lengkap FROM "user" WHERE id = ?').bind(user.id).first<{ nama_lengkap: string | null }>(),
+  ])
+  const namaPetugas = userRow?.nama_lengkap?.trim() || 'Petugas'
 
   return (
     <>
@@ -29,6 +33,7 @@ async function DaftarUlangDataFetcher() {
       <DaftarUlangClient
         tahunAjaranId={taAktif?.id ?? ''}
         tahunAjaranNama={taAktif?.nama ?? '-'}
+        namaPetugas={namaPetugas}
       />
     </>
   )

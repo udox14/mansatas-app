@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { PageHeader } from '@/components/layout/page-header'
 import { checkFeatureAccess } from '@/lib/features'
-import { getSystemSetting } from '@/lib/system-settings'
+import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
 import { getSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { PengaturanKomiteClient } from './pengaturan-client'
@@ -17,13 +17,7 @@ export default async function PengaturanKomitePage() {
   const allowed = await checkFeatureAccess(db, session.user.id, 'keuangan-pengaturan')
   if (!allowed) redirect('/dashboard')
 
-  const settings = {
-    bankLabel: await getSystemSetting('keuangan_komite_bank_label', 'BJB Syariah'),
-    rekening: await getSystemSetting('keuangan_komite_rekening', '5160256984318'),
-    atasNama: await getSystemSetting('keuangan_komite_atas_nama', 'Komite MAN 1 Tasikmalaya'),
-    whatsapp: await getSystemSetting('keuangan_komite_whatsapp', '6282215860650'),
-    qrisUrl: await getSystemSetting('keuangan_komite_qris_url', '/QRISkomite.jpeg'),
-  }
+  const settings = await getKomitePaymentSettings()
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">

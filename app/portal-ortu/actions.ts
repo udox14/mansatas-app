@@ -7,6 +7,7 @@ import { createAuth } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { uploadPaymentProof } from '@/utils/r2'
 import { ensureParentSuggestionTable, normalizeParentSuggestionCategory } from '@/lib/parent-suggestions'
+import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
 
 type SummonResponse = 'hadir' | 'reschedule'
 const SEMESTER_NILAI_COLUMNS = ['nilai_smt1', 'nilai_smt2', 'nilai_smt3', 'nilai_smt4', 'nilai_smt5', 'nilai_smt6'] as const
@@ -105,6 +106,10 @@ export async function createParentDsptPaymentSubmission(payload: {
 
   const amount = Math.floor(Number(payload.amount || 0))
   if (amount <= 0) return { error: 'Nominal pembayaran harus lebih dari 0.' }
+  const settings = await getKomitePaymentSettings()
+  const method = payload.method === 'qris' ? 'qris' : 'transfer'
+  if (method === 'qris' && settings.qrisEnabled === false) return { error: 'Metode QRIS sedang tidak aktif.' }
+  if (method === 'transfer' && !settings.accounts.some((account) => account.isActive)) return { error: 'Metode transfer rekening sedang tidak aktif.' }
 
   const dspt = await db.prepare(`
     SELECT id, nominal_target, total_dibayar, total_diskon
@@ -122,7 +127,7 @@ export async function createParentDsptPaymentSubmission(payload: {
   await db.prepare(`
     INSERT INTO fin_payment_submissions (id, siswa_id, dspt_id, kategori, metode_bayar, jumlah, status)
     VALUES (?, ?, ?, 'dspt', ?, ?, 'belum_upload')
-  `).bind(id, session.user.siswa_id, dspt.id, payload.method || 'transfer', amount).run()
+  `).bind(id, session.user.siswa_id, dspt.id, method, amount).run()
 
   revalidatePath('/portal-ortu')
   return { success: 'Pengajuan pembayaran dibuat.', submissionId: id }

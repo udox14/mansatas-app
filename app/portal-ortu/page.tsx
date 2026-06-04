@@ -3,8 +3,8 @@ import { getAppSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { PortalOrtuClient } from './components/portal-ortu-client'
 import { findSlotException, getKalenderDateStatus, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
-import { getSystemSetting } from '@/lib/system-settings'
 import { ensureParentSuggestionTable } from '@/lib/parent-suggestions'
+import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -258,11 +258,7 @@ export default async function PortalOrtuPage() {
     summons,
     notes,
     taAktif,
-    komiteBankLabel,
-    komiteRekening,
-    komiteAtasNama,
-    komiteWhatsapp,
-    komiteQrisUrl,
+    komitePaymentSettings,
   ] = await Promise.all([
     db.prepare(`
       SELECT pa.id, pa.title, pa.body, pa.publish_at, u.nama_lengkap AS pengirim
@@ -405,11 +401,7 @@ export default async function PortalOrtuPage() {
       LIMIT 12
     `).bind(siswaId).all<any>(),
     db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>(),
-    getSystemSetting('keuangan_komite_bank_label', 'BJB Syariah'),
-    getSystemSetting('keuangan_komite_rekening', '5160256984318'),
-    getSystemSetting('keuangan_komite_atas_nama', 'Komite MAN 1 Tasikmalaya'),
-    getSystemSetting('keuangan_komite_whatsapp', '6282215860650'),
-    getSystemSetting('keuangan_komite_qris_url', '/QRISkomite.jpeg'),
+    getKomitePaymentSettings(),
   ])
 
   const kelasLabel = profil.tingkat ? `${profil.tingkat}-${profil.nomor_kelas}${profil.kelompok ? ` ${profil.kelompok}` : ''}` : '-'
@@ -575,13 +567,7 @@ export default async function PortalOrtuPage() {
     dsptSisa,
     paymentSubmissions,
     parentSuggestions,
-    komitePaymentSettings: {
-      bankLabel: komiteBankLabel,
-      rekening: komiteRekening,
-      atasNama: komiteAtasNama,
-      whatsapp: komiteWhatsapp,
-      qrisUrl: komiteQrisUrl,
-    },
+    komitePaymentSettings,
     sppNominal,
     sppBayar,
     sppSisa,

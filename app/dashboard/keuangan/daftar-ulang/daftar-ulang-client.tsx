@@ -19,6 +19,7 @@ import {
 import { formatRupiah } from '@/lib/utils'
 import {
   getDaftarUlangTransaksiPage,
+  getDaftarUlangKuitansi,
   getDaftarUlangSiswaData,
   getSiswaBaruDsptPage,
   processDaftarUlang,
@@ -26,7 +27,7 @@ import {
   upsertSiswaBaruDsptTarget,
   voidDaftarUlangTransaksi,
 } from './actions'
-import { KuitansiModal, NamaPerugasSettingModal, useNamaPerugas } from '../components/kuitansi-print'
+import { KuitansiModal } from '../components/kuitansi-print'
 import type { KuitansiData } from '../components/kuitansi-print'
 
 interface SiswaResult {
@@ -389,6 +390,8 @@ function RiwayatKasirTab() {
   const [status, setStatus] = useState<'aktif' | 'void' | 'semua'>('aktif')
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [kuitansiData, setKuitansiData] = useState<KuitansiData | null>(null)
+  const [kuitansiOpen, setKuitansiOpen] = useState(false)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const loadRows = useCallback(async (nextPage = page, nextPageSize = pageSize, q = search, nextStatus = status) => {
@@ -451,6 +454,17 @@ function RiwayatKasirTab() {
     }
     setMsg({ type: 'success', text: res.success ?? 'Transaksi berhasil di-void' })
     await loadRows(page, pageSize, search, status)
+  }
+
+  async function handlePrint(row: DaftarUlangTransaksiRow) {
+    setMsg(null)
+    const res = await getDaftarUlangKuitansi(row.id)
+    if (res.error || !res.data) {
+      setMsg({ type: 'error', text: res.error ?? 'Kuitansi tidak ditemukan' })
+      return
+    }
+    setKuitansiData(res.data)
+    setKuitansiOpen(true)
   }
 
   return (
@@ -549,16 +563,28 @@ function RiwayatKasirTab() {
                   )}
                 </TableCell>
                 <TableCell>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={!!row.is_void}
-                    className="h-7 gap-1 px-2 text-[11px] text-rose-600 hover:text-rose-700"
-                    onClick={() => handleVoid(row)}
-                  >
-                    <Ban className="h-3 w-3" /> Void
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={!!row.is_void}
+                      className="h-7 gap-1 px-2 text-[11px]"
+                      onClick={() => handlePrint(row)}
+                    >
+                      <Printer className="h-3 w-3" /> Cetak
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={!!row.is_void}
+                      className="h-7 gap-1 px-2 text-[11px] text-rose-600 hover:text-rose-700"
+                      onClick={() => handleVoid(row)}
+                    >
+                      <Ban className="h-3 w-3" /> Void
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -573,6 +599,12 @@ function RiwayatKasirTab() {
           entityLabel="transaksi"
         />
       </div>
+      <KuitansiModal
+        data={kuitansiData}
+        open={kuitansiOpen}
+        onClose={() => setKuitansiOpen(false)}
+        showPetugasSetting={false}
+      />
     </div>
   )
 }
@@ -580,11 +612,12 @@ function RiwayatKasirTab() {
 export function DaftarUlangClient({
   tahunAjaranId,
   tahunAjaranNama,
+  namaPetugas,
 }: {
   tahunAjaranId: string
   tahunAjaranNama: string
+  namaPetugas: string
 }) {
-  const { namaKomite } = useNamaPerugas()
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SiswaResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -683,21 +716,18 @@ export function DaftarUlangClient({
     setMsg(null)
 
     startTransition(async () => {
-      const result = await processDaftarUlang(
-        {
-          siswaId: selectedSiswa.id,
-          tahunAjaranId,
-          dspt: {
-            nominalTarget: dsptTarget,
-            bayarSekarang: dsptBayar,
-            metode: dspt.metode,
-            diskon: dsptDiskon,
-            alasanDiskon: dspt.alasanDiskon,
-            existingDsptId,
-          },
+      const result = await processDaftarUlang({
+        siswaId: selectedSiswa.id,
+        tahunAjaranId,
+        dspt: {
+          nominalTarget: dsptTarget,
+          bayarSekarang: dsptBayar,
+          metode: dspt.metode,
+          diskon: dsptDiskon,
+          alasanDiskon: dspt.alasanDiskon,
+          existingDsptId,
         },
-        namaKomite,
-      )
+      })
 
       if (result.error) {
         setMsg({ type: 'error', text: result.error })
@@ -724,7 +754,8 @@ export function DaftarUlangClient({
       namaSiswa: selectedSiswa.nama_lengkap,
       nisn: selectedSiswa.nisn ?? '-',
       kelas: fmtKelas(selectedSiswa),
-      namaPerugas: namaKomite,
+      namaPerugas: namaPetugas || 'Petugas',
+      jabatanPenerima: 'Petugas',
       metodeBayar: dspt.metode === 'tunai' ? 'Tunai' : 'Transfer Bank',
       jumlahDiserahkan: jumlahPreview,
       jumlahTagihan: jumlahPreview,
@@ -741,8 +772,7 @@ export function DaftarUlangClient({
         <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg px-3 py-2">
           <Info className="h-3.5 w-3.5 flex-shrink-0" />
           Tahun Ajaran Aktif: <span className="font-semibold text-slate-700 dark:text-slate-300">{tahunAjaranNama}</span>
-          <span className="ml-auto text-slate-400">Petugas: {namaKomite}</span>
-          <NamaPerugasSettingModal />
+          <span className="ml-auto text-slate-400">Petugas: {namaPetugas || 'Petugas'}</span>
         </div>
 
         <Tabs defaultValue="kasir" className="space-y-4">
@@ -1001,6 +1031,7 @@ export function DaftarUlangClient({
         data={kuitansiDspt}
         open={showKuitansi}
         onClose={() => setShowKuitansi(false)}
+        showPetugasSetting={false}
       />
     </>
   )
