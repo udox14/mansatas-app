@@ -35,6 +35,10 @@ VAPID_SUBJECT = "mailto:admin@man1tasikmalaya.sch.id"
 # wrangler secret put CRON_SECRET
 # wrangler secret put VAPID_PRIVATE_KEY
 # wrangler secret put BETTER_AUTH_SECRET
+# wrangler secret put WHATSAPP_ACCESS_TOKEN
+# wrangler secret put WHATSAPP_PHONE_NUMBER_ID
+# wrangler secret put WHATSAPP_VERIFY_TOKEN
+# wrangler secret put WHATSAPP_APP_SECRET
 
 [triggers]
 crons = ["* * * * *"] # Setiap menit — handler cek jadwal_notifikasi di DB

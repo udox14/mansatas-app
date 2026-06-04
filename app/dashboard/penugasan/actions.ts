@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import { nowWIBISO } from '@/lib/time'
 import { sendPushNotification } from '@/lib/web-push'
+import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 
 // ============================================================
@@ -759,6 +760,18 @@ export async function simpanAbsensiDelegasi(
       status: 'SELESAI',
       updated_at: nowWIBISO(),
     }, { id: dtk.delegasi_id })
+  }
+
+  if (toSave.some(d => d.status === 'ALFA')) {
+    try {
+      await enqueueAttendanceAlfaNotifications(db, {
+        penugasanId: penugasanMengajarId,
+        tanggal,
+        createdBy: user.id,
+      })
+    } catch (waError) {
+      console.error('Gagal enqueue notifikasi WhatsApp ALFA delegasi:', waError)
+    }
   }
 
   revalidatePath('/dashboard/penugasan')

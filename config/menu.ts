@@ -24,6 +24,7 @@ import {
   Calendar,
   Megaphone,
   MessageSquarePlus,
+  MessageCircle,
   Radio,
   AlarmClock,
   ClipboardEdit,
@@ -202,6 +203,13 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/penugasan',
     icon: Send,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_ppl']
+  },
+  {
+    id: 'whatsapp',
+    title: 'Kirim WhatsApp',
+    href: '/dashboard/whatsapp',
+    icon: MessageCircle,
+    roles: ['super_admin', 'admin_tu', 'bendahara_komite']
   },
   {
     id: 'monitoring-agenda',
@@ -435,7 +443,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
   { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
-  { id: 'sistem', label: 'Sistem', items: ['settings', 'settings-notifications', 'settings-jadwal-notif', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
+  { id: 'sistem', label: 'Sistem', items: ['settings', 'whatsapp', 'settings-notifications', 'settings-jadwal-notif', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
 ]
 
 // Registry semua role yang tersedia di sistem

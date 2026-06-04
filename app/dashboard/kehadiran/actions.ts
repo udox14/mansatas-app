@@ -9,6 +9,7 @@ import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { currentTimeWIB, todayWIB, nowWIB } from '@/lib/time'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
 import {
   findTeachingBlockException,
   getKbmExceptionsForDate,
@@ -436,6 +437,16 @@ export async function simpanAbsensi(
     const all = [delStmt, ...insStmts, upsertSesiStmt]
     for (let i = 0; i < all.length; i += 100) await db.batch(all.slice(i, i + 100))
   } catch (e: any) { return { error: e.message } }
+
+  try {
+    await enqueueAttendanceAlfaNotifications(db, {
+      penugasanId,
+      tanggal,
+      createdBy: diinputOleh,
+    })
+  } catch (waError) {
+    console.error('Gagal enqueue notifikasi WhatsApp ALFA:', waError)
+  }
 
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/rekap-absensi')
