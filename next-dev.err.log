@@ -16,3 +16,16 @@ stack: 7ff9aa551239 7ff74d6b67c5 7ff9aa5604ff 7ff9aa553a90 7ff9aa55f977 7ff9aa55
   cause: undefined,
   digest: '3445195440'
 }
+[browser] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/template). 
+[browser] Uncaught Error: Module [project]/node_modules/lucide-react/dist/esm/icons/arrow-right.js [app-client] (ecmascript) <export default as ArrowRight> was instantiated because it was required from module [project]/app/portal-ortu/login/parent-login-client.tsx [app-client] (ecmascript), but the module factory is not available.
+This is often caused by a stale browser cache, misconfigured Cache-Control headers, or a service worker serving outdated responses.
+To fix this, make sure your Cache-Control headers allow revalidation of chunks and review your service worker configuration. As an immediate workaround, try hard-reloading the page, clearing the browser cache, or unregistering any service workers.
+    at module evaluation (app/portal-ortu/login/parent-login-client.tsx:6:1)
+    at ParentLoginPage (app\portal-ortu\login\page.tsx:11:10)
+  4 | import Link from 'next/link'
+  5 | import Image from 'next/image'
+> 6 | import { AlertCircle, Eye, EyeOff, Loader2, LockKeyhole, MessageCircle, UserSquare2 } from ...
+    | ^
+  7 |
+  8 | export default function ParentLoginClient() {
+  9 |   const [nisn, setNisn] = useState('')

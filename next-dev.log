@@ -23,3 +23,46 @@
 ✓ Compiled in 145ms
 ✓ Compiled in 710ms
 ✓ Compiled in 993ms
+ GET / 200 in 2.0s (next.js: 1081ms, application-code: 947ms)
+ GET / 200 in 3.2s (next.js: 479ms, application-code: 2.7s)
+ GET /portal-ortu/login 200 in 196ms (next.js: 109ms, application-code: 87ms)
+✓ Compiled in 701ms
+ GET /portal-ortu/login 200 in 330ms (next.js: 156ms, application-code: 174ms)
+ GET /portal-ortu/login 200 in 81ms (next.js: 7ms, application-code: 74ms)
+✓ Compiled in 438ms
+ GET /portal-ortu/login 200 in 328ms (next.js: 159ms, application-code: 168ms)
+ GET /portal-ortu/login 200 in 82ms (next.js: 9ms, application-code: 74ms)
+✓ Compiled in 290ms
+✓ Compiled in 553ms
+ GET /portal-ortu/login 200 in 487ms (next.js: 234ms, application-code: 253ms)
+ GET /portal-ortu/login 200 in 99ms (next.js: 11ms, application-code: 87ms)
+ GET /login 200 in 165ms (next.js: 81ms, application-code: 85ms)
+ GET /portal-ortu/login 200 in 749ms (next.js: 8ms, application-code: 741ms)
+ GET / 200 in 710ms (next.js: 49ms, application-code: 661ms)
+ GET / 200 in 1438ms (next.js: 47ms, application-code: 1391ms)
+ GET / 200 in 891ms (next.js: 198ms, application-code: 693ms)
+ GET / 200 in 490ms (next.js: 130ms, application-code: 359ms)
+ GET /login 200 in 274ms (next.js: 171ms, application-code: 103ms)
+ GET / 200 in 771ms (next.js: 6ms, application-code: 765ms)
+ GET / 200 in 468ms (next.js: 148ms, application-code: 320ms)
+✓ Compiled in 301ms
+ GET / 200 in 468ms (next.js: 138ms, application-code: 330ms)
+ GET / 200 in 2.5s (next.js: 6ms, application-code: 2.5s)
+✓ Compiled in 1115ms
+ GET / 200 in 1241ms (next.js: 208ms, application-code: 1033ms)
+ GET / 200 in 842ms (next.js: 74ms, application-code: 768ms)
+ GET / 200 in 606ms (next.js: 97ms, application-code: 509ms)
+ GET / 200 in 606ms (next.js: 150ms, application-code: 456ms)
+ GET / 200 in 522ms (next.js: 147ms, application-code: 375ms)
+✓ Compiled in 474ms
+ GET / 200 in 467ms (next.js: 190ms, application-code: 276ms)
+✓ Compiled in 684ms
+✓ Compiled in 428ms
+✓ Compiled in 3s
+ GET / 200 in 2.3s (next.js: 1127ms, application-code: 1143ms)
+ GET / 200 in 810ms (next.js: 119ms, application-code: 691ms)
+ GET / 200 in 594ms (next.js: 285ms, application-code: 309ms)
+ GET / 200 in 620ms (next.js: 90ms, application-code: 530ms)
+ GET / 200 in 632ms (next.js: 220ms, application-code: 411ms)
+ GET / 200 in 636ms (next.js: 161ms, application-code: 475ms)
+ GET / 200 in 117ms (next.js: 12ms, application-code: 105ms)

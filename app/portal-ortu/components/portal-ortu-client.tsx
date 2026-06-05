@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, ArrowLeft, Download, Loader2, UploadCloud, Image as ImageIcon, RefreshCw } from 'lucide-react'
+import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, ArrowLeft, Download, Loader2, UploadCloud, Image as ImageIcon, RefreshCw, CircleHelp } from 'lucide-react'
 import { MobileBottomNav } from './mobile-bottom-nav'
 import { ScheduleTabs } from './schedule-tabs'
 import { ChangePasswordForm } from './change-password-form'
 import { SummonResponseForm } from './summon-response-form'
+import { PortalTour, type PortalTourStep } from './portal-tour'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { createParentDsptPaymentSubmission, createParentSuggestion, getParentSemesterGrades, markParentNotificationRead, uploadParentPaymentProof } from '../actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
@@ -26,9 +27,9 @@ type SemesterDetailState = {
   grades?: SemesterGrade[]
 }
 
-function StandardCard({ children, className = '' }: { children: React.ReactNode, className?: string }) {
+function StandardCard({ children, className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 ${className}`}>
+    <div className={`bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 ${className}`} {...props}>
       {children}
     </div>
   )
@@ -85,6 +86,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [suggestionMessage, setSuggestionMessage] = useState('')
   const [suggestionSubmitting, setSuggestionSubmitting] = useState(false)
   const [suggestionFeedback, setSuggestionFeedback] = useState('')
+  const [tourOpen, setTourOpen] = useState(false)
 
   const {
     profil,
@@ -166,6 +168,100 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const disciplineLevelLabel = disciplineSummary?.levelLabel || 'Baik'
   const recentAttendanceRows = absensiTerbaru.results || []
   const suggestionRows = parentSuggestions?.results || []
+  const hasDsptBill = Number(dsptSisa || 0) > 0
+  const baseTourSteps: Record<string, PortalTourStep[]> = {
+    beranda: [
+      { target: 'beranda-profile', title: 'Profil siswa', description: 'Bagian ini menampilkan identitas anak, kelas, dan NISN yang sedang dipantau di portal orang tua.' },
+      { target: 'beranda-wali', title: 'Kontak wali kelas', description: 'Gunakan tombol WhatsApp di kartu ini untuk menghubungi wali kelas jika perlu koordinasi cepat.' },
+      { target: 'beranda-stats', title: 'Ringkasan cepat', description: 'Angka-angka ini memberi gambaran singkat tentang kehadiran dan status pendampingan anak.' },
+      { target: 'beranda-alerts', title: 'Peringatan penting', description: 'Jika ada panggilan, notifikasi penting, atau tindak lanjut dari sekolah, informasinya muncul di sini.' },
+      { target: 'beranda-announcements', title: 'Pengumuman sekolah', description: 'Pengumuman resmi yang ditujukan untuk orang tua dapat dibuka dari daftar ini.' },
+    ],
+    jadwal: [
+      { target: 'jadwal-header', title: 'Jadwal pelajaran', description: 'Section ini membantu Bapak/Ibu melihat jadwal kelas anak dan status absensi per jam pelajaran.' },
+      { target: 'jadwal-day-tabs', title: 'Pilih hari', description: 'Gunakan tab hari untuk berpindah dari Senin sampai Sabtu. Titik biru menandai hari ini.' },
+      { target: 'jadwal-list', title: 'Daftar jam pelajaran', description: 'Setiap baris menampilkan jam, mata pelajaran, guru, dan status absensi bila sudah diinput.' },
+    ],
+    kehadiran: [
+      { target: 'kehadiran-summary', title: 'Ringkasan kehadiran', description: 'Lihat total hadir, izin, sakit, dan tanpa keterangan dalam satu tampilan ringkas.' },
+      { target: 'kehadiran-recent', title: 'Catatan terbaru', description: 'Daftar ini menampilkan catatan kehadiran terbaru beserta catatan guru jika ada.' },
+      { target: 'kehadiran-discipline', title: 'Status pendampingan', description: 'Bagian ini memberi sinyal apakah ada catatan yang perlu didampingi bersama wali kelas atau BK.' },
+      { target: 'kehadiran-contact', title: 'Koordinasi sekolah', description: 'Jika butuh penjelasan lanjutan, gunakan tombol ini untuk menghubungi wali kelas.' },
+    ],
+    nilai: [
+      { target: 'nilai-average', title: 'Rata-rata akademik', description: 'Bagian ini menampilkan rata-rata nilai keseluruhan yang sudah tersedia di portal.' },
+      { target: 'nilai-semesters', title: 'Nilai per semester', description: 'Ketuk semester yang memiliki nilai untuk membuka rincian nilai mata pelajaran.' },
+      { target: 'nilai-detail', title: 'Rincian mata pelajaran', description: 'Setelah semester dibuka, nilai tiap mata pelajaran akan tampil di area rincian ini.' },
+    ],
+    saran: [
+      { target: 'saran-hero', title: 'Kotak saran', description: 'Section ini dipakai untuk menyampaikan masukan atau kebutuhan orang tua kepada sekolah.' },
+      { target: 'saran-form', title: 'Form saran', description: 'Pilih kategori, isi judul, lalu tuliskan saran secara singkat dan jelas.' },
+      { target: 'saran-submit', title: 'Kirim saran', description: 'Tekan tombol ini setelah isi saran lengkap. Status tindak lanjut akan muncul di riwayat.' },
+      { target: 'saran-history', title: 'Riwayat saran', description: 'Pantau saran yang pernah dikirim beserta statusnya: baru, dibaca, diproses, atau selesai.' },
+    ],
+  }
+  const financeTourSteps: PortalTourStep[] = hasDsptBill
+    ? [
+        { target: 'keuangan-dspt-card', title: 'Sisa tagihan DSPT', description: 'Lihat sisa DSPT, target, dan pembayaran yang sudah tercatat. Jika sudah lunas, statusnya akan berubah menjadi lunas.' },
+        { target: 'keuangan-pay-button', title: 'Mulai bayar DSPT', description: 'Tekan Bayar DSPT untuk membuka panduan pembayaran. Tour ini akan ikut menunjukkan langkah di dalam modal.' },
+        { target: 'payment-step-amount', title: 'Masukkan nominal', description: 'Isi nominal pembayaran. Boleh membayar sebagian atau memilih tombol Bayar Sisa untuk melunasi tagihan.' },
+        { target: 'payment-step-method', title: 'Pilih metode pembayaran', description: 'Pilih QRIS atau Transfer sesuai metode yang tersedia dari pengaturan komite.' },
+        { target: 'payment-qris', title: 'Bayar via QRIS', description: 'Jika memakai QRIS, ketuk gambar untuk memperbesar atau download QRIS lalu bayar dari aplikasi bank/e-wallet.' },
+        { target: 'payment-transfer', title: 'Bayar via transfer', description: 'Jika memakai transfer, gunakan rekening aktif yang tampil di sini dan bayar sesuai nominal yang dimasukkan.' },
+        { target: 'payment-paid-button', title: 'Catat pengajuan', description: 'Setelah benar-benar membayar di luar aplikasi, tekan Saya Sudah Bayar agar pengajuan tercatat. Tombol ini tidak otomatis menarik saldo.' },
+        { target: 'payment-step-proof', title: 'Upload bukti pembayaran', description: 'Pilih foto atau screenshot bukti pembayaran. Gambar akan dikompres otomatis sebelum dikirim.' },
+        { target: 'payment-upload-button', title: 'Kirim bukti', description: 'Tekan Upload Bukti setelah file dipilih. Bukti akan diperiksa bendahara komite sebelum kuitansi diterbitkan.' },
+        { target: 'keuangan-submissions', title: 'Cek status pengajuan', description: 'Pantau status pengajuan: belum upload, menunggu konfirmasi, terkonfirmasi, atau ditolak.' },
+        { target: 'keuangan-receipts', title: 'Kuitansi dan riwayat', description: 'Jika sudah terkonfirmasi, kuitansi bisa dibuka dari riwayat pembayaran atau kartu pengajuan terkait.' },
+      ]
+    : [
+        { target: 'keuangan-dspt-card', title: 'DSPT sudah lunas', description: 'Kartu DSPT menampilkan status lunas saat tidak ada sisa tagihan yang perlu dibayar.' },
+        { target: 'keuangan-submissions', title: 'Riwayat pengajuan', description: 'Bagian ini menyimpan riwayat pengajuan pembayaran dan bukti yang pernah dikirim.' },
+        { target: 'keuangan-receipts', title: 'Kuitansi pembayaran', description: 'Pembayaran yang sudah diverifikasi bisa dicek di sini, termasuk tombol untuk membuka kuitansi.' },
+      ]
+  const activeTourSteps = activeTab === 'keuangan' ? financeTourSteps : (baseTourSteps[activeTab] || [])
+
+  const startPortalTour = () => {
+    if (activeTab === 'keuangan' && hasDsptBill) {
+      setPaymentOpen(false)
+      resetPaymentWizard()
+    }
+    setTourOpen(true)
+  }
+
+  const closePortalTour = () => {
+    setTourOpen(false)
+  }
+
+  const changeTab = (id: string) => {
+    setTourOpen(false)
+    setActiveTab(id)
+  }
+
+  const handleTourStepChange = (_index: number, step: PortalTourStep) => {
+    if (activeTab !== 'keuangan' || !hasDsptBill) return
+    if (step.target.startsWith('payment-step-') || step.target.startsWith('payment-qris') || step.target.startsWith('payment-transfer') || step.target === 'payment-paid-button' || step.target === 'payment-upload-button') {
+      setPaymentOpen(true)
+    }
+    if (step.target === 'payment-step-amount') {
+      setPaymentStep(1)
+    }
+    if (step.target === 'payment-step-method' || step.target === 'payment-qris' || step.target === 'payment-transfer' || step.target === 'payment-paid-button') {
+      setPaymentStep(2)
+    }
+    if (step.target === 'payment-qris' && hasQrisMethod) {
+      setPaymentMethod('qris')
+    }
+    if (step.target === 'payment-transfer' && hasTransferMethod) {
+      setPaymentMethod('transfer')
+    }
+    if (step.target === 'payment-step-proof' || step.target === 'payment-upload-button') {
+      setPaymentStep(3)
+    }
+    if (step.target === 'keuangan-submissions' || step.target === 'keuangan-receipts') {
+      setPaymentOpen(false)
+    }
+  }
 
   const startSubmission = async () => {
     if (!isPaymentAmountValid || paymentSubmitting) return
@@ -323,7 +419,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         className="space-y-5 pb-24 sm:pb-8"
       >
         {/* Hero Section */}
-        <div className="relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-[28px] p-6 sm:p-8 text-white shadow-md overflow-hidden">
+        <div data-tour-id="beranda-profile" className="relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-[28px] p-6 sm:p-8 text-white shadow-md overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
             <GraduationCap className="w-48 h-48 -mt-12 -mr-12" />
           </div>
@@ -368,7 +464,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
         <div className="grid grid-cols-2 gap-4">
           {/* Wali Kelas */}
-          <div className="col-span-2 sm:col-span-1">
+          <div data-tour-id="beranda-wali" className="col-span-2 sm:col-span-1">
             <StandardCard className="h-full flex flex-col justify-between hover:border-sky-200 transition-colors">
               <div className="flex items-start gap-4">
                 <div className="bg-sky-50 text-sky-600 p-3 rounded-xl">
@@ -394,7 +490,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </div>
 
           {/* Quick Stats */}
-          <div className="col-span-2 sm:col-span-1 grid grid-cols-2 gap-3">
+          <div data-tour-id="beranda-stats" className="col-span-2 sm:col-span-1 grid grid-cols-2 gap-3">
             <div className="bg-white rounded-2xl border border-emerald-100 p-4 flex flex-col items-center justify-center text-center shadow-sm">
               <span className="text-2xl font-bold text-emerald-600">{absensiRekap?.hadir || 0}</span>
               <span className="text-[11px] font-medium text-slate-500 mt-1">Kehadiran</span>
@@ -417,7 +513,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
         {/* Critical Notifications / Summons */}
         {(activeSummons.length > 0 || activeNotifications.length > 0) && (
-          <div className="space-y-3">
+          <div data-tour-id="beranda-alerts" className="space-y-3">
             <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1">Peringatan Penting</h2>
             
             {activeSummons.map((s: any) => (
@@ -500,7 +596,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         )}
 
         {/* Announcements */}
-        <div className="pt-2">
+        <div data-tour-id="beranda-announcements" className="pt-2">
           <div className="flex items-center justify-between mb-3 ml-1">
             <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">Pengumuman Sekolah</h2>
           </div>
@@ -590,7 +686,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       transition={{ duration: 0.3 }}
       className="space-y-5 pb-24 sm:pb-8"
     >
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center justify-between">
+      <div data-tour-id="jadwal-header" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Jadwal Pelajaran</h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -618,7 +714,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       className="space-y-5 pb-24 sm:pb-8"
     >
       {/* Kehadiran Summary */}
-      <div className="grid grid-cols-3 gap-3">
+      <div data-tour-id="kehadiran-summary" className="grid grid-cols-3 gap-3">
         <div className="col-span-3 bg-white rounded-2xl border border-emerald-100 p-6 flex items-center justify-between shadow-sm">
           <div>
             <p className="text-sm font-medium text-slate-500 mb-1">Total Kehadiran</p>
@@ -643,7 +739,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div data-tour-id="kehadiran-recent" className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1">Catatan Kehadiran Terbaru</h2>
         <StandardCard className="p-0 overflow-hidden">
           {recentAttendanceRows.length === 0 ? (
@@ -676,7 +772,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         </StandardCard>
       </div>
 
-      <div className="pt-4 mt-4 border-t border-slate-200">
+      <div data-tour-id="kehadiran-discipline" className="pt-4 mt-4 border-t border-slate-200">
         <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1 mb-3">Ringkasan Perhatian Siswa</h2>
         
         <div className={`rounded-2xl p-6 shadow-md flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between ${
@@ -701,7 +797,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         </div>
 
         {needsDisciplineAttention && (
-          <StandardCard className="mt-4 border-l-4 border-l-sky-500">
+          <StandardCard className="mt-4 border-l-4 border-l-sky-500" data-tour-id="kehadiran-contact">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h4 className="text-sm font-semibold text-slate-800">Koordinasi dengan sekolah</h4>
@@ -731,7 +827,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       transition={{ duration: 0.3 }}
       className="space-y-5 pb-24 sm:pb-8"
     >
-      <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 text-center">
+      <div data-tour-id="nilai-average" className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 text-center">
         <div className="w-12 h-12 bg-indigo-50 text-indigo-500 mx-auto rounded-full flex items-center justify-center mb-4">
           <GraduationCap className="h-6 w-6" />
         </div>
@@ -742,7 +838,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         )}
       </div>
 
-      <div className="space-y-3">
+      <div data-tour-id="nilai-semesters" className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1">Rata-rata Per Semester</h2>
         <div className="space-y-3">
           {semesters.map((s: any, index: number) => {
@@ -782,6 +878,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 <AnimatePresence initial={false}>
                   {isExpanded && (
                     <motion.div
+                      data-tour-id="nilai-detail"
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
@@ -846,7 +943,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
     >
       <div className="space-y-4">
         {/* Card for DSPT */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm relative overflow-hidden">
+        <div data-tour-id="keuangan-dspt-card" className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
             <Wallet className="w-32 h-32 -mr-8 -mt-8" />
           </div>
@@ -887,7 +984,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 }}
               >
                 <DialogTrigger asChild>
-                  <button className="h-11 w-full rounded-xl bg-slate-900 px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800">
+                  <button data-tour-id="keuangan-pay-button" className="h-11 w-full rounded-xl bg-slate-900 px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800">
                     Bayar DSPT
                   </button>
                 </DialogTrigger>
@@ -903,7 +1000,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
                   <div className="max-h-[calc(92vh-104px)] overflow-y-auto p-5">
                     {paymentStep === 1 && (
-                      <div className="space-y-4">
+                      <div data-tour-id="payment-step-amount" className="space-y-4">
                         <div>
                           <p className="text-sm font-semibold text-slate-800">Masukkan nominal pembayaran</p>
                           <p className="mt-1 text-xs leading-5 text-slate-500">Boleh membayar sebagian atau melunasi sesuai sisa DSPT.</p>
@@ -952,7 +1049,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                     )}
 
                     {paymentStep === 2 && (
-                      <div className="space-y-4">
+                      <div data-tour-id="payment-step-method" className="space-y-4">
                         <div>
                           <p className="text-sm font-semibold text-slate-800">Pilih metode pembayaran</p>
                           <p className="mt-1 text-xs leading-5 text-slate-500">Metode yang nonaktif di pengaturan tidak akan muncul di sini.</p>
@@ -987,7 +1084,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                           <>
                             <Dialog>
                               <DialogTrigger asChild>
-                                <button type="button" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100" aria-label="Perbesar QRIS Komite">
+                                <button data-tour-id="payment-qris" type="button" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100" aria-label="Perbesar QRIS Komite">
                                   <img src={komiteQrisUrl} alt="QRIS Komite MAN 1 Tasikmalaya" className="mx-auto max-h-[260px] w-full rounded-lg object-contain bg-white" />
                                   <span className="mt-2 block text-center text-[11px] font-semibold text-slate-500">Ketuk gambar untuk memperbesar</span>
                                 </button>
@@ -1024,7 +1121,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                             </div>
                           )}
                           {paymentMethod === 'transfer' && hasTransferMethod && activePaymentAccounts.map((account: any) => (
-                            <div key={account.id || account.rekening} className="rounded-xl border border-slate-200 p-4">
+                            <div data-tour-id="payment-transfer" key={account.id || account.rekening} className="rounded-xl border border-slate-200 p-4">
                               <div className="flex items-start gap-3">
                                 <Landmark className="mt-0.5 h-5 w-5 text-sky-600" />
                                 <div>
@@ -1041,7 +1138,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                             <ArrowLeft className="mr-1 inline h-4 w-4" />
                             Kembali
                           </button>
-                          <button type="button" onClick={startSubmission} disabled={paymentSubmitting || (!hasQrisMethod && !hasTransferMethod)} className="h-11 flex-1 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:opacity-50">
+                          <button data-tour-id="payment-paid-button" type="button" onClick={startSubmission} disabled={paymentSubmitting || (!hasQrisMethod && !hasTransferMethod)} className="h-11 flex-1 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:opacity-50">
                             {paymentSubmitting ? 'Mencatat...' : 'Saya Sudah Bayar'}
                           </button>
                         </div>
@@ -1050,7 +1147,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                     )}
 
                     {paymentStep === 3 && (
-                      <div className="space-y-4">
+                      <div data-tour-id="payment-step-proof" className="space-y-4">
                         <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
                           <p className="text-sm font-bold text-emerald-900">Upload bukti pembayaran</p>
                           <p className="mt-2 text-xs leading-5 text-emerald-800">Bukti akan masuk ke bendahara komite untuk dikonfirmasi. Transaksi resmi dibuat setelah bukti disetujui.</p>
@@ -1091,6 +1188,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                           )}
                         </label>
                         <button
+                          data-tour-id="payment-upload-button"
                           type="button"
                           disabled={!proofFile || !currentSubmissionId || paymentSubmitting}
                           onClick={submitProof}
@@ -1152,7 +1250,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         )}
       </div>
 
-      <div className="pt-2">
+      <div data-tour-id="keuangan-submissions" className="pt-2">
         <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1 mb-1">Pengajuan Pembayaran DSPT</h2>
         <p className="text-xs text-slate-500 leading-5 ml-1 mb-3">
           Bukti yang sudah diupload akan diperiksa bendahara komite sebelum kuitansi diterbitkan.
@@ -1237,7 +1335,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         </div>
       </div>
 
-      <div className="pt-2">
+      <div data-tour-id="keuangan-receipts" className="pt-2">
         <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1 mb-1">Riwayat Pembayaran Terkonfirmasi</h2>
         <p className="text-xs text-slate-500 leading-5 ml-1 mb-3">
           Pembayaran DSPT/SPP akan muncul di sini setelah diverifikasi dan dicatat oleh komite.
@@ -1295,7 +1393,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         transition={{ duration: 0.3 }}
         className="space-y-5 pb-24 sm:pb-8"
       >
-        <div className="rounded-[28px] bg-slate-900 p-6 text-white shadow-md">
+        <div data-tour-id="saran-hero" className="rounded-[28px] bg-slate-900 p-6 text-white shadow-md">
           <div className="flex items-start gap-4">
             <div className="rounded-2xl bg-white/10 p-3 text-white">
               <MessageSquareText className="h-6 w-6" />
@@ -1310,7 +1408,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </div>
         </div>
 
-        <StandardCard className="space-y-4">
+        <StandardCard data-tour-id="saran-form" className="space-y-4">
           <div>
             <h2 className="text-sm font-semibold text-slate-800">Form Saran</h2>
             <p className="mt-1 text-xs text-slate-500">Isi kategori, judul, dan saran secara singkat namun jelas.</p>
@@ -1356,6 +1454,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             </p>
           )}
           <button
+            data-tour-id="saran-submit"
             type="button"
             onClick={submitSuggestion}
             disabled={suggestionSubmitting}
@@ -1366,7 +1465,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </button>
         </StandardCard>
 
-        <div className="space-y-3">
+        <div data-tour-id="saran-history" className="space-y-3">
           <div className="ml-1">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-800">Saran Saya</h2>
             <p className="mt-1 text-xs text-slate-500">Riwayat saran dan status tindak lanjut dari sekolah.</p>
@@ -1428,7 +1527,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             return (
               <button
                 key={id}
-                onClick={() => setActiveTab(id)}
+                onClick={() => changeTab(id)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive 
                     ? 'bg-slate-900 text-white shadow-sm' 
@@ -1442,7 +1541,15 @@ export function PortalOrtuClient({ data }: { data: any }) {
           })}
         </nav>
         
-        <div className="px-4 pt-6 mt-6 border-t border-slate-100">
+        <div className="px-4 pt-6 mt-6 border-t border-slate-100 space-y-2">
+          <button
+            type="button"
+            onClick={startPortalTour}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+          >
+            <CircleHelp className="h-4 w-4" />
+            Panduan Halaman
+          </button>
           <form action="/api/auth/sign-out" method="post">
             <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors">
               <LogOut className="h-4 w-4" />
@@ -1461,11 +1568,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </div>
           
           <div className="flex items-center gap-1">
-            <button className="relative w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors">
-              <Bell className="h-5 w-5" />
-              {(notifications.results?.length > 0 || summons.results?.length > 0) && (
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 border-2 border-white" />
-              )}
+            <button
+              type="button"
+              onClick={startPortalTour}
+              aria-label="Buka panduan halaman"
+              className="relative w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"
+            >
+              <CircleHelp className="h-5 w-5" />
             </button>
             <form action="/api/auth/sign-out" method="post">
               <button className="w-10 h-10 rounded-full hover:bg-rose-50 flex items-center justify-center text-rose-500 transition-colors">
@@ -1488,7 +1597,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
         </div>
       </main>
 
-      <MobileBottomNav activeTab={activeTab} onChange={setActiveTab} />
+      <MobileBottomNav activeTab={activeTab} onChange={changeTab} />
+      <PortalTour
+        open={tourOpen}
+        steps={activeTourSteps}
+        onClose={closePortalTour}
+        onStepChange={handleTourStepChange}
+      />
     </div>
   )
 }

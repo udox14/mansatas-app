@@ -56,7 +56,7 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
   return (
     <div className="space-y-4">
       {/* Segmented Controls Style */}
-      <div className="flex overflow-x-auto no-scrollbar gap-1 bg-slate-100 p-1 rounded-xl">
+      <div data-tour-id="jadwal-day-tabs" className="flex overflow-x-auto no-scrollbar gap-1 bg-slate-100 p-1 rounded-xl">
         {[1, 2, 3, 4, 5, 6].map((d) => {
           const isActive = active === String(d)
           const isToday = String(d) === defaultDay
@@ -79,7 +79,7 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
       </div>
 
       {/* Schedule List */}
-      <div className="space-y-3">
+      <div data-tour-id="jadwal-list" className="space-y-3">
         {rows.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 border-dashed p-8 text-center">
             <p className="text-sm font-medium text-slate-500">Tidak ada jadwal</p>
