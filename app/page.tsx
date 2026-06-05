@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { getAppSession } from '@/utils/auth/server'
 import TypingHero from '@/components/shared/typing-hero'
 import FeaturesDrawer from '@/components/shared/features-drawer'
+import SchoolSlideshow from '@/components/shared/school-slideshow'
 import {
   ArrowRight,
   ChevronRight,
@@ -12,7 +13,6 @@ import {
   ShieldCheck,
   CalendarCheck2,
   ScanLine,
-  Sparkles,
 } from 'lucide-react'
 
 export const metadata = {
@@ -31,9 +31,9 @@ export default async function LandingPage() {
   const PrimaryIcon = isParent || isStaff ? LayoutDashboard : LogIn
 
   return (
-    <div className="h-[100dvh] w-screen overflow-hidden bg-white text-slate-800 relative flex flex-col font-sans selection:bg-teal-100 selection:text-teal-900">
+    <div className="h-[100dvh] w-screen overflow-hidden bg-[#fafcfa] text-slate-800 relative flex flex-col justify-between font-sans selection:bg-teal-100 selection:text-teal-900">
       
-      {/* Custom Floating Animation Styles */}
+      {/* Custom Floating Animation Styles & Dot Grid Background */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes float-mockup {
           0%, 100% { transform: translateY(0px) rotate(0deg); }
@@ -53,84 +53,68 @@ export default async function LandingPage() {
         .animate-blob-2 {
           animation: blob-glow 12s ease-in-out infinite alternate;
         }
+        .bg-dots {
+          background-image: radial-gradient(rgba(13, 148, 136, 0.06) 1.5px, transparent 1.5px);
+          background-size: 24px 24px;
+        }
       `}} />
 
+      {/* Decorative Dot Grid Overlay */}
+      <div className="absolute inset-0 bg-dots pointer-events-none z-10" />
+
       {/* Decorative Glowing Blur Blobs */}
-      <div className="absolute -left-20 -top-20 w-96 h-96 rounded-full bg-teal-500/10 blur-[100px] pointer-events-none animate-blob-1" />
-      <div className="absolute right-0 bottom-0 w-[500px] h-[500px] rounded-full bg-emerald-500/5 blur-[120px] pointer-events-none animate-blob-2" />
-      <div className="absolute left-1/3 top-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-teal-500/5 blur-[100px] pointer-events-none" />
-
-      {/* Transparent App Header */}
-      <header className="relative z-30 shrink-0 w-full max-w-7xl mx-auto flex items-center justify-between px-6 py-5 md:px-12">
-        <Link href="/" className="flex items-center gap-3 group" aria-label="MANSATAS App">
-          <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-50 border border-teal-100 shadow-sm transition-transform group-hover:scale-105 duration-300">
-            <Image
-              src="/logokemenag.png"
-              alt="Logo Kemenag"
-              width={26}
-              height={26}
-              className="h-6 w-6 object-contain"
-              priority
-            />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-extrabold leading-none tracking-tight text-teal-950">MAN 1 Tasikmalaya</span>
-            <span className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-teal-700/80">Bangkit - Jaya - Juara</span>
-          </div>
-        </Link>
-
-        {/* Quick Drawer Action on Desktop Header */}
-        <div className="hidden md:flex items-center gap-6">
-          <FeaturesDrawer>
-            <button className="text-sm font-bold text-slate-600 hover:text-teal-700 transition-colors flex items-center gap-1">
-              <span>Detail Fitur</span>
-              <ChevronRight className="h-4 w-4 opacity-50" />
-            </button>
-          </FeaturesDrawer>
-          {session && (
-            <Link
-              href={primaryHref}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 text-xs font-bold text-white shadow-md shadow-teal-700/10 hover:bg-teal-800 transition-all"
-            >
-              <PrimaryIcon className="h-3.5 w-3.5" />
-              <span>{primaryLabel}</span>
-            </Link>
-          )}
-        </div>
-      </header>
+      <div className="absolute -left-20 -top-20 w-96 h-96 rounded-full bg-teal-500/10 blur-[100px] pointer-events-none animate-blob-1 z-0" />
+      <div className="absolute right-0 bottom-0 w-[500px] h-[500px] rounded-full bg-emerald-500/5 blur-[120px] pointer-events-none animate-blob-2 z-0" />
+      <div className="absolute left-1/3 top-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-teal-500/5 blur-[100px] pointer-events-none z-0" />
 
       {/* Main Container */}
-      <main className="relative z-20 flex-1 w-full max-w-7xl mx-auto px-6 md:px-12 flex items-center justify-center overflow-y-auto no-scrollbar">
+      <main className="relative z-20 flex-1 w-full max-w-7xl mx-auto px-6 md:px-12 flex items-center justify-center overflow-y-auto no-scrollbar pt-6 xs:pt-10 sm:pt-16 lg:pt-0">
         
         {/* Responsive Grid */}
         <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center py-4 lg:py-8">
           
           {/* Column Left: Brand / Title / Hero & Buttons */}
-          <div className="lg:col-span-7 flex flex-col justify-center text-center lg:text-left space-y-6 md:space-y-8 max-w-xl mx-auto lg:mx-0">
-            
-            {/* Tagline / Subtitle Pill */}
-            <div className="inline-flex w-fit mx-auto lg:mx-0 items-center gap-2 px-3 py-1.5 rounded-full bg-teal-50 border border-teal-100/60 text-xs font-extrabold text-teal-800 shadow-sm animate-pulse">
-              <Sparkles className="h-3.5 w-3.5 text-teal-600" />
-              <span>Aplikasi Layanan Madrasah Terintegrasi</span>
+          <div className="lg:col-span-7 flex flex-col justify-center items-center lg:items-start text-center lg:text-left space-y-6 md:space-y-8 max-w-xl mx-auto lg:mx-0">
+
+            {/* Brand Identity */}
+            <div className="flex flex-col lg:flex-row items-center lg:items-center text-center lg:text-left gap-3.5">
+              <div className="relative h-14 w-14 shrink-0 flex items-center justify-center transition-transform hover:scale-105 duration-300">
+                <Image
+                  src="/logokemenag.png"
+                  alt="Logo Kemenag"
+                  width={56}
+                  height={56}
+                  className="h-14 w-14 object-contain"
+                  priority
+                />
+              </div>
+              <div className="space-y-1">
+                <h2 className="text-xs sm:text-sm font-black tracking-[0.2em] text-teal-955 uppercase">
+                  MAN 1 TASIKMALAYA
+                </h2>
+                <p className="text-[10px] sm:text-xs font-semibold text-slate-500 tracking-wide">
+                  Kab. Tasikmalaya - Jawa Barat
+                </p>
+              </div>
             </div>
 
             {/* Main Heading & Typing Animation */}
-            <div className="space-y-3">
-              <h1 className="text-4xl xs:text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight text-teal-950 whitespace-nowrap leading-[1.05]">
-                MANSATAS App
+            <div className="space-y-2 w-full flex flex-col items-center lg:items-start">
+              <h1 className="text-4xl xs:text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tight text-teal-950 whitespace-nowrap leading-none">
+                MANSATAS <span className="text-slate-500 font-extrabold">App</span>
               </h1>
-              <div className="text-sm xs:text-base sm:text-lg lg:text-xl min-h-[2.5em] leading-relaxed text-slate-600 font-semibold px-2 lg:px-0">
+              <div className="text-sm xs:text-base sm:text-lg lg:text-xl min-h-[1.8em] leading-relaxed text-slate-600 font-semibold px-4 lg:px-0 pt-1">
                 <TypingHero />
               </div>
             </div>
 
             {/* Brief Description */}
-            <p className="text-xs sm:text-sm md:text-base leading-relaxed text-slate-500 font-medium max-w-lg mx-auto lg:mx-0">
+            <p className="text-xs sm:text-sm leading-relaxed text-slate-500 font-medium max-w-md mx-auto lg:mx-0">
               Satu portal digital untuk mengelola administrasi, kegiatan akademik, kesiswaan, bimbingan konseling, keuangan, dan portal informasi langsung bagi wali murid.
             </p>
 
             {/* Action Buttons: Clean & Professional */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center lg:justify-start w-full max-w-md mx-auto lg:mx-0">
               {session ? (
                 <Link
                   href={primaryHref}
@@ -155,28 +139,33 @@ export default async function LandingPage() {
                   {/* Login Orang Tua */}
                   <Link
                     href="/portal-ortu/login"
-                    className="inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2.5 rounded-xl bg-white border border-teal-200 px-6 text-sm font-extrabold text-teal-950 shadow-sm hover:bg-teal-50/50 hover:border-teal-400 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200"
+                    className="inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2.5 rounded-xl bg-white border border-teal-200 px-6 text-sm font-extrabold text-teal-955 shadow-sm hover:bg-teal-50/50 hover:border-teal-400 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200"
                   >
                     <UsersRound className="h-4.5 w-4.5 text-teal-700" />
                     <span>Login Orang Tua</span>
-                    <ArrowRight className="h-4 w-4 text-teal-500" />
+                    <ArrowRight className="h-4 w-4 text-teal-505" />
                   </Link>
                 </>
               )}
             </div>
 
             {/* Footer Features Link & Security badges */}
-            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 text-xs font-bold text-slate-500 pt-3">
+            <div className="flex flex-row items-center justify-between lg:justify-start gap-6 text-xs font-bold text-slate-500 pt-4 border-t border-slate-100 w-full max-w-md mx-auto lg:mx-0">
               <FeaturesDrawer>
-                <button className="inline-flex items-center gap-1 text-teal-800 hover:text-teal-900 bg-teal-50 hover:bg-teal-100/75 px-3 py-1.5 rounded-lg border border-teal-100 transition-colors">
+                <button className="inline-flex items-center gap-1 text-teal-800 hover:text-teal-955 transition-colors">
                   <span>Lihat Detail Layanan</span>
                   <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </FeaturesDrawer>
-              <div className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">
+              <div className="flex items-center gap-1.5 text-emerald-700">
                 <ShieldCheck className="h-4 w-4" />
-                <span>Koneksi & Data Terenkripsi</span>
+                <span>Koneksi Aman</span>
               </div>
+            </div>
+
+            {/* Desktop Slideshow inside Column Left */}
+            <div className="hidden lg:block w-full max-w-md pt-4">
+              <SchoolSlideshow />
             </div>
 
           </div>
@@ -275,6 +264,11 @@ export default async function LandingPage() {
         </div>
 
       </main>
+
+      {/* Mobile Slideshow (hidden on desktop) */}
+      <div className="block lg:hidden w-full">
+        <SchoolSlideshow />
+      </div>
 
       {/* Screen Footer */}
       <footer className="relative z-30 shrink-0 py-4 border-t border-slate-100 text-center text-[10px] font-bold text-slate-400">
