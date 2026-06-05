@@ -1,4 +1,6 @@
--- WhatsApp Cloud API outbox, anti-duplikat ALFA, dan broadcast manual
+-- WhatsApp outbox, anti-duplikat ALFA, dan broadcast manual
+-- Provider default aplikasi: WABLAS. Kolom template/category tetap disiapkan
+-- agar bisa fallback ke Meta Cloud API tanpa migrasi ulang.
 CREATE TABLE IF NOT EXISTS wa_campaigns (
   id                 TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   title              TEXT NOT NULL,

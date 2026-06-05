@@ -1,11 +1,131 @@
 'use client';
 
 import { usePushNotifications } from '@/hooks/use-push-notifications';
-import { Bell, X, ShieldAlert } from 'lucide-react';
+import { usePwaInstall } from '@/hooks/use-pwa-install';
+import { Bell, Download, Loader2, ShieldAlert, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 
-export function PushNotificationBanner() {
+const INSTALL_DISMISSED_KEY = 'mansatas_pwa_install_prompt_dismissed_at';
+const PUSH_DISMISSED_KEY = 'mansatas_push_prompt_dismissed_at';
+const DISMISS_FOR_MS = 3 * 24 * 60 * 60 * 1000;
+
+function recentlyDismissed(key: string) {
+  if (typeof window === 'undefined') return true;
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return false;
+  const dismissedAt = Number(raw);
+  return Number.isFinite(dismissedAt) && Date.now() - dismissedAt < DISMISS_FOR_MS;
+}
+
+function dismissPrompt(key: string) {
+  window.localStorage.setItem(key, String(Date.now()));
+}
+
+function PromptCard({
+  icon,
+  title,
+  description,
+  action,
+  onDismiss,
+  tone = 'default',
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  action: ReactNode;
+  onDismiss: () => void;
+  tone?: 'default' | 'warning';
+}) {
+  return (
+    <Card className="overflow-hidden rounded-lg border-slate-200 bg-white/95 shadow-lg shadow-slate-950/10 backdrop-blur supports-[backdrop-filter]:bg-white/90 dark:border-slate-800 dark:bg-slate-950/95">
+      <CardContent className="p-4">
+        <div className="flex gap-3">
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${
+            tone === 'warning'
+              ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
+          }`}>
+            {icon}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-semibold leading-5 text-slate-900 dark:text-slate-50">{title}</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">{description}</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="-mr-2 -mt-2 h-8 w-8 shrink-0 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                onClick={onDismiss}
+                aria-label="Tutup"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              {action}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PwaInstallPrompt() {
+  const { canInstall, install } = usePwaInstall();
+  const [isVisible, setIsVisible] = useState(false);
+  const [installing, setInstalling] = useState(false);
+
+  useEffect(() => {
+    setIsVisible(canInstall && !recentlyDismissed(INSTALL_DISMISSED_KEY));
+  }, [canInstall]);
+
+  if (!isVisible) return null;
+
+  const close = () => {
+    dismissPrompt(INSTALL_DISMISSED_KEY);
+    setIsVisible(false);
+  };
+
+  return (
+    <PromptCard
+      icon={<Download className="h-5 w-5" />}
+      title="Pasang MANSATAS App"
+      description="Buka lebih cepat dari layar utama, tanpa perlu mencari alamat web lagi."
+      onDismiss={close}
+      action={
+        <>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 rounded-md px-3 text-xs"
+            disabled={installing}
+            onClick={async () => {
+              setInstalling(true);
+              const result = await install();
+              setInstalling(false);
+              if (result.outcome !== 'accepted') close();
+            }}
+          >
+            {installing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            Instal
+          </Button>
+          <Button type="button" variant="ghost" size="sm" className="h-8 rounded-md px-3 text-xs" onClick={close}>
+            Nanti
+          </Button>
+        </>
+      }
+    />
+  );
+}
+
+function PushNotificationPrompt() {
   const { isSupported, permission, subscription, loading, subscribe } = usePushNotifications();
   const [isVisible, setIsVisible] = useState(false);
 
@@ -15,7 +135,7 @@ export function PushNotificationBanner() {
     // 2. Belum ada izin (default) ATAU sudah granted tapi entah kenapa subscription hilang (misal ganti browser)
     // 3. Bukan sedang loading pemeriksaan awal
     if (isSupported && !loading) {
-      if (permission === 'default' || (permission === 'granted' && !subscription)) {
+      if ((permission === 'default' || permission === 'denied' || (permission === 'granted' && !subscription)) && !recentlyDismissed(PUSH_DISMISSED_KEY)) {
         setIsVisible(true);
       } else {
         setIsVisible(false);
@@ -24,50 +144,44 @@ export function PushNotificationBanner() {
   }, [isSupported, permission, subscription, loading]);
 
   if (!isVisible) return null;
+  const close = () => {
+    dismissPrompt(PUSH_DISMISSED_KEY);
+    setIsVisible(false);
+  };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 sm:bottom-6 sm:left-auto sm:right-6 sm:w-[26rem] z-[100] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-8 duration-500">
-      <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/50 dark:border-slate-800/50 shadow-2xl sm:rounded-2xl rounded-t-2xl overflow-hidden relative">
-        {/* Dekorasi top border gradient */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
-        
-        <div className="p-5 sm:p-6 flex flex-col gap-4">
-          <div className="flex items-start gap-4">
-            <div className="relative shrink-0">
-              <div className="absolute inset-0 bg-blue-500 blur-md opacity-20 rounded-full" />
-              <div className="relative h-12 w-12 rounded-full bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-100 dark:border-blue-800/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                <Bell className="h-6 w-6 fill-blue-600/20" />
-              </div>
-            </div>
-            
-            <div className="flex-1 pt-1 pr-4">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white leading-tight mb-1.5">
-                Jangan Lewatkan Info Penting!
-              </h3>
-              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                Aktifkan notifikasi untuk mendapat pemberitahuan instan tentang <strong className="text-slate-900 dark:text-white font-semibold">Penugasan Piket</strong>, <strong className="text-slate-900 dark:text-white font-semibold">Undangan Rapat</strong>, dan info madrasah lainnya.
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-3 pt-2">
-            {permission === 'denied' ? (
-              <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400 text-sm font-medium px-4 py-2.5 bg-rose-50 dark:bg-rose-950/50 rounded-xl w-full justify-center border border-rose-100 dark:border-rose-900/50">
-                <ShieldAlert className="h-4 w-4" />
-                Akses Notifikasi Diblokir
-              </div>
-            ) : (
-              <Button 
-                onClick={() => subscribe()} 
-                disabled={loading}
-                className="w-full h-11 rounded-xl text-sm font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-              >
-                Ya, Aktifkan Sekarang!
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
+    <PromptCard
+      icon={permission === 'denied' ? <ShieldAlert className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
+      title={permission === 'denied' ? 'Notifikasi diblokir' : 'Aktifkan notifikasi'}
+      description={permission === 'denied'
+        ? 'Izin notifikasi diblokir di browser. Buka pengaturan situs untuk mengaktifkannya kembali.'
+        : 'Terima info penugasan, rapat, dan pengumuman madrasah langsung di perangkat ini.'}
+      tone={permission === 'denied' ? 'warning' : 'default'}
+      onDismiss={close}
+      action={permission === 'denied' ? (
+        <Button type="button" variant="secondary" size="sm" className="h-8 rounded-md px-3 text-xs" onClick={close}>
+          Mengerti
+        </Button>
+      ) : (
+        <>
+          <Button type="button" size="sm" className="h-8 rounded-md px-3 text-xs" onClick={() => subscribe()} disabled={loading}>
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bell className="h-3.5 w-3.5" />}
+            Aktifkan
+          </Button>
+          <Button type="button" variant="ghost" size="sm" className="h-8 rounded-md px-3 text-xs" onClick={close}>
+            Nanti
+          </Button>
+        </>
+      )}
+    />
+  );
+}
+
+export function PushNotificationBanner() {
+  return (
+    <div className="fixed bottom-4 left-4 right-4 z-[100] flex flex-col gap-3 sm:bottom-6 sm:left-auto sm:right-6 sm:w-[23rem]">
+      <PwaInstallPrompt />
+      <PushNotificationPrompt />
     </div>
   );
 }

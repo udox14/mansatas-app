@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { createParentDsptPaymentSubmission, createParentSuggestion, getParentSemesterGrades, markParentNotificationRead, uploadParentPaymentProof } from '../actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { PARENT_SUGGESTION_CATEGORIES } from '@/lib/parent-suggestions'
+import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
@@ -1399,6 +1400,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
   return (
     <div className="min-h-screen bg-slate-50/50 text-slate-900 [font-family:'Plus_Jakarta_Sans',ui-sans-serif,system-ui]">
+      <PushNotificationBanner />
       <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }

@@ -32,6 +32,19 @@ export async function POST(req: NextRequest) {
     const changes = payload?.entry?.flatMap((entry: any) => entry?.changes || []) || []
     let updated = 0
 
+    const wablasEvents = Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(payload)
+        ? payload
+        : [payload]
+    for (const event of wablasEvents) {
+      const messageId = String(event?.id || event?.message_id || event?.messageId || event?.data?.id || '').trim()
+      const statusName = String(event?.status || event?.ack || event?.data?.status || '').trim().toLowerCase()
+      if (!messageId || !statusName) continue
+      await updateWhatsAppMessageStatus(db, messageId, statusName, event?.message || event?.error || null)
+      updated += 1
+    }
+
     for (const change of changes) {
       const statuses = change?.value?.statuses || []
       for (const status of statuses) {
