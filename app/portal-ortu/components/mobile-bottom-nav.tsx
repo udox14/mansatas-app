@@ -35,7 +35,7 @@ export function MobileBottomNav({
                 initial={false}
                 animate={{
                   y: isActive ? -2 : 0,
-                  color: isActive ? '#0f172a' : '#64748b' // slate-900 / slate-500
+                  color: isActive ? '#0d9488' : '#64748b' // teal-600 / slate-500
                 }}
                 transition={{ duration: 0.2 }}
                 className="relative z-10"
@@ -45,7 +45,7 @@ export function MobileBottomNav({
               <motion.span
                 initial={false}
                 animate={{
-                  color: isActive ? '#0f172a' : '#64748b',
+                  color: isActive ? '#0d9488' : '#64748b',
                   fontWeight: isActive ? 600 : 500
                 }}
                 transition={{ duration: 0.2 }}
@@ -56,7 +56,7 @@ export function MobileBottomNav({
               {isActive && (
                 <motion.div
                   layoutId="bottom-nav-active-dot"
-                  className="absolute -top-2 w-1 h-1 rounded-full bg-slate-900"
+                  className="absolute -top-2 w-1 h-1 rounded-full bg-teal-600"
                   transition={{ type: "spring", bounce: 0.2, duration: 0.5 }}
                 />
               )}

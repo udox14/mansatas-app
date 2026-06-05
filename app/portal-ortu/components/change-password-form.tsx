@@ -25,7 +25,7 @@ export function ChangePasswordForm() {
     })
   }
 
-  const InputClass = "w-full h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all placeholder:text-slate-400"
+  const InputClass = "w-full h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-50 transition-all placeholder:text-slate-400"
 
   return (
     <div className="space-y-5">
@@ -77,7 +77,7 @@ export function ChangePasswordForm() {
       <div className="flex items-center justify-between pt-1">
         <div className="flex-1 pr-4">
           {message && (
-            <span className={`text-xs font-medium ${message.error ? 'text-rose-600' : 'text-emerald-600'}`}>
+            <span className={`text-xs font-semibold ${message.error ? 'text-rose-600' : 'text-teal-700'}`}>
               {message.text}
             </span>
           )}
@@ -86,7 +86,7 @@ export function ChangePasswordForm() {
           type="button"
           onClick={submit}
           disabled={isPending}
-          className="h-10 rounded-lg bg-slate-900 px-5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 transition-colors flex items-center gap-2 shrink-0 shadow-sm"
+          className="h-10 rounded-xl bg-teal-700 px-5 text-sm font-bold text-white hover:bg-teal-800 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 transition-all flex items-center gap-2 shrink-0 shadow-md shadow-teal-700/10"
         >
           <KeyRound className="w-4 h-4" />
           {isPending ? 'Menyimpan...' : 'Simpan Password'}

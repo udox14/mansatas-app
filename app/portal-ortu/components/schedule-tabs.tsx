@@ -92,8 +92,8 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
           if (j.isToday && j.absensi) {
             switch (j.absensi.status) {
               case 'HADIR':
-                statusColor = 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                iconColor = 'bg-emerald-100 text-emerald-700'
+                statusColor = 'bg-teal-50 text-teal-800 border-teal-200'
+                iconColor = 'bg-teal-100 text-teal-800'
                 StatusIcon = CheckCircle2
                 break
               case 'SAKIT':
