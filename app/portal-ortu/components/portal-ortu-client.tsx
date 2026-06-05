@@ -418,46 +418,56 @@ export function PortalOrtuClient({ data }: { data: any }) {
         transition={{ duration: 0.3 }}
         className="space-y-5 pb-24 sm:pb-8"
       >
-        {/* Hero Section */}
-        <div data-tour-id="beranda-profile" className="relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-[28px] p-6 sm:p-8 text-white shadow-md overflow-hidden">
-          <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-            <GraduationCap className="w-48 h-48 -mt-12 -mr-12" />
-          </div>
-          
-          <Dialog>
-            <DialogTrigger asChild>
-              <button className="absolute top-4 right-4 w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors z-20 border border-white/10">
-                <Settings className="w-4 h-4 text-white" />
-              </button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md rounded-2xl p-0 border-0 overflow-hidden bg-white">
-              <DialogHeader className="p-6 pb-4 border-b border-slate-100">
-                <DialogTitle className="text-lg font-semibold text-slate-800">Pengaturan Akun</DialogTitle>
-              </DialogHeader>
-              <div className="p-6 bg-slate-50">
-                <ChangePasswordForm />
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          <div className="flex flex-col sm:flex-row sm:items-center gap-5 relative z-10">
-            <div className="relative shrink-0">
-              <AvatarSiswa fotoUrl={profil.foto_url} nama={profil.nama_lengkap || initialLetter} size="xl" className="h-[106px] w-20 rounded-xl border-2 border-white/20 bg-slate-800 text-slate-400 shadow-inner" />
+        {/* Social Media Style Hero Profile Section */}
+        <div data-tour-id="beranda-profile" className="relative bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col items-center pb-6 text-center">
+          {/* Cover Banner */}
+          <div className="w-full h-28 sm:h-36 bg-gradient-to-r from-teal-900 via-teal-700 to-slate-900 relative">
+            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+              <GraduationCap className="w-48 h-48 -mt-12 -mr-12 text-white" />
             </div>
             
-            <div className="flex-1">
-              <p className="text-slate-400 text-xs font-medium tracking-wide uppercase mb-1">Portal Orang Tua</p>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2 pr-8">
-                {profil.nama_lengkap}
-              </h1>
-              <div className="flex flex-wrap gap-2 mt-2">
-                <span className="bg-white/10 border border-white/20 text-slate-100 px-3 py-1 rounded-md text-xs font-medium">
-                  Kelas {kelasLabel}
-                </span>
-                <span className="bg-white/10 border border-white/20 text-slate-100 px-3 py-1 rounded-md text-xs font-medium">
-                  NISN {profil.nisn}
-                </span>
-              </div>
+            <Dialog>
+              <DialogTrigger asChild>
+                <button className="absolute top-4 right-4 w-9 h-9 bg-black/20 hover:bg-black/35 text-white backdrop-blur-sm rounded-full flex items-center justify-center transition-colors z-20 border border-white/10">
+                  <Settings className="w-4 h-4 text-white" />
+                </button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md rounded-2xl p-0 border-0 overflow-hidden bg-white">
+                <DialogHeader className="p-6 pb-4 border-b border-slate-100">
+                  <DialogTitle className="text-lg font-semibold text-slate-800">Pengaturan Akun</DialogTitle>
+                </DialogHeader>
+                <div className="p-6 bg-slate-50">
+                  <ChangePasswordForm />
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Overlapping 3:4 Portrait Avatar */}
+          <div className="-mt-14 sm:-mt-16 relative z-10">
+            <AvatarSiswa 
+              fotoUrl={profil.foto_url} 
+              nama={profil.nama_lengkap || initialLetter} 
+              size="profile" 
+              className="rounded-2xl border-4 border-white shadow-md bg-slate-800 text-white" 
+            />
+          </div>
+
+          {/* Student Info with support for very long names */}
+          <div className="mt-4 px-6 w-full flex flex-col items-center">
+            <p className="text-teal-700 text-[10px] font-bold tracking-widest uppercase mb-1">Portal Orang Tua</p>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight max-w-lg break-words w-full">
+              {profil.nama_lengkap}
+            </h1>
+            
+            {/* Pills metadata */}
+            <div className="flex flex-wrap gap-2 mt-3 justify-center">
+              <span className="bg-teal-50 border border-teal-100 text-teal-800 px-3 py-1 rounded-full text-xs font-semibold shadow-sm">
+                Kelas {kelasLabel}
+              </span>
+              <span className="bg-slate-50 border border-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-semibold shadow-sm">
+                NISN {profil.nisn}
+              </span>
             </div>
           </div>
         </div>
@@ -491,12 +501,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
           {/* Quick Stats */}
           <div data-tour-id="beranda-stats" className="col-span-2 sm:col-span-1 grid grid-cols-2 gap-3">
-            <div className="bg-white rounded-2xl border border-emerald-100 p-4 flex flex-col items-center justify-center text-center shadow-sm">
-              <span className="text-2xl font-bold text-emerald-600">{absensiRekap?.hadir || 0}</span>
+            <div className="bg-white rounded-2xl border border-teal-100 p-4 flex flex-col items-center justify-center text-center shadow-sm">
+              <span className="text-2xl font-bold text-teal-700">{absensiRekap?.hadir || 0}</span>
               <span className="text-[11px] font-medium text-slate-500 mt-1">Kehadiran</span>
             </div>
-            <div className={`bg-white rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-sm ${needsDisciplineAttention ? 'border border-amber-100' : 'border border-emerald-100'}`}>
-              <span className={`text-sm font-bold leading-tight ${needsDisciplineAttention ? 'text-amber-700' : 'text-emerald-600'}`}>{disciplineLevelLabel}</span>
+            <div className={`bg-white rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-sm ${needsDisciplineAttention ? 'border border-amber-100' : 'border border-teal-100'}`}>
+              <span className={`text-sm font-bold leading-tight ${needsDisciplineAttention ? 'text-amber-700' : 'text-teal-700'}`}>{disciplineLevelLabel}</span>
               <span className="text-[11px] font-medium text-slate-500 mt-1">Perlu Perhatian</span>
             </div>
             <div className="col-span-2 bg-white rounded-2xl border border-amber-100 p-4 flex items-center justify-between shadow-sm">
@@ -715,13 +725,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
     >
       {/* Kehadiran Summary */}
       <div data-tour-id="kehadiran-summary" className="grid grid-cols-3 gap-3">
-        <div className="col-span-3 bg-white rounded-2xl border border-emerald-100 p-6 flex items-center justify-between shadow-sm">
+        <div className="col-span-3 bg-white rounded-2xl border border-teal-100 p-6 flex items-center justify-between shadow-sm">
           <div>
             <p className="text-sm font-medium text-slate-500 mb-1">Total Kehadiran</p>
-            <h2 className="text-3xl font-bold text-emerald-600">{absensiRekap?.hadir || 0} <span className="text-base font-medium text-emerald-600/60">hari</span></h2>
+            <h2 className="text-3xl font-bold text-teal-700">{absensiRekap?.hadir || 0} <span className="text-base font-medium text-teal-700/60">hari</span></h2>
           </div>
-          <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center">
-            <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+          <div className="w-12 h-12 bg-teal-50 rounded-full flex items-center justify-center">
+            <CheckCircle2 className="h-6 w-6 text-teal-600" />
           </div>
         </div>
 
@@ -751,7 +761,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 return (
                   <div key={i} className="flex items-center gap-4 p-4 hover:bg-slate-50 transition-colors">
                     <div className={`p-2 rounded-full ${
-                      isHadir ? 'bg-emerald-50 text-emerald-500' : 'bg-amber-50 text-amber-500'
+                      isHadir ? 'bg-teal-50 text-teal-600' : 'bg-amber-50 text-amber-500'
                     }`}>
                       {isHadir ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
                     </div>
@@ -776,19 +786,19 @@ export function PortalOrtuClient({ data }: { data: any }) {
         <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1 mb-3">Ringkasan Perhatian Siswa</h2>
         
         <div className={`rounded-2xl p-6 shadow-md flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between ${
-          needsDisciplineAttention ? 'bg-amber-50 border border-amber-100 text-amber-950' : 'bg-emerald-50 border border-emerald-100 text-emerald-950'
+          needsDisciplineAttention ? 'bg-amber-50 border border-amber-100 text-amber-950' : 'bg-teal-50 border border-teal-100 text-teal-950'
         }`}>
           <div>
-            <p className={`text-xs font-medium uppercase tracking-wide mb-1 ${needsDisciplineAttention ? 'text-amber-700' : 'text-emerald-700'}`}>Status Pendampingan</p>
+            <p className={`text-xs font-medium uppercase tracking-wide mb-1 ${needsDisciplineAttention ? 'text-amber-700' : 'text-teal-700'}`}>Status Pendampingan</p>
             <p className="text-2xl font-bold">{disciplineLevelLabel}</p>
-            <p className={`mt-2 text-sm leading-6 ${needsDisciplineAttention ? 'text-amber-800' : 'text-emerald-800'}`}>
+            <p className={`mt-2 text-sm leading-6 ${needsDisciplineAttention ? 'text-amber-800' : 'text-teal-800'}`}>
               {needsDisciplineAttention
                 ? 'Ada catatan yang perlu didampingi bersama wali kelas atau BK. Detail lengkap disampaikan melalui jalur resmi sekolah.'
                 : 'Belum ada catatan kedisiplinan yang perlu tindak lanjut khusus.'}
             </p>
           </div>
           <div className="shrink-0 rounded-xl bg-white/70 px-4 py-3 text-left sm:text-right">
-            <p className={`text-[10px] font-bold uppercase tracking-wide ${needsDisciplineAttention ? 'text-amber-700' : 'text-emerald-700'}`}>Catatan Tercatat</p>
+            <p className={`text-[10px] font-bold uppercase tracking-wide ${needsDisciplineAttention ? 'text-amber-700' : 'text-teal-700'}`}>Catatan Tercatat</p>
             <p className="mt-1 text-xl font-bold">{disciplineSummary?.totalKasus || 0}</p>
             {disciplineSummary?.lastDate && (
               <p className="mt-1 text-[11px] font-medium opacity-75">Terakhir {disciplineSummary.lastDate}</p>
@@ -954,7 +964,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                  DSPT
               </span>
               {dsptSisa <= 0 && (
-                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                <span className="rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-teal-800">
                   Lunas
                 </span>
               )}
@@ -962,7 +972,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             
             <div>
               <p className="text-slate-500 text-xs font-medium uppercase tracking-wide mb-1">Sisa Tagihan</p>
-              <p className={`text-2xl font-bold ${dsptSisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>Rp {rupiah(dsptSisa)}</p>
+              <p className={`text-2xl font-bold ${dsptSisa > 0 ? 'text-rose-600' : 'text-teal-700'}`}>Rp {rupiah(dsptSisa)}</p>
             </div>
             
             <div className="flex justify-between items-end border-t border-slate-100 pt-4 mt-2">
@@ -972,7 +982,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
               </div>
               <div className="text-right">
                 <p className="text-slate-400 text-[10px] font-medium uppercase tracking-wide">Lunas</p>
-                <p className="text-sm font-semibold text-emerald-600 mt-0.5">Rp {rupiah(dsptBayar + dsptDiskon)}</p>
+                <p className="text-sm font-semibold text-teal-700 mt-0.5">Rp {rupiah(dsptBayar + dsptDiskon)}</p>
               </div>
             </div>
             {dsptSisa > 0 && (
@@ -984,7 +994,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 }}
               >
                 <DialogTrigger asChild>
-                  <button data-tour-id="keuangan-pay-button" className="h-11 w-full rounded-xl bg-slate-900 px-4 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800">
+                  <button data-tour-id="keuangan-pay-button" className="h-11 w-full rounded-xl bg-teal-700 px-4 text-sm font-bold text-white shadow-md shadow-teal-700/10 hover:bg-teal-800 transition-all hover:scale-[1.01] active:scale-[0.99]">
                     Bayar DSPT
                   </button>
                 </DialogTrigger>
@@ -993,7 +1003,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                     <DialogTitle className="text-lg font-semibold">Pembayaran DSPT</DialogTitle>
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       {[1, 2, 3].map((step) => (
-                        <div key={step} className={`h-1.5 rounded-full ${paymentStep >= step ? 'bg-emerald-400' : 'bg-white/15'}`} />
+                        <div key={step} className={`h-1.5 rounded-full ${paymentStep >= step ? 'bg-teal-500' : 'bg-white/15'}`} />
                       ))}
                     </div>
                   </DialogHeader>
@@ -1018,7 +1028,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                               value={paymentAmount ? rupiah(paymentAmountNumber) : ''}
                               onChange={(e) => setPaymentAmount(e.target.value.replace(/\D/g, ''))}
                               placeholder="0"
-                              className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-base font-bold text-slate-900 outline-none focus:border-emerald-600"
+                              className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-base font-bold text-slate-900 outline-none focus:border-teal-700"
                             />
                           </div>
                           {paymentAmount && !isPaymentAmountValid && (
@@ -1031,7 +1041,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                               key={item.label}
                               type="button"
                               onClick={() => setPaymentAmount(String(item.value))}
-                              className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 hover:border-emerald-600 hover:text-emerald-700"
+                              className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 hover:border-teal-700 hover:text-teal-900"
                             >
                               {item.label}
                             </button>
@@ -1041,7 +1051,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                           type="button"
                           disabled={!isPaymentAmountValid}
                           onClick={continueToPayment}
-                          className="h-11 w-full rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                          className="h-11 w-full rounded-xl bg-teal-700 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Lanjut ke Pembayaran
                         </button>
@@ -1067,7 +1077,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                                   key={item.value}
                                   type="button"
                                   onClick={() => setPaymentMethod(item.value as 'qris' | 'transfer')}
-                                  className={`flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold ${active ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600'}`}
+                                  className={`flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold ${active ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-slate-200 bg-white text-slate-600'}`}
                                 >
                                   <Icon className="h-4 w-4" />
                                   {item.label}
@@ -1084,7 +1094,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                           <>
                             <Dialog>
                               <DialogTrigger asChild>
-                                <button data-tour-id="payment-qris" type="button" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100" aria-label="Perbesar QRIS Komite">
+                                <button data-tour-id="payment-qris" type="button" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100" aria-label="Perbesar QRIS Komite">
                                   <img src={komiteQrisUrl} alt="QRIS Komite MAN 1 Tasikmalaya" className="mx-auto max-h-[260px] w-full rounded-lg object-contain bg-white" />
                                   <span className="mt-2 block text-center text-[11px] font-semibold text-slate-500">Ketuk gambar untuk memperbesar</span>
                                 </button>
@@ -1101,10 +1111,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
                             <a
                               href={komiteQrisUrl}
                               download="QRISkomite.jpeg"
-                              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-emerald-600 hover:text-emerald-700"
+                              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-teal-700 hover:text-teal-900"
                             >
                               <Download className="h-4 w-4" />
-                              Download QRIS
+                                Download QRIS
                             </a>
                           </>
                         )}
@@ -1112,7 +1122,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                           {paymentMethod === 'qris' && hasQrisMethod && (
                             <div className="rounded-xl border border-slate-200 p-4">
                               <div className="flex items-start gap-3">
-                                <QrCode className="mt-0.5 h-5 w-5 text-emerald-600" />
+                                <QrCode className="mt-0.5 h-5 w-5 text-teal-700" />
                                 <div>
                                   <p className="text-sm font-bold text-slate-800">QRIS Komite</p>
                                   <p className="text-xs text-slate-500">Gunakan QRIS di atas jika membayar dari e-wallet/mobile banking.</p>
@@ -1138,7 +1148,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                             <ArrowLeft className="mr-1 inline h-4 w-4" />
                             Kembali
                           </button>
-                          <button data-tour-id="payment-paid-button" type="button" onClick={startSubmission} disabled={paymentSubmitting || (!hasQrisMethod && !hasTransferMethod)} className="h-11 flex-1 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:opacity-50">
+                          <button data-tour-id="payment-paid-button" type="button" onClick={startSubmission} disabled={paymentSubmitting || (!hasQrisMethod && !hasTransferMethod)} className="h-11 flex-1 rounded-xl bg-teal-700 px-4 text-sm font-bold text-white disabled:opacity-50">
                             {paymentSubmitting ? 'Mencatat...' : 'Saya Sudah Bayar'}
                           </button>
                         </div>
@@ -1148,9 +1158,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
                     {paymentStep === 3 && (
                       <div data-tour-id="payment-step-proof" className="space-y-4">
-                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
-                          <p className="text-sm font-bold text-emerald-900">Upload bukti pembayaran</p>
-                          <p className="mt-2 text-xs leading-5 text-emerald-800">Bukti akan masuk ke bendahara komite untuk dikonfirmasi. Transaksi resmi dibuat setelah bukti disetujui.</p>
+                        <div className="rounded-xl border border-teal-100 bg-teal-50 p-4">
+                          <p className="text-sm font-bold text-teal-900">Upload bukti pembayaran</p>
+                          <p className="mt-2 text-xs leading-5 text-teal-800">Bukti akan masuk ke bendahara komite untuk dikonfirmasi. Transaksi resmi dibuat setelah bukti disetujui.</p>
                         </div>
                         <div className="rounded-xl border border-slate-200 p-4 text-sm text-slate-700">
                           <div className="flex justify-between gap-3">
@@ -1170,7 +1180,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                             <span className="text-right font-semibold">{paymentMethod === 'qris' ? 'QRIS' : 'Transfer'}</span>
                           </div>
                         </div>
-                        <label className="block cursor-pointer rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center hover:border-emerald-500">
+                        <label className="block cursor-pointer rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center hover:border-teal-500">
                           <input
                             type="file"
                             accept="image/*"
@@ -1192,13 +1202,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
                           type="button"
                           disabled={!proofFile || !currentSubmissionId || paymentSubmitting}
                           onClick={submitProof}
-                          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {paymentSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
                           {paymentSubmitting ? 'Mengupload...' : 'Upload Bukti'}
                         </button>
                         {paymentMessage && (
-                          <p className={`rounded-xl px-3 py-2 text-xs font-medium ${paymentMessage.includes('berhasil') ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>
+                          <p className={`rounded-xl px-3 py-2 text-xs font-medium ${paymentMessage.includes('berhasil') ? 'bg-teal-50 text-teal-800' : 'bg-rose-50 text-rose-600'}`}>
                             {paymentMessage}
                           </p>
                         )}
@@ -1240,7 +1250,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
               <a
                 href={sppWaUrl}
                 target="_blank"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-bold text-emerald-700 hover:bg-emerald-100"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-4 text-sm font-bold text-teal-850 hover:bg-teal-100"
               >
                 <MessageCircle className="h-4 w-4" />
                 Hubungi Komite
@@ -1270,7 +1280,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             const statusClass: Record<string, string> = {
               belum_upload: 'bg-amber-50 text-amber-700',
               menunggu_konfirmasi: 'bg-sky-50 text-sky-700',
-              terkonfirmasi: 'bg-emerald-50 text-emerald-700',
+              terkonfirmasi: 'bg-teal-50 text-teal-800',
               ditolak: 'bg-rose-50 text-rose-700',
             }
             const canUpload = s.status === 'belum_upload' || s.status === 'ditolak' || s.status === 'menunggu_konfirmasi'
@@ -1311,7 +1321,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                     <button
                       type="button"
                       onClick={() => openProofUpload(s)}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-800"
                     >
                       {s.bukti_url ? <RefreshCw className="h-3.5 w-3.5" /> : <UploadCloud className="h-3.5 w-3.5" />}
                       {s.bukti_url ? 'Ganti Bukti' : 'Upload Bukti'}
@@ -1322,7 +1332,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                       href={`/portal-ortu/kuitansi/${s.transaksi_id}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700"
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-800"
                     >
                       <Download className="h-3.5 w-3.5" />
                       Kuitansi
@@ -1348,7 +1358,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
           ) : (transaksiTerbaru.results || []).map((t: any, i: number) => (
             <StandardCard key={`${t.nomor_kuitansi}-${i}`} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-50 rounded-full text-emerald-500 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 bg-teal-50 rounded-full text-teal-600 flex items-center justify-center shrink-0">
                   <CheckCircle2 className="h-5 w-5" />
                 </div>
                 <div>
@@ -1363,7 +1373,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                   href={`/portal-ortu/kuitansi/${t.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                  className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-800 hover:bg-teal-100"
                 >
                   <Download className="h-3.5 w-3.5" />
                   Kuitansi
@@ -1381,7 +1391,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       baru: { label: 'Baru', className: 'bg-rose-50 text-rose-700 border-rose-100' },
       dibaca: { label: 'Dibaca', className: 'bg-sky-50 text-sky-700 border-sky-100' },
       diproses: { label: 'Diproses', className: 'bg-amber-50 text-amber-700 border-amber-100' },
-      selesai: { label: 'Selesai', className: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+      selesai: { label: 'Selesai', className: 'bg-teal-50 text-teal-800 border-teal-100' },
     }
 
     return (
@@ -1393,7 +1403,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         transition={{ duration: 0.3 }}
         className="space-y-5 pb-24 sm:pb-8"
       >
-        <div data-tour-id="saran-hero" className="rounded-[28px] bg-slate-900 p-6 text-white shadow-md">
+        <div data-tour-id="saran-hero" className="rounded-[28px] bg-gradient-to-br from-teal-900 to-slate-900 p-6 text-white shadow-md">
           <div className="flex items-start gap-4">
             <div className="rounded-2xl bg-white/10 p-3 text-white">
               <MessageSquareText className="h-6 w-6" />
@@ -1419,7 +1429,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
               <select
                 value={suggestionCategory}
                 onChange={(event) => setSuggestionCategory(event.target.value)}
-                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-slate-400"
+                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-teal-500"
               >
                 <option value="">Pilih kategori</option>
                 {PARENT_SUGGESTION_CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -1432,7 +1442,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 onChange={(event) => setSuggestionTitle(event.target.value)}
                 maxLength={120}
                 placeholder="Contoh: Perbaikan fasilitas parkir"
-                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-slate-400"
+                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-teal-500"
               />
             </label>
             <label className="grid gap-1.5">
@@ -1443,13 +1453,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 maxLength={2000}
                 rows={6}
                 placeholder="Tuliskan saran Bapak/Ibu..."
-                className="resize-none rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-slate-400"
+                className="resize-none rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-800 outline-none focus:border-teal-500"
               />
               <span className="text-right text-[11px] text-slate-400">{suggestionMessage.length}/2000</span>
             </label>
           </div>
           {suggestionFeedback && (
-            <p className={`rounded-xl px-3 py-2 text-xs font-semibold ${suggestionFeedback.startsWith('Terima kasih') ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+            <p className={`rounded-xl px-3 py-2 text-xs font-semibold ${suggestionFeedback.startsWith('Terima kasih') ? 'bg-teal-50 text-teal-800' : 'bg-rose-50 text-rose-700'}`}>
               {suggestionFeedback}
             </p>
           )}
@@ -1458,7 +1468,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             type="button"
             onClick={submitSuggestion}
             disabled={suggestionSubmitting}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-bold text-white transition-all hover:bg-teal-800 hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
             {suggestionSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
             Kirim Saran
@@ -1498,16 +1508,23 @@ export function PortalOrtuClient({ data }: { data: any }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50 text-slate-900 [font-family:'Plus_Jakarta_Sans',ui-sans-serif,system-ui]">
+    <div className="min-h-screen bg-[#fafcfa] text-slate-900 [font-family:'Plus_Jakarta_Sans',ui-sans-serif,system-ui] relative overflow-hidden">
       <PushNotificationBanner />
       <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
         h1, h2, h3, h4, .font-semibold, .font-bold { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .bg-dots {
+          background-image: radial-gradient(rgba(13, 148, 136, 0.04) 1.5px, transparent 1.5px);
+          background-size: 24px 24px;
+        }
       `}} />
       
+      {/* Decorative Dot Grid Overlay */}
+      <div className="absolute inset-0 bg-dots pointer-events-none z-0" />
+      
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[260px] border-r border-slate-200 bg-white z-40 flex-col py-6 overflow-y-auto">
+      <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[260px] border-r border-slate-200 bg-white z-40 flex-col py-6 overflow-y-auto relative">
         <div className="flex items-center px-6 mb-8 gap-3">
           <img src="/logokemenag.png" alt="Kemenag" className="h-8 w-auto object-contain" />
           <h2 className="text-xl text-slate-800 tracking-tight"><span className="font-bold">MANSATAS</span> <span className="font-medium text-slate-500">App</span></h2>
@@ -1530,8 +1547,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 onClick={() => changeTab(id)}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive 
-                    ? 'bg-slate-900 text-white shadow-sm' 
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'bg-teal-700 text-white shadow-sm shadow-teal-700/10' 
+                    : 'text-slate-600 hover:bg-teal-50 hover:text-teal-900'
                 }`}
               >
                 <Icon className="h-4 w-4" />
