@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { Mail, Lock, Loader2, ArrowRight, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 
 export default function LoginClient() {
@@ -91,8 +92,13 @@ export default function LoginClient() {
             </button>
           </form>
 
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[10px] text-slate-400">
-            <ShieldCheck className="h-3 w-3 text-emerald-500" /> Akses khusus pegawai MAN 1 Tasikmalaya
+          <div className="mt-4 pt-3 border-t border-slate-100 space-y-2 text-center">
+            <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-400">
+              <ShieldCheck className="h-3 w-3 text-emerald-500" /> Akses khusus pegawai MAN 1 Tasikmalaya
+            </div>
+            <Link href="/" className="inline-flex text-[11px] font-semibold text-slate-500 transition-colors hover:text-emerald-700">
+              Kembali
+            </Link>
           </div>
         </div>
       </div>
