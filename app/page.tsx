@@ -3,7 +3,6 @@ import Image from 'next/image'
 import { getAppSession } from '@/utils/auth/server'
 import TypingHero from '@/components/shared/typing-hero'
 import FeaturesDrawer from '@/components/shared/features-drawer'
-import SchoolSlideshow from '@/components/shared/school-slideshow'
 import {
   ArrowRight,
   ChevronRight,
@@ -68,27 +67,27 @@ export default async function LandingPage() {
       <div className="absolute left-1/3 top-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-teal-500/5 blur-[100px] pointer-events-none z-0" />
 
       {/* Main Container */}
-      <main className="relative z-20 flex-1 w-full max-w-7xl mx-auto px-6 md:px-12 flex items-center justify-center overflow-y-auto no-scrollbar pt-6 xs:pt-10 sm:pt-16 lg:pt-0">
+      <main className="relative z-20 flex-1 min-h-0 w-full max-w-7xl mx-auto px-5 sm:px-6 md:px-10 lg:px-12 flex items-center justify-center overflow-hidden py-3 sm:py-4 lg:py-0">
         
         {/* Responsive Grid */}
-        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center py-4 lg:py-8">
+        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-10 items-center">
           
           {/* Column Left: Brand / Title / Hero & Buttons */}
-          <div className="lg:col-span-7 flex flex-col justify-center items-center lg:items-start text-center lg:text-left space-y-6 md:space-y-8 max-w-xl mx-auto lg:mx-0">
+          <div className="lg:col-span-7 flex flex-col justify-center items-center lg:items-start text-center lg:text-left space-y-4 sm:space-y-5 lg:space-y-5 max-w-xl mx-auto lg:mx-0">
 
             {/* Brand Identity */}
-            <div className="flex flex-col lg:flex-row items-center lg:items-center text-center lg:text-left gap-3.5">
-              <div className="relative h-14 w-14 shrink-0 flex items-center justify-center transition-transform hover:scale-105 duration-300">
+            <div className="flex flex-col lg:flex-row items-center lg:items-center text-center lg:text-left gap-2.5 sm:gap-3">
+              <div className="relative h-12 w-12 sm:h-14 sm:w-14 shrink-0 flex items-center justify-center transition-transform hover:scale-105 duration-300">
                 <Image
                   src="/logokemenag.png"
                   alt="Logo Kemenag"
                   width={56}
                   height={56}
-                  className="h-14 w-14 object-contain"
+                  className="h-12 w-12 sm:h-14 sm:w-14 object-contain"
                   priority
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-0.5 sm:space-y-1">
                 <h2 className="text-xs sm:text-sm font-black tracking-[0.2em] text-teal-955 uppercase">
                   MAN 1 TASIKMALAYA
                 </h2>
@@ -99,11 +98,11 @@ export default async function LandingPage() {
             </div>
 
             {/* Main Heading & Typing Animation */}
-            <div className="space-y-2 w-full flex flex-col items-center lg:items-start">
-              <h1 className="text-4xl xs:text-5xl sm:text-6xl lg:text-6xl font-black tracking-tight text-teal-950 whitespace-nowrap leading-none">
+            <div className="space-y-1.5 sm:space-y-2 w-full flex flex-col items-center lg:items-start">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-teal-950 whitespace-nowrap leading-none">
                 MANSATAS <span className="text-slate-500 font-extrabold">App</span>
               </h1>
-              <div className="text-sm xs:text-base sm:text-lg lg:text-xl min-h-[1.8em] leading-relaxed text-slate-600 font-semibold px-4 lg:px-0 pt-1">
+              <div className="text-sm sm:text-base lg:text-xl min-h-[1.7em] leading-relaxed text-slate-600 font-semibold px-2 lg:px-0 pt-0.5">
                 <TypingHero />
               </div>
             </div>
@@ -114,7 +113,7 @@ export default async function LandingPage() {
             </p>
 
             {/* Action Buttons: Clean & Professional */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-2 justify-center lg:justify-start w-full max-w-md mx-auto lg:mx-0">
+            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 pt-0.5 justify-center lg:justify-start w-full max-w-md mx-auto lg:mx-0">
               {session ? (
                 <Link
                   href={primaryHref}
@@ -150,22 +149,17 @@ export default async function LandingPage() {
             </div>
 
             {/* Footer Features Link & Security badges */}
-            <div className="flex flex-row items-center justify-between lg:justify-start gap-6 text-xs font-bold text-slate-500 pt-4 border-t border-slate-100 w-full max-w-md mx-auto lg:mx-0">
+            <div className="flex flex-row items-center justify-between lg:justify-start gap-4 sm:gap-6 text-xs font-bold text-slate-500 pt-3 border-t border-slate-100 w-full max-w-md mx-auto lg:mx-0">
               <FeaturesDrawer>
-                <button className="inline-flex items-center gap-1 text-teal-800 hover:text-teal-955 transition-colors">
+                <span className="inline-flex cursor-pointer items-center gap-1 text-teal-800 hover:text-teal-955 transition-colors">
                   <span>Lihat Detail Layanan</span>
                   <ChevronRight className="h-3.5 w-3.5" />
-                </button>
+                </span>
               </FeaturesDrawer>
               <div className="flex items-center gap-1.5 text-emerald-700">
                 <ShieldCheck className="h-4 w-4" />
                 <span>Koneksi Aman</span>
               </div>
-            </div>
-
-            {/* Desktop Slideshow inside Column Left */}
-            <div className="hidden lg:block w-full max-w-md pt-4">
-              <SchoolSlideshow />
             </div>
 
           </div>
@@ -174,7 +168,7 @@ export default async function LandingPage() {
           <div className="hidden lg:col-span-5 lg:flex items-center justify-center relative select-none">
             
             {/* Phone Shell Wrapper */}
-            <div className="relative w-full max-w-[310px] aspect-[9/18.5] bg-slate-950 rounded-[3rem] p-3 shadow-2xl border-4 border-slate-900/90 overflow-hidden animate-float">
+            <div className="relative w-full max-w-[280px] max-h-[calc(100dvh-7rem)] aspect-[9/18.5] bg-slate-950 rounded-[3rem] p-3 shadow-2xl border-4 border-slate-900/90 overflow-hidden animate-float">
               
               {/* Phone Notch */}
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-36 h-6 bg-slate-950 rounded-b-2xl z-50 flex items-center justify-center">
@@ -265,13 +259,8 @@ export default async function LandingPage() {
 
       </main>
 
-      {/* Mobile Slideshow (hidden on desktop) */}
-      <div className="block lg:hidden w-full">
-        <SchoolSlideshow />
-      </div>
-
       {/* Screen Footer */}
-      <footer className="relative z-30 shrink-0 py-4 border-t border-slate-100 text-center text-[10px] font-bold text-slate-400">
+      <footer className="relative z-30 shrink-0 py-2.5 sm:py-3 border-t border-slate-100 text-center text-[10px] font-bold text-slate-400">
         &copy; {new Date().getFullYear()} MAN 1 Tasikmalaya. Semua Hak Cipta Dilindungi.
       </footer>
 
