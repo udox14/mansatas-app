@@ -4,7 +4,7 @@ import { getDB } from '@/utils/db'
 import { cookies } from 'next/headers'
 import { COOKIE_NAME } from '@/utils/auth'
 
-export async function GET() {
+export async function GET(req: Request) {
   const cookieStore = await cookies()
   const allCookies = cookieStore.getAll()
 
@@ -27,7 +27,7 @@ export async function GET() {
     cookieStore.delete(cookie.name)
   }
 
-  return NextResponse.redirect(new URL('/login', 'https://mansatas-app.drudox.workers.dev'), {
+  return NextResponse.redirect(new URL('/', req.url), {
     status: 302,
   })
 }

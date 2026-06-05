@@ -38,7 +38,10 @@ export async function POST(request: Request) {
   if (pathname.endsWith('/sign-out')) {
     const auth = await getAuth()
     await auth.api.signOut({ headers: request.headers })
-    const res = NextResponse.json({ success: true })
+    const isJsonRequest = request.headers.get('content-type')?.includes('application/json')
+    const res = isJsonRequest
+      ? NextResponse.json({ success: true })
+      : NextResponse.redirect(new URL('/', request.url), { status: 302 })
     // Clear cookie
     const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
     res.headers.set('Set-Cookie', `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`)

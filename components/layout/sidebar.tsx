@@ -116,7 +116,7 @@ export function Sidebar({
       body: JSON.stringify({}),
       credentials: 'include',
     })
-    window.location.href = '/login'
+    window.location.href = '/'
   }
 
   if (!mounted) return null

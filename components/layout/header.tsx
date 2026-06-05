@@ -66,7 +66,7 @@ export function Header({ userRoles, primaryRole, userName, userEmail, avatarUrl 
       body: JSON.stringify({}),
       credentials: 'include',
     })
-    window.location.href = '/login'
+    window.location.href = '/'
   }
 
   const triggerMobileSidebar = () => {
