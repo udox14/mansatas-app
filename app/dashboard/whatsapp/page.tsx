@@ -95,7 +95,7 @@ export default async function WhatsAppPage({ searchParams }: PageProps) {
             <MessageCircle className="h-5 w-5 text-emerald-600" />
             <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Kirim WhatsApp</h1>
           </div>
-          <p className="mt-1 text-xs text-slate-500">Outbox WhatsApp Cloud API untuk notifikasi ALFA dan broadcast teks.</p>
+          <p className="mt-1 text-xs text-slate-500">Outbox WhatsApp untuk notifikasi ALFA dan broadcast teks via WABLAS.</p>
         </div>
         <form action={processWhatsappOutboxAction}>
           <button className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
@@ -206,8 +206,8 @@ export default async function WhatsAppPage({ searchParams }: PageProps) {
             </select>
           </label>
           <label className="space-y-1 text-xs font-medium text-slate-600 dark:text-slate-300">
-            Template Meta
-            <input name="template_name" placeholder="school_announcement_parent" className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
+            Template
+            <input name="template_name" placeholder="Opsional, dipakai kalau provider Meta" className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="space-y-1 text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -225,7 +225,7 @@ export default async function WhatsAppPage({ searchParams }: PageProps) {
           </div>
           <label className="space-y-1 text-xs font-medium text-slate-600 md:col-span-2 dark:text-slate-300">
             Isi teks
-            <textarea name="body_text" required rows={5} placeholder="Tulis isi pesan. Jika memakai template dengan 1 variabel body, teks ini dikirim sebagai variabel pertama." className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
+            <textarea name="body_text" required rows={5} placeholder="Tulis isi pesan yang akan dikirim ke WhatsApp." className="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
           </label>
           <div className="flex flex-wrap items-center justify-between gap-3 md:col-span-2">
             <p className="text-xs text-slate-500">Akan enqueue ke {preview.totalValidRecipients} nomor valid unik.</p>

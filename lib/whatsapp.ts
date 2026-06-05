@@ -4,6 +4,7 @@ export const WA_FEATURE_ID = 'whatsapp'
 export const WA_ALFA_PURPOSE = 'attendance_alfa'
 export const WA_ALFA_TEMPLATE = 'attendance_alfa_parent'
 export const WA_DEFAULT_LANGUAGE = 'id'
+export const WA_DEFAULT_PROVIDER = 'wablas'
 
 type D1MetaResult = { meta?: { changes?: number } }
 
@@ -41,11 +42,15 @@ function getEnvValue(env: Record<string, any>, key: string): string {
 export async function getWhatsAppConfig() {
   const { env } = await getCloudflareContext({ async: true })
   return {
+    provider: (getEnvValue(env as any, 'WHATSAPP_PROVIDER') || WA_DEFAULT_PROVIDER).toLowerCase(),
     accessToken: getEnvValue(env as any, 'WHATSAPP_ACCESS_TOKEN'),
     phoneNumberId: getEnvValue(env as any, 'WHATSAPP_PHONE_NUMBER_ID'),
     verifyToken: getEnvValue(env as any, 'WHATSAPP_VERIFY_TOKEN'),
     appSecret: getEnvValue(env as any, 'WHATSAPP_APP_SECRET'),
     graphVersion: getEnvValue(env as any, 'WHATSAPP_GRAPH_VERSION') || 'v20.0',
+    wablasBaseUrl: getEnvValue(env as any, 'WABLAS_BASE_URL') || 'https://texas.wablas.com',
+    wablasToken: getEnvValue(env as any, 'WABLAS_TOKEN'),
+    wablasSecretKey: getEnvValue(env as any, 'WABLAS_SECRET_KEY'),
   }
 }
 
@@ -117,6 +122,40 @@ async function sendViaCloudApi(row: WaOutboxRow) {
     throw new Error(json?.error?.message || `WhatsApp API error ${response.status}`)
   }
   return String(json?.messages?.[0]?.id || '')
+}
+
+async function sendViaWablas(row: WaOutboxRow) {
+  const config = await getWhatsAppConfig()
+  if (!config.wablasToken || !config.wablasSecretKey) {
+    throw new Error('WABLAS_TOKEN atau WABLAS_SECRET_KEY belum dikonfigurasi.')
+  }
+
+  const baseUrl = config.wablasBaseUrl.replace(/\/+$/, '')
+  const response = await fetch(`${baseUrl}/api/send-message`, {
+    method: 'POST',
+    headers: {
+      Authorization: `${config.wablasToken}.${config.wablasSecretKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      phone: row.recipient_phone,
+      message: row.body_text || '',
+      flag: 'instant',
+    }),
+  })
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok || json?.status === false) {
+    throw new Error(json?.message || json?.error || `WABLAS API error ${response.status}`)
+  }
+  return String(json?.data?.messages?.[0]?.id || json?.data?.id || json?.id || '')
+}
+
+async function sendViaConfiguredProvider(row: WaOutboxRow) {
+  const config = await getWhatsAppConfig()
+  if (config.provider === 'meta' || config.provider === 'cloud_api') {
+    return sendViaCloudApi(row)
+  }
+  return sendViaWablas(row)
 }
 
 export async function ensureWhatsAppTables(db: D1Database) {
@@ -503,7 +542,7 @@ export async function processWhatsAppOutbox(db: D1Database, limit = 25) {
     }
 
     try {
-      const providerMessageId = await sendViaCloudApi(row)
+      const providerMessageId = await sendViaConfiguredProvider(row)
       await db.prepare(`
         UPDATE wa_outbox
         SET status = 'sent', provider_message_id = ?, sent_at = datetime('now'), error_message = NULL, updated_at = datetime('now')
@@ -571,7 +610,8 @@ export async function updateWhatsAppMessageStatus(db: D1Database, providerMessag
 }
 
 export async function verifyWhatsAppSignature(rawBody: string, signatureHeader: string | null) {
-  const { appSecret } = await getWhatsAppConfig()
+  const { appSecret, provider } = await getWhatsAppConfig()
+  if (provider === 'wablas') return true
   if (!appSecret) return true
   if (!signatureHeader?.startsWith('sha256=')) return false
 

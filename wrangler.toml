@@ -39,6 +39,11 @@ VAPID_SUBJECT = "mailto:admin@man1tasikmalaya.sch.id"
 # wrangler secret put WHATSAPP_PHONE_NUMBER_ID
 # wrangler secret put WHATSAPP_VERIFY_TOKEN
 # wrangler secret put WHATSAPP_APP_SECRET
+# Default provider sekarang WABLAS:
+# wrangler secret put WHATSAPP_PROVIDER       # isi: wablas
+# wrangler secret put WABLAS_BASE_URL         # contoh: https://texas.wablas.com
+# wrangler secret put WABLAS_TOKEN
+# wrangler secret put WABLAS_SECRET_KEY
 
 [triggers]
 crons = ["* * * * *"] # Setiap menit — handler cek jadwal_notifikasi di DB
