@@ -100,7 +100,7 @@ export default async function LandingPage() {
 
             {/* Main Heading & Typing Animation */}
             <div className="space-y-2 w-full flex flex-col items-center lg:items-start">
-              <h1 className="text-4xl xs:text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tight text-teal-950 whitespace-nowrap leading-none">
+              <h1 className="text-4xl xs:text-5xl sm:text-6xl lg:text-6xl font-black tracking-tight text-teal-950 whitespace-nowrap leading-none">
                 MANSATAS <span className="text-slate-500 font-extrabold">App</span>
               </h1>
               <div className="text-sm xs:text-base sm:text-lg lg:text-xl min-h-[1.8em] leading-relaxed text-slate-600 font-semibold px-4 lg:px-0 pt-1">
