@@ -1508,7 +1508,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#fafcfa] text-slate-900 [font-family:'Plus_Jakarta_Sans',ui-sans-serif,system-ui] relative overflow-hidden">
+    <div className="min-h-screen bg-[#fafcfa] text-slate-900 [font-family:'Plus_Jakarta_Sans',ui-sans-serif,system-ui] relative overflow-x-hidden">
       <PushNotificationBanner />
       <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
@@ -1524,7 +1524,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       <div className="absolute inset-0 bg-dots pointer-events-none z-0" />
       
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[260px] border-r border-slate-200 bg-white z-40 flex-col py-6 overflow-y-auto relative">
+      <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[260px] border-r border-slate-200 bg-white z-40 flex-col py-6 overflow-y-auto">
         <div className="flex items-center px-6 mb-8 gap-3">
           <img src="/logokemenag.png" alt="Kemenag" className="h-8 w-auto object-contain" />
           <h2 className="text-xl text-slate-800 tracking-tight"><span className="font-bold">MANSATAS</span> <span className="font-medium text-slate-500">App</span></h2>
