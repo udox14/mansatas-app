@@ -10,7 +10,7 @@ export async function POST(req: Request) {
 
   await auth.api.signOut({ headers: await headers() })
 
-  const res = NextResponse.redirect(new URL('/login', req.url), { status: 302 })
+  const res = NextResponse.redirect(new URL('/', req.url), { status: 302 })
   res.headers.set('Set-Cookie', `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`)
   return res
 }
