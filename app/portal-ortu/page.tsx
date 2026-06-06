@@ -232,7 +232,7 @@ export default async function PortalOrtuPage() {
   await seedParentCommunication(db, siswaId)
 
   const profil = await db.prepare(`
-    SELECT s.id, s.nisn, s.nama_lengkap, s.status, s.foto_url, s.kelas_id, s.tahun_masuk, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
+    SELECT s.id, s.nisn, s.nama_lengkap, s.status, s.foto_url, s.kelas_id, s.tahun_masuk, s.nomor_whatsapp, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
     FROM siswa s
     LEFT JOIN kelas k ON k.id = s.kelas_id
     WHERE s.id = ?

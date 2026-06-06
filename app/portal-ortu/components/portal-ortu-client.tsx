@@ -7,6 +7,7 @@ import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle,
 import { MobileBottomNav } from './mobile-bottom-nav'
 import { ScheduleTabs } from './schedule-tabs'
 import { ChangePasswordForm } from './change-password-form'
+import { ParentWhatsAppForm } from './parent-whatsapp-form'
 import { SummonResponseForm } from './summon-response-form'
 import { PortalTour, type PortalTourStep } from './portal-tour'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -446,7 +447,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 <DialogHeader className="p-6 pb-4 border-b border-slate-100">
                   <DialogTitle className="text-lg font-semibold text-slate-800">Pengaturan Akun</DialogTitle>
                 </DialogHeader>
-                <div className="p-6 bg-slate-50">
+                <div className="max-h-[78vh] space-y-6 overflow-y-auto bg-slate-50 p-6">
+                  <ParentWhatsAppForm initialNumber={profil.nomor_whatsapp || ''} />
+                  <div className="h-px bg-slate-200" />
                   <ChangePasswordForm />
                 </div>
               </DialogContent>
