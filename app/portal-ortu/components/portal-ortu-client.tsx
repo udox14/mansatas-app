@@ -426,7 +426,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
         transition={{ duration: 0.3 }}
-        className="space-y-5 pb-24 sm:pb-8"
+        className="portal-tab-panel space-y-5"
       >
         {/* Social Media Style Hero Profile Section */}
         <div data-tour-id="beranda-profile" className="relative bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col items-center pb-6 text-center">
@@ -704,7 +704,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.3 }}
-      className="space-y-5 pb-24 sm:pb-8"
+      className="portal-tab-panel space-y-5"
     >
       <div data-tour-id="jadwal-header" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
@@ -731,7 +731,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.3 }}
-      className="space-y-5 pb-24 sm:pb-8"
+      className="portal-tab-panel space-y-5"
     >
       {/* Kehadiran Summary */}
       <div data-tour-id="kehadiran-summary" className="grid grid-cols-3 gap-3">
@@ -845,7 +845,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.3 }}
-      className="space-y-5 pb-24 sm:pb-8"
+      className="portal-tab-panel space-y-5"
     >
       <div data-tour-id="nilai-average" className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 text-center">
         <div className="w-12 h-12 bg-indigo-50 text-indigo-500 mx-auto rounded-full flex items-center justify-center mb-4">
@@ -959,7 +959,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.3 }}
-      className="space-y-5 pb-24 sm:pb-8"
+      className="portal-tab-panel space-y-5"
     >
       <div className="space-y-4">
         {/* Card for DSPT */}
@@ -1426,7 +1426,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
         transition={{ duration: 0.3 }}
-        className="space-y-5 pb-24 sm:pb-8"
+        className="portal-tab-panel space-y-5"
       >
         <div data-tour-id="saran-hero" className="rounded-[28px] bg-gradient-to-br from-teal-900 to-slate-900 p-6 text-white shadow-md">
           <div className="flex items-start gap-4">
@@ -1538,6 +1538,18 @@ export function PortalOrtuClient({ data }: { data: any }) {
       <style dangerouslySetInnerHTML={{__html: `
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        .portal-sidebar { display: none; }
+        .portal-main { margin-left: 0; }
+        .portal-mobile-header { display: flex; }
+        .portal-bottom-nav { display: block; }
+        .portal-tab-panel { padding-bottom: 6rem; }
+        @media (min-width: 768px) and (orientation: landscape) {
+          .portal-sidebar { display: flex; }
+          .portal-main { margin-left: 260px; }
+          .portal-mobile-header { display: none; }
+          .portal-bottom-nav { display: none; }
+          .portal-tab-panel { padding-bottom: 2rem; }
+        }
         h1, h2, h3, h4, .font-semibold, .font-bold { font-family: 'Plus Jakarta Sans', sans-serif; }
         .bg-dots {
           background-image: radial-gradient(rgba(13, 148, 136, 0.04) 1.5px, transparent 1.5px);
@@ -1549,7 +1561,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       <div className="absolute inset-0 bg-dots pointer-events-none z-0" />
       
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex fixed left-0 top-0 h-screen w-[260px] border-r border-slate-200 bg-white z-40 flex-col py-6 overflow-y-auto">
+      <aside className="portal-sidebar fixed left-0 top-0 h-screen w-[260px] border-r border-slate-200 bg-white z-40 flex-col py-6 overflow-y-auto">
         <div className="flex items-center px-6 mb-8 gap-3">
           <img src="/logokemenag.png" alt="Kemenag" className="h-8 w-auto object-contain" />
           <h2 className="text-xl text-slate-800 tracking-tight"><span className="font-bold">MANSATAS</span> <span className="font-medium text-slate-500">App</span></h2>
@@ -1601,9 +1613,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
         </div>
       </aside>
 
-      <main className="md:ml-[260px] min-h-screen flex flex-col">
+      <main className="portal-main min-h-screen flex flex-col">
         {/* Top Header Mobile */}
-        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200 px-5 py-4 flex items-center justify-between md:hidden">
+        <header className="portal-mobile-header sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200 px-5 py-4 items-center justify-between">
           <div className="flex items-center gap-3">
             <img src="/logokemenag.png" alt="Kemenag" className="h-7 w-auto object-contain" />
             <p className="text-lg text-slate-800 tracking-tight"><span className="font-bold">MANSATAS</span> <span className="font-medium text-slate-500">App</span></p>
