@@ -12,6 +12,32 @@ function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
 }
 
+function isDsptZeroUninput(
+  tahunMasuk: number | string | null | undefined,
+  nominal: number | null | undefined,
+  totalDibayar: number | null | undefined,
+  totalDiskon: number | null | undefined,
+) {
+  return Number(tahunMasuk || 0) >= 2026
+    && Number(nominal || 0) === 0
+    && Number(totalDibayar || 0) === 0
+    && Number(totalDiskon || 0) === 0
+}
+
+function getDsptStatus(
+  tahunMasuk: number | string | null | undefined,
+  dspt: any,
+): 'belum_bayar' | 'nyicil' | 'lunas' | 'tidak_ada' {
+  if (!dspt) return 'tidak_ada'
+  const target = Number(dspt.nominal_target || 0)
+  const bayar = Number(dspt.total_dibayar || 0)
+  const diskon = Number(dspt.total_diskon || 0)
+  if (isDsptZeroUninput(tahunMasuk, target, bayar, diskon)) return 'tidak_ada'
+  if (target - bayar - diskon <= 0) return 'lunas'
+  if (bayar > 0) return 'nyicil'
+  return 'belum_bayar'
+}
+
 type SlotJam = { id: number; mulai: string; selesai: string }
 type PolaJam = { hari: number[]; slots: SlotJam[] }
 type TodayAbsensiRow = {
@@ -206,7 +232,7 @@ export default async function PortalOrtuPage() {
   await seedParentCommunication(db, siswaId)
 
   const profil = await db.prepare(`
-    SELECT s.id, s.nisn, s.nama_lengkap, s.status, s.foto_url, s.kelas_id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
+    SELECT s.id, s.nisn, s.nama_lengkap, s.status, s.foto_url, s.kelas_id, s.tahun_masuk, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
     FROM siswa s
     LEFT JOIN kelas k ON k.id = s.kelas_id
     WHERE s.id = ?
@@ -409,6 +435,10 @@ export default async function PortalOrtuPage() {
   const dsptBayar = Number(dspt?.total_dibayar || 0)
   const dsptDiskon = Number(dspt?.total_diskon || 0)
   const dsptSisa = Math.max(0, dsptTarget - dsptBayar - dsptDiskon)
+  const dsptStatus = getDsptStatus(profil.tahun_masuk, dspt)
+  const dsptIsInput = dsptStatus !== 'tidak_ada'
+  const dsptIsLunas = dsptStatus === 'lunas'
+  const dsptNeedsInput = dsptStatus === 'tidak_ada'
   const sppNominal = Number(sppSummary?.total_nominal || 0) + Number(sppSaldoAwal?.jumlah || 0)
   const sppBayar = Number(sppSummary?.total_dibayar || 0) + Number(sppSaldoAwal?.total_dibayar || 0)
   const sppSisa = Math.max(0, sppNominal - sppBayar)
@@ -565,6 +595,10 @@ export default async function PortalOrtuPage() {
     dsptBayar,
     dsptDiskon,
     dsptSisa,
+    dsptStatus,
+    dsptIsInput,
+    dsptIsLunas,
+    dsptNeedsInput,
     paymentSubmissions,
     parentSuggestions,
     komitePaymentSettings,

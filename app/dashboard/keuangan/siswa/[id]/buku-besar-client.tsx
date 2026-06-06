@@ -24,6 +24,7 @@ const STATUS_MAP = {
   lunas: { label: 'Lunas', icon: CheckCircle2, cls: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-900/30 dark:text-emerald-400' },
   nyicil: { label: 'Nyicil', icon: Clock, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
   belum_bayar: { label: 'Belum Bayar', icon: XCircle, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' },
+  tidak_ada: { label: 'Belum Diinput', icon: Ban, cls: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400' },
 }
 
 const BULAN_LABEL = ['', 'Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
@@ -94,7 +95,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
   ): KuitansiData {
     // Hitung sisa tunggakan sesuai kategori
     const sisaTunggakan: KuitansiData['sisaTunggakan'] = []
-    if (kategori === 'dspt' && dspt) {
+    if (kategori === 'dspt' && dspt && dspt.status !== 'tidak_ada') {
       const sisaDspt = dspt.nominal_target - (dspt.total_dibayar + jumlahDiserahkan) - dspt.total_diskon
       if (sisaDspt > 0) sisaTunggakan.push({ label: 'DSPT', sisa: sisaDspt })
     }
@@ -126,6 +127,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
       : '-'
 
     if (kategori === 'dspt' && dspt) {
+      if (dspt.status === 'tidak_ada') return
       const sisa = dspt.nominal_target - dspt.total_dibayar - dspt.total_diskon
       setKuitansiData({
         nomorKuitansi: `REKAP-DSPT`,
@@ -205,6 +207,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
     let jumlahDibayar = 0
 
     if (bayarModal.type === 'dspt' && dspt) {
+      if (dspt.status === 'tidak_ada') { setMsg('Data DSPT belum diinput'); return }
       if (!bayarForm.jumlah) { setMsg('Masukkan jumlah pembayaran'); return }
       jumlahDibayar = parseInt(bayarForm.jumlah)
       details = [{ refType: 'dspt', refId: dspt.id, jumlah: jumlahDibayar }]
@@ -304,7 +307,15 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
     })
   }
 
-  const dsptSisa = dspt ? dspt.nominal_target - dspt.total_dibayar - dspt.total_diskon : 0
+  const dsptSisa = dspt ? Math.max(0, dspt.nominal_target - dspt.total_dibayar - dspt.total_diskon) : 0
+  const dsptIsInput = Boolean(dspt) && dspt.status !== 'tidak_ada'
+  const dsptProgress = dspt
+    ? dspt.nominal_target > 0
+      ? Math.min(100, Math.round(((dspt.total_dibayar + dspt.total_diskon) / dspt.nominal_target) * 100))
+      : dspt.status === 'lunas'
+        ? 100
+        : 0
+    : 0
   const dsptDiskonList = diskonList.filter((d: any) => d.target_type === 'dspt' && d.target_id === dspt?.id)
 
   return (
@@ -346,51 +357,64 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                     })()}
                   </div>
                   <div className="flex gap-2 flex-wrap">
-                    {dsptSisa > 0 && (
+                    {dsptIsInput && dsptSisa > 0 && (
                       <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => setBayarModal({ type: 'dspt' })}>
                         <Plus className="h-3.5 w-3.5" /> Catat Bayar
                       </Button>
                     )}
-                    <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
-                      onClick={() => setDiskonModal({ type: 'dspt', targetId: dspt.id, label: 'DSPT' })}>
-                      Keringanan
-                    </Button>
-                    <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
-                      onClick={() => openKuitansiRekap('dspt')}>
-                      <Printer className="h-3.5 w-3.5" /> Cetak Kuitansi
-                    </Button>
+                    {dsptIsInput && (
+                      <>
+                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
+                          onClick={() => setDiskonModal({ type: 'dspt', targetId: dspt.id, label: 'DSPT' })}>
+                          Keringanan
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
+                          onClick={() => openKuitansiRekap('dspt')}>
+                          <Printer className="h-3.5 w-3.5" /> Cetak Kuitansi
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
+                {!dsptIsInput && (
+                  <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-300">
+                    Data DSPT siswa ini belum diinput. Isi target DSPT dari halaman daftar DSPT sebelum mencatat pembayaran atau mencetak kuitansi.
+                  </div>
+                )}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Target</p>
-                    <p className="text-sm font-semibold">{formatRupiah(dspt.nominal_target)}</p>
+                    <p className="text-sm font-semibold">{dsptIsInput ? formatRupiah(dspt.nominal_target) : '-'}</p>
                   </div>
                   <div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Dibayar</p>
-                    <p className="text-sm font-semibold text-emerald-600">{formatRupiah(dspt.total_dibayar)}</p>
+                    <p className="text-sm font-semibold text-emerald-600">{dsptIsInput ? formatRupiah(dspt.total_dibayar) : '-'}</p>
                   </div>
                   <div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Diskon</p>
-                    <p className="text-sm font-semibold text-blue-600">{formatRupiah(dspt.total_diskon)}</p>
+                    <p className="text-sm font-semibold text-blue-600">{dsptIsInput ? formatRupiah(dspt.total_diskon) : '-'}</p>
                   </div>
                   <div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Sisa</p>
-                    <p className={`text-sm font-bold ${dsptSisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatRupiah(dsptSisa)}</p>
+                    <p className={`text-sm font-bold ${!dsptIsInput ? 'text-slate-500' : dsptSisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                      {dsptIsInput ? formatRupiah(dsptSisa) : '-'}
+                    </p>
                   </div>
                 </div>
                 {/* Progress bar */}
+                {dsptIsInput && (
                 <div className="mt-3">
                   <div className="w-full h-2 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-emerald-500 rounded-full transition-all"
-                      style={{ width: `${Math.min(100, Math.round(((dspt.total_dibayar + dspt.total_diskon) / dspt.nominal_target) * 100))}%` }}
+                      style={{ width: `${dsptProgress}%` }}
                     />
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    {Math.round(((dspt.total_dibayar + dspt.total_diskon) / dspt.nominal_target) * 100)}% terpenuhi
+                    {dsptProgress}% terpenuhi
                   </p>
                 </div>
+                )}
 
                 {dsptDiskonList.length > 0 && (
                   <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-3">
@@ -424,7 +448,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
               </div>
 
               {/* Janji Bayar */}
-              {dsptSisa > 0 && (
+              {dsptIsInput && dsptSisa > 0 && (
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-amber-500 flex-shrink-0" />
