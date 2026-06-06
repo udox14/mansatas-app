@@ -7,6 +7,10 @@ type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
 }
 
+type WindowWithPwaPrompt = Window & {
+  __MANSATAS_DEFERRED_PWA_PROMPT?: BeforeInstallPromptEvent | null
+}
+
 function isStandaloneMode() {
   if (typeof window === 'undefined') return false
   return (
@@ -24,24 +28,37 @@ export function usePwaInstall() {
   useEffect(() => {
     setIsInstalled(isStandaloneMode())
 
+    const syncDeferredPrompt = () => {
+      const promptEvent = (window as WindowWithPwaPrompt).__MANSATAS_DEFERRED_PWA_PROMPT
+      if (promptEvent && !isStandaloneMode()) {
+        setDeferredPrompt(promptEvent)
+        setCanInstall(true)
+      }
+    }
+
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault()
       const promptEvent = event as BeforeInstallPromptEvent
+      ;(window as WindowWithPwaPrompt).__MANSATAS_DEFERRED_PWA_PROMPT = promptEvent
       setDeferredPrompt(promptEvent)
       setCanInstall(!isStandaloneMode())
     }
 
     const handleInstalled = () => {
+      ;(window as WindowWithPwaPrompt).__MANSATAS_DEFERRED_PWA_PROMPT = null
       setDeferredPrompt(null)
       setCanInstall(false)
       setIsInstalled(true)
     }
 
+    syncDeferredPrompt()
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    window.addEventListener('mansatas-pwa-install-ready', syncDeferredPrompt)
     window.addEventListener('appinstalled', handleInstalled)
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+      window.removeEventListener('mansatas-pwa-install-ready', syncDeferredPrompt)
       window.removeEventListener('appinstalled', handleInstalled)
     }
   }, [])
@@ -51,6 +68,7 @@ export function usePwaInstall() {
 
     await deferredPrompt.prompt()
     const choice = await deferredPrompt.userChoice
+    ;(window as WindowWithPwaPrompt).__MANSATAS_DEFERRED_PWA_PROMPT = null
     setDeferredPrompt(null)
     setCanInstall(false)
 

@@ -52,6 +52,15 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              window.__MANSATAS_DEFERRED_PWA_PROMPT = null;
+              window.addEventListener('beforeinstallprompt', function(event) {
+                event.preventDefault();
+                window.__MANSATAS_DEFERRED_PWA_PROMPT = event;
+                window.dispatchEvent(new Event('mansatas-pwa-install-ready'));
+              });
+              window.addEventListener('appinstalled', function() {
+                window.__MANSATAS_DEFERRED_PWA_PROMPT = null;
+              });
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').catch(function() {});
