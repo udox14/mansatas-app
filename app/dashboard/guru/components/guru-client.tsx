@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Search, UserPlus, Trash2, ShieldAlert, Loader2, Mail, FileSpreadsheet,
   Download, KeyRound, Pencil, AlertCircle, Users, CheckCircle2, FileText,
-  PlusCircle, X, Shield, SlidersHorizontal, Check, Camera, LayoutGrid, List
+  PlusCircle, X, Shield, SlidersHorizontal, Check, Camera, LayoutGrid, List, Phone
 } from 'lucide-react'
 import {
   tambahPegawai, hapusPegawai, importPegawaiMassal,
@@ -34,6 +34,7 @@ type ProfilType = {
   avatar_url?: string | null,
   nip?: string | null,
   jabatan_cetak?: string | null,
+  nomor_whatsapp?: string | null,
   jabatan_struktural_id?: string | null,
   jabatan_struktural_nama?: string | null,
 }
@@ -42,6 +43,7 @@ type ExportRow = {
   no: number
   nama_lengkap: string
   email: string
+  nomor_whatsapp: string
   roles: string
 }
 
@@ -170,6 +172,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
     no: index + 1,
     nama_lengkap: p.nama_lengkap,
     email: p.email,
+    nomor_whatsapp: p.nomor_whatsapp || '',
     roles: (p.roles?.length ? p.roles : [p.role]).map(getRoleLabel).join(', ')
   }))
 
@@ -205,6 +208,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
       formData.get('nip') as string,
       formData.get('jabatan_cetak') as string,
       formData.get('jabatan_struktural_id') as string,
+      formData.get('nomor_whatsapp') as string,
     )
     if (res?.error) alert(res.error)
     else { alert(res.success); setEditingPegawai(null) }
@@ -283,7 +287,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
     if (!XLSX) return alert('Library belum siap.')
     const ws = XLSX.utils.json_to_sheet([
       { NAMA_LENGKAP: 'Budi Santoso, S.Pd', EMAIL: 'budi@man1tasikmalaya.sch.id', JABATAN: 'guru', NIP: '199001012020121001', JABATAN_CETAK: 'GURU BAHASA ARAB' },
-      { NAMA_LENGKAP: 'Siti Aminah, M.Pd', EMAIL: 'siti@man1tasikmalaya.sch.id', JABATAN: 'wakamad', NIP: '198501012010012001', JABATAN_CETAK: 'WAKIL KEPALA MADRASAH' },
+      { NAMA_LENGKAP: 'Siti Aminah, M.Pd', EMAIL: 'siti@man1tasikmalaya.sch.id', JABATAN: 'wakamad', NIP: '198501012010012001', JABATAN_CETAK: 'WAKIL KEPALA MADRASAH', NOMOR_WHATSAPP: '081234567890' },
     ])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Data_Pegawai')
@@ -299,6 +303,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
       NO: row.no,
       NAMA_LENGKAP: row.nama_lengkap,
       EMAIL: row.email,
+      NOMOR_WHATSAPP: row.nomor_whatsapp,
       ROLE: row.roles,
     })))
 
@@ -306,9 +311,10 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
       { wch: 6 },
       { wch: 32 },
       { wch: 34 },
+      { wch: 18 },
       { wch: 34 },
     ]
-    worksheet['!autofilter'] = { ref: `A1:D${Math.max(exportRows.length + 1, 2)}` }
+    worksheet['!autofilter'] = { ref: `A1:E${Math.max(exportRows.length + 1, 2)}` }
 
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Akun Guru Pegawai')
@@ -331,6 +337,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
         <td>${row.no}</td>
         <td>${escapeHtml(row.nama_lengkap)}</td>
         <td>${escapeHtml(row.email)}</td>
+        <td>${escapeHtml(row.nomor_whatsapp || '-')}</td>
         <td>${escapeHtml(row.roles)}</td>
       </tr>
     `).join('')
@@ -425,8 +432,9 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
             }
             .col-no { width: 5%; text-align: center; }
             .col-nama { width: 25%; }
-            .col-email { width: 28%; }
-            .col-role { width: 33%; }
+            .col-email { width: 25%; }
+            .col-phone { width: 15%; }
+            .col-role { width: 30%; }
             .footer {
               margin-top: 8px;
               color: #64748b;
@@ -472,6 +480,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
                   <th class="col-no">No</th>
                   <th class="col-nama">Nama Lengkap</th>
                   <th class="col-email">Email</th>
+                  <th class="col-phone">No. WhatsApp</th>
                   <th class="col-role">Role</th>
                 </tr>
               </thead>
@@ -547,6 +556,10 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Email (Login)</Label>
               <Input type="email" name="email" defaultValue={editingPegawai?.email} required className="h-9 text-sm rounded-lg" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Nomor Telepon / WhatsApp</Label>
+              <Input name="nomor_whatsapp" defaultValue={editingPegawai?.nomor_whatsapp || ''} inputMode="tel" className="h-9 text-sm rounded-lg" placeholder="Contoh: 081234567890" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -771,6 +784,10 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
                     </div>
                   </div>
                   <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Nomor Telepon / WhatsApp</Label>
+                    <Input name="nomor_whatsapp" inputMode="tel" className="h-9 text-sm rounded-lg" placeholder="Contoh: 081234567890" />
+                  </div>
+                  <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Jabatan <span className="text-rose-500">*</span></Label>
                     <Select name="role" defaultValue="guru">
                       <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
@@ -871,6 +888,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate leading-tight">{p.nama_lengkap}</p>
                       <p className="text-[10px] text-slate-400 truncate flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
+                      {p.nomor_whatsapp && <p className="text-[10px] text-slate-400 truncate flex items-center gap-0.5 mt-0.5"><Phone className="h-2.5 w-2.5" />{p.nomor_whatsapp}</p>}
                     </div>
                   </div>
                   <div className="mb-2">
@@ -934,6 +952,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
                           <div>
                             <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors leading-tight">{p.nama_lengkap}</p>
                             <p className="text-[11px] text-slate-400 flex items-center gap-0.5 mt-0.5"><Mail className="h-2.5 w-2.5" />{p.email}</p>
+                            {p.nomor_whatsapp && <p className="text-[11px] text-slate-400 flex items-center gap-0.5 mt-0.5"><Phone className="h-2.5 w-2.5" />{p.nomor_whatsapp}</p>}
                           </div>
                         </div>
                       </TableCell>

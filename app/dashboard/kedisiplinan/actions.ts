@@ -829,7 +829,7 @@ export async function getAnalitikKedisiplinan(taAktifId: string) {
       SELECT strftime('%Y-%m', sp.tanggal) as bulan, COUNT(*) as jumlah, SUM(mp.poin) as total_poin
       FROM siswa_pelanggaran sp
       JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
-      WHERE sp.tahun_ajaran_id = ?
+      WHERE sp.tahun_ajaran_id = ? AND strftime('%Y-%m', sp.tanggal) IS NOT NULL
       GROUP BY bulan ORDER BY bulan ASC
     `).bind(taAktifId).all<any>(),
 
@@ -879,7 +879,7 @@ export async function getAnalitikKedisiplinan(taAktifId: string) {
       total_poin: totalKasusRes?.total_poin ?? 0,
     },
     perKategori: perKategoriRes.results ?? [],
-    perBulan: perBulanRes.results ?? [],
+    perBulan: (perBulanRes.results ?? []).filter((row: any) => typeof row.bulan === 'string' && row.bulan.includes('-')),
     topPelanggaran: topPelanggaranRes.results ?? [],
     siswaBerisiko: (siswaRisikoRes.results ?? []).map((s: any) => ({
       ...s,
