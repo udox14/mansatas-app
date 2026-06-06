@@ -20,7 +20,7 @@ export function MobileBottomNav({
   onChange: (id: string) => void
 }) {
   return (
-    <nav className="sm:hidden fixed bottom-0 inset-x-0 z-50 bg-white/90 backdrop-blur-xl border-t border-slate-200 pb-safe">
+    <nav className="portal-bottom-nav fixed bottom-0 inset-x-0 z-50 bg-white/90 backdrop-blur-xl border-t border-slate-200 pb-safe">
       <div className="mx-auto max-w-md flex justify-between px-2 pt-2 pb-1 relative">
         {ITEMS.map(({ id, label, Icon }) => {
           const isActive = activeTab === id
