@@ -298,6 +298,42 @@ export async function createParentSuggestion(payload: {
   return { success: 'Terima kasih, saran Bapak/Ibu sudah kami terima.' }
 }
 
+function normalizeWhatsAppNumber(raw: string) {
+  let value = String(raw || '').trim()
+  value = value.replace(/[^\d+]/g, '')
+  if (value.startsWith('+')) value = value.slice(1)
+  if (value.startsWith('0')) value = `62${value.slice(1)}`
+  if (value.startsWith('8')) value = `62${value}`
+  return value
+}
+
+export async function updateOwnParentWhatsApp(payload: {
+  nomorWhatsapp: string
+}) {
+  const session = await requireParentSession()
+  const nomorWhatsapp = normalizeWhatsAppNumber(payload.nomorWhatsapp)
+
+  if (!nomorWhatsapp) {
+    return { error: 'Nomor WhatsApp wajib diisi.' }
+  }
+  if (!/^\d{10,15}$/.test(nomorWhatsapp)) {
+    return { error: 'Nomor WhatsApp tidak valid. Gunakan format 08..., 628..., atau +628...' }
+  }
+  if (!nomorWhatsapp.startsWith('62')) {
+    return { error: 'Nomor WhatsApp harus menggunakan nomor Indonesia.' }
+  }
+
+  const db = await getDB()
+  await db.prepare(`
+    UPDATE siswa
+    SET nomor_whatsapp = ?
+    WHERE id = ?
+  `).bind(nomorWhatsapp, session.user.siswa_id).run()
+
+  revalidatePath('/portal-ortu')
+  return { success: 'Nomor WhatsApp orang tua berhasil diperbarui.', nomorWhatsapp }
+}
+
 export async function changeOwnParentPassword(payload: {
   currentPassword: string
   newPassword: string
