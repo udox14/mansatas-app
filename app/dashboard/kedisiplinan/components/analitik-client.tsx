@@ -44,7 +44,8 @@ export function AnalitikKedisiplinanClient({
   const [filterLevel, setFilterLevel] = useState<string>('all')
   const [showSanksiConfig, setShowSanksiConfig] = useState(false)
 
-  const { ringkasan, perKategori, perBulan, topPelanggaran, siswaBerisiko, perKelas, sanksiList } = data
+  const { ringkasan, perKategori, topPelanggaran, siswaBerisiko, perKelas, sanksiList } = data
+  const perBulan = (data.perBulan ?? []).filter((b: any) => typeof b.bulan === 'string' && b.bulan.includes('-'))
 
   // Count by sanksi id (null → 'baik')
   const countBySanksi = siswaBerisiko.reduce((acc: Record<string, number>, s) => {
@@ -56,8 +57,9 @@ export function AnalitikKedisiplinanClient({
 
   const maxKasus = Math.max(...perBulan.map((b: any) => b.jumlah), 1)
   const bulanLabels = perBulan.map((b: any) => {
-    const [, m] = (b.bulan as string).split('-')
-    return ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][parseInt(m) - 1] || m
+    const [, m] = b.bulan.split('-')
+    const monthIndex = parseInt(m, 10) - 1
+    return ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][monthIndex] || m
   })
 
   const filteredSiswa = filterLevel === 'all'

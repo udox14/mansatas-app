@@ -16,7 +16,7 @@ export default async function ProfilePage() {
   // Query DB langsung untuk dapat data terbaru (termasuk avatar_url)
   const db = await getDB()
   const freshUser = await db.prepare(
-    'SELECT id, name, nama_lengkap, role, avatar_url, signature_url, nip, pangkat_golongan, jabatan_cetak FROM "user" WHERE id = ?'
+    'SELECT id, name, nama_lengkap, role, avatar_url, signature_url, nip, pangkat_golongan, jabatan_cetak, nomor_whatsapp FROM "user" WHERE id = ?'
   ).bind(user.id).first<any>()
 
   const profile = {
@@ -28,6 +28,7 @@ export default async function ProfilePage() {
     nip: freshUser?.nip ?? '',
     pangkat_golongan: freshUser?.pangkat_golongan ?? '',
     jabatan_cetak: freshUser?.jabatan_cetak ?? '',
+    nomor_whatsapp: freshUser?.nomor_whatsapp ?? '',
   }
 
   return (

@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS "user" (
   nip               TEXT,
   pangkat_golongan  TEXT,
   jabatan_cetak     TEXT,
+  nomor_whatsapp    TEXT,
   avatar_url        TEXT,
   banned            INTEGER DEFAULT 0,
   banReason         TEXT,

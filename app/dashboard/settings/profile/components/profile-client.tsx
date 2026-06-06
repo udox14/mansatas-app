@@ -7,7 +7,7 @@ import { useFormStatus } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Camera, Loader2, Save, KeyRound, User, CheckCircle2, AlertCircle, BellRing, PenLine } from 'lucide-react'
+import { Camera, Loader2, Save, KeyRound, User, CheckCircle2, AlertCircle, BellRing, PenLine, Phone } from 'lucide-react'
 import { updateProfileInfo, updatePassword, uploadAvatarAction, uploadSignatureAction } from '../actions'
 import { PushNotificationManager } from '@/components/shared/PushNotificationManager'
 
@@ -230,6 +230,13 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Email</Label>
               <Input value={email} readOnly className="h-9 rounded-lg bg-surface-3 text-slate-400 dark:text-slate-500 text-sm cursor-not-allowed" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600">Nomor Telepon / WhatsApp</Label>
+              <div className="relative">
+                <Phone className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                <Input name="nomor_whatsapp" defaultValue={profile.nomor_whatsapp || ''} inputMode="tel" className="h-9 rounded-lg bg-surface-2 pl-8 text-sm" placeholder="Contoh: 081234567890" />
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1.5">
