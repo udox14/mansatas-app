@@ -72,6 +72,18 @@ function generateId() {
   return crypto.randomUUID()
 }
 
+function isDsptZeroUninput(
+  tahunMasuk: number | string | null | undefined,
+  nominal: number | null | undefined,
+  totalDibayar: number | null | undefined,
+  totalDiskon: number | null | undefined,
+) {
+  return Number(tahunMasuk || 0) >= 2026
+    && Number(nominal || 0) === 0
+    && Number(totalDibayar || 0) === 0
+    && Number(totalDiskon || 0) === 0
+}
+
 async function ensurePaymentSubmissionTable(db: D1Database) {
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS fin_payment_submissions (
@@ -112,12 +124,16 @@ export async function createParentDsptPaymentSubmission(payload: {
   if (method === 'transfer' && !settings.accounts.some((account) => account.isActive)) return { error: 'Metode transfer rekening sedang tidak aktif.' }
 
   const dspt = await db.prepare(`
-    SELECT id, nominal_target, total_dibayar, total_diskon
-    FROM fin_dspt
-    WHERE siswa_id = ?
+    SELECT d.id, d.nominal_target, d.total_dibayar, d.total_diskon, s.tahun_masuk
+    FROM fin_dspt d
+    LEFT JOIN siswa s ON s.id = d.siswa_id
+    WHERE d.siswa_id = ?
     LIMIT 1
   `).bind(session.user.siswa_id).first<any>()
   if (!dspt) return { error: 'Data DSPT belum tersedia.' }
+  if (isDsptZeroUninput(dspt.tahun_masuk, dspt.nominal_target, dspt.total_dibayar, dspt.total_diskon)) {
+    return { error: 'Data DSPT belum diinput.' }
+  }
 
   const sisa = Math.max(0, Number(dspt.nominal_target || 0) - Number(dspt.total_dibayar || 0) - Number(dspt.total_diskon || 0))
   if (sisa <= 0) return { error: 'DSPT sudah lunas.' }

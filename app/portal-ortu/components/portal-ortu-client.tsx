@@ -103,6 +103,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
     dsptBayar,
     dsptDiskon,
     dsptSisa,
+    dsptStatus,
+    dsptIsInput,
+    dsptIsLunas,
+    dsptNeedsInput,
     paymentSubmissions,
     parentSuggestions,
     komitePaymentSettings,
@@ -168,7 +172,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const disciplineLevelLabel = disciplineSummary?.levelLabel || 'Baik'
   const recentAttendanceRows = absensiTerbaru.results || []
   const suggestionRows = parentSuggestions?.results || []
-  const hasDsptBill = Number(dsptSisa || 0) > 0
+  const hasDsptBill = Boolean(dsptIsInput) && Number(dsptSisa || 0) > 0
   const baseTourSteps: Record<string, PortalTourStep[]> = {
     beranda: [
       { target: 'beranda-profile', title: 'Profil siswa', description: 'Bagian ini menampilkan identitas anak, kelas, dan NISN yang sedang dipantau di portal orang tua.' },
@@ -200,25 +204,31 @@ export function PortalOrtuClient({ data }: { data: any }) {
       { target: 'saran-history', title: 'Riwayat saran', description: 'Pantau saran yang pernah dikirim beserta statusnya: baru, dibaca, diproses, atau selesai.' },
     ],
   }
-  const financeTourSteps: PortalTourStep[] = hasDsptBill
+  const financeTourSteps: PortalTourStep[] = dsptNeedsInput
     ? [
-        { target: 'keuangan-dspt-card', title: 'Sisa tagihan DSPT', description: 'Lihat sisa DSPT, target, dan pembayaran yang sudah tercatat. Jika sudah lunas, statusnya akan berubah menjadi lunas.' },
-        { target: 'keuangan-pay-button', title: 'Mulai bayar DSPT', description: 'Tekan Bayar DSPT untuk membuka panduan pembayaran. Tour ini akan ikut menunjukkan langkah di dalam modal.' },
-        { target: 'payment-step-amount', title: 'Masukkan nominal', description: 'Isi nominal pembayaran. Boleh membayar sebagian atau memilih tombol Bayar Sisa untuk melunasi tagihan.' },
-        { target: 'payment-step-method', title: 'Pilih metode pembayaran', description: 'Pilih QRIS atau Transfer sesuai metode yang tersedia dari pengaturan komite.' },
-        { target: 'payment-qris', title: 'Bayar via QRIS', description: 'Jika memakai QRIS, ketuk gambar untuk memperbesar atau download QRIS lalu bayar dari aplikasi bank/e-wallet.' },
-        { target: 'payment-transfer', title: 'Bayar via transfer', description: 'Jika memakai transfer, gunakan rekening aktif yang tampil di sini dan bayar sesuai nominal yang dimasukkan.' },
-        { target: 'payment-paid-button', title: 'Catat pengajuan', description: 'Setelah benar-benar membayar di luar aplikasi, tekan Saya Sudah Bayar agar pengajuan tercatat. Tombol ini tidak otomatis menarik saldo.' },
-        { target: 'payment-step-proof', title: 'Upload bukti pembayaran', description: 'Pilih foto atau screenshot bukti pembayaran. Gambar akan dikompres otomatis sebelum dikirim.' },
-        { target: 'payment-upload-button', title: 'Kirim bukti', description: 'Tekan Upload Bukti setelah file dipilih. Bukti akan diperiksa bendahara komite sebelum kuitansi diterbitkan.' },
-        { target: 'keuangan-submissions', title: 'Cek status pengajuan', description: 'Pantau status pengajuan: belum upload, menunggu konfirmasi, terkonfirmasi, atau ditolak.' },
-        { target: 'keuangan-receipts', title: 'Kuitansi dan riwayat', description: 'Jika sudah terkonfirmasi, kuitansi bisa dibuka dari riwayat pembayaran atau kartu pengajuan terkait.' },
+        { target: 'keuangan-dspt-card', title: 'DSPT belum diinput', description: 'Data tagihan DSPT anak belum tersedia dari bendahara komite, sehingga belum bisa dibayar melalui portal ini.' },
+        { target: 'keuangan-submissions', title: 'Riwayat pengajuan', description: 'Jika nanti ada pengajuan pembayaran DSPT, status dan bukti pembayaran akan tersimpan di bagian ini.' },
+        { target: 'keuangan-receipts', title: 'Kuitansi pembayaran', description: 'Kuitansi baru muncul setelah pembayaran diverifikasi dan dicatat oleh komite.' },
       ]
-    : [
-        { target: 'keuangan-dspt-card', title: 'DSPT sudah lunas', description: 'Kartu DSPT menampilkan status lunas saat tidak ada sisa tagihan yang perlu dibayar.' },
-        { target: 'keuangan-submissions', title: 'Riwayat pengajuan', description: 'Bagian ini menyimpan riwayat pengajuan pembayaran dan bukti yang pernah dikirim.' },
-        { target: 'keuangan-receipts', title: 'Kuitansi pembayaran', description: 'Pembayaran yang sudah diverifikasi bisa dicek di sini, termasuk tombol untuk membuka kuitansi.' },
-      ]
+    : hasDsptBill
+      ? [
+          { target: 'keuangan-dspt-card', title: 'Sisa tagihan DSPT', description: 'Lihat sisa DSPT, target, dan pembayaran yang sudah tercatat. Jika sudah lunas, statusnya akan berubah menjadi lunas.' },
+          { target: 'keuangan-pay-button', title: 'Mulai bayar DSPT', description: 'Tekan Bayar DSPT untuk membuka panduan pembayaran. Tour ini akan ikut menunjukkan langkah di dalam modal.' },
+          { target: 'payment-step-amount', title: 'Masukkan nominal', description: 'Isi nominal pembayaran. Boleh membayar sebagian atau memilih tombol Bayar Sisa untuk melunasi tagihan.' },
+          { target: 'payment-step-method', title: 'Pilih metode pembayaran', description: 'Pilih QRIS atau Transfer sesuai metode yang tersedia dari pengaturan komite.' },
+          { target: 'payment-qris', title: 'Bayar via QRIS', description: 'Jika memakai QRIS, ketuk gambar untuk memperbesar atau download QRIS lalu bayar dari aplikasi bank/e-wallet.' },
+          { target: 'payment-transfer', title: 'Bayar via transfer', description: 'Jika memakai transfer, gunakan rekening aktif yang tampil di sini dan bayar sesuai nominal yang dimasukkan.' },
+          { target: 'payment-paid-button', title: 'Catat pengajuan', description: 'Setelah benar-benar membayar di luar aplikasi, tekan Saya Sudah Bayar agar pengajuan tercatat. Tombol ini tidak otomatis menarik saldo.' },
+          { target: 'payment-step-proof', title: 'Upload bukti pembayaran', description: 'Pilih foto atau screenshot bukti pembayaran. Gambar akan dikompres otomatis sebelum dikirim.' },
+          { target: 'payment-upload-button', title: 'Kirim bukti', description: 'Tekan Upload Bukti setelah file dipilih. Bukti akan diperiksa bendahara komite sebelum kuitansi diterbitkan.' },
+          { target: 'keuangan-submissions', title: 'Cek status pengajuan', description: 'Pantau status pengajuan: belum upload, menunggu konfirmasi, terkonfirmasi, atau ditolak.' },
+          { target: 'keuangan-receipts', title: 'Kuitansi dan riwayat', description: 'Jika sudah terkonfirmasi, kuitansi bisa dibuka dari riwayat pembayaran atau kartu pengajuan terkait.' },
+        ]
+      : [
+          { target: 'keuangan-dspt-card', title: 'DSPT sudah lunas', description: 'Kartu DSPT menampilkan status lunas saat tidak ada sisa tagihan yang perlu dibayar.' },
+          { target: 'keuangan-submissions', title: 'Riwayat pengajuan', description: 'Bagian ini menyimpan riwayat pengajuan pembayaran dan bukti yang pernah dikirim.' },
+          { target: 'keuangan-receipts', title: 'Kuitansi pembayaran', description: 'Pembayaran yang sudah diverifikasi bisa dicek di sini, termasuk tombol untuk membuka kuitansi.' },
+        ]
   const activeTourSteps = activeTab === 'keuangan' ? financeTourSteps : (baseTourSteps[activeTab] || [])
 
   const startPortalTour = () => {
@@ -963,29 +973,44 @@ export function PortalOrtuClient({ data }: { data: any }) {
                  <span className="p-1.5 bg-slate-100 rounded-md"><Wallet className="w-4 h-4 text-slate-600" /></span>
                  DSPT
               </span>
-              {dsptSisa <= 0 && (
+              {dsptNeedsInput ? (
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+                  Belum diinput
+                </span>
+              ) : dsptIsLunas ? (
                 <span className="rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-teal-800">
                   Lunas
                 </span>
-              )}
+              ) : null}
             </div>
             
             <div>
-              <p className="text-slate-500 text-xs font-medium uppercase tracking-wide mb-1">Sisa Tagihan</p>
-              <p className={`text-2xl font-bold ${dsptSisa > 0 ? 'text-rose-600' : 'text-teal-700'}`}>Rp {rupiah(dsptSisa)}</p>
+              <p className="text-slate-500 text-xs font-medium uppercase tracking-wide mb-1">
+                {dsptNeedsInput ? 'Status Tagihan' : 'Sisa Tagihan'}
+              </p>
+              <p className={`text-2xl font-bold ${dsptNeedsInput ? 'text-amber-700' : dsptSisa > 0 ? 'text-rose-600' : 'text-teal-700'}`}>
+                {dsptNeedsInput ? 'Belum diinput' : `Rp ${rupiah(dsptSisa)}`}
+              </p>
+              {dsptNeedsInput && (
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  Nominal DSPT belum tersedia dari bendahara komite. Pembayaran portal akan aktif setelah data tagihan diinput.
+                </p>
+              )}
             </div>
             
             <div className="flex justify-between items-end border-t border-slate-100 pt-4 mt-2">
               <div>
                 <p className="text-slate-400 text-[10px] font-medium uppercase tracking-wide">Target</p>
-                <p className="text-sm font-semibold text-slate-700 mt-0.5">Rp {rupiah(dsptTarget)}</p>
+                <p className="text-sm font-semibold text-slate-700 mt-0.5">{dsptNeedsInput ? '-' : `Rp ${rupiah(dsptTarget)}`}</p>
               </div>
               <div className="text-right">
                 <p className="text-slate-400 text-[10px] font-medium uppercase tracking-wide">Lunas</p>
-                <p className="text-sm font-semibold text-teal-700 mt-0.5">Rp {rupiah(dsptBayar + dsptDiskon)}</p>
+                <p className={`text-sm font-semibold mt-0.5 ${dsptNeedsInput ? 'text-slate-500' : 'text-teal-700'}`}>
+                  {dsptNeedsInput ? '-' : `Rp ${rupiah(dsptBayar + dsptDiskon)}`}
+                </p>
               </div>
             </div>
-            {dsptSisa > 0 && (
+            {hasDsptBill && (
               <Dialog
                 open={paymentOpen}
                 onOpenChange={(open) => {

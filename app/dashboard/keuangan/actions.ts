@@ -32,11 +32,36 @@ function generateId() {
   return crypto.randomUUID()
 }
 
+type DsptStatus = 'belum_bayar' | 'nyicil' | 'lunas' | 'tidak_ada'
+const DSPT_ZERO_UNINPUT_START_YEAR = 2026
+
+function isDsptZeroUninput(
+  tahunMasuk: number | string | null | undefined,
+  nominal: number | null | undefined,
+  totalDibayar: number | null | undefined,
+  totalDiskon: number | null | undefined,
+) {
+  return Number(tahunMasuk || 0) >= DSPT_ZERO_UNINPUT_START_YEAR
+    && Number(nominal || 0) === 0
+    && Number(totalDibayar || 0) === 0
+    && Number(totalDiskon || 0) === 0
+}
+
 function recalcStatus(totalDibayar: number, totalDiskon: number, nominal: number): string {
   const sisa = nominal - totalDibayar - totalDiskon
   if (sisa <= 0) return 'lunas'
   if (totalDibayar > 0) return 'nyicil'
   return 'belum_bayar'
+}
+
+function recalcDsptStatus(
+  totalDibayar: number,
+  totalDiskon: number,
+  nominal: number,
+  tahunMasuk: number | string | null | undefined,
+): DsptStatus {
+  if (isDsptZeroUninput(tahunMasuk, nominal, totalDibayar, totalDiskon)) return 'tidak_ada'
+  return recalcStatus(totalDibayar, totalDiskon, nominal) as DsptStatus
 }
 
 async function ensurePaymentSubmissionTable(db: D1Database) {
@@ -83,29 +108,52 @@ export async function getDsptList(filters?: { status?: string; angkatan?: string
     WHERE 1=1
   `
   const params: any[] = []
-  if (filters?.status && filters.status !== 'semua') {
-    if (filters.status === 'tidak_ada') {
-      query += ' AND d.id IS NULL'
-    } else {
-      query += ' AND d.status = ?'; params.push(filters.status)
-    }
-  }
   if (filters?.angkatan && filters.angkatan !== 'semua') {
     query += ` AND s.tahun_masuk = ?`; params.push(parseInt(filters.angkatan))
   }
   query += ' ORDER BY s.nama_lengkap ASC'
   const result = await db.prepare(query).bind(...params).all<any>()
-  return { data: result.results ?? [], error: null }
+  const data = (result.results ?? []).map((row: any) => ({
+    ...row,
+    status: row.id
+      ? recalcDsptStatus(
+          Number(row.total_dibayar || 0),
+          Number(row.total_diskon || 0),
+          Number(row.nominal_target || 0),
+          row.tahun_masuk,
+        )
+      : 'tidak_ada',
+  }))
+  return {
+    data: filters?.status && filters.status !== 'semua'
+      ? data.filter((row: any) => row.status === filters.status)
+      : data,
+    error: null,
+  }
 }
 
 export async function createDspt(siswaId: string, nominalTarget: number, catatan?: string) {
   const { db } = await requireAuth('keuangan-dspt')
-  const existing = await db.prepare('SELECT id FROM fin_dspt WHERE siswa_id = ?').bind(siswaId).first()
-  if (existing) return { error: 'Siswa ini sudah memiliki tagihan DSPT', success: null }
+  const siswa = await db.prepare('SELECT tahun_masuk FROM siswa WHERE id = ?').bind(siswaId).first<any>()
+  const existing = await db.prepare('SELECT id, nominal_target, total_dibayar, total_diskon FROM fin_dspt WHERE siswa_id = ?').bind(siswaId).first<any>()
+  const status = recalcDsptStatus(0, 0, nominalTarget, siswa?.tahun_masuk)
+  if (existing) {
+    if (!isDsptZeroUninput(siswa?.tahun_masuk, existing.nominal_target, existing.total_dibayar, existing.total_diskon)) {
+      return { error: 'Siswa ini sudah memiliki tagihan DSPT', success: null }
+    }
+    await db.prepare(`
+      UPDATE fin_dspt
+      SET nominal_target = ?, total_dibayar = 0, total_diskon = 0, status = ?, catatan = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(nominalTarget, status, catatan ?? null, existing.id).run()
+    revalidatePath('/dashboard/keuangan/dspt')
+    revalidatePath(`/dashboard/keuangan/siswa/${siswaId}`)
+    return { error: null, success: 'Tagihan DSPT berhasil dibuat' }
+  }
   await db.prepare(`
-    INSERT INTO fin_dspt (id, siswa_id, nominal_target, catatan)
-    VALUES (?, ?, ?, ?)
-  `).bind(generateId(), siswaId, nominalTarget, catatan ?? null).run()
+    INSERT INTO fin_dspt (id, siswa_id, nominal_target, status, catatan)
+    VALUES (?, ?, ?, ?, ?)
+  `).bind(generateId(), siswaId, nominalTarget, status, catatan ?? null).run()
   revalidatePath('/dashboard/keuangan/dspt')
   return { error: null, success: 'Tagihan DSPT berhasil dibuat' }
 }
@@ -145,25 +193,37 @@ export async function searchSiswa(q: string) {
 
 export async function updateDsptTarget(dsptId: string, nominalTarget: number, catatan?: string) {
   const { db } = await requireAuth('keuangan-dspt')
-  const rec = await db.prepare('SELECT total_dibayar, total_diskon FROM fin_dspt WHERE id = ?').bind(dsptId).first<any>()
+  const rec = await db.prepare(`
+    SELECT d.total_dibayar, d.total_diskon, d.siswa_id, s.tahun_masuk
+    FROM fin_dspt d
+    LEFT JOIN siswa s ON s.id = d.siswa_id
+    WHERE d.id = ?
+  `).bind(dsptId).first<any>()
   if (!rec) return { error: 'Data tidak ditemukan', success: null }
-  const status = recalcStatus(rec.total_dibayar ?? 0, rec.total_diskon ?? 0, nominalTarget)
+  const status = recalcDsptStatus(rec.total_dibayar ?? 0, rec.total_diskon ?? 0, nominalTarget, rec.tahun_masuk)
   await db.prepare(`
     UPDATE fin_dspt SET nominal_target = ?, catatan = ?, status = ?, updated_at = datetime('now') WHERE id = ?
   `).bind(nominalTarget, catatan ?? null, status, dsptId).run()
   revalidatePath('/dashboard/keuangan/dspt')
+  revalidatePath(`/dashboard/keuangan/siswa/${rec.siswa_id}`)
   return { error: null, success: 'Target DSPT berhasil diperbarui' }
 }
 
 export async function updateDsptPembayaran(dsptId: string, totalDibayar: number) {
   const { db } = await requireAuth('keuangan-dspt')
-  const rec = await db.prepare('SELECT nominal_target, total_diskon FROM fin_dspt WHERE id = ?').bind(dsptId).first<any>()
+  const rec = await db.prepare(`
+    SELECT d.nominal_target, d.total_diskon, d.siswa_id, s.tahun_masuk
+    FROM fin_dspt d
+    LEFT JOIN siswa s ON s.id = d.siswa_id
+    WHERE d.id = ?
+  `).bind(dsptId).first<any>()
   if (!rec) return { error: 'Data tidak ditemukan', success: null }
-  const status = recalcStatus(totalDibayar, rec.total_diskon ?? 0, rec.nominal_target)
+  const status = recalcDsptStatus(totalDibayar, rec.total_diskon ?? 0, rec.nominal_target, rec.tahun_masuk)
   await db.prepare(`
     UPDATE fin_dspt SET total_dibayar = ?, status = ?, updated_at = datetime('now') WHERE id = ?
   `).bind(totalDibayar, status, dsptId).run()
   revalidatePath('/dashboard/keuangan/dspt')
+  revalidatePath(`/dashboard/keuangan/siswa/${rec.siswa_id}`)
   return { error: null, success: 'Pembayaran DSPT berhasil diperbarui' }
 }
 
@@ -197,10 +257,11 @@ export async function setNominalDsptMassal(angkatan: number, nominal: number) {
   for (const { siswa_id } of siswaList) {
     const ex = existingMap.get(siswa_id)
     if (ex) {
-      const status = recalcStatus(ex.total_dibayar ?? 0, ex.total_diskon ?? 0, nominal)
+      const status = recalcDsptStatus(ex.total_dibayar ?? 0, ex.total_diskon ?? 0, nominal, angkatan)
       stmts.push(db.prepare(`UPDATE fin_dspt SET nominal_target = ?, status = ?, updated_at = datetime('now') WHERE id = ?`).bind(nominal, status, ex.id))
     } else {
-      stmts.push(db.prepare(`INSERT INTO fin_dspt (id, siswa_id, nominal_target) VALUES (?, ?, ?)`).bind(generateId(), siswa_id, nominal))
+      const status = recalcDsptStatus(0, 0, nominal, angkatan)
+      stmts.push(db.prepare(`INSERT INTO fin_dspt (id, siswa_id, nominal_target, status) VALUES (?, ?, ?, ?)`).bind(generateId(), siswa_id, nominal, status))
     }
   }
   for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
@@ -215,22 +276,22 @@ export async function importDsptBulk(rows: { nisn?: string; nama?: string; nomin
   // 1 subrequest: load semua siswa by NISN sekaligus
   const nisnList = rows.map(r => r.nisn).filter(Boolean) as string[]
   const namaList = rows.map(r => r.nama).filter(Boolean) as string[]
-  const siswaNisnMap = new Map<string, string>()  // nisn → siswa_id
-  const siswaNamaMap = new Map<string, string>()  // nama_lower → siswa_id
+  const siswaNisnMap = new Map<string, { id: string; tahun_masuk: number | null }>()  // nisn → siswa
+  const siswaNamaMap = new Map<string, { id: string; tahun_masuk: number | null }>()  // nama_lower → siswa
 
   if (nisnList.length) {
     const ph = nisnList.map(() => '?').join(',')
-    const res = await db.prepare(`SELECT id, nisn FROM siswa WHERE nisn IN (${ph})`).bind(...nisnList).all<any>()
-    for (const s of res.results ?? []) siswaNisnMap.set(s.nisn, s.id)
+    const res = await db.prepare(`SELECT id, nisn, tahun_masuk FROM siswa WHERE nisn IN (${ph})`).bind(...nisnList).all<any>()
+    for (const s of res.results ?? []) siswaNisnMap.set(s.nisn, { id: s.id, tahun_masuk: s.tahun_masuk })
   }
   if (namaList.length) {
     const ph = namaList.map(() => '?').join(',')
-    const res = await db.prepare(`SELECT id, LOWER(nama_lengkap) as nama_l FROM siswa WHERE LOWER(nama_lengkap) IN (${ph.replace(/\?/g, 'LOWER(?)')})`).bind(...namaList).all<any>()
-    for (const s of res.results ?? []) siswaNamaMap.set(s.nama_l, s.id)
+    const res = await db.prepare(`SELECT id, tahun_masuk, LOWER(nama_lengkap) as nama_l FROM siswa WHERE LOWER(nama_lengkap) IN (${ph.replace(/\?/g, 'LOWER(?)')})`).bind(...namaList).all<any>()
+    for (const s of res.results ?? []) siswaNamaMap.set(s.nama_l, { id: s.id, tahun_masuk: s.tahun_masuk })
   }
 
   // 1 subrequest: load semua fin_dspt yang sudah ada untuk siswa ini
-  const allSiswaIds = [...new Set([...siswaNisnMap.values(), ...siswaNamaMap.values()])]
+  const allSiswaIds = [...new Set([...siswaNisnMap.values(), ...siswaNamaMap.values()].map(s => s.id))]
   const existingMap = new Map<string, any>()  // siswa_id → fin_dspt row
   if (allSiswaIds.length) {
     const ph = allSiswaIds.map(() => '?').join(',')
@@ -242,12 +303,13 @@ export async function importDsptBulk(rows: { nisn?: string; nama?: string; nomin
   let sukses = 0; const gagal: string[] = []
 
   for (const row of rows) {
-    const siswaId = (row.nisn ? siswaNisnMap.get(row.nisn) : undefined)
+    const siswaMatch = (row.nisn ? siswaNisnMap.get(row.nisn) : undefined)
       ?? (row.nama ? siswaNamaMap.get(row.nama.toLowerCase()) : undefined)
-    if (!siswaId) { gagal.push(row.nisn ?? row.nama ?? '?'); continue }
+    if (!siswaMatch) { gagal.push(row.nisn ?? row.nama ?? '?'); continue }
+    const siswaId = siswaMatch.id
 
     const existing = existingMap.get(siswaId)
-    const status = recalcStatus(row.total_dibayar, existing?.total_diskon ?? 0, row.nominal_target)
+    const status = recalcDsptStatus(row.total_dibayar, existing?.total_diskon ?? 0, row.nominal_target, siswaMatch.tahun_masuk)
     if (existing) {
       stmts.push(db.prepare(`UPDATE fin_dspt SET nominal_target=?, total_dibayar=?, status=?, catatan=?, updated_at=datetime('now') WHERE id=?`)
         .bind(row.nominal_target, row.total_dibayar, status, row.catatan ?? existing.catatan ?? null, existing.id))
@@ -274,6 +336,7 @@ export async function tandaiLunasMigrasiDspt() {
   const res = await db.prepare(`
     SELECT s.id FROM siswa s
     WHERE s.id NOT IN (SELECT siswa_id FROM fin_dspt)
+      AND s.tahun_masuk IN (2023, 2024, 2025)
   `).all<{ id: string }>()
   const siswaList = res.results ?? []
   if (!siswaList.length) return { error: null, success: '0 siswa — semua sudah punya data DSPT', jumlah: 0 }
@@ -1379,9 +1442,21 @@ export async function getBukuBesarSiswa(siswaId: string) {
     }
   }
 
+  const effectiveDspt = dspt
+    ? {
+        ...dspt,
+        status: recalcDsptStatus(
+          Number(dspt.total_dibayar || 0),
+          Number(dspt.total_diskon || 0),
+          Number(dspt.nominal_target || 0),
+          siswa?.tahun_masuk,
+        ),
+      }
+    : null
+
   return {
     siswa,
-    dspt,
+    dspt: effectiveDspt,
     sppTagihan: freshSppTagihan,
     sppMulai: sppMulaiRow ?? null,
     sppSaldoAwal: sppSaldoAwal ?? null,
@@ -1474,18 +1549,27 @@ async function recalcTagihanStatus(db: D1Database, details: Array<{ refType: str
     if (!tabel) continue
     const ph = ids.map(() => '?').join(',')
     const nomField = refType === 'dspt'
-      ? 'nominal_target AS nominal'
+      ? 't.nominal_target AS nominal'
       : refType === 'spp_saldo_awal'
         ? 'jumlah AS nominal'
         : 'nominal'
     const diskonField = refType === 'spp_saldo_awal' ? '0 AS total_diskon' : 'total_diskon'
-    const res = await db.prepare(
-      `SELECT id, total_dibayar, ${diskonField}, ${nomField} FROM ${tabel} WHERE id IN (${ph})`
-    ).bind(...ids).all<any>()
+    const query = refType === 'dspt'
+      ? `SELECT t.id, t.total_dibayar, t.total_diskon, ${nomField}, s.tahun_masuk
+         FROM fin_dspt t
+         LEFT JOIN siswa s ON s.id = t.siswa_id
+         WHERE t.id IN (${ph})`
+      : `SELECT id, total_dibayar, ${diskonField}, ${nomField} FROM ${tabel} WHERE id IN (${ph})`
+    const res = await db.prepare(query).bind(...ids).all<any>()
     for (const row of res.results ?? []) {
       updateStmts.push(db.prepare(
         `UPDATE ${tabel} SET status=?, updated_at=datetime('now') WHERE id=?`
-      ).bind(recalcStatus(row.total_dibayar, row.total_diskon, row.nominal), row.id))
+      ).bind(
+        refType === 'dspt'
+          ? recalcDsptStatus(row.total_dibayar, row.total_diskon, row.nominal, row.tahun_masuk)
+          : recalcStatus(row.total_dibayar, row.total_diskon, row.nominal),
+        row.id,
+      ))
     }
   }
 
