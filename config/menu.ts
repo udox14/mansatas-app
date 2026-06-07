@@ -46,6 +46,7 @@ import {
   BookCheck,
   ClipboardSignature,
   FilePenLine,
+  CircleHelp,
 } from 'lucide-react'
 
 export type MenuItem = {
@@ -182,6 +183,13 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/tpg-dokumen',
     icon: FileArchive,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_tahfidz', 'operator', 'pramubakti', 'satpam']
+  },
+  {
+    id: 'documentation',
+    title: 'Dokumentasi',
+    href: '/dashboard/dokumentasi',
+    icon: CircleHelp,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'guru_bk', 'guru_piket', 'wali_kelas', 'resepsionis', 'guru_ppl', 'guru_tahfidz', 'satpam', 'pramubakti', 'operator', 'bendahara_komite']
   },
   {
     id: 'rppm-generator',
@@ -441,7 +449,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'monitoring-penugasan', 'monitoring-kedisiplinan', 'rekap-absensi', 'akademik-nilai'] },
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
-  { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
+  { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'documentation', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
   { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
   { id: 'sistem', label: 'Sistem', items: ['settings', 'whatsapp', 'settings-notifications', 'settings-jadwal-notif', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
 ]

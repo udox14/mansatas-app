@@ -1,6 +1,6 @@
 'use client'
 
-import { BookOpenCheck, CalendarDays, GraduationCap, House, MessageSquareText, Wallet } from 'lucide-react'
+import { BookOpenCheck, CalendarDays, CircleHelp, GraduationCap, House, MessageSquareText, Wallet } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 const ITEMS = [
@@ -10,6 +10,7 @@ const ITEMS = [
   { id: 'nilai', label: 'Akademik', Icon: GraduationCap },
   { id: 'keuangan', label: 'Keuangan', Icon: Wallet },
   { id: 'saran', label: 'Saran', Icon: MessageSquareText },
+  { id: 'dokumentasi', label: 'Dok', Icon: CircleHelp },
 ]
 
 export function MobileBottomNav({

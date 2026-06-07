@@ -22,6 +22,41 @@ import { formatTimeWIB } from '@/lib/time'
 import type { SanksiConfig } from '../../../kedisiplinan/actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
+const MIGRATION_CUTOFF_DATE = '2026-05-01'
+
+function isMigratedDisciplineRecord(tanggal: unknown) {
+  if (typeof tanggal !== 'string') return false
+  const text = tanggal.trim()
+  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}` < MIGRATION_CUTOFF_DATE
+  const slash = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/)
+  if (slash) return `${slash[3]}-${slash[2].padStart(2, '0')}-${slash[1].padStart(2, '0')}` < MIGRATION_CUTOFF_DATE
+  return false
+}
+
+function getDisciplineReporterLabel(record: any, currentUser: any) {
+  if (isMigratedDisciplineRecord(record?.tanggal)) return 'Migrasi Data'
+  if (record?.diinput_oleh && record.diinput_oleh === currentUser?.id) return 'Anda'
+  return record?.pelapor?.nama_lengkap || 'Sistem'
+}
+
+function formatDisciplineDate(tanggal: unknown) {
+  if (typeof tanggal !== 'string' || !tanggal.trim()) return 'Tanggal tidak tersedia'
+  const dateOnly = tanggal.slice(0, 10)
+  const match = dateOnly.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (match) {
+    const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    if (
+      date.getFullYear() === Number(match[1]) &&
+      date.getMonth() === Number(match[2]) - 1 &&
+      date.getDate() === Number(match[3])
+    ) {
+      return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    }
+  }
+  return String(tanggal)
+}
+
 export function DetailSiswaClient({
   siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, keteranganWaliKelas, keuangan, kelasList, currentUser, sanksiList, initialTab = 'biodata'
 }: {
@@ -450,14 +485,14 @@ export function DetailSiswaClient({
                     {pelanggaran.map(p => (
                       <div key={p.id} className="p-4 hover:bg-surface-2 transition-colors flex gap-4">
                         <div className="shrink-0 flex flex-col items-center justify-center h-12 w-12 bg-rose-100 rounded-2xl text-rose-600 font-black border border-rose-200 shadow-sm">
-                          +{p.master_pelanggaran?.poin}
+                          +{p.master_pelanggaran?.poin ?? p.poin ?? 0}
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 text-sm">{p.master_pelanggaran?.nama_pelanggaran}</h4>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{new Date(p.tanggal).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                          <h4 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 text-sm">{p.master_pelanggaran?.nama_pelanggaran || p.nama_pelanggaran || 'Pelanggaran tidak tersedia'}</h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{formatDisciplineDate(p.tanggal)}</p>
                           {p.keterangan && <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 italic mt-1.5 bg-surface-3 p-2 rounded-lg">"{p.keterangan}"</p>}
                           <div className="flex items-center gap-2 mt-2">
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Pelapor: {p.pelapor?.nama_lengkap}</span>
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Pelapor: {getDisciplineReporterLabel(p, currentUser)}</span>
                             {p.foto_url && <a href={p.foto_url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded flex items-center gap-1 hover:bg-blue-100"><ImageIcon className="h-3 w-3"/> Bukti Foto</a>}
                           </div>
                         </div>
