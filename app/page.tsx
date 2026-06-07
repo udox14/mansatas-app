@@ -5,7 +5,6 @@ import TypingHero from '@/components/shared/typing-hero'
 import FeaturesDrawer from '@/components/shared/features-drawer'
 import {
   ArrowRight,
-  ChevronRight,
   LayoutDashboard,
   LogIn,
   UsersRound,
@@ -150,12 +149,7 @@ export default async function LandingPage() {
 
             {/* Footer Features Link & Security badges */}
             <div className="flex flex-row items-center justify-between lg:justify-start gap-4 sm:gap-6 text-xs font-bold text-slate-500 pt-3 border-t border-slate-100 w-full max-w-md mx-auto lg:mx-0">
-              <FeaturesDrawer>
-                <span className="inline-flex cursor-pointer items-center gap-1 text-teal-800 hover:text-teal-955 transition-colors">
-                  <span>Lihat Detail Layanan</span>
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </span>
-              </FeaturesDrawer>
+              <FeaturesDrawer />
               <div className="flex items-center gap-1.5 text-emerald-700">
                 <ShieldCheck className="h-4 w-4" />
                 <span>Koneksi Aman</span>
