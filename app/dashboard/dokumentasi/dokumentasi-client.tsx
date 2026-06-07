@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { FileText, Loader2, Pencil, Plus, Search } from 'lucide-react'
 import { MENU_ITEMS } from '@/config/menu'
 import { Button } from '@/components/ui/button'
@@ -40,6 +41,7 @@ function getFeatureTitle(featureId: string | null, featureLabels: Record<string,
 }
 
 export function DokumentasiClient({ articles, manageableArticles, featureLabels, isSuperAdmin }: Props) {
+  const router = useRouter()
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState(articles[0]?.id || '')
   const [editorOpen, setEditorOpen] = useState(false)
@@ -82,8 +84,8 @@ export function DokumentasiClient({ articles, manageableArticles, featureLabels,
         setMessage(res.error)
         return
       }
-      setMessage('Dokumentasi berhasil disimpan. Muat ulang halaman untuk melihat daftar terbaru.')
       setEditorOpen(false)
+      router.refresh()
     })
   }
 
