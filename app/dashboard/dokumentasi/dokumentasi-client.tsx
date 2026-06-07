@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { FileText, Loader2, Pencil, Plus, Search } from 'lucide-react'
-import { MENU_ITEMS } from '@/config/menu'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,6 +18,7 @@ type Props = {
   articles: DocumentationArticle[]
   manageableArticles: DocumentationArticle[]
   featureLabels: Record<string, string>
+  featureOptions: Array<{ id: string; title: string }>
   isSuperAdmin: boolean
 }
 
@@ -34,13 +34,17 @@ const EMPTY_FORM = {
   updated_at: '',
 }
 
-function getFeatureTitle(featureId: string | null, featureLabels: Record<string, string>) {
+function getFeatureTitle(
+  featureId: string | null,
+  featureLabels: Record<string, string>,
+  featureOptions: Array<{ id: string; title: string }>
+) {
   if (!featureId) return 'Umum'
-  const item = MENU_ITEMS.find(menu => menu.id === featureId)
+  const item = featureOptions.find(menu => menu.id === featureId)
   return featureLabels[featureId] || item?.title || featureId
 }
 
-export function DokumentasiClient({ articles, manageableArticles, featureLabels, isSuperAdmin }: Props) {
+export function DokumentasiClient({ articles, manageableArticles, featureLabels, featureOptions, isSuperAdmin }: Props) {
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState(articles[0]?.id || '')
@@ -55,20 +59,20 @@ export function DokumentasiClient({ articles, manageableArticles, featureLabels,
     return articles.filter(article => [
       article.title,
       article.summary,
-      getFeatureTitle(article.feature_id, featureLabels),
+      getFeatureTitle(article.feature_id, featureLabels, featureOptions),
       article.content_md,
     ].join(' ').toLowerCase().includes(q))
-  }, [articles, featureLabels, query])
+  }, [articles, featureLabels, featureOptions, query])
 
   const selectedArticle = filteredArticles.find(article => article.id === selectedId) || filteredArticles[0] || articles[0]
   const groupedArticles = useMemo(() => {
     const groups = new Map<string, DocumentationArticle[]>()
     for (const article of filteredArticles) {
-      const key = getFeatureTitle(article.feature_id, featureLabels)
+      const key = getFeatureTitle(article.feature_id, featureLabels, featureOptions)
       groups.set(key, [...(groups.get(key) || []), article])
     }
     return Array.from(groups.entries())
-  }, [featureLabels, filteredArticles])
+  }, [featureLabels, featureOptions, filteredArticles])
 
   const openEditor = (article?: DocumentationArticle) => {
     setDraft(article || EMPTY_FORM)
@@ -147,7 +151,7 @@ export function DokumentasiClient({ articles, manageableArticles, featureLabels,
             <div className="flex flex-col gap-3 border-b border-surface-2 pb-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-teal-600 dark:text-teal-300">
-                  {getFeatureTitle(selectedArticle.feature_id, featureLabels)}
+                  {getFeatureTitle(selectedArticle.feature_id, featureLabels, featureOptions)}
                 </p>
                 <h2 className="mt-1 text-lg font-semibold leading-tight text-slate-900 dark:text-slate-50">{selectedArticle.title}</h2>
                 <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{selectedArticle.summary}</p>
@@ -207,8 +211,8 @@ export function DokumentasiClient({ articles, manageableArticles, featureLabels,
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">Umum</SelectItem>
-                      {MENU_ITEMS.filter(item => item.id !== 'portal-ortu').map(item => (
-                        <SelectItem key={item.id} value={item.id}>{featureLabels[item.id] || item.title}</SelectItem>
+                      {featureOptions.map(item => (
+                        <SelectItem key={item.id} value={item.id}>{item.title}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

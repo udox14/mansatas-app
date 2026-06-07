@@ -215,19 +215,21 @@ const featureDescriptions: Record<string, string> = {
   'kotak-saran-ortu': 'Meninjau, memproses, dan menindaklanjuti saran yang dikirim orang tua melalui portal.',
 }
 
-interface FeaturesDrawerProps {
-  children: React.ReactNode
-}
-
 type TabType = 'layanan' | 'ortu' | 'modul'
 
-export default function FeaturesDrawer({ children }: FeaturesDrawerProps) {
+export default function FeaturesDrawer() {
   const [activeTab, setActiveTab] = useState<TabType>('layanan')
 
   return (
     <Sheet>
       <SheetTrigger asChild>
-        {children}
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-teal-800 transition-colors hover:text-teal-955"
+        >
+          <span>Lihat Detail Layanan</span>
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
       </SheetTrigger>
       <SheetContent 
         side="right" 

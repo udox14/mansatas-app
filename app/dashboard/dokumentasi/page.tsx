@@ -5,6 +5,7 @@ import { getAllDocumentationArticles, getDocumentationArticles } from '@/lib/doc
 import { getUserAllowedFeatures, getUserRoles } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { DokumentasiClient } from './dokumentasi-client'
+import { MENU_ITEMS } from '@/config/menu'
 
 export const metadata = { title: 'Dokumentasi - MANSATAS App' }
 export const dynamic = 'force-dynamic'
@@ -34,6 +35,12 @@ export default async function DokumentasiPage() {
     getDocumentationArticles(db, { audience: 'internal', allowedFeatures }),
     isSuperAdmin ? getAllDocumentationArticles(db) : Promise.resolve([]),
   ])
+  const featureOptions = MENU_ITEMS
+    .filter(item => item.id !== 'portal-ortu')
+    .map(item => ({
+      id: item.id,
+      title: featureLabels[item.id] || item.title,
+    }))
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -45,6 +52,7 @@ export default async function DokumentasiPage() {
         articles={articles}
         manageableArticles={manageableArticles}
         featureLabels={featureLabels}
+        featureOptions={featureOptions}
         isSuperAdmin={isSuperAdmin}
       />
     </div>
