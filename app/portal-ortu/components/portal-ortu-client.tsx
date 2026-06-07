@@ -16,6 +16,7 @@ import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { PARENT_SUGGESTION_CATEGORIES } from '@/lib/parent-suggestions'
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
 import { MarkdownViewer } from '@/components/documentation/markdown-viewer'
+import { formatDateTimeWIB, formatDateWIB } from '@/lib/time'
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
@@ -649,7 +650,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                         </div>
                         <div className="flex-1 overflow-hidden">
                           <h3 className="text-sm font-semibold text-slate-800 truncate">{item.title}</h3>
-                          <p className="text-xs text-slate-500 mt-1">{item.publish_at.split(' ')[0]}</p>
+                          <p className="text-xs text-slate-500 mt-1">{formatDateWIB(item.publish_at)}</p>
                         </div>
                         <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
                       </div>
@@ -698,7 +699,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                       <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md uppercase">{note.note_type.replace('_', ' ')}</span>
                     </div>
                     <p className="text-sm text-slate-600 leading-relaxed">{note.content}</p>
-                    <p className="text-[11px] text-slate-400 mt-2">{note.created_at}</p>
+                    <p className="text-[11px] text-slate-400 mt-2">{formatDateTimeWIB(note.created_at)} WIB</p>
                   </div>
                 </StandardCard>
               ))}
@@ -1326,7 +1327,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h4 className="text-sm font-semibold text-slate-800">DSPT - Rp {rupiah(Number(s.jumlah || 0))}</h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5">{String(s.created_at || '').split(' ')[0]} - {s.metode_bayar === 'qris' ? 'QRIS' : 'Transfer'}</p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">{formatDateTimeWIB(s.created_at)} WIB - {s.metode_bayar === 'qris' ? 'QRIS' : 'Transfer'}</p>
                   </div>
                   <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusClass[s.status] || 'bg-slate-100 text-slate-600'}`}>
                     {statusLabel[s.status] || s.status}
@@ -1401,7 +1402,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 <div>
                   <h4 className="text-sm font-semibold text-slate-800">{t.kategori}</h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">{t.nomor_kuitansi}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">{t.created_at.split(' ')[0]} • {t.metode_bayar}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{formatDateTimeWIB(t.created_at)} WIB • {t.metode_bayar}</p>
                 </div>
               </div>
               <div className="flex items-center justify-between gap-3 sm:justify-end">
@@ -1530,7 +1531,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">{item.category}</span>
                     <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${meta.className}`}>{meta.label}</span>
                   </div>
-                  <span className="text-[11px] text-slate-400">{String(item.created_at || '').slice(0, 16)}</span>
+                  <span className="text-[11px] text-slate-400">{formatDateTimeWIB(item.created_at)} WIB</span>
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-slate-800">{item.title}</h3>

@@ -4,6 +4,7 @@ import { getDB } from '@/utils/db'
 import { getSession } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { checkFeatureAccess } from '@/lib/features'
+import { todayWIB } from '@/lib/time'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -388,7 +389,7 @@ export async function bayarSaldoAwalSpp(saldoAwalId: string, jumlahBayar: number
   const seq = await db.prepare(
     "UPDATE fin_nomor_kuitansi_seq SET counter = counter + 1 WHERE id = 'singleton' RETURNING counter"
   ).first<{ counter: number }>()
-  const year = new Date().getFullYear()
+  const year = Number(todayWIB().slice(0, 4))
   const nomorKuitansi = `KWT-SPP-${year}-${String(seq?.counter ?? 0).padStart(5, '0')}`
   const transaksiId = generateId()
 
@@ -946,7 +947,7 @@ export async function catatTransaksi(payload: {
   const seq = await db.prepare(
     "UPDATE fin_nomor_kuitansi_seq SET counter = counter + 1 WHERE id = 'singleton' RETURNING counter"
   ).first<{ counter: number }>()
-  const year = new Date().getFullYear()
+  const year = Number(todayWIB().slice(0, 4))
   const kat = payload.kategori.toUpperCase()
   const nomorKuitansi = `KWT-${kat}-${year}-${String(seq?.counter ?? 0).padStart(5, '0')}`
 
@@ -1033,7 +1034,7 @@ export async function konfirmasiDsptPaymentSubmission(submissionId: string) {
   const seq = await db.prepare(
     "UPDATE fin_nomor_kuitansi_seq SET counter = counter + 1 WHERE id = 'singleton' RETURNING counter"
   ).first<{ counter: number }>()
-  const year = new Date().getFullYear()
+  const year = Number(todayWIB().slice(0, 4))
   const nomorKuitansi = `KWT-DSPT-${year}-${String(seq?.counter ?? 0).padStart(5, '0')}`
   const transaksiId = generateId()
   const metodeBayar = submission.metode_bayar === 'qris' ? 'qris' : 'transfer'
@@ -1265,7 +1266,7 @@ export async function devResetDataKeuangan() {
 
 export async function getDashboardStats(tahunAjaran?: string) {
   const { db } = await requireAuth('keuangan-laporan')
-  const tahun = tahunAjaran ? parseInt(tahunAjaran) : new Date().getFullYear()
+  const tahun = tahunAjaran ? parseInt(tahunAjaran) : Number(todayWIB().slice(0, 4))
 
   const [dsptStats, sppStats, kasKeluarStats] = await Promise.all([
     db.prepare(`

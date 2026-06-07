@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/table'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 import { formatRupiah } from '@/lib/utils'
+import { dateInputWIB, formatDateTimeWIB, formatDateWIB, todayWIB } from '@/lib/time'
 
 interface RekapAngkatan {
   tahun_masuk: number
@@ -102,20 +103,19 @@ const TUNGGAKAN_LABEL: Record<string, string> = {
 }
 
 function todayInput() {
-  return new Date().toISOString().slice(0, 10)
+  return todayWIB()
 }
 
 function firstDayOfMonthInput() {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+  return `${todayWIB().slice(0, 8)}01`
 }
 
 function dateOnly(value: string) {
-  return value.slice(0, 10)
+  return dateInputWIB(value)
 }
 
 function formatTanggal(value: string) {
-  return new Date(value.replace(' ', 'T')).toLocaleDateString('id-ID', {
+  return formatDateWIB(value, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -123,7 +123,7 @@ function formatTanggal(value: string) {
 }
 
 function formatTanggalJam(value: string) {
-  return new Date(value.replace(' ', 'T')).toLocaleString('id-ID', {
+  return formatDateTimeWIB(value, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -689,10 +689,10 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
 
           <div className="mt-10 grid grid-cols-[1fr_220px] gap-8">
             <div className="text-[10px] text-slate-500">
-              Dicetak dari MANSATAS App pada {new Date().toLocaleString('id-ID')}.
+              Dicetak dari MANSATAS App pada {formatDateTimeWIB(new Date())} WIB.
             </div>
             <div className="text-center">
-              <p>Tasikmalaya, {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+              <p>Tasikmalaya, {formatDateWIB(new Date(), { day: '2-digit', month: 'long', year: 'numeric' })}</p>
               <p>{penandaTangan}</p>
               <div className="h-16" />
               <p className="border-t border-slate-400 pt-1">................................</p>

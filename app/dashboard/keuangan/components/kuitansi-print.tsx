@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Printer, Settings2, Save } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
+import { formatDateTimeWIB, formatDateWIB } from '@/lib/time'
 
 // ─── localStorage key ─────────────────────────────────────────────────────────
 const LS_KEY_KOMITE = 'keuangan_nama_petugas_komite'
@@ -307,7 +308,7 @@ function FooterDoc({ nomorKuitansi }: { nomorKuitansi: string }) {
       fontSize: '6.6pt', color: '#888',
       display: 'grid', gridTemplateColumns: '1fr 1.35fr 1fr', alignItems: 'center', columnGap: '4mm',
     }}>
-      <span style={{ whiteSpace: 'nowrap' }}>Dicetak: {new Date().toLocaleString('id-ID')}</span>
+      <span style={{ whiteSpace: 'nowrap' }}>Dicetak: {formatDateTimeWIB(new Date())} WIB</span>
       <span style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Dokumen ini sah tanpa tanda tangan basah jika dicetak dari sistem</span>
       <span style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{nomorKuitansi}</span>
     </div>
@@ -319,9 +320,7 @@ function FooterDoc({ nomorKuitansi }: { nomorKuitansi: string }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function KuitansiKomiteContent({ data, copyLabel }: { data: KuitansiData; copyLabel: KuitansiCopyLabel }) {
-  const tanggalFmt = new Date(data.tanggal).toLocaleDateString('id-ID', {
-    day: 'numeric', month: 'long', year: 'numeric',
-  })
+  const tanggalFmt = formatDateWIB(data.tanggal)
 
   return (
     <div style={{
@@ -422,9 +421,7 @@ function KuitansiKomiteContent({ data, copyLabel }: { data: KuitansiData; copyLa
 const KOPERASI_COLOR = '#166534'   // green-800
 
 function KuitansiKoperasiContent({ data, copyLabel }: { data: KuitansiData; copyLabel: KuitansiCopyLabel }) {
-  const tanggalFmt = new Date(data.tanggal).toLocaleDateString('id-ID', {
-    day: 'numeric', month: 'long', year: 'numeric',
-  })
+  const tanggalFmt = formatDateWIB(data.tanggal)
 
   return (
     <div style={{

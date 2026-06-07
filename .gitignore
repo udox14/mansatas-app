@@ -31,6 +31,16 @@ yarn-error.log*
 # local env files
 .env*.local
 
+# android signing
+*.jks
+*.jks.old
+*.keystore
+*.keystore.old
+android/keystore.properties
+
+# local portable toolchains
+/.tools/
+
 # local database dumps / backups
 backup.sql
 *.backup.sql

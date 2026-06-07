@@ -66,3 +66,135 @@ https://react.dev/link/hydration-mismatch
   187 |   'monitoring-penugasan': 'Menampilkan pekerjaan yang sedang didelegasikan, siapa pengiri...
   188 |   'monitoring-kedisiplinan': 'Memantau kasus kedisiplinan, total poin, level sanksi, dan ...
 [browser] Image with src "http://localhost:3001/logokemenag.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[browser] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/template). 
+[browser] Uncaught Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <SegmentViewNode type="page" pagePath="page.tsx">
+      <SegmentTrieNode>
+      <LandingPage>
+        <div className="h-[100dvh]...">
+          <style>
+          <div>
+          <div>
+          <div>
+          <div>
+          <main className="relative z...">
+            <div className="w-full gri...">
+              <div className="lg:col-spa...">
+                <div>
+                <div>
+                <p>
+                <div>
+                <div className="flex flex-...">
+                  <FeaturesDrawer>
+                    <Dialog>
+                      <DialogProvider scope={undefined} triggerRef={{current:null}} contentRef={{current:null}} ...>
+                        <DialogTrigger asChild={true}>
+                          <Primitive.button type="button" aria-haspopup="dialog" aria-expanded={false} ...>
+                            <Primitive.button.Slot type="button" aria-haspopup="dialog" aria-expanded={false} ...>
+                              <Primitive.button.SlotClone type="button" aria-haspopup="dialog" aria-expanded={false} ...>
++                               <span
++                                 className="inline-flex cursor-pointer items-center gap-1 text-teal-800 hover:text-te..."
++                                 type="button"
++                                 aria-haspopup="dialog"
++                                 aria-expanded={false}
++                                 aria-controls="radix-_R_qt5ddqlb_"
++                                 data-state="closed"
++                                 onClick={function handleEvent}
++                                 ref={function}
++                               >
+-                               <div className="flex items-center gap-1.5 text-emerald-700">
+                        ...
+                  ...
+              ...
+          ...
+    ...
+
+    at <unknown> (https://react.dev/link/hydration-mismatch)
+    at span (<anonymous>)
+    at LandingPage (about://React/Server/C:%5CDATA%5Cmansatas-app%5C.next%5Cdev%5Cserver%5Cchunks%5Cssr%5C%5Broot-of-the-server%5D__0ly9a_k._.js?104:922:306)
+    at FeaturesDrawer (components/shared/features-drawer.tsx:185:13)
+    at LandingPage (about://React/Server/C:%5CDATA%5Cmansatas-app%5C.next%5Cdev%5Cserver%5Cchunks%5Cssr%5C%5Broot-of-the-server%5D__0ly9a_k._.js?105:921:292)
+  183 |   'nilai-harian': 'Guru bisa membuat sesi penilaian, mengisi nilai siswa, mengatur KKM, d...
+  184 |   penugasan: 'Memudahkan guru atau pegawai mendelegasikan tugas, menerima tugas masuk, da...
+> 185 |   whatsapp: 'Mengirim pesan WhatsApp terarah untuk kebutuhan operasional, pengingat, dan ...
+      |             ^
+  186 |   'monitoring-agenda': 'Pimpinan dan admin dapat memantau agenda guru, rekap kehadiran me...
+  187 |   'monitoring-penugasan': 'Menampilkan pekerjaan yang sedang didelegasikan, siapa pengiri...
+  188 |   'monitoring-kedisiplinan': 'Memantau kasus kedisiplinan, total poin, level sanksi, dan ...
+[browser] Image with src "http://localhost:3001/logokemenag.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[browser] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/template). 
+[browser] Uncaught Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>
+      <LoadingBoundary name="/" loading={null}>
+        <HTTPAccessFallbackBoundary notFound={{...}} forbidden={undefined} unauthorized={undefined}>
+          <HTTPAccessFallbackErrorBoundary pathname="/" notFound={{...}} forbidden={undefined} unauthorized={undefined} ...>
+            <RedirectBoundary>
+              <RedirectErrorBoundary router={{...}}>
+                <InnerLayoutRouter url="/" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} segmentPath={[...]} ...>
+                  <SegmentViewNode type="page" pagePath="page.tsx">
+                    <SegmentTrieNode>
+                    <LandingPage>
+                      <div className="h-[100dvh]...">
+                        <style>
+                        <div>
+                        <div>
+                        <div>
+                        <div>
+                        <main className="relative z...">
+                          <div className="w-full gri...">
+                            <div className="lg:col-spa...">
+                              <div>
+                              <div>
+                              <p>
+                              <div>
+                              <div className="flex flex-...">
+                                <FeaturesDrawer>
++                               <div className="flex items-center gap-1.5 text-emerald-700">
+-                               <button
+-                                 type="button"
+-                                 className="inline-flex items-center gap-1 text-teal-800 transition-colors hover:text..."
+-                                 aria-haspopup="dialog"
+-                                 aria-expanded="false"
+-                                 aria-controls="radix-_R_qt5ddulb_"
+-                                 data-state="closed"
+-                               >
+                            ...
+                        ...
+                  ...
+                ...
+
+    at <unknown> (https://react.dev/link/hydration-mismatch)
+    at div (<anonymous>)
+    at LandingPage (app\page.tsx:153:15)
+  151 |             <div className="flex flex-row items-center justify-between lg:justify-start g...
+  152 |               <FeaturesDrawer />
+> 153 |               <div className="flex items-center gap-1.5 text-emerald-700">
+      |               ^
+  154 |                 <ShieldCheck className="h-4 w-4" />
+  155 |                 <span>Koneksi Aman</span>
+  156 |               </div>
+[browser] Image with src "http://localhost:3001/logokemenag.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.

@@ -17,6 +17,7 @@ import {
   User, Banknote, Info, RotateCcw, Clock, XCircle, Minus, Ban, ReceiptText, Eye,
 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
+import { formatDateTimeWIB, todayWIB } from '@/lib/time'
 import {
   getDaftarUlangTransaksiPage,
   getDaftarUlangKuitansi,
@@ -113,13 +114,7 @@ function normalizeDsptRow(row: SiswaBaruDsptRow): SiswaBaruDsptRow {
 
 function formatTanggal(dateString: string | null) {
   if (!dateString) return '-'
-  return new Date(dateString).toLocaleString('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return formatDateTimeWIB(dateString)
 }
 
 function NumInput({
@@ -744,7 +739,7 @@ export function DaftarUlangClient({
 
   function handlePreviewKuitansi() {
     if (!selectedSiswa || !canSubmit) return
-    const tanggal = new Date().toISOString().slice(0, 10)
+    const tanggal = todayWIB()
     const jumlahPreview = dsptBayar > 0 ? dsptBayar : dsptTarget
     const previewSisa = Math.max(0, dsptTarget - dsptBayar - dsptDiskon)
     setKuitansiDspt({

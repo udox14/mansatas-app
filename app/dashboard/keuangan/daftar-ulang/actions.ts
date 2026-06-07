@@ -4,6 +4,7 @@ import { getDB } from '@/utils/db'
 import { getSession } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { checkFeatureAccess } from '@/lib/features'
+import { dateInputWIB, todayWIB } from '@/lib/time'
 import type { KuitansiData } from '../components/kuitansi-print'
 
 function generateId() { return crypto.randomUUID() }
@@ -383,7 +384,7 @@ export async function getDaftarUlangKuitansi(transaksiId: string): Promise<{ err
     error: null,
     data: {
       nomorKuitansi: trx.nomor_kuitansi,
-      tanggal: String(trx.created_at || '').slice(0, 10),
+      tanggal: dateInputWIB(trx.created_at),
       kategori: 'DSPT',
       namaSiswa: trx.nama_lengkap,
       nisn: trx.nisn ?? '-',
@@ -406,8 +407,8 @@ export async function processDaftarUlang(
   const { db, userId } = await requireAuth()
 
   try {
-    const year = new Date().getFullYear()
-    const tanggal = new Date().toISOString().slice(0, 10)
+    const tanggal = todayWIB()
+    const year = Number(tanggal.slice(0, 4))
 
     const siswa = await db.prepare(`
       SELECT s.id, s.nama_lengkap, s.nisn, s.tahun_masuk,

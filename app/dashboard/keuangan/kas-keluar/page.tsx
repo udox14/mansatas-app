@@ -5,6 +5,7 @@ import { getDB } from '@/utils/db'
 import { checkFeatureAccess } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
+import { todayWIB } from '@/lib/time'
 import { getKasKeluarList } from '../actions'
 import { KasKeluarClient } from './kas-keluar-client'
 
@@ -12,8 +13,9 @@ export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Kas Keluar | Keuangan MANSATAS' }
 
 async function KasKeluarDataFetcher() {
-  const tahun = new Date().getFullYear()
-  const bulan = new Date().getMonth() + 1
+  const today = todayWIB()
+  const tahun = Number(today.slice(0, 4))
+  const bulan = Number(today.slice(5, 7))
   const { data } = await getKasKeluarList({ tahun, bulan })
 
   return <KasKeluarClient initialData={data} defaultTahun={tahun} defaultBulan={bulan} />

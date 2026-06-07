@@ -12,30 +12,6 @@ const INSTALL_DISMISSED_KEY = 'mansatas_pwa_install_prompt_v2_dismissed_at';
 const PUSH_DISMISSED_KEY = 'mansatas_push_prompt_dismissed_at';
 const DISMISS_FOR_MS = 3 * 24 * 60 * 60 * 1000;
 
-function isStandaloneMode() {
-  if (typeof window === 'undefined') return false;
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    window.matchMedia('(display-mode: fullscreen)').matches ||
-    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
-}
-
-function shouldShowInstallHelp() {
-  if (typeof window === 'undefined') return false;
-  if (isStandaloneMode()) return false;
-  return Boolean('serviceWorker' in navigator && window.isSecureContext);
-}
-
-function getInstallHelpText() {
-  if (typeof navigator === 'undefined') return 'Buka menu browser lalu pilih Instal aplikasi atau Tambahkan ke layar utama.';
-  const ua = navigator.userAgent.toLowerCase();
-  if (/iphone|ipad|ipod/.test(ua)) {
-    return 'Di Safari, tekan tombol Bagikan lalu pilih Tambahkan ke Layar Utama.';
-  }
-  return 'Buka menu browser lalu pilih Instal aplikasi atau Tambahkan ke layar utama.';
-}
-
 function recentlyDismissed(key: string) {
   if (typeof window === 'undefined') return true;
   const raw = window.localStorage.getItem(key);
@@ -105,10 +81,9 @@ function PwaInstallPrompt() {
   const { canInstall, isInstalled, install } = usePwaInstall();
   const [isVisible, setIsVisible] = useState(false);
   const [installing, setInstalling] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(false);
 
   useEffect(() => {
-    setIsVisible(!isInstalled && (canInstall || shouldShowInstallHelp()) && !recentlyDismissed(INSTALL_DISMISSED_KEY));
+    setIsVisible(!isInstalled && canInstall && !recentlyDismissed(INSTALL_DISMISSED_KEY));
   }, [canInstall, isInstalled]);
 
   if (!isVisible) return null;
@@ -126,41 +101,24 @@ function PwaInstallPrompt() {
       onDismiss={close}
       action={
         <>
-          {canInstall ? (
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 rounded-md px-3 text-xs"
-              disabled={installing}
-              onClick={async () => {
-                setInstalling(true);
-                const result = await install();
-                setInstalling(false);
-                if (result.outcome !== 'accepted') close();
-              }}
-            >
-              {installing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              Instal
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 rounded-md px-3 text-xs"
-              onClick={() => setShowInstructions((value) => !value)}
-            >
-              <Download className="h-3.5 w-3.5" />
-              Cara Instal
-            </Button>
-          )}
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 rounded-md px-3 text-xs"
+            disabled={installing}
+            onClick={async () => {
+              setInstalling(true);
+              await install();
+              setInstalling(false);
+              close();
+            }}
+          >
+            {installing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            Instal Aplikasi
+          </Button>
           <Button type="button" variant="ghost" size="sm" className="h-8 rounded-md px-3 text-xs" onClick={close}>
             Nanti
           </Button>
-          {showInstructions && (
-            <p className="basis-full rounded-md bg-slate-50 px-3 py-2 text-[11px] font-medium leading-5 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
-              {getInstallHelpText()}
-            </p>
-          )}
         </>
       }
     />

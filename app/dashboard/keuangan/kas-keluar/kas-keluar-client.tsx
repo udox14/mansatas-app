@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { Plus, Trash2, TrendingDown } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
+import { formatDateWIB, todayWIB } from '@/lib/time'
 import { catatKasKeluar, hapusKasKeluar } from '../actions'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 
@@ -38,7 +39,7 @@ export function KasKeluarClient({ initialData, defaultTahun, defaultBulan }: {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
   const [form, setForm] = useState({
-    jumlah: '', keterangan: '', kategori: 'Operasional', metode: 'tunai', tanggal: new Date().toISOString().slice(0, 10),
+    jumlah: '', keterangan: '', kategori: 'Operasional', metode: 'tunai', tanggal: todayWIB(),
   })
   const { page, pageSize, setPage, setPageSize, paginate } = usePagination(10)
 
@@ -115,7 +116,7 @@ export function KasKeluarClient({ initialData, defaultTahun, defaultBulan }: {
             {paginated.map(row => (
               <TableRow key={row.id}>
                 <TableCell className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300 whitespace-nowrap">
-                  {new Date(row.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {formatDateWIB(row.tanggal, { day: 'numeric', month: 'short', year: 'numeric' })}
                 </TableCell>
                 <TableCell className="text-sm font-medium text-slate-900 dark:text-slate-50 max-w-[200px]">
                   <p className="truncate">{row.keterangan}</p>

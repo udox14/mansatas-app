@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/table'
 import { CheckCircle2, Clock, XCircle, Plus, Printer, AlertTriangle, Ban, Calendar, Trash2 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
+import { formatDateWIB, nowWIBISO } from '@/lib/time'
 import { catatTransaksi, voidTransaksi, beriDiskon, batalkanDiskon, simpanJanjiBayar, setSppSaldoAwal, bayarSaldoAwalSpp } from '../../actions'
 import { KuitansiModal, type KuitansiData } from '../../components/kuitansi-print'
 
@@ -106,7 +107,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
 
     return {
       nomorKuitansi,
-      tanggal: new Date().toISOString(),
+      tanggal: nowWIBISO(),
       kategori: kategori === 'dspt' ? 'DSPT' : 'SPP',
       namaSiswa: siswa.nama_lengkap,
       nisn: siswa.nisn ?? '-',
@@ -131,7 +132,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
       const sisa = dspt.nominal_target - dspt.total_dibayar - dspt.total_diskon
       setKuitansiData({
         nomorKuitansi: `REKAP-DSPT`,
-        tanggal: new Date().toISOString(),
+        tanggal: nowWIBISO(),
         kategori: 'DSPT',
         namaSiswa: siswa.nama_lengkap,
         nisn: siswa.nisn ?? '-',
@@ -153,7 +154,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
       const sisa = target.nominal - target.total_dibayar - target.total_diskon
       setKuitansiData({
         nomorKuitansi: `REKAP-SPP-${target.bulan}-${target.tahun}`,
-        tanggal: new Date().toISOString(),
+        tanggal: nowWIBISO(),
         kategori: 'SPP',
         namaSiswa: siswa.nama_lengkap,
         nisn: siswa.nisn ?? '-',
@@ -427,7 +428,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                               {d.alasan?.replace(/_/g, ' ') || 'keringanan'}
                               {d.keterangan ? ` - ${d.keterangan}` : ''}
-                              {d.created_at ? ` - ${new Date(d.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                              {d.created_at ? ` - ${formatDateWIB(d.created_at, { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
                             </p>
                           </div>
                           <Button
@@ -455,7 +456,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                     <div>
                       <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Janji Bayar</p>
                       {getJanji('dspt', dspt.id)
-                        ? <p className="text-sm font-semibold">{new Date(getJanji('dspt', dspt.id).tanggal_janji).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                        ? <p className="text-sm font-semibold">{formatDateWIB(getJanji('dspt', dspt.id).tanggal_janji, { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                         : <p className="text-xs text-slate-400">Belum ada janji bayar</p>
                       }
                     </div>
@@ -631,7 +632,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
                   <TableRow key={trx.id} className={trx.is_void ? 'opacity-50' : ''}>
                     <TableCell className="text-[11px] font-mono text-slate-600 dark:text-slate-400 dark:text-slate-300">{trx.nomor_kuitansi}</TableCell>
                     <TableCell className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                      {new Date(trx.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {formatDateWIB(trx.created_at, { day: 'numeric', month: 'short', year: 'numeric' })}
                     </TableCell>
                     <TableCell>
                       <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium uppercase">
