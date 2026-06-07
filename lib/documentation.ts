@@ -1075,17 +1075,9 @@ export async function ensureDocumentationSeed(db: D1Database) {
   const seeds = getSeedArticles()
   await db.batch(seeds.map(article =>
     db.prepare(`
-      INSERT INTO documentation_articles
+      INSERT OR IGNORE INTO documentation_articles
         (id, audience, feature_id, title, summary, content_md, sort_order, is_published, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-      ON CONFLICT(id) DO UPDATE SET
-        title = excluded.title,
-        summary = excluded.summary,
-        content_md = excluded.content_md,
-        sort_order = excluded.sort_order,
-        updated_at = datetime('now')
-      WHERE documentation_articles.content_md LIKE '%Dokumentasi ini menjelaskan tujuan fitur%'
-         OR documentation_articles.content_md LIKE '%Membantu pengguna menjalankan pekerjaan yang berkaitan%'
     `).bind(
       article.id,
       article.audience,
