@@ -104,6 +104,11 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
   // Remove revokes
   for (const f of overrides.revokes) allowed.delete(f)
 
+  // Dokumentasi bersifat universal untuk semua user internal.
+  if (roles.length === 0 || roles.some(role => role !== 'orang_tua')) {
+    allowed.add('documentation')
+  }
+
   return Array.from(allowed)
 }
 

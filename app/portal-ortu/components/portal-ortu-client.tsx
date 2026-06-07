@@ -15,6 +15,7 @@ import { createParentDsptPaymentSubmission, createParentSuggestion, getParentSem
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { PARENT_SUGGESTION_CATEGORIES } from '@/lib/parent-suggestions'
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
+import { MarkdownViewer } from '@/components/documentation/markdown-viewer'
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
@@ -88,6 +89,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [suggestionSubmitting, setSuggestionSubmitting] = useState(false)
   const [suggestionFeedback, setSuggestionFeedback] = useState('')
   const [tourOpen, setTourOpen] = useState(false)
+  const [selectedDocId, setSelectedDocId] = useState('')
 
   const {
     profil,
@@ -119,6 +121,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
     summons,
     notes,
     jadwalObject,
+    documentationArticles,
   } = data
 
   const initialLetter = String(profil.nama_lengkap || 'S').slice(0, 1)
@@ -173,6 +176,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const disciplineLevelLabel = disciplineSummary?.levelLabel || 'Baik'
   const recentAttendanceRows = absensiTerbaru.results || []
   const suggestionRows = parentSuggestions?.results || []
+  const docsRows = documentationArticles || []
+  const selectedDoc = docsRows.find((article: any) => article.id === selectedDocId) || docsRows[0]
   const hasDsptBill = Boolean(dsptIsInput) && Number(dsptSisa || 0) > 0
   const baseTourSteps: Record<string, PortalTourStep[]> = {
     beranda: [
@@ -203,6 +208,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
       { target: 'saran-form', title: 'Form saran', description: 'Pilih kategori, isi judul, lalu tuliskan saran secara singkat dan jelas.' },
       { target: 'saran-submit', title: 'Kirim saran', description: 'Tekan tombol ini setelah isi saran lengkap. Status tindak lanjut akan muncul di riwayat.' },
       { target: 'saran-history', title: 'Riwayat saran', description: 'Pantau saran yang pernah dikirim beserta statusnya: baru, dibaca, diproses, atau selesai.' },
+    ],
+    dokumentasi: [
+      { target: 'docs-list', title: 'Daftar dokumentasi', description: 'Pilih topik bantuan yang ingin dibaca dari daftar dokumentasi portal orang tua.' },
+      { target: 'docs-content', title: 'Isi panduan', description: 'Panduan berisi langkah penggunaan, catatan penting, dan tips agar fitur portal lebih mudah dipakai.' },
     ],
   }
   const financeTourSteps: PortalTourStep[] = dsptNeedsInput
@@ -1535,6 +1544,72 @@ export function PortalOrtuClient({ data }: { data: any }) {
     )
   }
 
+  const renderDokumentasi = () => (
+    <motion.div
+      key="dokumentasi"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.3 }}
+      className="portal-tab-panel space-y-5"
+    >
+      <div className="rounded-[28px] bg-gradient-to-br from-teal-900 to-slate-900 p-6 text-white shadow-md">
+        <div className="flex items-start gap-4">
+          <div className="rounded-2xl bg-white/10 p-3 text-white">
+            <CircleHelp className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Dokumentasi</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight">Panduan Portal Orang Tua</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              Baca panduan penggunaan fitur portal sesuai layanan yang tersedia untuk orang tua.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+        <div data-tour-id="docs-list" className="space-y-2">
+          {docsRows.length === 0 ? (
+            <StandardCard className="text-center text-sm text-slate-500">Belum ada dokumentasi yang tersedia.</StandardCard>
+          ) : docsRows.map((article: any) => {
+            const active = selectedDoc?.id === article.id
+            return (
+              <button
+                key={article.id}
+                type="button"
+                onClick={() => setSelectedDocId(article.id)}
+                className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                  active
+                    ? 'border-teal-200 bg-teal-50 text-teal-950'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <p className="text-sm font-bold leading-snug">{article.title}</p>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{article.summary}</p>
+              </button>
+            )
+          })}
+        </div>
+
+        <StandardCard data-tour-id="docs-content" className="min-w-0">
+          {selectedDoc ? (
+            <div className="space-y-4">
+              <div className="border-b border-slate-100 pb-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Panduan</p>
+                <h2 className="mt-1 text-lg font-bold text-slate-900">{selectedDoc.title}</h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500">{selectedDoc.summary}</p>
+              </div>
+              <MarkdownViewer content={selectedDoc.content_md} compact />
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500">Pilih dokumentasi untuk dibaca.</p>
+          )}
+        </StandardCard>
+      </div>
+    </motion.div>
+  )
+
   return (
     <div className="min-h-screen bg-[#fafcfa] text-slate-900 [font-family:'Plus_Jakarta_Sans',ui-sans-serif,system-ui] relative overflow-x-hidden">
       <PushNotificationBanner />
@@ -1579,6 +1654,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             { id: 'nilai', label: 'Akademik', Icon: GraduationCap },
             { id: 'keuangan', label: 'Keuangan', Icon: Wallet },
             { id: 'saran', label: 'Kotak Saran', Icon: MessageSquareText },
+            { id: 'dokumentasi', label: 'Dokumentasi', Icon: CircleHelp },
           ].map(({ id, label, Icon }) => {
             const isActive = activeTab === id
             return (
@@ -1650,6 +1726,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             {activeTab === 'nilai' && renderNilai()}
             {activeTab === 'keuangan' && renderKeuangan()}
             {activeTab === 'saran' && renderSaran()}
+            {activeTab === 'dokumentasi' && renderDokumentasi()}
           </AnimatePresence>
         </div>
       </main>

@@ -111,7 +111,7 @@ export default async function DetailSiswaPage({
     `).bind(id).all<any>(),
 
     db.prepare(`
-      SELECT sp.id, sp.tanggal, sp.jam_input, sp.keterangan, sp.foto_url,
+      SELECT sp.id, sp.tanggal, sp.jam_input, sp.keterangan, sp.foto_url, sp.master_pelanggaran_id, sp.diinput_oleh,
         mp.nama_pelanggaran, mp.poin, mp.kategori,
         u.nama_lengkap as pelapor_nama
       FROM siswa_pelanggaran sp
@@ -212,6 +212,22 @@ export default async function DetailSiswaPage({
     ),
   }))
 
+  const formattedPelanggaran = (pelanggaran.results || []).map((row: any) => ({
+    id: row.id,
+    tanggal: row.tanggal,
+    jam_input: row.jam_input ?? '',
+    keterangan: row.keterangan,
+    foto_url: row.foto_url,
+    master_pelanggaran_id: row.master_pelanggaran_id,
+    diinput_oleh: row.diinput_oleh,
+    master_pelanggaran: {
+      nama_pelanggaran: row.nama_pelanggaran,
+      kategori: row.kategori,
+      poin: row.poin,
+    },
+    pelapor: { nama_lengkap: row.pelapor_nama },
+  }))
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
       <Link href={backHref} className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-emerald-600 transition-colors bg-surface px-4 py-2 rounded-xl shadow-sm border border-surface w-fit">
@@ -221,7 +237,7 @@ export default async function DetailSiswaPage({
       <DetailSiswaClient
         siswa={siswaWithNilai}
         riwayatKelas={riwayatKelas.results || []}
-        pelanggaran={pelanggaran.results || []}
+        pelanggaran={formattedPelanggaran}
         izinKeluar={izinKeluar.results || []}
         izinKelas={formattedIzinKelas}
         keteranganWaliKelas={keteranganWaliKelas.results || []}

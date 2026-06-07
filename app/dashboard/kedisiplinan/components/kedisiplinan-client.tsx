@@ -43,6 +43,23 @@ function getSanksiStyle(urutan: number) {
 }
 
 const AMAN_STYLE = 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
+const MIGRATION_CUTOFF_DATE = '2026-05-01'
+
+function isMigratedDisciplineRecord(tanggal: unknown) {
+  if (typeof tanggal !== 'string') return false
+  const text = tanggal.trim()
+  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}` < MIGRATION_CUTOFF_DATE
+  const slash = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/)
+  if (slash) return `${slash[3]}-${slash[2].padStart(2, '0')}-${slash[1].padStart(2, '0')}` < MIGRATION_CUTOFF_DATE
+  return false
+}
+
+function getPelaporLabel(record: any, currentUser: any) {
+  if (isMigratedDisciplineRecord(record?.tanggal)) return 'Migrasi Data'
+  if (record?.diinput_oleh && record.diinput_oleh === currentUser?.id) return 'Anda'
+  return record?.pelapor?.nama_lengkap || 'Sistem'
+}
 const naturalSorter = new Intl.Collator('id-ID', { numeric: true, sensitivity: 'base' })
 
 function buildTanggalDate(year: number, month: number, day: number) {
@@ -210,7 +227,7 @@ function DetailKasusModal({
                     )}
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                        Pelapor: <span className="font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">{isOwner ? 'Anda' : (k.pelapor?.nama_lengkap || 'Sistem')}</span>
+                        Pelapor: <span className="font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">{getPelaporLabel(k, currentUser)}</span>
                       </span>
                       {k.foto_url && (
                         <a href={k.foto_url} target="_blank" rel="noreferrer"

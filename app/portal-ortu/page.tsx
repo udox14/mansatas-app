@@ -5,6 +5,7 @@ import { PortalOrtuClient } from './components/portal-ortu-client'
 import { findSlotException, getKalenderDateStatus, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
 import { ensureParentSuggestionTable } from '@/lib/parent-suggestions'
 import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
+import { getDocumentationArticles } from '@/lib/documentation'
 
 export const dynamic = 'force-dynamic'
 
@@ -285,6 +286,7 @@ export default async function PortalOrtuPage() {
     notes,
     taAktif,
     komitePaymentSettings,
+    documentationArticles,
   ] = await Promise.all([
     db.prepare(`
       SELECT pa.id, pa.title, pa.body, pa.publish_at, u.nama_lengkap AS pengirim
@@ -428,6 +430,7 @@ export default async function PortalOrtuPage() {
     `).bind(siswaId).all<any>(),
     db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>(),
     getKomitePaymentSettings(),
+    getDocumentationArticles(db, { audience: 'parent' }),
   ])
 
   const kelasLabel = profil.tingkat ? `${profil.tingkat}-${profil.nomor_kelas}${profil.kelompok ? ` ${profil.kelompok}` : ''}` : '-'
@@ -610,6 +613,7 @@ export default async function PortalOrtuPage() {
     summons,
     notes,
     jadwalObject,
+    documentationArticles,
   }
 
   return <PortalOrtuClient data={data} />
