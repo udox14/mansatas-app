@@ -47,6 +47,7 @@ import {
   ClipboardSignature,
   FilePenLine,
   CircleHelp,
+  Smartphone,
 } from 'lucide-react'
 
 export type MenuItem = {
@@ -419,6 +420,13 @@ export const MENU_ITEMS: MenuItem[] = [
     roles: ['super_admin']
   },
   {
+    id: 'settings-mobile-app',
+    title: 'Mobile App',
+    href: '/dashboard/settings/mobile-app',
+    icon: Smartphone,
+    roles: ['super_admin']
+  },
+  {
     id: 'pengumuman-ortu',
     title: 'Pengumuman Ortu',
     href: '/dashboard/pengumuman-ortu',
@@ -451,7 +459,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'documentation', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
   { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
-  { id: 'sistem', label: 'Sistem', items: ['settings', 'whatsapp', 'settings-notifications', 'settings-jadwal-notif', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
+  { id: 'sistem', label: 'Sistem', items: ['settings', 'whatsapp', 'settings-notifications', 'settings-jadwal-notif', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
 ]
 
 // Registry semua role yang tersedia di sistem

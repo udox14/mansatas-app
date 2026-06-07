@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/table'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 import { formatRupiah } from '@/lib/utils'
+import { formatDateTimeWIB } from '@/lib/time'
 import { KuitansiModal, type KuitansiData } from '../components/kuitansi-print'
 
 interface TransaksiRow {
@@ -44,13 +45,7 @@ const KATEGORI_CLASS: Record<string, string> = {
 }
 
 function formatTanggal(dateString: string) {
-  return new Date(dateString).toLocaleString('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return formatDateTimeWIB(dateString)
 }
 
 export function TransaksiClient({ initialData }: { initialData: TransaksiRow[] }) {

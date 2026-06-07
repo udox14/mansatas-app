@@ -110,6 +110,73 @@ export function formatTimeWIB(
   return `${formatted}${options.suffix === false ? '' : ' WIB'}`
 }
 
+function parseTimestampAsUTC(value: string | Date): Date {
+  if (value instanceof Date) return value
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T')
+  const hasExplicitZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)
+  return new Date(hasExplicitZone ? normalized : `${normalized}Z`)
+}
+
+function parseDateOnly(value: string): Date | null {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return null
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+
+export function formatDateWIB(
+  value: string | Date | null | undefined,
+  options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' }
+): string {
+  if (!value) return ''
+  const date = typeof value === 'string'
+    ? parseDateOnly(value) ?? parseTimestampAsUTC(value)
+    : value
+  if (isNaN(date.getTime())) return String(value)
+
+  return new Intl.DateTimeFormat('id-ID', {
+    ...options,
+    timeZone: parseDateOnly(String(value)) ? undefined : WIB_TIME_ZONE,
+  }).format(date)
+}
+
+export function formatDateTimeWIB(
+  value: string | Date | null | undefined,
+  options: Intl.DateTimeFormatOptions = {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }
+): string {
+  if (!value) return ''
+  const date = typeof value === 'string' ? parseTimestampAsUTC(value) : value
+  if (isNaN(date.getTime())) return String(value)
+
+  return new Intl.DateTimeFormat('id-ID', {
+    ...options,
+    timeZone: WIB_TIME_ZONE,
+  }).format(date)
+}
+
+export function dateInputWIB(value: string | Date | null | undefined): string {
+  if (!value) return ''
+  const date = typeof value === 'string'
+    ? parseDateOnly(value) ?? parseTimestampAsUTC(value)
+    : value
+  if (isNaN(date.getTime())) return String(value)
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: typeof value === 'string' && parseDateOnly(value) ? undefined : WIB_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+
+  const pick = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value || ''
+  return `${pick('year')}-${pick('month')}-${pick('day')}`
+}
+
 /**
  * Ambil tanggal dari timestamp ISO string, dikonversi ke WIB terlebih dahulu.
  * Berguna agar tanggal dari field updated_at/created_at tampil benar.

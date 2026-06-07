@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { CheckCircle2, XCircle, AlertTriangle, CalendarCheck, Clock3 } from 'lucide-react'
+import { todayWIB } from '@/lib/time'
 
 type Row = { 
   jam_ke: number; 
@@ -26,7 +27,7 @@ const DAY_LABEL: Record<number, string> = {
 
 export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[]> }) {
   const defaultDay = useMemo(() => {
-    const jsDay = new Date().getDay()
+    const jsDay = new Date(`${todayWIB()}T00:00:00`).getDay()
     const map = jsDay === 0 ? 1 : Math.min(jsDay, 6)
     return String(map)
   }, [])

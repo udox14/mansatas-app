@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import { todayWIB } from '@/lib/time'
 
 export type ExportSource = 'DSPT' | 'SPP'
 
@@ -82,8 +83,7 @@ function cleanSheetName(name: string) {
 }
 
 function todayId() {
-  const d = new Date()
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+  return todayWIB().replaceAll('-', '')
 }
 
 export function FinanceExportExcelDialog({

@@ -2,6 +2,7 @@
 import type { Metadata, Viewport } from "next"
 import "./globals.css"
 import { GlobalAlertProvider } from '@/components/ui/global-alert'
+import { MobileRuntime } from '@/components/native/mobile-runtime'
 
 export const metadata: Metadata = {
   title: "MANSATAS App",
@@ -72,6 +73,7 @@ export default function RootLayout({
       </head>
       <body style={{ fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif" }}>
         <GlobalAlertProvider />
+        <MobileRuntime />
         {children}
       </body>
     </html>
