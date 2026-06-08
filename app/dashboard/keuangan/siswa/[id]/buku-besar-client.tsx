@@ -309,6 +309,9 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
   }
 
   const dsptSisa = dspt ? Math.max(0, dspt.nominal_target - dspt.total_dibayar - dspt.total_diskon) : 0
+  const bayarAmount = parseInt(bayarForm.jumlah || '0') || 0
+  const dsptTargetAfterOverpay = dspt ? Math.max(dspt.nominal_target, dspt.total_dibayar + bayarAmount + dspt.total_diskon) : 0
+  const isDsptOverpay = bayarModal?.type === 'dspt' && bayarAmount > dsptSisa
   const dsptIsInput = Boolean(dspt) && dspt.status !== 'tidak_ada'
   const dsptProgress = dspt
     ? dspt.nominal_target > 0
@@ -699,6 +702,11 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
               <Input type="number" min={1} value={bayarForm.jumlah}
                 onChange={e => setBayarForm(f => ({ ...f, jumlah: e.target.value }))}
                 className="h-9 text-sm" placeholder="0" />
+              {isDsptOverpay && (
+                <p className="rounded-md bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                  Nominal melebihi sisa DSPT. Target DSPT akan otomatis diperbarui menjadi {formatRupiah(dsptTargetAfterOverpay)}.
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Metode Pembayaran</Label>

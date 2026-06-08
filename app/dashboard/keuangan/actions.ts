@@ -971,7 +971,15 @@ export async function catatTransaksi(payload: {
 
     // Update total_dibayar di tabel tagihan ybs
     const tabel = refTypeToTable(d.refType)
-    if (tabel) {
+    if (d.refType === 'dspt') {
+      stmts.push(db.prepare(`
+        UPDATE fin_dspt
+        SET nominal_target = MAX(COALESCE(nominal_target, 0), COALESCE(total_dibayar, 0) + ? + COALESCE(total_diskon, 0)),
+            total_dibayar = COALESCE(total_dibayar, 0) + ?,
+            updated_at = datetime('now')
+        WHERE id = ?
+      `).bind(d.jumlah, d.jumlah, d.refId))
+    } else if (tabel) {
       stmts.push(db.prepare(`
         UPDATE ${tabel}
         SET total_dibayar = COALESCE(total_dibayar, 0) + ?, updated_at = datetime('now')
@@ -1027,9 +1035,7 @@ export async function konfirmasiDsptPaymentSubmission(submissionId: string) {
   if (!submission.bukti_url) return { error: 'Bukti pembayaran belum diupload', success: null }
 
   const jumlah = Number(submission.jumlah || 0)
-  const sisa = Math.max(0, Number(submission.nominal_target || 0) - Number(submission.total_dibayar || 0) - Number(submission.total_diskon || 0))
   if (jumlah <= 0) return { error: 'Nominal pembayaran tidak valid', success: null }
-  if (jumlah > sisa) return { error: `Nominal bukti melebihi sisa DSPT saat ini (Rp ${sisa.toLocaleString('id-ID')})`, success: null }
 
   const seq = await db.prepare(
     "UPDATE fin_nomor_kuitansi_seq SET counter = counter + 1 WHERE id = 'singleton' RETURNING counter"
@@ -1050,9 +1056,11 @@ export async function konfirmasiDsptPaymentSubmission(submissionId: string) {
     `).bind(generateId(), transaksiId, submission.dspt_id, jumlah),
     db.prepare(`
       UPDATE fin_dspt
-      SET total_dibayar = COALESCE(total_dibayar, 0) + ?, updated_at = datetime('now')
+      SET nominal_target = MAX(COALESCE(nominal_target, 0), COALESCE(total_dibayar, 0) + ? + COALESCE(total_diskon, 0)),
+          total_dibayar = COALESCE(total_dibayar, 0) + ?,
+          updated_at = datetime('now')
       WHERE id = ?
-    `).bind(jumlah, submission.dspt_id),
+    `).bind(jumlah, jumlah, submission.dspt_id),
     db.prepare(`
       UPDATE fin_payment_submissions
       SET status = 'terkonfirmasi',

@@ -578,6 +578,9 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
             ) : pendingPayments.map((p) => {
               const kelas = p.tingkat && p.nomor_kelas ? `${p.tingkat}-${p.nomor_kelas}${p.kelompok ? ' ' + p.kelompok : ''}` : '-'
               const sisa = Math.max(0, (p.nominal_target ?? 0) - (p.total_dibayar ?? 0) - (p.total_diskon ?? 0))
+              const jumlah = Number(p.jumlah || 0)
+              const targetBaru = Math.max(Number(p.nominal_target || 0), Number(p.total_dibayar || 0) + jumlah + Number(p.total_diskon || 0))
+              const overpay = jumlah > sisa
               return (
                 <div key={p.id} className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -589,10 +592,15 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
                       </p>
                     </div>
                     <div className="text-left sm:text-right">
-                      <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{formatRupiah(Number(p.jumlah || 0))}</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-slate-50">{formatRupiah(jumlah)}</p>
                       <p className="text-[11px] text-slate-500">Sisa DSPT: {formatRupiah(sisa)}</p>
                     </div>
                   </div>
+                  {overpay && (
+                    <p className="mt-3 rounded-md bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                      Nominal bukti melebihi sisa DSPT. Jika dikonfirmasi, target DSPT otomatis menjadi {formatRupiah(targetBaru)}.
+                    </p>
+                  )}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => setProofModal(p)}>
                       <ImageIcon className="h-3.5 w-3.5" /> Lihat Bukti
