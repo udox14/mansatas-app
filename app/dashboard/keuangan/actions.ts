@@ -102,7 +102,15 @@ export async function getDsptList(filters?: { status?: string; angkatan?: string
       COALESCE(d.status, 'tidak_ada') as status, d.catatan,
       s.id as siswa_id, s.nama_lengkap, s.nisn,
       s.tahun_masuk,
-      k.tingkat, k.nomor_kelas, k.kelompok
+      k.tingkat, k.nomor_kelas, k.kelompok,
+      (
+        SELECT GROUP_CONCAT(DISTINCT t.metode_bayar)
+        FROM fin_transaksi_detail td
+        JOIN fin_transaksi t ON t.id = td.transaksi_id
+        WHERE td.ref_type = 'dspt'
+          AND td.ref_id = d.id
+          AND t.is_void = 0
+      ) AS metode_bayar_set
     FROM siswa s
     LEFT JOIN fin_dspt d ON d.siswa_id = s.id
     LEFT JOIN kelas k ON k.id = s.kelas_id
@@ -1016,6 +1024,27 @@ export async function getPendingDsptPaymentSubmissions() {
     JOIN fin_dspt d ON d.id = p.dspt_id
     WHERE p.kategori = 'dspt' AND p.status = 'menunggu_konfirmasi'
     ORDER BY datetime(p.bukti_uploaded_at) ASC, datetime(p.created_at) ASC
+  `).all<any>()
+  return { data: result.results ?? [], error: null }
+}
+
+export async function getDsptPaymentProofSubmissions() {
+  const { db } = await requireAuth('keuangan-dspt')
+  await ensurePaymentSubmissionTable(db)
+  const result = await db.prepare(`
+    SELECT
+      p.id, p.siswa_id, p.dspt_id, p.metode_bayar, p.jumlah, p.status,
+      p.bukti_url, p.bukti_uploaded_at, p.created_at, p.updated_at,
+      p.confirmed_at, p.rejected_at, p.reject_reason, p.transaksi_id,
+      s.nama_lengkap, s.nisn, s.tahun_masuk,
+      k.tingkat, k.nomor_kelas, k.kelompok,
+      d.nominal_target, d.total_dibayar, d.total_diskon, d.status AS dspt_status
+    FROM fin_payment_submissions p
+    JOIN siswa s ON s.id = p.siswa_id
+    LEFT JOIN kelas k ON k.id = s.kelas_id
+    JOIN fin_dspt d ON d.id = p.dspt_id
+    WHERE p.kategori = 'dspt' AND p.bukti_url IS NOT NULL AND p.bukti_url != ''
+    ORDER BY datetime(COALESCE(p.bukti_uploaded_at, p.updated_at, p.created_at)) DESC
   `).all<any>()
   return { data: result.results ?? [], error: null }
 }

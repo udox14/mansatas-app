@@ -23,6 +23,7 @@ interface SppTunggakanRow {
   total_dibayar: number
   status: string
   keterangan: string | null
+  metode_bayar_set: string | null
 }
 
 async function SppDataFetcher() {
@@ -43,7 +44,15 @@ async function SppDataFetcher() {
       SELECT
         sa.id, sa.siswa_id, sa.jumlah, sa.total_dibayar, sa.status, sa.keterangan,
         s.nama_lengkap, s.nisn, s.tahun_masuk,
-        k.tingkat, k.nomor_kelas, k.kelompok
+        k.tingkat, k.nomor_kelas, k.kelompok,
+        (
+          SELECT GROUP_CONCAT(DISTINCT t.metode_bayar)
+          FROM fin_transaksi_detail td
+          JOIN fin_transaksi t ON t.id = td.transaksi_id
+          WHERE td.ref_type = 'spp_saldo_awal'
+            AND td.ref_id = sa.id
+            AND t.is_void = 0
+        ) AS metode_bayar_set
       FROM fin_spp_saldo_awal sa
       INNER JOIN siswa s ON s.id = sa.siswa_id
       LEFT JOIN kelas k ON k.id = s.kelas_id
