@@ -103,7 +103,16 @@ export default async function DetailSiswaPage({
     sanksiList,
   ] = await Promise.all([
     db.prepare(`
-      SELECT rk.id, rk.created_at, k.tingkat, k.kelompok, k.nomor_kelas, ta.nama, ta.semester
+      SELECT
+        rk.id,
+        rk.created_at,
+        rk.kelas_id,
+        rk.tahun_ajaran_id,
+        k.tingkat,
+        k.kelompok,
+        k.nomor_kelas,
+        ta.nama AS tahun_ajaran_nama,
+        ta.semester AS tahun_ajaran_semester
       FROM riwayat_kelas rk
       LEFT JOIN kelas k ON rk.kelas_id = k.id
       LEFT JOIN tahun_ajaran ta ON rk.tahun_ajaran_id = ta.id
@@ -205,6 +214,24 @@ export default async function DetailSiswaPage({
     },
   }
 
+  const formattedRiwayatKelas = (riwayatKelas.results || []).map((row: any) => ({
+    id: row.id,
+    created_at: row.created_at,
+    kelas_id: row.kelas_id,
+    tahun_ajaran_id: row.tahun_ajaran_id,
+    kelas: row.tingkat ? {
+      id: row.kelas_id,
+      tingkat: row.tingkat,
+      kelompok: row.kelompok,
+      nomor_kelas: row.nomor_kelas,
+    } : null,
+    tahun_ajaran: row.tahun_ajaran_nama ? {
+      id: row.tahun_ajaran_id,
+      nama: row.tahun_ajaran_nama,
+      semester: row.tahun_ajaran_semester,
+    } : null,
+  }))
+
   const formattedIzinKelas = (izinKelas.results || []).map((row: any) => ({
     ...row,
     jam_pelajaran: parseJsonCol<number[] | null>(row.jam_pelajaran, null) ?? (
@@ -236,7 +263,7 @@ export default async function DetailSiswaPage({
 
       <DetailSiswaClient
         siswa={siswaWithNilai}
-        riwayatKelas={riwayatKelas.results || []}
+        riwayatKelas={formattedRiwayatKelas}
         pelanggaran={formattedPelanggaran}
         izinKeluar={izinKeluar.results || []}
         izinKelas={formattedIzinKelas}
