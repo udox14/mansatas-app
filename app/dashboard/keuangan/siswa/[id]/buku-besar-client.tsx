@@ -96,8 +96,12 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
   ): KuitansiData {
     // Hitung sisa tunggakan sesuai kategori
     const sisaTunggakan: KuitansiData['sisaTunggakan'] = []
+    let targetTagihan: number | undefined
+    let sisaTagihan: number | undefined
     if (kategori === 'dspt' && dspt && dspt.status !== 'tidak_ada') {
       const sisaDspt = dspt.nominal_target - (dspt.total_dibayar + jumlahDiserahkan) - dspt.total_diskon
+      targetTagihan = dspt.nominal_target
+      sisaTagihan = Math.max(0, sisaDspt)
       if (sisaDspt > 0) sisaTunggakan.push({ label: 'DSPT', sisa: sisaDspt })
     }
 
@@ -116,6 +120,8 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
       metodeBayar: metode === 'tunai' ? 'Tunai' : 'Transfer Bank',
       jumlahDiserahkan,
       jumlahTagihan: rincianBayar.reduce((s, i) => s + i.nominal, 0),
+      targetTagihan,
+      sisaTagihan,
       rincianBayar,
       sisaTunggakan,
       isLunas,
@@ -141,6 +147,8 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
         metodeBayar: 'Tunai',
         jumlahDiserahkan: dspt.total_dibayar,
         jumlahTagihan: dspt.nominal_target,
+        targetTagihan: dspt.nominal_target,
+        sisaTagihan: Math.max(0, sisa),
         rincianBayar: [
           { label: 'Target DSPT', nominal: dspt.nominal_target },
           { label: 'Sudah Dibayar', nominal: -dspt.total_dibayar },
@@ -178,6 +186,9 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
       ? `Kelas ${siswa.tingkat}-${siswa.nomor_kelas}${siswa.kelompok ? ' ' + siswa.kelompok : ''}`
       : '-'
     const kategoriLabel = trx.kategori === 'dspt' ? 'DSPT' : 'SPP'
+    const trxDsptSisa = trx.kategori === 'dspt' && dspt && dspt.status !== 'tidak_ada'
+      ? Math.max(0, dspt.nominal_target - dspt.total_dibayar - dspt.total_diskon)
+      : undefined
     setKuitansiData({
       nomorKuitansi: trx.nomor_kuitansi,
       tanggal: trx.created_at,
@@ -189,6 +200,8 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
       metodeBayar: trx.metode_bayar === 'tunai' ? 'Tunai' : 'Transfer Bank',
       jumlahDiserahkan: trx.jumlah_total,
       jumlahTagihan: trx.jumlah_total,
+      targetTagihan: trx.kategori === 'dspt' && dspt && dspt.status !== 'tidak_ada' ? dspt.nominal_target : undefined,
+      sisaTagihan: trxDsptSisa,
       rincianBayar: [{ label: `Pembayaran ${kategoriLabel}`, nominal: trx.jumlah_total }],
       sisaTunggakan: [],
       isLunas: trx.kategori === 'dspt'

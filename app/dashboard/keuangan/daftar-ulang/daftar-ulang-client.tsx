@@ -726,7 +726,9 @@ export function DaftarUlangClient({
   const dsptExistingDiskon = existingDspt?.total_diskon ?? 0
   const dsptSisaSaatIni = Math.max(0, dsptTarget - dsptExistingBayar - dsptExistingDiskon)
   const dsptSisa = Math.max(0, dsptTarget - dsptExistingBayar - dsptExistingDiskon - dsptBayar - dsptDiskon)
-  const canSubmit = !!selectedSiswa && dsptTarget > 0
+  const isExistingDsptPaidOff = Boolean(existingDsptId) && dsptSisaSaatIni <= 0
+  const blocksPaidOffReceipt = isExistingDsptPaidOff && dsptBayar <= 0
+  const canSubmit = !!selectedSiswa && dsptTarget > 0 && !blocksPaidOffReceipt
 
   function handleSubmit() {
     if (!selectedSiswa || !canSubmit) return
@@ -776,6 +778,8 @@ export function DaftarUlangClient({
       metodeBayar: dspt.metode === 'tunai' ? 'Tunai' : 'Transfer Bank',
       jumlahDiserahkan: jumlahPreview,
       jumlahTagihan: jumlahPreview,
+      targetTagihan: dsptTarget,
+      sisaTagihan: previewSisa,
       rincianBayar: [{ label: 'DSPT - Dana Sumbangan Pendidikan Tahunan', nominal: jumlahPreview }],
       sisaTunggakan: previewSisa > 0 ? [{ label: 'Sisa DSPT', sisa: previewSisa }] : [],
       isLunas: previewSisa <= 0,
@@ -974,6 +978,11 @@ export function DaftarUlangClient({
                     </span>
                   </div>
                 </div>
+              )}
+              {blocksPaidOffReceipt && (
+                <p className="rounded-md bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+                  DSPT sudah lunas. Kasir tidak bisa mencetak kuitansi baru tanpa pembayaran baru.
+                </p>
               )}
             </div>
           </div>
