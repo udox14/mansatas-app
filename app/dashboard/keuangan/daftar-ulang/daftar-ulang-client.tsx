@@ -80,6 +80,14 @@ interface DaftarUlangTransaksiRow {
   nama_void: string | null
 }
 
+interface ExistingDsptState {
+  id: string
+  nominal_target: number
+  total_dibayar: number
+  total_diskon: number
+  status: string
+}
+
 function parseNum(s: string) { return parseInt(s.replace(/\D/g, ''), 10) || 0 }
 
 function fmtKelas(s: SiswaResult) {
@@ -622,6 +630,7 @@ export function DaftarUlangClient({
 
   const [selectedSiswa, setSelectedSiswa] = useState<SiswaResult | null>(null)
   const [existingDsptId, setExistingDsptId] = useState<string | null>(null)
+  const [existingDspt, setExistingDspt] = useState<ExistingDsptState | null>(null)
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [dspt, setDspt] = useState<DsptForm>({
     nominalTarget: '', bayarSekarang: '', metode: 'tunai', diskon: '', alasanDiskon: '',
@@ -667,6 +676,7 @@ export function DaftarUlangClient({
     setMsg(null)
     setIsLoadingData(true)
     setExistingDsptId(null)
+    setExistingDspt(null)
 
     const data = await getDaftarUlangSiswaData(s.id, tahunAjaranId)
     setIsLoadingData(false)
@@ -679,6 +689,13 @@ export function DaftarUlangClient({
 
     if (data.dspt) {
       setExistingDsptId(data.dspt.id)
+      setExistingDspt({
+        id: data.dspt.id,
+        nominal_target: Number(data.dspt.nominal_target || 0),
+        total_dibayar: Number(data.dspt.total_dibayar || 0),
+        total_diskon: Number(data.dspt.total_diskon || 0),
+        status: String(data.dspt.status || ''),
+      })
       setDspt(prev => ({
         ...prev,
         nominalTarget: String(data.dspt.nominal_target),
@@ -687,6 +704,7 @@ export function DaftarUlangClient({
         alasanDiskon: '',
       }))
     } else {
+      setExistingDspt(null)
       setDspt({ nominalTarget: '', bayarSekarang: '', metode: 'tunai', diskon: '', alasanDiskon: '' })
     }
   }
@@ -694,6 +712,7 @@ export function DaftarUlangClient({
   function handleReset() {
     setSelectedSiswa(null)
     setExistingDsptId(null)
+    setExistingDspt(null)
     setDspt({ nominalTarget: '', bayarSekarang: '', metode: 'tunai', diskon: '', alasanDiskon: '' })
     setMsg(null)
     setKuitansiDspt(null)
@@ -703,7 +722,10 @@ export function DaftarUlangClient({
   const dsptTarget = parseNum(dspt.nominalTarget)
   const dsptBayar = parseNum(dspt.bayarSekarang)
   const dsptDiskon = parseNum(dspt.diskon)
-  const dsptSisa = Math.max(0, dsptTarget - dsptBayar - dsptDiskon)
+  const dsptExistingBayar = existingDspt?.total_dibayar ?? 0
+  const dsptExistingDiskon = existingDspt?.total_diskon ?? 0
+  const dsptSisaSaatIni = Math.max(0, dsptTarget - dsptExistingBayar - dsptExistingDiskon)
+  const dsptSisa = Math.max(0, dsptTarget - dsptExistingBayar - dsptExistingDiskon - dsptBayar - dsptDiskon)
   const canSubmit = !!selectedSiswa && dsptTarget > 0
 
   function handleSubmit() {
@@ -741,7 +763,7 @@ export function DaftarUlangClient({
     if (!selectedSiswa || !canSubmit) return
     const tanggal = todayWIB()
     const jumlahPreview = dsptBayar > 0 ? dsptBayar : dsptTarget
-    const previewSisa = Math.max(0, dsptTarget - dsptBayar - dsptDiskon)
+    const previewSisa = Math.max(0, dsptTarget - dsptExistingBayar - dsptExistingDiskon - dsptBayar - dsptDiskon)
     setKuitansiDspt({
       nomorKuitansi: 'PREVIEW-BELUM-TERSIMPAN',
       tanggal,
@@ -800,7 +822,7 @@ export function DaftarUlangClient({
               </div>
               {existingDsptId && (
                 <span className="text-[11px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded-full font-medium">
-                  Sudah ada data DSPT
+                  DSPT {dsptSisaSaatIni <= 0 ? 'lunas' : 'sudah ada'}
                 </span>
               )}
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={handleReset}>
@@ -866,7 +888,7 @@ export function DaftarUlangClient({
             {existingDsptId && (
               <div className="mx-4 mt-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
                 <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                Siswa sudah memiliki tagihan DSPT — nominal target akan diperbarui
+                Data DSPT sudah ada. Kasir memakai total dibayar dan diskon yang sudah tercatat agar sisa tagihan tetap sinkron.
               </div>
             )}
 
@@ -919,6 +941,18 @@ export function DaftarUlangClient({
                     <span>Target DSPT</span>
                     <span className="font-mono">{formatRupiah(dsptTarget)}</span>
                   </div>
+                  {dsptExistingBayar > 0 && (
+                    <div className="flex justify-between text-emerald-600">
+                      <span>Sudah dibayar</span>
+                      <span className="font-mono">- {formatRupiah(dsptExistingBayar)}</span>
+                    </div>
+                  )}
+                  {dsptExistingDiskon > 0 && (
+                    <div className="flex justify-between text-blue-600">
+                      <span>Diskon tercatat</span>
+                      <span className="font-mono">- {formatRupiah(dsptExistingDiskon)}</span>
+                    </div>
+                  )}
                   {dsptBayar > 0 && (
                     <div className="flex justify-between text-emerald-600">
                       <span>Bayar sekarang</span>
