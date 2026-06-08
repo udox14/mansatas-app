@@ -13,8 +13,11 @@ export default async function MobileAppSettingsPage() {
   if (!user) redirect('/login')
 
   const db = await getDB()
-  const allowed = await checkFeatureAccess(db, user.id, 'settings-mobile-app')
-  if (!allowed) redirect('/dashboard')
+  const [allowed, userRow] = await Promise.all([
+    checkFeatureAccess(db, user.id, 'settings-mobile-app'),
+    db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<{ role: string }>(),
+  ])
+  if (!allowed && userRow?.role !== 'super_admin') redirect('/dashboard')
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">

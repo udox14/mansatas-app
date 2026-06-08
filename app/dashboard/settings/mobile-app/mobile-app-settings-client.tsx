@@ -19,6 +19,7 @@ import {
   Share2,
   ShieldCheck,
   Smartphone,
+  Upload,
   Vibrate,
   Wifi,
   XCircle,
@@ -103,6 +104,8 @@ export function MobileAppSettingsClient() {
   const [status, setStatus] = useState<NativeStatus>({ native: false, platform: 'web' })
   const [log, setLog] = useState<TestLog>({ tone: 'info', text: 'Belum ada test dijalankan.' })
   const [busy, setBusy] = useState<string | null>(null)
+  const [iconPreview, setIconPreview] = useState('/icon-512x512.png')
+  const [splashPreview, setSplashPreview] = useState('/icon-512x512.png')
 
   useEffect(() => {
     setSettings(readMobileRuntimeSettings())
@@ -151,6 +154,20 @@ export function MobileAppSettingsClient() {
 
   const diagnostic = useMemo(() => stringify(status), [status])
 
+  const previewImage = (file: File | undefined, setter: (value: string) => void) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setLog({ tone: 'error', text: 'File harus berupa gambar PNG/JPG/WebP.' })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setter(String(reader.result))
+      setLog({ tone: 'info', text: 'Preview diganti. Untuk masuk ke APK permanen, file sumber native tetap perlu diganti lalu APK dibuild ulang.' })
+    }
+    reader.readAsDataURL(file)
+  }
+
   return (
     <div className="space-y-4">
       <Card className="rounded-lg shadow-sm">
@@ -163,15 +180,27 @@ export function MobileAppSettingsClient() {
         <CardContent className="grid gap-4 lg:grid-cols-[260px_1fr]">
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg border border-slate-200 bg-white p-3 text-center dark:border-slate-800 dark:bg-slate-950">
-              <img src="/icon-512x512.png" alt="App icon" className="mx-auto h-20 w-20 rounded-2xl object-cover shadow-sm" />
+              <img src={iconPreview} alt="App icon" className="mx-auto h-20 w-20 rounded-2xl object-cover shadow-sm" />
               <p className="mt-2 text-xs font-semibold">Icon APK</p>
             </div>
             <div className="rounded-lg border border-slate-200 bg-[#0d4f4a] p-3 text-center text-white dark:border-slate-800">
-              <img src="/icon-512x512.png" alt="Splash screen" className="mx-auto mt-3 h-16 w-16 object-contain" />
+              <img src={splashPreview} alt="Splash screen" className="mx-auto mt-3 h-16 w-16 object-contain" />
               <p className="mt-4 text-xs font-semibold">Splash</p>
             </div>
           </div>
           <div className="space-y-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900">
+                <Upload className="h-3.5 w-3.5" />
+                Pilih Preview Icon
+                <input type="file" accept="image/*" className="hidden" onChange={event => previewImage(event.target.files?.[0], setIconPreview)} />
+              </label>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900">
+                <Upload className="h-3.5 w-3.5" />
+                Pilih Preview Splash
+                <input type="file" accept="image/*" className="hidden" onChange={event => previewImage(event.target.files?.[0], setSplashPreview)} />
+              </label>
+            </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-800 dark:bg-slate-900">
               <p className="font-semibold text-slate-900 dark:text-slate-100">Sumber branding native</p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Icon dan loading screen APK digenerate dari <code>resources/android/icon.png</code> dan <code>resources/android/splash.png</code>. Ganti dua file itu, lalu build APK release.</p>

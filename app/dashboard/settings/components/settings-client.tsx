@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react'
 import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -13,7 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   CalendarDays, Loader2, PlusCircle, CheckCircle2, AlertCircle,
-  Trash2, Power, X, Tags, Edit3, Clock, Copy, Plus, ChevronDown, ChevronUp
+  Trash2, Power, X, Tags, Edit3, Clock, Copy, Plus, ChevronDown, ChevronUp,
+  Smartphone
 } from 'lucide-react'
 import {
   tambahTahunAjaran, setAktifTahunAjaran, hapusTahunAjaran,
@@ -569,6 +571,28 @@ export function SettingsClient({
 
   return (
     <div className="space-y-4">
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-lg border border-emerald-200 bg-white p-2 dark:border-emerald-900 dark:bg-slate-950">
+              <Smartphone className="h-4 w-4 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-emerald-950 dark:text-emerald-100">Mobile App & APK</p>
+              <p className="mt-0.5 text-xs text-emerald-800/80 dark:text-emerald-200/80">
+                Atur fitur native Capacitor, tombol back, permission test, icon APK, dan loading screen.
+              </p>
+            </div>
+          </div>
+          <Button asChild size="sm" className="h-8 rounded-lg bg-emerald-700 text-xs text-white hover:bg-emerald-800">
+            <Link href="/dashboard/settings/mobile-app">
+              <Smartphone className="h-3.5 w-3.5" />
+              Buka Mobile App
+            </Link>
+          </Button>
+        </div>
+      </div>
+
       <Tabs defaultValue="perilaku" className="space-y-4">
         <TabsList className="grid h-auto w-full grid-cols-2 sm:max-w-md">
           <TabsTrigger value="perilaku" className="gap-1.5 py-2 text-xs sm:text-sm">
