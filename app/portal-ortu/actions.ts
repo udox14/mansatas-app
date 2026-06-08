@@ -137,7 +137,6 @@ export async function createParentDsptPaymentSubmission(payload: {
 
   const sisa = Math.max(0, Number(dspt.nominal_target || 0) - Number(dspt.total_dibayar || 0) - Number(dspt.total_diskon || 0))
   if (sisa <= 0) return { error: 'DSPT sudah lunas.' }
-  if (amount > sisa) return { error: 'Nominal tidak boleh melebihi sisa DSPT.' }
 
   const id = generateId()
   await db.prepare(`

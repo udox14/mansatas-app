@@ -127,7 +127,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
   const initialLetter = String(profil.nama_lengkap || 'S').slice(0, 1)
   const paymentAmountNumber = Number(paymentAmount || 0)
-  const isPaymentAmountValid = paymentAmountNumber > 0 && paymentAmountNumber <= Number(dsptSisa || 0)
+  const isPaymentAmountValid = paymentAmountNumber > 0
+  const isPaymentOverSisa = paymentAmountNumber > Number(dsptSisa || 0)
+  const paymentTargetAfterOverpay = Math.max(
+    Number(dsptTarget || 0),
+    Number(dsptBayar || 0) + paymentAmountNumber + Number(dsptDiskon || 0),
+  )
   const komiteWaNumber = komitePaymentSettings?.whatsapp || '6282215860650'
   const activePaymentAccounts = (komitePaymentSettings?.accounts || []).filter((account: any) => account?.isActive !== false)
   const primaryPaymentAccount = activePaymentAccounts[0]
@@ -225,7 +230,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       ? [
           { target: 'keuangan-dspt-card', title: 'Sisa tagihan DSPT', description: 'Lihat sisa DSPT, target, dan pembayaran yang sudah tercatat. Jika sudah lunas, statusnya akan berubah menjadi lunas.' },
           { target: 'keuangan-pay-button', title: 'Mulai bayar DSPT', description: 'Tekan Bayar DSPT untuk membuka panduan pembayaran. Tour ini akan ikut menunjukkan langkah di dalam modal.' },
-          { target: 'payment-step-amount', title: 'Masukkan nominal', description: 'Isi nominal pembayaran. Boleh membayar sebagian atau memilih tombol Bayar Sisa untuk melunasi tagihan.' },
+          { target: 'payment-step-amount', title: 'Masukkan nominal', description: 'Isi nominal pembayaran. Boleh membayar sebagian, melunasi sisa, atau membayar lebih besar; jika lebih besar, target DSPT akan disesuaikan setelah bendahara mengonfirmasi.' },
           { target: 'payment-step-method', title: 'Pilih metode pembayaran', description: 'Pilih QRIS atau Transfer sesuai metode yang tersedia dari pengaturan komite.' },
           { target: 'payment-qris', title: 'Bayar via QRIS', description: 'Jika memakai QRIS, ketuk gambar untuk memperbesar atau download QRIS lalu bayar dari aplikasi bank/e-wallet.' },
           { target: 'payment-transfer', title: 'Bayar via transfer', description: 'Jika memakai transfer, gunakan rekening aktif yang tampil di sini dan bayar sesuai nominal yang dimasukkan.' },
@@ -1051,7 +1056,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                       <div data-tour-id="payment-step-amount" className="space-y-4">
                         <div>
                           <p className="text-sm font-semibold text-slate-800">Masukkan nominal pembayaran</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-500">Boleh membayar sebagian atau melunasi sesuai sisa DSPT.</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">Boleh membayar sebagian, melunasi sisa, atau membayar lebih besar dari sisa DSPT.</p>
                         </div>
                         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                           <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sisa DSPT</p>
@@ -1070,7 +1075,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
                             />
                           </div>
                           {paymentAmount && !isPaymentAmountValid && (
-                            <p className="mt-2 text-xs font-medium text-rose-600">Nominal harus lebih dari 0 dan tidak boleh melebihi sisa DSPT.</p>
+                            <p className="mt-2 text-xs font-medium text-rose-600">Nominal harus lebih dari 0.</p>
+                          )}
+                          {paymentAmount && isPaymentOverSisa && (
+                            <p className="mt-2 rounded-xl bg-teal-50 px-3 py-2 text-xs font-semibold leading-5 text-teal-800">
+                              Nominal melebihi sisa DSPT. Setelah dikonfirmasi bendahara, target DSPT akan otomatis menjadi Rp {rupiah(paymentTargetAfterOverpay)}.
+                            </p>
                           )}
                         </div>
                         <div className="flex flex-wrap gap-2">
