@@ -394,6 +394,8 @@ export async function getDaftarUlangKuitansi(transaksiId: string): Promise<{ err
       metodeBayar: trx.metode_bayar === 'tunai' ? 'Tunai' : 'Transfer Bank',
       jumlahDiserahkan: jumlah,
       jumlahTagihan: jumlah,
+      targetTagihan: Number(detail?.nominal_target ?? 0),
+      sisaTagihan: sisa,
       rincianBayar: [{ label: 'DSPT - Dana Sumbangan Pendidikan Tahunan', nominal: jumlah }],
       sisaTunggakan: sisa > 0 ? [{ label: 'Sisa DSPT', sisa }] : [],
       isLunas: detail?.status === 'lunas',
@@ -445,8 +447,21 @@ export async function processDaftarUlang(
         'INSERT INTO fin_dspt (id, siswa_id, nominal_target) VALUES (?, ?, ?)'
       ).bind(dsptId, params.siswaId, params.dspt.nominalTarget))
     } else {
-      const existingDspt = await db.prepare('SELECT nominal_target FROM fin_dspt WHERE id = ?').bind(dsptId).first<any>()
+      const existingDspt = await db.prepare(`
+        SELECT nominal_target, total_dibayar, total_diskon
+        FROM fin_dspt
+        WHERE id = ?
+      `).bind(dsptId).first<any>()
       oldNominal = existingDspt ? Number(existingDspt.nominal_target ?? 0) : null
+      const sisaSetelahTarget = Math.max(
+        0,
+        Number(params.dspt.nominalTarget || 0) -
+          Number(existingDspt?.total_dibayar || 0) -
+          Number(existingDspt?.total_diskon || 0),
+      )
+      if (sisaSetelahTarget <= 0 && params.dspt.bayarSekarang <= 0) {
+        return { error: 'DSPT sudah lunas. Kasir tidak bisa mencetak kuitansi baru tanpa pembayaran baru.', kuitansiDspt: null }
+      }
       stmts.push(db.prepare(
         "UPDATE fin_dspt SET nominal_target = ?, updated_at = datetime('now') WHERE id = ?"
       ).bind(params.dspt.nominalTarget, dsptId))
@@ -522,6 +537,8 @@ export async function processDaftarUlang(
         metodeBayar: params.dspt.metode === 'tunai' ? 'Tunai' : 'Transfer Bank',
         jumlahDiserahkan: params.dspt.bayarSekarang,
         jumlahTagihan: params.dspt.bayarSekarang,
+        targetTagihan: Number(dsptRow?.nominal_target ?? 0),
+        sisaTagihan: Math.max(0, sisa),
         rincianBayar: [{ label: 'DSPT - Dana Sumbangan Pendidikan Tahunan', nominal: params.dspt.bayarSekarang }],
         sisaTunggakan: sisa > 0 ? [{ label: 'Sisa DSPT', sisa }] : [],
         isLunas: dsptRow?.status === 'lunas',

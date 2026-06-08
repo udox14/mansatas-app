@@ -355,8 +355,8 @@ export function createAuth(db: D1Database) {
         body: { nisn: string; password: string }
         asResponse?: boolean
       }) {
-        const nisn = String(opts.body.nisn || '').trim()
-        const password = String(opts.body.password || '').trim()
+        const nisn = String(opts.body.nisn || '').replace(/\D/g, '')
+        const password = String(opts.body.password || '').replace(/\D/g, '')
 
         if (!/^\d{6,20}$/.test(nisn)) {
           if (opts.asResponse) return new Response('Invalid NISN', { status: 400 })
@@ -367,9 +367,14 @@ export function createAuth(db: D1Database) {
           throw new Error('Invalid password format')
         }
 
+        // Beberapa NISN hasil import Excel tersimpan dengan tanda petik depan.
         const siswa = await db.prepare(
-          `SELECT id, nisn, nama_lengkap, tanggal_lahir, status FROM siswa WHERE nisn = ? LIMIT 1`
-        ).bind(nisn).first<any>()
+          `SELECT id, nisn, nama_lengkap, tanggal_lahir, status
+           FROM siswa
+           WHERE nisn = ?
+              OR REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(nisn, ''), '''', ''), ' ', ''), '.', ''), '-', '') = ?
+           LIMIT 1`
+        ).bind(nisn, nisn).first<any>()
 
         if (!siswa) {
           if (opts.asResponse) return new Response('Invalid credentials', { status: 401 })
@@ -389,8 +394,9 @@ export function createAuth(db: D1Database) {
         if (credential?.password_hash) {
           valid = await verifyPassword(credential.password_hash, password)
         } else {
+          const normalizedSiswaNisn = String(siswa.nisn || '').replace(/\D/g, '')
           const birthDatePassword = formatBirthDatePassword(siswa.tanggal_lahir)
-          valid = birthDatePassword ? password === birthDatePassword : password === siswa.nisn
+          valid = password === normalizedSiswaNisn || Boolean(birthDatePassword && password === birthDatePassword)
           if (valid) {
             const passwordHash = await hashPassword(password)
             await db.prepare(`
@@ -413,7 +419,7 @@ export function createAuth(db: D1Database) {
         await db.prepare(
           `INSERT INTO parent_session (id, token, siswa_id, nisn, expiresAt, createdAt, updatedAt)
            VALUES (?, ?, ?, ?, ?, ?, ?)`
-        ).bind(sessionId, token, siswa.id, siswa.nisn, expiresAt, now, now).run()
+        ).bind(sessionId, token, siswa.id, String(siswa.nisn || '').replace(/\D/g, ''), expiresAt, now, now).run()
 
         const maxAge = SESSION_EXPIRY_DAYS * 24 * 60 * 60
         const setCookie = buildSetCookie(token, maxAge)
@@ -421,14 +427,14 @@ export function createAuth(db: D1Database) {
           user: {
             type: 'parent' as const,
             siswa_id: siswa.id,
-            nisn: siswa.nisn,
+            nisn: String(siswa.nisn || '').replace(/\D/g, ''),
             nama_lengkap: siswa.nama_lengkap,
           },
           session: {
             id: sessionId,
             token,
             siswaId: siswa.id,
-            nisn: siswa.nisn,
+            nisn: String(siswa.nisn || '').replace(/\D/g, ''),
             expiresAt,
           },
         }

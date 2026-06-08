@@ -54,6 +54,8 @@ export interface KuitansiData {
   metodeBayar: 'Tunai' | 'Transfer Bank'
   jumlahDiserahkan: number
   jumlahTagihan: number
+  targetTagihan?: number
+  sisaTagihan?: number
   rincianBayar: KuitansiItem[]
   sisaTunggakan: KuitansiSisaTunggakan[]
   isLunas: boolean
@@ -234,6 +236,37 @@ function TabelSisa({ items }: { items: KuitansiSisaTunggakan[] }) {
 
 // ─── Blok Jumlah / Pembayaran / Kembalian (shared) ───────────────────────────
 
+function RingkasanTagihan({ target, dibayar, sisa }: { target: number; dibayar: number; sisa: number }) {
+  const cells = [
+    { label: 'Target Tagihan', value: target, color: '#1a1a1a' },
+    { label: 'Pembayaran Ini', value: dibayar, color: '#047857' },
+    { label: 'Sisa Tagihan', value: sisa, color: sisa > 0 ? '#c0392b' : '#047857' },
+  ]
+  return (
+    <table style={{
+      width: '100%',
+      borderCollapse: 'collapse',
+      marginBottom: '2mm',
+      fontSize: '7.3pt',
+      lineHeight: 1.05,
+      border: '1px solid #d8d8d8',
+    }}>
+      <tbody>
+        <tr>
+          {cells.map((cell, index) => (
+            <td key={cell.label} style={{ width: '33.333%', padding: '2px 5px', borderRight: index < cells.length - 1 ? '1px solid #e5e5e5' : 'none' }}>
+              <span style={{ display: 'block', color: '#666', fontSize: '6.8pt' }}>{cell.label}</span>
+              <span style={{ display: 'block', textAlign: 'right', fontFamily: 'monospace', fontWeight: 'bold', color: cell.color }}>
+                {formatRupiah(cell.value)}
+              </span>
+            </td>
+          ))}
+        </tr>
+      </tbody>
+    </table>
+  )
+}
+
 function BlokJumlah({ diserahkan, tagihan }: { diserahkan: number; tagihan: number }) {
   const kembalian = diserahkan - tagihan
   return (
@@ -391,8 +424,15 @@ function KuitansiKomiteContent({ data, copyLabel }: { data: KuitansiData; copyLa
         {/* Rincian */}
         <TabelRincian items={data.rincianBayar} headerColor="#1a1a1a" />
 
-        {/* Sisa tunggakan */}
-        <TabelSisa items={data.sisaTunggakan} />
+        {typeof data.targetTagihan === 'number' ? (
+          <RingkasanTagihan
+            target={data.targetTagihan}
+            dibayar={data.jumlahTagihan}
+            sisa={Math.max(0, data.sisaTagihan ?? data.sisaTunggakan.reduce((sum, item) => sum + item.sisa, 0))}
+          />
+        ) : (
+          <TabelSisa items={data.sisaTunggakan} />
+        )}
 
         {/* Jumlah / Kembalian */}
         <BlokJumlah diserahkan={data.jumlahDiserahkan} tagihan={data.jumlahTagihan} />
@@ -512,8 +552,15 @@ function KuitansiKoperasiContent({ data, copyLabel }: { data: KuitansiData; copy
         {/* Rincian — header hijau */}
         <TabelRincian items={data.rincianBayar} headerColor={KOPERASI_COLOR} />
 
-        {/* Sisa tunggakan */}
-        <TabelSisa items={data.sisaTunggakan} />
+        {typeof data.targetTagihan === 'number' ? (
+          <RingkasanTagihan
+            target={data.targetTagihan}
+            dibayar={data.jumlahTagihan}
+            sisa={Math.max(0, data.sisaTagihan ?? data.sisaTunggakan.reduce((sum, item) => sum + item.sisa, 0))}
+          />
+        ) : (
+          <TabelSisa items={data.sisaTunggakan} />
+        )}
 
         {/* Jumlah / Kembalian */}
         <BlokJumlah diserahkan={data.jumlahDiserahkan} tagihan={data.jumlahTagihan} />
