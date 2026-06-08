@@ -142,6 +142,7 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
   const [tanggalAwal, setTanggalAwal] = useState(firstDayOfMonthInput())
   const [tanggalAkhir, setTanggalAkhir] = useState(todayInput())
   const [kategori, setKategori] = useState('semua')
+  const [metodeBayar, setMetodeBayar] = useState('semua')
   const [search, setSearch] = useState('')
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [judul, setJudul] = useState('Laporan Keuangan Madrasah')
@@ -168,20 +169,31 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
       const tanggal = dateOnly(row.created_at)
       const matchTanggal = tanggal >= tanggalAwal && tanggal <= tanggalAkhir
       const matchKategori = kategori === 'semua' || row.kategori === kategori
+      const matchMetode = metodeBayar === 'semua'
+        || (metodeBayar === 'tunai'
+          ? row.metode_bayar === 'tunai'
+          : row.metode_bayar === 'transfer' || row.metode_bayar === 'qris')
       const matchSearch = !term
         || row.nama_lengkap.toLowerCase().includes(term)
         || (row.nisn ?? '').toLowerCase().includes(term)
         || (row.nomor_kuitansi ?? '').toLowerCase().includes(term)
-      return matchTanggal && matchKategori && matchSearch
+      return matchTanggal && matchKategori && matchMetode && matchSearch
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transaksi, tanggalAwal, tanggalAkhir, kategori, search])
+  }, [transaksi, tanggalAwal, tanggalAkhir, kategori, metodeBayar, search])
 
   const kasKeluarPeriode = useMemo(() => {
     kasPagination.reset()
-    return kasKeluar.filter(row => row.tanggal >= tanggalAwal && row.tanggal <= tanggalAkhir)
+    return kasKeluar.filter(row => {
+      const matchTanggal = row.tanggal >= tanggalAwal && row.tanggal <= tanggalAkhir
+      const matchMetode = metodeBayar === 'semua'
+        || (metodeBayar === 'tunai'
+          ? row.metode === 'tunai'
+          : row.metode === 'transfer' || row.metode === 'qris')
+      return matchTanggal && matchMetode
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kasKeluar, tanggalAwal, tanggalAkhir])
+  }, [kasKeluar, tanggalAwal, tanggalAkhir, metodeBayar])
 
   const tunggakanFiltered = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -322,7 +334,7 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-          <div className="grid gap-2 xl:grid-cols-[1fr_1fr_170px_auto]">
+          <div className="grid gap-2 xl:grid-cols-[1fr_1fr_170px_150px_auto]">
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="mb-1 block text-[11px] font-semibold text-slate-500">Tanggal Awal</label>
@@ -353,6 +365,17 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
                   <SelectItem value="semua">Semua Sumber</SelectItem>
                   <SelectItem value="dspt">DSPT</SelectItem>
                   <SelectItem value="spp">SPP Tunggakan</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-500">Metode</label>
+              <Select value={metodeBayar} onValueChange={setMetodeBayar}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="semua">Semua Metode</SelectItem>
+                  <SelectItem value="tunai">Tunai</SelectItem>
+                  <SelectItem value="transfer">Transfer</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -399,6 +422,17 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
                       </div>
                     </div>
                     <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-slate-500">Metode Bayar</label>
+                      <Select value={metodeBayar} onValueChange={setMetodeBayar}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="semua">Semua Metode</SelectItem>
+                          <SelectItem value="tunai">Tunai</SelectItem>
+                          <SelectItem value="transfer">Transfer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
                       <label className="mb-1 block text-[11px] font-semibold text-slate-500">Kolom Tanda Tangan</label>
                       <Input value={penandaTangan} onChange={event => setPenandaTangan(event.target.value)} className="h-8 text-xs" />
                     </div>
@@ -414,7 +448,7 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
                       </div>
                     </div>
                     <div className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500 dark:bg-slate-800/60">
-                      Periode cetak mengikuti filter halaman: {periodeLabel}. Sumber: {kategori === 'semua' ? 'Semua Sumber' : (KATEGORI_LABEL[kategori] ?? kategori)}.
+                      Periode cetak mengikuti filter halaman: {periodeLabel}. Sumber: {kategori === 'semua' ? 'Semua Sumber' : (KATEGORI_LABEL[kategori] ?? kategori)}. Metode: {metodeBayar === 'semua' ? 'Semua Metode' : metodeBayar === 'tunai' ? 'Tunai' : 'Transfer'}.
                     </div>
                   </div>
 
@@ -622,13 +656,14 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
 
           {isDetail && materi.transaksi ? (
             <PrintSection title="Transaksi Masuk">
-              <PrintTable headers={['Tanggal', 'Siswa', 'Sumber', 'Kuitansi', 'Jumlah']}>
+              <PrintTable headers={['Tanggal', 'Siswa', 'Sumber', 'Kuitansi', 'Metode', 'Jumlah']}>
                 {transaksiPeriode.map(row => (
                   <tr key={row.id}>
                     <td>{formatTanggalJam(row.created_at)}</td>
                     <td>{row.nama_lengkap}</td>
                     <td>{KATEGORI_LABEL[row.kategori] ?? row.kategori}</td>
                     <td>{row.nomor_kuitansi ?? '-'}</td>
+                    <td>{row.metode_bayar === 'qris' ? 'QRIS' : row.metode_bayar}</td>
                     <td className="text-right">{formatRupiah(row.jumlah_total)}</td>
                   </tr>
                 ))}
@@ -638,12 +673,13 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
 
           {isDetail && materi.kasKeluar ? (
             <PrintSection title="Kas Keluar">
-              <PrintTable headers={['Tanggal', 'Kategori', 'Keterangan', 'Jumlah']}>
+              <PrintTable headers={['Tanggal', 'Kategori', 'Keterangan', 'Metode', 'Jumlah']}>
                 {kasKeluarPeriode.map(row => (
                   <tr key={row.id}>
                     <td>{formatTanggal(row.tanggal)}</td>
                     <td>{row.kategori ?? '-'}</td>
                     <td>{row.keterangan}</td>
+                    <td>{row.metode === 'qris' ? 'QRIS' : row.metode}</td>
                     <td className="text-right">{formatRupiah(row.jumlah)}</td>
                   </tr>
                 ))}

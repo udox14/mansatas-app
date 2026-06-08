@@ -27,6 +27,7 @@ interface SppTunggakanRow {
   total_dibayar: number
   status: string
   keterangan: string | null
+  metode_bayar_set: string | null
 }
 
 interface SppTunggakanStats {
@@ -49,6 +50,7 @@ export function SppClient({
   const [search, setSearch] = useState('')
   const [filterAngkatan, setFilterAngkatan] = useState('semua')
   const [filterKelas, setFilterKelas] = useState('semua')
+  const [filterMetode, setFilterMetode] = useState('semua')
   const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(10)
 
   const kelasList = useMemo(() => {
@@ -73,10 +75,15 @@ export function SppClient({
         || (row.nisn ?? '').toLowerCase().includes(term)
       const matchAngkatan = filterAngkatan === 'semua' || String(row.tahun_masuk) === filterAngkatan
       const matchKelas = filterKelas === 'semua' || kelas === filterKelas
-      return matchSearch && matchAngkatan && matchKelas
+      const metodeSet = String(row.metode_bayar_set ?? '').split(',').map(metode => metode.trim())
+      const matchMetode = filterMetode === 'semua'
+        || (filterMetode === 'tunai'
+          ? metodeSet.includes('tunai')
+          : metodeSet.some(metode => metode === 'transfer' || metode === 'qris'))
+      return matchSearch && matchAngkatan && matchKelas && matchMetode
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tunggakanList, search, filterAngkatan, filterKelas])
+  }, [tunggakanList, search, filterAngkatan, filterKelas, filterMetode])
 
   const paginated = paginate(filtered)
   const filteredTotal = filtered.reduce((sum, row) => sum + Math.max(0, row.jumlah - (row.total_dibayar ?? 0)), 0)
@@ -99,6 +106,7 @@ export function SppClient({
     spp_sisa: Math.max(0, row.jumlah - (row.total_dibayar ?? 0)),
     spp_status: row.status,
     spp_keterangan: row.keterangan,
+    metode_bayar: row.metode_bayar_set,
   })), [tunggakanList])
 
   const currentExportRows = useMemo<FinanceExportRow[]>(() => filtered.map(row => ({
@@ -113,6 +121,7 @@ export function SppClient({
     spp_sisa: Math.max(0, row.jumlah - (row.total_dibayar ?? 0)),
     spp_status: row.status,
     spp_keterangan: row.keterangan,
+    metode_bayar: row.metode_bayar_set,
   })), [filtered])
 
   return (
@@ -164,6 +173,14 @@ export function SppClient({
             {kelasList.map(kelas => (
               <SelectItem key={kelas} value={kelas}>Kelas {kelas}</SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterMetode} onValueChange={setFilterMetode}>
+          <SelectTrigger className="h-8 w-32 rounded-md text-xs"><SelectValue placeholder="Metode" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="semua">Semua Metode</SelectItem>
+            <SelectItem value="tunai">Tunai</SelectItem>
+            <SelectItem value="transfer">Transfer</SelectItem>
           </SelectContent>
         </Select>
         <div className="ml-auto">

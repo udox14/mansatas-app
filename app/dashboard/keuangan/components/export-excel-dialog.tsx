@@ -29,6 +29,7 @@ export type FinanceExportRow = {
   dspt_sisa?: number | null
   dspt_status?: string | null
   dspt_catatan?: string | null
+  metode_bayar?: string | null
   spp_tunggakan?: number | null
   spp_dibayar?: number | null
   spp_sisa?: number | null
@@ -48,6 +49,7 @@ const EXPORT_FIELDS: ExportField[] = [
   { key: 'nisn', label: 'NISN' },
   { key: 'kelas', label: 'Kelas' },
   { key: 'tahun_masuk', label: 'Angkatan' },
+  { key: 'metode_bayar', label: 'Metode Bayar' },
   { key: 'dspt_target', label: 'DSPT Target', sources: ['DSPT'] },
   { key: 'dspt_dibayar', label: 'DSPT Dibayar', sources: ['DSPT'] },
   { key: 'dspt_diskon', label: 'DSPT Diskon', sources: ['DSPT'] },
