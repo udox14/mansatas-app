@@ -18,6 +18,7 @@ import {
 import { CheckCircle2, Clock, XCircle, Plus, Printer, AlertTriangle, Ban, Calendar, Trash2 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
 import { formatDateWIB, nowWIBISO } from '@/lib/time'
+import { getKuitansiTahunAjaran } from '@/lib/tahun-ajaran'
 import { catatTransaksi, voidTransaksi, beriDiskon, batalkanDiskon, simpanJanjiBayar, setSppSaldoAwal, bayarSaldoAwalSpp } from '../../actions'
 import { KuitansiModal, type KuitansiData } from '../../components/kuitansi-print'
 
@@ -30,7 +31,17 @@ const STATUS_MAP = {
 
 const BULAN_LABEL = ['', 'Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
 
-export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any; masterItem: any[]; tahunAjaranId?: string }) {
+export function BukuBesarClient({
+  data,
+  masterItem,
+  tahunAjaranId,
+  tahunAjaranNama,
+}: {
+  data: any
+  masterItem: any[]
+  tahunAjaranId?: string
+  tahunAjaranNama?: string
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const defaultTab = (['dspt', 'spp', 'riwayat'].includes(searchParams.get('tab') ?? ''))
@@ -52,6 +63,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
   const [janjiForm, setJanjiForm] = useState({ tanggal: '', catatan: '' })
 
   const { siswa, dspt, sppTagihan, sppSaldoAwal, transaksi, janjiList, diskonList = [] } = data
+  const tahunAjaranKuitansi = getKuitansiTahunAjaran(tahunAjaranNama, Boolean(siswa.tingkat))
 
   // Saldo Awal (tunggakan migrasi)
   const [saldoAwalModal, setSaldoAwalModal] = useState(false)
@@ -113,6 +125,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
       nomorKuitansi,
       tanggal: nowWIBISO(),
       kategori: kategori === 'dspt' ? 'DSPT' : 'SPP',
+      tahunAjaran: tahunAjaranKuitansi,
       namaSiswa: siswa.nama_lengkap,
       nisn: siswa.nisn ?? '-',
       kelas,
@@ -140,6 +153,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
         nomorKuitansi: `REKAP-DSPT`,
         tanggal: nowWIBISO(),
         kategori: 'DSPT',
+        tahunAjaran: tahunAjaranKuitansi,
         namaSiswa: siswa.nama_lengkap,
         nisn: siswa.nisn ?? '-',
         kelas,
@@ -164,6 +178,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
         nomorKuitansi: `REKAP-SPP-${target.bulan}-${target.tahun}`,
         tanggal: nowWIBISO(),
         kategori: 'SPP',
+        tahunAjaran: tahunAjaranKuitansi,
         namaSiswa: siswa.nama_lengkap,
         nisn: siswa.nisn ?? '-',
         kelas,
@@ -193,6 +208,7 @@ export function BukuBesarClient({ data, masterItem, tahunAjaranId }: { data: any
       nomorKuitansi: trx.nomor_kuitansi,
       tanggal: trx.created_at,
       kategori: kategoriLabel,
+      tahunAjaran: tahunAjaranKuitansi,
       namaSiswa: siswa.nama_lengkap,
       nisn: siswa.nisn ?? '-',
       kelas,

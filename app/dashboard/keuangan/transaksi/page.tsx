@@ -31,7 +31,8 @@ interface TransaksiRow {
 
 async function TransaksiDataFetcher() {
   const db = await getDB()
-  const transaksi = await db.prepare(`
+  const [transaksi, taAktif] = await Promise.all([
+    db.prepare(`
     WITH recorded_saldo_awal AS (
       SELECT d.ref_id, SUM(CASE WHEN t.is_void = 0 THEN d.jumlah ELSE 0 END) AS total_recorded
       FROM fin_transaksi_detail d
@@ -95,9 +96,11 @@ async function TransaksiDataFetcher() {
       kelas, nama_input, rincian, is_synthetic
     FROM saldo_awal_rows
     ORDER BY created_at DESC
-  `).all<TransaksiRow>()
+  `).all<TransaksiRow>(),
+    db.prepare('SELECT nama FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ nama: string | null }>(),
+  ])
 
-  return <TransaksiClient initialData={transaksi.results ?? []} />
+  return <TransaksiClient initialData={transaksi.results ?? []} tahunAjaranAktif={taAktif?.nama ?? '-'} />
 }
 
 export default async function TransaksiPage() {

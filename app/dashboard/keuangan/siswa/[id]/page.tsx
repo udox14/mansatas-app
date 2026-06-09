@@ -17,7 +17,7 @@ async function BukuBesarDataFetcher({ id }: { id: string }) {
 
   const [data, tahunAjaran] = await Promise.all([
     getBukuBesarSiswa(id),
-    db.prepare("SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1").first<{ id: string }>(),
+    db.prepare("SELECT id, nama FROM tahun_ajaran WHERE is_active = 1 LIMIT 1").first<{ id: string; nama: string | null }>(),
   ])
 
   if (!data.siswa) notFound()
@@ -28,7 +28,12 @@ async function BukuBesarDataFetcher({ id }: { id: string }) {
         title={data.siswa.nama_lengkap}
         description={`NISN: ${data.siswa.nisn ?? '-'} · ${data.siswa.tingkat ? `Kelas ${data.siswa.tingkat}-${data.siswa.nomor_kelas}${data.siswa.kelompok ? ' ' + data.siswa.kelompok : ''}` : '-'} · Angkatan ${data.siswa.tahun_masuk ?? '-'}`}
       />
-      <BukuBesarClient data={data} masterItem={[]} tahunAjaranId={tahunAjaran?.id} />
+      <BukuBesarClient
+        data={data}
+        masterItem={[]}
+        tahunAjaranId={tahunAjaran?.id}
+        tahunAjaranNama={tahunAjaran?.nama ?? '-'}
+      />
     </>
   )
 }

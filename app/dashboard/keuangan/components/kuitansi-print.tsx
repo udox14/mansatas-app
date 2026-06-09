@@ -46,6 +46,7 @@ export interface KuitansiData {
   nomorKuitansi: string
   tanggal: string
   kategori: 'DSPT' | 'SPP' | 'Koperasi'
+  tahunAjaran?: string
   namaSiswa: string
   nisn: string
   kelas: string
@@ -354,6 +355,7 @@ function FooterDoc({ nomorKuitansi }: { nomorKuitansi: string }) {
 
 function KuitansiKomiteContent({ data, copyLabel }: { data: KuitansiData; copyLabel: KuitansiCopyLabel }) {
   const tanggalFmt = formatDateWIB(data.tanggal)
+  const tahunAjaran = data.tahunAjaran?.trim() || '-'
 
   return (
     <div style={{
@@ -381,7 +383,7 @@ function KuitansiKomiteContent({ data, copyLabel }: { data: KuitansiData; copyLa
             </p>
           </div>
           <p style={{ fontSize: '7.5pt', color: '#666', margin: '1px 0 0 0' }}>
-            Pembayaran {data.kategori} — Tahun Pelajaran 2024/2025
+            Pembayaran {data.kategori} — Tahun Ajaran {tahunAjaran}
           </p>
         </div>
 
@@ -462,6 +464,7 @@ const KOPERASI_COLOR = '#166534'   // green-800
 
 function KuitansiKoperasiContent({ data, copyLabel }: { data: KuitansiData; copyLabel: KuitansiCopyLabel }) {
   const tanggalFmt = formatDateWIB(data.tanggal)
+  const tahunAjaran = data.tahunAjaran?.trim() || '-'
 
   return (
     <div style={{
@@ -492,7 +495,7 @@ function KuitansiKoperasiContent({ data, copyLabel }: { data: KuitansiData; copy
             KOPERASI MADRASAH
           </p>
           <p style={{ fontSize: '7.2pt', color: '#555', margin: '0' }}>
-            Perlengkapan Siswa Baru — Tahun Pelajaran 2024/2025
+            Perlengkapan Siswa Baru — Tahun Ajaran {tahunAjaran}
           </p>
         </div>
 
