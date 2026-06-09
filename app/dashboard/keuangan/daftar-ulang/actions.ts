@@ -5,6 +5,7 @@ import { getSession } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { checkFeatureAccess } from '@/lib/features'
 import { dateInputWIB, todayWIB } from '@/lib/time'
+import { getKuitansiTahunAjaran } from '@/lib/tahun-ajaran'
 import type { KuitansiData } from '../components/kuitansi-print'
 
 function generateId() { return crypto.randomUUID() }
@@ -107,6 +108,19 @@ function revalidateDsptViews(siswaId?: string) {
   revalidatePath('/dashboard/keuangan/transaksi')
   revalidatePath('/dashboard/keuangan/daftar-ulang')
   if (siswaId) revalidatePath(`/dashboard/keuangan/siswa/${siswaId}`)
+}
+
+async function getTahunAjaranNama(db: D1Database, tahunAjaranId?: string | null) {
+  if (tahunAjaranId) {
+    const selected = await db.prepare('SELECT nama FROM tahun_ajaran WHERE id = ? LIMIT 1')
+      .bind(tahunAjaranId)
+      .first<{ nama: string | null }>()
+    if (selected?.nama) return selected.nama
+  }
+
+  const active = await db.prepare('SELECT nama FROM tahun_ajaran WHERE is_active = 1 LIMIT 1')
+    .first<{ nama: string | null }>()
+  return active?.nama ?? '-'
 }
 
 export async function searchSiswaBaruDaftarUlang(q: string) {
@@ -379,6 +393,8 @@ export async function getDaftarUlangKuitansi(transaksiId: string): Promise<{ err
     Number(detail?.nominal_target ?? 0) - Number(detail?.total_dibayar ?? 0) - Number(detail?.total_diskon ?? 0),
   )
   const jumlah = Number(detail?.jumlah ?? trx.jumlah_total ?? 0)
+  const tahunAjaranAktif = await getTahunAjaranNama(db)
+  const tahunAjaran = getKuitansiTahunAjaran(tahunAjaranAktif, Boolean(trx.tingkat))
 
   return {
     error: null,
@@ -386,6 +402,7 @@ export async function getDaftarUlangKuitansi(transaksiId: string): Promise<{ err
       nomorKuitansi: trx.nomor_kuitansi,
       tanggal: dateInputWIB(trx.created_at),
       kategori: 'DSPT',
+      tahunAjaran,
       namaSiswa: trx.nama_lengkap,
       nisn: trx.nisn ?? '-',
       kelas,
@@ -411,6 +428,7 @@ export async function processDaftarUlang(
   try {
     const tanggal = todayWIB()
     const year = Number(tanggal.slice(0, 4))
+    const tahunAjaranAktif = await getTahunAjaranNama(db, params.tahunAjaranId)
 
     const siswa = await db.prepare(`
       SELECT s.id, s.nama_lengkap, s.nisn, s.tahun_masuk,
@@ -529,6 +547,7 @@ export async function processDaftarUlang(
         nomorKuitansi: nomorDspt,
         tanggal,
         kategori: 'DSPT',
+        tahunAjaran: getKuitansiTahunAjaran(tahunAjaranAktif, Boolean(siswa.tingkat)),
         namaSiswa: siswa.nama_lengkap,
         nisn: siswa.nisn ?? '-',
         kelas,

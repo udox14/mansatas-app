@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { getAppSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
+import { getKuitansiTahunAjaran } from '@/lib/tahun-ajaran'
 import type { KuitansiData } from '@/app/dashboard/keuangan/components/kuitansi-print'
 import { ParentReceiptPageClient } from './kuitansi-page-client'
 
@@ -23,7 +24,8 @@ export default async function ParentReceiptPage({ params }: { params: Promise<{ 
 
   const { id } = await params
   const db = await getDB()
-  const transaksi = await db.prepare(`
+  const [transaksi, taAktif] = await Promise.all([
+    db.prepare(`
     SELECT t.id, t.nomor_kuitansi, t.kategori, t.metode_bayar, t.jumlah_total, t.created_at,
            s.nama_lengkap, s.nisn, k.tingkat, k.nomor_kelas, k.kelompok,
            u.nama_lengkap AS nama_petugas
@@ -33,7 +35,9 @@ export default async function ParentReceiptPage({ params }: { params: Promise<{ 
     LEFT JOIN "user" u ON u.id = t.input_oleh
     WHERE t.id = ? AND t.siswa_id = ? AND t.is_void = 0
     LIMIT 1
-  `).bind(id, session.user.siswa_id).first<any>()
+  `).bind(id, session.user.siswa_id).first<any>(),
+    db.prepare('SELECT nama FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ nama: string | null }>(),
+  ])
 
   if (!transaksi) notFound()
 
@@ -83,6 +87,7 @@ export default async function ParentReceiptPage({ params }: { params: Promise<{ 
     nomorKuitansi: transaksi.nomor_kuitansi || transaksi.id,
     tanggal: transaksi.created_at,
     kategori: label,
+    tahunAjaran: getKuitansiTahunAjaran(taAktif?.nama, Boolean(transaksi.tingkat)),
     namaSiswa: transaksi.nama_lengkap || '-',
     nisn: transaksi.nisn || '-',
     kelas: kelasLabel(transaksi),

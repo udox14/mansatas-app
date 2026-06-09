@@ -14,6 +14,7 @@ import {
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 import { formatRupiah } from '@/lib/utils'
 import { formatDateTimeWIB } from '@/lib/time'
+import { getKuitansiTahunAjaran } from '@/lib/tahun-ajaran'
 import { KuitansiModal, type KuitansiData } from '../components/kuitansi-print'
 
 interface TransaksiRow {
@@ -48,7 +49,13 @@ function formatTanggal(dateString: string) {
   return formatDateTimeWIB(dateString)
 }
 
-export function TransaksiClient({ initialData }: { initialData: TransaksiRow[] }) {
+export function TransaksiClient({
+  initialData,
+  tahunAjaranAktif,
+}: {
+  initialData: TransaksiRow[]
+  tahunAjaranAktif: string
+}) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [kategori, setKategori] = useState('semua')
@@ -89,6 +96,7 @@ export function TransaksiClient({ initialData }: { initialData: TransaksiRow[] }
       nomorKuitansi: row.nomor_kuitansi,
       tanggal: row.created_at,
       kategori: kategoriLabel,
+      tahunAjaran: getKuitansiTahunAjaran(tahunAjaranAktif, Boolean(row.kelas)),
       namaSiswa: row.nama_lengkap,
       nisn: row.nisn ?? '-',
       kelas: row.kelas ?? '-',

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { formatRupiah } from '@/lib/utils'
 import { formatDateTimeWIB, todayWIB } from '@/lib/time'
+import { getKuitansiTahunAjaran } from '@/lib/tahun-ajaran'
 import {
   getDaftarUlangTransaksiPage,
   getDaftarUlangKuitansi,
@@ -770,6 +771,7 @@ export function DaftarUlangClient({
       nomorKuitansi: 'PREVIEW-BELUM-TERSIMPAN',
       tanggal,
       kategori: 'DSPT',
+      tahunAjaran: getKuitansiTahunAjaran(tahunAjaranNama, Boolean(selectedSiswa.tingkat)),
       namaSiswa: selectedSiswa.nama_lengkap,
       nisn: selectedSiswa.nisn ?? '-',
       kelas: fmtKelas(selectedSiswa),
