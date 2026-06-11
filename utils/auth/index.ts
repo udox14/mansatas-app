@@ -391,11 +391,29 @@ export function createAuth(db: D1Database) {
         ).bind(siswa.id).first<{ password_hash: string }>()
 
         let valid = false
+        const normalizedSiswaNisn = String(siswa.nisn || '').replace(/\D/g, '')
+        const birthDatePassword = formatBirthDatePassword(siswa.tanggal_lahir)
+
         if (credential?.password_hash) {
           valid = await verifyPassword(credential.password_hash, password)
+          // Fallback: jika hash tidak cocok, cek langsung terhadap NISN atau tanggal lahir.
+          // Ini mengatasi kasus di mana orang tua pertama kali login pakai NISN lalu
+          // coba login lagi pakai tanggal lahir (atau sebaliknya).
+          if (!valid) {
+            valid = password === normalizedSiswaNisn || Boolean(birthDatePassword && password === birthDatePassword)
+            if (valid) {
+              // Update hash ke password yang baru dipakai
+              const passwordHash = await hashPassword(password)
+              await db.prepare(`
+                INSERT INTO parent_credentials (siswa_id, password_hash, updated_at)
+                VALUES (?, ?, datetime('now'))
+                ON CONFLICT(siswa_id) DO UPDATE SET
+                  password_hash = excluded.password_hash,
+                  updated_at = excluded.updated_at
+              `).bind(siswa.id, passwordHash).run()
+            }
+          }
         } else {
-          const normalizedSiswaNisn = String(siswa.nisn || '').replace(/\D/g, '')
-          const birthDatePassword = formatBirthDatePassword(siswa.tanggal_lahir)
           valid = password === normalizedSiswaNisn || Boolean(birthDatePassword && password === birthDatePassword)
           if (valid) {
             const passwordHash = await hashPassword(password)
