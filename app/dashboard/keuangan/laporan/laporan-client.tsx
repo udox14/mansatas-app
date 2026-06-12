@@ -23,7 +23,6 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 import { formatRupiah } from '@/lib/utils'
 import { dateInputWIB, formatDateTimeWIB, formatDateWIB, todayWIB } from '@/lib/time'
 
@@ -83,7 +82,7 @@ interface TunggakanRow {
   updated_at: string
 }
 
-type MateriKey = 'ringkasan' | 'arusKas' | 'transaksi' | 'kasKeluar' | 'tunggakan' | 'angkatan'
+type MateriKey = 'ringkasan' | 'arusKas' | 'angkatan'
 
 interface LaporanClientProps {
   rekapAngkatan: RekapAngkatan[]
@@ -149,22 +148,15 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
   const [format, setFormat] = useState<'ringkas' | 'detail'>('detail')
   const [orientasi, setOrientasi] = useState<'portrait' | 'landscape'>('portrait')
   const [penandaTangan, setPenandaTangan] = useState('Bendahara Komite')
+  const [printAngkatan, setPrintAngkatan] = useState('semua')
   const [materi, setMateri] = useState<Record<MateriKey, boolean>>({
     ringkasan: true,
     arusKas: true,
-    transaksi: true,
-    kasKeluar: true,
-    tunggakan: true,
     angkatan: true,
   })
 
-  const transaksiPagination = usePagination(12)
-  const tunggakanPagination = usePagination(12)
-  const kasPagination = usePagination(12)
-
   const transaksiPeriode = useMemo(() => {
     const term = search.trim().toLowerCase()
-    transaksiPagination.reset()
     return transaksi.filter(row => {
       const tanggal = dateOnly(row.created_at)
       const matchTanggal = tanggal >= tanggalAwal && tanggal <= tanggalAkhir
@@ -183,7 +175,6 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
   }, [transaksi, tanggalAwal, tanggalAkhir, kategori, metodeBayar, search])
 
   const kasKeluarPeriode = useMemo(() => {
-    kasPagination.reset()
     return kasKeluar.filter(row => {
       const matchTanggal = row.tanggal >= tanggalAwal && row.tanggal <= tanggalAkhir
       const matchMetode = metodeBayar === 'semua'
@@ -197,7 +188,6 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
 
   const tunggakanFiltered = useMemo(() => {
     const term = search.trim().toLowerCase()
-    tunggakanPagination.reset()
     return tunggakan.filter(row => {
       const matchKategori = kategori === 'semua'
         || (kategori === 'spp' ? row.jenis === 'spp_tunggakan_awal' : row.jenis === kategori)
@@ -216,6 +206,15 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
   const saldo = pemasukan - pengeluaran
   const totalTunggakan = sumBy(tunggakanFiltered, row => row.sisa)
 
+  const angkatanOptions = rekapAngkatan.map(r => r.tahun_masuk).sort((a, b) => b - a)
+  const rekapAngkatanPrint = printAngkatan === 'semua'
+    ? rekapAngkatan
+    : rekapAngkatan.filter(r => r.tahun_masuk === Number(printAngkatan))
+  const pemasukanPrint = printAngkatan === 'semua'
+    ? pemasukan
+    : sumBy(transaksiAktif.filter(r => r.tahun_masuk === Number(printAngkatan)), r => r.jumlah_total)
+  const saldoPrint = pemasukanPrint - pengeluaran
+
   const kategoriSummary = ['dspt', 'spp'].map(key => ({
     key,
     label: KATEGORI_LABEL[key],
@@ -229,20 +228,11 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
 
   const periodeLabel = `${formatTanggal(tanggalAwal)} - ${formatTanggal(tanggalAkhir)}`
   const isDetail = format === 'detail'
-  const materiOptions: Array<readonly [MateriKey, string]> = isDetail
-    ? [
-        ['ringkasan', 'Ringkasan'],
-        ['arusKas', 'Arus Kas'],
-        ['transaksi', 'Transaksi Masuk'],
-        ['kasKeluar', 'Kas Keluar'],
-        ['tunggakan', 'Tunggakan'],
-        ['angkatan', 'Rekap Angkatan'],
-      ]
-    : [
-        ['ringkasan', 'Ringkasan'],
-        ['arusKas', 'Arus Kas'],
-        ['angkatan', 'Rekap Angkatan'],
-      ]
+  const materiOptions: Array<readonly [MateriKey, string]> = [
+    ['ringkasan', 'Ringkasan'],
+    ['arusKas', 'Arus Kas'],
+    ['angkatan', 'Rekap Angkatan'],
+  ]
   const printPageStyle = `
     @page { size: A4 ${orientasi}; margin: 12mm; }
     @media print {
@@ -300,10 +290,6 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
     documentTitle: `${judul}-${periodeLabel}`,
     pageStyle: printPageStyle,
   })
-
-  const transaksiPage = transaksiPagination.paginate(transaksiPeriode)
-  const tunggakanPage = tunggakanPagination.paginate(tunggakanFiltered)
-  const kasPage = kasPagination.paginate(kasKeluarPeriode)
 
   return (
     <div className="space-y-4 pb-8">
@@ -433,6 +419,18 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
                       </Select>
                     </div>
                     <div>
+                      <label className="mb-1 block text-[11px] font-semibold text-slate-500">Filter Angkatan</label>
+                      <Select value={printAngkatan} onValueChange={setPrintAngkatan}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="semua">Semua Angkatan</SelectItem>
+                          {angkatanOptions.map(tahun => (
+                            <SelectItem key={tahun} value={String(tahun)}>Angkatan {tahun}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
                       <label className="mb-1 block text-[11px] font-semibold text-slate-500">Kolom Tanda Tangan</label>
                       <Input value={penandaTangan} onChange={event => setPenandaTangan(event.target.value)} className="h-8 text-xs" />
                     </div>
@@ -448,7 +446,7 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
                       </div>
                     </div>
                     <div className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500 dark:bg-slate-800/60">
-                      Periode cetak mengikuti filter halaman: {periodeLabel}. Sumber: {kategori === 'semua' ? 'Semua Sumber' : (KATEGORI_LABEL[kategori] ?? kategori)}. Metode: {metodeBayar === 'semua' ? 'Semua Metode' : metodeBayar === 'tunai' ? 'Tunai' : 'Transfer'}.
+                      Periode: {periodeLabel}. Sumber: {kategori === 'semua' ? 'Semua Sumber' : (KATEGORI_LABEL[kategori] ?? kategori)}. Metode: {metodeBayar === 'semua' ? 'Semua Metode' : metodeBayar === 'tunai' ? 'Tunai' : 'Transfer'}. Angkatan: {printAngkatan === 'semua' ? 'Semua' : printAngkatan}.
                     </div>
                   </div>
 
@@ -514,130 +512,21 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
         </Panel>
       </section>
 
-      <section className="no-print space-y-3">
-        <DataTablePanel title="Transaksi Masuk" count={transaksiPeriode.length}>
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                <TableHead className="text-xs">Waktu</TableHead>
-                <TableHead className="text-xs">Siswa</TableHead>
-                <TableHead className="text-xs">Sumber</TableHead>
-                <TableHead className="text-xs">Kuitansi</TableHead>
-                <TableHead className="text-xs">Metode</TableHead>
-                <TableHead className="text-right text-xs">Jumlah</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transaksiPage.map(row => (
-                <TableRow key={row.id} className={row.is_void ? 'opacity-55' : undefined}>
-                  <TableCell className="whitespace-nowrap text-xs text-slate-500">{formatTanggalJam(row.created_at)}</TableCell>
-                  <TableCell>
-                    <p className="text-sm font-medium">{row.nama_lengkap}</p>
-                    <p className="text-[11px] text-slate-400">{row.kelas ?? '-'}{row.nisn ? ` - ${row.nisn}` : ''}</p>
-                  </TableCell>
-                  <TableCell className="text-xs">{KATEGORI_LABEL[row.kategori] ?? row.kategori}</TableCell>
-                  <TableCell className="text-xs">{row.nomor_kuitansi ?? '-'}</TableCell>
-                  <TableCell className="text-xs capitalize">{row.metode_bayar}</TableCell>
-                  <TableCell className="text-right text-sm font-semibold">{formatRupiah(row.jumlah_total)}</TableCell>
-                </TableRow>
-              ))}
-              {transaksiPage.length === 0 ? <EmptyRow colSpan={6} label="Tidak ada transaksi masuk" /> : null}
-            </TableBody>
-          </Table>
-          <DataPagination
-            total={transaksiPeriode.length}
-            page={transaksiPagination.page}
-            pageSize={transaksiPagination.pageSize}
-            onPageChange={transaksiPagination.setPage}
-            onPageSizeChange={transaksiPagination.setPageSize}
-            entityLabel="transaksi"
-          />
-        </DataTablePanel>
-
-        <DataTablePanel title="Tunggakan Aktif" count={tunggakanFiltered.length}>
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                <TableHead className="text-xs">Siswa</TableHead>
-                <TableHead className="text-xs">Jenis</TableHead>
-                <TableHead className="text-right text-xs">Nominal</TableHead>
-                <TableHead className="text-right text-xs">Dibayar</TableHead>
-                <TableHead className="text-right text-xs">Diskon</TableHead>
-                <TableHead className="text-right text-xs">Sisa</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tunggakanPage.map(row => (
-                <TableRow key={`${row.jenis}-${row.id}`}>
-                  <TableCell>
-                    <p className="text-sm font-medium">{row.nama_lengkap}</p>
-                    <p className="text-[11px] text-slate-400">{row.kelas ?? '-'}{row.tahun_masuk ? ` - ${row.tahun_masuk}` : ''}</p>
-                  </TableCell>
-                  <TableCell className="text-xs">{TUNGGAKAN_LABEL[row.jenis] ?? row.jenis}</TableCell>
-                  <TableCell className="text-right text-sm">{formatRupiah(row.nominal)}</TableCell>
-                  <TableCell className="text-right text-sm">{formatRupiah(row.dibayar)}</TableCell>
-                  <TableCell className="text-right text-sm">{formatRupiah(row.diskon)}</TableCell>
-                  <TableCell className="text-right text-sm font-bold text-rose-600">{formatRupiah(row.sisa)}</TableCell>
-                </TableRow>
-              ))}
-              {tunggakanPage.length === 0 ? <EmptyRow colSpan={6} label="Tidak ada tunggakan sesuai filter" /> : null}
-            </TableBody>
-          </Table>
-          <DataPagination
-            total={tunggakanFiltered.length}
-            page={tunggakanPagination.page}
-            pageSize={tunggakanPagination.pageSize}
-            onPageChange={tunggakanPagination.setPage}
-            onPageSizeChange={tunggakanPagination.setPageSize}
-            entityLabel="tunggakan"
-          />
-        </DataTablePanel>
-
-        <DataTablePanel title="Kas Keluar" count={kasKeluarPeriode.length}>
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                <TableHead className="text-xs">Tanggal</TableHead>
-                <TableHead className="text-xs">Kategori</TableHead>
-                <TableHead className="text-xs">Keterangan</TableHead>
-                <TableHead className="text-xs">Metode</TableHead>
-                <TableHead className="text-right text-xs">Jumlah</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {kasPage.map(row => (
-                <TableRow key={row.id}>
-                  <TableCell className="whitespace-nowrap text-xs text-slate-500">{formatTanggal(row.tanggal)}</TableCell>
-                  <TableCell className="text-xs">{row.kategori ?? '-'}</TableCell>
-                  <TableCell className="text-sm">{row.keterangan}</TableCell>
-                  <TableCell className="text-xs capitalize">{row.metode}</TableCell>
-                  <TableCell className="text-right text-sm font-semibold text-rose-600">{formatRupiah(row.jumlah)}</TableCell>
-                </TableRow>
-              ))}
-              {kasPage.length === 0 ? <EmptyRow colSpan={5} label="Tidak ada kas keluar pada periode ini" /> : null}
-            </TableBody>
-          </Table>
-          <DataPagination
-            total={kasKeluarPeriode.length}
-            page={kasPagination.page}
-            pageSize={kasPagination.pageSize}
-            onPageChange={kasPagination.setPage}
-            onPageSizeChange={kasPagination.setPageSize}
-            entityLabel="kas keluar"
-          />
-        </DataTablePanel>
-      </section>
 
       <section ref={printRef} className="print-area hidden print:block">
         <div className={`print-page ${isDetail ? 'text-[10px]' : 'text-[11px]'}`}>
-          <PrintHeader judul={judul} periode={periodeLabel} />
+          <PrintHeader
+            judul={judul}
+            periode={periodeLabel}
+            angkatan={printAngkatan !== 'semua' ? printAngkatan : undefined}
+          />
 
           {materi.ringkasan ? (
             <PrintSection title="Ringkasan Laporan">
               <div className="grid grid-cols-4 gap-2">
-                <PrintMetric label="Pemasukan" value={formatRupiah(pemasukan)} />
+                <PrintMetric label="Pemasukan" value={formatRupiah(pemasukanPrint)} />
                 <PrintMetric label="Pengeluaran" value={formatRupiah(pengeluaran)} />
-                <PrintMetric label="Saldo Bersih" value={formatRupiah(saldo)} />
+                <PrintMetric label="Saldo Bersih" value={formatRupiah(saldoPrint)} />
                 <PrintMetric label="Tunggakan Aktif" value={formatRupiah(totalTunggakan)} />
               </div>
             </PrintSection>
@@ -654,60 +543,10 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
             </PrintSection>
           ) : null}
 
-          {isDetail && materi.transaksi ? (
-            <PrintSection title="Transaksi Masuk">
-              <PrintTable headers={['Tanggal', 'Siswa', 'Sumber', 'Kuitansi', 'Metode', 'Jumlah']}>
-                {transaksiPeriode.map(row => (
-                  <tr key={row.id}>
-                    <td>{formatTanggalJam(row.created_at)}</td>
-                    <td>{row.nama_lengkap}</td>
-                    <td>{KATEGORI_LABEL[row.kategori] ?? row.kategori}</td>
-                    <td>{row.nomor_kuitansi ?? '-'}</td>
-                    <td>{row.metode_bayar === 'qris' ? 'QRIS' : row.metode_bayar}</td>
-                    <td className="text-right">{formatRupiah(row.jumlah_total)}</td>
-                  </tr>
-                ))}
-              </PrintTable>
-            </PrintSection>
-          ) : null}
-
-          {isDetail && materi.kasKeluar ? (
-            <PrintSection title="Kas Keluar">
-              <PrintTable headers={['Tanggal', 'Kategori', 'Keterangan', 'Metode', 'Jumlah']}>
-                {kasKeluarPeriode.map(row => (
-                  <tr key={row.id}>
-                    <td>{formatTanggal(row.tanggal)}</td>
-                    <td>{row.kategori ?? '-'}</td>
-                    <td>{row.keterangan}</td>
-                    <td>{row.metode === 'qris' ? 'QRIS' : row.metode}</td>
-                    <td className="text-right">{formatRupiah(row.jumlah)}</td>
-                  </tr>
-                ))}
-              </PrintTable>
-            </PrintSection>
-          ) : null}
-
-          {isDetail && materi.tunggakan ? (
-            <PrintSection title="Tunggakan Aktif">
-              <PrintTable headers={['Siswa', 'Kelas', 'Jenis', 'Nominal', 'Dibayar', 'Sisa']}>
-                {tunggakanFiltered.map(row => (
-                  <tr key={`${row.jenis}-${row.id}`}>
-                    <td>{row.nama_lengkap}</td>
-                    <td>{row.kelas ?? '-'}</td>
-                    <td>{TUNGGAKAN_LABEL[row.jenis] ?? row.jenis}</td>
-                    <td className="text-right">{formatRupiah(row.nominal)}</td>
-                    <td className="text-right">{formatRupiah(row.dibayar)}</td>
-                    <td className="text-right">{formatRupiah(row.sisa)}</td>
-                  </tr>
-                ))}
-              </PrintTable>
-            </PrintSection>
-          ) : null}
-
           {materi.angkatan ? (
             <PrintSection title="Rekap DSPT per Angkatan">
               <PrintTable headers={['Angkatan', 'Siswa', 'Lunas', 'Nyicil', 'Belum', 'Target', 'Terkumpul', 'Sisa']}>
-                {rekapAngkatan.map(row => (
+                {rekapAngkatanPrint.map(row => (
                   <tr key={row.tahun_masuk}>
                     <td>{row.tahun_masuk}</td>
                     <td>{row.total_siswa}</td>
@@ -804,22 +643,14 @@ function DataTablePanel({ title, count, children }: { title: string; count: numb
   )
 }
 
-function EmptyRow({ colSpan, label }: { colSpan: number; label: string }) {
-  return (
-    <TableRow>
-      <TableCell colSpan={colSpan} className="py-8 text-center text-sm text-slate-400">
-        {label}
-      </TableCell>
-    </TableRow>
-  )
-}
 
-function PrintHeader({ judul, periode }: { judul: string; periode: string }) {
+function PrintHeader({ judul, periode, angkatan }: { judul: string; periode: string; angkatan?: string }) {
   return (
     <header className="mb-5 border-b-2 border-slate-900 pb-3 text-center">
       <p className="text-[11px] font-bold uppercase tracking-[0.18em]">MAN 1 Tasikmalaya</p>
       <h1 className="mt-1 text-xl font-black uppercase">{judul}</h1>
       <p className="mt-1 text-[11px]">Periode: {periode}</p>
+      {angkatan ? <p className="text-[11px]">Angkatan: {angkatan}</p> : null}
     </header>
   )
 }
