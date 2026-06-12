@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/table'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 import { formatRupiah } from '@/lib/utils'
-import { formatDateTimeWIB } from '@/lib/time'
+import { dateInputWIB, formatDateTimeWIB } from '@/lib/time'
 import { getKuitansiTahunAjaran } from '@/lib/tahun-ajaran'
 import { KuitansiModal, type KuitansiData } from '../components/kuitansi-print'
 
@@ -60,9 +60,18 @@ export function TransaksiClient({
   const [search, setSearch] = useState('')
   const [kategori, setKategori] = useState('semua')
   const [status, setStatus] = useState('aktif')
+  const [angkatan, setAngkatan] = useState('semua')
+  const [metodeBayar, setMetodeBayar] = useState('semua')
+  const [tanggalAwal, setTanggalAwal] = useState('')
+  const [tanggalAkhir, setTanggalAkhir] = useState('')
   const [kuitansiData, setKuitansiData] = useState<KuitansiData | null>(null)
   const [kuitansiOpen, setKuitansiOpen] = useState(false)
   const { page, pageSize, setPage, setPageSize, paginate, reset } = usePagination(15)
+
+  const angkatanOptions = useMemo(() => {
+    const unique = [...new Set(initialData.map(r => r.tahun_masuk).filter(Boolean))] as number[]
+    return unique.sort((a, b) => b - a)
+  }, [initialData])
 
   const filtered = useMemo(() => {
     reset()
@@ -76,10 +85,15 @@ export function TransaksiClient({
       const matchStatus = status === 'semua'
         || (status === 'aktif' && !row.is_void)
         || (status === 'void' && !!row.is_void)
-      return matchSearch && matchKategori && matchStatus
+      const matchAngkatan = angkatan === 'semua' || String(row.tahun_masuk ?? '') === angkatan
+      const matchMetode = metodeBayar === 'semua'
+        || (metodeBayar === 'tunai' ? row.metode_bayar === 'tunai' : row.metode_bayar === 'transfer' || row.metode_bayar === 'qris')
+      const tanggal = dateInputWIB(row.created_at)
+      const matchTanggal = (!tanggalAwal || tanggal >= tanggalAwal) && (!tanggalAkhir || tanggal <= tanggalAkhir)
+      return matchSearch && matchKategori && matchStatus && matchAngkatan && matchMetode && matchTanggal
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialData, search, kategori, status])
+  }, [initialData, search, kategori, status, angkatan, metodeBayar, tanggalAwal, tanggalAkhir])
 
   const paginated = paginate(filtered)
   const totalAktif = filtered
@@ -132,32 +146,71 @@ export function TransaksiClient({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-          <Input
-            placeholder="Cari siswa, NISN, atau nomor kuitansi..."
-            value={search}
-            onChange={event => setSearch(event.target.value)}
-            className="h-8 rounded-md pl-8 text-sm"
-          />
+      <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-wrap gap-2">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Cari siswa, NISN, atau nomor kuitansi..."
+              value={search}
+              onChange={event => setSearch(event.target.value)}
+              className="h-8 rounded-md pl-8 text-sm"
+            />
+          </div>
+          <Select value={kategori} onValueChange={setKategori}>
+            <SelectTrigger className="h-8 w-36 rounded-md text-xs"><SelectValue placeholder="Kategori" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua Kategori</SelectItem>
+              <SelectItem value="dspt">DSPT</SelectItem>
+              <SelectItem value="spp">SPP</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger className="h-8 w-32 rounded-md text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="aktif">Aktif</SelectItem>
+              <SelectItem value="semua">Semua Status</SelectItem>
+              <SelectItem value="void">Void</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={kategori} onValueChange={setKategori}>
-          <SelectTrigger className="h-8 w-36 rounded-md text-xs"><SelectValue placeholder="Kategori" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="semua">Semua Kategori</SelectItem>
-            <SelectItem value="dspt">DSPT</SelectItem>
-            <SelectItem value="spp">SPP</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="h-8 w-32 rounded-md text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="aktif">Aktif</SelectItem>
-            <SelectItem value="semua">Semua Status</SelectItem>
-            <SelectItem value="void">Void</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-1.5">
+            <label className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">Dari</label>
+            <Input
+              type="date"
+              value={tanggalAwal}
+              onChange={event => setTanggalAwal(event.target.value)}
+              className="h-8 w-36 text-xs"
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">Sampai</label>
+            <Input
+              type="date"
+              value={tanggalAkhir}
+              onChange={event => setTanggalAkhir(event.target.value)}
+              className="h-8 w-36 text-xs"
+            />
+          </div>
+          <Select value={angkatan} onValueChange={setAngkatan}>
+            <SelectTrigger className="h-8 w-40 rounded-md text-xs"><SelectValue placeholder="Angkatan" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua Angkatan</SelectItem>
+              {angkatanOptions.map(tahun => (
+                <SelectItem key={tahun} value={String(tahun)}>Angkatan {tahun}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={metodeBayar} onValueChange={setMetodeBayar}>
+            <SelectTrigger className="h-8 w-36 rounded-md text-xs"><SelectValue placeholder="Metode" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="semua">Semua Metode</SelectItem>
+              <SelectItem value="tunai">Tunai</SelectItem>
+              <SelectItem value="transfer">Transfer</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
