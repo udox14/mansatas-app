@@ -17,7 +17,10 @@
       "Bash(head -30 /c/DATA/mansatas-app/app/dashboard/keuangan/siswa/[id]/page.tsx)",
       "Bash(powershell -Command ':*)",
       "Bash(echo \"EXIT: $?\")",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(xargs grep -l \"pelanggaran\")",
+      "Bash(grep -E \"\\\\.\\(sql|ts|tsx\\)$\")",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")"
     ]
   }
 }
