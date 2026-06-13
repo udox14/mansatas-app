@@ -44,6 +44,19 @@ export function monthRange(year: number, month: number) {
   return { startDate, endDate, lastDay }
 }
 
+export function shouldUseKepalaTu(user: any, userRoles: string[] = []) {
+  const roles = new Set([...(userRoles || []), user?.role].filter(Boolean))
+  const jabatan = String(user?.jabatan_cetak || '').toLowerCase()
+  return roles.has('admin_tu') ||
+    roles.has('operator') ||
+    roles.has('pramubakti') ||
+    jabatan.includes('staff tu') ||
+    jabatan.includes('admin tu') ||
+    jabatan.includes('tata usaha') ||
+    jabatan.includes('operator emis') ||
+    jabatan.includes('pramubakti')
+}
+
 export function formatCkhDate(date: string) {
   const [year, month, day] = date.split('-')
   return `${day}/${month}/${year}`
