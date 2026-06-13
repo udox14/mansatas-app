@@ -130,7 +130,7 @@ function waliPekerjaan(s: any) {
   return text(s?.pekerjaan_ayah || s?.pekerjaan_ibu)
 }
 
-function pejabat(data: any, key = 'kepala') {
+export function pejabat(data: any, key = 'kepala') {
   const p = data?.pejabat?.[key] || {}
   return {
     nama: text(p.nama_lengkap || p.nama),
@@ -140,7 +140,7 @@ function pejabat(data: any, key = 'kepala') {
   }
 }
 
-function Page({ data, children, compact = false }: { data: any; children: React.ReactNode; compact?: boolean }) {
+export function Page({ data, children, compact = false }: { data: any; children: React.ReactNode; compact?: boolean }) {
   const settings = getPrintSettings(data)
   const width = settings.paper === 'F4' ? '215mm' : '210mm'
   const height = settings.paper === 'F4' ? '330mm' : '297mm'
@@ -167,7 +167,7 @@ function Page({ data, children, compact = false }: { data: any; children: React.
   )
 }
 
-function KopSurat({ data, marginBottom = 7 }: { data: any; marginBottom?: number }) {
+export function KopSurat({ data, marginBottom = 7 }: { data: any; marginBottom?: number }) {
   const { margins } = getPrintSettings(data)
   return (
     <div style={{ marginLeft: `-${margins.left}mm`, marginRight: `-${margins.right}mm`, marginTop: `-${margins.top}mm`, marginBottom: `${marginBottom}mm` }}>
@@ -176,7 +176,7 @@ function KopSurat({ data, marginBottom = 7 }: { data: any; marginBottom?: number
   )
 }
 
-function Title({ children }: { children: React.ReactNode }) {
+export function Title({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ textAlign: 'center', marginBottom: '7mm' }}>
       <div style={{ fontSize: '14pt', fontWeight: 'bold', textDecoration: 'underline', textTransform: 'uppercase' }}>{children}</div>
@@ -184,15 +184,15 @@ function Title({ children }: { children: React.ReactNode }) {
   )
 }
 
-function Nomor({ value }: { value: any }) {
+export function Nomor({ value }: { value: any }) {
   return <div style={{ textAlign: 'center', marginTop: '-6mm', marginBottom: '8mm' }}>Nomor : {text(value)}</div>
 }
 
-function P({ children, indent = false, style }: { children: React.ReactNode; indent?: boolean; style?: React.CSSProperties }) {
+export function P({ children, indent = false, style }: { children: React.ReactNode; indent?: boolean; style?: React.CSSProperties }) {
   return <p style={{ margin: '0 0 3mm', textAlign: 'justify', textIndent: indent ? '10mm' : 0, ...style }}>{children}</p>
 }
 
-function FieldRows({ rows, left = 0, labelWidth = 45, gap = 2 }: {
+export function FieldRows({ rows, left = 0, labelWidth = 45, gap = 2 }: {
   rows: Array<[React.ReactNode, React.ReactNode]>
   left?: number
   labelWidth?: number
@@ -213,7 +213,7 @@ function FieldRows({ rows, left = 0, labelWidth = 45, gap = 2 }: {
   )
 }
 
-function SignatureBlock({ data, signer, label, align = 'right', date, place = 'Tasikmalaya', top = 9 }: {
+export function SignatureBlock({ data, signer, label, align = 'right', date, place = 'Tasikmalaya', top = 9 }: {
   data: any
   signer?: any
   label?: string
