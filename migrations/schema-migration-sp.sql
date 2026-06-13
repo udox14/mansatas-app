@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS surat_peringatan (
   total_poin      INTEGER DEFAULT 0,          -- snapshot poin saat ditetapkan
   alasan          TEXT,
   data_surat      TEXT NOT NULL DEFAULT '{}', -- JSON utk cetak (siswa, pejabat, print_settings)
+  file_ttd_url    TEXT,                       -- SP sudah ditandatangani (webp terkompres di R2)
   ditetapkan_oleh TEXT NOT NULL REFERENCES "user"(id),
   nama_penetap    TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))

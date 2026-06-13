@@ -4,6 +4,7 @@
 import { getDB } from '@/utils/db'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
+import { uploadToR2, deleteFromR2 } from '@/utils/r2'
 import { revalidatePath } from 'next/cache'
 import { getDataForSurat } from '../surat/actions'
 import { getSanksiList } from '../kedisiplinan/actions'
@@ -63,6 +64,12 @@ async function ensureSpSchema(db: any) {
       )
     `),
   ])
+  // Kolom file SP bertanda tangan (tambah jika belum ada)
+  try {
+    await db.prepare(`ALTER TABLE surat_peringatan ADD COLUMN file_ttd_url TEXT`).run()
+  } catch {
+    // kolom sudah ada — abaikan
+  }
 }
 
 function formatNomorSP(nomorUrutLokal: string, bulan: number, tahun: number): string {
@@ -333,6 +340,53 @@ export async function simpanKeputusan(data: {
     return { success: 'Keputusan tersimpan. (Status siswa diubah manual di menu Siswa.)' }
   } catch (e: any) {
     return { error: 'Gagal menyimpan keputusan: ' + (e?.message || '') }
+  }
+}
+
+// ============================================================
+// UPLOAD SP YANG SUDAH DITANDATANGANI (webp terkompres dari client)
+// ============================================================
+export async function uploadSignedSP(spId: string, formData: FormData): Promise<{ success?: string; error?: string; url?: string }> {
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Tidak terautentikasi.' }
+  if (!(await hasAnyRole(db, user.id, MANAGE_SP_ROLES))) return { error: 'Tidak memiliki izin.' }
+
+  const file = formData.get('file') as File | null
+  if (!file || file.size === 0) return { error: 'File tidak ditemukan.' }
+
+  await ensureSpSchema(db)
+
+  // Hapus file lama jika ada
+  const existing = await db.prepare(`SELECT file_ttd_url FROM surat_peringatan WHERE id = ?`).bind(spId).first<any>()
+  if (existing?.file_ttd_url) await deleteFromR2(existing.file_ttd_url)
+
+  const { url, error } = await uploadToR2(file, 'sp_ttd', `${spId}.webp`)
+  if (error || !url) return { error: 'Gagal upload: ' + (error || '') }
+
+  try {
+    await db.prepare(`UPDATE surat_peringatan SET file_ttd_url = ? WHERE id = ?`).bind(url, spId).run()
+    revalidatePath('/dashboard/sp')
+    return { success: 'SP bertanda tangan terupload.', url }
+  } catch (e: any) {
+    return { error: 'Gagal simpan URL: ' + (e?.message || '') }
+  }
+}
+
+export async function hapusSignedSP(spId: string): Promise<{ success?: string; error?: string }> {
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Tidak terautentikasi.' }
+  if (!(await hasAnyRole(db, user.id, MANAGE_SP_ROLES))) return { error: 'Tidak memiliki izin.' }
+  await ensureSpSchema(db)
+  const existing = await db.prepare(`SELECT file_ttd_url FROM surat_peringatan WHERE id = ?`).bind(spId).first<any>()
+  if (existing?.file_ttd_url) await deleteFromR2(existing.file_ttd_url)
+  try {
+    await db.prepare(`UPDATE surat_peringatan SET file_ttd_url = NULL WHERE id = ?`).bind(spId).run()
+    revalidatePath('/dashboard/sp')
+    return { success: 'File SP dihapus.' }
+  } catch (e: any) {
+    return { error: 'Gagal menghapus: ' + (e?.message || '') }
   }
 }
 
