@@ -2,16 +2,17 @@
 'use client'
 
 import { useMemo, useRef, useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
-  AlertTriangle, FileWarning, History, Loader2, Plus, Printer, Search,
-  Trash2, X, CheckCircle2, ChevronRight,
+  AlertTriangle, FileWarning, Loader2, Plus, Printer, Search,
+  Trash2, X, CheckCircle2, Upload, FileCheck2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
-import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { TemplateSP } from './sp-templates'
+import { compressAgendaImage } from '../../agenda/components/image-compression'
 import {
   DEFAULT_PRINT_SETTINGS,
   getPrintPageStyle,
@@ -26,6 +27,8 @@ import {
   hapusTindakLanjut,
   simpanKeputusan,
   hapusSP,
+  uploadSignedSP,
+  hapusSignedSP,
 } from '../actions'
 import {
   SP_LEVEL_LABEL,
@@ -48,6 +51,22 @@ type Props = {
 const KODE_KLASIFIKASI_SP = 'PP.00.7'
 const BULAN_ROMAWI = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 const SP_LEVELS: SpLevel[] = ['sp1', 'sp2', 'sp3']
+
+const LEVEL_DESC: Record<SpLevel, string> = {
+  sp1: 'Peringatan pertama atas akumulasi pelanggaran.',
+  sp2: 'Peringatan kedua, pelanggaran berlanjut.',
+  sp3: 'Peringatan terakhir sebelum keputusan.',
+}
+const LEVEL_STYLE: Record<SpLevel, string> = {
+  sp1: 'border-amber-300 bg-amber-50 hover:border-amber-400 dark:border-amber-800 dark:bg-amber-950/30',
+  sp2: 'border-orange-300 bg-orange-50 hover:border-orange-400 dark:border-orange-800 dark:bg-orange-950/30',
+  sp3: 'border-rose-300 bg-rose-50 hover:border-rose-400 dark:border-rose-800 dark:bg-rose-950/30',
+}
+const LEVEL_BADGE: Record<SpLevel, string> = {
+  sp1: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300',
+  sp2: 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300',
+  sp3: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300',
+}
 
 function kelasLabel(s: any) {
   if (s?.tingkat && s?.nomor_kelas) return `${s.tingkat}.${s.nomor_kelas}${s.kelompok ? ` ${s.kelompok}` : ''}`
@@ -81,40 +100,104 @@ html, body { margin: 0; padding: 0; background: #fff; }
   })
 }
 
-export function SpClient({ masterData, sanksiList, rekomendasi, riwayat, currentUser }: Props) {
-  return (
-    <TabsPrimitive.Root defaultValue="penetapan" className="space-y-4">
-      <TabsPrimitive.List className="inline-flex gap-1 rounded-lg border border-surface bg-surface p-1">
-        <TabsPrimitive.Trigger
-          value="penetapan"
-          className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium data-[state=active]:bg-indigo-600 data-[state=active]:text-white text-slate-600 dark:text-slate-300"
-        >
-          <FileWarning className="h-4 w-4" /> Penetapan SP
-        </TabsPrimitive.Trigger>
-        <TabsPrimitive.Trigger
-          value="riwayat"
-          className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium data-[state=active]:bg-indigo-600 data-[state=active]:text-white text-slate-600 dark:text-slate-300"
-        >
-          <History className="h-4 w-4" /> Riwayat & Tindak Lanjut
-        </TabsPrimitive.Trigger>
-      </TabsPrimitive.List>
+export function SpClient({ masterData, sanksiList, rekomendasi, riwayat }: Props) {
+  const [wizardLevel, setWizardLevel] = useState<SpLevel | null>(null)
+  const [detailSiswa, setDetailSiswa] = useState<string | null>(null)
 
-      <TabsPrimitive.Content value="penetapan">
-        <PenetapanTab masterData={masterData} sanksiList={sanksiList} rekomendasi={rekomendasi} />
-      </TabsPrimitive.Content>
-      <TabsPrimitive.Content value="riwayat">
-        <RiwayatTab riwayat={riwayat} />
-      </TabsPrimitive.Content>
-    </TabsPrimitive.Root>
+  return (
+    <div className="space-y-6">
+      {/* 3 tombol besar SP1/SP2/SP3 */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        {SP_LEVELS.map((lv) => (
+          <button
+            key={lv}
+            type="button"
+            onClick={() => setWizardLevel(lv)}
+            className={`flex flex-col items-start gap-1 rounded-xl border-2 p-5 text-left transition-colors ${LEVEL_STYLE[lv]}`}
+          >
+            <div className="flex w-full items-center justify-between">
+              <span className="text-2xl font-extrabold tracking-tight">{SP_LEVEL_SHORT[lv]}</span>
+              <FileWarning className="h-6 w-6 opacity-70" />
+            </div>
+            <span className="text-sm font-semibold">{SP_LEVEL_LABEL[lv]}</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">{LEVEL_DESC[lv]}</span>
+            <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+              <Plus className="h-3.5 w-3.5" /> Buat SP
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* List siswa penerima SP */}
+      <div className="rounded-lg border border-surface bg-surface p-4">
+        <div className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
+          Siswa Penerima SP
+        </div>
+        {riwayat.length === 0 ? (
+          <p className="text-sm text-slate-500">Belum ada SP yang ditetapkan.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-surface text-left text-xs uppercase text-slate-500">
+                  <th className="py-2 pr-3">Nama</th>
+                  <th className="py-2 pr-3">Kelas</th>
+                  <th className="py-2 pr-3">Jumlah SP</th>
+                  <th className="py-2 pr-3">Tertinggi</th>
+                  <th className="py-2 pr-3">Keputusan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {riwayat.map((r) => (
+                  <tr
+                    key={r.siswa_id}
+                    onClick={() => setDetailSiswa(r.siswa_id)}
+                    className="cursor-pointer border-b border-surface/60 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/30"
+                  >
+                    <td className="py-2.5 pr-3 font-medium text-indigo-700 dark:text-indigo-300">{r.nama_lengkap}</td>
+                    <td className="py-2.5 pr-3">{kelasLabel(r)}</td>
+                    <td className="py-2.5 pr-3">{r.jumlah_sp}</td>
+                    <td className="py-2.5 pr-3">
+                      <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${LEVEL_BADGE[r.level_tertinggi as SpLevel] || ''}`}>
+                        {SP_LEVEL_SHORT[r.level_tertinggi as SpLevel] || r.level_tertinggi}
+                      </span>
+                    </td>
+                    <td className="py-2.5 pr-3">
+                      {r.keputusan ? <span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs dark:bg-slate-700">{r.keputusan}</span> : <span className="text-xs text-slate-400">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {wizardLevel && (
+        <WizardModal
+          level={wizardLevel}
+          masterData={masterData}
+          rekomendasi={rekomendasi}
+          onClose={() => setWizardLevel(null)}
+        />
+      )}
+      {detailSiswa && <DetailModal siswaId={detailSiswa} onClose={() => setDetailSiswa(null)} />}
+    </div>
   )
 }
 
 // ============================================================
-// TAB 1 — PENETAPAN SP
+// WIZARD PEMBUATAN SP (simpan saja — tidak langsung cetak)
 // ============================================================
-function PenetapanTab({ masterData, sanksiList, rekomendasi }: { masterData: MasterData; sanksiList: any[]; rekomendasi: any[] }) {
+function WizardModal({ level: initialLevel, masterData, rekomendasi, onClose }: {
+  level: SpLevel
+  masterData: MasterData
+  rekomendasi: any[]
+  onClose: () => void
+}) {
+  const router = useRouter()
   const [siswaId, setSiswaId] = useState('')
-  const [level, setLevel] = useState<SpLevel>('sp1')
+  const [level, setLevel] = useState<SpLevel>(initialLevel)
   const [totalPoin, setTotalPoin] = useState<number>(0)
   const [nomorUrut, setNomorUrut] = useState('')
   const [tanggal, setTanggal] = useState(() => new Date().toISOString().slice(0, 10))
@@ -126,7 +209,6 @@ function PenetapanTab({ masterData, sanksiList, rekomendasi }: { masterData: Mas
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const printRef = useRef<HTMLDivElement>(null)
 
-  // default penandatangan = pejabat pertama (kepala)
   useEffect(() => {
     if (!pejabatId && masterData.pejabat.length > 0) setPejabatId(masterData.pejabat[0].user_id)
   }, [masterData.pejabat, pejabatId])
@@ -134,17 +216,18 @@ function PenetapanTab({ masterData, sanksiList, rekomendasi }: { masterData: Mas
   const siswa = useMemo(() => masterData.siswa.find((s) => s.id === siswaId) || null, [masterData.siswa, siswaId])
   const pejabat = useMemo(() => masterData.pejabat.find((p) => p.user_id === pejabatId) || null, [masterData.pejabat, pejabatId])
 
+  const rekomLevel = useMemo(() => rekomendasi.filter((r) => r.level_rekomendasi === level), [rekomendasi, level])
+
   const filteredSiswa = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return masterData.siswa.slice(0, 30)
     return masterData.siswa.filter((s) => s.nama_lengkap?.toLowerCase().includes(q) || String(s.nisn || '').includes(q)).slice(0, 30)
   }, [masterData.siswa, query])
 
-  const printSettings = useMemo<PrintSettings>(() => getPrintSettings({ print_settings: { paper, margins: DEFAULT_PRINT_SETTINGS.margins } }), [paper])
-
   const previewData = useMemo(() => {
     if (!siswa) return null
-    const nomorPreview = `${nomorUrut || '___'}/Ma.10.20/${KODE_KLASIFIKASI_SP}/${BULAN_ROMAWI[new Date(tanggal).getMonth() + 1]}/${new Date(tanggal).getFullYear()}`
+    const dt = new Date(tanggal)
+    const nomorPreview = `${nomorUrut || '___'}/Ma.10.20/${KODE_KLASIFIKASI_SP}/${BULAN_ROMAWI[dt.getMonth() + 1]}/${dt.getFullYear()}`
     return {
       siswa,
       pejabat: { kepala: pejabat || {} },
@@ -160,7 +243,6 @@ function PenetapanTab({ masterData, sanksiList, rekomendasi }: { masterData: Mas
 
   function pickRekomendasi(r: any) {
     setSiswaId(r.id)
-    setLevel(r.level_rekomendasi)
     setTotalPoin(r.total_poin ?? 0)
     setQuery(r.nama_lengkap || '')
     setMsg(null)
@@ -172,203 +254,150 @@ function PenetapanTab({ masterData, sanksiList, rekomendasi }: { masterData: Mas
     setSaving(true)
     setMsg(null)
     const res = await tetapkanSP({
-      siswa_id: siswa.id,
-      level,
-      total_poin: totalPoin,
-      alasan,
-      nomor_urut_manual: nomorUrut,
-      data_surat: previewData,
+      siswa_id: siswa.id, level, total_poin: totalPoin, alasan,
+      nomor_urut_manual: nomorUrut, data_surat: previewData,
     })
     setSaving(false)
-    if (res.error) setMsg({ type: 'err', text: res.error })
-    else setMsg({ type: 'ok', text: `${res.success || 'Tersimpan'} Nomor: ${res.nomor_surat || ''}` })
+    if (res.error) { setMsg({ type: 'err', text: res.error }); return }
+    router.refresh()
+    onClose()
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {/* KIRI: rekomendasi + form */}
-      <div className="space-y-4">
-        {/* Rekomendasi */}
-        <div className="rounded-lg border border-surface bg-surface p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-            <AlertTriangle className="h-4 w-4 text-amber-500" /> Rekomendasi SP (dari akumulasi poin)
+    <DialogPrimitive.Root open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40" />
+        <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-50 max-h-[92vh] w-[96vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-lg border border-surface bg-surface p-5 shadow-xl">
+          <div className="mb-3 flex items-center justify-between">
+            <DialogPrimitive.Title className="flex items-center gap-2 text-base font-semibold">
+              <span className={`rounded px-2 py-0.5 text-sm font-bold ${LEVEL_BADGE[level]}`}>{SP_LEVEL_SHORT[level]}</span>
+              Buat {SP_LEVEL_LABEL[level]}
+            </DialogPrimitive.Title>
+            <button onClick={onClose}><X className="h-5 w-5" /></button>
           </div>
-          {rekomendasi.length === 0 ? (
-            <p className="text-sm text-slate-500">Belum ada siswa yang melewati ambang poin SP.</p>
-          ) : (
-            <div className="max-h-56 space-y-1 overflow-auto">
-              {rekomendasi.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => pickRekomendasi(r)}
-                  className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm ${siswaId === r.id ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40' : 'border-surface hover:border-indigo-300'}`}
-                >
-                  <span className="min-w-0 truncate">
-                    <span className="font-medium">{r.nama_lengkap}</span>
-                    <span className="ml-2 text-xs text-slate-500">Kelas {kelasLabel(r)}</span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">{r.total_poin} poin</span>
-                    <span className="rounded bg-rose-100 px-1.5 py-0.5 text-xs font-bold text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">{SP_LEVEL_SHORT[r.level_rekomendasi as SpLevel]}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
 
-        {/* Form */}
-        <div className="space-y-3 rounded-lg border border-surface bg-surface p-4">
-          <div>
-            <Label>Cari Siswa (manual)</Label>
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nama / NISN..." className="pl-8" />
-            </div>
-            {query && (
-              <div className="mt-1 max-h-40 overflow-auto rounded-md border border-surface">
-                {filteredSiswa.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => { setSiswaId(s.id); setQuery(s.nama_lengkap) }}
-                    className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-indigo-50 dark:hover:bg-indigo-950/40 ${siswaId === s.id ? 'bg-indigo-50 dark:bg-indigo-950/40' : ''}`}
-                  >
-                    {s.nama_lengkap} <span className="text-xs text-slate-500">· {kelasLabel(s)}</span>
-                  </button>
-                ))}
-                {filteredSiswa.length === 0 && <p className="px-3 py-2 text-sm text-slate-500">Tidak ditemukan.</p>}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* form */}
+            <div className="space-y-3">
+              {rekomLevel.length > 0 && (
+                <div className="rounded-lg border border-surface p-3">
+                  <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> Rekomendasi {SP_LEVEL_SHORT[level]}
+                  </div>
+                  <div className="max-h-32 space-y-1 overflow-auto">
+                    {rekomLevel.map((r) => (
+                      <button key={r.id} type="button" onClick={() => pickRekomendasi(r)}
+                        className={`flex w-full items-center justify-between rounded-md border px-2.5 py-1.5 text-left text-sm ${siswaId === r.id ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40' : 'border-surface hover:border-indigo-300'}`}>
+                        <span className="truncate"><b>{r.nama_lengkap}</b> <span className="text-xs text-slate-500">{kelasLabel(r)}</span></span>
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">{r.total_poin} poin</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <Label>Cari Siswa (manual)</Label>
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nama / NISN..." className="pl-8" />
+                </div>
+                {query && (
+                  <div className="mt-1 max-h-36 overflow-auto rounded-md border border-surface">
+                    {filteredSiswa.map((s) => (
+                      <button key={s.id} type="button" onClick={() => { setSiswaId(s.id); setQuery(s.nama_lengkap) }}
+                        className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-indigo-50 dark:hover:bg-indigo-950/40 ${siswaId === s.id ? 'bg-indigo-50 dark:bg-indigo-950/40' : ''}`}>
+                        {s.nama_lengkap} <span className="text-xs text-slate-500">· {kelasLabel(s)}</span>
+                      </button>
+                    ))}
+                    {filteredSiswa.length === 0 && <p className="px-3 py-2 text-sm text-slate-500">Tidak ditemukan.</p>}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {siswa && (
-            <div className="rounded-md bg-indigo-50 px-3 py-2 text-sm dark:bg-indigo-950/40">
-              Siswa: <b>{siswa.nama_lengkap}</b> · Kelas {kelasLabel(siswa)} · NISN {siswa.nisn || '-'}
+              {siswa && (
+                <div className="rounded-md bg-indigo-50 px-3 py-2 text-sm dark:bg-indigo-950/40">
+                  Siswa: <b>{siswa.nama_lengkap}</b> · Kelas {kelasLabel(siswa)} · NISN {siswa.nisn || '-'}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Level SP</Label>
+                  <select value={level} onChange={(e) => setLevel(e.target.value as SpLevel)} className="h-9 w-full rounded-md border border-surface bg-transparent px-2 text-sm">
+                    {SP_LEVELS.map((lv) => <option key={lv} value={lv}>{SP_LEVEL_LABEL[lv]}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <Label>Nomor Urut Surat</Label>
+                  <Input value={nomorUrut} onChange={(e) => setNomorUrut(e.target.value)} placeholder="mis. B-101" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Tanggal Surat</Label>
+                  <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Total Poin (snapshot)</Label>
+                  <Input type="number" value={totalPoin} onChange={(e) => setTotalPoin(Number(e.target.value) || 0)} />
+                </div>
+              </div>
+
+              <div>
+                <Label>Penandatangan</Label>
+                <select value={pejabatId} onChange={(e) => setPejabatId(e.target.value)} className="h-9 w-full rounded-md border border-surface bg-transparent px-2 text-sm">
+                  {masterData.pejabat.map((p) => <option key={p.user_id} value={p.user_id}>{p.nama_lengkap} — {p.nama}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <Label>Alasan / Catatan (opsional)</Label>
+                <textarea value={alasan} onChange={(e) => setAlasan(e.target.value)} rows={2} className="w-full rounded-md border border-surface bg-transparent px-2 py-1.5 text-sm" />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Label className="shrink-0">Kertas</Label>
+                <select value={paper} onChange={(e) => setPaper(e.target.value as 'A4' | 'F4')} className="h-9 rounded-md border border-surface bg-transparent px-2 text-sm">
+                  <option value="A4">A4</option>
+                  <option value="F4">F4 (Folio)</option>
+                </select>
+              </div>
+
+              {msg && (
+                <div className={`rounded-md px-3 py-2 text-sm ${msg.type === 'ok' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40' : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40'}`}>{msg.text}</div>
+              )}
+
+              <div className="flex gap-2">
+                <Button onClick={handleSimpan} disabled={saving || !siswa} className="gap-2">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Simpan Penetapan
+                </Button>
+                <Button variant="outline" onClick={onClose}>Batal</Button>
+              </div>
+              <p className="text-xs text-slate-500">Cetak surat dilakukan terpisah dari daftar siswa (klik nama siswa).</p>
             </div>
-          )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Level SP</Label>
-              <select value={level} onChange={(e) => setLevel(e.target.value as SpLevel)} className="h-9 w-full rounded-md border border-surface bg-transparent px-2 text-sm">
-                {SP_LEVELS.map((lv) => <option key={lv} value={lv}>{SP_LEVEL_LABEL[lv]}</option>)}
-              </select>
-            </div>
-            <div>
-              <Label>Nomor Urut Surat</Label>
-              <Input value={nomorUrut} onChange={(e) => setNomorUrut(e.target.value)} placeholder="mis. B-101" />
+            {/* preview (informasi, bukan untuk langsung cetak) */}
+            <div className="rounded-lg border border-surface bg-gray-100 p-3 dark:bg-slate-800">
+              <div className="max-h-[70vh] overflow-auto">
+                <div ref={printRef} style={{ background: '#fff' }}>
+                  {previewData ? <TemplateSP data={previewData} /> : <p className="p-6 text-center text-sm text-slate-500">Pilih siswa untuk pratinjau.</p>}
+                </div>
+              </div>
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Tanggal Surat</Label>
-              <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
-            </div>
-            <div>
-              <Label>Total Poin (snapshot)</Label>
-              <Input type="number" value={totalPoin} onChange={(e) => setTotalPoin(Number(e.target.value) || 0)} />
-            </div>
-          </div>
-
-          <div>
-            <Label>Penandatangan</Label>
-            <select value={pejabatId} onChange={(e) => setPejabatId(e.target.value)} className="h-9 w-full rounded-md border border-surface bg-transparent px-2 text-sm">
-              {masterData.pejabat.map((p) => <option key={p.user_id} value={p.user_id}>{p.nama_lengkap} — {p.nama}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <Label>Alasan / Catatan (opsional)</Label>
-            <textarea value={alasan} onChange={(e) => setAlasan(e.target.value)} rows={2} className="w-full rounded-md border border-surface bg-transparent px-2 py-1.5 text-sm" />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Label className="shrink-0">Kertas</Label>
-            <select value={paper} onChange={(e) => setPaper(e.target.value as 'A4' | 'F4')} className="h-9 rounded-md border border-surface bg-transparent px-2 text-sm">
-              <option value="A4">A4</option>
-              <option value="F4">F4 (Folio)</option>
-            </select>
-          </div>
-
-          {msg && (
-            <div className={`rounded-md px-3 py-2 text-sm ${msg.type === 'ok' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40' : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40'}`}>{msg.text}</div>
-          )}
-
-          <div className="flex gap-2">
-            <Button onClick={handleSimpan} disabled={saving || !siswa} className="gap-2">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Tetapkan & Simpan
-            </Button>
-            <Button variant="outline" onClick={() => printNode(printRef.current, printSettings, 'Surat Peringatan')} disabled={!siswa} className="gap-2">
-              <Printer className="h-4 w-4" /> Cetak
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* KANAN: preview */}
-      <div className="rounded-lg border border-surface bg-gray-100 p-3 dark:bg-slate-800">
-        <div className="max-h-[78vh] overflow-auto">
-          <div ref={printRef} style={{ background: '#fff' }}>
-            {previewData ? <TemplateSP data={previewData} /> : <p className="p-6 text-center text-sm text-slate-500">Pilih siswa untuk melihat pratinjau surat.</p>}
-          </div>
-        </div>
-      </div>
-    </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   )
 }
 
 // ============================================================
-// TAB 2 — RIWAYAT & TINDAK LANJUT
+// DETAIL SISWA — riwayat SP (cetak ulang + upload TTD) + tindak lanjut + keputusan
 // ============================================================
-function RiwayatTab({ riwayat }: { riwayat: any[] }) {
-  const [detailSiswa, setDetailSiswa] = useState<string | null>(null)
-
-  return (
-    <div className="rounded-lg border border-surface bg-surface p-4">
-      {riwayat.length === 0 ? (
-        <p className="text-sm text-slate-500">Belum ada SP yang ditetapkan.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-surface text-left text-xs uppercase text-slate-500">
-                <th className="py-2 pr-3">Nama</th>
-                <th className="py-2 pr-3">Kelas</th>
-                <th className="py-2 pr-3">Jumlah SP</th>
-                <th className="py-2 pr-3">Tertinggi</th>
-                <th className="py-2 pr-3">Keputusan</th>
-                <th className="py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {riwayat.map((r) => (
-                <tr key={r.siswa_id} className="border-b border-surface/60">
-                  <td className="py-2 pr-3 font-medium">{r.nama_lengkap}</td>
-                  <td className="py-2 pr-3">{kelasLabel(r)}</td>
-                  <td className="py-2 pr-3">{r.jumlah_sp}</td>
-                  <td className="py-2 pr-3"><span className="rounded bg-rose-100 px-1.5 py-0.5 text-xs font-bold text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">{SP_LEVEL_SHORT[r.level_tertinggi as SpLevel] || r.level_tertinggi}</span></td>
-                  <td className="py-2 pr-3">{r.keputusan ? <span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs dark:bg-slate-700">{r.keputusan}</span> : <span className="text-xs text-slate-400">—</span>}</td>
-                  <td className="py-2 text-right">
-                    <Button variant="outline" size="sm" className="gap-1" onClick={() => setDetailSiswa(r.siswa_id)}>
-                      Detail <ChevronRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {detailSiswa && <DetailModal siswaId={detailSiswa} onClose={() => setDetailSiswa(null)} />}
-    </div>
-  )
-}
-
 function DetailModal({ siswaId, onClose }: { siswaId: string; onClose: () => void }) {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<any>(null)
   const [tlJenis, setTlJenis] = useState('pembinaan')
@@ -377,9 +406,11 @@ function DetailModal({ siswaId, onClose }: { siswaId: string; onClose: () => voi
   const [kepTipe, setKepTipe] = useState<KeputusanSp>('naik')
   const [kepCatatan, setKepCatatan] = useState('')
   const [busy, setBusy] = useState(false)
+  const [uploadingId, setUploadingId] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const reprintRef = useRef<HTMLDivElement>(null)
   const [reprintData, setReprintData] = useState<any>(null)
+  const fileInputs = useRef<Record<string, HTMLInputElement | null>>({})
 
   async function load() {
     setLoading(true)
@@ -395,27 +426,44 @@ function DetailModal({ siswaId, onClose }: { siswaId: string; onClose: () => voi
     const res = await simpanTindakLanjut({ siswa_id: siswaId, tanggal: tlTanggal, jenis: tlJenis, catatan: tlCatatan })
     setBusy(false)
     if (res.error) { setMsg(res.error); return }
-    setTlCatatan('')
-    await load()
+    setTlCatatan(''); await load(); router.refresh()
   }
-  async function delTL(id: string) {
-    setBusy(true)
-    await hapusTindakLanjut(id)
-    setBusy(false)
-    await load()
-  }
+  async function delTL(id: string) { setBusy(true); await hapusTindakLanjut(id); setBusy(false); await load(); router.refresh() }
   async function saveKeputusan() {
     setBusy(true); setMsg(null)
     const res = await simpanKeputusan({ siswa_id: siswaId, keputusan: kepTipe, tanggal: new Date().toISOString().slice(0, 10), catatan: kepCatatan })
-    setBusy(false)
-    setMsg(res.error || res.success || null)
-    await load()
+    setBusy(false); setMsg(res.error || res.success || null); await load(); router.refresh()
   }
+  async function delSP(id: string) { setBusy(true); await hapusSP(id); setBusy(false); await load(); router.refresh() }
+
   function reprint(sp: any) {
     let data: any = {}
     try { data = JSON.parse(sp.data_surat || '{}') } catch { data = {} }
     setReprintData(data)
     setTimeout(() => printNode(reprintRef.current, getPrintSettings({ print_settings: data.print_settings }), 'Surat Peringatan'), 100)
+  }
+
+  async function onPickFile(spId: string, file: File | null) {
+    if (!file) return
+    setUploadingId(spId); setMsg(null)
+    try {
+      const compressed = await compressAgendaImage(file, { targetBytes: 180 * 1024 })
+      const fd = new FormData()
+      fd.append('file', compressed)
+      const res = await uploadSignedSP(spId, fd)
+      if (res.error) setMsg(res.error)
+      else { await load(); router.refresh() }
+    } catch (e: any) {
+      setMsg('Gagal memproses gambar: ' + (e?.message || ''))
+    } finally {
+      setUploadingId(null)
+    }
+  }
+  async function removeFile(spId: string) {
+    setUploadingId(spId)
+    await hapusSignedSP(spId)
+    setUploadingId(null)
+    await load(); router.refresh()
   }
 
   return (
@@ -436,21 +484,47 @@ function DetailModal({ siswaId, onClose }: { siswaId: string; onClose: () => voi
                 <b>{detail?.siswa?.nama_lengkap}</b> · Kelas {kelasLabel(detail?.siswa)} · NISN {detail?.siswa?.nisn || '-'}
               </div>
 
-              {/* Timeline SP */}
+              {/* Riwayat SP */}
               <div>
                 <div className="mb-1 text-sm font-semibold">Riwayat SP</div>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   {detail?.spList?.map((sp: any) => (
-                    <div key={sp.id} className="flex items-center justify-between rounded-md border border-surface px-3 py-1.5 text-sm">
-                      <span>
-                        <span className="rounded bg-rose-100 px-1.5 py-0.5 text-xs font-bold text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">{SP_LEVEL_SHORT[sp.level as SpLevel] || sp.level}</span>
-                        <span className="ml-2">{sp.nomor_surat}</span>
-                        <span className="ml-2 text-xs text-slate-500">{(sp.tanggal_sp || sp.created_at || '').slice(0, 10)} · {sp.total_poin} poin</span>
-                      </span>
-                      <span className="flex gap-1">
-                        <Button variant="outline" size="sm" className="gap-1" onClick={() => reprint(sp)}><Printer className="h-3.5 w-3.5" /> Cetak</Button>
-                        <Button variant="outline" size="sm" onClick={async () => { await hapusSP(sp.id); await load() }}><Trash2 className="h-3.5 w-3.5" /></Button>
-                      </span>
+                    <div key={sp.id} className="rounded-md border border-surface px-3 py-2 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0">
+                          <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${LEVEL_BADGE[sp.level as SpLevel] || ''}`}>{SP_LEVEL_SHORT[sp.level as SpLevel] || sp.level}</span>
+                          <span className="ml-2">{sp.nomor_surat}</span>
+                          <span className="ml-2 text-xs text-slate-500">{(sp.tanggal_sp || sp.created_at || '').slice(0, 10)} · {sp.total_poin} poin</span>
+                        </span>
+                        <span className="flex shrink-0 gap-1">
+                          <Button variant="outline" size="sm" className="gap-1" onClick={() => reprint(sp)}><Printer className="h-3.5 w-3.5" /> Cetak</Button>
+                          <Button variant="outline" size="sm" onClick={() => delSP(sp.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                        </span>
+                      </div>
+                      {/* baris file SP bertanda tangan */}
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <input
+                          ref={(el) => { fileInputs.current[sp.id] = el }}
+                          type="file" accept="image/*" className="hidden"
+                          onChange={(e) => onPickFile(sp.id, e.target.files?.[0] || null)}
+                        />
+                        {sp.file_ttd_url ? (
+                          <>
+                            <a href={sp.file_ttd_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                              <FileCheck2 className="h-3.5 w-3.5" /> SP bertanda tangan
+                            </a>
+                            <button onClick={() => fileInputs.current[sp.id]?.click()} className="text-xs text-slate-500 underline" disabled={uploadingId === sp.id}>Ganti</button>
+                            <button onClick={() => removeFile(sp.id)} className="text-xs text-rose-500 underline" disabled={uploadingId === sp.id}>Hapus</button>
+                          </>
+                        ) : (
+                          <button onClick={() => fileInputs.current[sp.id]?.click()} disabled={uploadingId === sp.id}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                            {uploadingId === sp.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                            Upload SP bertanda tangan
+                          </button>
+                        )}
+                        {uploadingId === sp.id && <span className="text-xs text-slate-400">memproses…</span>}
+                      </div>
                     </div>
                   ))}
                   {detail?.spList?.length === 0 && <p className="text-sm text-slate-500">Belum ada SP.</p>}
