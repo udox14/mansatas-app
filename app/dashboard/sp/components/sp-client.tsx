@@ -208,10 +208,27 @@ function WizardModal({ level: initialLevel, masterData, rekomendasi, onClose }: 
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const printRef = useRef<HTMLDivElement>(null)
+  const previewWrapRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(1)
 
   useEffect(() => {
     if (!pejabatId && masterData.pejabat.length > 0) setPejabatId(masterData.pejabat[0].user_id)
   }, [masterData.pejabat, pejabatId])
+
+  // Skala preview agar lebar halaman (210/215mm) muat container — vertikal tetap discroll
+  useEffect(() => {
+    const el = previewWrapRef.current
+    if (!el) return
+    const pageW = (paper === 'F4' ? 215 : 210) * 96 / 25.4 // mm -> px
+    const compute = () => {
+      const w = el.clientWidth
+      if (w > 0) setScale(Math.min(1, w / pageW))
+    }
+    compute()
+    const ro = new ResizeObserver(compute)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [paper])
 
   const siswa = useMemo(() => masterData.siswa.find((s) => s.id === siswaId) || null, [masterData.siswa, siswaId])
   const pejabat = useMemo(() => masterData.pejabat.find((p) => p.user_id === pejabatId) || null, [masterData.pejabat, pejabatId])
@@ -380,8 +397,8 @@ function WizardModal({ level: initialLevel, masterData, rekomendasi, onClose }: 
 
             {/* preview (informasi, bukan untuk langsung cetak) */}
             <div className="rounded-lg border border-surface bg-gray-100 p-3 dark:bg-slate-800">
-              <div className="max-h-[70vh] overflow-auto">
-                <div ref={printRef} style={{ background: '#fff' }}>
+              <div ref={previewWrapRef} className="max-h-[70vh] overflow-y-auto overflow-x-hidden">
+                <div ref={printRef} style={{ background: '#fff', zoom: scale } as any}>
                   {previewData ? <TemplateSP data={previewData} /> : <p className="p-6 text-center text-sm text-slate-500">Pilih siswa untuk pratinjau.</p>}
                 </div>
               </div>
