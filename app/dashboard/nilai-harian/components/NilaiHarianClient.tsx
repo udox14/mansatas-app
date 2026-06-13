@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useTransition, useRef, useMemo } from 'react'
+import { useState, useCallback, useTransition, useMemo } from 'react'
 import Script from 'next/script'
 import {
   Plus, Pencil, Trash2, Save, Loader2, Download, Upload, FileSpreadsheet,
@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { useReactToPrint } from 'react-to-print'
+import { openPdfFromUrl } from '@/lib/pdf/download'
 import type { PenugasanGuru, NilaiHeader, NilaiDetail } from '../actions'
 import {
   getNilaiHeaders, getNilaiDetail, buatSesiNilai, editSesiNilai,
@@ -421,8 +421,20 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
 function TabRekap({ penugasanId, mapelNama, kelasLabel }: { penugasanId: string; mapelNama: string; kelasLabel: string }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof getRekapNilai>> | null>(null)
   const [loading, setLoading] = useState(false)
-  const printRef = useRef<HTMLDivElement>(null)
-  const handlePrint = useReactToPrint({ contentRef: printRef })
+  const [printing, setPrinting] = useState(false)
+  const { msg, show } = useToast()
+
+  const handlePrint = async () => {
+    setPrinting(true)
+    try {
+      const qs = new URLSearchParams({ penugasanId, mapel: mapelNama, kelas: kelasLabel })
+      await openPdfFromUrl(`/api/pdf/nilai-harian?${qs.toString()}`, `Rekap_${mapelNama}_${kelasLabel}.pdf`)
+    } catch (e) {
+      show(false, e instanceof Error ? e.message : 'Gagal membuat PDF.')
+    } finally {
+      setPrinting(false)
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true); const res = await getRekapNilai(penugasanId)
@@ -458,10 +470,11 @@ function TabRekap({ penugasanId, mapelNama, kelasLabel }: { penugasanId: string;
         <Button size="sm" variant="outline" onClick={handleExportExcel} className="h-7 text-xs gap-1 rounded-lg">
           <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> Export Excel
         </Button>
-        <Button size="sm" variant="outline" onClick={() => handlePrint()} className="h-7 text-xs gap-1 rounded-lg">
-          <Printer className="h-3.5 w-3.5" /> Cetak PDF
+        <Button size="sm" variant="outline" onClick={handlePrint} disabled={printing} className="h-7 text-xs gap-1 rounded-lg">
+          {printing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />} Cetak PDF
         </Button>
       </div>
+      {msg && <div className={cn('text-xs px-3 py-2 rounded-lg', msg.ok ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400' : 'bg-rose-50 text-rose-700')}>{msg.text}</div>}
 
       <div className="overflow-x-auto rounded-xl border border-surface">
         <table className="w-full text-xs">
@@ -498,44 +511,6 @@ function TabRekap({ penugasanId, mapelNama, kelasLabel }: { penugasanId: string;
             ))}
           </tbody>
         </table>
-      </div>
-
-      {/* Hidden Print Area */}
-      <div className="hidden">
-        <style>{`@media print { @page { size: 215mm 330mm; margin: 20mm; } body { -webkit-print-color-adjust: exact; } }`}</style>
-        <div ref={printRef} style={{ fontFamily: 'Times New Roman, serif', fontSize: '10px', color: '#000' }}>
-          <img src="/kopsurat.png" alt="Kop Surat" style={{ display: 'block', width: 'calc(100% + 40mm)', marginLeft: '-20mm', marginRight: '-20mm', marginTop: '-20mm' }} />
-          <div style={{ textAlign: 'center', margin: '10px 0 12px' }}>
-            <h3 style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', margin: 0 }}>REKAP NILAI HARIAN</h3>
-            <p style={{ fontSize: '10px', margin: '2px 0 0' }}>{mapelNama} — {kelasLabel}</p>
-          </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9px' }}>
-            <thead>
-              <tr>
-                <th style={{ border: '1px solid #000', padding: '3px 4px' }}>No</th>
-                <th style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'left' }}>Nama Siswa</th>
-                {headers.map(h => <th key={h.id} style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'center' }}>{h.judul}<br /><span style={{ fontWeight: 'normal', fontSize: '8px' }}>{h.tanggal}</span></th>)}
-                <th style={{ border: '1px solid #000', padding: '3px 4px' }}>Rata-rata</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={r.siswa_id}>
-                  <td style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'center' }}>{i + 1}</td>
-                  <td style={{ border: '1px solid #000', padding: '3px 4px' }}>{r.nama_lengkap}</td>
-                  {headers.map(h => <td key={h.id} style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'center' }}>{r.nilai[h.id] ?? '-'}</td>)}
-                  <td style={{ border: '1px solid #000', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold' }}>{r.rata_rata ?? '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ marginTop: '20px', textAlign: 'right', fontSize: '9px' }}>
-            <p>Tasikmalaya, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta' })}</p>
-            <p style={{ marginTop: '4px' }}>Guru Mata Pelajaran,</p>
-            <div style={{ height: '48px' }} />
-            <p>(__________________________)</p>
-          </div>
-        </div>
       </div>
     </div>
   )

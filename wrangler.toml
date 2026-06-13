@@ -26,6 +26,11 @@ database_id = "76b7b346-3f3f-4c1e-a347-2d51497bad97"
 binding = "R2"
 bucket_name = "mansatas-storage"
 
+# Browser Rendering — HTML→PDF server-side (cetak konsisten hape+desktop)
+# Butuh Workers Paid plan ($5/mo) diaktifkan di dashboard Cloudflare.
+[browser]
+binding = "BROWSER"
+
 [vars]
 BETTER_AUTH_URL = "https://mansatas-app.drudox.workers.dev"
 R2_PUBLIC_URL = "https://pub-84873e7206c44c4ba6e4aa405b6a8192.r2.dev"

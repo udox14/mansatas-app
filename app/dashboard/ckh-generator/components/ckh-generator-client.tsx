@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
-import { useReactToPrint } from 'react-to-print'
+import { openPdfFromUrl } from '@/lib/pdf/download'
 import {
   AlertTriangle, CalendarDays, Check, ChevronLeft, ChevronRight, FileText, Loader2, Plus, Printer,
   RotateCw, Save, Settings2, Trash2, X,
@@ -362,10 +362,26 @@ function PrintDialog({
 }) {
   const [paper, setPaper] = useState<keyof typeof PAPER>('f4')
   const [margins, setMargins] = useState({ top: 15, right: 12, bottom: 15, left: 12 })
-  const printRef = useRef<HTMLDivElement>(null)
-  const handlePrint = useReactToPrint({ contentRef: printRef })
+  const [printing, setPrinting] = useState(false)
+  const [printError, setPrintError] = useState<string | null>(null)
   const signer = shouldUseKepalaTu(user, userRoles) ? kepalaTu : kepsek
   const profileMissing = !user.nip || !user.jabatan_cetak || !signer?.nip
+
+  const handlePrint = async () => {
+    setPrinting(true)
+    setPrintError(null)
+    try {
+      await openPdfFromUrl('/api/pdf/ckh', `CKH_${year}_${String(month).padStart(2, '0')}.pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows, user, kepsek, kepalaTu, userRoles, signatureSettings, year, month, paper, margins }),
+      })
+    } catch (e) {
+      setPrintError(e instanceof Error ? e.message : 'Gagal membuat PDF.')
+    } finally {
+      setPrinting(false)
+    }
+  }
 
   return (
     <Dialog>
@@ -410,26 +426,13 @@ function PrintDialog({
               </div>
             ))}
           </div>
-          <Button onClick={() => handlePrint()} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
-            <Printer className="h-4 w-4" />
-            Buka Dialog Print
+          {printError && (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{printError}</div>
+          )}
+          <Button onClick={handlePrint} disabled={printing} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+            {printing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+            {printing ? 'Membuat PDF…' : 'Cetak / Simpan PDF'}
           </Button>
-        </div>
-        <div className="hidden">
-          <div ref={printRef}>
-            <CkhPrintDocument
-              rows={rows}
-              user={user}
-              kepsek={kepsek}
-              kepalaTu={kepalaTu}
-              userRoles={userRoles}
-              signatureSettings={signatureSettings}
-              year={year}
-              month={month}
-              pageCss={PAPER[paper].css}
-              margins={margins}
-            />
-          </div>
         </div>
       </DialogContent>
     </Dialog>

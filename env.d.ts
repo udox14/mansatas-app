@@ -76,6 +76,9 @@ interface CloudflareEnv {
   // KV Namespace (incremental cache Next.js)
   NEXT_INC_CACHE_KV: KVNamespace
 
+  // Browser Rendering (HTML→PDF) — binding di-cast ke Fetcher oleh @cloudflare/puppeteer
+  BROWSER: unknown
+
   // Environment variables
   BETTER_AUTH_SECRET: string
   BETTER_AUTH_URL: string
