@@ -4,9 +4,10 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, Users, Trophy, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Users, Trophy, Loader2, FileSpreadsheet } from 'lucide-react'
 import { EkskulModal } from './ekskul-modal'
 import { PembinaPicker } from './pembina-picker'
+import { ImportEkskulModal } from './import-ekskul-modal'
 import { hapusEkskul } from '../actions'
 import type { EkskulMaster, GuruOption } from '../actions'
 
@@ -16,6 +17,7 @@ export function MasterTable({ initialList, guruList }: {
 }) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [editData, setEditData] = useState<EkskulMaster | null>(null)
   const [pembinaTarget, setPembinaTarget] = useState<EkskulMaster | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -47,11 +49,16 @@ export function MasterTable({ initialList, guruList }: {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-xs text-slate-500 dark:text-slate-400">{initialList.length} ekstrakurikuler terdaftar</p>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-3.5 w-3.5 mr-1" /> Tambah
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+            <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Import
+          </Button>
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Tambah
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-lg border bg-white dark:bg-slate-900 overflow-x-auto">
@@ -112,6 +119,7 @@ export function MasterTable({ initialList, guruList }: {
       </div>
 
       {modalOpen && <EkskulModal isOpen={modalOpen} onClose={closeModal} editData={editData} />}
+      {importOpen && <ImportEkskulModal isOpen={importOpen} onClose={() => setImportOpen(false)} />}
       {pembinaTarget && <PembinaPicker ekskul={pembinaTarget} guruList={guruList} onClose={closePembina} />}
     </div>
   )

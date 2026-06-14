@@ -75,7 +75,7 @@ export function NilaiGrid({ ekskulId, modeNilai }: { ekskulId: string; modeNilai
                 <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{r.nama_lengkap}</p>
                 <p className="text-[11px] text-slate-400">{r.nisn} · {r.kelas_label}</p>
               </div>
-              <div className="w-20 shrink-0">
+              <div className="w-16 sm:w-20 shrink-0">
                 {modeNilai === 'angka' ? (
                   <Input type="number" min={0} max={100} value={r.nilai ?? ''}
                     onChange={e => setNilai(r.siswa_id, e.target.value)}
@@ -90,7 +90,7 @@ export function NilaiGrid({ ekskulId, modeNilai }: { ekskulId: string; modeNilai
                   </Select>
                 )}
               </div>
-              <div className="w-40 shrink-0">
+              <div className="w-24 sm:w-40 shrink-0">
                 <Input value={r.catatan ?? ''} onChange={e => setCatatan(r.siswa_id, e.target.value)}
                   placeholder="Catatan" className="h-8 text-xs" />
               </div>
