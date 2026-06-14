@@ -49,6 +49,7 @@ import {
   CircleHelp,
   Smartphone,
   FileWarning,
+  Trophy,
 } from 'lucide-react'
 
 export type MenuItem = {
@@ -213,6 +214,20 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/penugasan',
     icon: Send,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_ppl']
+  },
+  {
+    id: 'ekstrakurikuler',
+    title: 'Ekstrakurikuler',
+    href: '/dashboard/ekstrakurikuler',
+    icon: Trophy,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_ppl', 'guru_tahfidz']
+  },
+  {
+    id: 'ekstrakurikuler-master',
+    title: 'Master Ekstrakurikuler',
+    href: '/dashboard/ekstrakurikuler/master',
+    icon: Trophy,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad']
   },
   {
     id: 'whatsapp',
@@ -459,8 +474,8 @@ export const MENU_ITEMS: MenuItem[] = [
 
 export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'utama', label: 'Utama', items: ['dashboard'] },
-  { id: 'data-master', label: 'Data Master', items: ['siswa', 'guru', 'kelas', 'plotting'] },
-  { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'agenda-kelas', 'ckh-generator', 'rppm-generator', 'kehadiran', 'nilai-harian', 'penugasan'] },
+  { id: 'data-master', label: 'Data Master', items: ['siswa', 'guru', 'kelas', 'plotting', 'ekstrakurikuler-master'] },
+  { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'agenda-kelas', 'ckh-generator', 'rppm-generator', 'kehadiran', 'nilai-harian', 'penugasan', 'ekstrakurikuler'] },
   { id: 'monitoring-akademik', label: 'Monitoring Akademik', items: ['akademik', 'kalender-pendidikan', 'analitik'] },
   { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'monitoring-penugasan', 'monitoring-kedisiplinan', 'rekap-absensi', 'akademik-nilai'] },
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
