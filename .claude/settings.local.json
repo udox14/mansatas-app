@@ -20,7 +20,9 @@
       "Bash(npm install:*)",
       "Bash(xargs grep -l \"pelanggaran\")",
       "Bash(grep -E \"\\\\.\\(sql|ts|tsx\\)$\")",
-      "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")"
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
+      "mcp__216efd6a-20d2-4f0d-a196-8ec636e31c7b__d1_databases_list",
+      "mcp__216efd6a-20d2-4f0d-a196-8ec636e31c7b__d1_database_query"
     ]
   }
 }

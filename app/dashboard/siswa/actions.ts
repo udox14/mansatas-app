@@ -2,7 +2,7 @@
 'use server'
 
 import { getDB, dbInsert, dbUpdate, dbDelete, dbSelectOne, dbBatchInsert, serializeValue } from '@/utils/db'
-import { uploadFotoSiswa, deleteFromR2, validateImageFile } from '@/utils/r2'
+import { uploadFotoSiswa, validateImageFile } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
@@ -41,10 +41,18 @@ export async function tambahSiswa(prevState: any, formData: FormData) {
 
   const result = await dbInsert(db, 'siswa', payload)
   if (result.error) {
-    return {
-      error: result.error.includes('UNIQUE') ? 'NISN sudah terdaftar' : result.error,
-      success: null,
+    if (result.error.includes('UNIQUE')) {
+      // Bisa jadi bentrok dengan siswa yang ada di sampah (soft delete)
+      const existing = await db
+        .prepare('SELECT status FROM siswa WHERE nisn = ?')
+        .bind(payload.nisn)
+        .first<{ status: string }>()
+      if (existing?.status === 'dihapus') {
+        return { error: 'NISN ini milik siswa yang ada di sampah. Pulihkan siswa tersebut, jangan tambah baru.', success: null }
+      }
+      return { error: 'NISN sudah terdaftar', success: null }
     }
+    return { error: result.error, success: null }
   }
 
   revalidatePath('/dashboard/siswa')
@@ -58,21 +66,34 @@ export async function hapusSiswa(id: string) {
   if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
 
-  // Hapus foto R2 jika ada sebelum hapus record
-  const siswa = await db
-    .prepare('SELECT foto_url FROM siswa WHERE id = ?')
+  // SOFT DELETE: tandai status='dihapus' + deleted_at. Data anak (fin_*, akademik,
+  // tahfidz, dll) tetap utuh → reversible via restoreSiswa. Foto R2 TIDAK dihapus
+  // di sini (baru dibuang saat purge permanen). Residu dibersihkan cron
+  // /api/cron/purge-siswa setelah 90 hari. Mayoritas query app filter status='aktif'
+  // → siswa dihapus otomatis tersembunyi.
+  const result = await db
+    .prepare("UPDATE siswa SET status = 'dihapus', deleted_at = datetime('now') WHERE id = ?")
     .bind(id)
-    .first<{ foto_url: string | null }>()
-
-  if (siswa?.foto_url) {
-    await deleteFromR2(siswa.foto_url)
-  }
-
-  const result = await dbDelete(db, 'siswa', { id })
-  if (result.error) return { error: result.error }
+    .run()
+  if (!result.success) return { error: 'Gagal menghapus siswa.' }
 
   revalidatePath('/dashboard/siswa')
-  return { success: 'Data siswa berhasil dihapus permanen.' }
+  return { success: 'Siswa dipindahkan ke sampah. Dihapus permanen otomatis setelah 90 hari.' }
+}
+
+// Batalkan soft delete (kembalikan ke aktif).
+export async function restoreSiswa(id: string) {
+  if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
+  const db = await getDB()
+
+  const result = await db
+    .prepare("UPDATE siswa SET status = 'aktif', deleted_at = NULL WHERE id = ? AND status = 'dihapus'")
+    .bind(id)
+    .run()
+  if (!result.success) return { error: 'Gagal memulihkan siswa.' }
+
+  revalidatePath('/dashboard/siswa')
+  return { success: 'Siswa berhasil dipulihkan.' }
 }
 
 // ============================================================
