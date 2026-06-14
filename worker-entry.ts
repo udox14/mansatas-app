@@ -27,15 +27,18 @@ export default {
         "Authorization": `Bearer ${cronSecret}`,
         "cf-cron": "true",
       };
-      const [reminderResponse, whatsappResponse] = await Promise.all([
+      const [reminderResponse, whatsappResponse, purgeResponse] = await Promise.all([
         fetch(`${baseUrl}/api/cron/reminder-jadwal`, { method: "GET", headers }),
         fetch(`${baseUrl}/api/cron/whatsapp`, { method: "GET", headers }),
+        fetch(`${baseUrl}/api/cron/purge-siswa`, { method: "GET", headers }),
       ]);
 
       const reminderResult = await reminderResponse.json();
       const whatsappResult = await whatsappResponse.json();
+      const purgeResult = await purgeResponse.json();
       console.log("Cron reminder result:", JSON.stringify(reminderResult));
       console.log("Cron WhatsApp result:", JSON.stringify(whatsappResult));
+      console.log("Cron purge-siswa result:", JSON.stringify(purgeResult));
     } catch (error: any) {
       console.error("Cron dispatcher error:", error?.message || error);
     }

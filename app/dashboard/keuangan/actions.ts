@@ -103,17 +103,18 @@ export async function getDsptList(filters?: { status?: string; angkatan?: string
       s.id as siswa_id, s.nama_lengkap, s.nisn,
       s.tahun_masuk,
       k.tingkat, k.nomor_kelas, k.kelompok,
-      (
-        SELECT GROUP_CONCAT(DISTINCT t.metode_bayar)
-        FROM fin_transaksi_detail td
-        JOIN fin_transaksi t ON t.id = td.transaksi_id
-        WHERE td.ref_type = 'dspt'
-          AND td.ref_id = d.id
-          AND t.is_void = 0
-      ) AS metode_bayar_set
+      mb.metode_bayar_set
     FROM siswa s
     LEFT JOIN fin_dspt d ON d.siswa_id = s.id
     LEFT JOIN kelas k ON k.id = s.kelas_id
+    LEFT JOIN (
+      SELECT td.ref_id, GROUP_CONCAT(DISTINCT t.metode_bayar) AS metode_bayar_set
+      FROM fin_transaksi_detail td
+      JOIN fin_transaksi t ON t.id = td.transaksi_id
+      WHERE td.ref_type = 'dspt'
+        AND t.is_void = 0
+      GROUP BY td.ref_id
+    ) mb ON mb.ref_id = d.id
     WHERE 1=1
   `
   const params: any[] = []

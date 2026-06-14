@@ -34,6 +34,7 @@ async function SiswaDataFetcher({ userId, userRoles, isFullListAccess, allowedKe
         s.tempat_tinggal, s.kelas_id, s.tahun_masuk,
         k.id as k_id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
       FROM siswa s LEFT JOIN kelas k ON s.kelas_id = k.id
+      WHERE s.status != 'dihapus'
       ORDER BY s.nama_lengkap ASC
     `
   } else if (allowedKelasIds.size > 0) {
@@ -43,7 +44,7 @@ async function SiswaDataFetcher({ userId, userRoles, isFullListAccess, allowedKe
         s.tempat_tinggal, s.kelas_id, s.tahun_masuk,
         k.id as k_id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
       FROM siswa s LEFT JOIN kelas k ON s.kelas_id = k.id
-      WHERE s.kelas_id IN (${placeholders})
+      WHERE s.kelas_id IN (${placeholders}) AND s.status != 'dihapus'
       ORDER BY s.nama_lengkap ASC
     `
     siswaParams = Array.from(allowedKelasIds)
