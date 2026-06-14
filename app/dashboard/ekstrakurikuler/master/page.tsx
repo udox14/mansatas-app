@@ -34,24 +34,24 @@ export default async function MasterEkskulPage() {
         description="Kelola daftar ekstrakurikuler, tunjuk pembina, dan pantau kegiatan."
       />
 
-      <Tabs defaultValue="daftar" className="space-y-3">
+      <Tabs defaultValue="monitoring" className="space-y-3">
         <TabsList className="grid w-full grid-cols-2 max-w-sm">
-          <TabsTrigger value="daftar" className="text-xs sm:text-sm">
-            <Trophy className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />
-            Daftar Ekskul
-          </TabsTrigger>
           <TabsTrigger value="monitoring" className="text-xs sm:text-sm">
             <Activity className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />
             Monitoring
           </TabsTrigger>
+          <TabsTrigger value="daftar" className="text-xs sm:text-sm">
+            <Trophy className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />
+            Daftar Ekskul
+          </TabsTrigger>
         </TabsList>
-
-        <TabsContent value="daftar">
-          <MasterTable initialList={ekskulList} guruList={guruList} />
-        </TabsContent>
 
         <TabsContent value="monitoring">
           <MonitoringTab rows={monitoring} />
+        </TabsContent>
+
+        <TabsContent value="daftar">
+          <MasterTable initialList={ekskulList} guruList={guruList} />
         </TabsContent>
       </Tabs>
     </div>
