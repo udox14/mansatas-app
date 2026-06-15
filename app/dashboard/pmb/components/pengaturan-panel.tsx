@@ -4,7 +4,9 @@ import { useState, useTransition } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Save, Loader2 } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Save, Loader2, Info } from 'lucide-react'
 import { simpanPengaturan } from '../actions'
 
 // Prefix no_pendaftaran dari tahun: '2026/2027' -> '2627'
@@ -54,17 +56,25 @@ export function PengaturanPanel({ pengaturan, onFlash }: {
 
   return (
     <div className="max-w-xl space-y-4">
-      <div className="rounded-md bg-blue-50 text-blue-700 text-sm px-4 py-2">
-        Prefix nomor pendaftaran: <b>{prefixDariTahun(tahun)}</b> → contoh: {prefixDariTahun(tahun)}001
-      </div>
-      <div className="space-y-3">
-        {FIELDS.map(([key, label, ph]) => (
-          <div key={key}>
-            <Label className="text-xs">{label}</Label>
-            <Input value={vals[key]} placeholder={ph} onChange={(e) => setVals({ ...vals, [key]: e.target.value })} />
-          </div>
-        ))}
-      </div>
+      <Alert className="border-blue-200 bg-blue-50 text-blue-700">
+        <Info className="h-4 w-4 text-blue-600" />
+        <AlertDescription>
+          Prefix nomor pendaftaran: <b>{prefixDariTahun(tahun)}</b> → contoh: {prefixDariTahun(tahun)}001
+        </AlertDescription>
+      </Alert>
+      <Card>
+        <CardHeader className="py-3 px-4">
+          <CardTitle className="text-sm">Konfigurasi PMB</CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-3">
+          {FIELDS.map(([key, label, ph]) => (
+            <div key={key}>
+              <Label className="text-xs">{label}</Label>
+              <Input value={vals[key]} placeholder={ph} onChange={(e) => setVals({ ...vals, [key]: e.target.value })} />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
       <Button disabled={pending} onClick={() => start(async () => onFlash(await simpanPengaturan(vals)))}>
         {pending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
         Simpan Pengaturan

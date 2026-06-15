@@ -7,6 +7,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Card, CardContent } from '@/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import {
   Loader2, FileText, ExternalLink, CheckCircle2, XCircle, RefreshCw, Edit2, Save, X,
 } from 'lucide-react'
@@ -106,7 +109,8 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
         ) : (
           <div className="space-y-4">
             {/* ── Quick action bar ── */}
-            <div className="flex flex-wrap gap-2 p-3 rounded-lg border bg-muted/30">
+            <Card className="bg-muted/30">
+            <CardContent className="flex flex-wrap gap-2 p-3">
               <Button size="sm" variant="outline" disabled={pend} onClick={() => doVerif(true)}
                 className="text-emerald-700 border-emerald-400 hover:bg-emerald-50">
                 <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Verifikasi
@@ -132,12 +136,14 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
                   <RefreshCw className="h-3.5 w-3.5 mr-1" />Alih Reguler
                 </Button>
               )}
-            </div>
+            </CardContent>
+            </Card>
 
             {data.pendaftar.berkas_ditolak && (
-              <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
-                <span className="font-semibold">Alasan tolak berkas:</span> {data.pendaftar.berkas_ditolak}
-              </div>
+              <Alert variant="destructive" className="bg-red-50 text-red-700 border-red-200">
+                <AlertTitle className="text-sm font-semibold">Alasan tolak berkas</AlertTitle>
+                <AlertDescription>{data.pendaftar.berkas_ditolak}</AlertDescription>
+              </Alert>
             )}
 
             <Tabs defaultValue="biodata">
@@ -263,18 +269,20 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
                 <TabsContent value="prestasi" className="mt-3">
                   <div className="space-y-2">
                     {data.prestasi.map((p: any) => (
-                      <div key={p.id} className="border rounded-md p-3 text-sm">
-                        <div className="font-semibold">{p.nama_lomba}</div>
-                        <div className="text-muted-foreground text-xs mt-0.5">
-                          {p.kategori} · {p.tingkat} · {p.penyelenggara} · {p.tahun_perolehan}
-                        </div>
-                        {p.sertifikat_url && (
-                          <a href={p.sertifikat_url} target="_blank" rel="noreferrer"
-                            className="text-blue-600 text-xs flex items-center gap-1 mt-1">
-                            <ExternalLink className="h-3 w-3" />Lihat Sertifikat
-                          </a>
-                        )}
-                      </div>
+                      <Card key={p.id}>
+                        <CardContent className="p-3 text-sm">
+                          <div className="font-semibold">{p.nama_lomba}</div>
+                          <div className="text-muted-foreground text-xs mt-0.5">
+                            {p.kategori} · {p.tingkat} · {p.penyelenggara} · {p.tahun_perolehan}
+                          </div>
+                          {p.sertifikat_url && (
+                            <a href={p.sertifikat_url} target="_blank" rel="noreferrer"
+                              className="text-blue-600 text-xs flex items-center gap-1 mt-1">
+                              <ExternalLink className="h-3 w-3" />Lihat Sertifikat
+                            </a>
+                          )}
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
                 </TabsContent>
@@ -291,16 +299,16 @@ function Section({ title, rows }: { title: string; rows: [string, any][] }) {
   return (
     <div>
       <div className="font-semibold text-xs uppercase tracking-wide text-muted-foreground mb-1.5 border-b pb-1">{title}</div>
-      <table className="w-full">
-        <tbody>
+      <Table>
+        <TableBody>
           {rows.map(([k, v]) => (
-            <tr key={k}>
-              <td className="text-muted-foreground py-0.5 pr-3 align-top w-36 text-xs">{k}</td>
-              <td className="py-0.5 text-sm">{v || <span className="text-slate-300">—</span>}</td>
-            </tr>
+            <TableRow key={k} className="border-0 hover:bg-transparent">
+              <TableCell className="text-muted-foreground py-0.5 pr-3 align-top w-36 text-xs pl-0">{k}</TableCell>
+              <TableCell className="py-0.5 text-sm pl-0">{v || <span className="text-slate-300">—</span>}</TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   )
 }

@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Search, CheckCircle2, XCircle, Clock, Loader2, Eye, UserPlus, FileSpreadsheet,
   CalendarClock, Settings, GraduationCap, Trophy, ArrowUpDown, ArrowUp, ArrowDown,
@@ -168,9 +170,9 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
   return (
     <div className="space-y-4">
       {msg && (
-        <div className={`rounded-md px-4 py-2 text-sm font-medium ${msg.type === 'ok' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-          {msg.text}
-        </div>
+        <Alert className={msg.type === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}>
+          <AlertDescription className="font-medium">{msg.text}</AlertDescription>
+        </Alert>
       )}
 
       {/* ── 9 Stat Cards ── */}
@@ -387,10 +389,12 @@ const STAT_TEXT: Record<string, string> = {
 
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className={`border rounded-lg p-3 border-l-4 ${STAT_COLORS[color] || ''}`}>
-      <div className={`text-2xl font-black leading-none ${STAT_TEXT[color] || ''}`}>{value}</div>
-      <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mt-1 leading-tight">{label}</div>
-    </div>
+    <Card className={`border-l-4 ${STAT_COLORS[color] || ''}`}>
+      <CardContent className="p-3">
+        <div className={`text-2xl font-black leading-none ${STAT_TEXT[color] || ''}`}>{value}</div>
+        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mt-1 leading-tight">{label}</div>
+      </CardContent>
+    </Card>
   )
 }
 
