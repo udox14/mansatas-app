@@ -22,14 +22,28 @@ export async function verifikasiBerkas(ids: string[], diterima: boolean | null, 
   const db = await getDB()
   const now = new Date().toISOString()
   for (const id of ids) {
-    await dbUpdate(db, 'pmb_pendaftar', {
+    const update: Record<string, any> = {
       status_verifikasi: diterima === null ? null : (diterima ? 1 : 0),
-      berkas_ditolak: diterima === false ? (alasan || 'Berkas tidak valid') : null,
       updated_at: now,
-    }, { id })
+    }
+    // clear flags when verified or reset; when rejecting, flags stay (managed by setFlagBerkas)
+    if (diterima !== false) update.berkas_ditolak = null
+    await dbUpdate(db, 'pmb_pendaftar', update, { id })
   }
   revalidatePath('/dashboard/pmb')
   return { success: `${ids.length} pendaftar diperbarui` }
+}
+
+// ── Flag berkas bermasalah (JSON array of field keys) ─────
+export async function setFlagBerkas(id: string, keys: string[]) {
+  if (!(await verifyPmbAccess())) return { error: 'Akses ditolak' }
+  const db = await getDB()
+  await dbUpdate(db, 'pmb_pendaftar', {
+    berkas_ditolak: keys.length > 0 ? JSON.stringify(keys) : null,
+    updated_at: new Date().toISOString(),
+  }, { id })
+  revalidatePath('/dashboard/pmb')
+  return { success: 'Flag berkas disimpan' }
 }
 
 // ── Kelulusan ──────────────────────────────────────────────
@@ -156,6 +170,63 @@ export async function terimaJadiSiswa(pendaftarId: string) {
   return { success: `${p.nama_lengkap} berhasil menjadi siswa` }
 }
 
+// ── Bulk terima jadi siswa ─────────────────────────────────
+export async function bulkTerimaJadiSiswa(pendaftarIds: string[]) {
+  if (!(await verifyPmbAccess())) return { error: 'Akses ditolak' }
+  if (!pendaftarIds.length) return { error: 'Tidak ada ID' }
+  const db = await getDB()
+
+  const placeholders = pendaftarIds.map(() => '?').join(',')
+  const { results: list } = await db.prepare(
+    `SELECT * FROM pmb_pendaftar WHERE id IN (${placeholders})`,
+  ).bind(...pendaftarIds).all<any>()
+
+  const now = new Date().toISOString()
+  let berhasil = 0; let dilewati = 0; const gagalNames: string[] = []
+
+  for (const p of list) {
+    if (p.siswa_id || p.status_kelulusan !== 'DITERIMA') { dilewati++; continue }
+
+    const dup = await db.prepare('SELECT id FROM siswa WHERE nisn = ?').bind(p.nisn).first<{ id: string }>()
+    if (dup) {
+      await dbUpdate(db, 'pmb_pendaftar', { siswa_id: dup.id, updated_at: now }, { id: p.id })
+      berhasil++; continue
+    }
+
+    const tahunMasuk = parseInt((p.tahun_ajaran || '').split('/')[0]) || new Date().getFullYear()
+    const payload = {
+      nisn: p.nisn, nama_lengkap: p.nama_lengkap,
+      jenis_kelamin: JK_MAP[p.jenis_kelamin] || null,
+      status: 'aktif', tahun_masuk: tahunMasuk, foto_url: p.foto_url,
+      nik: p.nik, tempat_lahir: p.tempat_lahir, tanggal_lahir: p.tanggal_lahir, agama: p.agama,
+      jumlah_saudara: p.jumlah_saudara, anak_ke: p.anak_ke, status_anak: p.status_anak,
+      alamat_lengkap: p.alamat_lengkap, rt: p.rt, rw: p.rw, desa_kelurahan: p.desa_kelurahan,
+      kecamatan: p.kecamatan, kabupaten_kota: p.kabupaten_kota, provinsi: p.provinsi, kode_pos: p.kode_pos,
+      nomor_whatsapp: p.no_telepon_ortu, nomor_kk: p.no_kk,
+      nama_ayah: p.nama_ayah, nik_ayah: p.nik_ayah, pendidikan_ayah: p.pendidikan_ayah,
+      pekerjaan_ayah: p.pekerjaan_ayah, penghasilan_ayah: p.penghasilan_ayah,
+      nama_ibu: p.nama_ibu, nik_ibu: p.nik_ibu, pendidikan_ibu: p.pendidikan_ibu,
+      pekerjaan_ibu: p.pekerjaan_ibu, penghasilan_ibu: p.penghasilan_ibu,
+    }
+    const res = await dbInsert<{ id: string }>(db, 'siswa', payload)
+    if (res.error || !res.data) { gagalNames.push(p.nama_lengkap); continue }
+
+    await dbUpdate(db, 'pmb_pendaftar', {
+      siswa_id: res.data.id, daftar_ulang_status: 'SELESAI', updated_at: now,
+    }, { id: p.id })
+    berhasil++
+  }
+
+  revalidatePath('/dashboard/pmb')
+  revalidatePath('/dashboard/siswa')
+  const msg = `${berhasil} siswa berhasil dibuat`
+  const detail = [
+    dilewati > 0 && `${dilewati} dilewati (bukan DITERIMA / sudah siswa)`,
+    gagalNames.length > 0 && `gagal: ${gagalNames.join(', ')}`,
+  ].filter(Boolean).join('; ')
+  return { success: detail ? `${msg} · ${detail}` : msg }
+}
+
 // Detail lengkap 1 pendaftar + prestasi (utk modal)
 export async function getDetailPendaftar(id: string) {
   if (!(await verifyPmbAccess())) return { error: 'Akses ditolak', pendaftar: null, prestasi: [] }
@@ -194,8 +265,13 @@ const ADMIN_EDITABLE = new Set([
   'nisn','nik','nama_lengkap','jenis_kelamin','tempat_lahir','tanggal_lahir',
   'ukuran_baju','agama','jumlah_saudara','anak_ke','status_anak',
   'provinsi','kabupaten_kota','kecamatan','desa_kelurahan','rt','rw','alamat_lengkap','kode_pos',
-  'no_kk','nama_ayah','nik_ayah','pendidikan_ayah','pekerjaan_ayah','penghasilan_ayah',
-  'nama_ibu','nik_ibu','pendidikan_ibu','pekerjaan_ibu','penghasilan_ibu','no_telepon_ortu',
+  'no_kk','no_telepon_ortu',
+  'nama_ayah','nik_ayah','tempat_lahir_ayah','tanggal_lahir_ayah','status_ayah',
+  'pendidikan_ayah','pekerjaan_ayah','penghasilan_ayah',
+  'nama_ibu','nik_ibu','tempat_lahir_ibu','tanggal_lahir_ibu','status_ibu',
+  'pendidikan_ibu','pekerjaan_ibu','penghasilan_ibu',
+  'nama_wali','nik_wali','tempat_lahir_wali','tanggal_lahir_wali',
+  'pendidikan_wali','pekerjaan_wali','penghasilan_wali','no_telepon_wali',
   'asal_sekolah','npsn_sekolah','status_sekolah','alamat_sekolah','pilihan_pesantren',
   'daftar_ulang_status',
 ])

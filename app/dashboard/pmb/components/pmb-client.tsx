@@ -22,7 +22,7 @@ import { JadwalPanel } from './jadwal-panel'
 import { PengaturanPanel } from './pengaturan-panel'
 import { ExportPanel } from './export-panel'
 import {
-  verifikasiBerkas, setKelulusan, terimaJadiSiswa, bulkAlihReguler, importKelulusan,
+  verifikasiBerkas, setKelulusan, terimaJadiSiswa, bulkAlihReguler, importKelulusan, bulkTerimaJadiSiswa,
 } from '../actions'
 
 export type Pendaftar = {
@@ -31,7 +31,7 @@ export type Pendaftar = {
   siswa_id: string | null; nisn: string; nik: string; nama_lengkap: string; jenis_kelamin: string
   asal_sekolah: string; no_telepon_ortu: string; foto_url: string | null
   tanggal_tes: string | null; sesi_tes: string | null; ruang_tes: string | null
-  daftar_ulang_status: string | null; created_at: string
+  daftar_ulang_status: string | null; dspt_status: string | null; created_at: string
 }
 
 type SortKey = 'nama_lengkap' | 'jalur' | 'asal_sekolah' | 'status_verifikasi' | 'status_kelulusan' | 'daftar_ulang_status'
@@ -47,6 +47,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
   const [fVerif, setFVerif] = useState('all')
   const [fLulus, setFLulus] = useState('all')
   const [fDaftarUlang, setFDaftarUlang] = useState('all')
+  const [fDspt, setFDspt] = useState('all')
   const [sortKey, setSortKey] = useState<SortKey>('nama_lengkap')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [pageSize, setPageSize] = useState(25)
@@ -86,6 +87,10 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
         const du = p.daftar_ulang_status === 'SELESAI' ? 'selesai' : 'belum'
         if (du !== fDaftarUlang) return false
       }
+      if (fDspt !== 'all') {
+        const ds = p.dspt_status ?? 'null'
+        if (ds !== fDspt) return false
+      }
       return true
     })
 
@@ -97,7 +102,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
       return sortDir === 'asc' ? cmp : -cmp
     })
     return list
-  }, [pendaftar, q, fJalur, fVerif, fLulus, fDaftarUlang, sortKey, sortDir])
+  }, [pendaftar, q, fJalur, fVerif, fLulus, fDaftarUlang, fDspt, sortKey, sortDir])
 
   // ── Pagination ────────────────────────────────────────────────
   const totalPages = pageSize === 0 ? 1 : Math.ceil(filtered.length / pageSize)
@@ -146,6 +151,11 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
   }
   function doTerima(id: string) {
     startTransition(async () => flash(await terimaJadiSiswa(id)))
+  }
+  function doBulkTerima() {
+    if (!selected.size) return
+    if (!confirm(`Jadikan ${selected.size} pendaftar terpilih sebagai siswa? Hanya yang berstatus DITERIMA yang diproses.`)) return
+    startTransition(async () => { flash(await bulkTerimaJadiSiswa(ids())); setSelected(new Set()) })
   }
 
   // ── Template Kelulusan ─────────────────────────────────────────
@@ -281,6 +291,11 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                       <FilterSelect value={fDaftarUlang} onChange={(v) => { setFDaftarUlang(v); setPage(1) }} placeholder="Daftar Ulang"
                         options={[['all', 'Semua DU'], ['selesai', 'Sudah DU'], ['belum', 'Belum DU']]} className="w-full" />
                     </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-slate-500">DSPT</Label>
+                      <FilterSelect value={fDspt} onChange={(v) => { setFDspt(v); setPage(1) }} placeholder="DSPT"
+                        options={[['all', 'Semua DSPT'], ['lunas', 'Lunas'], ['nyicil', 'Nyicil'], ['belum_bayar', 'Belum Bayar'], ['null', 'Belum Diinput']]} className="w-full" />
+                    </div>
                   </div>
 
                   <hr className="my-2 border-slate-100 dark:border-slate-800" />
@@ -314,6 +329,8 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
               options={[['all', 'Semua Hasil'], ['PENDING', 'Pending'], ['DITERIMA', 'Diterima'], ['TIDAK DITERIMA', 'Tidak Diterima']]} />
             <FilterSelect value={fDaftarUlang} onChange={(v) => { setFDaftarUlang(v); setPage(1) }} placeholder="Daftar Ulang"
               options={[['all', 'Semua DU'], ['selesai', 'Sudah DU'], ['belum', 'Belum DU']]} />
+            <FilterSelect value={fDspt} onChange={(v) => { setFDspt(v); setPage(1) }} placeholder="DSPT"
+              options={[['all', 'Semua DSPT'], ['lunas', 'Lunas'], ['nyicil', 'Nyicil'], ['belum_bayar', 'Belum Bayar'], ['null', 'Belum Diinput']]} />
             <Button variant="outline" size="sm" onClick={downloadTemplate} title="Download template Excel untuk import kelulusan" className="h-9">
               <FileDown className="h-4 w-4 mr-1" />Template Kelulusan
             </Button>
@@ -342,6 +359,10 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                 </Button>
                 <Button size="sm" variant="secondary" disabled={pending} onClick={doAlihReguler}>
                   <RefreshCw className="h-3.5 w-3.5 mr-1 text-blue-400" />Alih Reguler
+                </Button>
+                <Button size="sm" disabled={pending} onClick={doBulkTerima}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <UserPlus className="h-3.5 w-3.5 mr-1" />Jadikan Siswa
                 </Button>
               </div>
               {pending && <Loader2 className="h-4 w-4 animate-spin ml-2" />}
@@ -381,8 +402,12 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                       <Checkbox checked={isSel} onCheckedChange={() => toggle(p.id)} />
                     </div>
 
-                    {/* Photo Frame 3:4 */}
-                    <div className="w-14 h-[75px] rounded-md overflow-hidden bg-slate-50 dark:bg-slate-900 border border-slate-150 flex-shrink-0 flex items-center justify-center relative">
+                    {/* Photo Frame 3:4 — clickable */}
+                    <button
+                      onClick={() => setDetailId(p.id)}
+                      className="w-14 h-[75px] rounded-md overflow-hidden bg-slate-50 dark:bg-slate-900 border border-slate-200 flex-shrink-0 flex items-center justify-center relative cursor-pointer hover:opacity-80 transition-opacity"
+                      title="Lihat detail"
+                    >
                       {p.foto_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -391,12 +416,12 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="flex flex-col items-center justify-center text-slate-350 dark:text-slate-700 p-1">
+                        <div className="flex flex-col items-center justify-center text-slate-400 p-1">
                           <Users className="h-5 w-5 stroke-[1.2]" />
                           <span className="text-[7px] font-medium mt-0.5">No Photo</span>
                         </div>
                       )}
-                    </div>
+                    </button>
 
                     {/* Info */}
                     <div className="flex-1 min-w-0 space-y-1">
@@ -420,6 +445,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                         <JalurBadge jalur={p.jalur} />
                         <VerifBadge v={p.status_verifikasi} />
                         <LulusBadge s={p.status_kelulusan} />
+                        <DsptBadge s={p.dspt_status} />
                       </div>
 
                       {/* Additional row info / actions */}
@@ -454,7 +480,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                     <TableHead className="w-8 py-2">
                       <Checkbox checked={selected.size > 0 && selected.size === paginated.length} onCheckedChange={toggleAll} />
                     </TableHead>
-                    <TableHead className="py-2 text-xs font-bold uppercase tracking-wide">No. Daftar</TableHead>
+                    <TableHead className="w-12 py-2" />
                     <TableHead className="py-2 text-xs font-bold uppercase tracking-wide cursor-pointer select-none" onClick={() => handleSort('nama_lengkap')}>
                       <span className="flex items-center">Nama <SortIcon k="nama_lengkap" /></span>
                     </TableHead>
@@ -471,6 +497,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                     <TableHead className="py-2 text-xs font-bold uppercase tracking-wide cursor-pointer select-none" onClick={() => handleSort('daftar_ulang_status')}>
                       <span className="flex items-center">Daftar Ulang <SortIcon k="daftar_ulang_status" /></span>
                     </TableHead>
+                    <TableHead className="py-2 text-xs font-bold uppercase tracking-wide">DSPT</TableHead>
                     <TableHead className="py-2 text-right text-xs font-bold uppercase tracking-wide">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -478,7 +505,20 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                   {paginated.map((p) => (
                     <TableRow key={p.id} className="hover:bg-muted/30">
                       <TableCell className="py-2"><Checkbox checked={selected.has(p.id)} onCheckedChange={() => toggle(p.id)} /></TableCell>
-                      <TableCell className="py-2 font-mono text-xs text-muted-foreground">{p.no_pendaftaran}</TableCell>
+                      <TableCell className="py-1 pl-1 pr-0">
+                        <button
+                          onClick={() => setDetailId(p.id)}
+                          className="w-10 h-[52px] rounded-md overflow-hidden bg-slate-50 border border-slate-200 flex items-center justify-center hover:opacity-80 transition-opacity cursor-pointer"
+                          title="Lihat detail"
+                        >
+                          {p.foto_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={p.foto_url} alt={p.nama_lengkap} className="w-full h-full object-cover" />
+                          ) : (
+                            <Users className="h-4 w-4 text-slate-400" />
+                          )}
+                        </button>
+                      </TableCell>
                       <TableCell className="py-2">
                         <div className="font-medium text-sm leading-tight">{p.nama_lengkap}</div>
                         <div className="text-xs text-muted-foreground">{p.nisn} · {p.asal_sekolah}</div>
@@ -497,6 +537,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                             : <span className="text-xs text-slate-300">—</span>
                         }
                       </TableCell>
+                      <TableCell className="py-2"><DsptBadge s={p.dspt_status} /></TableCell>
                       <TableCell className="py-2 text-right">
                         <div className="flex gap-1 justify-end">
                           <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setDetailId(p.id)}><Eye className="h-4 w-4" /></Button>
@@ -606,4 +647,10 @@ export function LulusBadge({ s }: { s: string }) {
   if (s === 'DITERIMA') return <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-100">DITERIMA</Badge>
   if (s === 'TIDAK DITERIMA') return <Badge variant="destructive" className="text-[10px]">TIDAK</Badge>
   return <Badge variant="outline" className="text-[10px] text-slate-500">PENDING</Badge>
+}
+export function DsptBadge({ s }: { s: string | null }) {
+  if (s === 'lunas') return <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-100">Lunas</Badge>
+  if (s === 'nyicil') return <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-100">Nyicil</Badge>
+  if (s === 'belum_bayar') return <Badge className="text-[10px] bg-red-100 text-red-700 border-red-300 hover:bg-red-100">Belum Bayar</Badge>
+  return <span className="text-xs text-slate-300">—</span>
 }
