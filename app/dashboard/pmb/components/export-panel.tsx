@@ -93,52 +93,18 @@ export function ExportPanel({ pendaftar, pengaturan, onFlash }: {
   async function exportZip() {
     setZipping(true)
     try {
-      const res = await getExportData()
-      if (res.error || !res.data.length) { onFlash({ error: res.error || 'Tidak ada data' }); return }
-
-      const JSZip = (await import('jszip')).default
-      const zip = new JSZip()
-
-      // Buat manifest Excel di dalam ZIP
-      const XLSX = await import('xlsx')
-      const rows = res.data.map((p: any) => ({
-        no_pendaftaran: p.no_pendaftaran,
-        nama: p.nama_lengkap,
-        foto: p.foto_url || '',
-        kk: p.scan_kk_url || '',
-        akta: p.scan_akta_url || '',
-        ktp_ortu: p.scan_ktp_ortu_url || '',
-        kelakuan_baik: p.scan_kelakuan_baik_url || '',
-        rapor: p.scan_rapor_url || '',
-        sertifikat: p.scan_sertifikat_prestasi_url || '',
-      }))
-      const ws = XLSX.utils.json_to_sheet(rows)
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, 'Manifest Berkas')
-      const xlsBuf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' })
-      zip.file('manifest_berkas.xlsx', xlsBuf)
-
-      // Folder URL per pendaftar (berkas di R2, simpan sebagai daftar link)
-      const links: string[] = ['no_pendaftaran,nama,tipe,url']
-      const urlFields = ['foto_url', 'scan_kk_url', 'scan_akta_url', 'scan_ktp_ortu_url', 'scan_kelakuan_baik_url', 'scan_rapor_url', 'scan_sertifikat_prestasi_url']
-      const labelMap: Record<string, string> = {
-        foto_url: 'foto', scan_kk_url: 'kk', scan_akta_url: 'akta',
-        scan_ktp_ortu_url: 'ktp_ortu', scan_kelakuan_baik_url: 'kelakuan_baik',
-        scan_rapor_url: 'rapor', scan_sertifikat_prestasi_url: 'sertifikat',
+      const tahun = (pengaturan.tahun_pmb || 'PMB').replace('/', '-')
+      const res = await fetch(`/api/pmb/download-berkas?tahun=${encodeURIComponent(tahun)}`)
+      if (!res.ok) {
+        const msg = await res.text()
+        onFlash({ error: msg || 'Gagal membuat ZIP' })
+        return
       }
-      for (const p of res.data as any[]) {
-        for (const field of urlFields) {
-          if (p[field]) links.push(`${p.no_pendaftaran},${p.nama_lengkap},${labelMap[field]},${p[field]}`)
-        }
-      }
-      zip.file('daftar_link_berkas.csv', links.join('\n'))
-
-      const blob = await zip.generateAsync({ type: 'blob' })
+      const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      const tahun = pengaturan.tahun_pmb || 'PMB'
-      a.download = `Berkas_PMB_${tahun.replace('/', '-')}.zip`
+      a.download = `Berkas_PMB_${tahun}.zip`
       a.click()
       URL.revokeObjectURL(url)
       onFlash({ success: 'ZIP berhasil diunduh' })
@@ -188,18 +154,18 @@ export function ExportPanel({ pendaftar, pengaturan, onFlash }: {
             Export ZIP Berkas
           </CardTitle>
           <CardDescription>
-            Unduh arsip ZIP berisi manifest Excel + daftar link berkas (foto, KK, akta, dll.) dari R2.
+            Unduh arsip ZIP berisi file asli (foto, KK, akta, dll.) dari Cloudflare R2.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-sm text-blue-700">
             <p className="font-semibold mb-1">Isi ZIP:</p>
             <ul className="list-disc list-inside space-y-0.5 text-xs">
-              <li>manifest_berkas.xlsx — daftar no_pendaftaran + link berkas</li>
-              <li>daftar_link_berkas.csv — format CSV untuk import</li>
+              <li>Folder per pendaftar: <code>{'{no_pendaftaran}_{nama}/'}</code></li>
+              <li>File asli: foto, kk, akta, ktp_ortu, kelakuan_baik, rapor, sertifikat</li>
             </ul>
             <p className="text-xs mt-2 opacity-70">
-              File berkas asli tersimpan di Cloudflare R2. ZIP berisi link, bukan file asli.
+              Proses download mungkin memerlukan waktu beberapa menit tergantung jumlah berkas.
             </p>
           </div>
           <div className="text-sm text-muted-foreground space-y-1">
