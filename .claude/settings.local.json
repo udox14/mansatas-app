@@ -25,7 +25,8 @@
       "mcp__216efd6a-20d2-4f0d-a196-8ec636e31c7b__d1_database_query",
       "Bash(xargs grep -l \"wizard\\\\|step\\\\|multi.*form\\\\|stepper\")",
       "Bash(xargs grep -l \"siswa.*select\\\\|select.*siswa\\\\|picker\")",
-      "Bash(cat /c/Users/IAbdu/AppData/Local/Temp/claude/C--DATA-mansatas-app/d35f7ed8-b51d-4bef-a96c-a444aa5be145/tasks/bqe7iordt.output 2>/dev/null | head -50)"
+      "Bash(cat /c/Users/IAbdu/AppData/Local/Temp/claude/C--DATA-mansatas-app/d35f7ed8-b51d-4bef-a96c-a444aa5be145/tasks/bqe7iordt.output 2>/dev/null | head -50)",
+      "Bash(grep -E \"\\\\.\\(sql|ts|js\\)$\")"
     ]
   }
 }

@@ -12,6 +12,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "preview:worker"],
       "port": 8787
+    },
+    {
+      "name": "pmb",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "C:/DATA/mansatas-pmb", "run", "pages:serve"],
+      "port": 8788
     }
   ]
 }
