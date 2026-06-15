@@ -1,4 +1,5 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { getSystemSetting } from './system-settings'
 
 export const WA_FEATURE_ID = 'whatsapp'
 export const WA_ALFA_PURPOSE = 'attendance_alfa'
@@ -41,16 +42,31 @@ function getEnvValue(env: Record<string, any>, key: string): string {
 
 export async function getWhatsAppConfig() {
   const { env } = await getCloudflareContext({ async: true })
+
+  const provider = (await getSystemSetting('whatsapp_provider') || getEnvValue(env as any, 'WHATSAPP_PROVIDER') || WA_DEFAULT_PROVIDER).toLowerCase()
+  const accessToken = await getSystemSetting('whatsapp_access_token') || getEnvValue(env as any, 'WHATSAPP_ACCESS_TOKEN')
+  const phoneNumberId = await getSystemSetting('whatsapp_phone_number_id') || getEnvValue(env as any, 'WHATSAPP_PHONE_NUMBER_ID')
+  const verifyToken = await getSystemSetting('whatsapp_verify_token') || getEnvValue(env as any, 'WHATSAPP_VERIFY_TOKEN')
+  const appSecret = await getSystemSetting('whatsapp_app_secret') || getEnvValue(env as any, 'WHATSAPP_APP_SECRET')
+  const graphVersion = await getSystemSetting('whatsapp_graph_version') || getEnvValue(env as any, 'WHATSAPP_GRAPH_VERSION') || 'v20.0'
+  const wablasBaseUrl = await getSystemSetting('wablas_base_url') || getEnvValue(env as any, 'WABLAS_BASE_URL') || 'https://texas.wablas.com'
+  const wablasToken = await getSystemSetting('wablas_token') || getEnvValue(env as any, 'WABLAS_TOKEN')
+  const wablasSecretKey = await getSystemSetting('wablas_secret_key') || getEnvValue(env as any, 'WABLAS_SECRET_KEY')
+  const kirimdevApiKey = await getSystemSetting('kirimdev_api_key') || getEnvValue(env as any, 'KIRIMDEV_API_KEY')
+  const kirimdevWebhookSecret = await getSystemSetting('kirimdev_webhook_secret') || getEnvValue(env as any, 'KIRIMDEV_WEBHOOK_SECRET')
+
   return {
-    provider: (getEnvValue(env as any, 'WHATSAPP_PROVIDER') || WA_DEFAULT_PROVIDER).toLowerCase(),
-    accessToken: getEnvValue(env as any, 'WHATSAPP_ACCESS_TOKEN'),
-    phoneNumberId: getEnvValue(env as any, 'WHATSAPP_PHONE_NUMBER_ID'),
-    verifyToken: getEnvValue(env as any, 'WHATSAPP_VERIFY_TOKEN'),
-    appSecret: getEnvValue(env as any, 'WHATSAPP_APP_SECRET'),
-    graphVersion: getEnvValue(env as any, 'WHATSAPP_GRAPH_VERSION') || 'v20.0',
-    wablasBaseUrl: getEnvValue(env as any, 'WABLAS_BASE_URL') || 'https://texas.wablas.com',
-    wablasToken: getEnvValue(env as any, 'WABLAS_TOKEN'),
-    wablasSecretKey: getEnvValue(env as any, 'WABLAS_SECRET_KEY'),
+    provider,
+    accessToken,
+    phoneNumberId,
+    verifyToken,
+    appSecret,
+    graphVersion,
+    wablasBaseUrl,
+    wablasToken,
+    wablasSecretKey,
+    kirimdevApiKey,
+    kirimdevWebhookSecret,
   }
 }
 
@@ -150,10 +166,54 @@ async function sendViaWablas(row: WaOutboxRow) {
   return String(json?.data?.messages?.[0]?.id || json?.data?.id || json?.id || '')
 }
 
+async function sendViaKirimdev(row: WaOutboxRow) {
+  const config = await getWhatsAppConfig()
+  if (!config.kirimdevApiKey || !config.phoneNumberId) {
+    throw new Error('KIRIMDEV_API_KEY atau WHATSAPP_PHONE_NUMBER_ID belum dikonfigurasi.')
+  }
+
+  const url = `https://api.kirimdev.com/v1/${config.phoneNumberId}/messages`
+  const payload: any = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to: row.recipient_phone,
+  }
+
+  if (row.template_name) {
+    payload.type = 'template'
+    payload.template = {
+      name: row.template_name,
+      language: { code: row.language_code || WA_DEFAULT_LANGUAGE },
+    }
+    const components = buildTemplateComponents(row.payload_json)
+    if (components) payload.template.components = components
+  } else {
+    payload.type = 'text'
+    payload.text = { preview_url: true, body: row.body_text || '' }
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.kirimdevApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(json?.error?.message || `Kirimdev API error ${response.status}`)
+  }
+  return String(json?.data?.id || '')
+}
+
 async function sendViaConfiguredProvider(row: WaOutboxRow) {
   const config = await getWhatsAppConfig()
   if (config.provider === 'meta' || config.provider === 'cloud_api') {
     return sendViaCloudApi(row)
+  }
+  if (config.provider === 'kirimdev') {
+    return sendViaKirimdev(row)
   }
   return sendViaWablas(row)
 }
@@ -626,4 +686,32 @@ export async function verifyWhatsAppSignature(rawBody: string, signatureHeader: 
   const digest = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(rawBody))
   const hex = Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('')
   return hex === signature
+}
+
+export async function verifyKirimdevSignature(rawBody: string, signatureHeader: string | null) {
+  const { kirimdevWebhookSecret } = await getWhatsAppConfig()
+  if (!kirimdevWebhookSecret) return false
+  if (!signatureHeader) return false
+
+  const parts = signatureHeader.split(',').map((p) => p.trim())
+  const tPart = parts.find((p) => p.startsWith('t='))?.slice(2)
+  const v1s = parts.filter((p) => p.startsWith('v1=')).map((p) => p.slice(3))
+
+  const t = Number(tPart)
+  if (!t || v1s.length === 0) return false
+
+  // Replay protection — reject signatures older than 5 minutes.
+  if (Math.abs(Date.now() / 1000 - t) > 300) return false
+
+  const signed = `${t}.${rawBody}`
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(kirimdevWebhookSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const digest = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(signed))
+  const expected = Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('')
+  return v1s.includes(expected)
 }

@@ -3,8 +3,9 @@ import { MessageCircle, Play, RefreshCcw, SendHorizonal } from 'lucide-react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { checkFeatureAccess } from '@/lib/features'
-import { WA_FEATURE_ID, ensureWhatsAppTables, previewWhatsAppRecipients, type WaTargetScope } from '@/lib/whatsapp'
+import { WA_FEATURE_ID, ensureWhatsAppTables, previewWhatsAppRecipients, getWhatsAppConfig, type WaTargetScope } from '@/lib/whatsapp'
 import { createWhatsappCampaignAction, processWhatsappOutboxAction } from './actions'
+import { SettingsModal } from './components/settings-modal'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +37,7 @@ export default async function WhatsAppPage({ searchParams }: PageProps) {
   const allowed = await checkFeatureAccess(db, user.id, WA_FEATURE_ID)
   if (!allowed) redirect('/dashboard')
   await ensureWhatsAppTables(db)
+  const config = await getWhatsAppConfig()
 
   const params = await Promise.resolve(searchParams || {})
   const targetScope = parseScope(one(params.target_scope, 'all'))
@@ -97,12 +99,15 @@ export default async function WhatsAppPage({ searchParams }: PageProps) {
           </div>
           <p className="mt-1 text-xs text-slate-500">Outbox WhatsApp untuk notifikasi ALFA dan broadcast teks via WABLAS.</p>
         </div>
-        <form action={processWhatsappOutboxAction}>
-          <button className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-            <Play className="h-4 w-4" />
-            Proses Outbox
-          </button>
-        </form>
+        <div className="flex items-center gap-2">
+          <SettingsModal currentConfig={config} />
+          <form action={processWhatsappOutboxAction}>
+            <button className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+              <Play className="h-4 w-4" />
+              Proses Outbox
+            </button>
+          </form>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">
