@@ -93,8 +93,8 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
     })
   }
 
-  function doVerif(ok: boolean) {
-    const alasan = ok ? undefined : (prompt('Alasan penolakan berkas:') || 'Berkas tidak valid')
+  function doVerif(ok: boolean | null) {
+    const alasan = ok === false ? (prompt('Alasan penolakan berkas:') || 'Berkas tidak valid') : undefined
     startT(async () => { onFlash(await verifikasiBerkas([id], ok, alasan)); reload() })
   }
   function doLulus(s: 'DITERIMA' | 'TIDAK DITERIMA' | 'PENDING') {
@@ -126,25 +126,32 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
             {/* ── Quick action bar ── */}
             <Card className="bg-muted/30">
             <CardContent className="flex flex-wrap gap-2 p-3">
-              <Button size="sm" variant="outline" disabled={pend} onClick={() => doVerif(true)}
-                className="text-emerald-700 border-emerald-400 hover:bg-emerald-50">
-                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Verifikasi
-              </Button>
-              <Button size="sm" variant="outline" disabled={pend} onClick={() => doVerif(false)}
-                className="text-red-600 border-red-400 hover:bg-red-50">
-                <XCircle className="h-3.5 w-3.5 mr-1" />Tolak Berkas
-              </Button>
-              <Button size="sm" variant="outline" disabled={pend} onClick={() => doLulus('DITERIMA')}
-                className="text-emerald-700 border-emerald-400 hover:bg-emerald-50">
-                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Luluskan
-              </Button>
-              <Button size="sm" variant="outline" disabled={pend} onClick={() => doLulus('TIDAK DITERIMA')}
-                className="text-red-600 border-red-400 hover:bg-red-50">
-                Tidak Lulus
-              </Button>
-              <Button size="sm" variant="outline" disabled={pend} onClick={() => doLulus('PENDING')}>
-                Reset
-              </Button>
+              {(() => {
+                const sv = data.pendaftar.status_verifikasi
+                const sk = data.pendaftar.status_kelulusan
+                return (<>
+                  <Button size="sm" variant={sv === 1 ? 'default' : 'outline'} disabled={pend}
+                    onClick={() => doVerif(sv === 1 ? null : true)}
+                    className={sv === 1 ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'text-emerald-700 border-emerald-400 hover:bg-emerald-50'}>
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />{sv === 1 ? 'Batalkan Verif' : 'Verifikasi'}
+                  </Button>
+                  <Button size="sm" variant={sv === 0 ? 'default' : 'outline'} disabled={pend}
+                    onClick={() => doVerif(sv === 0 ? null : false)}
+                    className={sv === 0 ? 'bg-red-600 hover:bg-red-700 text-white' : 'text-red-600 border-red-400 hover:bg-red-50'}>
+                    <XCircle className="h-3.5 w-3.5 mr-1" />{sv === 0 ? 'Batalkan Tolak' : 'Tolak Berkas'}
+                  </Button>
+                  <Button size="sm" variant={sk === 'DITERIMA' ? 'default' : 'outline'} disabled={pend}
+                    onClick={() => doLulus(sk === 'DITERIMA' ? 'PENDING' : 'DITERIMA')}
+                    className={sk === 'DITERIMA' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'text-emerald-700 border-emerald-400 hover:bg-emerald-50'}>
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />{sk === 'DITERIMA' ? 'Batalkan Lulus' : 'Luluskan'}
+                  </Button>
+                  <Button size="sm" variant={sk === 'TIDAK DITERIMA' ? 'default' : 'outline'} disabled={pend}
+                    onClick={() => doLulus(sk === 'TIDAK DITERIMA' ? 'PENDING' : 'TIDAK DITERIMA')}
+                    className={sk === 'TIDAK DITERIMA' ? 'bg-red-600 hover:bg-red-700 text-white' : 'text-red-600 border-red-400 hover:bg-red-50'}>
+                    {sk === 'TIDAK DITERIMA' ? 'Batalkan Tidak Lulus' : 'Tidak Lulus'}
+                  </Button>
+                </>)
+              })()}
               {data.pendaftar.jalur === 'PRESTASI' && (
                 <Button size="sm" variant="outline" disabled={pend} onClick={doAlihReguler}
                   className="text-blue-700 border-blue-400 hover:bg-blue-50">
