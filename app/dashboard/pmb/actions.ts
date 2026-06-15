@@ -172,3 +172,79 @@ export async function getExportData() {
   const { results } = await db.prepare('SELECT * FROM pmb_pendaftar ORDER BY no_pendaftaran').all<any>()
   return { data: results }
 }
+
+// ── Bulk alih reguler (admin) ──────────────────────────────
+export async function bulkAlihReguler(ids: string[]) {
+  if (!(await verifyPmbAccess())) return { error: 'Akses ditolak' }
+  const db = await getDB()
+  const now = new Date().toISOString()
+  for (const id of ids) {
+    await dbUpdate(db, 'pmb_pendaftar', {
+      jalur: 'REGULER', status_kelulusan: 'PENDING',
+      status_verifikasi: null, ruang_tes: null, tanggal_tes: null, sesi_tes: null,
+      updated_at: now,
+    }, { id })
+  }
+  revalidatePath('/dashboard/pmb')
+  return { success: `${ids.length} pendaftar dialihkan ke Reguler` }
+}
+
+// ── Edit data pendaftar (admin — field terbatas) ───────────
+const ADMIN_EDITABLE = new Set([
+  'nisn','nik','nama_lengkap','jenis_kelamin','tempat_lahir','tanggal_lahir',
+  'ukuran_baju','agama','jumlah_saudara','anak_ke','status_anak',
+  'provinsi','kabupaten_kota','kecamatan','desa_kelurahan','rt','rw','alamat_lengkap','kode_pos',
+  'no_kk','nama_ayah','nik_ayah','pendidikan_ayah','pekerjaan_ayah','penghasilan_ayah',
+  'nama_ibu','nik_ibu','pendidikan_ibu','pekerjaan_ibu','penghasilan_ibu','no_telepon_ortu',
+  'asal_sekolah','npsn_sekolah','status_sekolah','alamat_sekolah','pilihan_pesantren',
+  'daftar_ulang_status',
+])
+export async function editPendaftar(id: string, payload: Record<string, any>) {
+  if (!(await verifyPmbAccess())) return { error: 'Akses ditolak' }
+  const db = await getDB()
+  const safe: Record<string, any> = {}
+  for (const [k, v] of Object.entries(payload)) { if (ADMIN_EDITABLE.has(k)) safe[k] = v }
+  if (!Object.keys(safe).length) return { error: 'Tidak ada field valid' }
+  await dbUpdate(db, 'pmb_pendaftar', { ...safe, updated_at: new Date().toISOString() }, { id })
+  revalidatePath('/dashboard/pmb')
+  return { success: 'Data pendaftar diperbarui' }
+}
+
+// ── Simpan manual plotting (bulk) ─────────────────────────
+export async function saveManualPlotting(
+  changes: { id: string; tanggal_tes: string; sesi_tes: string; ruang_tes: string }[],
+) {
+  if (!(await verifyPmbAccess())) return { error: 'Akses ditolak' }
+  const db = await getDB()
+  const now = new Date().toISOString()
+  for (const c of changes) {
+    await dbUpdate(db, 'pmb_pendaftar', {
+      tanggal_tes: c.tanggal_tes || null,
+      sesi_tes: c.sesi_tes || null,
+      ruang_tes: c.ruang_tes || null,
+      updated_at: now,
+    }, { id: c.id })
+  }
+  revalidatePath('/dashboard/pmb')
+  return { success: `${changes.length} plotting disimpan` }
+}
+
+// ── Import kelulusan bulk (dari Excel) ────────────────────
+export async function importKelulusan(
+  rows: { no_pendaftaran: string; status_kelulusan: string }[],
+) {
+  if (!(await verifyPmbAccess())) return { error: 'Akses ditolak' }
+  const db = await getDB()
+  const valid = ['DITERIMA', 'TIDAK DITERIMA', 'PENDING']
+  const now = new Date().toISOString()
+  let updated = 0
+  for (const row of rows) {
+    if (!valid.includes(row.status_kelulusan)) continue
+    const p = await db.prepare('SELECT id FROM pmb_pendaftar WHERE no_pendaftaran = ?').bind(row.no_pendaftaran).first<{ id: string }>()
+    if (!p) continue
+    await dbUpdate(db, 'pmb_pendaftar', { status_kelulusan: row.status_kelulusan, updated_at: now }, { id: p.id })
+    updated++
+  }
+  revalidatePath('/dashboard/pmb')
+  return { success: `${updated} kelulusan diperbarui` }
+}
