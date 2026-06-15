@@ -356,6 +356,13 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: BookUser,
     roles: ['resepsionis', 'super_admin', 'admin_tu', 'kepsek', 'wakamad']
   },
+  {
+    id: 'pmb',
+    title: 'PMB (Penerimaan Baru)',
+    href: '/dashboard/pmb',
+    icon: GraduationCap,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad']
+  },
   // ── KEUANGAN ──────────────────────────────────────────────────────
   {
     id: 'keuangan-transaksi',
@@ -474,7 +481,7 @@ export const MENU_ITEMS: MenuItem[] = [
 
 export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'utama', label: 'Utama', items: ['dashboard'] },
-  { id: 'data-master', label: 'Data Master', items: ['siswa', 'guru', 'kelas', 'plotting', 'ekstrakurikuler-master'] },
+  { id: 'data-master', label: 'Data Master', items: ['siswa', 'guru', 'kelas', 'plotting', 'ekstrakurikuler-master', 'pmb'] },
   { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'agenda-kelas', 'ckh-generator', 'rppm-generator', 'kehadiran', 'nilai-harian', 'penugasan', 'ekstrakurikuler'] },
   { id: 'monitoring-akademik', label: 'Monitoring Akademik', items: ['akademik', 'kalender-pendidikan', 'analitik'] },
   { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'monitoring-penugasan', 'monitoring-kedisiplinan', 'rekap-absensi', 'akademik-nilai'] },
