@@ -15,10 +15,13 @@ async function PmbFetcher() {
   const db = await getDB()
   const [pendaftarRes, jadwalRes, pengaturanRes] = await Promise.all([
     db.prepare(
-      `SELECT id, no_pendaftaran, tahun_ajaran, jalur, status_verifikasi, status_kelulusan,
-        berkas_ditolak, siswa_id, nisn, nik, nama_lengkap, jenis_kelamin, asal_sekolah,
-        no_telepon_ortu, tanggal_tes, sesi_tes, ruang_tes, daftar_ulang_status, created_at, foto_url
-       FROM pmb_pendaftar ORDER BY no_pendaftaran`,
+      `SELECT p.id, p.no_pendaftaran, p.tahun_ajaran, p.jalur, p.status_verifikasi, p.status_kelulusan,
+        p.berkas_ditolak, p.siswa_id, p.nisn, p.nik, p.nama_lengkap, p.jenis_kelamin, p.asal_sekolah,
+        p.no_telepon_ortu, p.tanggal_tes, p.sesi_tes, p.ruang_tes, p.daftar_ulang_status, p.created_at, p.foto_url,
+        d.status AS dspt_status
+       FROM pmb_pendaftar p
+       LEFT JOIN fin_dspt d ON p.siswa_id IS NOT NULL AND d.siswa_id = p.siswa_id
+       ORDER BY p.no_pendaftaran`,
     ).all<any>(),
     db.prepare('SELECT * FROM pmb_jadwal_tes ORDER BY tanggal, sesi').all<any>(),
     db.prepare('SELECT key, value FROM pmb_pengaturan').all<{ key: string; value: string }>(),
