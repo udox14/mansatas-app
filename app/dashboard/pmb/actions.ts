@@ -17,14 +17,14 @@ async function verifyPmbAccess(): Promise<boolean> {
 }
 
 // ── Verifikasi berkas ──────────────────────────────────────
-export async function verifikasiBerkas(ids: string[], diterima: boolean, alasan?: string) {
+export async function verifikasiBerkas(ids: string[], diterima: boolean | null, alasan?: string) {
   if (!(await verifyPmbAccess())) return { error: 'Akses ditolak' }
   const db = await getDB()
   const now = new Date().toISOString()
   for (const id of ids) {
     await dbUpdate(db, 'pmb_pendaftar', {
-      status_verifikasi: diterima ? 1 : 0,
-      berkas_ditolak: diterima ? null : (alasan || 'Berkas tidak valid'),
+      status_verifikasi: diterima === null ? null : (diterima ? 1 : 0),
+      berkas_ditolak: diterima === false ? (alasan || 'Berkas tidak valid') : null,
       updated_at: now,
     }, { id })
   }

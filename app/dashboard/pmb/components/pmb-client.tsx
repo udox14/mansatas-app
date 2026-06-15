@@ -340,9 +340,6 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                 <Button size="sm" variant="secondary" disabled={pending} onClick={() => doLulus('TIDAK DITERIMA')}>
                   <XCircle className="h-3.5 w-3.5 mr-1 text-red-400" />Tidak Lulus
                 </Button>
-                <Button size="sm" variant="secondary" disabled={pending} onClick={() => doLulus('PENDING')}>
-                  Reset Kelulusan
-                </Button>
                 <Button size="sm" variant="secondary" disabled={pending} onClick={doAlihReguler}>
                   <RefreshCw className="h-3.5 w-3.5 mr-1 text-blue-400" />Alih Reguler
                 </Button>
