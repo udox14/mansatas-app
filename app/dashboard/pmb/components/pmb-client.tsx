@@ -13,8 +13,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Search, CheckCircle2, XCircle, Clock, Loader2, Eye, UserPlus, FileSpreadsheet,
   CalendarClock, Settings, GraduationCap, Trophy, ArrowUpDown, ArrowUp, ArrowDown,
-  Users, RefreshCw, FileDown, Upload, PackageOpen,
+  Users, RefreshCw, FileDown, Upload, PackageOpen, ChevronDown, ChevronUp, SlidersHorizontal,
 } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import { DetailModal } from './detail-modal'
 import { JadwalPanel } from './jadwal-panel'
 import { PengaturanPanel } from './pengaturan-panel'
@@ -27,7 +29,7 @@ export type Pendaftar = {
   id: string; no_pendaftaran: string; tahun_ajaran: string; jalur: string
   status_verifikasi: number | null; status_kelulusan: string; berkas_ditolak: string | null
   siswa_id: string | null; nisn: string; nik: string; nama_lengkap: string; jenis_kelamin: string
-  asal_sekolah: string; no_telepon_ortu: string
+  asal_sekolah: string; no_telepon_ortu: string; foto_url: string | null
   tanggal_tes: string | null; sesi_tes: string | null; ruang_tes: string | null
   daftar_ulang_status: string | null; created_at: string
 }
@@ -54,6 +56,8 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [pending, startTransition] = useTransition()
   const importRef = useRef<HTMLInputElement>(null)
+  const [showAllStats, setShowAllStats] = useState(false)
+  const [showFilterModal, setShowFilterModal] = useState(false)
 
   // ── Stats (9 kartu, sama persis old app) ────────────────────
   const stats = useMemo(() => ({
@@ -71,7 +75,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
   // ── Filter ────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = pendaftar.filter((p) => {
-      if (q && !`${p.nama_lengkap} ${p.nisn} ${p.no_pendaftaran}`.toLowerCase().includes(q.toLowerCase())) return false
+      if (q && !`${p.nama_lengkap} ${p.nisn} ${p.no_pendaftaran} ${p.asal_sekolah} ${p.nik} ${p.no_telepon_ortu}`.toLowerCase().includes(q.toLowerCase())) return false
       if (fJalur !== 'all' && p.jalur !== fJalur) return false
       if (fVerif !== 'all') {
         const v = p.status_verifikasi === null ? 'pending' : p.status_verifikasi === 1 ? 'ok' : 'tolak'
@@ -175,8 +179,46 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
         </Alert>
       )}
 
-      {/* ── 9 Stat Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
+      {/* ── Stats Cards ── */}
+      {/* Stats Mobile (Collapsible) */}
+      <div className="block lg:hidden space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          {(showAllStats
+            ? [
+                { label: "Total", value: stats.total, color: "blue", icon: Users },
+                { label: "Reguler", value: stats.reguler, color: "teal", icon: GraduationCap },
+                { label: "Prestasi", value: stats.prestasi, color: "indigo", icon: Trophy },
+                { label: "Perlu Verif", value: stats.perluVerif, color: "amber", icon: Clock },
+                { label: "Diterima", value: stats.diterima, color: "green", icon: CheckCircle2 },
+                { label: "Tidak Lulus", value: stats.tidakDiterima, color: "red", icon: XCircle },
+                { label: "Pending", value: stats.kelulusanPending, color: "gray", icon: Loader2 },
+                { label: "Daftar Ulang ✓", value: stats.sudahDaftarUlang, color: "green", icon: CheckCircle2 },
+                { label: "Belum DU", value: stats.belumDaftarUlang, color: "red", icon: XCircle },
+              ]
+            : [
+                { label: "Total", value: stats.total, color: "blue", icon: Users },
+                { label: "Reguler", value: stats.reguler, color: "teal", icon: GraduationCap },
+              ]
+          ).map((s, idx) => (
+            <StatCard key={idx} label={s.label} value={s.value} color={s.color} icon={s.icon} />
+          ))}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full text-xs text-muted-foreground flex items-center justify-center gap-1 py-1 h-8 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-100 dark:border-slate-800"
+          onClick={() => setShowAllStats(!showAllStats)}
+        >
+          {showAllStats ? (
+            <>Sembunyikan Statistik <ChevronUp className="h-3.5 w-3.5" /></>
+          ) : (
+            <>Tampilkan Semua Statistik (9) <ChevronDown className="h-3.5 w-3.5" /></>
+          )}
+        </Button>
+      </div>
+
+      {/* Stats Desktop (Always Grid) */}
+      <div className="hidden lg:grid lg:grid-cols-9 gap-2">
         <StatCard label="Total" value={stats.total} color="blue" icon={Users} />
         <StatCard label="Reguler" value={stats.reguler} color="teal" icon={GraduationCap} />
         <StatCard label="Prestasi" value={stats.prestasi} color="indigo" icon={Trophy} />
@@ -189,22 +231,80 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
       </div>
 
       <Tabs defaultValue="pendaftar">
-        <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="pendaftar"><Users className="h-4 w-4 mr-1" />Data Pendaftar</TabsTrigger>
-          <TabsTrigger value="jadwal"><CalendarClock className="h-4 w-4 mr-1" />Jadwal &amp; Plotting</TabsTrigger>
-          <TabsTrigger value="export"><PackageOpen className="h-4 w-4 mr-1" />Export Data</TabsTrigger>
-          <TabsTrigger value="pengaturan"><Settings className="h-4 w-4 mr-1" />Pengaturan</TabsTrigger>
+        <TabsList className="w-full flex justify-start items-center overflow-x-auto scrollbar-none bg-slate-100/80 dark:bg-slate-900/60 p-1 h-10 rounded-lg gap-1 border border-slate-200/50 dark:border-slate-800/80">
+          <TabsTrigger value="pendaftar" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all shrink-0"><Users className="h-4 w-4 shrink-0" />Data Pendaftar</TabsTrigger>
+          <TabsTrigger value="jadwal" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all shrink-0"><CalendarClock className="h-4 w-4 shrink-0" />Jadwal &amp; Plotting</TabsTrigger>
+          <TabsTrigger value="export" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all shrink-0"><PackageOpen className="h-4 w-4 shrink-0" />Export Data</TabsTrigger>
+          <TabsTrigger value="pengaturan" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all shrink-0"><Settings className="h-4 w-4 shrink-0" />Pengaturan</TabsTrigger>
         </TabsList>
 
         {/* ════════════════════════ TAB PENDAFTAR ════════════════════════ */}
         <TabsContent value="pendaftar" className="space-y-3">
 
-          {/* Filter bar */}
-          <div className="flex flex-wrap gap-2 items-center">
+          {/* Filter & Search Bar */}
+          {/* Mobile Filter & Search */}
+          <div className="flex lg:hidden gap-2 w-full">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Cari nama / NISN / asal sekolah / HP..." value={q}
+                onChange={(e) => { setQ(e.target.value); setPage(1) }} className="pl-9 h-9 w-full" />
+            </div>
+            <Button variant="outline" className="h-9 px-3 flex items-center gap-1.5 text-xs shrink-0" onClick={() => setShowFilterModal(true)}>
+              <SlidersHorizontal className="h-4 w-4" />
+              Filter
+            </Button>
+
+            <Dialog open={showFilterModal} onOpenChange={setShowFilterModal}>
+              <DialogContent className="max-w-[90vw] sm:max-w-md rounded-xl p-4">
+                <DialogHeader>
+                  <DialogTitle className="text-sm font-semibold">Filter &amp; Aksi Data</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-3">
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-slate-500">Jalur</Label>
+                      <FilterSelect value={fJalur} onChange={(v) => { setFJalur(v); setPage(1) }} placeholder="Jalur"
+                        options={[['all', 'Semua Jalur'], ['REGULER', 'Reguler'], ['PRESTASI', 'Prestasi']]} className="w-full" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-slate-500">Verifikasi Berkas</Label>
+                      <FilterSelect value={fVerif} onChange={(v) => { setFVerif(v); setPage(1) }} placeholder="Verifikasi"
+                        options={[['all', 'Semua Verif'], ['pending', 'Belum'], ['ok', 'Terverifikasi'], ['tolak', 'Ditolak']]} className="w-full" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-slate-500">Hasil Kelulusan</Label>
+                      <FilterSelect value={fLulus} onChange={(v) => { setFLulus(v); setPage(1) }} placeholder="Kelulusan"
+                        options={[['all', 'Semua Hasil'], ['PENDING', 'Pending'], ['DITERIMA', 'Diterima'], ['TIDAK DITERIMA', 'Tidak Diterima']]} className="w-full" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-slate-500">Daftar Ulang</Label>
+                      <FilterSelect value={fDaftarUlang} onChange={(v) => { setFDaftarUlang(v); setPage(1) }} placeholder="Daftar Ulang"
+                        options={[['all', 'Semua DU'], ['selesai', 'Sudah DU'], ['belum', 'Belum DU']]} className="w-full" />
+                    </div>
+                  </div>
+
+                  <hr className="my-2 border-slate-100 dark:border-slate-800" />
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" size="sm" onClick={() => { downloadTemplate(); setShowFilterModal(false); }} className="w-full text-xs h-9" title="Download template Excel untuk import kelulusan">
+                      <FileDown className="h-4 w-4 mr-1" /> Template Kelulusan
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => { importRef.current?.click(); setShowFilterModal(false); }} className="w-full text-xs h-9" title="Import kelulusan dari Excel">
+                      <Upload className="h-4 w-4 mr-1" /> Import Kelulusan
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <input ref={importRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportKelulusan} />
+          </div>
+
+          {/* Desktop Filter & Search */}
+          <div className="hidden lg:flex flex-wrap gap-2 items-center w-full">
             <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Cari nama / NISN / no. daftar" value={q}
-                onChange={(e) => { setQ(e.target.value); setPage(1) }} className="pl-8" />
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Cari nama / NISN / asal sekolah / NIK / HP..." value={q}
+                onChange={(e) => { setQ(e.target.value); setPage(1) }} className="pl-9 h-9" />
             </div>
             <FilterSelect value={fJalur} onChange={(v) => { setFJalur(v); setPage(1) }} placeholder="Jalur"
               options={[['all', 'Semua Jalur'], ['REGULER', 'Reguler'], ['PRESTASI', 'Prestasi']]} />
@@ -214,10 +314,10 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
               options={[['all', 'Semua Hasil'], ['PENDING', 'Pending'], ['DITERIMA', 'Diterima'], ['TIDAK DITERIMA', 'Tidak Diterima']]} />
             <FilterSelect value={fDaftarUlang} onChange={(v) => { setFDaftarUlang(v); setPage(1) }} placeholder="Daftar Ulang"
               options={[['all', 'Semua DU'], ['selesai', 'Sudah DU'], ['belum', 'Belum DU']]} />
-            <Button variant="outline" size="sm" onClick={downloadTemplate} title="Download template Excel untuk import kelulusan">
+            <Button variant="outline" size="sm" onClick={downloadTemplate} title="Download template Excel untuk import kelulusan" className="h-9">
               <FileDown className="h-4 w-4 mr-1" />Template Kelulusan
             </Button>
-            <Button variant="outline" size="sm" onClick={() => importRef.current?.click()} title="Import kelulusan dari Excel">
+            <Button variant="outline" size="sm" onClick={() => importRef.current?.click()} title="Import kelulusan dari Excel" className="h-9">
               <Upload className="h-4 w-4 mr-1" />Import Kelulusan
             </Button>
             <input ref={importRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportKelulusan} />
@@ -274,7 +374,83 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
               )}
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Mobile compact cards list view */}
+            <div className="block lg:hidden divide-y divide-slate-100 dark:divide-slate-800">
+              {paginated.map((p) => {
+                const isSel = selected.has(p.id)
+                return (
+                  <div key={p.id} className={`p-3 flex items-start gap-3 transition-all ${isSel ? 'bg-primary/5' : 'bg-transparent'}`}>
+                    <div className="pt-1.5 flex-shrink-0">
+                      <Checkbox checked={isSel} onCheckedChange={() => toggle(p.id)} />
+                    </div>
+
+                    {/* Photo Frame 3:4 */}
+                    <div className="w-14 h-[75px] rounded-md overflow-hidden bg-slate-50 dark:bg-slate-900 border border-slate-150 flex-shrink-0 flex items-center justify-center relative">
+                      {p.foto_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={p.foto_url}
+                          alt={p.nama_lengkap}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-350 dark:text-slate-700 p-1">
+                          <Users className="h-5 w-5 stroke-[1.2]" />
+                          <span className="text-[7px] font-medium mt-0.5">No Photo</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-start justify-between gap-1.5">
+                        <h4 className="text-sm font-semibold text-slate-950 dark:text-slate-50 leading-snug truncate">
+                          {p.nama_lengkap}
+                        </h4>
+                        <div className="flex-shrink-0 flex items-center gap-1.5">
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setDetailId(p.id)}>
+                            <Eye className="h-4 w-4 text-slate-500" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground truncate leading-none">
+                        {p.nisn} · {p.asal_sekolah}
+                      </p>
+
+                      {/* Badges */}
+                      <div className="flex flex-wrap gap-1 items-center pt-0.5">
+                        <JalurBadge jalur={p.jalur} />
+                        <VerifBadge v={p.status_verifikasi} />
+                        <LulusBadge s={p.status_kelulusan} />
+                      </div>
+
+                      {/* Additional row info / actions */}
+                      <div className="flex items-center justify-between pt-1 mt-1 border-t border-slate-100/50 dark:border-slate-800/50">
+                        <span className="text-[10px] text-muted-foreground">
+                          {p.tanggal_tes ? `${p.tanggal_tes} (${p.sesi_tes})` : 'Belum diplot'}
+                        </span>
+                        
+                        {p.status_kelulusan === 'DITERIMA' && !p.siswa_id && (
+                          <Button size="sm" variant="outline" className="h-6 px-2 text-[9px] font-bold" disabled={pending} onClick={() => doTerima(p.id)}>
+                            <UserPlus className="h-3 w-3 mr-0.5" /> Siswa
+                          </Button>
+                        )}
+                        {p.siswa_id && <span className="text-[9px] text-emerald-600 font-bold flex items-center gap-0.5">✓ Siswa</span>}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              {paginated.length === 0 && (
+                <div className="text-center text-muted-foreground py-10 text-sm">
+                  Tidak ada data sesuai filter
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
@@ -408,12 +584,12 @@ function StatCard({ label, value, color, icon: Icon }: {
   )
 }
 
-function FilterSelect({ value, onChange, placeholder, options }: {
-  value: string; onChange: (v: string) => void; placeholder: string; options: [string, string][]
+function FilterSelect({ value, onChange, placeholder, options, className }: {
+  value: string; onChange: (v: string) => void; placeholder: string; options: [string, string][]; className?: string
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="w-[145px] h-9"><SelectValue placeholder={placeholder} /></SelectTrigger>
+      <SelectTrigger className={`h-9 ${className || 'w-[145px]'}`}><SelectValue placeholder={placeholder} /></SelectTrigger>
       <SelectContent>{options.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
     </Select>
   )

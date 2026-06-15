@@ -17,7 +17,7 @@ async function PmbFetcher() {
     db.prepare(
       `SELECT id, no_pendaftaran, tahun_ajaran, jalur, status_verifikasi, status_kelulusan,
         berkas_ditolak, siswa_id, nisn, nik, nama_lengkap, jenis_kelamin, asal_sekolah,
-        no_telepon_ortu, tanggal_tes, sesi_tes, ruang_tes, daftar_ulang_status, created_at
+        no_telepon_ortu, tanggal_tes, sesi_tes, ruang_tes, daftar_ulang_status, created_at, foto_url
        FROM pmb_pendaftar ORDER BY no_pendaftaran`,
     ).all<any>(),
     db.prepare('SELECT * FROM pmb_jadwal_tes ORDER BY tanggal, sesi').all<any>(),
