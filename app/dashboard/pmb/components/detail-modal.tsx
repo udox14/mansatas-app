@@ -11,11 +11,24 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
 import {
-  Loader2, FileText, ExternalLink, CheckCircle2, XCircle, RefreshCw, Edit2, Save, X,
+  Loader2, FileText, ExternalLink, CheckCircle2, XCircle, RefreshCw, Edit2, Save, X, Eye,
 } from 'lucide-react'
 import { getDetailPendaftar, editPendaftar, verifikasiBerkas, setKelulusan, bulkAlihReguler } from '../actions'
 import { JalurBadge, VerifBadge, LulusBadge } from './pmb-client'
 import type { Pendaftar } from './pmb-client'
+
+function isImageFile(url: string) {
+  if (!url) return false
+  const cleanUrl = url.split('?')[0].toLowerCase()
+  return (
+    cleanUrl.endsWith('.jpg') ||
+    cleanUrl.endsWith('.jpeg') ||
+    cleanUrl.endsWith('.png') ||
+    cleanUrl.endsWith('.webp') ||
+    cleanUrl.endsWith('.gif') ||
+    !cleanUrl.endsWith('.pdf')
+  )
+}
 
 const BERKAS: [string, string][] = [
   ['foto_url', 'Pas Foto'], ['scan_kk_url', 'Kartu Keluarga'], ['scan_akta_url', 'Akta Kelahiran'],
@@ -50,6 +63,8 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
   const [editMode, setEditMode] = useState(false)
   const [editValues, setEditValues] = useState<Record<string, string>>({})
   const [pend, startT] = useTransition()
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewTitle, setPreviewTitle] = useState<string>('')
 
   const summary = pendaftar.find((p) => p.id === id)
 
@@ -229,23 +244,77 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
 
               {/* ── Berkas ── */}
               <TabsContent value="berkas" className="mt-3">
-                <div className="grid grid-cols-2 gap-2">
-                  {BERKAS.map(([k, label]) => (
-                    data.pendaftar[k] ? (
-                      <a key={k} href={data.pendaftar[k]} target="_blank" rel="noreferrer"
-                        className="flex items-center gap-2 border rounded-md px-3 py-2 hover:bg-muted text-blue-600 text-sm">
-                        <FileText className="h-4 w-4 flex-shrink-0" />
-                        <span className="truncate">{label}</span>
-                        <ExternalLink className="h-3 w-3 ml-auto flex-shrink-0" />
-                      </a>
-                    ) : (
-                      <div key={k} className="flex items-center gap-2 border rounded-md px-3 py-2 text-slate-400 text-sm">
-                        <FileText className="h-4 w-4 flex-shrink-0" />
-                        <span className="truncate">{label}</span>
-                        <span className="ml-auto text-xs">Belum</span>
-                      </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in duration-300">
+                  {BERKAS.map(([k, label]) => {
+                    const url = data.pendaftar[k]
+                    const exists = !!url
+                    const isImg = exists && isImageFile(url)
+
+                    return (
+                      <Card key={k} className="group relative overflow-hidden border border-slate-200/80 shadow-sm transition-all hover:shadow-md dark:border-slate-800 flex flex-col">
+                        <CardContent className="p-3 flex flex-col justify-between h-full space-y-3 flex-1">
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-0.5 min-w-0 flex-1 pr-2">
+                              <h4 className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{label}</h4>
+                              <p className="text-[10px] text-muted-foreground">
+                                {exists ? 'Tersedia' : 'Belum diunggah'}
+                              </p>
+                            </div>
+                            <Badge variant={exists ? "secondary" : "outline"} className={`text-[9px] px-1.5 py-0.5 font-bold flex-shrink-0 ${exists ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400' : 'text-slate-400 border-slate-200'}`}>
+                              {exists ? (isImg ? 'GAMBAR' : 'PDF') : 'KOSONG'}
+                            </Badge>
+                          </div>
+
+                          {exists ? (
+                            <div className="relative aspect-[16/10] w-full rounded-md overflow-hidden bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-850 flex items-center justify-center">
+                              {isImg ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={url}
+                                  alt={label}
+                                  className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center justify-center p-3 text-red-500">
+                                  <FileText className="h-10 w-10 stroke-[1.5]" />
+                                  <span className="text-[10px] font-semibold mt-1.5 text-slate-600 dark:text-slate-400">Dokumen PDF</span>
+                                </div>
+                              )}
+                              
+                              {/* Hover overlay actions */}
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 p-2 backdrop-blur-[1px]">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  className="h-8 px-2.5 text-xs font-semibold shadow-sm"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    setPreviewUrl(url)
+                                    setPreviewTitle(label)
+                                  }}
+                                >
+                                  <Eye className="h-3.5 w-3.5 mr-1" /> Pratinjau
+                                </Button>
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center justify-center h-8 px-2.5 text-xs font-semibold rounded-md border border-slate-200 bg-white text-slate-950 shadow-sm hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50 dark:hover:bg-slate-800"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                </a>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="aspect-[16/10] w-full rounded-md border border-dashed border-slate-200 dark:border-slate-800 bg-slate-25/50 flex flex-col items-center justify-center p-3 text-slate-350 dark:text-slate-700">
+                              <XCircle className="h-7 w-7 stroke-[1.2] text-slate-300 dark:text-slate-700" />
+                              <span className="text-[10px] font-medium text-slate-400 mt-2">Belum Diunggah</span>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
                     )
-                  ))}
+                  })}
                 </div>
               </TabsContent>
 
@@ -291,6 +360,45 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
           </div>
         )}
       </DialogContent>
+
+      {/* ── dialog pratinjau berkas (in-app viewer) ── */}
+      {previewUrl && (
+        <Dialog open onOpenChange={() => setPreviewUrl(null)}>
+          <DialogContent className="max-w-3xl w-full max-h-[85vh] p-4 flex flex-col items-center">
+            <DialogHeader className="w-full flex flex-row items-center justify-between pb-2 border-b">
+              <DialogTitle className="text-sm font-semibold truncate pr-4">
+                Pratinjau Berkas: {previewTitle}
+              </DialogTitle>
+              <div className="flex gap-1.5 items-center mr-6">
+                <a
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center h-8 px-3 text-xs font-semibold rounded-md border border-slate-200 bg-white text-slate-950 shadow-sm hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50 dark:hover:bg-slate-800"
+                >
+                  <ExternalLink className="h-3.5 w-3.5 mr-1" /> Buka Tab Baru
+                </a>
+              </div>
+            </DialogHeader>
+            <div className="w-full flex-1 min-h-0 flex items-center justify-center p-2 bg-slate-50 dark:bg-slate-900 rounded-md mt-2 overflow-auto">
+              {isImageFile(previewUrl) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={previewUrl}
+                  alt={previewTitle}
+                  className="max-h-[65vh] max-w-full object-contain rounded-md shadow-md border"
+                />
+              ) : (
+                <iframe
+                  src={previewUrl}
+                  title={previewTitle}
+                  className="w-full h-[65vh] rounded-md border-0"
+                />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Dialog>
   )
 }

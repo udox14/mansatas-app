@@ -176,16 +176,16 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
       )}
 
       {/* ── 9 Stat Cards ── */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
-        <StatCard label="Total" value={stats.total} color="blue" />
-        <StatCard label="Reguler" value={stats.reguler} color="teal" />
-        <StatCard label="Prestasi" value={stats.prestasi} color="indigo" />
-        <StatCard label="Perlu Verif" value={stats.perluVerif} color="amber" />
-        <StatCard label="Diterima" value={stats.diterima} color="green" />
-        <StatCard label="Tidak Lulus" value={stats.tidakDiterima} color="red" />
-        <StatCard label="Pending" value={stats.kelulusanPending} color="gray" />
-        <StatCard label="Daftar Ulang ✓" value={stats.sudahDaftarUlang} color="green" />
-        <StatCard label="Belum DU" value={stats.belumDaftarUlang} color="red" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
+        <StatCard label="Total" value={stats.total} color="blue" icon={Users} />
+        <StatCard label="Reguler" value={stats.reguler} color="teal" icon={GraduationCap} />
+        <StatCard label="Prestasi" value={stats.prestasi} color="indigo" icon={Trophy} />
+        <StatCard label="Perlu Verif" value={stats.perluVerif} color="amber" icon={Clock} />
+        <StatCard label="Diterima" value={stats.diterima} color="green" icon={CheckCircle2} />
+        <StatCard label="Tidak Lulus" value={stats.tidakDiterima} color="red" icon={XCircle} />
+        <StatCard label="Pending" value={stats.kelulusanPending} color="gray" icon={Loader2} />
+        <StatCard label="Daftar Ulang ✓" value={stats.sudahDaftarUlang} color="green" icon={CheckCircle2} />
+        <StatCard label="Belum DU" value={stats.belumDaftarUlang} color="red" icon={XCircle} />
       </div>
 
       <Tabs defaultValue="pendaftar">
@@ -373,26 +373,36 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
 
 /* ── Sub-komponen ─────────────────────────────────────────── */
 
-const STAT_COLORS: Record<string, string> = {
-  blue:   'border-l-blue-500 bg-blue-50/50',
-  teal:   'border-l-teal-500 bg-teal-50/50',
-  indigo: 'border-l-indigo-500 bg-indigo-50/50',
-  amber:  'border-l-amber-500 bg-amber-50/50',
-  green:  'border-l-emerald-500 bg-emerald-50/50',
-  red:    'border-l-red-500 bg-red-50/50',
-  gray:   'border-l-slate-400 bg-slate-50/50',
-}
-const STAT_TEXT: Record<string, string> = {
-  blue: 'text-blue-700', teal: 'text-teal-700', indigo: 'text-indigo-700',
-  amber: 'text-amber-700', green: 'text-emerald-700', red: 'text-red-700', gray: 'text-slate-600',
+const STAT_CONFIG: Record<string, { bg: string; text: string; border: string; iconBg: string }> = {
+  blue:   { bg: 'bg-blue-50/40 dark:bg-blue-950/10', text: 'text-blue-600 dark:text-blue-400', border: 'border-blue-100 dark:border-blue-900/50', iconBg: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' },
+  teal:   { bg: 'bg-teal-50/40 dark:bg-teal-950/10', text: 'text-teal-600 dark:text-teal-400', border: 'border-teal-100 dark:border-teal-900/50', iconBg: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300' },
+  indigo: { bg: 'bg-indigo-50/40 dark:bg-indigo-950/10', text: 'text-indigo-600 dark:text-indigo-400', border: 'border-indigo-100 dark:border-indigo-900/50', iconBg: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' },
+  amber:  { bg: 'bg-amber-50/40 dark:bg-amber-950/10', text: 'text-amber-600 dark:text-amber-400', border: 'border-amber-100 dark:border-amber-900/50', iconBg: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' },
+  green:  { bg: 'bg-emerald-50/40 dark:bg-emerald-950/10', text: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-100 dark:border-emerald-900/50', iconBg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' },
+  red:    { bg: 'bg-red-50/40 dark:bg-red-950/10', text: 'text-red-600 dark:text-red-400', border: 'border-red-100 dark:border-red-900/50', iconBg: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300' },
+  gray:   { bg: 'bg-slate-50/40 dark:bg-slate-900/10', text: 'text-slate-600 dark:text-slate-400', border: 'border-slate-200/60 dark:border-slate-800', iconBg: 'bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-350' },
 }
 
-function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
+function StatCard({ label, value, color, icon: Icon }: {
+  label: string; value: number; color: string; icon: React.ComponentType<any>
+}) {
+  const conf = STAT_CONFIG[color] || STAT_CONFIG.gray
   return (
-    <Card className={`border-l-4 ${STAT_COLORS[color] || ''}`}>
-      <CardContent className="p-3">
-        <div className={`text-2xl font-black leading-none ${STAT_TEXT[color] || ''}`}>{value}</div>
-        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mt-1 leading-tight">{label}</div>
+    <Card className={`border shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 duration-200 ${conf.border} ${conf.bg}`}>
+      <CardContent className="p-3 flex flex-col justify-between h-full space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider truncate mr-1">
+            {label}
+          </span>
+          <div className={`p-1 rounded-md ${conf.iconBg} flex-shrink-0`}>
+            <Icon className="h-3.5 w-3.5" />
+          </div>
+        </div>
+        <div>
+          <div className={`text-2xl font-black tracking-tight leading-none ${conf.text}`}>
+            {value}
+          </div>
+        </div>
       </CardContent>
     </Card>
   )
