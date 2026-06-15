@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDB } from '@/utils/db'
-import { getWhatsAppConfig, updateWhatsAppMessageStatus, verifyWhatsAppSignature } from '@/lib/whatsapp'
+import { getWhatsAppConfig, updateWhatsAppMessageStatus, verifyWhatsAppSignature, verifyKirimdevSignature } from '@/lib/whatsapp'
 
 export const runtime = 'edge'
 
@@ -20,8 +20,17 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
-  const signature = req.headers.get('x-hub-signature-256')
-  const signatureValid = await verifyWhatsAppSignature(rawBody, signature)
+  const config = await getWhatsAppConfig()
+
+  let signatureValid = false
+  if (config.provider === 'kirimdev') {
+    const signature = req.headers.get('x-kirim-signature')
+    signatureValid = await verifyKirimdevSignature(rawBody, signature)
+  } else {
+    const signature = req.headers.get('x-hub-signature-256')
+    signatureValid = await verifyWhatsAppSignature(rawBody, signature)
+  }
+
   if (!signatureValid) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   }

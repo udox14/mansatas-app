@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { checkFeatureAccess } from '@/lib/features'
+import { getSystemSetting, setSystemSetting } from '@/lib/system-settings'
 import { WA_FEATURE_ID, createWhatsAppCampaign, ensureWhatsAppTables, processWhatsAppOutbox, type WaTargetScope } from '@/lib/whatsapp'
 
 async function guard() {
@@ -69,4 +70,28 @@ export async function processWhatsappOutboxAction() {
   if (error) return
   await processWhatsAppOutbox(db, 25)
   revalidatePath('/dashboard/whatsapp')
+}
+
+export async function saveWhatsappSettingsAction(prevState: any, formData: FormData) {
+  const { error } = await guard()
+  if (error) return { error }
+
+  const password = String(formData.get('password') || '').trim()
+  const targetPassword = await getSystemSetting('whatsapp_settings_password', 'admin123')
+  if (password !== targetPassword) {
+    return { error: 'Password salah!' }
+  }
+
+  const provider = String(formData.get('provider') || 'wablas').trim()
+  const phoneNumberId = String(formData.get('phone_number_id') || '').trim()
+  const kirimdevApiKey = String(formData.get('kirimdev_api_key') || '').trim()
+  const kirimdevWebhookSecret = String(formData.get('kirimdev_webhook_secret') || '').trim()
+
+  await setSystemSetting('whatsapp_provider', provider)
+  await setSystemSetting('whatsapp_phone_number_id', phoneNumberId)
+  await setSystemSetting('kirimdev_api_key', kirimdevApiKey)
+  await setSystemSetting('kirimdev_webhook_secret', kirimdevWebhookSecret)
+
+  revalidatePath('/dashboard/whatsapp')
+  return { success: true }
 }
