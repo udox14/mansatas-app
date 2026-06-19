@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { checkFeatureAccess } from '@/lib/features'
 import { formatNamaKelas } from '@/lib/utils'
-import { todayWIB } from '@/lib/time'
+import { todayWIB, currentTimeWIB } from '@/lib/time'
 import {
   findTeachingBlockException,
   getEffectiveDatesInRange,
@@ -41,6 +41,7 @@ export type AgendaKelasRow = {
   tugas: string
   guru_nama: string
   paraf: string
+  guru_status: string
 }
 
 export type AgendaKelasAbsensiRow = {
@@ -95,6 +96,47 @@ function getSlots(raw: string | null | undefined, hari: number): SlotJam[] {
   } catch {
     return []
   }
+}
+
+function timeToMinutes(value?: string | null): number | null {
+  if (!value || value === '-') return null
+  const [hours, minutes] = value.split(':').map(Number)
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null
+  return hours * 60 + minutes
+}
+
+function isTeachingBlockEnded(tanggal: string, slotSelesai?: SlotJam): boolean {
+  const today = todayWIB()
+  if (tanggal < today) return true
+  if (tanggal > today) return false
+  const selesaiMinutes = timeToMinutes(slotSelesai?.selesai)
+  if (selesaiMinutes === null) return true
+  const current = currentTimeWIB()
+  return current.hours * 60 + current.minutes >= selesaiMinutes
+}
+
+// Status kehadiran guru utk kolom cetak: mirror logic monitoring-agenda.
+// agenda_guru.status > delegasi (TUGAS, pakai alasan) > ALFA bila blok selesai.
+function resolveGuruStatus(opts: {
+  agendaStatus?: string | null
+  hasDelegasi: boolean
+  delegasiAlasan?: string | null
+  ended: boolean
+}): string {
+  const { agendaStatus, hasDelegasi, delegasiAlasan, ended } = opts
+  if (agendaStatus) {
+    if (agendaStatus === 'SAKIT') return 'SAKIT'
+    if (agendaStatus === 'IZIN') return 'IZIN'
+    if (agendaStatus === 'ALFA') return 'ALFA'
+    // TEPAT_WAKTU, TELAT, HADIR, dll → guru hadir mengajar
+    return 'HADIR'
+  }
+  if (hasDelegasi) {
+    if (delegasiAlasan === 'SAKIT') return 'SAKIT'
+    if (delegasiAlasan === 'IZIN') return 'IZIN'
+    return 'TUGAS'
+  }
+  return ended ? 'ALFA' : ''
 }
 
 function monthRange(month: string) {
@@ -287,6 +329,7 @@ async function buildAgendaKelasHari(
     tugas: '',
     guru_nama: '',
     paraf: '',
+    guru_status: '',
   }))
 
   const classLabel = formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok)
@@ -360,6 +403,14 @@ async function buildAgendaKelasHari(
     )
     if (exception) continue
 
+    const slotSelesai = slots.find(s => s.id === jamList[jamList.length - 1])
+    const guruStatus = resolveGuruStatus({
+      agendaStatus: first.agenda_status,
+      hasDelegasi: !!first.delegasi_kelas_id,
+      delegasiAlasan: first.delegasi_alasan,
+      ended: isTeachingBlockEnded(tanggal, slotSelesai),
+    })
+
     for (const jam of jamList) {
       if (jam < 1 || jam > 10) continue
       occupied.add(jam)
@@ -371,6 +422,7 @@ async function buildAgendaKelasHari(
         tugas: first.tugas || '',
         guru_nama: first.guru_nama || '',
         paraf: '',
+        guru_status: guruStatus,
       }
     }
   }
@@ -567,6 +619,7 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
       tugas: '',
       guru_nama: '',
       paraf: '',
+      guru_status: '',
     }))
 
     const classLabel = formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok)
@@ -609,16 +662,17 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
           guru.nama_lengkap as guru_nama,
           mp.nama_mapel,
           ag.materi,
+          ag.status as agenda_status,
+          dtk.id as delegasi_kelas_id,
+          dt.alasan_ketidakhadiran as delegasi_alasan,
           dtk.tugas
         FROM jadwal_mengajar jm
         JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
         JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
         JOIN "user" guru ON pm.guru_id = guru.id
         LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
-        LEFT JOIN delegasi_tugas_kelas dtk ON dtk.penugasan_mengajar_id = jm.penugasan_id
-          AND dtk.delegasi_id IN (
-            SELECT dt.id FROM delegasi_tugas dt WHERE dt.dari_user_id = pm.guru_id AND dt.tanggal = ?
-          )
+        LEFT JOIN delegasi_tugas dt ON dt.dari_user_id = pm.guru_id AND dt.tanggal = ?
+        LEFT JOIN delegasi_tugas_kelas dtk ON dtk.delegasi_id = dt.id AND dtk.penugasan_mengajar_id = jm.penugasan_id
         WHERE pm.kelas_id = ? AND jm.tahun_ajaran_id = ? AND jm.hari = ?
         ORDER BY jm.jam_ke ASC
       `).bind(tanggal, tanggal, kelasId, ta.id, hari).all<any>()
@@ -642,6 +696,14 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
       )
       if (exception) continue
 
+      const slotSelesai = slots.find(s => s.id === jamList[jamList.length - 1])
+      const guruStatus = resolveGuruStatus({
+        agendaStatus: first.agenda_status,
+        hasDelegasi: !!first.delegasi_kelas_id,
+        delegasiAlasan: first.delegasi_alasan,
+        ended: isTeachingBlockEnded(tanggal, slotSelesai),
+      })
+
       for (const jam of jamList) {
         if (jam < 1 || jam > 10) continue
         occupied.add(jam)
@@ -653,6 +715,7 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
           tugas: first.tugas || '',
           guru_nama: first.guru_nama || '',
           paraf: '',
+          guru_status: guruStatus,
         }
       }
     }

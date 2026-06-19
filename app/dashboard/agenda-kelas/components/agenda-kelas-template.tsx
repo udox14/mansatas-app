@@ -76,8 +76,8 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                 <col style={{ width: '9mm' }} />
                 <col style={{ width: '31mm' }} />
                 <col style={{ width: '45mm' }} />
-                <col style={{ width: '38mm' }} />
-                <col style={{ width: '16mm' }} />
+                <col style={{ width: '34mm' }} />
+                <col style={{ width: '20mm' }} />
               </colgroup>
               <thead>
                 <tr style={{ height: '9mm' }}>
@@ -85,7 +85,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                   <th style={thStyle}>MATA PELAJARAN</th>
                   <th style={thStyle}>POKOK<br />BAHASAN</th>
                   <th style={thStyle}>TUGAS</th>
-                  <th style={thStyle}>PARAF<br />GURU</th>
+                  <th style={thStyle}>KEHADIRAN<br />GURU</th>
                 </tr>
               </thead>
               <tbody>
@@ -104,7 +104,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                       <td style={tdStyle}>
                         <div style={lineClampStyle}>{row?.tugas || ''}</div>
                       </td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>{row?.paraf || ''}</td>
+                      <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold', fontSize: '7.5pt' }}>{row?.guru_status || ''}</td>
                     </tr>
                   )
                 })}
