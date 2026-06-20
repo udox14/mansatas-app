@@ -75,6 +75,7 @@ async function ensurePaymentSubmissionTable(db: D1Database) {
       metode_bayar TEXT NOT NULL DEFAULT 'transfer' CHECK(metode_bayar IN ('transfer', 'qris')),
       jumlah INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'belum_upload' CHECK(status IN ('belum_upload', 'menunggu_konfirmasi', 'terkonfirmasi', 'ditolak')),
+      bank_tujuan TEXT,
       bukti_url TEXT,
       bukti_uploaded_at TEXT,
       confirmed_by TEXT REFERENCES "user"(id),
@@ -944,7 +945,7 @@ export async function getPendingDsptPaymentSubmissions() {
   const result = await db.prepare(`
     SELECT
       p.id, p.siswa_id, p.dspt_id, p.metode_bayar, p.jumlah, p.status,
-      p.bukti_url, p.bukti_uploaded_at, p.created_at,
+      p.bank_tujuan, p.bukti_url, p.bukti_uploaded_at, p.created_at,
       s.nama_lengkap, s.nisn, s.tahun_masuk,
       k.tingkat, k.nomor_kelas, k.kelompok,
       d.nominal_target, d.total_dibayar, d.total_diskon, d.status AS dspt_status
@@ -964,7 +965,7 @@ export async function getDsptPaymentProofSubmissions() {
   const result = await db.prepare(`
     SELECT
       p.id, p.siswa_id, p.dspt_id, p.metode_bayar, p.jumlah, p.status,
-      p.bukti_url, p.bukti_uploaded_at, p.created_at, p.updated_at,
+      p.bank_tujuan, p.bukti_url, p.bukti_uploaded_at, p.created_at, p.updated_at,
       p.confirmed_at, p.rejected_at, p.reject_reason, p.transaksi_id,
       s.nama_lengkap, s.nisn, s.tahun_masuk,
       k.tingkat, k.nomor_kelas, k.kelompok,
