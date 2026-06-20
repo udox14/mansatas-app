@@ -47,6 +47,7 @@ interface PaymentProofSubmission {
   siswa_id: string
   dspt_id: string
   metode_bayar: string
+  bank_tujuan?: string | null
   jumlah: number
   status: string
   bukti_url: string
@@ -680,6 +681,9 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
                       <p className="mt-1 text-xs text-slate-500">
                         Bukti: {p.bukti_uploaded_at ? String(p.bukti_uploaded_at).replace('T', ' ') : '-'} - {p.metode_bayar === 'qris' ? 'QRIS' : 'Transfer'}
                       </p>
+                      {p.metode_bayar === 'transfer' && p.bank_tujuan && (
+                        <p className="mt-1 text-xs font-medium text-sky-700 dark:text-sky-400">Bank tujuan: {p.bank_tujuan}</p>
+                      )}
                       {p.reject_reason && <p className="mt-1 text-xs text-rose-600">Ditolak: {p.reject_reason}</p>}
                     </div>
                     <div className="text-left sm:text-right">
@@ -725,6 +729,9 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
               <p className="text-xs text-slate-500">
                 {formatRupiah(Number(proofModal?.jumlah || 0))} - {proofModal?.metode_bayar === 'qris' ? 'QRIS' : 'Transfer'}
               </p>
+              {proofModal?.metode_bayar === 'transfer' && proofModal?.bank_tujuan && (
+                <p className="text-xs font-medium text-sky-700 dark:text-sky-400">Bank tujuan: {proofModal.bank_tujuan}</p>
+              )}
             </div>
             <div className="flex items-center gap-1">
               <Button type="button" variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => setProofZoom(value => Math.max(0.5, value - 0.25))} title="Zoom out">

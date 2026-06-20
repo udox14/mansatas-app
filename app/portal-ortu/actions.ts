@@ -94,6 +94,7 @@ async function ensurePaymentSubmissionTable(db: D1Database) {
       metode_bayar TEXT NOT NULL DEFAULT 'transfer',
       jumlah INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'belum_upload',
+      bank_tujuan TEXT,
       bukti_url TEXT,
       bukti_uploaded_at TEXT,
       confirmed_by TEXT REFERENCES "user"(id),
@@ -111,6 +112,7 @@ async function ensurePaymentSubmissionTable(db: D1Database) {
 export async function createParentDsptPaymentSubmission(payload: {
   amount: number
   method: 'transfer' | 'qris'
+  bankAccountId?: string
 }) {
   const session = await requireParentSession()
   const db = await getDB()
@@ -121,7 +123,18 @@ export async function createParentDsptPaymentSubmission(payload: {
   const settings = await getKomitePaymentSettings()
   const method = payload.method === 'qris' ? 'qris' : 'transfer'
   if (method === 'qris' && settings.qrisEnabled === false) return { error: 'Metode QRIS sedang tidak aktif.' }
-  if (method === 'transfer' && !settings.accounts.some((account) => account.isActive)) return { error: 'Metode transfer rekening sedang tidak aktif.' }
+  const activeAccounts = settings.accounts.filter((account) => account.isActive)
+  if (method === 'transfer' && activeAccounts.length === 0) return { error: 'Metode transfer rekening sedang tidak aktif.' }
+
+  // Snapshot bank tujuan (label saat pengajuan) — ditampilkan ke admin saat pengecekan bukti.
+  let bankTujuan: string | null = null
+  if (method === 'transfer') {
+    const chosen = payload.bankAccountId
+      ? activeAccounts.find((account) => account.id === payload.bankAccountId)
+      : activeAccounts[0]
+    if (!chosen) return { error: 'Bank tujuan transfer tidak valid.' }
+    bankTujuan = `${chosen.bankLabel} - ${chosen.rekening} a.n. ${chosen.atasNama}`
+  }
 
   const dspt = await db.prepare(`
     SELECT d.id, d.nominal_target, d.total_dibayar, d.total_diskon, s.tahun_masuk
@@ -140,9 +153,9 @@ export async function createParentDsptPaymentSubmission(payload: {
 
   const id = generateId()
   await db.prepare(`
-    INSERT INTO fin_payment_submissions (id, siswa_id, dspt_id, kategori, metode_bayar, jumlah, status)
-    VALUES (?, ?, ?, 'dspt', ?, ?, 'belum_upload')
-  `).bind(id, session.user.siswa_id, dspt.id, method, amount).run()
+    INSERT INTO fin_payment_submissions (id, siswa_id, dspt_id, kategori, metode_bayar, jumlah, status, bank_tujuan)
+    VALUES (?, ?, ?, 'dspt', ?, ?, 'belum_upload', ?)
+  `).bind(id, session.user.siswa_id, dspt.id, method, amount, bankTujuan).run()
 
   revalidatePath('/portal-ortu')
   return { success: 'Pengajuan pembayaran dibuat.', submissionId: id }

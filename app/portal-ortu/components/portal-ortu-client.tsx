@@ -77,6 +77,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [paymentStep, setPaymentStep] = useState<1 | 2 | 3>(1)
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'qris' | 'transfer'>('qris')
+  const [selectedBankId, setSelectedBankId] = useState('')
   const [currentSubmissionId, setCurrentSubmissionId] = useState('')
   const [paymentSubmitting, setPaymentSubmitting] = useState(false)
   const [paymentMessage, setPaymentMessage] = useState('')
@@ -299,9 +300,14 @@ export function PortalOrtuClient({ data }: { data: any }) {
       setPaymentMessage('Metode transfer rekening sedang tidak aktif.')
       return
     }
+    const bankAccountId = paymentMethod === 'transfer' ? (selectedBankId || activePaymentAccounts[0]?.id) : undefined
+    if (paymentMethod === 'transfer' && !bankAccountId) {
+      setPaymentMessage('Pilih bank tujuan transfer dulu.')
+      return
+    }
     setPaymentSubmitting(true)
     setPaymentMessage('')
-    const res = await createParentDsptPaymentSubmission({ amount: paymentAmountNumber, method: paymentMethod })
+    const res = await createParentDsptPaymentSubmission({ amount: paymentAmountNumber, method: paymentMethod, bankAccountId })
     setPaymentSubmitting(false)
     if (res.error || !res.submissionId) {
       setPaymentMessage(res.error || 'Gagal membuat pengajuan pembayaran')
@@ -1178,18 +1184,30 @@ export function PortalOrtuClient({ data }: { data: any }) {
                               </div>
                             </div>
                           )}
-                          {paymentMethod === 'transfer' && hasTransferMethod && activePaymentAccounts.map((account: any) => (
-                            <div data-tour-id="payment-transfer" key={account.id || account.rekening} className="rounded-xl border border-slate-200 p-4">
+                          {paymentMethod === 'transfer' && hasTransferMethod && (
+                            <p className="text-xs font-semibold text-slate-600">Pilih bank tujuan transfer:</p>
+                          )}
+                          {paymentMethod === 'transfer' && hasTransferMethod && activePaymentAccounts.map((account: any) => {
+                            const isSelected = (selectedBankId || activePaymentAccounts[0]?.id) === account.id
+                            return (
+                            <button
+                              type="button"
+                              data-tour-id="payment-transfer"
+                              key={account.id || account.rekening}
+                              onClick={() => setSelectedBankId(account.id)}
+                              className={`w-full rounded-xl border p-4 text-left transition ${isSelected ? 'border-sky-500 ring-2 ring-sky-200 bg-sky-50' : 'border-slate-200'}`}
+                            >
                               <div className="flex items-start gap-3">
-                                <Landmark className="mt-0.5 h-5 w-5 text-sky-600" />
+                                <Landmark className={`mt-0.5 h-5 w-5 ${isSelected ? 'text-sky-600' : 'text-slate-400'}`} />
                                 <div>
                                   <p className="text-sm font-bold text-slate-800">{account.bankLabel}: {account.rekening}</p>
                                   <p className="mt-1 text-xs text-slate-500">a.n. {account.atasNama}</p>
                                   <p className="mt-1 text-xs text-slate-500">Nominal DSPT: Rp {rupiah(paymentAmountNumber)}</p>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            </button>
+                            )
+                          })}
                         </div>
                         <div className="flex gap-2">
                           <button type="button" onClick={() => setPaymentStep(1)} className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700">
