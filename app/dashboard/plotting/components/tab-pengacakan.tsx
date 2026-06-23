@@ -6,6 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2, Save, CheckCircle2, ArrowRight, Shuffle } from 'lucide-react'
 import { simpanPlottingMassal } from '../actions'
 
@@ -24,11 +25,22 @@ export function TabPengacakan({
   const [isSimulating, setIsSimulating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
+  const [previewKelasId, setPreviewKelasId] = useState('ALL')
 
   // FIX: field 'nama' sudah ada dari actions.ts — localeCompare aman
   const sortedKelas = useMemo(() =>
     [...kelasList].sort((a, b) => (a.nama ?? '').localeCompare(b.nama ?? '', undefined, { numeric: true, sensitivity: 'base' })),
     [kelasList]
+  )
+  const previewKelasOptions = useMemo(() =>
+    Array.from(new Map(simulasiResult.map(r => [r.kelas_id, r.kelas_nama])).entries())
+      .map(([id, nama]) => ({ id, nama }))
+      .sort((a, b) => a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' })),
+    [simulasiResult]
+  )
+  const filteredSimulasiResult = useMemo(() =>
+    previewKelasId === 'ALL' ? simulasiResult : simulasiResult.filter(r => r.kelas_id === previewKelasId),
+    [simulasiResult, previewKelasId]
   )
 
   const handleToggleKelas = (id: string) =>
@@ -38,7 +50,7 @@ export function TabPengacakan({
     setSelectedKelasIds(selectedKelasIds.length === sortedKelas.length ? [] : sortedKelas.map(k => k.id))
 
   const jalankanSimulasi = () => {
-    setIsSimulating(true); setSimulasiResult([]); setSuccessMsg('')
+    setIsSimulating(true); setSimulasiResult([]); setSuccessMsg(''); setPreviewKelasId('ALL')
     setTimeout(() => {
       const targetKelas = sortedKelas
         .filter(k => selectedKelasIds.includes(k.id))
@@ -148,17 +160,30 @@ export function TabPengacakan({
       {/* Panel kanan - preview */}
       <div className="xl:col-span-2">
         <div className="rounded-lg border border-surface bg-surface flex flex-col min-h-[420px]">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-surface-2">
+          <div className="flex flex-col gap-3 px-4 py-3 border-b border-surface-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">Preview hasil pengacakan</p>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Siswa diacak silang L/P dalam jurusan yang sama</p>
             </div>
             {simulasiResult.length > 0 && (
-              <Button onClick={simpanPermanen} disabled={isSaving} size="sm"
-                className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md">
-                {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                Simpan permanen
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Select value={previewKelasId} onValueChange={setPreviewKelasId}>
+                  <SelectTrigger className="h-8 w-full rounded-md text-xs sm:w-[170px]">
+                    <SelectValue placeholder="Filter kelas tujuan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL" className="text-xs">Semua kelas tujuan</SelectItem>
+                    {previewKelasOptions.map(k => (
+                      <SelectItem key={k.id} value={k.id} className="text-xs">{k.nama}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button onClick={simpanPermanen} disabled={isSaving} size="sm"
+                  className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md">
+                  {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  Simpan permanen
+                </Button>
+              </div>
             )}
           </div>
 
@@ -186,7 +211,7 @@ export function TabPengacakan({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {simulasiResult.map(r => (
+                    {filteredSimulasiResult.map(r => (
                       <TableRow key={r.siswa_id} className="hover:bg-surface-2/50">
                         <TableCell className="text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 py-2">
                           {r.nama_lengkap}
