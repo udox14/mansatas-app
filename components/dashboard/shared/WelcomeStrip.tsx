@@ -1,6 +1,6 @@
 // components/dashboard/shared/WelcomeStrip.tsx
 import Link from 'next/link'
-import { UserGear as UserCog, CalendarCheck, Bell } from '@phosphor-icons/react/dist/ssr'
+import { UserGear as UserCog, CalendarCheck } from '@phosphor-icons/react/dist/ssr'
 
 type Props = {
   nama: string
@@ -17,71 +17,53 @@ const AVATAR_BG: Record<string, string> = {
   emerald: 'bg-emerald-500', amber: 'bg-amber-500', rose: 'bg-rose-500',
   orange: 'bg-orange-500', sky: 'bg-sky-500',
 }
+const BADGE_CLS: Record<string, string> = {
+  blue:    'text-blue-700 bg-blue-50 border-blue-200',
+  purple:  'text-purple-700 bg-purple-50 border-purple-200',
+  cyan:    'text-cyan-700 bg-cyan-50 border-cyan-200',
+  emerald: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  amber:   'text-amber-700 bg-amber-50 border-amber-200',
+  rose:    'text-rose-700 bg-rose-50 border-rose-200',
+  orange:  'text-orange-700 bg-orange-50 border-orange-200',
+  sky:     'text-sky-700 bg-sky-50 border-sky-200',
+}
 
 export function WelcomeStrip({ nama, namaDepan, avatarUrl, roleLabel, roleColor = 'emerald', taAktif, sapaan }: Props) {
   const avatarBg = AVATAR_BG[roleColor] ?? AVATAR_BG.emerald
+  const badgeCls = BADGE_CLS[roleColor] ?? BADGE_CLS.emerald
 
   return (
-    <div className="space-y-4">
-      {/* Greeting Header Row */}
-      <div className="flex items-center justify-between px-1 py-1">
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-surface bg-surface px-4 py-3 shadow-sm">
+      <div className="flex items-center gap-3 min-w-0">
+        <div className={`relative h-10 w-10 shrink-0 rounded-full ${avatarBg} flex items-center justify-center overflow-hidden shadow-sm`}>
+          {avatarUrl
+            ? <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+            : <span className="text-base font-semibold text-white select-none">{namaDepan.charAt(0).toUpperCase()}</span>
+          }
+          <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-white" />
+        </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">
-            {sapaan}
-          </p>
-          <h1 className="text-xl font-extrabold text-emerald-950 dark:text-emerald-400 tracking-tight leading-snug">
-            Hi, {namaDepan}!
-          </h1>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Notification Bell (Pure/Clean) */}
-          <Link
-            href="/dashboard/settings/notifications"
-            className="p-2 rounded-full bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 transition-colors"
-            title="Broadcast"
-          >
-            <Bell className="h-5 w-5" />
-          </Link>
-          
-          <Link href="/dashboard/settings/profile" className="group">
-            <div className={`relative h-10 w-10 shrink-0 rounded-full ${avatarBg} flex items-center justify-center overflow-hidden ring-2 ring-emerald-800/10 group-hover:ring-emerald-800/30 transition-all`}>
-              {avatarUrl
-                ? <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
-                : <span className="text-base font-semibold text-white select-none">{namaDepan.charAt(0).toUpperCase()}</span>
-              }
-              <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-white" />
-            </div>
-          </Link>
-        </div>
-      </div>
-
-      {/* Welcome Premium Gradient Banner Card */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-950 via-[#01241b] to-emerald-900 text-white p-5 shadow-sm border border-emerald-900/40">
-        {/* Decorative elements */}
-        <div className="absolute -right-8 -bottom-8 w-32 h-32 rounded-full bg-emerald-500/15 blur-xl pointer-events-none" />
-        <div className="absolute right-12 -top-4 w-20 h-20 rounded-full bg-emerald-400/10 blur-lg pointer-events-none" />
-
-        <div className="relative z-10 space-y-2">
-          <div className="space-y-1">
-            <h2 className="text-sm font-bold tracking-wide text-emerald-200/90 uppercase">MADRASAH DIGITAL</h2>
-            <p className="text-xs text-white/95 font-medium leading-relaxed max-w-md">
-              Kelola tugas, absensi, dan monitoring operasional madrasah hari ini dengan cepat dan praktis.
-            </p>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-2 pt-1.5">
-            <span className="text-[9px] font-bold bg-emerald-500/25 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/35 uppercase tracking-wider">
+          <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-0.5">{sapaan}</p>
+          <h1 className="text-sm font-semibold text-slate-900 dark:text-slate-50 leading-snug truncate">{nama}</h1>
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            <span className={`text-[10px] font-semibold border px-1.5 py-0.5 rounded ${badgeCls}`}>
               {roleLabel}
             </span>
             {taAktif && (
-              <span className="text-[10px] text-emerald-200/80 font-medium flex items-center gap-1">
-                <CalendarCheck className="h-3.5 w-3.5" />
-                TA {taAktif.nama} · Semester {taAktif.semester}
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                <CalendarCheck className="h-3 w-3" />
+                TA {taAktif.nama} · Smt {taAktif.semester}
               </span>
             )}
           </div>
         </div>
       </div>
+      <Link
+        href="/dashboard/settings/profile"
+        className="shrink-0 hidden sm:inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-200 border border-surface hover:border-slate-300 px-3 py-1.5 rounded-md bg-surface-2 hover:bg-surface transition-colors"
+      >
+        <UserCog className="h-3.5 w-3.5" /> Profil saya
+      </Link>
     </div>
   )
 }

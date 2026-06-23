@@ -181,20 +181,16 @@ function TodayMetric({
   return (
     <Link
       href={href}
-      className="group block rounded-3xl bg-white dark:bg-slate-900/60 border border-slate-100 dark:border-slate-850 p-4 shadow-sm hover:shadow hover:border-emerald-800/20 transition-all active:scale-[0.98]"
+      className="group rounded-xl border border-surface bg-surface p-4 shadow-sm transition-all hover:border-slate-300 hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className={`h-10 w-10 rounded-xl flex items-center justify-center shadow-sm ${color}`}>
-          {icon}
-        </div>
-        <div className="h-6 w-6 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-slate-100 dark:group-hover:bg-slate-700 transition-colors">
-          <ArrowRight className="h-3.5 w-3.5" />
-        </div>
+        <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${color}`}>{icon}</div>
+        <ArrowRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 shrink-0" />
       </div>
       <div className="mt-4">
-        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{title}</p>
-        <p className="mt-0.5 text-2xl font-extrabold leading-none tracking-tight text-slate-800 dark:text-slate-100 tabular-nums">{value}</p>
-        <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 leading-snug">{desc}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{title}</p>
+        <p className="mt-1 text-2xl font-bold leading-none tracking-tight text-slate-800 dark:text-slate-100 tabular-nums">{value}</p>
+        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 leading-snug">{desc}</p>
       </div>
     </Link>
   )
@@ -207,33 +203,33 @@ function ProgressPanel({
   agenda: AgendaStats
   href: string
 }) {
+  const tone = progressTone(agenda.percent)
+
   return (
-    <Link href={href} className="group block rounded-3xl bg-gradient-to-br from-[#022d21] to-[#0d3f34] text-white p-4 shadow-sm border border-emerald-900/40 hover:shadow-md transition-all active:scale-[0.98]">
+    <Link href={href} className="group block rounded-xl border border-surface bg-surface p-4 shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[9px] font-bold tracking-wide text-emerald-200 uppercase">Agenda Guru</p>
-          <p className="text-[9px] text-emerald-100/70 truncate mt-0.5">Jurnal KBM hari ini</p>
+        <div>
+          <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Agenda Guru</p>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500">Pengisian jurnal hari ini</p>
         </div>
-        <span className="text-base font-extrabold text-emerald-300 tabular-nums">{agenda.percent}%</span>
+        <span className={`text-xl font-bold tabular-nums ${tone.split(' ')[1]}`}>{agenda.percent}%</span>
       </div>
       <div className="mt-4 flex items-end justify-between gap-3">
         <div>
-          <p className="text-2xl font-extrabold text-white leading-none tracking-tight tabular-nums">{agenda.filled}</p>
-          <p className="text-[10px] text-emerald-200/80 mt-1">dari {agenda.total} jadwal</p>
+          <p className="text-3xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">{agenda.filled}</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">dari {agenda.total} jadwal</p>
         </div>
-        <div className="h-6 w-6 rounded-full bg-emerald-800/40 flex items-center justify-center text-emerald-300 group-hover:bg-emerald-800/60 transition-colors">
-          <ArrowRight className="h-3.5 w-3.5" />
-        </div>
+        <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-slate-400" />
       </div>
-      <div className="mt-3.5 h-1.5 w-full overflow-hidden rounded-full bg-emerald-900/60">
-        <div className="h-full rounded-full bg-emerald-400 transition-all duration-500" style={{ width: `${agenda.percent}%` }} />
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        <div className={`h-full rounded-full ${tone.split(' ')[0]}`} style={{ width: `${agenda.percent}%` }} />
       </div>
-      <p className="mt-2.5 text-[9px] font-semibold text-emerald-300/80 truncate">
+      <p className="mt-2 text-[10px] text-slate-400 dark:text-slate-500">
         {agenda.total === 0
-          ? 'Tidak ada jadwal mengajar'
+          ? 'Tidak ada jadwal mengajar hari ini'
           : agenda.percent >= 80
-            ? 'Pengisian agenda lancar'
-            : 'Jurnal KBM perlu dikejar'}
+            ? 'Pengisian agenda berjalan baik'
+            : 'Masih ada jurnal yang perlu dikejar'}
       </p>
     </Link>
   )
@@ -241,30 +237,26 @@ function ProgressPanel({
 
 function ActionCard({ item }: { item: ActionItem }) {
   const toneClass = {
-    rose: 'bg-rose-50/85 text-rose-700 border-rose-100/50 dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-300',
-    amber: 'bg-amber-50/85 text-amber-700 border-amber-100/50 dark:bg-amber-950/20 dark:border-amber-900/40 dark:text-amber-300',
-    blue: 'bg-blue-50/85 text-blue-700 border-blue-100/50 dark:bg-blue-950/20 dark:border-blue-900/40 dark:text-blue-300',
-    emerald: 'bg-emerald-50/85 text-emerald-700 border-emerald-100/50 dark:bg-emerald-950/20 dark:border-emerald-900/40 dark:text-emerald-300',
-    slate: 'bg-slate-50 text-slate-700 border-slate-200/50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300',
+    rose: 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/20 dark:border-rose-900/40',
+    amber: 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/20 dark:border-amber-900/40',
+    blue: 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:border-blue-900/40',
+    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/40',
+    slate: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300',
   }[item.tone]
 
   return (
-    <Link href={item.href} className="group flex items-center gap-3 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-3 hover:border-emerald-800/20 hover:shadow-sm transition-all active:scale-[0.99]">
-      <div className={`h-9 w-9 shrink-0 rounded-xl border flex items-center justify-center ${toneClass}`}>{item.icon}</div>
+    <Link href={item.href} className="group flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-surface-2 transition-colors">
+      <div className={`h-8 w-8 shrink-0 rounded-lg border flex items-center justify-center ${toneClass}`}>{item.icon}</div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{item.title}</p>
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">{item.desc}</p>
+        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{item.title}</p>
+        <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{item.desc}</p>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        {item.badge !== undefined && (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-extrabold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            {item.badge}
-          </span>
-        )}
-        <div className="h-6 w-6 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-300 group-hover:text-slate-400 transition-colors">
-          <ArrowRight className="h-3 w-3" />
-        </div>
-      </div>
+      {item.badge !== undefined && (
+        <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          {item.badge}
+        </span>
+      )}
+      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 dark:text-slate-600 group-hover:text-slate-400" />
     </Link>
   )
 }
@@ -425,7 +417,7 @@ export async function SuperAdminDashboard({
     .filter(group => group.items.length > 0)
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-500 pb-12">
+    <div className="space-y-3 animate-in fade-in duration-500 pb-12">
       <WelcomeStrip nama={nama} namaDepan={namaDepan} avatarUrl={avatarUrl}
         roleLabel={roleLabel} roleColor={roleColor} taAktif={taAktif} sapaan={sapaan} />
 
@@ -435,59 +427,59 @@ export async function SuperAdminDashboard({
 
       <JadwalMengajarToday userId={userId} taAktif={taAktif} />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)] gap-4">
-        <div className="space-y-5">
-          {/* Hari Ini */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between px-1">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-950 dark:text-emerald-400">Hari Ini</h2>
-              <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Aktivitas Terkini</span>
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)] gap-3">
+        <div className="space-y-3">
+          <div className="rounded-xl border border-surface bg-surface shadow-sm">
+            <SectionHeader
+              icon={<CalendarCheck className="h-3.5 w-3.5" />}
+              title="Hari Ini"
+              desc="Hal yang paling perlu terlihat begitu dashboard dibuka"
+            />
+            <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <ProgressPanel agenda={agenda} href="/dashboard/monitoring-agenda" />
               <TodayMetric
                 title="Hadir Estimasi"
                 value={hadirSiswaEst}
                 desc={`${tidakMasuk} izin tidak masuk`}
                 href="/dashboard/izin"
-                icon={<Users className="h-4.5 w-4.5" />}
-                color="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300"
+                icon={<Users className="h-4 w-4" />}
+                color="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20"
               />
               <TodayMetric
                 title="Delegasi"
                 value={`${selesaiDelegasi}/${totalDelegasi}`}
-                desc={belumSelesaiDelegasi > 0 ? `${belumSelesaiDelegasi} berjalan` : 'Selesai'}
+                desc={belumSelesaiDelegasi > 0 ? `${belumSelesaiDelegasi} masih berjalan` : 'Tidak ada yang tertunda'}
                 href="/dashboard/monitoring-penugasan"
-                icon={<Send className="h-4.5 w-4.5" />}
-                color="bg-purple-50 text-purple-700 dark:bg-purple-950/20 dark:text-purple-300"
+                icon={<Send className="h-4 w-4" />}
+                color="bg-purple-50 text-purple-600 dark:bg-purple-900/20"
               />
               <TodayMetric
                 title="Di Luar Komplek"
                 value={diLuar}
-                desc={`${kehadiranSiswa?.keluar_hari_ini ?? 0} izin keluar`}
+                desc={`${kehadiranSiswa?.keluar_hari_ini ?? 0} izin keluar hari ini`}
                 href="/dashboard/izin"
-                icon={<AlertCircle className="h-4.5 w-4.5" />}
-                color={diLuar > 0 ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/20' : 'bg-slate-50 text-slate-600 dark:bg-slate-800'}
+                icon={<AlertCircle className="h-4 w-4" />}
+                color={diLuar > 0 ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20' : 'bg-slate-100 text-slate-600 dark:bg-slate-800'}
               />
             </div>
           </div>
 
-          {/* Akses Cepat Terarah */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between px-1">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-950 dark:text-emerald-400">Akses Cepat</h2>
-              <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Menu Aktif</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="rounded-xl border border-surface bg-surface shadow-sm">
+            <SectionHeader
+              icon={<LayoutGrid className="h-3.5 w-3.5" />}
+              title="Akses Cepat Terarah"
+              desc="Dikelompokkan mengikuti hak akses menu yang aktif"
+            />
+            <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
               {shortcutGroups.map(group => {
                 const meta = GROUP_META[group.id]
                 return (
-                  <div key={group.id} className="rounded-3xl border border-slate-100 dark:border-slate-800/80 bg-white dark:bg-slate-900/60 shadow-sm overflow-hidden">
-                    <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/30">
-                      <p className="text-xs font-bold text-emerald-950 dark:text-emerald-400 uppercase tracking-wider">{meta.title}</p>
-                      <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">{meta.desc}</p>
+                  <div key={group.id} className="rounded-lg border border-surface-2 bg-surface">
+                    <div className="px-3 py-2 border-b border-surface-2">
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">{meta.title}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">{meta.desc}</p>
                     </div>
-                    <div className="p-2 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    <div className="p-1.5 grid grid-cols-1 sm:grid-cols-2 gap-0.5">
                       {group.items.map(item => {
                         const meta = SHORTCUT_TONES[item.id] || DEFAULT_SHORTCUT
                         const Icon = item.icon as any
@@ -511,19 +503,18 @@ export async function SuperAdminDashboard({
           </div>
         </div>
 
-        <div className="space-y-5">
-          {/* Butuh Tindakan */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between px-1">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-950 dark:text-emerald-400">Butuh Tindakan</h2>
-              <span className="text-[9px] font-bold text-rose-500 uppercase tracking-wider">Prioritas</span>
-            </div>
-            <div className="space-y-2">
+        <div className="space-y-3">
+          <div className="rounded-xl border border-surface bg-surface shadow-sm">
+            <SectionHeader
+              icon={<AlertCircle className="h-3.5 w-3.5" />}
+              title="Butuh Tindakan"
+              desc="Antrian kerja dan sinyal yang jangan kelewat"
+            />
+            <div className="p-2">
               {actionItems.map((item, index) => <ActionCard key={`${item.title}-${index}`} item={item} />)}
             </div>
           </div>
 
-          {/* Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-1 gap-3">
             <StatCard
               title="Siswa Aktif"
@@ -554,13 +545,13 @@ export async function SuperAdminDashboard({
             />
           </div>
 
-          {/* Snapshot Data */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between px-1">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-950 dark:text-emerald-400">Snapshot Data</h2>
-              <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Ringkasan</span>
-            </div>
-            <div className="rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm p-4 space-y-2">
+          <div className="rounded-xl border border-surface bg-surface shadow-sm">
+            <SectionHeader
+              icon={<BarChart3 className="h-3.5 w-3.5" />}
+              title="Snapshot Data"
+              desc="Ringkasan lintas area"
+            />
+            <div className="p-3 space-y-2">
               <SnapshotRow label="Agenda terisi hari ini" value={`${agenda.percent}%`} href="/dashboard/monitoring-agenda" />
               <SnapshotRow label="Izin tidak masuk" value={tidakMasuk} href="/dashboard/izin" />
               <SnapshotRow label="Siswa di luar komplek" value={diLuar} href="/dashboard/izin" />
@@ -570,13 +561,13 @@ export async function SuperAdminDashboard({
             </div>
           </div>
 
-          {/* Kontrol Sistem */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between px-1">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-950 dark:text-emerald-400">Kontrol Sistem</h2>
-              <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Sistem</span>
-            </div>
-            <div className="rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/60 shadow-sm p-2 grid grid-cols-1 gap-0.5">
+          <div className="rounded-xl border border-surface bg-surface shadow-sm">
+            <SectionHeader
+              icon={<Settings className="h-3.5 w-3.5" />}
+              title="Kontrol Sistem"
+              desc={isSuperAdmin ? 'Akses konfigurasi super admin' : 'Akses konfigurasi aplikasi'}
+            />
+            <div className="p-2 grid grid-cols-1 gap-0.5">
               <QuickLink
                 href="/dashboard/settings"
                 icon={<Settings className="h-4 w-4" />}
@@ -631,9 +622,9 @@ function SnapshotRow({
   href: string
 }) {
   return (
-    <Link href={href} className="flex items-center justify-between text-xs py-2 border-b border-slate-50 dark:border-slate-800/50 dark:last:border-none last:border-none hover:text-emerald-800 dark:hover:text-emerald-400 transition-colors">
-      <span className="text-slate-600 dark:text-slate-400 font-medium">{label}</span>
-      <span className="font-extrabold text-slate-900 dark:text-slate-100 tabular-nums bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-full text-[10px]">{value}</span>
+    <Link href={href} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 hover:bg-surface-2 transition-colors">
+      <span className="text-xs text-slate-500 dark:text-slate-400">{label}</span>
+      <span className="text-xs font-bold text-slate-800 dark:text-slate-100 tabular-nums">{value}</span>
     </Link>
   )
 }
