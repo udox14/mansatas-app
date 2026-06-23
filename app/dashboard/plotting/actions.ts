@@ -337,6 +337,36 @@ export async function simpanPlottingMassal(
     const now = new Date().toISOString()
     const chunkSize = 100
 
+    if (source.id !== target.id && source.is_active === 1) {
+      for (let i = 0; i < hasilPlotting.length; i += chunkSize) {
+        const chunk = hasilPlotting.slice(i, i + chunkSize)
+        const placeholders = chunk.map(() => '?').join(', ')
+        const sourceRows = await db
+          .prepare(
+            `SELECT id, kelas_id
+             FROM siswa
+             WHERE id IN (${placeholders})
+               AND kelas_id IS NOT NULL
+               AND status = 'aktif'`
+          )
+          .bind(...chunk.map((plot) => plot.siswa_id))
+          .all<{ id: string; kelas_id: string }>()
+
+        const sourceHistoryStmts = (sourceRows.results ?? []).map((row) =>
+          db
+            .prepare(
+              `INSERT INTO riwayat_kelas (siswa_id, kelas_id, tahun_ajaran_id)
+               VALUES (?, ?, ?)
+               ON CONFLICT(siswa_id, tahun_ajaran_id)
+               DO UPDATE SET kelas_id = excluded.kelas_id`
+            )
+            .bind(row.id, row.kelas_id, source.id)
+        )
+
+        if (sourceHistoryStmts.length) await db.batch(sourceHistoryStmts)
+      }
+    }
+
     if (target.is_active === 1) {
       const updateStmts = hasilPlotting.map((plot) =>
         db
