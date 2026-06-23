@@ -16,7 +16,7 @@ import { TabPenjurusan } from './components/tab-penjurusan'
 import { TabPengacakan } from './components/tab-pengacakan'
 import { TabKelulusan } from './components/tab-kelulusan'
 import { PlottingTabs } from './components/plotting-tabs'
-import { ArrowRight, CalendarDays, Network, Users, GitBranch, Shuffle, GraduationCap } from 'lucide-react'
+import { CalendarDays, Network, Users, GitBranch, Shuffle, GraduationCap } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
 
@@ -38,9 +38,9 @@ type PlottingContext = {
   source_tahun_ajaran_label?: string
 }
 
-function getDefaultContext(years: TahunAjaranOption[], sourceParam?: string, targetParam?: string) {
+function getDefaultContext(years: TahunAjaranOption[], targetParam?: string) {
   const active = years.find((ta) => ta.is_active === 1) ?? years[0]
-  const source = years.find((ta) => ta.id === sourceParam) ?? active
+  const source = active
   const target =
     years.find((ta) => ta.id === targetParam) ??
     years.find((ta) => source && ta.nama > source.nama) ??
@@ -65,36 +65,28 @@ function YearContextForm({
   return (
     <form method="get" className="rounded-lg border border-surface bg-surface p-3">
       <input type="hidden" name="tab" value={currentTab} />
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto] gap-2 items-end">
-        <label className="space-y-1">
+      <input type="hidden" name="source_ta" value={source.id} />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(260px,420px)_auto] md:items-end">
+        <div className="rounded-md border border-surface bg-surface-2 px-3 py-2">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Tahun asal
+            Data asal
           </span>
-          <select
-            name="source_ta"
-            defaultValue={source.id}
-            className="h-9 w-full rounded-md border border-surface bg-surface-2 px-2 text-xs font-medium text-slate-700 dark:text-slate-200"
-          >
-            {years.map((ta) => (
-              <option key={ta.id} value={ta.id}>
-                {ta.nama} SMT {ta.semester}{ta.is_active === 1 ? ' - aktif' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="hidden md:flex h-9 items-center justify-center text-slate-400">
-          <ArrowRight className="h-4 w-4" />
+          <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">
+            {source.nama} SMT {source.semester} {source.is_active === 1 ? '(aktif)' : ''}
+          </p>
+          <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+            Kelas asal otomatis disimpan ke riwayat sebelum hasil plotting diterapkan.
+          </p>
         </div>
 
         <label className="space-y-1">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Tahun tujuan
+            Simpan hasil ke
           </span>
           <select
             name="target_ta"
             defaultValue={target.id}
-            className="h-9 w-full rounded-md border border-surface bg-surface-2 px-2 text-xs font-medium text-slate-700 dark:text-slate-200"
+            className="h-10 w-full rounded-md border border-surface bg-surface-2 px-2 text-sm font-medium text-slate-700 dark:text-slate-200"
           >
             {years.map((ta) => (
               <option key={ta.id} value={ta.id}>
@@ -106,7 +98,7 @@ function YearContextForm({
 
         <button
           type="submit"
-          className="h-9 rounded-md bg-blue-600 px-4 text-xs font-semibold text-white transition hover:bg-blue-700"
+          className="h-10 rounded-md bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700"
         >
           Terapkan
         </button>
@@ -189,7 +181,7 @@ export default async function PlottingPage({
   const sp = await searchParams
   const currentTab = sp.tab || 'siswa_baru'
   const tahunAjaranList = await getTahunAjaranList()
-  const { active, source, target } = getDefaultContext(tahunAjaranList, sp.source_ta, sp.target_ta)
+  const { active, source, target } = getDefaultContext(tahunAjaranList, sp.target_ta)
   const daftarJurusan = target?.daftar_jurusan
     ? parseJsonCol<string[]>(target.daftar_jurusan, []) || undefined
     : undefined
