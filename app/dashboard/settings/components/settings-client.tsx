@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -391,6 +392,7 @@ export function SettingsClient({
   attendanceTimeRestrictionEnabled: boolean
   attendanceSkipIncompleteForDailyStatusEnabled: boolean
 }) {
+  const router = useRouter()
   const [agendaTimeRestricted, setAgendaTimeRestricted] = useState(agendaTimeRestrictionEnabled)
   const [agendaLateActive, setAgendaLateActive] = useState(agendaLateEnabled)
   const [agendaLateMinutes, setAgendaLateMinutes] = useState(String(agendaLateThresholdMinutes))
@@ -480,6 +482,10 @@ export function SettingsClient({
     setIsPending(true)
     const res = await setAktifTahunAjaran(id)
     if (res?.error) alert(res.error)
+    else {
+      if (res?.success) alert(res.success)
+      router.refresh()
+    }
     setIsPending(false)
   }
 

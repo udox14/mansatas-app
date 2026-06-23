@@ -394,29 +394,36 @@ export async function simpanPlottingMassal(
       await db.batch(riwayatStmts.slice(i, i + chunkSize))
     }
 
-    for (let i = 0; i < hasilPlotting.length; i += chunkSize) {
-      const chunk = hasilPlotting.slice(i, i + chunkSize)
-      const placeholders = chunk.map(() => '?').join(', ')
-      await db
-        .prepare(
-          `UPDATE plotting_penjurusan_draft
-           SET status = 'applied', updated_at = ?
-           WHERE source_tahun_ajaran_id = ?
-             AND target_tahun_ajaran_id = ?
-             AND siswa_id IN (${placeholders})`
-        )
-        .bind(now, source.id, target.id, ...chunk.map((plot) => plot.siswa_id))
-        .run()
+    try {
+      for (let i = 0; i < hasilPlotting.length; i += chunkSize) {
+        const chunk = hasilPlotting.slice(i, i + chunkSize)
+        const placeholders = chunk.map(() => '?').join(', ')
+        await db
+          .prepare(
+            `UPDATE plotting_penjurusan_draft
+             SET status = 'applied', updated_at = ?
+             WHERE source_tahun_ajaran_id = ?
+               AND target_tahun_ajaran_id = ?
+               AND siswa_id IN (${placeholders})`
+          )
+          .bind(now, source.id, target.id, ...chunk.map((plot) => plot.siswa_id))
+          .run()
+      }
+    } catch (err) {
+      console.error('Gagal menandai draft penjurusan sebagai applied:', err)
     }
 
     revalidatePath('/dashboard/kelas')
     revalidatePath('/dashboard/plotting')
     revalidatePath('/dashboard/siswa')
 
-    const mode = target.is_active === 1 ? 'permanen' : `sebagai rencana TA ${target.nama}`
-    return { success: `Berhasil memploting ${hasilPlotting.length} siswa ${mode}!` }
+    const mode = target.is_active === 1
+      ? 'dan memperbarui kelas aktif siswa'
+      : `sebagai rencana TA ${target.nama} SMT ${target.semester}. Kelas aktif siswa belum berubah sampai TA tersebut diaktifkan.`
+    return { success: `Berhasil menyimpan ${hasilPlotting.length} hasil plotting ${mode}` }
   } catch (err: any) {
-    return { error: 'Terjadi kesalahan sistem saat menyimpan plotting.' }
+    console.error('Gagal menyimpan plotting:', err)
+    return { error: `Terjadi kesalahan sistem saat menyimpan plotting: ${err?.message ?? 'detail tidak tersedia'}` }
   }
 }
 
