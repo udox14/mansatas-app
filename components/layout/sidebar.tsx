@@ -226,36 +226,35 @@ export function Sidebar({
             const hasActiveItem = group.id === activeGroupId
 
             return (
-              <div key={group.id || group.label} className={cn(gi > 0 && (collapsed ? 'mt-2' : 'mt-2.5'))}>
+              <div key={group.id || group.label} className={cn(gi > 0 && (collapsed ? 'mt-2' : 'mt-3'))}>
                 {/* Section label */}
                 {!collapsed && (
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.id)}
                     className={cn(
-                      'group/header flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left transition-all duration-200',
-                      hasActiveItem ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5' : cn(theme.textMuted, 'hover:bg-white/5 hover:text-white')
+                      'group/header flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-200',
+                      hasActiveItem ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5' : cn(theme.text, 'hover:bg-white/5 hover:text-white')
                     )}
                     aria-expanded={isGroupOpen}
                     aria-controls={`sidebar-group-${group.id}`}
                   >
                     <span className={cn(
-                      'flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors',
-                      hasActiveItem ? cn(theme.activeBg, theme.activeText) : 'bg-black/15 text-white/70 group-hover/header:text-white'
+                      'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors',
+                      hasActiveItem ? cn(theme.activeBg, theme.activeText) : 'bg-black/15 text-white/70 group-hover/header:bg-white/10 group-hover/header:text-white'
                     )}>
-                      {GroupIcon && <GroupIcon className="h-3.5 w-3.5" />}
+                      {GroupIcon && <GroupIcon className="h-4 w-4" />}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-[0.12em]">
-                      {group.label}
-                    </span>
-                    <span className={cn(
-                      'rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
-                      hasActiveItem ? 'bg-white/15 text-white' : 'bg-black/15 text-white/60'
-                    )}>
-                      {groupItems.length}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[13px] font-semibold leading-snug text-white/90 group-hover/header:text-white">
+                        {group.label}
+                      </span>
+                      <span className={cn("mt-0.5 block text-[10px] font-medium leading-tight", theme.textMuted)}>
+                        {groupItems.length} menu
+                      </span>
                     </span>
                     <ChevronDown className={cn(
-                      'h-3.5 w-3.5 shrink-0 transition-transform duration-300',
+                      'mt-2 h-4 w-4 shrink-0 text-white/50 transition-transform duration-300 group-hover/header:text-white/80',
                       isGroupOpen ? 'rotate-0' : '-rotate-90'
                     )} />
                   </button>
@@ -271,8 +270,8 @@ export function Sidebar({
                     isGroupOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
                   )}
                 >
-                  <div className={cn('min-h-0 overflow-hidden', !collapsed && 'pt-1.5')}>
-                <div className="space-y-1">
+                  <div className={cn('min-h-0 overflow-hidden', !collapsed && 'pt-2')}>
+                <div className={cn("space-y-0.5", !collapsed && "relative ml-7 border-l border-white/10 pl-3")}>
                   {groupItems.map(item => {
                     const isActive = activeHref === item.href
                     const Icon = item.icon
@@ -282,14 +281,14 @@ export function Sidebar({
                         href={item.href}
                         title={collapsed ? (featureLabels[item.id] || item.title) : undefined}
                         className={cn(
-                          'group flex items-center rounded-xl text-[13px] transition-all duration-300',
-                          collapsed ? 'justify-center p-2.5 mx-auto w-[42px] h-[42px]' : 'gap-3 px-3 py-[9px]',
+                          'group flex items-center rounded-lg text-[13px] transition-all duration-300',
+                          collapsed ? 'justify-center p-2.5 mx-auto w-[42px] h-[42px]' : 'gap-2.5 px-2.5 py-2',
                           isActive
                             ? cn(theme.activeBg, theme.activeText, 'font-semibold shadow-sm ring-1 ring-white/5')
-                            : cn(theme.text, theme.hoverBg, theme.hoverText, !collapsed && 'hover:translate-x-1')
+                            : cn(theme.text, theme.hoverBg, theme.hoverText, !collapsed && 'hover:translate-x-0.5')
                         )}
                       >
-                        <Icon className={cn('h-[18px] w-[18px] shrink-0 transition-all duration-300', isActive ? 'opacity-100 scale-110 drop-shadow-sm' : 'opacity-70 group-hover:scale-110 group-hover:opacity-100')} />
+                        <Icon className={cn('h-4 w-4 shrink-0 transition-all duration-300', isActive ? 'opacity-100 scale-105 drop-shadow-sm' : 'opacity-60 group-hover:opacity-100')} />
                         {!collapsed && <span className="truncate leading-snug">{featureLabels[item.id] || item.title}</span>}
                       </Link>
                     )
@@ -395,7 +394,7 @@ export function Sidebar({
       <aside className={cn(
         'hidden lg:flex flex-col h-[100dvh] border-r shrink-0 sticky top-0 transition-all duration-300 ease-in-out relative',
         theme.sidebarBg, theme.sidebarDarkBg, theme.border,
-        isCollapsed ? 'w-[60px]' : 'w-56'
+        isCollapsed ? 'w-[60px]' : 'w-64'
       )}>
         {renderNavContent()}
         <button onClick={toggleCollapse}
