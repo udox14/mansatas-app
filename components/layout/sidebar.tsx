@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { DEFAULT_SIDEBAR_GROUPS, MENU_ITEMS, type SidebarGroupConfig } from '@/config/menu'
-import { LogOut, X, ChevronLeft, ChevronRight, Moon, Sun } from 'lucide-react'
+import { LogOut, X, ChevronLeft, ChevronRight, ChevronDown, Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const SIDEBAR_THEMES = [
@@ -56,7 +56,9 @@ export function Sidebar({
   const [themeId, setThemeId] = useState<ThemeKey>('slate')
   const [isDark, setIsDark] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [openGroupIds, setOpenGroupIds] = useState<string[]>([])
   const userCollapsedRef = useRef(false)
+  const initializedAccordionRef = useRef(false)
 
   useEffect(() => {
     setMounted(true)
@@ -89,6 +91,43 @@ export function Sidebar({
   const effectiveSidebarGroups = unconfiguredAllowedIds.length > 0
     ? [...sidebarGroups, { id: 'lainnya', label: 'Lainnya', items: unconfiguredAllowedIds }]
     : sidebarGroups
+  const effectiveGroupIds = effectiveSidebarGroups.map(group => group.id)
+  const activeGroupId = effectiveSidebarGroups.find(group =>
+    group.items.some(id => allowedMenus.find(item => item.id === id)?.href === activeHref)
+  )?.id
+
+  useEffect(() => {
+    if (!mounted || initializedAccordionRef.current) return
+
+    const savedRaw = localStorage.getItem('mansatas_sidebar_open_groups')
+    let savedGroups: string[] = []
+
+    if (savedRaw) {
+      try {
+        const parsed = JSON.parse(savedRaw)
+        if (Array.isArray(parsed)) savedGroups = parsed.filter(id => typeof id === 'string')
+      } catch {}
+    }
+
+    const validSavedGroups = savedGroups.filter(id => effectiveGroupIds.includes(id))
+    const defaultGroups = validSavedGroups.length > 0
+      ? validSavedGroups
+      : effectiveSidebarGroups.slice(0, 2).map(group => group.id)
+
+    if (activeGroupId && !defaultGroups.includes(activeGroupId)) defaultGroups.push(activeGroupId)
+
+    setOpenGroupIds(defaultGroups)
+    initializedAccordionRef.current = true
+  }, [mounted, activeGroupId, effectiveGroupIds, effectiveSidebarGroups])
+
+  useEffect(() => {
+    if (!mounted || !activeGroupId || openGroupIds.includes(activeGroupId)) return
+    setOpenGroupIds(prev => {
+      const next = [...prev, activeGroupId]
+      localStorage.setItem('mansatas_sidebar_open_groups', JSON.stringify(next))
+      return next
+    })
+  }, [mounted, activeGroupId, openGroupIds])
 
   const changeTheme = (id: ThemeKey) => { setThemeId(id); localStorage.setItem('mansatas_sidebar_theme', id) }
 
@@ -117,6 +156,16 @@ export function Sidebar({
       credentials: 'include',
     })
     window.location.href = '/'
+  }
+
+  const toggleGroup = (groupId: string) => {
+    setOpenGroupIds(prev => {
+      const next = prev.includes(groupId)
+        ? prev.filter(id => id !== groupId)
+        : [...prev, groupId]
+      localStorage.setItem('mansatas_sidebar_open_groups', JSON.stringify(next))
+      return next
+    })
   }
 
   if (!mounted) return null
@@ -171,19 +220,58 @@ export function Sidebar({
               .map(id => allowedMenus.find(m => m.id === id))
               .filter(Boolean) as typeof MENU_ITEMS
             if (groupItems.length === 0) return null
+            const firstIcon = groupItems[0]?.icon
+            const GroupIcon = firstIcon
+            const isGroupOpen = collapsed || openGroupIds.includes(group.id)
+            const hasActiveItem = group.id === activeGroupId
 
             return (
-              <div key={group.label} className={cn(gi > 0 && 'mt-5')}>
+              <div key={group.id || group.label} className={cn(gi > 0 && (collapsed ? 'mt-2' : 'mt-2.5'))}>
                 {/* Section label */}
                 {!collapsed && (
-                  <p className={cn("px-3 pt-1 pb-2 text-[10px] font-extrabold uppercase tracking-widest select-none", theme.textMuted)}>
-                    {group.label}
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.id)}
+                    className={cn(
+                      'group/header flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left transition-all duration-200',
+                      hasActiveItem ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5' : cn(theme.textMuted, 'hover:bg-white/5 hover:text-white')
+                    )}
+                    aria-expanded={isGroupOpen}
+                    aria-controls={`sidebar-group-${group.id}`}
+                  >
+                    <span className={cn(
+                      'flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors',
+                      hasActiveItem ? cn(theme.activeBg, theme.activeText) : 'bg-black/15 text-white/70 group-hover/header:text-white'
+                    )}>
+                      {GroupIcon && <GroupIcon className="h-3.5 w-3.5" />}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-bold uppercase tracking-[0.12em]">
+                      {group.label}
+                    </span>
+                    <span className={cn(
+                      'rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
+                      hasActiveItem ? 'bg-white/15 text-white' : 'bg-black/15 text-white/60'
+                    )}>
+                      {groupItems.length}
+                    </span>
+                    <ChevronDown className={cn(
+                      'h-3.5 w-3.5 shrink-0 transition-transform duration-300',
+                      isGroupOpen ? 'rotate-0' : '-rotate-90'
+                    )} />
+                  </button>
                 )}
                 {/* Divider tipis antar grup saat collapsed */}
                 {collapsed && gi > 0 && (
                   <div className={cn("h-px mx-3 my-3", theme.border, "border-t")} />
                 )}
+                <div
+                  id={`sidebar-group-${group.id}`}
+                  className={cn(
+                    'grid transition-[grid-template-rows,opacity] duration-300 ease-in-out',
+                    isGroupOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                  )}
+                >
+                  <div className={cn('min-h-0 overflow-hidden', !collapsed && 'pt-1.5')}>
                 <div className="space-y-1">
                   {groupItems.map(item => {
                     const isActive = activeHref === item.href
@@ -206,6 +294,8 @@ export function Sidebar({
                       </Link>
                     )
                   })}
+                </div>
+                  </div>
                 </div>
               </div>
             )
