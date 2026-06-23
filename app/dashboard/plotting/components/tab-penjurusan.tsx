@@ -16,7 +16,13 @@ import { CetakPenjurusanModal } from './cetak-penjurusan-modal'
 type SiswaType = { id: string; nama_lengkap: string; nisn: string; nis_lokal?: string | null; jenis_kelamin: string; kelas_lama: string; minat_jurusan?: string | null }
 type KelasType = { id: string; nama: string; kelompok: string; kapasitas: number; jumlah_siswa: number }
 type HasilPlottingType = { siswa_id: string; nama_lengkap: string; jk: string; kelas_lama: string; kelas_id: string; kelas_nama: string }
-type PlottingContext = { source_tahun_ajaran_id: string; target_tahun_ajaran_id: string; source_tahun_ajaran_label?: string }
+type PlottingContext = {
+  source_tahun_ajaran_id: string
+  target_tahun_ajaran_id: string
+  source_tahun_ajaran_label?: string
+  target_tahun_ajaran_label?: string
+  is_target_active?: boolean
+}
 
 // ── Palet warna per jurusan ────────────────────────────────────────────────
 const JURUSAN_COLOR: Record<string, { bg: string; bar: string; text: string; border: string }> = {
@@ -237,6 +243,10 @@ export function TabPenjurusan({
   const [saveStatus, setSaveStatus] = useState('')
   const [previewKelasId, setPreviewKelasId] = useState('ALL')
   const isSavingDraft = useMemo(() => Object.values(savingJurusanIds).some(Boolean), [savingJurusanIds])
+  const saveLabel = plottingContext.is_target_active ? 'Terapkan ke kelas aktif' : 'Simpan rencana'
+  const previewHint = plottingContext.is_target_active
+    ? 'Siswa diurutkan dan disebar rata (L/P), lalu kelas aktif siswa diperbarui'
+    : `Siswa diurutkan dan disebar rata (L/P) sebagai rencana untuk ${plottingContext.target_tahun_ajaran_label || 'tahun tujuan'}`
 
   const opsiJurusan = useMemo(() => daftarJurusan.filter(j => j !== 'UMUM'), [daftarJurusan])
 
@@ -604,7 +614,7 @@ export function TabPenjurusan({
                 {hasRunSimulation && isSavingDraft && (
                   <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
                     <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    <span>Preview kelas di kanan memakai simulasi lama. Tunggu auto-save selesai lalu jalankan algoritma ulang sebelum simpan permanen.</span>
+                    <span>Preview kelas di kanan memakai simulasi lama. Tunggu auto-save selesai lalu jalankan algoritma ulang sebelum menyimpan.</span>
                   </div>
                 )}
 
@@ -716,7 +726,7 @@ export function TabPenjurusan({
           <div className="flex flex-col gap-3 px-4 py-3 border-b border-surface-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">3. Preview sebaran kelas 11</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Siswa diurutkan dan disebar rata (L/P)</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{previewHint}</p>
             </div>
             {simulasiResult.length > 0 && (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -734,7 +744,7 @@ export function TabPenjurusan({
                 <Button onClick={simpanPermanen} disabled={isSavingPermanent || isSavingDraft} size="sm"
                   className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md">
                   {isSavingPermanent ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                  Simpan permanen
+                  {saveLabel}
                 </Button>
               </div>
             )}
@@ -742,7 +752,7 @@ export function TabPenjurusan({
 
           {simulasiResult.length > 0 && isSavingDraft && (
             <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-[10px] font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-              Ada perubahan jurusan pilihan yang sedang tersimpan otomatis. Jalankan algoritma ulang sebelum simpan permanen.
+              Ada perubahan jurusan pilihan yang sedang tersimpan otomatis. Jalankan algoritma ulang sebelum menyimpan.
             </div>
           )}
 

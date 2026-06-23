@@ -24,6 +24,7 @@ type KelasData = {
 }
 type GuruType = { id: string; nama_lengkap: string }
 type SiswaOption = { id: string; nama_lengkap: string }
+type TahunAjaranOption = { id: string; label: string; is_active: boolean }
 
 function defaultDateInputValue() {
   const now = new Date()
@@ -83,12 +84,20 @@ export function KelasClient({
   daftarSiswaByKelas = {},
   daftarJurusan = [],
   userRole = 'admin_tu',
+  tahunAjaranOptions = [],
+  selectedTahunAjaranId,
+  selectedTahunAjaranLabel,
+  isHistoricalView = false,
 }: {
   initialData: KelasData[]
   daftarGuru: GuruType[]
   daftarSiswaByKelas?: Record<string, SiswaOption[]>
   daftarJurusan?: string[]
   userRole?: string
+  tahunAjaranOptions?: TahunAjaranOption[]
+  selectedTahunAjaranId?: string
+  selectedTahunAjaranLabel?: string
+  isHistoricalView?: boolean
 }) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState('')
@@ -102,12 +111,14 @@ export function KelasClient({
   const [kbmTanggalMulai, setKbmTanggalMulai] = useState(defaultDateInputValue)
 
   const handleQueueChange = (id: string, field: 'kelompok' | 'wali_kelas_id', value: string) => {
+    if (isHistoricalView) return
     setPendingChanges(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: value } }))
   }
   const getValue = (id: string, field: 'kelompok' | 'wali_kelas_id', orig: string) =>
     pendingChanges[id]?.[field] !== undefined ? pendingChanges[id][field] : orig
 
   const executeBatchSave = async () => {
+    if (isHistoricalView) return
     setIsSavingBatch(true)
     const updates = Object.entries(pendingChanges).map(([id, changes]) => ({ id, ...changes }))
     const res = await batchUpdateKelas(updates)
@@ -133,6 +144,7 @@ export function KelasClient({
   )
 
   const handleHapus = async (id: string, namaKelas: string, jumlahSiswa: number) => {
+    if (isHistoricalView) return
     if (jumlahSiswa > 0) { alert(`Tidak bisa menghapus kelas ${namaKelas} karena masih ada ${jumlahSiswa} siswa.`); return }
     if (!confirm(`Yakin ingin menghapus kelas ${namaKelas}?`)) return
     setIsPending(true)
@@ -142,6 +154,7 @@ export function KelasClient({
   }
 
   const handleToggleKbm = async (kelas: KelasData) => {
+    if (isHistoricalView) return
     const namaKelas = formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok)
     const nextAktif = !!kelas.kbm_nonaktif_mulai
     if (!nextAktif && !kbmTanggalMulai) {
@@ -161,6 +174,7 @@ export function KelasClient({
   }
 
   const handleToggleKbmTingkat12 = async () => {
+    if (isHistoricalView) return
     const nextAktif = kelas12SemuaNonaktif
     if (!nextAktif && !kbmTanggalMulai) {
       alert('Isi tanggal mulai nonaktif dulu.')
@@ -191,6 +205,21 @@ export function KelasClient({
 
       {/* TOOLBAR */}
       <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
+        <Select
+          value={selectedTahunAjaranId}
+          onValueChange={value => router.push(`/dashboard/kelas?ta=${value}`)}
+        >
+          <SelectTrigger className="h-8 w-full text-xs rounded-md shrink-0 sm:w-60">
+            <SelectValue placeholder="Tahun ajaran" />
+          </SelectTrigger>
+          <SelectContent>
+            {tahunAjaranOptions.map(ta => (
+              <SelectItem key={ta.id} value={ta.id} className="text-xs">
+                {ta.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
           <Input placeholder="Cari kelas atau wali..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
@@ -204,7 +233,7 @@ export function KelasClient({
             ))}
           </SelectContent>
         </Select>
-        <div className="flex items-center gap-1.5 rounded-md border border-surface bg-surface-2 px-2 py-1">
+        {!isHistoricalView && <div className="flex items-center gap-1.5 rounded-md border border-surface bg-surface-2 px-2 py-1">
           <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Nonaktif mulai</span>
           <Input
             type="date"
@@ -212,9 +241,9 @@ export function KelasClient({
             onChange={e => setKbmTanggalMulai(e.target.value)}
             className="h-6 w-32 border-0 bg-transparent p-0 text-xs shadow-none focus-visible:ring-0"
           />
-        </div>
+        </div>}
         <div className="flex gap-2 ml-auto">
-          {hasKelas12 && (
+          {hasKelas12 && !isHistoricalView && (
             <Button
               type="button"
               variant="outline"
@@ -231,7 +260,7 @@ export function KelasClient({
               {kelas12SemuaNonaktif ? 'Aktifkan Kelas 12' : 'Nonaktifkan Kelas 12'}
             </Button>
           )}
-          {userRole === 'super_admin' && (
+          {userRole === 'super_admin' && !isHistoricalView && (
             <AssignBKModal kelasList={sortedData.map(k => ({ id: k.id, tingkat: k.tingkat, nomor_kelas: k.nomor_kelas, kelompok: k.kelompok }))} />
           )}
           {(userRole === 'admin_tu' || userRole === 'super_admin') && (
@@ -245,10 +274,16 @@ export function KelasClient({
               }))}
             />
           )}
-          <ImportModal />
-          <TambahModal daftarGuru={daftarGuru} daftarJurusan={daftarJurusan} />
+          {!isHistoricalView && <ImportModal />}
+          {!isHistoricalView && <TambahModal daftarGuru={daftarGuru} daftarJurusan={daftarJurusan} />}
         </div>
       </div>
+
+      {isHistoricalView && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          Menampilkan formasi kelas riwayat {selectedTahunAjaranLabel}. Data ini read-only; perubahan kelas hanya tersedia pada tahun ajaran aktif.
+        </div>
+      )}
 
       {/* SUMMARY STRIP */}
       <div className="flex gap-3">
@@ -285,7 +320,7 @@ export function KelasClient({
               isPending ? 'border-blue-300 bg-blue-50/30' : !isJurusanValid ? 'border-rose-300 bg-rose-50/20' : 'border-surface'
             )}>
               {/* Header row */}
-              <div className="flex items-center justify-between cursor-pointer" onClick={() => router.push(`/dashboard/kelas/${k.id}`)}>
+              <div className={cn("flex items-center justify-between", !isHistoricalView && 'cursor-pointer')} onClick={() => !isHistoricalView && router.push(`/dashboard/kelas/${k.id}`)}>
                 <div>
                   <span className="text-lg font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">{formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}</span>
                   {!isJurusanValid && (
@@ -306,7 +341,7 @@ export function KelasClient({
                   <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 border-surface')}>
                     {k.jumlah_siswa}/{k.kapasitas}
                   </span>
-                  <ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500" />
+                  {!isHistoricalView && <ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500" />}
                 </div>
               </div>
 
@@ -319,7 +354,7 @@ export function KelasClient({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mb-1">Jurusan</p>
-                  <Select value={currentKelompok} onValueChange={v => handleQueueChange(k.id, 'kelompok', v)} disabled={isSavingBatch}>
+                  <Select value={currentKelompok} onValueChange={v => handleQueueChange(k.id, 'kelompok', v)} disabled={isSavingBatch || isHistoricalView}>
                     <SelectTrigger className={cn("h-8 text-xs rounded", pendingChanges[k.id]?.kelompok !== undefined ? 'bg-blue-50 border-blue-300 text-blue-700' : !isJurusanValid ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-surface-2 border-surface')}>
                       <SelectValue />
                     </SelectTrigger>
@@ -328,12 +363,12 @@ export function KelasClient({
                 </div>
                 <div>
                   <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mb-1">Wali Kelas</p>
-                  <WaliKelasSelector value={currentWali} onChange={v => handleQueueChange(k.id, 'wali_kelas_id', v)} daftarGuru={daftarGuru} disabled={isSavingBatch} />
+                  <WaliKelasSelector value={currentWali} onChange={v => handleQueueChange(k.id, 'wali_kelas_id', v)} daftarGuru={daftarGuru} disabled={isSavingBatch || isHistoricalView} />
                 </div>
               </div>
 
               {/* Action row */}
-              <div className="flex justify-end gap-1.5 pt-1 border-t border-surface-2">
+              {!isHistoricalView && <div className="flex justify-end gap-1.5 pt-1 border-t border-surface-2">
                 <button onClick={() => setEditingKelas(k)} className="p-1.5 rounded text-blue-600 hover:bg-blue-50 transition-colors">
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
@@ -352,7 +387,7 @@ export function KelasClient({
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
-              </div>
+              </div>}
             </div>
           )
         })}
@@ -386,7 +421,7 @@ export function KelasClient({
                   "border-surface-2 group transition-colors",
                   isRowPending ? 'bg-blue-50/40 border-l-2 border-l-blue-400' : 'hover:bg-surface-2/60'
                 )}>
-                  <TableCell className="px-4 py-2.5 cursor-pointer" onClick={() => router.push(`/dashboard/kelas/${k.id}`)}>
+                  <TableCell className={cn("px-4 py-2.5", !isHistoricalView && 'cursor-pointer')} onClick={() => !isHistoricalView && router.push(`/dashboard/kelas/${k.id}`)}>
                     <span className="text-base font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 group-hover:text-blue-700 transition-colors">
                       {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}
                     </span>
@@ -401,7 +436,7 @@ export function KelasClient({
                     </div>
                   </TableCell>
                   <TableCell className="py-2.5">
-                    <Select value={currentKelompok} onValueChange={v => handleQueueChange(k.id, 'kelompok', v)} disabled={isSavingBatch}>
+                    <Select value={currentKelompok} onValueChange={v => handleQueueChange(k.id, 'kelompok', v)} disabled={isSavingBatch || isHistoricalView}>
                       <SelectTrigger className={cn("h-7 w-36 text-xs rounded", pendingChanges[k.id]?.kelompok !== undefined ? 'bg-blue-50 border-blue-300 text-blue-700' : !isJurusanValid ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-surface-2 border-surface')}>
                         <SelectValue />
                       </SelectTrigger>
@@ -412,7 +447,7 @@ export function KelasClient({
                     <div className="flex items-center gap-2">
                       <UserCircle className={cn("h-4 w-4 shrink-0", pendingChanges[k.id]?.wali_kelas_id !== undefined ? 'text-blue-500' : currentWali === 'none' ? 'text-slate-300 dark:text-slate-600' : 'text-emerald-500')} />
                       <div className="w-52">
-                        <WaliKelasSelector value={currentWali} onChange={v => handleQueueChange(k.id, 'wali_kelas_id', v)} daftarGuru={daftarGuru} disabled={isSavingBatch} />
+                        <WaliKelasSelector value={currentWali} onChange={v => handleQueueChange(k.id, 'wali_kelas_id', v)} daftarGuru={daftarGuru} disabled={isSavingBatch || isHistoricalView} />
                       </div>
                     </div>
                   </TableCell>
@@ -427,7 +462,7 @@ export function KelasClient({
                     </div>
                   </TableCell>
                   <TableCell className="py-2.5 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {!isHistoricalView && <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={e => { e.stopPropagation(); setEditingKelas(k) }} className="p-1.5 rounded text-blue-600 hover:bg-blue-50" title="Edit">
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
@@ -446,7 +481,7 @@ export function KelasClient({
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                    </div>
+                    </div>}
                   </TableCell>
                 </TableRow>
               )

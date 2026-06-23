@@ -13,7 +13,12 @@ import { simpanPlottingMassal } from '../actions'
 type SiswaType = { id: string; nama_lengkap: string; nisn: string; jenis_kelamin: string; kelas_lama: string; kelompok: string }
 type KelasType = { id: string; nama: string; kelompok: string; kapasitas: number; jumlah_siswa: number }
 type HasilType = { siswa_id: string; nama_lengkap: string; jk: string; kelas_lama: string; kelas_id: string; kelas_nama: string }
-type PlottingContext = { source_tahun_ajaran_id: string; target_tahun_ajaran_id: string }
+type PlottingContext = {
+  source_tahun_ajaran_id: string
+  target_tahun_ajaran_id: string
+  target_tahun_ajaran_label?: string
+  is_target_active?: boolean
+}
 
 export function TabPengacakan({
   siswaList, kelasList, plottingContext
@@ -26,6 +31,10 @@ export function TabPengacakan({
   const [isSaving, setIsSaving] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
   const [previewKelasId, setPreviewKelasId] = useState('ALL')
+  const saveLabel = plottingContext.is_target_active ? 'Terapkan ke kelas aktif' : 'Simpan rencana'
+  const previewHint = plottingContext.is_target_active
+    ? 'Siswa diacak silang L/P lalu kelas aktif siswa diperbarui'
+    : `Siswa diacak silang L/P sebagai rencana untuk ${plottingContext.target_tahun_ajaran_label || 'tahun tujuan'}`
 
   // FIX: field 'nama' sudah ada dari actions.ts — localeCompare aman
   const sortedKelas = useMemo(() =>
@@ -163,7 +172,7 @@ export function TabPengacakan({
           <div className="flex flex-col gap-3 px-4 py-3 border-b border-surface-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">Preview hasil pengacakan</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Siswa diacak silang L/P dalam jurusan yang sama</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{previewHint}</p>
             </div>
             {simulasiResult.length > 0 && (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -181,7 +190,7 @@ export function TabPengacakan({
                 <Button onClick={simpanPermanen} disabled={isSaving} size="sm"
                   className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md">
                   {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                  Simpan permanen
+                  {saveLabel}
                 </Button>
               </div>
             )}

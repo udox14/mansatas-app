@@ -36,6 +36,8 @@ type PlottingContext = {
   source_tahun_ajaran_id: string
   target_tahun_ajaran_id: string
   source_tahun_ajaran_label?: string
+  target_tahun_ajaran_label?: string
+  is_target_active?: boolean
 }
 
 function getDefaultContext(years: TahunAjaranOption[], targetParam?: string) {
@@ -190,6 +192,8 @@ export default async function PlottingPage({
     source_tahun_ajaran_id: source?.id ?? active?.id ?? '',
     target_tahun_ajaran_id: target?.id ?? source?.id ?? active?.id ?? '',
     source_tahun_ajaran_label: source ? `${source.nama} SMT ${source.semester}` : undefined,
+    target_tahun_ajaran_label: target ? `${target.nama} SMT ${target.semester}` : undefined,
+    is_target_active: target?.is_active === 1,
   }
 
   return (

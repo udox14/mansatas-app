@@ -47,15 +47,76 @@ export async function tambahTahunAjaran(prevState: any, formData: FormData) {
 export async function setAktifTahunAjaran(id: string) {
   const db = await getDB()
   try {
+    const currentActive = await db
+      .prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE is_active = 1 LIMIT 1')
+      .first<{ id: string; nama: string; semester: number }>()
+
+    const nextActive = await db
+      .prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE id = ? LIMIT 1')
+      .bind(id)
+      .first<{ id: string; nama: string; semester: number }>()
+
+    if (!nextActive) return { error: 'Tahun ajaran tujuan tidak ditemukan.' }
+
+    const chunkSize = 100
+    if (currentActive?.id) {
+      const currentRows = (await db
+        .prepare(
+          `SELECT id, kelas_id
+           FROM siswa
+           WHERE status = 'aktif'
+             AND kelas_id IS NOT NULL`
+        )
+        .all<{ id: string; kelas_id: string }>()).results ?? []
+
+      for (let i = 0; i < currentRows.length; i += chunkSize) {
+        const chunk = currentRows.slice(i, i + chunkSize)
+        await db.batch(chunk.map(row =>
+          db
+            .prepare(
+              `INSERT INTO riwayat_kelas (siswa_id, kelas_id, tahun_ajaran_id)
+               VALUES (?, ?, ?)
+               ON CONFLICT(siswa_id, tahun_ajaran_id)
+               DO UPDATE SET kelas_id = excluded.kelas_id`
+            )
+            .bind(row.id, row.kelas_id, currentActive.id)
+        ))
+      }
+    }
+
+    const targetRows = (await db
+      .prepare(
+        `SELECT rk.siswa_id, rk.kelas_id
+         FROM riwayat_kelas rk
+         JOIN siswa s ON s.id = rk.siswa_id
+         WHERE rk.tahun_ajaran_id = ?
+           AND s.status = 'aktif'`
+      )
+      .bind(id)
+      .all<{ siswa_id: string; kelas_id: string }>()).results ?? []
+
+    for (let i = 0; i < targetRows.length; i += chunkSize) {
+      const chunk = targetRows.slice(i, i + chunkSize)
+      await db.batch(chunk.map(row =>
+        db
+          .prepare('UPDATE siswa SET kelas_id = ?, updated_at = ? WHERE id = ? AND status = ?')
+          .bind(row.kelas_id, new Date().toISOString(), row.siswa_id, 'aktif')
+      ))
+    }
+
     await db.batch([
       db.prepare('UPDATE tahun_ajaran SET is_active = 0'),
       db.prepare('UPDATE tahun_ajaran SET is_active = 1 WHERE id = ?').bind(id),
     ])
+
+    revalidatePath('/dashboard/kelas')
+    revalidatePath('/dashboard/plotting')
+    revalidatePath('/dashboard/siswa')
   } catch (e: any) {
     return { error: e.message }
   }
   revalidatePath('/', 'layout')
-  return { success: 'Tahun Ajaran berhasil diaktifkan!' }
+  return { success: 'Tahun Ajaran berhasil diaktifkan dan kelas aktif siswa disinkronkan dari riwayat.' }
 }
 
 // ============================================================
