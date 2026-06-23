@@ -6,6 +6,7 @@ import { ChevronLeft } from 'lucide-react'
 import { DetailSiswaClient } from './components/detail-client'
 import { getSanksiList } from '../../kedisiplinan/actions'
 import { getUserRoles } from '@/lib/features'
+import { ensureRiwayatKelasSnapshotColumns } from '@/lib/riwayat-kelas'
 
 export const metadata = { title: 'Buku Induk Siswa - MANSATAS' }
 export const dynamic = 'force-dynamic'
@@ -23,6 +24,7 @@ export default async function DetailSiswaPage({
   if (!user) redirect('/login')
 
   const db = await getDB()
+  await ensureRiwayatKelasSnapshotColumns(db)
   const userRoles = await getUserRoles(db, user.id)
   const isAdminTu = userRoles.some(role => ['super_admin', 'admin_tu'].includes(role))
   const isKepsekWakamad = userRoles.some(role => ['kepsek', 'wakamad'].includes(role))
@@ -108,9 +110,9 @@ export default async function DetailSiswaPage({
         rk.created_at,
         rk.kelas_id,
         rk.tahun_ajaran_id,
-        k.tingkat,
-        k.kelompok,
-        k.nomor_kelas,
+        COALESCE(rk.kelas_tingkat, k.tingkat) as tingkat,
+        COALESCE(rk.kelas_kelompok, k.kelompok) as kelompok,
+        COALESCE(rk.kelas_nomor, k.nomor_kelas) as nomor_kelas,
         ta.nama AS tahun_ajaran_nama,
         ta.semester AS tahun_ajaran_semester
       FROM riwayat_kelas rk

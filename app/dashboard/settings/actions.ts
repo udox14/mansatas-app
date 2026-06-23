@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import type { SlotJam, PolaJam } from './types'
 import { setSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { ensureRiwayatKelasSnapshotColumns, formatKelasSnapshot } from '@/lib/riwayat-kelas'
 
 // ============================================================
 // TAMBAH TAHUN AJARAN
@@ -47,6 +48,8 @@ export async function tambahTahunAjaran(prevState: any, formData: FormData) {
 export async function setAktifTahunAjaran(id: string) {
   const db = await getDB()
   try {
+    await ensureRiwayatKelasSnapshotColumns(db)
+
     const currentActive = await db
       .prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE is_active = 1 LIMIT 1')
       .first<{ id: string; nama: string; semester: number }>()
@@ -62,24 +65,30 @@ export async function setAktifTahunAjaran(id: string) {
     if (currentActive?.id) {
       const currentRows = (await db
         .prepare(
-          `SELECT id, kelas_id
-           FROM siswa
-           WHERE status = 'aktif'
-             AND kelas_id IS NOT NULL`
+          `SELECT s.id, s.kelas_id, k.tingkat, k.nomor_kelas, k.kelompok
+           FROM siswa s
+           JOIN kelas k ON k.id = s.kelas_id
+           WHERE s.status = 'aktif'
+             AND s.kelas_id IS NOT NULL`
         )
-        .all<{ id: string; kelas_id: string }>()).results ?? []
+        .all<{ id: string; kelas_id: string; tingkat: number; nomor_kelas: string; kelompok: string }>()).results ?? []
 
       for (let i = 0; i < currentRows.length; i += chunkSize) {
         const chunk = currentRows.slice(i, i + chunkSize)
         await db.batch(chunk.map(row =>
           db
             .prepare(
-              `INSERT INTO riwayat_kelas (siswa_id, kelas_id, tahun_ajaran_id)
-               VALUES (?, ?, ?)
+              `INSERT INTO riwayat_kelas (siswa_id, kelas_id, tahun_ajaran_id, kelas_tingkat, kelas_nomor, kelas_kelompok, kelas_nama)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(siswa_id, tahun_ajaran_id)
-               DO UPDATE SET kelas_id = excluded.kelas_id`
+               DO UPDATE SET
+                 kelas_id = excluded.kelas_id,
+                 kelas_tingkat = excluded.kelas_tingkat,
+                 kelas_nomor = excluded.kelas_nomor,
+                 kelas_kelompok = excluded.kelas_kelompok,
+                 kelas_nama = excluded.kelas_nama`
             )
-            .bind(row.id, row.kelas_id, currentActive.id)
+            .bind(row.id, row.kelas_id, currentActive.id, row.tingkat, row.nomor_kelas, row.kelompok, formatKelasSnapshot(row.tingkat, row.nomor_kelas, row.kelompok))
         ))
       }
     }

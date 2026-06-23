@@ -8,6 +8,7 @@ import { KelasClient } from './components/kelas-client'
 import { Library } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
+import { ensureRiwayatKelasSnapshotColumns } from '@/lib/riwayat-kelas'
 
 export const metadata = { title: 'Manajemen Kelas - MANSATAS App' }
 export const dynamic = 'force-dynamic'
@@ -22,6 +23,7 @@ type TahunAjaranOption = {
 
 async function KelasDataFetcher({ userRole, selectedTahunAjaranId }: { userRole: string; selectedTahunAjaranId?: string }) {
   const db = await getDB()
+  await ensureRiwayatKelasSnapshotColumns(db)
   const kandidatWaliRoles = ['guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_tahfidz', 'guru_ppl']
   const tahunAjaranRows = (await db
     .prepare('SELECT id, nama, semester, is_active, daftar_jurusan FROM tahun_ajaran ORDER BY nama DESC, semester DESC')
@@ -44,16 +46,24 @@ async function KelasDataFetcher({ userRole, selectedTahunAjaranId }: { userRole:
       ORDER BY k.tingkat ASC, CAST(k.nomor_kelas AS INTEGER) ASC, k.kelompok ASC
     `
     : `
-      SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.kapasitas, k.wali_kelas_id, k.km_siswa_id, k.kbm_nonaktif_mulai,
+      SELECT rk.kelas_id as id,
+        COALESCE(rk.kelas_tingkat, k.tingkat) as tingkat,
+        COALESCE(rk.kelas_nomor, k.nomor_kelas) as nomor_kelas,
+        COALESCE(rk.kelas_kelompok, k.kelompok) as kelompok,
+        k.kapasitas,
+        k.wali_kelas_id,
+        k.km_siswa_id,
+        k.kbm_nonaktif_mulai,
         u.nama_lengkap as wali_kelas_nama,
         km.nama_lengkap as km_siswa_nama,
         COUNT(rk.siswa_id) as jumlah_siswa
-      FROM kelas k
+      FROM riwayat_kelas rk
+      LEFT JOIN kelas k ON k.id = rk.kelas_id
       LEFT JOIN "user" u ON k.wali_kelas_id = u.id
       LEFT JOIN siswa km ON k.km_siswa_id = km.id
-      LEFT JOIN riwayat_kelas rk ON rk.kelas_id = k.id AND rk.tahun_ajaran_id = ?
-      GROUP BY k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.kapasitas, k.wali_kelas_id, k.km_siswa_id, u.nama_lengkap, km.nama_lengkap
-      ORDER BY k.tingkat ASC, CAST(k.nomor_kelas AS INTEGER) ASC, k.kelompok ASC
+      WHERE rk.tahun_ajaran_id = ?
+      GROUP BY rk.kelas_id, COALESCE(rk.kelas_tingkat, k.tingkat), COALESCE(rk.kelas_nomor, k.nomor_kelas), COALESCE(rk.kelas_kelompok, k.kelompok), k.kapasitas, k.wali_kelas_id, k.km_siswa_id, u.nama_lengkap, km.nama_lengkap
+      ORDER BY COALESCE(rk.kelas_tingkat, k.tingkat) ASC, CAST(COALESCE(rk.kelas_nomor, k.nomor_kelas) AS INTEGER) ASC, COALESCE(rk.kelas_kelompok, k.kelompok) ASC
     `
 
   const siswaQuery = isSelectedActive
