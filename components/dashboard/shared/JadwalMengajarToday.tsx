@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
-import { ClipboardPen, BookOpen, CheckCircle2, AlertCircle, UserCheck, CalendarDays } from 'lucide-react'
+import { ClipboardText as ClipboardPen, BookOpen, CheckCircle as CheckCircle2, WarningCircle as AlertCircle, UserCheck, Calendar as CalendarDays } from '@phosphor-icons/react/dist/ssr'
 import { findTeachingBlockException, getKbmExceptionsForDate, getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 
 export type JadwalMengajarTodayProps = {

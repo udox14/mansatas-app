@@ -1,6 +1,6 @@
 // components/dashboard/shared/WelcomeStrip.tsx
 import Link from 'next/link'
-import { UserCog, CalendarCheck } from 'lucide-react'
+import { UserGear as UserCog, CalendarCheck } from '@phosphor-icons/react/dist/ssr'
 
 type Props = {
   nama: string

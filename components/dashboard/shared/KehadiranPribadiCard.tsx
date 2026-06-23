@@ -2,8 +2,7 @@
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
 import { findTeachingBlockException, getEffectiveDatesInRange, getKbmExceptionsForRange, hariNumFromDateString } from '@/lib/kalender-pendidikan'
-import { BookOpen } from 'lucide-react'
-import { Clock } from 'lucide-react'
+import { BookOpen, Clock } from '@phosphor-icons/react/dist/ssr'
 
 type Props = { userId: string }
 const ATTENDANCE_CUTOFF_START = '2026-05-12'

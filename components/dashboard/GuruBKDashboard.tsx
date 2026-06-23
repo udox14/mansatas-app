@@ -3,14 +3,13 @@ import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
 import { WelcomeStrip } from './shared/WelcomeStrip'
-import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
-  HeartHandshake, AlertTriangle, DoorOpen, Brain,
-  Users, TrendingDown, ArrowRight, CheckCircle2, Shield,
-} from 'lucide-react'
+  Handshake as HeartHandshake, Warning as AlertTriangle, Door as DoorOpen, Brain,
+  Users, TrendDown as TrendingDown, ArrowRight, CheckCircle as CheckCircle2, Shield,
+} from '@phosphor-icons/react/dist/ssr'
 
 type Props = {
   userId: string; nama: string; namaDepan: string; avatarUrl: string | null
@@ -220,9 +219,6 @@ export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, role
           </div>
         </div>
       )}
-
-      {/* Shortcut Dinamis */}
-      <FeatureShortcuts userId={userId} />
     </div>
   )
 }

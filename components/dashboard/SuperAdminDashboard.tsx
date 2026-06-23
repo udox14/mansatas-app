@@ -11,23 +11,23 @@ import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
-  AlertCircle,
+  WarningCircle as AlertCircle,
   ArrowRight,
-  BarChart3,
+  ChartBar as BarChart3,
   BookOpen,
   CalendarCheck,
-  CheckCircle2,
-  LayoutGrid,
-  Library,
+  CheckCircle as CheckCircle2,
+  SquaresFour as LayoutGrid,
+  Books as Library,
   Megaphone,
   Radio,
-  Send,
-  Settings,
-  ShieldAlert,
-  SlidersHorizontal,
+  PaperPlaneTilt as Send,
+  Gear as Settings,
+  ShieldWarning as ShieldAlert,
+  Sliders as SlidersHorizontal,
   Users,
-  UserCog,
-} from 'lucide-react'
+  UserGear as UserCog,
+} from '@phosphor-icons/react/dist/ssr'
 
 type Props = {
   userId: string

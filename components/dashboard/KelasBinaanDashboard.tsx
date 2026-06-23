@@ -8,23 +8,22 @@ import { ParentCommActions } from './ParentCommActions'
 import { KeputusanAbsensiHariIni, type KeputusanAbsensiRow } from './KeputusanAbsensiHariIni'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { WelcomeStrip } from './shared/WelcomeStrip'
-import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
-  AlertTriangle,
+  Warning as AlertTriangle,
   ArrowRight,
   BookOpen,
-  CalendarCheck,
-  ClipboardList,
+  Calendar as CalendarCheck,
+  Clipboard as ClipboardList,
   Eye,
-  Library,
-  NotebookPen,
-  ShieldAlert,
+  Books as Library,
+  Notebook as NotebookPen,
+  ShieldWarning as ShieldAlert,
   UserCheck,
   Users,
-} from 'lucide-react'
+} from '@phosphor-icons/react/dist/ssr'
 
 type Props = {
   userId: string
@@ -110,7 +109,6 @@ export async function KelasBinaanDashboard({
   view = 'home',
   showWelcome = true,
   showTopCards = true,
-  showFeatureShortcuts = true,
 }: Props) {
   const db = await getDB()
   const today = todayWIB()
@@ -900,8 +898,6 @@ export async function KelasBinaanDashboard({
         </div>
       </div>
       )}
-
-      {showFeatureShortcuts && <FeatureShortcuts userId={userId} />}
     </div>
   )
 }

@@ -5,10 +5,10 @@ import { WelcomeStrip } from './shared/WelcomeStrip'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
-  Landmark, FileText, TrendingDown,
-  ChevronRight, TrendingUp, AlertCircle, CheckCircle2, Clock,
-  FileSpreadsheet,
-} from 'lucide-react'
+  Bank as Landmark, FileText, TrendDown as TrendingDown,
+  CaretRight as ChevronRight, TrendUp as TrendingUp, WarningCircle as AlertCircle, CheckCircle as CheckCircle2, Clock,
+  FileXls as FileSpreadsheet,
+} from '@phosphor-icons/react/dist/ssr'
 import { formatRupiah } from '@/lib/utils'
 
 type Props = {

@@ -3,14 +3,13 @@ import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
 import { WelcomeStrip } from './shared/WelcomeStrip'
-import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
-  MapPin, Clock, DoorOpen, AlertTriangle,
-  CheckCircle2, ArrowRight,
-} from 'lucide-react'
+  MapPin, Clock, Door as DoorOpen, Warning as AlertTriangle,
+  CheckCircle as CheckCircle2, ArrowRight,
+} from '@phosphor-icons/react/dist/ssr'
 
 type Props = {
   userId: string; nama: string; namaDepan: string; avatarUrl: string | null
@@ -60,9 +59,6 @@ export async function GuruPiketDashboard({ userId, nama, namaDepan, avatarUrl, r
       {isGuruPiket && <PenugasanMasukCard userId={userId} />}
 
       <JadwalMengajarToday userId={userId} taAktif={taAktif} />
-
-      {/* Shortcut Dinamis */}
-      <FeatureShortcuts userId={userId} />
     </div>
   )
 }

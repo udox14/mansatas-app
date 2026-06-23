@@ -4,8 +4,8 @@
   "description": "MANSATAS App - MAN 1 Tasikmalaya",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d4f4a",
-  "theme_color": "#0d4f4a",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "icons": [
     {
       "src": "/favicon-16x16.png",
