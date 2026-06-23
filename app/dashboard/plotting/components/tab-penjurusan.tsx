@@ -235,6 +235,7 @@ export function TabPenjurusan({
   const [isSavingPermanent, setIsSavingPermanent] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
   const [saveStatus, setSaveStatus] = useState('')
+  const [previewKelasId, setPreviewKelasId] = useState('ALL')
   const isSavingDraft = useMemo(() => Object.values(savingJurusanIds).some(Boolean), [savingJurusanIds])
 
   const opsiJurusan = useMemo(() => daftarJurusan.filter(j => j !== 'UMUM'), [daftarJurusan])
@@ -263,6 +264,16 @@ export function TabPenjurusan({
     simulasiResult.forEach(r => { map[r.siswa_id] = r })
     return map
   }, [simulasiResult])
+  const previewKelasOptions = useMemo(() =>
+    Array.from(new Map(simulasiResult.map(r => [r.kelas_id, r.kelas_nama])).entries())
+      .map(([id, nama]) => ({ id, nama }))
+      .sort((a, b) => a.nama.localeCompare(b.nama, undefined, { numeric: true, sensitivity: 'base' })),
+    [simulasiResult]
+  )
+  const filteredSimulasiResult = useMemo(() =>
+    previewKelasId === 'ALL' ? simulasiResult : simulasiResult.filter(r => r.kelas_id === previewKelasId),
+    [simulasiResult, previewKelasId]
+  )
 
   const jurusanCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -341,7 +352,7 @@ export function TabPenjurusan({
 
   const jalankanSimulasi = () => {
     if (isSavingDraft) { alert("Tunggu pilihan jurusan selesai tersimpan otomatis sebelum simulasi."); return }
-    setIsSimulating(true); setHasRunSimulation(false); setSimulasiResult([]); setSuccessMsg('')
+    setIsSimulating(true); setHasRunSimulation(false); setSimulasiResult([]); setSuccessMsg(''); setPreviewKelasId('ALL')
     setTimeout(() => {
       const target = sortedKelas.filter(k => selectedKelasIds.includes(k.id)).map(k => ({ ...k, sisa: k.kapasitas - k.jumlah_siswa }))
       const hasil: HasilPlottingType[] = []
@@ -702,17 +713,30 @@ export function TabPenjurusan({
 
         {/* Preview hasil */}
         <div className="flex-1 rounded-lg border border-surface bg-surface flex flex-col min-h-[320px]">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-surface-2">
+          <div className="flex flex-col gap-3 px-4 py-3 border-b border-surface-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">3. Preview sebaran kelas 11</p>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Siswa diurutkan dan disebar rata (L/P)</p>
             </div>
             {simulasiResult.length > 0 && (
-              <Button onClick={simpanPermanen} disabled={isSavingPermanent || isSavingDraft} size="sm"
-                className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md">
-                {isSavingPermanent ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                Simpan permanen
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Select value={previewKelasId} onValueChange={setPreviewKelasId}>
+                  <SelectTrigger className="h-8 w-full rounded-md text-xs sm:w-[170px]">
+                    <SelectValue placeholder="Filter kelas tujuan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL" className="text-xs">Semua kelas tujuan</SelectItem>
+                    {previewKelasOptions.map(k => (
+                      <SelectItem key={k.id} value={k.id} className="text-xs">{k.nama}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button onClick={simpanPermanen} disabled={isSavingPermanent || isSavingDraft} size="sm"
+                  className="h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md">
+                  {isSavingPermanent ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  Simpan permanen
+                </Button>
+              </div>
             )}
           </div>
 
@@ -746,7 +770,7 @@ export function TabPenjurusan({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {simulasiResult.map(r => (
+                    {filteredSimulasiResult.map(r => (
                       <TableRow key={r.siswa_id} className="hover:bg-surface-2/50">
                         <TableCell className="pl-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100">
                           {r.nama_lengkap}
