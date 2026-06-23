@@ -2,9 +2,8 @@ import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
 import { WelcomeStrip } from './shared/WelcomeStrip'
-import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
-import { Calendar, PlayCircle, Info, ClipboardList, Send, ArrowRight } from 'lucide-react'
+import { Calendar, PlayCircle, Info, ClipboardText as ClipboardList, PaperPlaneTilt as Send, ArrowRight } from '@phosphor-icons/react/dist/ssr'
 
 type Props = {
   userId: string; nama: string; namaDepan: string; avatarUrl: string | null
@@ -105,8 +104,6 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
           </Link>
         </div>
       </div>
-
-      <FeatureShortcuts userId={userId} />
     </div>
   )
 }

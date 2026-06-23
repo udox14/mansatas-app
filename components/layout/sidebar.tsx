@@ -6,8 +6,9 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { DEFAULT_SIDEBAR_GROUPS, MENU_ITEMS, type SidebarGroupConfig } from '@/config/menu'
-import { LogOut, X, ChevronLeft, ChevronRight, ChevronDown, Moon, Sun } from 'lucide-react'
+import { SignOut as LogOut, X, CaretLeft as ChevronLeft, CaretRight as ChevronRight, CaretDown as ChevronDown, Moon, Sun, MagnifyingGlass as Search } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
+import { getIconComponent } from '@/lib/icons'
 
 const SIDEBAR_THEMES = [
   { id: 'emerald', label: 'Hijau', sidebarBg: 'bg-emerald-950', sidebarDarkBg: 'dark:bg-[#02241b]', text: 'text-emerald-100', textMuted: 'text-emerald-400/80', activeBg: 'bg-emerald-500/30', activeText: 'text-white', hoverBg: 'hover:bg-emerald-500/15', hoverText: 'hover:text-white', border: 'border-emerald-800/50', swatch: 'bg-emerald-500', ring: 'ring-emerald-400', scrollbarThumb: '#34d399' },
@@ -57,6 +58,7 @@ export function Sidebar({
   const [isDark, setIsDark] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [openGroupIds, setOpenGroupIds] = useState<string[]>([])
+  const [menuSearch, setMenuSearch] = useState('')
   const userCollapsedRef = useRef(false)
   const initializedAccordionRef = useRef(false)
 
@@ -95,6 +97,7 @@ export function Sidebar({
   const activeGroupId = effectiveSidebarGroups.find(group =>
     group.items.some(id => allowedMenus.find(item => item.id === id)?.href === activeHref)
   )?.id
+  const normalizedMenuSearch = menuSearch.trim().toLowerCase()
 
   useEffect(() => {
     if (!mounted || initializedAccordionRef.current) return
@@ -176,6 +179,24 @@ export function Sidebar({
 
   const renderNavContent = (mobile = false) => {
     const collapsed = !mobile && isCollapsed
+    const visibleGroups = effectiveSidebarGroups
+      .map(group => {
+        const allGroupItems = group.items
+          .map(id => allowedMenus.find(m => m.id === id))
+          .filter(Boolean) as typeof MENU_ITEMS
+        const groupMatchesSearch = normalizedMenuSearch.length > 0 &&
+          group.label.toLowerCase().includes(normalizedMenuSearch)
+        const groupItems = normalizedMenuSearch.length > 0
+          ? allGroupItems.filter(item => {
+              const label = (featureLabels[item.id] || item.title).toLowerCase()
+              return groupMatchesSearch || label.includes(normalizedMenuSearch) || item.id.toLowerCase().includes(normalizedMenuSearch)
+            })
+          : allGroupItems
+
+        return { group, groupItems }
+      })
+      .filter(({ groupItems }) => groupItems.length > 0)
+
     return (
       <div className="flex flex-col h-full">
 
@@ -215,14 +236,43 @@ export function Sidebar({
             .sidebar-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); border-radius: 10px; }
             .sidebar-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.25); }
           `}</style>
-          {effectiveSidebarGroups.map((group, gi) => {
-            const groupItems = group.items
-              .map(id => allowedMenus.find(m => m.id === id))
-              .filter(Boolean) as typeof MENU_ITEMS
-            if (groupItems.length === 0) return null
-            const firstIcon = groupItems[0]?.icon
-            const GroupIcon = firstIcon
-            const isGroupOpen = collapsed || openGroupIds.includes(group.id)
+          {!collapsed && (
+            <div className="mb-3">
+              <div className={cn(
+                'flex items-center gap-2 rounded-xl border bg-black/15 px-3 py-2 transition-colors focus-within:bg-black/25',
+                theme.border
+              )}>
+                <Search className={cn('h-4 w-4 shrink-0', theme.textMuted)} />
+                <input
+                  value={menuSearch}
+                  onChange={(event) => setMenuSearch(event.target.value)}
+                  placeholder="Cari menu..."
+                  className="min-w-0 flex-1 bg-transparent text-[13px] text-white placeholder:text-white/35 outline-none"
+                  aria-label="Cari menu sidebar"
+                />
+                {menuSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setMenuSearch('')}
+                    className={cn('rounded-md p-1 transition-colors', theme.textMuted, 'hover:bg-white/10 hover:text-white')}
+                    aria-label="Hapus pencarian menu"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {visibleGroups.length === 0 && !collapsed && (
+            <div className={cn('rounded-xl border border-dashed px-3 py-4 text-center text-[12px]', theme.border, theme.textMuted)}>
+              Menu tidak ditemukan
+            </div>
+          )}
+
+          {visibleGroups.map(({ group, groupItems }, gi) => {
+            const GroupIcon = groupItems[0] ? getIconComponent(groupItems[0].icon) : null
+            const isGroupOpen = collapsed || normalizedMenuSearch.length > 0 || openGroupIds.includes(group.id)
             const hasActiveItem = group.id === activeGroupId
 
             return (
@@ -274,7 +324,7 @@ export function Sidebar({
                 <div className={cn("space-y-0.5", !collapsed && "relative ml-7 border-l border-white/10 pl-3")}>
                   {groupItems.map(item => {
                     const isActive = activeHref === item.href
-                    const Icon = item.icon
+                    const Icon = getIconComponent(item.icon)
                     return (
                       <Link
                         key={item.href}

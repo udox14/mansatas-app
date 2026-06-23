@@ -1,0 +1,61 @@
+// lib/icons.ts
+'use client'
+
+import * as Icons from '@phosphor-icons/react'
+import React from 'react'
+
+export function getIconComponent(name: string): React.ComponentType<any> {
+  const map: Record<string, React.ComponentType<any>> = {
+    LayoutDashboard: Icons.House,
+    Users: Icons.Users,
+    GraduationCap: Icons.GraduationCap,
+    CalendarCheck: Icons.CalendarCheck,
+    BookOpen: Icons.BookOpen,
+    AlertTriangle: Icons.Warning,
+    Settings: Icons.Gear,
+    Library: Icons.Books,
+    Shuffle: Icons.ArrowsMerge,
+    DoorOpen: Icons.Door,
+    HeartHandshake: Icons.Handshake,
+    Brain: Icons.Brain,
+    FileSpreadsheet: Icons.FileXls,
+    ClipboardPen: Icons.ClipboardText,
+    Activity: Icons.Pulse,
+    ClipboardList: Icons.Clipboard,
+    FileText: Icons.FileText,
+    SlidersHorizontal: Icons.Sliders,
+    PackageSearch: Icons.Package,
+    Send: Icons.PaperPlaneTilt,
+    Eye: Icons.Eye,
+    Calendar: Icons.Calendar,
+    Megaphone: Icons.Megaphone,
+    MessageSquarePlus: Icons.ChatTeardropText,
+    MessageCircle: Icons.ChatCircle,
+    Radio: Icons.Radio,
+    AlarmClock: Icons.Alarm,
+    ClipboardEdit: Icons.NotePencil,
+    BookHeart: Icons.BookBookmark,
+    BookUser: Icons.AddressBook,
+    ReceiptText: Icons.Receipt,
+    HandCoins: Icons.Coins,
+    CalendarDays: Icons.Calendar,
+    TrendingDown: Icons.TrendDown,
+    BarChart3: Icons.ChartBar,
+    ClipboardCheck: Icons.ClipboardText,
+    LineChart: Icons.ChartLine,
+    FileCheck: Icons.FileText,
+    FileArchive: Icons.FileZip,
+    Landmark: Icons.Bank,
+    UserCheck: Icons.UserCheck,
+    NotebookPen: Icons.Notebook,
+    BookOpenCheck: Icons.BookOpen,
+    BookCheck: Icons.Book,
+    ClipboardSignature: Icons.Signature,
+    FilePenLine: Icons.FileText,
+    CircleHelp: Icons.Question,
+    Smartphone: Icons.DeviceMobile,
+    FileWarning: Icons.FileText,
+    Trophy: Icons.Trophy,
+  }
+  return map[name] || Icons.Question
+}

@@ -1,6 +1,5 @@
 // components/dashboard/GuruDashboard.tsx
 import { WelcomeStrip } from './shared/WelcomeStrip'
-import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
@@ -25,9 +24,6 @@ export async function GuruDashboard({ userId, nama, namaDepan, avatarUrl, roleLa
 
       {/* Jadwal via Shared Component */}
       <JadwalMengajarToday userId={userId} taAktif={taAktif} showAbsensiAction={true} />
-
-      {/* Shortcut Dinamis */}
-      <FeatureShortcuts userId={userId} />
     </div>
   )
 }

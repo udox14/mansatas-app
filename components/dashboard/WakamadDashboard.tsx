@@ -4,14 +4,13 @@ import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
 import { findTeachingBlockException, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
 import { WelcomeStrip } from './shared/WelcomeStrip'
-import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
-  ClipboardCheck, CalendarCheck, Activity, BarChart3,
-  ClipboardList, FileSpreadsheet, ArrowRight, CheckCircle2,
-} from 'lucide-react'
+  ClipboardText as ClipboardCheck, Calendar as CalendarCheck, ChartBar as BarChart3,
+  Clipboard as ClipboardList, FileXls as FileSpreadsheet, ArrowRight, CheckCircle as CheckCircle2,
+} from '@phosphor-icons/react/dist/ssr'
 
 type Props = {
   userId: string; nama: string; namaDepan: string; avatarUrl: string | null
@@ -173,8 +172,6 @@ export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, rol
         </div>
       </div>
 
-      {/* Shortcut Dinamis */}
-      <FeatureShortcuts userId={userId} />
     </div>
   )
 }

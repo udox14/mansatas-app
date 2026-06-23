@@ -4,15 +4,14 @@ import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
 import { findTeachingBlockException, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
 import { WelcomeStrip } from './shared/WelcomeStrip'
-import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
-  ClipboardCheck, UserCog, Activity,
-  ClipboardList, FileSpreadsheet, TrendingUp,
-  TrendingDown, ArrowRight, CheckCircle2, Clock,
-} from 'lucide-react'
+  ClipboardText as ClipboardCheck, UserGear as UserCog,
+  Clipboard as ClipboardList, FileXls as FileSpreadsheet, TrendUp as TrendingUp,
+  TrendDown as TrendingDown, ArrowRight, CheckCircle as CheckCircle2, Clock,
+} from '@phosphor-icons/react/dist/ssr'
 
 type Props = {
   userId: string; nama: string; namaDepan: string; avatarUrl: string | null
@@ -173,8 +172,6 @@ export async function KepsekDashboard({ userId, nama, namaDepan, avatarUrl, role
         </div>
       </div>
 
-      {/* Shortcut Dinamis */}
-      <FeatureShortcuts userId={userId} />
     </div>
   )
 }

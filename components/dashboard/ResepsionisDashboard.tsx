@@ -3,14 +3,13 @@ import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { formatTimeWIB, todayWIB } from '@/lib/time'
 import { WelcomeStrip } from './shared/WelcomeStrip'
-import { FeatureShortcuts } from './shared/FeatureShortcuts'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
-  MapPin, CheckCircle2, ArrowRight,
+  MapPin, CheckCircle as CheckCircle2, ArrowRight,
   Clock,
-} from 'lucide-react'
+} from '@phosphor-icons/react/dist/ssr'
 
 type Props = {
   userId: string; nama: string; namaDepan: string; avatarUrl: string | null
@@ -147,9 +146,6 @@ export async function ResepsionisDashboard({ userId, nama, namaDepan, avatarUrl,
           </div>
         )}
       </div>
-
-      {/* Shortcut Dinamis */}
-      <FeatureShortcuts userId={userId} />
     </div>
   )
 }

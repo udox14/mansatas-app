@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
-import { Inbox, Send, ArrowRight, ClipboardList } from 'lucide-react'
+import { Tray as Inbox, PaperPlaneTilt as Send, ArrowRight, ClipboardText as ClipboardList } from '@phosphor-icons/react/dist/ssr'
 
 type Props = {
   userId: string

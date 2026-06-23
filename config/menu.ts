@@ -1,56 +1,54 @@
 // config/menu.ts
-import {
-  LayoutDashboard,
-  Users,
-  GraduationCap,
-  CalendarCheck,
-  BookOpen,
-  AlertTriangle,
-  Settings,
-  Library,
-  Shuffle,
-  DoorOpen,
-  HeartHandshake,
-  Brain,
-  FileSpreadsheet,
-  ClipboardPen,
-  Activity,
-  ClipboardList,
-  FileText,
-  SlidersHorizontal,
-  PackageSearch,
-  Send,
-  Eye,
-  Calendar,
-  Megaphone,
-  MessageSquarePlus,
-  MessageCircle,
-  Radio,
-  AlarmClock,
-  ClipboardEdit,
-  BookHeart,
-  BookUser,
-  ReceiptText,
-  HandCoins,
-  CalendarDays,
-  TrendingDown,
-  BarChart3,
-  ClipboardCheck,
-  LineChart,
-  FileCheck,
-  FileArchive,
-  Landmark,
-  UserCheck,
-  NotebookPen,
-  BookOpenCheck,
-  BookCheck,
-  ClipboardSignature,
-  FilePenLine,
-  CircleHelp,
-  Smartphone,
-  FileWarning,
-  Trophy,
-} from 'lucide-react'
+const LayoutDashboard = 'LayoutDashboard'
+const Users = 'Users'
+const GraduationCap = 'GraduationCap'
+const CalendarCheck = 'CalendarCheck'
+const BookOpen = 'BookOpen'
+const AlertTriangle = 'AlertTriangle'
+const Settings = 'Settings'
+const Library = 'Library'
+const Shuffle = 'Shuffle'
+const DoorOpen = 'DoorOpen'
+const HeartHandshake = 'HeartHandshake'
+const Brain = 'Brain'
+const FileSpreadsheet = 'FileSpreadsheet'
+const ClipboardPen = 'ClipboardPen'
+const Activity = 'Activity'
+const ClipboardList = 'ClipboardList'
+const FileText = 'FileText'
+const SlidersHorizontal = 'SlidersHorizontal'
+const PackageSearch = 'PackageSearch'
+const Send = 'Send'
+const Eye = 'Eye'
+const Calendar = 'Calendar'
+const Megaphone = 'Megaphone'
+const MessageSquarePlus = 'MessageSquarePlus'
+const MessageCircle = 'MessageCircle'
+const Radio = 'Radio'
+const AlarmClock = 'AlarmClock'
+const ClipboardEdit = 'ClipboardEdit'
+const BookHeart = 'BookHeart'
+const BookUser = 'BookUser'
+const ReceiptText = 'ReceiptText'
+const HandCoins = 'HandCoins'
+const CalendarDays = 'CalendarDays'
+const TrendingDown = 'TrendingDown'
+const BarChart3 = 'BarChart3'
+const ClipboardCheck = 'ClipboardCheck'
+const LineChart = 'LineChart'
+const FileCheck = 'FileCheck'
+const FileArchive = 'FileArchive'
+const Landmark = 'Landmark'
+const UserCheck = 'UserCheck'
+const NotebookPen = 'NotebookPen'
+const BookOpenCheck = 'BookOpenCheck'
+const BookCheck = 'BookCheck'
+const ClipboardSignature = 'ClipboardSignature'
+const FilePenLine = 'FilePenLine'
+const CircleHelp = 'CircleHelp'
+const Smartphone = 'Smartphone'
+const FileWarning = 'FileWarning'
+const Trophy = 'Trophy'
 
 export type MenuItem = {
   id: string        // feature_id unik — dipakai di DB role_features
