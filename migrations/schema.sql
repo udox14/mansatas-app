@@ -190,6 +190,10 @@ CREATE TABLE IF NOT EXISTS riwayat_kelas (
   siswa_id         TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
   kelas_id         TEXT NOT NULL REFERENCES kelas(id) ON DELETE CASCADE,
   tahun_ajaran_id  TEXT NOT NULL REFERENCES tahun_ajaran(id) ON DELETE CASCADE,
+  kelas_tingkat    INTEGER,
+  kelas_nomor      TEXT,
+  kelas_kelompok   TEXT,
+  kelas_nama       TEXT,
   created_at       TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(siswa_id, tahun_ajaran_id)
 );

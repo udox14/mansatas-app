@@ -3,6 +3,7 @@
 
 import { getDB } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
+import { ensureRiwayatKelasSnapshotColumns, formatKelasSnapshot } from '@/lib/riwayat-kelas'
 
 type TahunAjaranRef = {
   id: string
@@ -121,6 +122,7 @@ export async function getSiswaBelumAdaKelas() {
 // ============================================================
 export async function getKelasByTingkat(tingkat: number, tahun_ajaran_id?: string) {
   const db = await getDB()
+  await ensureRiwayatKelasSnapshotColumns(db)
   const { target } = await resolvePlottingContext(db, { target_tahun_ajaran_id: tahun_ajaran_id })
   const countByCurrentClass = !tahun_ajaran_id || target.is_active === 1
 
@@ -134,14 +136,18 @@ export async function getKelasByTingkat(tingkat: number, tahun_ajaran_id?: strin
            WHERE k.tingkat = ?
            GROUP BY k.id
            ORDER BY k.kelompok ASC, k.nomor_kelas ASC`
-        : `SELECT k.id, k.tingkat, k.kelompok, k.nomor_kelas, k.kapasitas,
+        : `SELECT k.id,
+                  COALESCE(rk.kelas_tingkat, k.tingkat) as tingkat,
+                  COALESCE(rk.kelas_kelompok, k.kelompok) as kelompok,
+                  COALESCE(rk.kelas_nomor, k.nomor_kelas) as nomor_kelas,
+                  k.kapasitas,
                   COUNT(rk.siswa_id) as jumlah_siswa
            FROM kelas k
            LEFT JOIN riwayat_kelas rk
              ON rk.kelas_id = k.id AND rk.tahun_ajaran_id = ?
            WHERE k.tingkat = ?
-           GROUP BY k.id
-           ORDER BY k.kelompok ASC, k.nomor_kelas ASC`
+           GROUP BY k.id, COALESCE(rk.kelas_tingkat, k.tingkat), COALESCE(rk.kelas_kelompok, k.kelompok), COALESCE(rk.kelas_nomor, k.nomor_kelas), k.kapasitas
+           ORDER BY COALESCE(rk.kelas_kelompok, k.kelompok) ASC, COALESCE(rk.kelas_nomor, k.nomor_kelas) ASC`
     )
     .bind(...(countByCurrentClass ? [tingkat] : [target.id, tingkat]))
     .all<any>()
@@ -162,6 +168,7 @@ export async function getSiswaByTingkat(
 ) {
   const db = await getDB()
   await ensurePlottingPenjurusanDraftTable(db)
+  await ensureRiwayatKelasSnapshotColumns(db)
   const { source, target } = await resolvePlottingContext(db, {
     source_tahun_ajaran_id,
     target_tahun_ajaran_id,
@@ -186,7 +193,9 @@ export async function getSiswaByTingkat(
         : `SELECT s.id, s.nisn, s.nis_lokal, s.nama_lengkap, s.jenis_kelamin, rk.kelas_id,
                   s.minat_jurusan as legacy_minat_jurusan,
                   d.id as draft_id, d.minat_jurusan as draft_minat_jurusan,
-                  k.tingkat, k.kelompok, k.nomor_kelas
+                  COALESCE(rk.kelas_tingkat, k.tingkat) as tingkat,
+                  COALESCE(rk.kelas_kelompok, k.kelompok) as kelompok,
+                  COALESCE(rk.kelas_nomor, k.nomor_kelas) as nomor_kelas
            FROM siswa s
            JOIN riwayat_kelas rk
              ON rk.siswa_id = s.id AND rk.tahun_ajaran_id = ?
@@ -223,6 +232,7 @@ export async function getSiswaByTingkat(
 
 export async function getSiswaLulusByRiwayatTingkat(tingkat: number) {
   const db = await getDB()
+  await ensureRiwayatKelasSnapshotColumns(db)
   const ta = await getTahunAjaranAktif()
 
   const result = await db
@@ -264,6 +274,7 @@ export async function setDraftPenjurusan(
 ) {
   const db = await getDB()
   await ensurePlottingPenjurusanDraftTable(db)
+  await ensureRiwayatKelasSnapshotColumns(db)
   const { source, target } = await resolvePlottingContext(db, context)
   const now = new Date().toISOString()
 
@@ -292,6 +303,7 @@ export async function setDraftPenjurusanMassal(
 ) {
   const db = await getDB()
   await ensurePlottingPenjurusanDraftTable(db)
+  await ensureRiwayatKelasSnapshotColumns(db)
   const { source, target } = await resolvePlottingContext(db, context)
   const now = new Date().toISOString()
 
@@ -331,6 +343,7 @@ export async function simpanPlottingMassal(
 
   const db = await getDB()
   await ensurePlottingPenjurusanDraftTable(db)
+  await ensureRiwayatKelasSnapshotColumns(db)
   const { source, target } = await resolvePlottingContext(db, context)
 
   try {
@@ -343,24 +356,30 @@ export async function simpanPlottingMassal(
         const placeholders = chunk.map(() => '?').join(', ')
         const sourceRows = await db
           .prepare(
-            `SELECT id, kelas_id
-             FROM siswa
-             WHERE id IN (${placeholders})
-               AND kelas_id IS NOT NULL
-               AND status = 'aktif'`
+            `SELECT s.id, s.kelas_id, k.tingkat, k.nomor_kelas, k.kelompok
+             FROM siswa s
+             JOIN kelas k ON k.id = s.kelas_id
+             WHERE s.id IN (${placeholders})
+               AND s.kelas_id IS NOT NULL
+               AND s.status = 'aktif'`
           )
           .bind(...chunk.map((plot) => plot.siswa_id))
-          .all<{ id: string; kelas_id: string }>()
+          .all<{ id: string; kelas_id: string; tingkat: number; nomor_kelas: string; kelompok: string }>()
 
         const sourceHistoryStmts = (sourceRows.results ?? []).map((row) =>
           db
             .prepare(
-              `INSERT INTO riwayat_kelas (siswa_id, kelas_id, tahun_ajaran_id)
-               VALUES (?, ?, ?)
+              `INSERT INTO riwayat_kelas (siswa_id, kelas_id, tahun_ajaran_id, kelas_tingkat, kelas_nomor, kelas_kelompok, kelas_nama)
+               VALUES (?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(siswa_id, tahun_ajaran_id)
-               DO UPDATE SET kelas_id = excluded.kelas_id`
+               DO UPDATE SET
+                 kelas_id = excluded.kelas_id,
+                 kelas_tingkat = excluded.kelas_tingkat,
+                 kelas_nomor = excluded.kelas_nomor,
+                 kelas_kelompok = excluded.kelas_kelompok,
+                 kelas_nama = excluded.kelas_nama`
             )
-            .bind(row.id, row.kelas_id, source.id)
+            .bind(row.id, row.kelas_id, source.id, row.tingkat, row.nomor_kelas, row.kelompok, formatKelasSnapshot(row.tingkat, row.nomor_kelas, row.kelompok))
         )
 
         if (sourceHistoryStmts.length) await db.batch(sourceHistoryStmts)
@@ -379,16 +398,38 @@ export async function simpanPlottingMassal(
       }
     }
 
-    const riwayatStmts = hasilPlotting.map((plot) =>
+    const uniqueTargetKelasIds = Array.from(new Set(hasilPlotting.map(plot => plot.kelas_id)))
+    const targetKelasMap = new Map<string, { tingkat: number; nomor_kelas: string; kelompok: string }>()
+    for (let i = 0; i < uniqueTargetKelasIds.length; i += chunkSize) {
+      const chunk = uniqueTargetKelasIds.slice(i, i + chunkSize)
+      const placeholders = chunk.map(() => '?').join(', ')
+      const rows = await db
+        .prepare(`SELECT id, tingkat, nomor_kelas, kelompok FROM kelas WHERE id IN (${placeholders})`)
+        .bind(...chunk)
+        .all<{ id: string; tingkat: number; nomor_kelas: string; kelompok: string }>()
+      ;(rows.results ?? []).forEach(row => {
+        targetKelasMap.set(row.id, { tingkat: row.tingkat, nomor_kelas: row.nomor_kelas, kelompok: row.kelompok })
+      })
+    }
+
+    const riwayatStmts = hasilPlotting.map((plot) => {
+      const kelas = targetKelasMap.get(plot.kelas_id)
+      return (
       db
         .prepare(
-          `INSERT INTO riwayat_kelas (siswa_id, kelas_id, tahun_ajaran_id)
-           VALUES (?, ?, ?)
+          `INSERT INTO riwayat_kelas (siswa_id, kelas_id, tahun_ajaran_id, kelas_tingkat, kelas_nomor, kelas_kelompok, kelas_nama)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(siswa_id, tahun_ajaran_id)
-           DO UPDATE SET kelas_id = excluded.kelas_id`
+           DO UPDATE SET
+             kelas_id = excluded.kelas_id,
+             kelas_tingkat = excluded.kelas_tingkat,
+             kelas_nomor = excluded.kelas_nomor,
+             kelas_kelompok = excluded.kelas_kelompok,
+             kelas_nama = excluded.kelas_nama`
         )
-        .bind(plot.siswa_id, plot.kelas_id, target.id)
-    )
+        .bind(plot.siswa_id, plot.kelas_id, target.id, kelas?.tingkat ?? null, kelas?.nomor_kelas ?? null, kelas?.kelompok ?? null, formatKelasSnapshot(kelas?.tingkat, kelas?.nomor_kelas, kelas?.kelompok))
+      )
+    })
 
     for (let i = 0; i < riwayatStmts.length; i += chunkSize) {
       await db.batch(riwayatStmts.slice(i, i + chunkSize))
