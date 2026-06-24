@@ -112,7 +112,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/akademik',
     icon: BookOpen,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad'],
-    desc: 'Mengelola mata pelajaran, kurikulum, serta pengaturan bobot nilai akademik'
+    desc: 'Mengatur data mata pelajaran, penugasan guru pengajar, dan distribusi jadwal KBM'
   },
   {
     id: 'akademik-nilai',
@@ -120,7 +120,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/akademik/nilai',
     icon: FileSpreadsheet,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad'],
-    desc: 'Melihat dan mencetak rekapitulasi nilai rapor atau ujian dari seluruh kelas'
+    desc: 'Mengimpor dan merekap nilai Rapor Digital Madrasah (RDM) per semester dari file Excel'
   },
   {
     id: 'kalender-pendidikan',
@@ -128,7 +128,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/kalender-pendidikan',
     icon: CalendarDays,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad'],
-    desc: 'Mengatur jadwal ujian, hari libur, dan event penting sekolah sepanjang tahun ajaran'
+    desc: 'Mengatur hari efektif belajar, libur nasional/madrasah, rapat, dan jadwal ujian'
   },
 
   {
@@ -137,7 +137,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/tahfidz',
     icon: BookHeart,
     roles: ['super_admin', 'kepsek', 'wakamad', 'guru_tahfidz'],
-    desc: 'Mencatat setoran hafalan Al-Qur\'an, juz yang diselesaikan, serta rekap tilawah harian siswa'
+    desc: 'Mengelola kemajuan hafalan Al-Qur\'an siswa, setoran juz/surah, serta rekap tilawah harian'
   },
   {
     id: 'guru',
@@ -161,7 +161,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/kelas-binaan',
     icon: Eye,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas'],
-    desc: 'Pantauan khusus wali kelas terhadap kehadiran, nilai, dan rekap pelanggaran anak didiknya'
+    desc: 'Pusat pantauan khusus Wali Kelas untuk memonitor kehadiran, nilai, kedisiplinan, dan profil lengkap siswa binaan'
   },
   {
     id: 'rekap-absensi',
@@ -169,7 +169,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/rekap-absensi',
     icon: ClipboardList,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas'],
-    desc: 'Melihat persentase kehadiran siswa atau kelas dalam rentang waktu tertentu'
+    desc: 'Laporan absensi siswa untuk monitoring kehadiran per kelas, per siswa, maupun rincian per jam pelajaran'
   },
   {
     id: 'keterangan-absensi',
@@ -177,7 +177,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keterangan-absensi',
     icon: ClipboardSignature,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas'],
-    desc: 'Memproses surat izin atau keterangan sakit siswa untuk diverifikasi ke rekap kehadiran'
+    desc: 'Mengoreksi dan memvalidasi status kehadiran harian siswa khusus untuk Wali Kelas'
   },
   {
     id: 'agenda',
@@ -185,7 +185,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/agenda',
     icon: NotebookPen,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_ppl'],
-    desc: 'Mencatat jurnal mengajar guru setelah selesai memberikan materi di kelas'
+    desc: 'Mencatat agenda mengajar harian guru, materi pelajaran, dan absensi piket sesuai jadwal'
   },
   {
     id: 'agenda-kelas',
@@ -193,7 +193,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/agenda-kelas',
     icon: BookOpenCheck,
     roles: ['super_admin', 'admin_tu'],
-    desc: 'Melihat riwayat keseluruhan aktivitas belajar mengajar yang telah berlangsung di suatu kelas'
+    desc: 'Memeriksa lembar agenda harian kelas dan mencetak agenda bulanan format resmi'
   },
   {
     id: 'ckh-generator',
@@ -201,7 +201,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/ckh-generator',
     icon: FilePenLine,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_tahfidz', 'operator', 'pramubakti', 'satpam'],
-    desc: 'Membuat dokumen Catatan Kinerja Harian (CKH) untuk keperluan administrasi dan laporan pegawai'
+    desc: 'Membuat, mengedit, menyinkronkan agenda, dan mencetak laporan bulanan Capaian Kinerja Harian (CKH)'
   },
   {
     id: 'tpg-dokumen',
@@ -209,7 +209,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/tpg-dokumen',
     icon: FileArchive,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_tahfidz', 'operator', 'pramubakti', 'satpam'],
-    desc: 'Mengunggah dan memverifikasi berkas persyaratan Tunjangan Profesi Guru (TPG)'
+    desc: 'Mengunggah formulir S36 bulanan dan menyiapkan berkas persyaratan Tunjangan Profesi Guru (TPG)'
   },
   {
     id: 'documentation',
@@ -225,7 +225,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/rppm-generator',
     icon: ClipboardEdit,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_tahfidz', 'guru_ppl'],
-    desc: 'Menyusun Rencana Pelaksanaan Pembelajaran Madrasah dengan template otomatis'
+    desc: 'Menyusun dokumen Rencana Pelaksanaan Pembelajaran Madrasah (RPPM) KBC dengan bantuan generator AI'
   },
   {
     id: 'nilai-harian',
@@ -241,7 +241,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/penugasan',
     icon: Send,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_ppl'],
-    desc: 'Memberikan PR, materi bacaan, atau tugas terstruktur kepada siswa secara online'
+    desc: 'Mendelegasikan atau menitipkan tugas mengajar dan absensi kelas ke guru lain saat berhalangan hadir'
   },
   {
     id: 'ekstrakurikuler',
@@ -249,7 +249,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/ekstrakurikuler',
     icon: Trophy,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_ppl', 'guru_tahfidz'],
-    desc: 'Mencatat daftar kehadiran peserta dan perkembangan siswa di kegiatan ekstrakurikuler'
+    desc: 'Mengelola anggota, absensi latihan, presensi pembina, serta input penilaian ekstrakurikuler'
   },
   {
     id: 'ekstrakurikuler-master',
@@ -257,7 +257,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/ekstrakurikuler/master',
     icon: Trophy,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad'],
-    desc: 'Mendaftarkan program ekstrakurikuler baru beserta data pembina yang bertanggung jawab'
+    desc: 'Mengelola daftar kegiatan ekstrakurikuler, penunjukan pembina, dan pemantauan kegiatan'
   },
   {
     id: 'whatsapp',
@@ -265,7 +265,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/whatsapp',
     icon: MessageCircle,
     roles: ['super_admin', 'admin_tu', 'bendahara_komite'],
-    desc: 'Mengirimkan pesan siaran (broadcast) atau tagihan via WhatsApp langsung ke nomor wali siswa'
+    desc: 'Mengelola antrean (outbox) pengiriman notifikasi otomatis absensi dan siaran pesan WhatsApp via WABLAS'
   },
   {
     id: 'monitoring-agenda',
@@ -273,7 +273,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/monitoring-agenda',
     icon: Activity,
     roles: ['super_admin', 'admin_tu', 'kepsek'],
-    desc: 'Mengecek laporan secara real-time terkait guru mana saja yang belum mengisi jurnal mengajar hari ini'
+    desc: 'Memantau tingkat kepatuhan pengisian agenda mengajar guru, rekap kehadiran, dan cetak laporan'
   },
   {
     id: 'monitoring-penugasan',
@@ -281,7 +281,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/monitoring-penugasan',
     icon: Eye,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad'],
-    desc: 'Memantau beban siswa dengan melihat seberapa banyak tugas yang diberikan guru'
+    desc: 'Memantau status dan pelaksanaan pendelegasian/penitipan tugas mengajar antar guru'
   },
   {
     id: 'monitoring-kedisiplinan',
@@ -289,7 +289,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/monitoring-kedisiplinan',
     icon: AlertTriangle,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'wali_kelas'],
-    desc: 'Memantau statistik pelanggaran tata tertib dan daftar siswa dengan poin disiplin terekstrem'
+    desc: 'Memantau statistik pelanggar, akumulasi poin, radar siswa berisiko, dan analitik kedisiplinan'
   },
   {
     id: 'rapat',
@@ -305,7 +305,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/jadwal-piket',
     icon: Calendar,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad'],
-    desc: 'Mengatur jadwal pembagian tugas guru piket harian untuk menjaga ketertiban lingkungan'
+    desc: 'Mengelola jadwal tugas guru piket harian serta pengaturan shift kerja'
   },
   {
     id: 'izin',
@@ -321,7 +321,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/kedisiplinan',
     icon: AlertTriangle,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru_ppl', 'wali_kelas'],
-    desc: 'Mencatat jenis dan poin pelanggaran siswa beserta riwayat sanksi yang telah ditindaklanjuti'
+    desc: 'Mencatat pelanggaran tata tertib siswa dan mengelola daftar poin aturan sekolah'
   },
   {
     id: 'sp',
@@ -329,7 +329,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/sp',
     icon: FileWarning,
     roles: ['super_admin', 'kepsek', 'wakamad', 'admin_tu', 'guru_bk'],
-    desc: 'Menerbitkan Surat Peringatan (SP) untuk siswa yang telah melampaui batas wajar poin pelanggaran'
+    desc: 'Menetapkan, mencetak, dan memantau status tindak lanjut Surat Peringatan (SP) siswa'
   },
   {
     id: 'sarpras',
@@ -337,7 +337,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/sarpras',
     icon: PackageSearch,
     roles: ['super_admin', 'admin_tu'],
-    desc: 'Mendata inventaris barang, daftar ruangan, serta menampung laporan kerusakan fasilitas sekolah'
+    desc: 'Mengelola data inventaris barang, kategori aset, ruangan, serta kondisi sarana prasarana'
   },
   {
     id: 'bk',
@@ -345,7 +345,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/bk',
     icon: HeartHandshake,
     roles: ['super_admin', 'kepsek', 'wakamad', 'guru_bk'],
-    desc: 'Mencatat jadwal konseling harian, kunjungan rumah (home visit), dan rekap penyelesaian kasus siswa'
+    desc: 'Merekam dan memantau layanan bimbingan konseling pribadi, sosial, belajar, maupun karir siswa'
   },
   {
     id: 'psikotes',
@@ -353,7 +353,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/psikotes',
     icon: Brain,
     roles: ['super_admin', 'kepsek', 'wakamad', 'guru_bk', 'guru'],
-    desc: 'Menyimpan hasil tes psikologi siswa untuk rekomendasi penjurusan dan bakat minat'
+    desc: 'Mengelola hasil tes psikologis, bakat, minat, dan rekomendasi pilihan jurusan siswa'
   },
   {
     id: 'analitik',
@@ -361,7 +361,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/analitik',
     icon: LineChart,
     roles: ['super_admin', 'kepsek', 'wakamad'],
-    desc: 'Melihat grafik tren perkembangan nilai dan kualitas akademik sekolah dari tahun ke tahun'
+    desc: 'Analisis nilai Rapor Digital Madrasah (RDM) dan simulasi pemeringkatan kuota Eligible SNBP'
   },
   {
     id: 'tka',
@@ -369,7 +369,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/tka',
     icon: FileCheck,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk'],
-    desc: 'Melakukan pendataan nilai Tes Kemampuan Akademik sebagai instrumen evaluasi pendidikan'
+    desc: 'Mengelola pilihan mata pelajaran Tes Kemampuan Akademik (TKA) dan unggah berkas PDF nilai'
   },
   {
     id: 'penerimaan-pt',
@@ -377,7 +377,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/penerimaan-pt',
     icon: Landmark,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk'],
-    desc: 'Mendata jejak alumni yang berhasil diterima melalui Seleksi Nasional Perguruan Tinggi (SNBP/SNBT)'
+    desc: 'Mendata siswa kelas 12 yang diterima di Perguruan Tinggi per jalur seleksi (SNBP, UTBK, dll)'
   },
 
   {
@@ -386,7 +386,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/surat',
     icon: FileText,
     roles: ['super_admin', 'admin_tu', 'wakamad', 'kepsek'],
-    desc: 'Mencetak dan mengarsipkan template surat resmi seperti keterangan siswa aktif atau surat tugas'
+    desc: 'Membuat dan mengarsipkan berkas surat resmi keluar (keterangan aktif, tugas, dll)'
   },
   {
     id: 'kelola-ppl',
@@ -394,7 +394,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/kelola-ppl',
     icon: UserCheck,
     roles: ['super_admin', 'kepsek', 'wakamad'],
-    desc: 'Mendata mahasiswa Praktik Pengalaman Lapangan (PPL) dan memasangkannya dengan guru pamong'
+    desc: 'Mengatur pendelegasian komponen tugas mengajar atau piket dari guru utama ke mahasiswa PPL'
   },
   {
     id: 'buku-tamu',
@@ -410,7 +410,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/pmb',
     icon: GraduationCap,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad'],
-    desc: 'Mengelola alur pendaftaran, seleksi, penyaringan, hingga penetapan Calon Peserta Didik Baru'
+    desc: 'Mengelola verifikasi berkas, penjadwalan tes masuk, kelulusan, dan konversi Calon Siswa Baru'
   },
   // ── KEUANGAN ──────────────────────────────────────────────────────
   {
@@ -419,7 +419,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keuangan/transaksi',
     icon: ReceiptText,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Melihat histori rinci seluruh pembayaran uang komite yang disetor oleh siswa ke dalam sistem'
+    desc: 'Melihat histori rinci seluruh transaksi pembayaran uang komite lintas siswa'
   },
   {
     id: 'keuangan-daftar-ulang',
@@ -427,7 +427,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keuangan/daftar-ulang',
     icon: ClipboardCheck,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Dashboard kasir khusus untuk memproses transaksi pembayaran daftar ulang di awal tahun'
+    desc: 'Kasir khusus memproses transaksi pembayaran daftar ulang PMB dan mencetak kuitansi'
   },
   {
     id: 'keuangan-dspt',
@@ -435,7 +435,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keuangan/dspt',
     icon: HandCoins,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Mencatat penerimaan dan rekapitulasi pelunasan Dana Sumbangan Pendidikan Tahunan (DSPT)'
+    desc: 'Mengelola tagihan, cicilan, dan rekapitulasi pembayaran Dana Sumbangan Pendidikan Tahunan (DSPT)'
   },
   {
     id: 'keuangan-spp',
@@ -443,7 +443,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keuangan/spp',
     icon: CalendarDays,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Mencatat penerimaan iuran bulanan SPP siswa sekaligus untuk mencetak struk transaksinya'
+    desc: 'Mencatat pembayaran tunggakan SPP/iuran bulanan masa lalu untuk siswa lama'
   },
   {
     id: 'keuangan-export',
@@ -451,7 +451,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keuangan/export',
     icon: FileSpreadsheet,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Mengunduh rekap transaksi keuangan harian atau bulanan ke dalam format spreadsheet Excel/CSV'
+    desc: 'Mengunduh rekapitulasi transaksi DSPT dan SPP siswa ke format Excel (.xlsx)'
   },
   {
     id: 'keuangan-kas-keluar',
@@ -459,7 +459,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keuangan/kas-keluar',
     icon: TrendingDown,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Mencatat pengeluaran uang komite untuk membiayai operasional dan kebutuhan madrasah'
+    desc: 'Mencatat pengeluaran dan penggunaan dana komite untuk operasional madrasah'
   },
   {
     id: 'keuangan-laporan',
@@ -467,7 +467,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keuangan/laporan',
     icon: BarChart3,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Melihat buku besar, neraca saldo, arus kas, dan ringkasan keuangan komite secara komprehensif'
+    desc: 'Melihat ringkasan kas, total transaksi, tunggakan siswa, dan pencetakan laporan bulanan'
   },
   {
     id: 'keuangan-pengaturan',
@@ -475,7 +475,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keuangan/pengaturan',
     icon: Settings,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Mengonfigurasi nominal tagihan SPP dan persentase DSPT yang berbeda untuk tiap angkatan'
+    desc: 'Mengonfigurasi rekening tujuan transfer, kontak bendahara, dan QR code pembayaran komite'
   },
   // ──────────────────────────────────────────────────────────────────
   {
@@ -500,7 +500,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/settings/fitur',
     icon: SlidersHorizontal,
     roles: ['super_admin'],
-    desc: 'Menghidupkan atau mematikan modul tertentu agar tidak muncul di hak akses peran/role'
+    desc: 'Mengatur matriks izin akses fitur per-role, membuat role kustom, dan menata template sidebar'
   },
   {
     id: 'settings-notifications',
@@ -508,7 +508,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/settings/notifications',
     icon: Radio,
     roles: ['super_admin'],
-    desc: 'Mengirimkan notifikasi push pengumuman secara serentak ke perangkat para pengguna'
+    desc: 'Mengirimkan notifikasi push pengumuman secara langsung ke peramban web pengguna'
   },
   {
     id: 'settings-jadwal-notif',
@@ -516,7 +516,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/settings/jadwal-notif',
     icon: AlarmClock,
     roles: ['super_admin'],
-    desc: 'Menyiapkan agenda pesan pengingat otomatis yang akan dikirim pada waktu yang ditentukan'
+    desc: 'Mengonfigurasi agenda pengiriman notifikasi push otomatis terjadwal ke target tertentu'
   },
   {
     id: 'settings-mobile-app',
@@ -524,7 +524,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/settings/mobile-app',
     icon: Smartphone,
     roles: ['super_admin'],
-    desc: 'Pengaturan peringatan update versi minimum dan merubah banner informasi di aplikasi Android'
+    desc: 'Mengonfigurasi fitur native APK seperti kamera, gesture back button, dan info verifikasi'
   },
   {
     id: 'pengumuman-ortu',
@@ -532,7 +532,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/pengumuman-ortu',
     icon: Megaphone,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas'],
-    desc: 'Menerbitkan surat edaran atau berita madrasah yang akan langsung tertampil di beranda orang tua'
+    desc: 'Menerbitkan berita atau surat edaran resmi madrasah untuk beranda Portal Orang Tua'
   },
   {
     id: 'kotak-saran-ortu',
@@ -540,7 +540,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/kotak-saran-ortu',
     icon: MessageSquarePlus,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad'],
-    desc: 'Membaca dan merespon masukan perbaikan atau keluhan anonim dari keluarga siswa'
+    desc: 'Membaca dan memantau masukan, saran, atau keluhan dari orang tua siswa'
   },
   {
     id: 'portal-ortu',

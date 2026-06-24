@@ -137,11 +137,13 @@ export function Header({ userRoles, primaryRole, userName, userEmail, avatarUrl 
               <User className="h-3.5 w-3.5" /> Profil Saya
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild className="cursor-pointer text-[13px]">
-            <Link href="/dashboard/settings" className="flex items-center gap-2">
-              <Settings className="h-3.5 w-3.5" /> Pengaturan
-            </Link>
-          </DropdownMenuItem>
+          {primaryRole === 'super_admin' && (
+            <DropdownMenuItem asChild className="cursor-pointer text-[13px]">
+              <Link href="/dashboard/settings" className="flex items-center gap-2">
+                <Settings className="h-3.5 w-3.5" /> Pengaturan
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={handleLogout}

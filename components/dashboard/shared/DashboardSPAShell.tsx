@@ -17,7 +17,8 @@ import {
   Files,
   Wallet,
   Gear,
-  DotsThree
+  DotsThree,
+  Clock
 } from '@phosphor-icons/react'
 import { MENU_ITEMS, DEFAULT_SIDEBAR_GROUPS } from '@/config/menu'
 import { getIconComponent } from '@/lib/icons'
@@ -100,6 +101,24 @@ export function DashboardSPAShell({
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [isMounted, setIsMounted] = useState(false)
+  const [time, setTime] = useState<string>('')
+
+  useEffect(() => {
+    const updateClock = () => {
+      const now = new Date()
+      const options: Intl.DateTimeFormatOptions = {
+        timeZone: 'Asia/Jakarta',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      }
+      setTime(new Intl.DateTimeFormat('id-ID', options).format(now))
+    }
+    updateClock()
+    const timer = setInterval(updateClock, 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   // Handle URL hash for Android Back button navigation
   useEffect(() => {
@@ -188,7 +207,15 @@ export function DashboardSPAShell({
           </div>
         )}
 
-        <div className="flex justify-center">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1">
+          {/* Jam Digital WIB (Kiri) */}
+          <div className="relative inline-flex items-center gap-2 px-5 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full shadow-sm border border-slate-200/50 dark:border-slate-700/50 text-slate-700 dark:text-slate-200 font-bold text-xs sm:text-sm tracking-wide h-[44px] sm:h-[52px]">
+            <Clock weight="duotone" className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 dark:text-emerald-400 animate-pulse" />
+            <span className="font-mono tabular-nums leading-none">{time || '00:00:00'}</span>
+            <span className="text-[9px] sm:text-[10px] font-semibold text-slate-400 dark:text-slate-500 leading-none">WIB</span>
+          </div>
+
+          {/* Tabs Navigation (Kanan) */}
           <div className="relative inline-flex p-1.5 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full shadow-sm z-0 border border-slate-200/50 dark:border-slate-700/50">
             <button
               onClick={() => handleSetTab('dashboard')}

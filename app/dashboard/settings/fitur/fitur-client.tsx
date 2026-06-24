@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition, type Dispatch, type SetStateAction } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   DEFAULT_SIDEBAR_GROUPS,
   MENU_ITEMS,
@@ -220,6 +221,7 @@ function FeatureTitleEditor({
   featureLabels: Record<string, string>
   setFeatureLabels: Dispatch<SetStateAction<Record<string, string>>>
 }) {
+  const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(featureLabels[feature.id] || feature.title)
   const [isSaving, setIsSaving] = useState(false)
@@ -244,6 +246,7 @@ function FeatureTitleEditor({
       else next[feature.id] = nextTitle
       return next
     })
+    router.refresh()
     setEditing(false)
   }
 
@@ -343,6 +346,7 @@ function AccessRoleView({
   featureLabels: Record<string, string>
   setFeatureLabels: Dispatch<SetStateAction<Record<string, string>>>
 }) {
+  const router = useRouter()
   const [selectedRole, setSelectedRole] = useState(roles[0]?.value ?? '')
   const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set())
   const selectedRoleData = roles.find(role => role.value === selectedRole)
@@ -413,6 +417,8 @@ function AccessRoleView({
       } else {
         updateLocalPermission(selectedRole, featureId, { [action]: current[action] })
       }
+    } else {
+      router.refresh()
     }
     setPendingKeys(prev => {
       const next = new Set(prev)
@@ -507,6 +513,7 @@ function TemplateSidebarView({
   setSidebarTemplate: Dispatch<SetStateAction<SidebarGroupConfig[]>>
   featureLabels: Record<string, string>
 }) {
+  const router = useRouter()
   const [isSaving, setIsSaving] = useState(false)
   const [newGroupLabel, setNewGroupLabel] = useState('')
   const rootIds = new Set<string>(SIDEBAR_ROOT_ITEM_IDS)
@@ -522,6 +529,7 @@ function TemplateSidebarView({
       return
     }
     setSidebarTemplate(res.groups || nextGroups)
+    router.refresh()
   }
 
   const swapGroups = (index: number, offset: -1 | 1) => {
@@ -746,6 +754,7 @@ function RoleManagerPanel({
   matrix: Record<string, string[]>
   setMatrix: Dispatch<SetStateAction<Record<string, string[]>>>
 }) {
+  const router = useRouter()
   const [newLabel, setNewLabel] = useState('')
   const [newValue, setNewValue] = useState('')
   const [editingRole, setEditingRole] = useState<string | null>(null)
@@ -775,6 +784,7 @@ function RoleManagerPanel({
       setNewLabel('')
       setNewValue('')
       setMessage(`Role "${newRole.label}" berhasil dibuat.`)
+      router.refresh()
     })
   }
 
@@ -790,6 +800,7 @@ function RoleManagerPanel({
       setRoles(prev => prev.map(role => role.value === roleValue ? { ...role, label: editLabel.trim() } : role))
       setEditingRole(null)
       setMessage('Label role berhasil diperbarui.')
+      router.refresh()
     })
   }
 
@@ -810,6 +821,7 @@ function RoleManagerPanel({
         return next
       })
       setMessage(`Role "${role.label}" berhasil dihapus.`)
+      router.refresh()
     })
   }
 
@@ -970,6 +982,7 @@ function RoleSidebarOverridePanel({
   sidebarTemplate: SidebarGroupConfig[]
   featureLabels: Record<string, string>
 }) {
+  const router = useRouter()
   const [isSaving, setIsSaving] = useState(false)
   const override = parseSidebarRoleOverride(selectedRole.sidebar_config)
   const effectiveGroups = resolveSidebarGroups(sidebarTemplate, selectedRole.sidebar_config, allowedFeatures)
@@ -987,6 +1000,7 @@ function RoleSidebarOverridePanel({
       return
     }
     setRoles(prev => prev.map(role => role.value === selectedRole.value ? { ...role, sidebar_config: res.groupsJson } : role))
+    router.refresh()
   }
 
   const setGroupLabel = (groupId: string, label: string) => {
