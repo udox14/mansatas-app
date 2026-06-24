@@ -102,9 +102,9 @@ export async function SuperAdminDashboard({
     taAktif ? db.prepare(`
       SELECT k.nama as kelas, COUNT(s.id) as count 
       FROM siswa s
-      JOIN kelas_siswa ks ON s.id = ks.siswa_id
-      JOIN kelas k ON ks.kelas_id = k.id
-      WHERE s.status = 'aktif' AND ks.tahun_ajaran_id = ?
+      JOIN riwayat_kelas rk ON s.id = rk.siswa_id
+      JOIN kelas k ON rk.kelas_id = k.id
+      WHERE s.status = 'aktif' AND rk.tahun_ajaran_id = ?
       GROUP BY k.id
       ORDER BY k.tingkat ASC, k.nama ASC
     `).bind(taAktif.id).all<{ kelas: string; count: number }>() : Promise.resolve({ results: [] }),
