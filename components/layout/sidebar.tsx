@@ -16,7 +16,7 @@ const SIDEBAR_THEMES = [
   { id: 'slate', label: 'Hitam', sidebarBg: 'bg-slate-900', sidebarDarkBg: 'dark:bg-slate-950', text: 'text-slate-300', textMuted: 'text-slate-500', activeBg: 'bg-white/10', activeText: 'text-white', hoverBg: 'hover:bg-white/5', hoverText: 'hover:text-white', border: 'border-slate-800', swatch: 'bg-slate-500', ring: 'ring-slate-400', scrollbarThumb: '#94a3b8' },
   { id: 'purple', label: 'Ungu', sidebarBg: 'bg-purple-950', sidebarDarkBg: 'dark:bg-[#200b4a]', text: 'text-purple-100', textMuted: 'text-purple-400/80', activeBg: 'bg-purple-500/30', activeText: 'text-white', hoverBg: 'hover:bg-purple-500/15', hoverText: 'hover:text-white', border: 'border-purple-800/50', swatch: 'bg-purple-500', ring: 'ring-purple-400', scrollbarThumb: '#a78bfa' },
   { id: 'rose', label: 'Merah', sidebarBg: 'bg-rose-950', sidebarDarkBg: 'dark:bg-[#330311]', text: 'text-rose-100', textMuted: 'text-rose-400/80', activeBg: 'bg-rose-500/30', activeText: 'text-white', hoverBg: 'hover:bg-rose-500/15', hoverText: 'hover:text-white', border: 'border-rose-800/50', swatch: 'bg-rose-500', ring: 'ring-rose-400', scrollbarThumb: '#fb7185' },
-  { id: 'amber', label: 'Senja', sidebarBg: 'bg-orange-950', sidebarDarkBg: 'dark:bg-[#2e1005]', text: 'text-orange-100', textMuted: 'text-orange-400/80', activeBg: 'bg-orange-500/30', activeText: 'text-white', hoverBg: 'hover:bg-orange-500/15', hoverText: 'hover:text-white', border: 'border-orange-800/50', swatch: 'bg-orange-500', ring: 'ring-orange-400', scrollbarThumb: '#fb923c' },
+  { id: 'white', label: 'Putih', sidebarBg: 'bg-white', sidebarDarkBg: 'dark:bg-slate-950', text: 'text-slate-700 dark:text-slate-300', textMuted: 'text-slate-500 dark:text-slate-400', activeBg: 'bg-slate-100 dark:bg-white/10', activeText: 'text-slate-900 dark:text-white', hoverBg: 'hover:bg-slate-50 dark:hover:bg-white/5', hoverText: 'hover:text-slate-900 dark:hover:text-white', border: 'border-slate-200 dark:border-slate-800', swatch: 'bg-slate-100 border border-slate-300', ring: 'ring-slate-400', scrollbarThumb: '#cbd5e1' },
 ]
 
 type ThemeKey = typeof SIDEBAR_THEMES[number]['id']
@@ -193,7 +193,8 @@ export function Sidebar({
 
         {/* ── LOGO — h-12 sejajar header ── */}
         <div className={cn(
-          'h-12 flex items-center border-b shrink-0 bg-black/10',
+          'h-12 flex items-center border-b shrink-0',
+          theme.id === 'white' ? 'bg-slate-50 dark:bg-black/10' : 'bg-black/10',
           theme.border,
           collapsed ? 'justify-center px-3' : 'px-4 gap-2.5'
         )}>
@@ -204,7 +205,7 @@ export function Sidebar({
             {!collapsed && (
               <div className="min-w-0">
                 <p className={cn("text-[14px] font-bold leading-tight tracking-tight", theme.activeText)}>MANSATAS App</p>
-                <p className="text-[10px] text-white/90 leading-tight">MAN 1 Tasikmalaya</p>
+                <p className={cn("text-[10px] leading-tight", theme.id === 'white' ? 'text-slate-500 dark:text-white/90' : 'text-white/90')}>MAN 1 Tasikmalaya</p>
               </div>
             )}
           </Link>
@@ -216,7 +217,7 @@ export function Sidebar({
         </div>
 
         {/* ── NAV ── */}
-        <nav className={cn('flex-1 overflow-y-auto py-4 sidebar-scrollbar', collapsed ? 'px-2.5' : 'px-3')}>
+        <nav className={cn('flex-1 overflow-y-auto py-3 sm:py-4 sidebar-scrollbar', collapsed ? 'px-2.5' : 'px-3')}>
           <style>{`
             .sidebar-scrollbar {
                 scrollbar-width: thin;
@@ -230,7 +231,8 @@ export function Sidebar({
           {!collapsed && (
             <div className="mb-3">
               <div className={cn(
-                'flex items-center gap-2 rounded-xl border bg-black/15 px-3 py-2 transition-colors focus-within:bg-black/25',
+                'flex items-center gap-2 rounded-xl border px-3 py-2 transition-colors',
+                theme.id === 'white' ? 'bg-slate-50 focus-within:bg-slate-100 dark:bg-black/15 dark:focus-within:bg-black/25' : 'bg-black/15 focus-within:bg-black/25',
                 theme.border
               )}>
                 <Search className={cn('h-4 w-4 shrink-0', theme.textMuted)} />
@@ -238,14 +240,14 @@ export function Sidebar({
                   value={menuSearch}
                   onChange={(event) => setMenuSearch(event.target.value)}
                   placeholder="Cari menu..."
-                  className={cn("min-w-0 flex-1 bg-transparent text-white placeholder:text-white/35 outline-none", mobile ? "text-[12px]" : "text-[13px]")}
+                  className={cn("min-w-0 flex-1 bg-transparent outline-none", mobile ? "text-[12px]" : "text-[13px]", theme.id === 'white' ? 'text-slate-900 placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35' : 'text-white placeholder:text-white/35')}
                   aria-label="Cari menu sidebar"
                 />
                 {menuSearch && (
                   <button
                     type="button"
                     onClick={() => setMenuSearch('')}
-                    className={cn('rounded-md p-1 transition-colors', theme.textMuted, 'hover:bg-white/10 hover:text-white')}
+                    className={cn('rounded-md p-1 transition-colors', theme.textMuted, theme.id === 'white' ? 'hover:bg-slate-200 dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white' : 'hover:bg-white/10 hover:text-white')}
                     aria-label="Hapus pencarian menu"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -267,14 +269,14 @@ export function Sidebar({
                     title={collapsed ? (featureLabels[item.id] || item.title) : undefined}
                     className={cn(
                       'group flex items-center rounded-xl transition-all duration-300',
-                      mobile ? 'text-[12px]' : 'text-[13px]',
-                      collapsed ? 'mx-auto h-11 w-11 justify-center p-2.5' : (mobile ? 'gap-2 px-2.5 py-2' : 'gap-2.5 px-3 py-2.5'),
+                      mobile ? 'text-[11.5px]' : 'text-[13px]',
+                      collapsed ? 'mx-auto h-11 w-11 justify-center p-2.5' : (mobile ? 'gap-2 px-2.5 py-1.5' : 'gap-2.5 px-3 py-2.5'),
                       isActive
-                        ? cn(theme.activeBg, theme.activeText, 'font-semibold shadow-sm ring-1 ring-white/5')
+                        ? cn(theme.activeBg, theme.activeText, 'font-semibold shadow-sm ring-1', theme.id === 'white' ? 'ring-slate-200 dark:ring-white/5' : 'ring-white/5')
                         : cn(theme.text, theme.hoverBg, theme.hoverText, !collapsed && 'hover:translate-x-0.5')
                     )}
                   >
-                    <Icon className={cn('h-4 w-4 shrink-0 transition-all duration-300', isActive ? 'opacity-100 scale-105 drop-shadow-sm' : 'opacity-70 group-hover:opacity-100')} />
+                    <Icon className={cn('shrink-0 transition-all duration-300', mobile ? 'h-3.5 w-3.5' : 'h-4 w-4', isActive ? 'opacity-100 scale-105 drop-shadow-sm' : 'opacity-70 group-hover:opacity-100')} />
                     {!collapsed && <span className="truncate leading-snug">{featureLabels[item.id] || item.title}</span>}
                   </Link>
                 )
@@ -296,7 +298,7 @@ export function Sidebar({
             const hasActiveItem = group.id === activeGroupId
 
             return (
-              <div key={group.id || group.label} className={cn(gi > 0 && (collapsed ? 'mt-2' : 'mt-3'))}>
+              <div key={group.id || group.label} className={cn(gi > 0 && (mobile ? 'mt-0.5' : (collapsed ? 'mt-2' : 'mt-3')))}>
                 {/* Section label */}
                 {!collapsed && (
                   <button
@@ -304,24 +306,27 @@ export function Sidebar({
                     onClick={() => toggleGroup(group.id)}
                     className={cn(
                       'group/header flex w-full items-center text-left transition-all duration-200 rounded-xl',
-                      mobile ? 'gap-2 px-2.5 py-1.5' : 'gap-2.5 px-3 py-2',
-                      hasActiveItem ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5' : cn(theme.text, 'hover:bg-white/5 hover:text-white')
+                      mobile ? 'gap-2 px-2.5 py-1' : 'gap-2.5 px-3 py-2',
+                      hasActiveItem ? cn(theme.id === 'white' ? 'bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-white/5' : 'bg-white/10 text-white shadow-sm ring-1 ring-white/5') : cn(theme.text, theme.id === 'white' ? 'hover:bg-slate-50 hover:text-slate-900 dark:hover:bg-white/5 dark:hover:text-white' : 'hover:bg-white/5 hover:text-white')
                     )}
                     aria-expanded={isGroupOpen}
                     aria-controls={`sidebar-group-${group.id}`}
                   >
                     {GroupIcon && (
                       <GroupIcon className={cn(
-                        'h-4 w-4 shrink-0 transition-all duration-300',
-                        hasActiveItem ? 'opacity-100 scale-105 text-white' : 'opacity-70 group-hover/header:opacity-100'
+                        'shrink-0 transition-all duration-300',
+                        mobile ? 'h-3.5 w-3.5' : 'h-4 w-4',
+                        hasActiveItem ? cn(theme.id === 'white' ? 'opacity-100 scale-105 text-slate-900 dark:text-white' : 'opacity-100 scale-105 text-white') : 'opacity-70 group-hover/header:opacity-100'
                       )} />
                     )}
-                    <span className={cn("min-w-0 flex-1 font-semibold truncate leading-snug", mobile ? "text-[12px]" : "text-[13px]")}>
+                    <span className={cn("min-w-0 flex-1 font-semibold truncate leading-snug", mobile ? "text-[11.5px]" : "text-[13px]")}>
                       {group.label}
                     </span>
                     <ChevronDown className={cn(
-                      'h-3.5 w-3.5 shrink-0 text-white/50 transition-transform duration-300 group-hover/header:text-white/80',
-                      isGroupOpen ? 'rotate-0' : '-rotate-90'
+                      'shrink-0 transition-transform duration-300',
+                      theme.id === 'white' ? 'text-slate-400 group-hover/header:text-slate-600 dark:text-white/50 dark:group-hover/header:text-white/80' : 'text-white/50 group-hover/header:text-white/80',
+                      isGroupOpen ? 'rotate-0' : '-rotate-90',
+                      mobile ? 'h-3.5 w-3.5' : 'h-4 w-4'
                     )} />
                   </button>
                 )}
@@ -336,7 +341,7 @@ export function Sidebar({
                     isGroupOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
                   )}
                 >
-                  <div className={cn('min-h-0 overflow-hidden', !collapsed && 'pt-2')}>
+                  <div className={cn('min-w-0 overflow-hidden', !collapsed && (mobile ? 'pt-1' : 'pt-2'))}>
                 <div className={cn("space-y-0.5", !collapsed && "relative ml-5 border-l border-white/10 pl-3")}>
                   {groupItems.map(item => {
                     const isActive = activeHref === item.href
@@ -349,13 +354,13 @@ export function Sidebar({
                         className={cn(
                           'group flex items-center rounded-lg transition-all duration-300',
                           mobile ? 'text-[11px]' : 'text-[13px]',
-                          collapsed ? 'mx-auto h-11 w-11 justify-center p-2.5' : (mobile ? 'gap-2 px-2 py-1.5' : 'gap-2.5 px-2.5 py-2'),
+                          collapsed ? 'mx-auto h-11 w-11 justify-center p-2.5' : (mobile ? 'gap-2 px-2 py-1' : 'gap-2.5 px-2.5 py-2'),
                           isActive
-                            ? cn(theme.activeBg, theme.activeText, 'font-semibold shadow-sm ring-1 ring-white/5')
+                            ? cn(theme.activeBg, theme.activeText, 'font-semibold shadow-sm ring-1', theme.id === 'white' ? 'ring-slate-200 dark:ring-white/5' : 'ring-white/5')
                             : cn(theme.text, theme.hoverBg, theme.hoverText, !collapsed && 'hover:translate-x-0.5')
                         )}
                       >
-                        <Icon className={cn('h-4 w-4 shrink-0 transition-all duration-300', isActive ? 'opacity-100 scale-105 drop-shadow-sm' : 'opacity-60 group-hover:opacity-100')} />
+                        <Icon className={cn('shrink-0 transition-all duration-300', mobile ? 'h-3.5 w-3.5' : 'h-4 w-4', isActive ? 'opacity-100 scale-105 drop-shadow-sm' : 'opacity-60 group-hover:opacity-100')} />
                         {!collapsed && <span className="truncate leading-snug">{featureLabels[item.id] || item.title}</span>}
                       </Link>
                     )
@@ -373,12 +378,13 @@ export function Sidebar({
 
           {/* Tema + dark toggle */}
           {!collapsed && (
-            <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-black/10 dark:bg-black/20 rounded-xl">
+            <div className={cn("flex items-center gap-2 px-3 py-2 mb-2 rounded-xl", theme.id === 'white' ? 'bg-slate-50 dark:bg-black/20' : 'bg-black/10 dark:bg-black/20')}>
               <span className={cn("text-[10px] font-semibold uppercase tracking-widest mr-auto", theme.textMuted)}>Tema</span>
               {SIDEBAR_THEMES.map(c => (
                 <button key={c.id} onClick={() => changeTheme(c.id as ThemeKey)} title={c.label}
                   className={cn(
-                    'w-3.5 h-3.5 rounded-full transition-all duration-200 shadow-sm border border-white/20', c.swatch,
+                    'w-3.5 h-3.5 rounded-full transition-all duration-200 shadow-sm border', 
+                    theme.id === 'white' ? 'border-slate-300 dark:border-white/20' : 'border-white/20', c.swatch,
                     themeId === c.id ? cn('ring-2 ring-offset-2 ring-offset-transparent', c.ring, 'scale-110') : 'opacity-60 hover:opacity-100 hover:scale-110'
                   )}
                 />
@@ -387,7 +393,7 @@ export function Sidebar({
               <button onClick={toggleDark} title={isDark ? 'Mode Terang' : 'Mode Gelap'}
                 className={cn(
                   'w-6 h-6 rounded-md flex items-center justify-center transition-all duration-200',
-                  isDark ? 'text-amber-300 hover:bg-black/20' : cn(theme.text, 'hover:bg-black/10')
+                  isDark ? 'text-amber-300 hover:bg-black/20' : cn(theme.text, theme.id === 'white' ? 'hover:bg-slate-200 dark:hover:bg-black/10' : 'hover:bg-black/10')
                 )}
               >
                 {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
@@ -426,7 +432,7 @@ export function Sidebar({
                 <div className="flex items-center gap-1 mt-0.5">
                   <span className={cn("text-[10px] truncate leading-tight capitalize", theme.textMuted)}>{roleDisplay}</span>
                   {extraRoleCount > 0 && (
-                    <span className={cn("text-[9px] font-semibold px-1 py-px rounded leading-tight bg-black/20", theme.text)}>
+                    <span className={cn("text-[9px] font-semibold px-1 py-px rounded leading-tight", theme.id === 'white' ? 'bg-slate-200 dark:bg-black/20' : 'bg-black/20', theme.text)}>
                       +{extraRoleCount}
                     </span>
                   )}
@@ -463,7 +469,7 @@ export function Sidebar({
 
       {/* Mobile drawer */}
       <aside className={cn(
-        'fixed top-0 left-0 z-50 h-[100dvh] w-60 border-r flex flex-col lg:hidden transition-transform duration-300 ease-in-out shadow-2xl',
+        'fixed top-0 left-0 z-50 h-[100dvh] w-56 border-r flex flex-col lg:hidden transition-transform duration-300 ease-in-out shadow-2xl',
         theme.sidebarBg, theme.sidebarDarkBg, theme.border,
         isOpen ? 'translate-x-0' : '-translate-x-full'
       )}>

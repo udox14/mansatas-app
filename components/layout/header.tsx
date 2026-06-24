@@ -74,7 +74,7 @@ export function Header({ userRoles, primaryRole, userName, userEmail, avatarUrl 
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 w-full items-center gap-3 border-b border-slate-200 dark:border-slate-700/60 bg-white/95 dark:bg-slate-900/95 backdrop-blur px-3 sm:px-4">
+    <header className="sticky top-0 z-30 flex h-12 w-full items-center gap-3 border-b border-slate-200 dark:border-slate-700/60 bg-white/95 dark:bg-slate-900/95 backdrop-blur px-3 sm:px-4 md:px-5">
       {/* Mobile menu trigger */}
       <button
         onClick={triggerMobileSidebar}

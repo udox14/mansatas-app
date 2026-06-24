@@ -243,7 +243,7 @@ export function DashboardSPAShell({
   return (
     <div className="flex flex-col">
       {/* ── Unified Sticky Header (Hero, Tabs, Search) ────────────────────────────────── */}
-      <div className="sticky -top-3 sm:-top-4 md:-top-5 z-40 bg-slate-50 dark:bg-slate-900 pt-4 sm:pt-5 md:pt-6 pb-3 shadow-sm md:shadow-none -mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 border-b border-transparent -mt-3 sm:-mt-4 md:-mt-5">
+      <div className="sticky -top-3 sm:-top-4 md:-top-5 z-40 bg-slate-50 dark:bg-slate-900 pt-3 sm:pt-4 md:pt-5 pb-3 shadow-sm md:shadow-none -mx-3 px-3 sm:-mx-4 sm:px-4 md:-mx-5 md:px-5 border-b border-transparent -mt-3 sm:-mt-4 md:-mt-5">
         {heroNode && (
           <div className="w-full mb-3">
             {heroNode}
