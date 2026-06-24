@@ -8,7 +8,7 @@ import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import { BreakdownSiswaModal } from './shared/BreakdownSiswaModal'
 import {
   BookOpen,
-  Send,
+  PaperPlaneTilt as Send,
   Users,
   UserGear as UserCog,
 } from '@phosphor-icons/react/dist/ssr'

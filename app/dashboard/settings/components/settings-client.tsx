@@ -732,6 +732,7 @@ export function SettingsClient({
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-slate-500">Sesuaikan dengan dominasi warna gambar latar belakang.</p>
+              </div>
               <div className="space-y-2">
                 <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Warna Background & Teks Running Text</Label>
                 <div className="flex gap-4">
