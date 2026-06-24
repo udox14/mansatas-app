@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import {
   DEFAULT_SIDEBAR_GROUPS,
   MENU_ITEMS,
+  SIDEBAR_ROOT_ITEM_IDS,
   normalizeSidebarRoleOverride,
   parseSidebarGroups,
   serializeSidebarRoleOverride,
@@ -553,18 +554,19 @@ export async function setSidebarTemplateConfig(groups: SidebarGroupConfig[]) {
   await ensureSidebarTemplateTable(db)
 
   const knownIds = new Set(MENU_ITEMS.map(item => item.id))
+  const rootIds = new Set<string>(SIDEBAR_ROOT_ITEM_IDS)
   const seen = new Set<string>()
   const cleanGroups = groups
     .map((group, index) => ({
       id: group.id || `group-${index + 1}`,
       label: group.label.trim() || `Group ${index + 1}`,
       items: group.items.filter(id => {
-        if (!knownIds.has(id) || seen.has(id)) return false
+        if (!knownIds.has(id) || rootIds.has(id) || seen.has(id)) return false
         seen.add(id)
         return true
       }),
     }))
-    .filter(group => group.label || group.items.length > 0)
+    .filter(group => group.items.length > 0)
 
   const groupsJson = JSON.stringify(cleanGroups.length > 0 ? cleanGroups : DEFAULT_SIDEBAR_GROUPS)
   await db.prepare(`

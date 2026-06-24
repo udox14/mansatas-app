@@ -181,7 +181,7 @@ export function DashboardSPAShell({
   return (
     <div className="flex flex-col">
       {/* ── Unified Sticky Header (Hero, Tabs, Search) ────────────────────────────────── */}
-      <div className="sticky top-0 z-40 bg-slate-50 dark:bg-slate-900 pt-4 pb-3 shadow-sm md:shadow-none -mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 border-b border-transparent">
+      <div className="sticky -top-3 sm:-top-4 md:-top-5 z-40 bg-slate-50 dark:bg-slate-900 pt-4 sm:pt-5 md:pt-6 pb-3 shadow-sm md:shadow-none -mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 border-b border-transparent -mt-3 sm:-mt-4 md:-mt-5">
         {heroNode && (
           <div className="w-full mb-3">
             {heroNode}
@@ -304,7 +304,7 @@ export function DashboardSPAShell({
                     variants={containerVariants}
                     initial="hidden"
                     animate="show"
-                    className="flex flex-col gap-3"
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
                   >
                     {filteredMenus.map(item => {
                       const Icon = getIconComponent(item.icon)
@@ -365,7 +365,7 @@ export function DashboardSPAShell({
                     variants={containerVariants}
                     initial="hidden"
                     animate="show"
-                    className="flex flex-col gap-3"
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
                   >
                     {activeGroupData.items.map(item => {
                       const Icon = getIconComponent(item.icon)
@@ -401,7 +401,7 @@ export function DashboardSPAShell({
                   variants={containerVariants}
                   initial="hidden"
                   animate="show"
-                  className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
                 >
                   {groupedMenus.map(group => {
                     const meta = GROUP_META[group.id] || { title: group.label, desc: 'Akses cepat fitur' }

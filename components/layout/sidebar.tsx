@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { DEFAULT_SIDEBAR_GROUPS, MENU_ITEMS, getSidebarFeatureIds, type SidebarGroupConfig } from '@/config/menu'
+import { DEFAULT_SIDEBAR_GROUPS, MENU_ITEMS, SIDEBAR_ROOT_ITEM_IDS, getSidebarFeatureIds, type SidebarGroupConfig } from '@/config/menu'
 import { SignOut as LogOut, X, CaretLeft as ChevronLeft, CaretRight as ChevronRight, CaretDown as ChevronDown, Moon, Sun, MagnifyingGlass as Search } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { getIconComponent } from '@/lib/icons'
@@ -82,7 +82,14 @@ export function Sidebar({
   // Filter menu berdasarkan allowedFeatures dari DB
   const allowedSet = new Set(getSidebarFeatureIds(allowedFeatures))
   const allowedMenus = MENU_ITEMS.filter(item => allowedSet.has(item.id))
+  const rootMenus = SIDEBAR_ROOT_ITEM_IDS
+    .map(id => MENU_ITEMS.find(item => item.id === id))
+    .filter((item): item is typeof MENU_ITEMS[number] => item !== undefined)
+    .filter(item => allowedFeatures.includes(item.id))
+  const rootIds = new Set<string>(SIDEBAR_ROOT_ITEM_IDS)
   const effectiveSidebarGroups = sidebarGroups
+    .map(group => ({ ...group, items: group.items.filter(id => !rootIds.has(id)) }))
+    .filter(group => group.items.length > 0)
   const effectiveGroupIds = effectiveSidebarGroups.map(group => group.id)
   const activeGroupId = effectiveSidebarGroups.find(group =>
     group.items.some(id => allowedMenus.find(item => item.id === id)?.href === activeHref)
@@ -215,7 +222,7 @@ export function Sidebar({
         </div>
 
         {/* ── NAV ── */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 sidebar-scrollbar">
+        <nav className={cn('flex-1 overflow-y-auto py-4 sidebar-scrollbar', collapsed ? 'px-2.5' : 'px-3')}>
           <style>{`
             .sidebar-scrollbar {
                 scrollbar-width: thin;
@@ -254,7 +261,35 @@ export function Sidebar({
             </div>
           )}
 
-          {visibleGroups.length === 0 && !collapsed && (
+          {rootMenus.length > 0 && (
+            <div className={cn(!collapsed && 'mb-3')}>
+              {rootMenus.map(item => {
+                const isActive = activeHref === item.href
+                const Icon = getIconComponent(item.icon)
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    title={collapsed ? (featureLabels[item.id] || item.title) : undefined}
+                    className={cn(
+                      'group flex items-center rounded-xl text-[13px] transition-all duration-300',
+                      collapsed ? 'mx-auto h-11 w-11 justify-center p-2.5' : 'gap-2.5 px-3 py-2.5',
+                      isActive
+                        ? cn(theme.activeBg, theme.activeText, 'font-semibold shadow-sm ring-1 ring-white/5')
+                        : cn(theme.text, theme.hoverBg, theme.hoverText, !collapsed && 'hover:translate-x-0.5')
+                    )}
+                  >
+                    <Icon className={cn('h-4 w-4 shrink-0 transition-all duration-300', isActive ? 'opacity-100 scale-105 drop-shadow-sm' : 'opacity-70 group-hover:opacity-100')} />
+                    {!collapsed && <span className="truncate leading-snug">{featureLabels[item.id] || item.title}</span>}
+                  </Link>
+                )
+              })}
+              {!collapsed && visibleGroups.length > 0 && <div className={cn('mt-3 border-t', theme.border)} />}
+              {collapsed && visibleGroups.length > 0 && <div className={cn('mx-2 my-3 h-px border-t', theme.border)} />}
+            </div>
+          )}
+
+          {visibleGroups.length === 0 && rootMenus.length === 0 && !collapsed && (
             <div className={cn('rounded-xl border border-dashed px-3 py-4 text-center text-[12px]', theme.border, theme.textMuted)}>
               Menu tidak ditemukan
             </div>
@@ -322,7 +357,7 @@ export function Sidebar({
                         title={collapsed ? (featureLabels[item.id] || item.title) : undefined}
                         className={cn(
                           'group flex items-center rounded-lg text-[13px] transition-all duration-300',
-                          collapsed ? 'justify-center p-2.5 mx-auto w-[42px] h-[42px]' : 'gap-2.5 px-2.5 py-2',
+                          collapsed ? 'mx-auto h-11 w-11 justify-center p-2.5' : 'gap-2.5 px-2.5 py-2',
                           isActive
                             ? cn(theme.activeBg, theme.activeText, 'font-semibold shadow-sm ring-1 ring-white/5')
                             : cn(theme.text, theme.hoverBg, theme.hoverText, !collapsed && 'hover:translate-x-0.5')
@@ -434,7 +469,7 @@ export function Sidebar({
       <aside className={cn(
         'hidden lg:flex flex-col h-[100dvh] border-r shrink-0 sticky top-0 transition-all duration-300 ease-in-out relative',
         theme.sidebarBg, theme.sidebarDarkBg, theme.border,
-        isCollapsed ? 'w-[60px]' : 'w-64'
+        isCollapsed ? 'w-[72px]' : 'w-64'
       )}>
         {renderNavContent()}
         <button onClick={toggleCollapse}

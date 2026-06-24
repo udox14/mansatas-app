@@ -42,35 +42,24 @@ export function WelcomeStrip({
     ? { backgroundImage: `url(${bgImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
     : {}
 
-  // We add a dark or light overlay based on text color so text remains readable
+  // We only use the fallback gradient if no background image is provided
   const overlayClass = bgImageUrl 
-    ? (textColor === 'white' 
-        ? 'bg-gradient-to-t from-black/80 via-black/40 to-transparent' 
-        : 'bg-gradient-to-t from-white/90 via-white/50 to-transparent')
+    ? '' // No gradient effect if image is provided
     : `bg-gradient-to-r ${fallbackGradient}`
 
-  const textClass = textColor === 'white' ? 'text-white' : 'text-slate-800 dark:text-slate-50'
-  const subTextClass = textColor === 'white' ? 'text-slate-200' : 'text-slate-600 dark:text-slate-300'
+  const textClass = textColor === 'white' ? 'text-white drop-shadow-md' : 'text-slate-800 dark:text-slate-50 drop-shadow-md'
+  const subTextClass = textColor === 'white' ? 'text-slate-200 drop-shadow-md' : 'text-slate-600 dark:text-slate-300 drop-shadow-md'
   
-  const runningTextBg = textColor === 'white' ? 'bg-black/30 border-white/10 text-white' : 'bg-white/40 border-black/10 text-slate-800 dark:text-slate-100'
-  const runningTextLabel = textColor === 'white' ? 'text-emerald-400' : 'text-emerald-600 dark:text-emerald-400'
+  const runningTextBg = 'bg-[#1e1e1e] border-black text-white'
+  const runningTextLabel = 'text-emerald-400'
 
   return (
     <div 
-      className="relative w-full rounded-[2rem] overflow-hidden shadow-sm transition-all flex flex-col justify-end h-40 md:h-56 lg:h-64"
+      className="relative w-full rounded-[2rem] overflow-hidden shadow-sm transition-all flex flex-col justify-end aspect-[16/9] sm:aspect-auto sm:h-56 lg:h-64"
       style={containerStyle}
     >
       {/* Overlay for text readability */}
       <div className={`absolute inset-0 ${overlayClass} transition-all`} />
-
-      {/* Settings / Gear Button (Top Right) */}
-      <Link 
-        href="/dashboard/settings/profile" 
-        className={`absolute top-4 right-4 z-20 p-2.5 rounded-full backdrop-blur-md transition-all shadow-sm active:scale-95 ${textColor === 'white' ? 'bg-black/20 hover:bg-black/40 text-white' : 'bg-white/50 hover:bg-white/80 text-slate-700'}`}
-        title="Pengaturan Profil"
-      >
-        <Gear className="h-5 w-5" weight="fill" />
-      </Link>
 
       <div className={`relative z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4 px-5 md:px-8 py-5 md:py-8 w-full h-full ${runningText ? 'pb-12 md:pb-16' : ''}`}>
         <div className="flex items-center md:items-end gap-3 md:gap-5 min-w-0 mt-auto">
@@ -106,7 +95,6 @@ export function WelcomeStrip({
       {/* Running Text / Marquee directly overlay at bottom */}
       {runningText && (
         <div className={`absolute bottom-0 left-0 w-full overflow-hidden text-[10px] md:text-xs font-medium py-1.5 md:py-2 px-5 flex items-center whitespace-nowrap z-20 border-t ${runningTextBg}`}>
-          <span className={`shrink-0 mr-3 md:mr-4 uppercase tracking-widest font-black ${runningTextLabel}`}>Info</span>
           <div className="w-full overflow-hidden relative flex items-center">
             {/* @ts-ignore - marquee is deprecated but still works fine for simple needs */}
             <marquee className="w-full h-full font-semibold" scrollamount="4">{runningText}</marquee>
