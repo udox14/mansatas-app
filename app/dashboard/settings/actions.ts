@@ -300,3 +300,22 @@ export async function setAttendanceSkipIncompleteForDailyStatusEnabled(enabled: 
   revalidatePath('/dashboard/siswa')
   return { success: true }
 }
+
+export async function setHeroSettings(bgUrl: string, runningText: string, textColor: string) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<{ role: string }>()
+  if (userRow?.role !== 'super_admin') {
+    return { error: 'Hanya Super Admin yang bisa mengubah pengaturan ini.' }
+  }
+
+  await setSystemSetting(SYSTEM_SETTING_KEYS.heroBackgroundImageUrl, bgUrl)
+  await setSystemSetting(SYSTEM_SETTING_KEYS.heroRunningText, runningText)
+  await setSystemSetting(SYSTEM_SETTING_KEYS.heroTextColor, textColor)
+
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard')
+  return { success: true }
+}

@@ -65,6 +65,14 @@ export type SidebarGroupConfig = {
   items: string[]
 }
 
+export type SidebarRoleOverrideConfig = {
+  groupOrder?: string[]
+  groupLabels?: Record<string, string>
+  itemPlacements?: Record<string, string[]>
+  hiddenGroupIds?: string[]
+  hiddenItemIds?: string[]
+}
+
 export const MENU_ITEMS: MenuItem[] = [
   {
     id: 'dashboard',
@@ -548,6 +556,125 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
   { id: 'sistem', label: 'Sistem', items: ['settings', 'whatsapp', 'settings-notifications', 'settings-jadwal-notif', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
 ]
+
+function uniqueStrings(values: unknown): string[] {
+  if (!Array.isArray(values)) return []
+  return Array.from(new Set(values.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)))
+}
+
+export function parseSidebarGroups(raw?: string | null, fallback: SidebarGroupConfig[] = DEFAULT_SIDEBAR_GROUPS): SidebarGroupConfig[] {
+  if (!raw) return fallback
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return fallback
+    const knownIds = new Set(MENU_ITEMS.map(item => item.id))
+    const groups = parsed
+      .map((group: any, index: number) => ({
+        id: typeof group?.id === 'string' && group.id.trim() ? group.id.trim() : `group-${index + 1}`,
+        label: typeof group?.label === 'string' && group.label.trim() ? group.label.trim() : `Group ${index + 1}`,
+        items: uniqueStrings(group?.items).filter(id => knownIds.has(id)),
+      }))
+      .filter(group => group.label || group.items.length > 0)
+    return groups.length > 0 ? groups : fallback
+  } catch {
+    return fallback
+  }
+}
+
+export function normalizeSidebarRoleOverride(input: SidebarRoleOverrideConfig): SidebarRoleOverrideConfig {
+  const knownIds = new Set(MENU_ITEMS.map(item => item.id))
+  const groupOrder = uniqueStrings(input.groupOrder)
+  const hiddenGroupIds = uniqueStrings(input.hiddenGroupIds)
+  const hiddenItemIds = uniqueStrings(input.hiddenItemIds).filter(id => knownIds.has(id))
+
+  const groupLabels: Record<string, string> = {}
+  for (const [groupId, label] of Object.entries(input.groupLabels || {})) {
+    if (typeof label === 'string' && label.trim()) groupLabels[groupId] = label.trim()
+  }
+
+  const itemPlacements: Record<string, string[]> = {}
+  for (const [groupId, items] of Object.entries(input.itemPlacements || {})) {
+    const cleanItems = uniqueStrings(items).filter(id => knownIds.has(id))
+    if (cleanItems.length > 0 || groupLabels[groupId] || groupOrder.includes(groupId)) itemPlacements[groupId] = cleanItems
+  }
+
+  return { groupOrder, groupLabels, itemPlacements, hiddenGroupIds, hiddenItemIds }
+}
+
+export function parseSidebarRoleOverride(raw?: string | null): SidebarRoleOverrideConfig {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      const legacyGroups = parseSidebarGroups(raw, [])
+      return normalizeSidebarRoleOverride({
+        groupOrder: legacyGroups.map(group => group.id),
+        groupLabels: Object.fromEntries(legacyGroups.map(group => [group.id, group.label])),
+        itemPlacements: Object.fromEntries(legacyGroups.map(group => [group.id, group.items])),
+      })
+    }
+    if (parsed && typeof parsed === 'object') return normalizeSidebarRoleOverride(parsed as SidebarRoleOverrideConfig)
+  } catch {}
+  return {}
+}
+
+export function serializeSidebarRoleOverride(override: SidebarRoleOverrideConfig): string {
+  return JSON.stringify(normalizeSidebarRoleOverride(override))
+}
+
+export function resolveSidebarGroups(
+  template: SidebarGroupConfig[] = DEFAULT_SIDEBAR_GROUPS,
+  rawOverride?: string | null,
+  allowedFeatures?: string[]
+): SidebarGroupConfig[] {
+  const override = parseSidebarRoleOverride(rawOverride)
+  const allowedSet = allowedFeatures ? new Set(allowedFeatures) : null
+  const hiddenGroups = new Set(override.hiddenGroupIds || [])
+  const hiddenItems = new Set(override.hiddenItemIds || [])
+  const templateMap = new Map(template.map(group => [group.id, group]))
+  const placementGroups = Object.keys(override.itemPlacements || {})
+  const orderedGroupIds = [
+    ...(override.groupOrder || []),
+    ...template.map(group => group.id),
+    ...placementGroups,
+  ].filter((id, index, arr) => id && arr.indexOf(id) === index && !hiddenGroups.has(id))
+
+  const explicitlyPlaced = new Set<string>()
+  for (const items of Object.values(override.itemPlacements || {})) {
+    for (const itemId of items) explicitlyPlaced.add(itemId)
+  }
+
+  const seen = new Set<string>()
+  const groups = orderedGroupIds
+    .map((groupId, index) => {
+      const templateGroup = templateMap.get(groupId)
+      const overrideItems = override.itemPlacements?.[groupId]
+      const sourceItems = overrideItems ?? (templateGroup?.items || []).filter(id => !explicitlyPlaced.has(id))
+      const items = sourceItems.filter(id => {
+        if (seen.has(id) || hiddenItems.has(id)) return false
+        if (allowedSet && !allowedSet.has(id)) return false
+        seen.add(id)
+        return true
+      })
+      return {
+        id: groupId,
+        label: override.groupLabels?.[groupId] || templateGroup?.label || `Group ${index + 1}`,
+        items,
+      }
+    })
+    .filter(group => group.items.length > 0 || override.groupLabels?.[group.id])
+
+  const knownTemplateIds = new Set(groups.flatMap(group => group.items))
+  const unconfiguredAllowedIds = (allowedFeatures || [])
+    .filter(id => MENU_ITEMS.some(item => item.id === id))
+    .filter(id => !knownTemplateIds.has(id) && !hiddenItems.has(id))
+
+  if (unconfiguredAllowedIds.length > 0) {
+    groups.push({ id: 'lainnya', label: 'Lainnya', items: unconfiguredAllowedIds })
+  }
+
+  return groups.length > 0 ? groups : template
+}
 
 // Registry semua role yang tersedia di sistem
 export const ALL_ROLES = [

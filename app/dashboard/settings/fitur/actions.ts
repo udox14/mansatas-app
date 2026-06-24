@@ -4,7 +4,17 @@
 import { getDB } from '@/utils/db'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
-import { DEFAULT_SIDEBAR_GROUPS, MENU_ITEMS, type SidebarGroupConfig } from '@/config/menu'
+import {
+  DEFAULT_SIDEBAR_GROUPS,
+  MENU_ITEMS,
+  normalizeSidebarRoleOverride,
+  parseSidebarGroups,
+  serializeSidebarRoleOverride,
+  type SidebarGroupConfig,
+  type SidebarRoleOverrideConfig,
+} from '@/config/menu'
+
+const SIDEBAR_TEMPLATE_KEY = 'default'
 
 async function ensureSidebarConfigTable(db: D1Database) {
   await db.prepare(`
@@ -15,6 +25,21 @@ async function ensureSidebarConfigTable(db: D1Database) {
       FOREIGN KEY (role) REFERENCES master_roles(value) ON DELETE CASCADE
     )
   `).run()
+}
+
+async function ensureSidebarTemplateTable(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS sidebar_template_config (
+      id TEXT PRIMARY KEY DEFAULT '${SIDEBAR_TEMPLATE_KEY}',
+      groups_json TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run()
+
+  await db.prepare(`
+    INSERT OR IGNORE INTO sidebar_template_config (id, groups_json, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+  `).bind(SIDEBAR_TEMPLATE_KEY, JSON.stringify(DEFAULT_SIDEBAR_GROUPS)).run()
 }
 
 async function ensureFeatureDisplayTable(db: D1Database) {
@@ -63,10 +88,11 @@ export async function getRoleFeatureMatrix(): Promise<{
   permissions: Record<string, Record<string, CrudPermission>>
   roles: { value: string; label: string; is_custom: number; mobile_nav_links: string; sidebar_config: string }[]
   featureLabels: Record<string, string>
+  sidebarTemplate: SidebarGroupConfig[]
 }> {
   const db = await getDB()
-  await Promise.all([ensureSidebarConfigTable(db), ensureFeatureDisplayTable(db), ensureRoleFeaturePermissionsTable(db)])
-  const [featResult, rolesResult, labelsResult, permissionsResult] = await Promise.all([
+  await Promise.all([ensureSidebarConfigTable(db), ensureSidebarTemplateTable(db), ensureFeatureDisplayTable(db), ensureRoleFeaturePermissionsTable(db)])
+  const [featResult, rolesResult, labelsResult, permissionsResult, sidebarTemplateResult] = await Promise.all([
     db.prepare('SELECT role, feature_id FROM role_features ORDER BY role, feature_id').all<{ role: string; feature_id: string }>(),
     db.prepare(`
       SELECT mr.value, mr.label, mr.is_custom, mr.mobile_nav_links, COALESCE(rsc.groups_json, '') AS sidebar_config
@@ -80,6 +106,7 @@ export async function getRoleFeatureMatrix(): Promise<{
       FROM role_feature_permissions
       ORDER BY role, feature_id
     `).all<{ role: string; feature_id: string; can_create: number; can_read: number; can_update: number; can_delete: number }>(),
+    db.prepare('SELECT groups_json FROM sidebar_template_config WHERE id = ?').bind(SIDEBAR_TEMPLATE_KEY).first<{ groups_json: string }>(),
   ])
 
   const roles = rolesResult.results ?? []
@@ -114,7 +141,13 @@ export async function getRoleFeatureMatrix(): Promise<{
     }
   }
 
-  return { matrix, permissions, roles, featureLabels }
+  return {
+    matrix,
+    permissions,
+    roles,
+    featureLabels,
+    sidebarTemplate: parseSidebarGroups(sidebarTemplateResult?.groups_json, DEFAULT_SIDEBAR_GROUPS),
+  }
 }
 
 /**
@@ -478,6 +511,7 @@ export async function deleteCustomRole(value: string) {
   await db.batch([
     db.prepare('DELETE FROM role_features WHERE role = ?').bind(value),
     db.prepare('DELETE FROM role_feature_permissions WHERE role = ?').bind(value),
+    db.prepare('DELETE FROM role_sidebar_configs WHERE role = ?').bind(value),
     db.prepare('DELETE FROM master_roles WHERE value = ?').bind(value),
   ])
 
@@ -508,18 +542,15 @@ export async function setRoleMobileNav(value: string, navLinks: string[]) {
   return { success: true }
 }
 
-/**
- * Update sidebar grouping/order for a role
- */
-export async function setRoleSidebarConfig(value: string, groups: SidebarGroupConfig[]) {
+export async function setSidebarTemplateConfig(groups: SidebarGroupConfig[]) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
   const db = await getDB()
   const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<any>()
-  if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengedit sidebar.' }
+  if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengedit template sidebar.' }
 
-  await ensureSidebarConfigTable(db)
+  await ensureSidebarTemplateTable(db)
 
   const knownIds = new Set(MENU_ITEMS.map(item => item.id))
   const seen = new Set<string>()
@@ -536,6 +567,34 @@ export async function setRoleSidebarConfig(value: string, groups: SidebarGroupCo
     .filter(group => group.label || group.items.length > 0)
 
   const groupsJson = JSON.stringify(cleanGroups.length > 0 ? cleanGroups : DEFAULT_SIDEBAR_GROUPS)
+  await db.prepare(`
+    INSERT INTO sidebar_template_config (id, groups_json, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(id) DO UPDATE SET
+      groups_json = excluded.groups_json,
+      updated_at = CURRENT_TIMESTAMP
+  `).bind(SIDEBAR_TEMPLATE_KEY, groupsJson).run()
+
+  revalidatePath('/dashboard/settings/fitur')
+  revalidatePath('/dashboard')
+  revalidatePath('/', 'layout')
+  return { success: true, groupsJson, groups: JSON.parse(groupsJson) as SidebarGroupConfig[] }
+}
+
+/**
+ * Update sidebar override for a role. The global sidebar template remains the source of truth.
+ */
+export async function setRoleSidebarConfig(value: string, override: SidebarRoleOverrideConfig) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<any>()
+  if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengedit override sidebar.' }
+
+  await ensureSidebarConfigTable(db)
+
+  const groupsJson = serializeSidebarRoleOverride(normalizeSidebarRoleOverride(override))
   await db.prepare(`
     INSERT INTO role_sidebar_configs (role, groups_json, updated_at)
     VALUES (?, ?, CURRENT_TIMESTAMP)

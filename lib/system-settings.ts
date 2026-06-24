@@ -7,6 +7,9 @@ export const SYSTEM_SETTING_KEYS = {
   agendaLateThresholdByJam: 'agenda_late_threshold_by_jam',
   attendanceTimeRestriction: 'attendance_time_restriction_enabled',
   attendanceSkipIncompleteForDailyStatus: 'attendance_skip_incomplete_for_daily_status',
+  heroBackgroundImageUrl: 'hero_background_image_url',
+  heroRunningText: 'hero_running_text',
+  heroTextColor: 'hero_text_color',
 } as const
 
 async function ensureSystemSettingsTable(db: D1Database) {

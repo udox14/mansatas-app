@@ -7,7 +7,6 @@ import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 import { ParentCommActions } from './ParentCommActions'
 import { KeputusanAbsensiHariIni, type KeputusanAbsensiRow } from './KeputusanAbsensiHariIni'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
-import { WelcomeStrip } from './shared/WelcomeStrip'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
@@ -135,17 +134,7 @@ export async function KelasBinaanDashboard({
   if (!kelas) {
     return (
       <div className="space-y-3 animate-in fade-in duration-500 pb-12">
-        {showWelcome && (
-          <WelcomeStrip
-            nama={nama}
-            namaDepan={namaDepan}
-            avatarUrl={avatarUrl}
-            roleLabel={roleLabel}
-            roleColor={roleColor}
-            taAktif={taAktif}
-            sapaan={sapaan}
-          />
-        )}
+        {showWelcome && null}
         <div className="rounded-xl border border-surface bg-surface shadow-sm p-8 flex flex-col items-center gap-3 text-center">
           <Library className="h-10 w-10 text-slate-300 dark:text-slate-700" />
           <div>
@@ -427,17 +416,7 @@ export async function KelasBinaanDashboard({
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
-      {showWelcome && (
-        <WelcomeStrip
-          nama={nama}
-          namaDepan={namaDepan}
-          avatarUrl={avatarUrl}
-          roleLabel={roleLabel}
-          roleColor={roleColor}
-          taAktif={taAktif}
-          sapaan={sapaan}
-        />
-      )}
+      {showWelcome && null}
 
       {showTopCards && (
         <>

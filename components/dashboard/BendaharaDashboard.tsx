@@ -1,7 +1,6 @@
 // components/dashboard/BendaharaDashboard.tsx
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
-import { WelcomeStrip } from './shared/WelcomeStrip'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import {
@@ -75,8 +74,7 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
 
   return (
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
-      <WelcomeStrip nama={nama} namaDepan={namaDepan} avatarUrl={avatarUrl}
-        roleLabel={roleLabel} roleColor={roleColor} taAktif={taAktif} sapaan={sapaan} />
+      
 
       <KehadiranPribadiCard userId={userId} />
 

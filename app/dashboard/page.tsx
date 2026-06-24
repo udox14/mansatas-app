@@ -15,6 +15,7 @@ import { ResepsionisDashboard } from '@/components/dashboard/ResepsionisDashboar
 import { GuruPPLDashboard } from '@/components/dashboard/GuruPPLDashboard'
 import { BendaharaDashboard } from '@/components/dashboard/BendaharaDashboard'
 import { DashboardSPAShell } from '@/components/dashboard/shared/DashboardSPAShell'
+import { WelcomeStrip } from '@/components/dashboard/shared/WelcomeStrip'
 
 export const metadata = { title: 'Dashboard - MANSATAS App' }
 export const dynamic  = 'force-dynamic'
@@ -88,6 +89,13 @@ export default async function DashboardPage() {
     }
   } catch (e) {}
 
+  // Fetch Hero Settings
+  const [bgUrlRow, runningTextRow, textColorRow] = await Promise.all([
+    db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_background_image_url').first<{ value: string }>(),
+    db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_running_text').first<{ value: string }>(),
+    db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_text_color').first<{ value: string }>(),
+  ])
+
   const commonProps = {
     userId:    user.id,
     nama:      namaLengkap,
@@ -100,6 +108,9 @@ export default async function DashboardPage() {
     isGuruPiket,
     userRoles,
     primaryRole: userRole,
+    bgImageUrl: bgUrlRow?.value || undefined,
+    runningText: runningTextRow?.value || undefined,
+    textColor: textColorRow?.value || 'white',
   }
 
   const dashboardContent = (() => {
@@ -141,8 +152,14 @@ export default async function DashboardPage() {
   })()
 
   return (
-    <DashboardSPAShell allowedFeatures={allowedFeatures} featureLabels={featureLabels}>
-      {dashboardContent}
-    </DashboardSPAShell>
+    <div className="space-y-6 pb-20">
+      {/* Sticky Header Wrapper */}
+      <div className="sticky top-0 z-40 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md pt-2 pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8">
+        <WelcomeStrip {...commonProps} />
+      </div>
+      <DashboardSPAShell allowedFeatures={allowedFeatures} featureLabels={featureLabels}>
+        {dashboardContent}
+      </DashboardSPAShell>
+    </div>
   )
 }

@@ -79,6 +79,9 @@ export default async function SettingsPage() {
     SYSTEM_SETTING_KEYS.attendanceSkipIncompleteForDailyStatus,
     false
   )
+  const heroBackgroundImageUrl = await getSystemSetting(SYSTEM_SETTING_KEYS.heroBackgroundImageUrl, '')
+  const heroRunningText = await getSystemSetting(SYSTEM_SETTING_KEYS.heroRunningText, '')
+  const heroTextColor = await getSystemSetting(SYSTEM_SETTING_KEYS.heroTextColor, 'white')
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -94,6 +97,9 @@ export default async function SettingsPage() {
         agendaLateThresholdByJam={agendaLateThresholdByJam}
         attendanceTimeRestrictionEnabled={attendanceTimeRestrictionEnabled}
         attendanceSkipIncompleteForDailyStatusEnabled={attendanceSkipIncompleteForDailyStatusEnabled}
+        heroBackgroundImageUrl={heroBackgroundImageUrl}
+        heroRunningText={heroRunningText}
+        heroTextColor={heroTextColor}
       />
     </div>
   )
