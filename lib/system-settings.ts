@@ -10,6 +10,8 @@ export const SYSTEM_SETTING_KEYS = {
   heroBackgroundImageUrl: 'hero_background_image_url',
   heroRunningText: 'hero_running_text',
   heroTextColor: 'hero_text_color',
+  heroRunningTextBg: 'hero_running_text_bg',
+  heroRunningTextColor: 'hero_running_text_color',
 } as const
 
 async function ensureSystemSettingsTable(db: D1Database) {

@@ -302,7 +302,7 @@ export async function setAttendanceSkipIncompleteForDailyStatusEnabled(enabled: 
   return { success: true }
 }
 
-export async function setHeroSettings(bgUrl: string, runningText: string, textColor: string) {
+export async function setHeroSettings(bgUrl: string, runningText: string, textColor: string, runningTextBg: string, runningTextColor: string) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -315,6 +315,8 @@ export async function setHeroSettings(bgUrl: string, runningText: string, textCo
   await setSystemSetting(SYSTEM_SETTING_KEYS.heroBackgroundImageUrl, bgUrl)
   await setSystemSetting(SYSTEM_SETTING_KEYS.heroRunningText, runningText)
   await setSystemSetting(SYSTEM_SETTING_KEYS.heroTextColor, textColor)
+  await setSystemSetting(SYSTEM_SETTING_KEYS.heroRunningTextBg, runningTextBg)
+  await setSystemSetting(SYSTEM_SETTING_KEYS.heroRunningTextColor, runningTextColor)
 
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard')
