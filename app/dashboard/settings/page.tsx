@@ -82,6 +82,8 @@ export default async function SettingsPage() {
   const heroBackgroundImageUrl = await getSystemSetting(SYSTEM_SETTING_KEYS.heroBackgroundImageUrl, '')
   const heroRunningText = await getSystemSetting(SYSTEM_SETTING_KEYS.heroRunningText, '')
   const heroTextColor = await getSystemSetting(SYSTEM_SETTING_KEYS.heroTextColor, 'white')
+  const heroRunningTextBg = await getSystemSetting(SYSTEM_SETTING_KEYS.heroRunningTextBg, '#1e1e1e')
+  const heroRunningTextColor = await getSystemSetting(SYSTEM_SETTING_KEYS.heroRunningTextColor, '#ffffff')
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -100,6 +102,8 @@ export default async function SettingsPage() {
         heroBackgroundImageUrl={heroBackgroundImageUrl}
         heroRunningText={heroRunningText}
         heroTextColor={heroTextColor}
+        heroRunningTextBg={heroRunningTextBg}
+        heroRunningTextColor={heroRunningTextColor}
       />
     </div>
   )

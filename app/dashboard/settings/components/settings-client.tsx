@@ -385,6 +385,8 @@ export function SettingsClient({
   heroBackgroundImageUrl,
   heroRunningText,
   heroTextColor,
+  heroRunningTextBg,
+  heroRunningTextColor,
 }: {
   taData: TAProps[]
   agendaTimeRestrictionEnabled: boolean
@@ -396,6 +398,8 @@ export function SettingsClient({
   heroBackgroundImageUrl: string
   heroRunningText: string
   heroTextColor: string
+  heroRunningTextBg: string
+  heroRunningTextColor: string
 }) {
   const router = useRouter()
   const [agendaTimeRestricted, setAgendaTimeRestricted] = useState(agendaTimeRestrictionEnabled)
@@ -411,6 +415,8 @@ export function SettingsClient({
   const [heroBgUrl, setHeroBgUrl] = useState(heroBackgroundImageUrl)
   const [heroText, setHeroText] = useState(heroRunningText)
   const [heroColor, setHeroColor] = useState(heroTextColor)
+  const [heroRunningTextBgState, setHeroRunningTextBgState] = useState(heroRunningTextBg)
+  const [heroRunningTextColorState, setHeroRunningTextColorState] = useState(heroRunningTextColor)
   const [isSavingHero, setIsSavingHero] = useState(false)
   const [isUploadingHero, setIsUploadingHero] = useState(false)
 
@@ -590,7 +596,7 @@ export function SettingsClient({
 
   const handleSaveHeroSettings = async () => {
     setIsSavingHero(true)
-    const res = await setHeroSettings(heroBgUrl, heroText, heroColor)
+    const res = await setHeroSettings(heroBgUrl, heroText, heroColor, heroRunningTextBgState, heroRunningTextColorState)
     setIsSavingHero(false)
     if (res?.error) alert(res.error)
     else alert('Pengaturan Tampilan Hero berhasil disimpan.')
@@ -726,6 +732,42 @@ export function SettingsClient({
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-slate-500">Sesuaikan dengan dominasi warna gambar latar belakang.</p>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Warna Background & Teks Running Text</Label>
+                <div className="flex gap-4">
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-slate-500">Background (Hex)</p>
+                    <div className="flex gap-2">
+                      <input 
+                        type="color" 
+                        value={heroRunningTextBgState} 
+                        onChange={e => setHeroRunningTextBgState(e.target.value)} 
+                        className="h-10 w-12 cursor-pointer rounded bg-transparent border-0" 
+                      />
+                      <Input 
+                        value={heroRunningTextBgState} 
+                        onChange={e => setHeroRunningTextBgState(e.target.value)} 
+                        className="w-24 bg-surface-2 h-10" 
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-slate-500">Teks (Hex)</p>
+                    <div className="flex gap-2">
+                      <input 
+                        type="color" 
+                        value={heroRunningTextColorState} 
+                        onChange={e => setHeroRunningTextColorState(e.target.value)} 
+                        className="h-10 w-12 cursor-pointer rounded bg-transparent border-0" 
+                      />
+                      <Input 
+                        value={heroRunningTextColorState} 
+                        onChange={e => setHeroRunningTextColorState(e.target.value)} 
+                        className="w-24 bg-surface-2 h-10" 
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="px-5 py-4 border-t border-surface-2 bg-surface-2/30">

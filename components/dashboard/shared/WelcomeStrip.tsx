@@ -12,6 +12,8 @@ type Props = {
   bgImageUrl?: string
   runningText?: string
   textColor?: string
+  runningTextBg?: string
+  runningTextColor?: string
 }
 
 const AVATAR_BG: Record<string, string> = {
@@ -22,7 +24,8 @@ const AVATAR_BG: Record<string, string> = {
 
 export function WelcomeStrip({ 
   nama, namaDepan, avatarUrl, roleLabel, roleColor = 'emerald', taAktif, sapaan,
-  bgImageUrl, runningText, textColor = 'white'
+  bgImageUrl, runningText, textColor = 'white',
+  runningTextBg = '#1e1e1e', runningTextColor = '#ffffff'
 }: Props) {
   const avatarBg = AVATAR_BG[roleColor] ?? AVATAR_BG.emerald
 
@@ -49,9 +52,6 @@ export function WelcomeStrip({
 
   const textClass = textColor === 'white' ? 'text-white drop-shadow-md' : 'text-slate-800 dark:text-slate-50 drop-shadow-md'
   const subTextClass = textColor === 'white' ? 'text-slate-200 drop-shadow-md' : 'text-slate-600 dark:text-slate-300 drop-shadow-md'
-  
-  const runningTextBg = 'bg-[#1e1e1e] border-black text-white'
-  const runningTextLabel = 'text-emerald-400'
 
   return (
     <div 
@@ -94,7 +94,10 @@ export function WelcomeStrip({
 
       {/* Running Text / Marquee directly overlay at bottom */}
       {runningText && (
-        <div className={`absolute bottom-0 left-0 w-full overflow-hidden text-[10px] md:text-xs font-medium py-1.5 md:py-2 px-5 flex items-center whitespace-nowrap z-20 border-t ${runningTextBg}`}>
+        <div 
+          className="absolute bottom-0 left-0 w-full overflow-hidden text-[10px] md:text-xs font-medium py-1.5 md:py-2 px-5 flex items-center whitespace-nowrap z-20 border-t border-black/20"
+          style={{ backgroundColor: runningTextBg, color: runningTextColor }}
+        >
           <div className="w-full overflow-hidden relative flex items-center">
             {/* @ts-ignore - marquee is deprecated but still works fine for simple needs */}
             <marquee className="w-full h-full font-semibold" scrollamount="4">{runningText}</marquee>
