@@ -619,7 +619,6 @@ export function parseSidebarRoleOverride(raw?: string | null): SidebarRoleOverri
       const legacyGroups = parseSidebarGroups(raw, [])
       return normalizeSidebarRoleOverride({
         groupOrder: legacyGroups.map(group => group.id),
-        groupLabels: Object.fromEntries(legacyGroups.map(group => [group.id, group.label])),
       })
     }
     if (parsed && typeof parsed === 'object') return normalizeSidebarRoleOverride(parsed as SidebarRoleOverrideConfig)

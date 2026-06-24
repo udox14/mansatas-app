@@ -58,10 +58,29 @@ CREATE TABLE siswa_new (
   updated_at          TEXT NOT NULL DEFAULT (datetime('now')),
   tanggal_keluar      TEXT,
   alasan_keluar       TEXT,
-  keterangan_keluar   TEXT
+  keterangan_keluar   TEXT,
+  tahun_masuk         INTEGER,
+  asal_sekolah        TEXT
 );
 
-INSERT INTO siswa_new SELECT * FROM siswa;
+INSERT INTO siswa_new (
+  id, nisn, nis_lokal, nama_lengkap, jenis_kelamin, tempat_tinggal, kelas_id, wali_murid_id,
+  status, foto_url, minat_jurusan, nik, tempat_lahir, tanggal_lahir, agama, jumlah_saudara,
+  anak_ke, status_anak, alamat_lengkap, rt, rw, desa_kelurahan, kecamatan, kabupaten_kota,
+  provinsi, kode_pos, nomor_whatsapp, nomor_kk, nama_ayah, nik_ayah, tempat_lahir_ayah,
+  tanggal_lahir_ayah, status_ayah, pendidikan_ayah, pekerjaan_ayah, penghasilan_ayah,
+  nama_ibu, nik_ibu, tempat_lahir_ibu, tanggal_lahir_ibu, status_ibu, pendidikan_ibu,
+  pekerjaan_ibu, penghasilan_ibu, created_at, updated_at, tahun_masuk, asal_sekolah
+)
+SELECT 
+  id, nisn, nis_lokal, nama_lengkap, jenis_kelamin, tempat_tinggal, kelas_id, wali_murid_id,
+  status, foto_url, minat_jurusan, nik, tempat_lahir, tanggal_lahir, agama, jumlah_saudara,
+  anak_ke, status_anak, alamat_lengkap, rt, rw, desa_kelurahan, kecamatan, kabupaten_kota,
+  provinsi, kode_pos, nomor_whatsapp, nomor_kk, nama_ayah, nik_ayah, tempat_lahir_ayah,
+  tanggal_lahir_ayah, status_ayah, pendidikan_ayah, pekerjaan_ayah, penghasilan_ayah,
+  nama_ibu, nik_ibu, tempat_lahir_ibu, tanggal_lahir_ibu, status_ibu, pendidikan_ibu,
+  pekerjaan_ibu, penghasilan_ibu, created_at, updated_at, tahun_masuk, asal_sekolah
+FROM siswa;
 DROP TABLE siswa;
 ALTER TABLE siswa_new RENAME TO siswa;
 
