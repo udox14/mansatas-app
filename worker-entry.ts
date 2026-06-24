@@ -32,10 +32,22 @@ export default {
         fetch(`${baseUrl}/api/cron/whatsapp`, { method: "GET", headers }),
       ]);
 
-      const reminderResult = await reminderResponse.json();
-      const whatsappResult = await whatsappResponse.json();
-      console.log("Cron reminder result:", JSON.stringify(reminderResult));
-      console.log("Cron WhatsApp result:", JSON.stringify(whatsappResult));
+      const [reminderText, whatsappText] = await Promise.all([
+        reminderResponse.text(),
+        whatsappResponse.text(),
+      ]);
+
+      try {
+        console.log("Cron reminder result:", JSON.parse(reminderText));
+      } catch {
+        console.log("Cron reminder result (raw):", reminderText);
+      }
+
+      try {
+        console.log("Cron WhatsApp result:", JSON.parse(whatsappText));
+      } catch {
+        console.log("Cron WhatsApp result (raw):", whatsappText);
+      }
     } catch (error: any) {
       console.error("Cron dispatcher error:", error?.message || error);
     }

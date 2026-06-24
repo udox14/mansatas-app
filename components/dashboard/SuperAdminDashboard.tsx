@@ -100,13 +100,15 @@ export async function SuperAdminDashboard({
     `).all<{ angkatan: number; count: number }>(),
 
     taAktif ? db.prepare(`
-      SELECT k.nama as kelas, COUNT(s.id) as count 
+      SELECT 
+        (k.tingkat || '-' || k.nomor_kelas || COALESCE(' ' || k.kelompok, '')) as kelas, 
+        COUNT(s.id) as count 
       FROM siswa s
       JOIN riwayat_kelas rk ON s.id = rk.siswa_id
       JOIN kelas k ON rk.kelas_id = k.id
       WHERE s.status = 'aktif' AND rk.tahun_ajaran_id = ?
       GROUP BY k.id
-      ORDER BY k.tingkat ASC, k.nama ASC
+      ORDER BY k.tingkat ASC, k.nomor_kelas ASC, k.kelompok ASC
     `).bind(taAktif.id).all<{ kelas: string; count: number }>() : Promise.resolve({ results: [] }),
   ])
 
