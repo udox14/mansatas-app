@@ -106,7 +106,7 @@ export function WelcomeStrip({
         <div className="w-full mt-2 overflow-hidden bg-emerald-500 text-white text-xs font-medium py-1.5 px-4 rounded-full shadow-sm flex items-center whitespace-nowrap">
           <span className="shrink-0 mr-2 uppercase tracking-wider font-bold opacity-80">Info:</span>
           <div className="w-full overflow-hidden relative flex items-center">
-            {/* Simple CSS animation would require adding keyframes to global.css, so we'll use a direct inline style logic or framer motion if available, but a basic CSS marque works if defined, or we can just let it scroll natively. */}
+            {/* @ts-ignore - marquee is deprecated but still works fine for simple needs */}
             <marquee className="w-full h-full" scrollamount="5">{runningText}</marquee>
           </div>
         </div>
