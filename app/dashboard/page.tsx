@@ -63,8 +63,8 @@ export default async function DashboardPage() {
   const [freshUser, taAktif, userRoles, allowedFeatures] = await Promise.all([
     db.prepare('SELECT nama_lengkap, role, avatar_url FROM "user" WHERE id = ?')
       .bind(user.id).first<{ nama_lengkap: string; role: string; avatar_url: string | null }>(),
-    db.prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE is_active = 1 LIMIT 1')
-      .first<{ id: string; nama: string; semester: number }>(),
+    db.prepare('SELECT id, nama, semester, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1')
+      .first<{ id: string; nama: string; semester: number; jam_pelajaran: string }>(),
     getUserRoles(db, user.id),
     getUserAllowedFeatures(db, user.id),
   ])
@@ -88,6 +88,13 @@ export default async function DashboardPage() {
       featureLabels[row.feature_id] = row.title
     }
   } catch (e) {}
+
+  let polaJam: any[] = []
+  if (taAktif?.jam_pelajaran) {
+    try {
+      polaJam = JSON.parse(taAktif.jam_pelajaran)
+    } catch (e) {}
+  }
 
   // Fetch Hero Settings
   const [bgUrlRow, runningTextRow, textColorRow, runningTextBgRow, runningTextColorRow] = await Promise.all([
@@ -161,6 +168,7 @@ export default async function DashboardPage() {
         allowedFeatures={allowedFeatures} 
         featureLabels={featureLabels}
         heroNode={<WelcomeStrip {...commonProps} />}
+        polaJam={polaJam}
       >
         {dashboardContent}
       </DashboardSPAShell>

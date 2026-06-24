@@ -238,7 +238,7 @@ export function Sidebar({
                   value={menuSearch}
                   onChange={(event) => setMenuSearch(event.target.value)}
                   placeholder="Cari menu..."
-                  className="min-w-0 flex-1 bg-transparent text-[13px] text-white placeholder:text-white/35 outline-none"
+                  className={cn("min-w-0 flex-1 bg-transparent text-white placeholder:text-white/35 outline-none", mobile ? "text-[12px]" : "text-[13px]")}
                   aria-label="Cari menu sidebar"
                 />
                 {menuSearch && (
@@ -266,8 +266,9 @@ export function Sidebar({
                     href={item.href}
                     title={collapsed ? (featureLabels[item.id] || item.title) : undefined}
                     className={cn(
-                      'group flex items-center rounded-xl text-[13px] transition-all duration-300',
-                      collapsed ? 'mx-auto h-11 w-11 justify-center p-2.5' : 'gap-2.5 px-3 py-2.5',
+                      'group flex items-center rounded-xl transition-all duration-300',
+                      mobile ? 'text-[12px]' : 'text-[13px]',
+                      collapsed ? 'mx-auto h-11 w-11 justify-center p-2.5' : (mobile ? 'gap-2 px-2.5 py-2' : 'gap-2.5 px-3 py-2.5'),
                       isActive
                         ? cn(theme.activeBg, theme.activeText, 'font-semibold shadow-sm ring-1 ring-white/5')
                         : cn(theme.text, theme.hoverBg, theme.hoverText, !collapsed && 'hover:translate-x-0.5')
@@ -302,7 +303,8 @@ export function Sidebar({
                     type="button"
                     onClick={() => toggleGroup(group.id)}
                     className={cn(
-                      'group/header flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-all duration-200',
+                      'group/header flex w-full items-center text-left transition-all duration-200 rounded-xl',
+                      mobile ? 'gap-2 px-2.5 py-1.5' : 'gap-2.5 px-3 py-2',
                       hasActiveItem ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5' : cn(theme.text, 'hover:bg-white/5 hover:text-white')
                     )}
                     aria-expanded={isGroupOpen}
@@ -314,7 +316,7 @@ export function Sidebar({
                         hasActiveItem ? 'opacity-100 scale-105 text-white' : 'opacity-70 group-hover/header:opacity-100'
                       )} />
                     )}
-                    <span className="min-w-0 flex-1 text-[13px] font-semibold truncate leading-snug">
+                    <span className={cn("min-w-0 flex-1 font-semibold truncate leading-snug", mobile ? "text-[12px]" : "text-[13px]")}>
                       {group.label}
                     </span>
                     <ChevronDown className={cn(
@@ -345,8 +347,9 @@ export function Sidebar({
                         href={item.href}
                         title={collapsed ? (featureLabels[item.id] || item.title) : undefined}
                         className={cn(
-                          'group flex items-center rounded-lg text-[13px] transition-all duration-300',
-                          collapsed ? 'mx-auto h-11 w-11 justify-center p-2.5' : 'gap-2.5 px-2.5 py-2',
+                          'group flex items-center rounded-lg transition-all duration-300',
+                          mobile ? 'text-[11px]' : 'text-[13px]',
+                          collapsed ? 'mx-auto h-11 w-11 justify-center p-2.5' : (mobile ? 'gap-2 px-2 py-1.5' : 'gap-2.5 px-2.5 py-2'),
                           isActive
                             ? cn(theme.activeBg, theme.activeText, 'font-semibold shadow-sm ring-1 ring-white/5')
                             : cn(theme.text, theme.hoverBg, theme.hoverText, !collapsed && 'hover:translate-x-0.5')
