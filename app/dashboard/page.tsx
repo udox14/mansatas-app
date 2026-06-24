@@ -152,12 +152,12 @@ export default async function DashboardPage() {
   })()
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Sticky Header Wrapper */}
-      <div className="sticky top-0 z-40 bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-md pt-2 pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8">
-        <WelcomeStrip {...commonProps} />
-      </div>
-      <DashboardSPAShell allowedFeatures={allowedFeatures} featureLabels={featureLabels}>
+    <div className="pb-20">
+      <DashboardSPAShell 
+        allowedFeatures={allowedFeatures} 
+        featureLabels={featureLabels}
+        heroNode={<WelcomeStrip {...commonProps} />}
+      >
         {dashboardContent}
       </DashboardSPAShell>
     </div>

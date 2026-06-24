@@ -27,6 +27,7 @@ interface DashboardSPAShellProps {
   children: React.ReactNode
   allowedFeatures: string[]
   featureLabels?: Record<string, string>
+  heroNode?: React.ReactNode
 }
 
 const GROUP_META: Record<string, { title: string; desc: string }> = {
@@ -93,6 +94,7 @@ export function DashboardSPAShell({
   children,
   allowedFeatures = [],
   featureLabels = {},
+  heroNode,
 }: DashboardSPAShellProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'menu'>('dashboard')
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
@@ -177,51 +179,81 @@ export function DashboardSPAShell({
   if (!isMounted) return null
 
   return (
-    <div className="space-y-4">
-      {/* ── Segmented Tab Switcher (SPA Capsule) ────────────────────────────────── */}
-      <div className="flex justify-center mb-8">
-        <div className="relative inline-flex p-1.5 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-md rounded-full shadow-sm z-0">
-          <button
-            onClick={() => handleSetTab('dashboard')}
-            className={`relative flex items-center gap-2.5 px-7 py-3 rounded-full text-sm font-bold tracking-wide transition-all duration-300 z-10 ${
-              activeTab === 'dashboard'
-                ? 'text-emerald-900 dark:text-emerald-300'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-            }`}
-          >
-            {activeTab === 'dashboard' && (
-              <motion.div
-                layoutId="activeTabBg"
-                className="absolute inset-0 bg-white dark:bg-slate-700 rounded-full shadow-md -z-10"
-                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              />
-            )}
-            <House weight={activeTab === 'dashboard' ? 'duotone' : 'bold'} className="h-5 w-5" />
-            Home
-          </button>
-          <button
-            onClick={() => handleSetTab('menu')}
-            className={`relative flex items-center gap-2.5 px-7 py-3 rounded-full text-sm font-bold tracking-wide transition-all duration-300 z-10 ${
-              activeTab === 'menu'
-                ? 'text-emerald-900 dark:text-emerald-300'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-            }`}
-          >
-            {activeTab === 'menu' && (
-              <motion.div
-                layoutId="activeTabBg"
-                className="absolute inset-0 bg-white dark:bg-slate-700 rounded-full shadow-md -z-10"
-                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              />
-            )}
-            <SquaresFour weight={activeTab === 'menu' ? 'duotone' : 'bold'} className="h-5 w-5" />
-            Menu
-          </button>
+    <div className="flex flex-col">
+      {/* ── Unified Sticky Header (Hero, Tabs, Search) ────────────────────────────────── */}
+      <div className="sticky top-0 z-40 bg-slate-50 dark:bg-slate-900 pt-4 pb-3 shadow-sm md:shadow-none -mx-4 px-4 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 border-b border-transparent">
+        {heroNode && (
+          <div className="w-full mb-3">
+            {heroNode}
+          </div>
+        )}
+
+        <div className="flex justify-center">
+          <div className="relative inline-flex p-1.5 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full shadow-sm z-0 border border-slate-200/50 dark:border-slate-700/50">
+            <button
+              onClick={() => handleSetTab('dashboard')}
+              className={`relative flex items-center gap-2.5 px-6 sm:px-8 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 z-10 ${
+                activeTab === 'dashboard'
+                  ? 'text-emerald-900 dark:text-emerald-300'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}
+            >
+              {activeTab === 'dashboard' && (
+                <motion.div
+                  layoutId="activeTabBg"
+                  className="absolute inset-0 bg-white dark:bg-slate-700 rounded-full shadow-md border border-slate-100 dark:border-slate-600 -z-10"
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                />
+              )}
+              <House weight={activeTab === 'dashboard' ? 'duotone' : 'bold'} className="h-4 w-4 sm:h-5 sm:w-5" />
+              Home
+            </button>
+            <button
+              onClick={() => handleSetTab('menu')}
+              className={`relative flex items-center gap-2.5 px-6 sm:px-8 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 z-10 ${
+                activeTab === 'menu'
+                  ? 'text-emerald-900 dark:text-emerald-300'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}
+            >
+              {activeTab === 'menu' && (
+                <motion.div
+                  layoutId="activeTabBg"
+                  className="absolute inset-0 bg-white dark:bg-slate-700 rounded-full shadow-md border border-slate-100 dark:border-slate-600 -z-10"
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                />
+              )}
+              <SquaresFour weight={activeTab === 'menu' ? 'duotone' : 'bold'} className="h-4 w-4 sm:h-5 sm:w-5" />
+              Menu
+            </button>
+          </div>
         </div>
+
+        {/* Sticky Search Bar (Only shown in Menu Tab) */}
+        {activeTab === 'menu' && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            className="max-w-2xl mx-auto mt-3 px-1"
+          >
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-slate-400 dark:text-slate-500">
+                <MagnifyingGlass className="h-4 w-4 sm:h-5 sm:w-5" />
+              </span>
+              <input
+                type="text"
+                placeholder="Cari fitur sekolah..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 sm:pl-11 pr-4 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-2xl text-[11px] sm:text-xs placeholder-slate-400 text-slate-800 dark:text-slate-100 focus:border-emerald-800 dark:focus:border-emerald-700 focus:ring-1 focus:ring-emerald-800 dark:focus:ring-emerald-700 outline-none transition-all shadow-sm"
+              />
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* ── Tab Content ──────────────────────────────────────────────────────── */}
-      <div className="overflow-hidden">
+      <div className="overflow-hidden mt-4">
         <AnimatePresence mode="wait">
           {activeTab === 'dashboard' ? (
             <motion.div
@@ -258,22 +290,8 @@ export function DashboardSPAShell({
                   handleSetTab('dashboard')
                 }
               }}
-              className="max-w-2xl mx-auto space-y-6 px-2"
+              className="max-w-2xl mx-auto space-y-6 px-1 sm:px-2"
             >
-              {/* Search Bar */}
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-slate-400 dark:text-slate-500">
-                  <MagnifyingGlass className="h-5 w-5" />
-                </span>
-                <input
-                  type="text"
-                  placeholder="Cari fitur sekolah..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 rounded-2xl text-xs placeholder-slate-400 text-slate-800 dark:text-slate-100 focus:border-emerald-800 dark:focus:border-emerald-700 focus:ring-1 focus:ring-emerald-800 dark:focus:ring-emerald-700 outline-none transition-all shadow-sm"
-                />
-              </div>
-
               {/* Dynamic Content: Search Results | Group Drill-down | Group List */}
               {isSearching ? (
                 // Search Results (Flat List)

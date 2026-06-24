@@ -16,13 +16,13 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   CalendarDays, Loader2, PlusCircle, CheckCircle2, AlertCircle,
   Trash2, Power, X, Tags, Edit3, Clock, Copy, Plus, ChevronDown, ChevronUp,
-  Smartphone
+  Smartphone, Upload
 } from 'lucide-react'
 import {
   tambahTahunAjaran, setAktifTahunAjaran, hapusTahunAjaran,
   simpanDaftarJurusan, simpanJamPelajaran,
   setAgendaTimeRestrictionEnabled, setAgendaLateSetting, setAttendanceTimeRestrictionEnabled,
-  setAttendanceSkipIncompleteForDailyStatusEnabled, setHeroSettings
+  setAttendanceSkipIncompleteForDailyStatusEnabled, setHeroSettings, uploadHeroImageAction
 } from '../actions'
 import { DEFAULT_POLA_JAM } from '../types'
 import type { PolaJam, SlotJam } from '../types'
@@ -412,6 +412,7 @@ export function SettingsClient({
   const [heroText, setHeroText] = useState(heroRunningText)
   const [heroColor, setHeroColor] = useState(heroTextColor)
   const [isSavingHero, setIsSavingHero] = useState(false)
+  const [isUploadingHero, setIsUploadingHero] = useState(false)
 
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
@@ -595,6 +596,22 @@ export function SettingsClient({
     else alert('Pengaturan Tampilan Hero berhasil disimpan.')
   }
 
+  const handleUploadHero = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.[0]) return
+    const file = e.target.files[0]
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    setIsUploadingHero(true)
+    const res = await uploadHeroImageAction(formData)
+    setIsUploadingHero(false)
+    if (res.error) alert(res.error)
+    else if (res.url) {
+      setHeroBgUrl(res.url)
+      alert('Gambar berhasil diunggah! Jangan lupa klik Simpan Pengaturan Tampilan.')
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
@@ -641,15 +658,51 @@ export function SettingsClient({
               </div>
             </div>
             <div className="p-5 space-y-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">URL Gambar Latar Belakang (Hero Image)</Label>
-                <Input 
-                  value={heroBgUrl} 
-                  onChange={e => setHeroBgUrl(e.target.value)} 
-                  placeholder="https://example.com/image.jpg" 
-                  className="bg-surface-2 border-surface text-sm h-10" 
-                />
-                <p className="text-[11px] text-slate-500">Kosongkan untuk menggunakan warna gradasi bawaan.</p>
+              <div className="space-y-3">
+                <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Gambar Latar Belakang (Hero Image)</Label>
+                <div className="flex flex-col sm:flex-row gap-4 items-start">
+                  {heroBgUrl && (
+                    <div className="relative w-full sm:w-48 h-28 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0">
+                      <img src={heroBgUrl} alt="Hero Preview" className="w-full h-full object-cover" />
+                      <button 
+                        onClick={() => setHeroBgUrl('')}
+                        className="absolute top-1 right-1 p-1 bg-red-500/80 text-white rounded-md hover:bg-red-500 transition-colors"
+                        title="Hapus gambar"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex-1 w-full">
+                    <Label 
+                      htmlFor="hero-image-upload" 
+                      className="flex flex-col items-center justify-center w-full px-4 py-6 border-2 border-dashed border-emerald-300 dark:border-emerald-700/50 rounded-xl bg-emerald-50/50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"
+                    >
+                      {isUploadingHero ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
+                          <span className="text-xs font-medium">Mengunggah...</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                          <Upload className="w-6 h-6 text-emerald-500" />
+                          <span className="text-xs font-medium">Pilih Gambar Baru (Rekomendasi: 16:9)</span>
+                        </div>
+                      )}
+                    </Label>
+                    <input 
+                      id="hero-image-upload" 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={handleUploadHero} 
+                      disabled={isUploadingHero}
+                    />
+                    <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                      Format didukung: JPG, PNG, WEBP. Gambar akan langsung diunggah ke cloud (R2) dan menimpa gambar sebelumnya. Kosongkan (hapus gambar) untuk menggunakan warna bawaan.
+                    </p>
+                  </div>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Teks Berjalan (Running Text)</Label>
