@@ -29,6 +29,7 @@ interface DashboardSPAShellProps {
   allowedFeatures: string[]
   featureLabels?: Record<string, string>
   heroNode?: React.ReactNode
+  polaJam?: any[]
 }
 
 const GROUP_META: Record<string, { title: string; desc: string }> = {
@@ -96,6 +97,7 @@ export function DashboardSPAShell({
   allowedFeatures = [],
   featureLabels = {},
   heroNode,
+  polaJam = [],
 }: DashboardSPAShellProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'menu'>('dashboard')
   const [activeGroup, setActiveGroup] = useState<string | null>(null)
@@ -110,15 +112,56 @@ export function DashboardSPAShell({
         timeZone: 'Asia/Jakarta',
         hour: '2-digit',
         minute: '2-digit',
-        second: '2-digit',
         hour12: false,
       }
-      setTime(new Intl.DateTimeFormat('id-ID', options).format(now))
+      
+      const timeParts = new Intl.DateTimeFormat('en-US', options).formatToParts(now)
+      let hr = timeParts.find(p => p.type === 'hour')?.value || '00'
+      const min = timeParts.find(p => p.type === 'minute')?.value || '00'
+      if (hr === '24') hr = '00'
+      const currentTime = `${hr}:${min}`
+
+      const dateStr = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jakarta', weekday: 'short' }).format(now)
+      const dayMap: Record<string, number> = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 }
+      const day = dayMap[dateStr] ?? now.getDay()
+      
+      let label = 'Luar Jam'
+      if (day === 0) {
+        label = 'Hari Libur'
+      } else if (polaJam && polaJam.length > 0) {
+        const todayPola = polaJam.find(p => p.hari.includes(day))
+        if (todayPola && todayPola.slots && todayPola.slots.length > 0) {
+          let found = false
+          for (const slot of todayPola.slots) {
+            if (currentTime >= slot.mulai && currentTime <= slot.selesai) {
+              const isNumber = !isNaN(Number(slot.nama))
+              label = isNumber ? `Jam Ke-${slot.nama}` : slot.nama
+              found = true
+              break
+            }
+          }
+          if (!found) {
+             const first = todayPola.slots[0]
+             const last = todayPola.slots[todayPola.slots.length - 1]
+             if (currentTime < first.mulai) {
+               label = 'Belum Mulai'
+             } else if (currentTime > last.selesai) {
+               label = 'Pulang'
+             } else {
+               label = 'Istirahat'
+             }
+          }
+        } else {
+          label = 'Hari Libur'
+        }
+      }
+
+      setTime(label)
     }
     updateClock()
-    const timer = setInterval(updateClock, 1000)
+    const timer = setInterval(updateClock, 30000) // Update every 30s is enough for HH:mm checks
     return () => clearInterval(timer)
-  }, [])
+  }, [polaJam])
 
   // Handle URL hash for Android Back button navigation
   useEffect(() => {
@@ -207,19 +250,20 @@ export function DashboardSPAShell({
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-1">
-          {/* Jam Digital WIB (Kiri) */}
-          <div className="relative inline-flex items-center gap-2 px-5 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full shadow-sm border border-slate-200/50 dark:border-slate-700/50 text-slate-700 dark:text-slate-200 font-bold text-xs sm:text-sm tracking-wide h-[44px] sm:h-[52px]">
-            <Clock weight="duotone" className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 dark:text-emerald-400 animate-pulse" />
-            <span className="font-mono tabular-nums leading-none">{time || '00:00:00'}</span>
-            <span className="text-[9px] sm:text-[10px] font-semibold text-slate-400 dark:text-slate-500 leading-none">WIB</span>
+        <div className="flex flex-row items-center justify-between gap-2 sm:gap-3 px-1">
+          {/* Label Jam/Status (Kiri) */}
+          <div className="relative inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full shadow-sm border border-slate-200/50 dark:border-slate-700/50 text-slate-700 dark:text-slate-200 font-bold text-[11px] sm:text-sm tracking-wide h-[38px] sm:h-[52px]">
+            <Clock weight="duotone" className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-emerald-600 dark:text-emerald-400" />
+            <span className="font-semibold uppercase tracking-wider leading-none whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px] sm:max-w-none">
+              {time || 'Menghitung...'}
+            </span>
           </div>
 
           {/* Tabs Navigation (Kanan) */}
-          <div className="relative inline-flex p-1.5 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full shadow-sm z-0 border border-slate-200/50 dark:border-slate-700/50">
+          <div className="relative inline-flex p-1 sm:p-1.5 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full shadow-sm z-0 border border-slate-200/50 dark:border-slate-700/50">
             <button
               onClick={() => handleSetTab('dashboard')}
-              className={`relative flex items-center gap-2.5 px-6 sm:px-8 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 z-10 ${
+              className={`relative flex items-center gap-1.5 sm:gap-2.5 px-4 sm:px-8 py-1.5 sm:py-2.5 rounded-full text-[11px] sm:text-sm font-bold tracking-wide transition-all duration-300 z-10 ${
                 activeTab === 'dashboard'
                   ? 'text-emerald-900 dark:text-emerald-300'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
@@ -232,12 +276,12 @@ export function DashboardSPAShell({
                   transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 />
               )}
-              <House weight={activeTab === 'dashboard' ? 'duotone' : 'bold'} className="h-4 w-4 sm:h-5 sm:w-5" />
+              <House weight={activeTab === 'dashboard' ? 'duotone' : 'bold'} className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
               Home
             </button>
             <button
               onClick={() => handleSetTab('menu')}
-              className={`relative flex items-center gap-2.5 px-6 sm:px-8 py-2 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 z-10 ${
+              className={`relative flex items-center gap-1.5 sm:gap-2.5 px-4 sm:px-8 py-1.5 sm:py-2.5 rounded-full text-[11px] sm:text-sm font-bold tracking-wide transition-all duration-300 z-10 ${
                 activeTab === 'menu'
                   ? 'text-emerald-900 dark:text-emerald-300'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
@@ -250,7 +294,7 @@ export function DashboardSPAShell({
                   transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                 />
               )}
-              <SquaresFour weight={activeTab === 'menu' ? 'duotone' : 'bold'} className="h-4 w-4 sm:h-5 sm:w-5" />
+              <SquaresFour weight={activeTab === 'menu' ? 'duotone' : 'bold'} className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
               Menu
             </button>
           </div>
@@ -344,16 +388,16 @@ export function DashboardSPAShell({
                         <motion.div variants={itemVariants} key={item.id}>
                           <Link
                             href={item.href}
-                            className={`group flex items-center gap-4 p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-2xl shadow-sm hover:shadow-md transition-all text-left active:scale-[0.99] ${itemColor.borderHover}`}
+                            className={`group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl sm:rounded-2xl shadow-sm hover:shadow-md transition-all text-left active:scale-[0.99] ${itemColor.borderHover}`}
                           >
-                            <div className="shrink-0 flex items-center justify-center h-10 w-10">
-                              {Icon && <Icon weight="duotone" className={`h-8 w-8 transition-colors ${itemColor.text}`} />}
+                            <div className="shrink-0 flex items-center justify-center h-8 w-8 sm:h-10 sm:w-10">
+                              {Icon && <Icon weight="duotone" className={`h-6 w-6 sm:h-8 sm:w-8 transition-colors ${itemColor.text}`} />}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5 truncate">
+                              <h4 className="text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5 truncate">
                                 {title}
                               </h4>
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">
+                              <p className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">
                                 {item.desc || 'Akses halaman fitur ini'}
                               </p>
                             </div>
@@ -403,16 +447,16 @@ export function DashboardSPAShell({
                         <motion.div variants={itemVariants} key={item.id}>
                           <Link
                             href={item.href}
-                            className={`group flex items-center gap-4 p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-2xl shadow-sm hover:shadow-md transition-all text-left active:scale-[0.99] ${itemColor.borderHover}`}
+                            className={`group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl sm:rounded-2xl shadow-sm hover:shadow-md transition-all text-left active:scale-[0.99] ${itemColor.borderHover}`}
                           >
-                            <div className="shrink-0 flex items-center justify-center h-10 w-10">
-                              {Icon && <Icon weight="duotone" className={`h-8 w-8 transition-colors ${itemColor.text}`} />}
+                            <div className="shrink-0 flex items-center justify-center h-8 w-8 sm:h-10 sm:w-10">
+                              {Icon && <Icon weight="duotone" className={`h-6 w-6 sm:h-8 sm:w-8 transition-colors ${itemColor.text}`} />}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5 truncate">
+                              <h4 className="text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5 truncate">
                                 {title}
                               </h4>
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">
+                              <p className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">
                                 {item.desc || 'Akses halaman fitur ini'}
                               </p>
                             </div>
@@ -439,12 +483,12 @@ export function DashboardSPAShell({
                       <motion.div variants={itemVariants} key={group.id}>
                         <button
                           onClick={() => handleGroupClick(group.id)}
-                          className={`w-full flex items-center gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50 hover:shadow-md transition-all text-left group active:scale-[0.99] ${groupColor.borderHover}`}
+                          className={`w-full flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50 hover:shadow-md transition-all text-left group active:scale-[0.99] ${groupColor.borderHover}`}
                         >
-                          <GroupIcon weight="duotone" className={`shrink-0 h-8 w-8 transition-colors ${groupColor.text}`} />
+                          <GroupIcon weight="duotone" className={`shrink-0 h-6 w-6 sm:h-8 sm:w-8 transition-colors ${groupColor.text}`} />
                           <div>
-                            <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5">{meta.title}</h4>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1">{meta.desc}</p>
+                            <h4 className="text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5">{meta.title}</h4>
+                            <p className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1">{meta.desc}</p>
                           </div>
                         </button>
                       </motion.div>
