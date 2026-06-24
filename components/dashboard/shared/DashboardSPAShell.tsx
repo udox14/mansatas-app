@@ -42,18 +42,18 @@ const GROUP_META: Record<string, { title: string; desc: string }> = {
   'sistem': { title: 'Sistem', desc: 'Pengaturan, broadcast, log sistem' },
 }
 
-const GROUP_COLORS: Record<string, { bg: string; text: string; hover: string; borderHover: string }> = {
-  'utama': { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-600 dark:text-emerald-400', hover: 'group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900/40', borderHover: 'hover:border-emerald-200 dark:hover:border-emerald-800/50' },
-  'data-master': { bg: 'bg-blue-50 dark:bg-blue-950/30', text: 'text-blue-600 dark:text-blue-400', hover: 'group-hover:bg-blue-100 dark:group-hover:bg-blue-900/40', borderHover: 'hover:border-blue-200 dark:hover:border-blue-800/50' },
-  'tugas-harian-guru': { bg: 'bg-orange-50 dark:bg-orange-950/30', text: 'text-orange-600 dark:text-orange-400', hover: 'group-hover:bg-orange-100 dark:group-hover:bg-orange-900/40', borderHover: 'hover:border-orange-200 dark:hover:border-orange-800/50' },
-  'monitoring-akademik': { bg: 'bg-purple-50 dark:bg-purple-950/30', text: 'text-purple-600 dark:text-purple-400', hover: 'group-hover:bg-purple-100 dark:group-hover:bg-purple-900/40', borderHover: 'hover:border-purple-200 dark:hover:border-purple-800/50' },
-  'monitoring-rekap': { bg: 'bg-indigo-50 dark:bg-indigo-950/30', text: 'text-indigo-600 dark:text-indigo-400', hover: 'group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/40', borderHover: 'hover:border-indigo-200 dark:hover:border-indigo-800/50' },
-  'program-khusus': { bg: 'bg-rose-50 dark:bg-rose-950/30', text: 'text-rose-600 dark:text-rose-400', hover: 'group-hover:bg-rose-100 dark:group-hover:bg-rose-900/40', borderHover: 'hover:border-rose-200 dark:hover:border-rose-800/50' },
-  'kesiswaan-bk': { bg: 'bg-pink-50 dark:bg-pink-950/30', text: 'text-pink-600 dark:text-pink-400', hover: 'group-hover:bg-pink-100 dark:group-hover:bg-pink-900/40', borderHover: 'hover:border-pink-200 dark:hover:border-pink-800/50' },
-  'administrasi-hr': { bg: 'bg-cyan-50 dark:bg-cyan-950/30', text: 'text-cyan-600 dark:text-cyan-400', hover: 'group-hover:bg-cyan-100 dark:group-hover:bg-cyan-900/40', borderHover: 'hover:border-cyan-200 dark:hover:border-cyan-800/50' },
-  'keuangan': { bg: 'bg-amber-50 dark:bg-amber-950/30', text: 'text-amber-600 dark:text-amber-400', hover: 'group-hover:bg-amber-100 dark:group-hover:bg-amber-900/40', borderHover: 'hover:border-amber-200 dark:hover:border-amber-800/50' },
-  'sistem': { bg: 'bg-slate-100 dark:bg-slate-800', text: 'text-slate-600 dark:text-slate-400', hover: 'group-hover:bg-slate-200 dark:group-hover:bg-slate-700', borderHover: 'hover:border-slate-300 dark:hover:border-slate-600' },
-  'lainnya': { bg: 'bg-gray-50 dark:bg-gray-900/30', text: 'text-gray-600 dark:text-gray-400', hover: 'group-hover:bg-gray-100 dark:group-hover:bg-gray-800/40', borderHover: 'hover:border-gray-200 dark:hover:border-gray-800/50' },
+const GROUP_COLORS: Record<string, { text: string; borderHover: string }> = {
+  'utama': { text: 'text-emerald-500 dark:text-emerald-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-300', borderHover: 'hover:border-emerald-200 dark:hover:border-emerald-800/50' },
+  'data-master': { text: 'text-blue-500 dark:text-blue-400 group-hover:text-blue-600 dark:group-hover:text-blue-300', borderHover: 'hover:border-blue-200 dark:hover:border-blue-800/50' },
+  'tugas-harian-guru': { text: 'text-orange-500 dark:text-orange-400 group-hover:text-orange-600 dark:group-hover:text-orange-300', borderHover: 'hover:border-orange-200 dark:hover:border-orange-800/50' },
+  'monitoring-akademik': { text: 'text-purple-500 dark:text-purple-400 group-hover:text-purple-600 dark:group-hover:text-purple-300', borderHover: 'hover:border-purple-200 dark:hover:border-purple-800/50' },
+  'monitoring-rekap': { text: 'text-indigo-500 dark:text-indigo-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-300', borderHover: 'hover:border-indigo-200 dark:hover:border-indigo-800/50' },
+  'program-khusus': { text: 'text-rose-500 dark:text-rose-400 group-hover:text-rose-600 dark:group-hover:text-rose-300', borderHover: 'hover:border-rose-200 dark:hover:border-rose-800/50' },
+  'kesiswaan-bk': { text: 'text-pink-500 dark:text-pink-400 group-hover:text-pink-600 dark:group-hover:text-pink-300', borderHover: 'hover:border-pink-200 dark:hover:border-pink-800/50' },
+  'administrasi-hr': { text: 'text-cyan-500 dark:text-cyan-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-300', borderHover: 'hover:border-cyan-200 dark:hover:border-cyan-800/50' },
+  'keuangan': { text: 'text-amber-500 dark:text-amber-400 group-hover:text-amber-600 dark:group-hover:text-amber-300', borderHover: 'hover:border-amber-200 dark:hover:border-amber-800/50' },
+  'sistem': { text: 'text-slate-500 dark:text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300', borderHover: 'hover:border-slate-300 dark:hover:border-slate-600' },
+  'lainnya': { text: 'text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300', borderHover: 'hover:border-gray-200 dark:hover:border-gray-800/50' },
 }
 
 const GROUP_ICONS: Record<string, any> = {
@@ -179,42 +179,42 @@ export function DashboardSPAShell({
   return (
     <div className="space-y-4">
       {/* ── Segmented Tab Switcher (SPA Capsule) ────────────────────────────────── */}
-      <div className="flex justify-center mb-6">
-        <div className="relative inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-full border border-slate-200/50 dark:border-slate-700/50 shadow-inner z-0">
+      <div className="flex justify-center mb-8">
+        <div className="relative inline-flex p-1.5 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-md rounded-full shadow-sm z-0">
           <button
             onClick={() => handleSetTab('dashboard')}
-            className={`relative flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-semibold tracking-wide transition-colors duration-300 z-10 ${
+            className={`relative flex items-center gap-2.5 px-7 py-3 rounded-full text-sm font-bold tracking-wide transition-all duration-300 z-10 ${
               activeTab === 'dashboard'
-                ? 'text-emerald-950 dark:text-emerald-400 font-bold'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                ? 'text-emerald-900 dark:text-emerald-300'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
             }`}
           >
             {activeTab === 'dashboard' && (
               <motion.div
                 layoutId="activeTabBg"
-                className="absolute inset-0 bg-white dark:bg-slate-900 rounded-full shadow-sm -z-10"
-                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                className="absolute inset-0 bg-white dark:bg-slate-700 rounded-full shadow-md -z-10"
+                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               />
             )}
-            <House weight={activeTab === 'dashboard' ? 'fill' : 'regular'} className="h-4.5 w-4.5" />
+            <House weight={activeTab === 'dashboard' ? 'duotone' : 'bold'} className="h-5 w-5" />
             Ringkasan
           </button>
           <button
             onClick={() => handleSetTab('menu')}
-            className={`relative flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-semibold tracking-wide transition-colors duration-300 z-10 ${
+            className={`relative flex items-center gap-2.5 px-7 py-3 rounded-full text-sm font-bold tracking-wide transition-all duration-300 z-10 ${
               activeTab === 'menu'
-                ? 'text-emerald-950 dark:text-emerald-400 font-bold'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                ? 'text-emerald-900 dark:text-emerald-300'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
             }`}
           >
             {activeTab === 'menu' && (
               <motion.div
                 layoutId="activeTabBg"
-                className="absolute inset-0 bg-white dark:bg-slate-900 rounded-full shadow-sm -z-10"
-                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                className="absolute inset-0 bg-white dark:bg-slate-700 rounded-full shadow-md -z-10"
+                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               />
             )}
-            <SquaresFour weight={activeTab === 'menu' ? 'fill' : 'regular'} className="h-4.5 w-4.5" />
+            <SquaresFour weight={activeTab === 'menu' ? 'duotone' : 'bold'} className="h-5 w-5" />
             Semua Fitur
           </button>
         </div>
@@ -268,7 +268,7 @@ export function DashboardSPAShell({
                     variants={containerVariants}
                     initial="hidden"
                     animate="show"
-                    className="grid grid-cols-3 sm:grid-cols-4 gap-3"
+                    className="flex flex-col gap-3"
                   >
                     {filteredMenus.map(item => {
                       const Icon = getIconComponent(item.icon)
@@ -281,14 +281,19 @@ export function DashboardSPAShell({
                         <motion.div variants={itemVariants} key={item.id}>
                           <Link
                             href={item.href}
-                            className={`group flex flex-col items-center gap-2.5 p-3.5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-2xl shadow-sm hover:shadow-md transition-all text-center active:scale-[0.98] h-full ${itemColor.borderHover}`}
+                            className={`group flex items-center gap-4 p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-2xl shadow-sm hover:shadow-md transition-all text-left active:scale-[0.99] ${itemColor.borderHover}`}
                           >
-                            <div className={`h-12 w-12 rounded-xl flex items-center justify-center shadow-sm transition-colors ${itemColor.bg} ${itemColor.text} ${itemColor.hover}`}>
-                              {Icon && <Icon weight="duotone" className="h-6 w-6" />}
+                            <div className="shrink-0 flex items-center justify-center h-10 w-10">
+                              {Icon && <Icon weight="duotone" className={`h-8 w-8 transition-colors ${itemColor.text}`} />}
                             </div>
-                            <span className="text-[10px] font-semibold leading-tight text-slate-700 dark:text-slate-300 truncate w-full px-1">
-                              {title}
-                            </span>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5 truncate">
+                                {title}
+                              </h4>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">
+                                {item.desc || 'Akses halaman fitur ini'}
+                              </p>
+                            </div>
                           </Link>
                         </motion.div>
                       )
@@ -324,7 +329,7 @@ export function DashboardSPAShell({
                     variants={containerVariants}
                     initial="hidden"
                     animate="show"
-                    className="grid grid-cols-3 sm:grid-cols-4 gap-3"
+                    className="flex flex-col gap-3"
                   >
                     {activeGroupData.items.map(item => {
                       const Icon = getIconComponent(item.icon)
@@ -335,14 +340,19 @@ export function DashboardSPAShell({
                         <motion.div variants={itemVariants} key={item.id}>
                           <Link
                             href={item.href}
-                            className={`group flex flex-col items-center gap-2.5 p-3.5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-2xl shadow-sm hover:shadow-md transition-all text-center active:scale-[0.98] h-full ${itemColor.borderHover}`}
+                            className={`group flex items-center gap-4 p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-2xl shadow-sm hover:shadow-md transition-all text-left active:scale-[0.99] ${itemColor.borderHover}`}
                           >
-                            <div className={`h-12 w-12 rounded-xl flex items-center justify-center shadow-sm transition-colors ${itemColor.bg} ${itemColor.text} ${itemColor.hover}`}>
-                              {Icon && <Icon weight="duotone" className="h-6 w-6" />}
+                            <div className="shrink-0 flex items-center justify-center h-10 w-10">
+                              {Icon && <Icon weight="duotone" className={`h-8 w-8 transition-colors ${itemColor.text}`} />}
                             </div>
-                            <span className="text-[10px] font-semibold leading-tight text-slate-700 dark:text-slate-300 truncate w-full px-1">
-                              {title}
-                            </span>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5 truncate">
+                                {title}
+                              </h4>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">
+                                {item.desc || 'Akses halaman fitur ini'}
+                              </p>
+                            </div>
                           </Link>
                         </motion.div>
                       )
@@ -368,9 +378,7 @@ export function DashboardSPAShell({
                           onClick={() => handleGroupClick(group.id)}
                           className={`w-full flex items-center gap-4 p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50 hover:shadow-md transition-all text-left group active:scale-[0.99] ${groupColor.borderHover}`}
                         >
-                          <div className={`h-12 w-12 shrink-0 rounded-xl flex items-center justify-center shadow-sm transition-colors ${groupColor.bg} ${groupColor.text} ${groupColor.hover}`}>
-                            <GroupIcon weight="duotone" className="h-6 w-6" />
-                          </div>
+                          <GroupIcon weight="duotone" className={`shrink-0 h-8 w-8 transition-colors ${groupColor.text}`} />
                           <div>
                             <h4 className="text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5">{meta.title}</h4>
                             <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1">{meta.desc}</p>

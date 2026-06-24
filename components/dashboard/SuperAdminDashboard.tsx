@@ -151,13 +151,13 @@ function SectionHeader({
   desc?: string
 }) {
   return (
-    <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
-      <div className="p-1.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+    <div className="flex items-center gap-3 px-2 mb-4">
+      <div className="p-2 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shadow-sm">
         {icon}
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">{title}</p>
-        {desc && <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{desc}</p>}
+        <h2 className="text-base font-extrabold text-slate-800 dark:text-slate-50 tracking-tight leading-none">{title}</h2>
+        {desc && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 truncate">{desc}</p>}
       </div>
     </div>
   )
@@ -181,16 +181,18 @@ function TodayMetric({
   return (
     <Link
       href={href}
-      className="group rounded-xl border border-surface bg-surface p-4 shadow-sm transition-all hover:border-slate-300 hover:shadow-md"
+      className="group rounded-3xl bg-white dark:bg-slate-800 p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:-translate-y-1"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${color}`}>{icon}</div>
-        <ArrowRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 shrink-0" />
+        <div className={`h-11 w-11 rounded-2xl flex items-center justify-center ${color} shadow-sm`}>{icon}</div>
+        <div className="p-2 bg-slate-50 dark:bg-slate-700/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+          <ArrowRight className="h-4 w-4 text-slate-400 dark:text-slate-300" />
+        </div>
       </div>
       <div className="mt-4">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{title}</p>
-        <p className="mt-1 text-2xl font-bold leading-none tracking-tight text-slate-800 dark:text-slate-100 tabular-nums">{value}</p>
-        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 leading-snug">{desc}</p>
+        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">{title}</p>
+        <p className="text-3xl font-extrabold leading-none tracking-tight text-slate-800 dark:text-slate-50 tabular-nums">{value}</p>
+        <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400 leading-snug">{desc}</p>
       </div>
     </Link>
   )
@@ -206,25 +208,24 @@ function ProgressPanel({
   const tone = progressTone(agenda.percent)
 
   return (
-    <Link href={href} className="group block rounded-xl border border-surface bg-surface p-4 shadow-sm hover:border-slate-300 hover:shadow-md transition-all">
+    <Link href={href} className="group block rounded-3xl bg-white dark:bg-slate-800 p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:-translate-y-1">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Agenda Guru</p>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500">Pengisian jurnal hari ini</p>
+          <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Agenda Guru</p>
+          <p className="text-3xl font-extrabold text-slate-900 dark:text-slate-50 tabular-nums">{agenda.filled}</p>
         </div>
-        <span className={`text-xl font-bold tabular-nums ${tone.split(' ')[1]}`}>{agenda.percent}%</span>
+        <div className={`px-3 py-1.5 rounded-xl font-bold tabular-nums text-sm ${tone.split(' ')[1]} ${tone.split(' ')[0].replace('bg-', 'bg-opacity-20 bg-')}`}>{agenda.percent}%</div>
       </div>
-      <div className="mt-4 flex items-end justify-between gap-3">
-        <div>
-          <p className="text-3xl font-bold text-slate-900 dark:text-slate-50 tabular-nums">{agenda.filled}</p>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">dari {agenda.total} jadwal</p>
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">dari {agenda.total} jadwal</p>
+        <div className="p-2 bg-slate-50 dark:bg-slate-700/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+          <ArrowRight className="h-4 w-4 text-slate-400 dark:text-slate-300" />
         </div>
-        <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-slate-400" />
       </div>
-      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+      <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/50">
         <div className={`h-full rounded-full ${tone.split(' ')[0]}`} style={{ width: `${agenda.percent}%` }} />
       </div>
-      <p className="mt-2 text-[10px] text-slate-400 dark:text-slate-500">
+      <p className="mt-3 text-xs font-medium text-slate-500 dark:text-slate-400">
         {agenda.total === 0
           ? 'Tidak ada jadwal mengajar hari ini'
           : agenda.percent >= 80
@@ -237,26 +238,28 @@ function ProgressPanel({
 
 function ActionCard({ item }: { item: ActionItem }) {
   const toneClass = {
-    rose: 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/20 dark:border-rose-900/40',
-    amber: 'bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-900/20 dark:border-amber-900/40',
-    blue: 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:border-blue-900/40',
-    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/40',
-    slate: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300',
+    rose: 'bg-rose-50 text-rose-600 dark:bg-rose-900/20',
+    amber: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20',
+    blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20',
+    emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20',
+    slate: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
   }[item.tone]
 
   return (
-    <Link href={item.href} className="group flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-surface-2 transition-colors">
-      <div className={`h-8 w-8 shrink-0 rounded-lg border flex items-center justify-center ${toneClass}`}>{item.icon}</div>
+    <Link href={item.href} className="group flex items-center gap-4 rounded-3xl bg-white dark:bg-slate-800 p-4 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5">
+      <div className={`h-12 w-12 shrink-0 rounded-2xl flex items-center justify-center ${toneClass}`}>{item.icon}</div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{item.title}</p>
-        <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{item.desc}</p>
+        <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{item.title}</p>
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate mt-0.5">{item.desc}</p>
       </div>
       {item.badge !== undefined && (
-        <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+        <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
           {item.badge}
         </span>
       )}
-      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 dark:text-slate-600 group-hover:text-slate-400" />
+      <div className="shrink-0 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+        <ArrowRight className="h-4 w-4 text-slate-400 dark:text-slate-300" />
+      </div>
     </Link>
   )
 }
@@ -417,7 +420,7 @@ export async function SuperAdminDashboard({
     .filter(group => group.items.length > 0)
 
   return (
-    <div className="space-y-3 animate-in fade-in duration-500 pb-12">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-16">
       <WelcomeStrip nama={nama} namaDepan={namaDepan} avatarUrl={avatarUrl}
         roleLabel={roleLabel} roleColor={roleColor} taAktif={taAktif} sapaan={sapaan} />
 
@@ -427,22 +430,24 @@ export async function SuperAdminDashboard({
 
       <JadwalMengajarToday userId={userId} taAktif={taAktif} />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)] gap-3">
-        <div className="space-y-3">
-          <div className="rounded-xl border border-surface bg-surface shadow-sm">
+      {/* Masonry-like Grid Layout */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8 items-start">
+        {/* Kolom Kiri: Operasional & Tindakan */}
+        <div className="flex flex-col gap-6 lg:gap-8">
+          <section>
             <SectionHeader
-              icon={<CalendarCheck className="h-3.5 w-3.5" />}
-              title="Hari Ini"
-              desc="Hal yang paling perlu terlihat begitu dashboard dibuka"
+              icon={<CalendarCheck className="h-5 w-5" weight="duotone" />}
+              title="Overview Hari Ini"
+              desc="Pantauan vital operasional sekolah"
             />
-            <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <ProgressPanel agenda={agenda} href="/dashboard/monitoring-agenda" />
               <TodayMetric
                 title="Hadir Estimasi"
                 value={hadirSiswaEst}
                 desc={`${tidakMasuk} izin tidak masuk`}
                 href="/dashboard/izin"
-                icon={<Users className="h-4 w-4" />}
+                icon={<Users className="h-6 w-6" weight="duotone" />}
                 color="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20"
               />
               <TodayMetric
@@ -450,7 +455,7 @@ export async function SuperAdminDashboard({
                 value={`${selesaiDelegasi}/${totalDelegasi}`}
                 desc={belumSelesaiDelegasi > 0 ? `${belumSelesaiDelegasi} masih berjalan` : 'Tidak ada yang tertunda'}
                 href="/dashboard/monitoring-penugasan"
-                icon={<Send className="h-4 w-4" />}
+                icon={<Send className="h-6 w-6" weight="duotone" />}
                 color="bg-purple-50 text-purple-600 dark:bg-purple-900/20"
               />
               <TodayMetric
@@ -458,100 +463,72 @@ export async function SuperAdminDashboard({
                 value={diLuar}
                 desc={`${kehadiranSiswa?.keluar_hari_ini ?? 0} izin keluar hari ini`}
                 href="/dashboard/izin"
-                icon={<AlertCircle className="h-4 w-4" />}
+                icon={<AlertCircle className="h-6 w-6" weight="duotone" />}
                 color={diLuar > 0 ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20' : 'bg-slate-100 text-slate-600 dark:bg-slate-800'}
               />
             </div>
-          </div>
+          </section>
 
-          <div className="rounded-xl border border-surface bg-surface shadow-sm">
-            <SectionHeader
-              icon={<LayoutGrid className="h-3.5 w-3.5" />}
-              title="Akses Cepat Terarah"
-              desc="Dikelompokkan mengikuti hak akses menu yang aktif"
-            />
-            <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-              {shortcutGroups.map(group => {
-                const meta = GROUP_META[group.id]
-                return (
-                  <div key={group.id} className="rounded-lg border border-surface-2 bg-surface">
-                    <div className="px-3 py-2 border-b border-surface-2">
-                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">{meta.title}</p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500">{meta.desc}</p>
-                    </div>
-                    <div className="p-1.5 grid grid-cols-1 sm:grid-cols-2 gap-0.5">
-                      {group.items.map(item => {
-                        const meta = SHORTCUT_TONES[item.id] || DEFAULT_SHORTCUT
-                        const Icon = item.icon as any
-                        return (
-                          <QuickLink
-                            key={item.id}
-                            href={item.href}
-                            icon={<Icon className="h-4 w-4" />}
-                            iconBg={meta.bg}
-                            iconColor={meta.color}
-                            title={item.title}
-                            desc={meta.desc}
-                          />
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+          {actionItems.length > 0 && (
+            <section>
+              <SectionHeader
+                icon={<AlertCircle className="h-5 w-5" weight="duotone" />}
+                title="Butuh Tindakan"
+                desc="Antrian tugas dan sinyal perhatian"
+              />
+              <div className="flex flex-col gap-3">
+                {actionItems.map((item, index) => <ActionCard key={`${item.title}-${index}`} item={item} />)}
+              </div>
+            </section>
+          )}
         </div>
 
-        <div className="space-y-3">
-          <div className="rounded-xl border border-surface bg-surface shadow-sm">
+        {/* Kolom Kanan: Data Master, Snapshot & Kontrol */}
+        <div className="flex flex-col gap-6 lg:gap-8">
+          <section>
             <SectionHeader
-              icon={<AlertCircle className="h-3.5 w-3.5" />}
-              title="Butuh Tindakan"
-              desc="Antrian kerja dan sinyal yang jangan kelewat"
+              icon={<Library className="h-5 w-5" weight="duotone" />}
+              title="Data Master"
+              desc="Statistik utama madrasah"
             />
-            <div className="p-2">
-              {actionItems.map((item, index) => <ActionCard key={`${item.title}-${index}`} item={item} />)}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2 gap-4">
+              <StatCard
+                title="Siswa Aktif"
+                value={totalSiswa}
+                sub={`${counts?.kelas ?? 0} rombel`}
+                icon={<Users className="h-6 w-6" weight="duotone" />}
+                iconBg="bg-blue-50 dark:bg-blue-900/20"
+                iconColor="text-blue-600 dark:text-blue-400"
+                href="/dashboard/siswa"
+              />
+              <StatCard
+                title="Guru & Pegawai"
+                value={counts?.guru ?? 0}
+                sub="terdaftar"
+                icon={<UserCog className="h-6 w-6" weight="duotone" />}
+                iconBg="bg-emerald-50 dark:bg-emerald-900/20"
+                iconColor="text-emerald-600 dark:text-emerald-400"
+                href="/dashboard/guru"
+              />
+              <StatCard
+                title="Rombel"
+                value={counts?.kelas ?? 0}
+                sub="kelas aktif"
+                icon={<Library className="h-6 w-6" weight="duotone" />}
+                iconBg="bg-amber-50 dark:bg-amber-900/20"
+                iconColor="text-amber-600 dark:text-amber-400"
+                href="/dashboard/kelas"
+              />
             </div>
-          </div>
+          </section>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-1 gap-3">
-            <StatCard
-              title="Siswa Aktif"
-              value={totalSiswa}
-              sub={`${counts?.kelas ?? 0} rombel`}
-              icon={<Users className="h-4 w-4" />}
-              iconBg="bg-blue-50 dark:bg-blue-900/20"
-              iconColor="text-blue-600 dark:text-blue-400"
-              href="/dashboard/siswa"
-            />
-            <StatCard
-              title="Guru & Pegawai"
-              value={counts?.guru ?? 0}
-              sub="terdaftar"
-              icon={<UserCog className="h-4 w-4" />}
-              iconBg="bg-emerald-50 dark:bg-emerald-900/20"
-              iconColor="text-emerald-600 dark:text-emerald-400"
-              href="/dashboard/guru"
-            />
-            <StatCard
-              title="Rombel"
-              value={counts?.kelas ?? 0}
-              sub="kelas aktif"
-              icon={<Library className="h-4 w-4" />}
-              iconBg="bg-amber-50 dark:bg-amber-900/20"
-              iconColor="text-amber-600 dark:text-amber-400"
-              href="/dashboard/kelas"
-            />
-          </div>
-
-          <div className="rounded-xl border border-surface bg-surface shadow-sm">
+          <section>
             <SectionHeader
-              icon={<BarChart3 className="h-3.5 w-3.5" />}
-              title="Snapshot Data"
-              desc="Ringkasan lintas area"
+              icon={<BarChart3 className="h-5 w-5" weight="duotone" />}
+              title="Snapshot"
+              desc="Ringkasan data lintas area"
             />
-            <div className="p-3 space-y-2">
+            <div className="rounded-3xl bg-white dark:bg-slate-800 p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] space-y-3">
               <SnapshotRow label="Agenda terisi hari ini" value={`${agenda.percent}%`} href="/dashboard/monitoring-agenda" />
               <SnapshotRow label="Izin tidak masuk" value={tidakMasuk} href="/dashboard/izin" />
               <SnapshotRow label="Siswa di luar komplek" value={diLuar} href="/dashboard/izin" />
@@ -559,18 +536,18 @@ export async function SuperAdminDashboard({
               <SnapshotRow label="Pelanggaran 7 hari" value={pelanggaran?.tujuh_hari ?? 0} href="/dashboard/monitoring-kedisiplinan" />
               <SnapshotRow label="Tamu hari ini" value={bukuTamu?.hari_ini ?? 0} href="/dashboard/buku-tamu" />
             </div>
-          </div>
+          </section>
 
-          <div className="rounded-xl border border-surface bg-surface shadow-sm">
+          <section>
             <SectionHeader
-              icon={<Settings className="h-3.5 w-3.5" />}
+              icon={<Settings className="h-5 w-5" weight="duotone" />}
               title="Kontrol Sistem"
-              desc={isSuperAdmin ? 'Akses konfigurasi super admin' : 'Akses konfigurasi aplikasi'}
+              desc={isSuperAdmin ? 'Konfigurasi mendalam admin' : 'Konfigurasi aplikasi'}
             />
-            <div className="p-2 grid grid-cols-1 gap-0.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <QuickLink
                 href="/dashboard/settings"
-                icon={<Settings className="h-4 w-4" />}
+                icon={<Settings className="h-5 w-5" weight="duotone" />}
                 iconBg="bg-slate-100 dark:bg-slate-800"
                 iconColor="text-slate-600 dark:text-slate-400"
                 title="Pengaturan Aplikasi"
@@ -580,7 +557,7 @@ export async function SuperAdminDashboard({
                 <>
                   <QuickLink
                     href="/dashboard/settings/fitur"
-                    icon={<SlidersHorizontal className="h-4 w-4" />}
+                    icon={<SlidersHorizontal className="h-5 w-5" weight="duotone" />}
                     iconBg="bg-rose-50 dark:bg-rose-900/30"
                     iconColor="text-rose-600 dark:text-rose-400"
                     title="Manajemen Fitur"
@@ -588,7 +565,7 @@ export async function SuperAdminDashboard({
                   />
                   <QuickLink
                     href="/dashboard/settings/notifications"
-                    icon={<Radio className="h-4 w-4" />}
+                    icon={<Radio className="h-5 w-5" weight="duotone" />}
                     iconBg="bg-cyan-50 dark:bg-cyan-900/30"
                     iconColor="text-cyan-600 dark:text-cyan-400"
                     title="Broadcast"
@@ -596,16 +573,16 @@ export async function SuperAdminDashboard({
                   />
                   <QuickLink
                     href="/dashboard/pengumuman-ortu"
-                    icon={<Megaphone className="h-4 w-4" />}
+                    icon={<Megaphone className="h-5 w-5" weight="duotone" />}
                     iconBg="bg-amber-50 dark:bg-amber-900/30"
                     iconColor="text-amber-600 dark:text-amber-400"
                     title="Pengumuman Ortu"
-                    desc="Informasi untuk portal orang tua"
+                    desc="Informasi portal"
                   />
                 </>
               )}
             </div>
-          </div>
+          </section>
         </div>
       </div>
     </div>
@@ -622,9 +599,9 @@ function SnapshotRow({
   href: string
 }) {
   return (
-    <Link href={href} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 hover:bg-surface-2 transition-colors">
-      <span className="text-xs text-slate-500 dark:text-slate-400">{label}</span>
-      <span className="text-xs font-bold text-slate-800 dark:text-slate-100 tabular-nums">{value}</span>
+    <Link href={href} className="flex items-center justify-between gap-4 rounded-2xl px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+      <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{label}</span>
+      <span className="text-sm font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">{value}</span>
     </Link>
   )
 }
