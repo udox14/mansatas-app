@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition, type Dispatch, type SetStateAction } 
 import {
   DEFAULT_SIDEBAR_GROUPS,
   MENU_ITEMS,
+  getSidebarFeatureIds,
   normalizeSidebarRoleOverride,
   parseSidebarRoleOverride,
   resolveSidebarGroups,
@@ -970,6 +971,7 @@ function RoleSidebarOverridePanel({
   const [isSaving, setIsSaving] = useState(false)
   const override = parseSidebarRoleOverride(selectedRole.sidebar_config)
   const effectiveGroups = resolveSidebarGroups(sidebarTemplate, selectedRole.sidebar_config, allowedFeatures)
+  const sidebarFeatureIds = getSidebarFeatureIds(allowedFeatures)
   const visibleIds = new Set(effectiveGroups.flatMap(group => group.items))
   const hiddenIds = new Set(override.hiddenItemIds || [])
 
@@ -1094,9 +1096,9 @@ function RoleSidebarOverridePanel({
         <div className="rounded-xl border border-surface-2 p-3">
           <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">Menu tersembunyi role ini</p>
           <div className="space-y-2">
-            {allowedFeatures.filter(id => hiddenIds.has(id)).length === 0 ? (
+            {sidebarFeatureIds.filter(id => hiddenIds.has(id)).length === 0 ? (
               <p className="text-xs italic text-slate-400">Tidak ada menu yang disembunyikan.</p>
-            ) : allowedFeatures.filter(id => hiddenIds.has(id)).map(id => {
+            ) : sidebarFeatureIds.filter(id => hiddenIds.has(id)).map(id => {
               const item = MENU_ITEMS.find(menu => menu.id === id)
               return (
                 <button key={id} onClick={() => toggleHiddenItem(id)} className="flex w-full items-center justify-between rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 text-left text-xs text-rose-700">
@@ -1109,9 +1111,9 @@ function RoleSidebarOverridePanel({
           <div className="mt-4 border-t border-surface-2 pt-3">
             <p className="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">Allowed tapi tidak tampil</p>
             <div className="space-y-2">
-              {allowedFeatures.filter(id => !visibleIds.has(id) && !hiddenIds.has(id)).length === 0 ? (
+              {sidebarFeatureIds.filter(id => !visibleIds.has(id) && !hiddenIds.has(id)).length === 0 ? (
                 <p className="text-xs italic text-slate-400">Tidak ada.</p>
-              ) : allowedFeatures.filter(id => !visibleIds.has(id) && !hiddenIds.has(id)).map(id => {
+              ) : sidebarFeatureIds.filter(id => !visibleIds.has(id) && !hiddenIds.has(id)).map(id => {
                 const item = MENU_ITEMS.find(menu => menu.id === id)
                 return (
                   <button key={id} onClick={() => toggleHiddenItem(id)} className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-2.5 py-2 text-left text-xs">

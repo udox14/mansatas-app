@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import type { SlotJam, PolaJam } from './types'
 import { setSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { ensureRiwayatKelasSnapshotColumns, formatKelasSnapshot } from '@/lib/riwayat-kelas'
+import { uploadToR2 } from '@/utils/r2'
 
 // ============================================================
 // TAMBAH TAHUN AJARAN
@@ -318,4 +319,32 @@ export async function setHeroSettings(bgUrl: string, runningText: string, textCo
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard')
   return { success: true }
+}
+
+export async function uploadHeroImageAction(formData: FormData) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<{ role: string }>()
+  if (userRow?.role !== 'super_admin') {
+    return { error: 'Hanya Super Admin yang bisa mengubah pengaturan ini.' }
+  }
+
+  const file = formData.get('file') as File
+  if (!file || !(file instanceof Blob)) return { error: 'Tidak ada file yang diunggah.' }
+
+  const ext = file.name.split('.').pop() || 'jpg'
+  const fileName = `hero_image_${Date.now()}.${ext}`
+  const uploadResult = await uploadToR2(file, 'system', fileName)
+
+  if (uploadResult.error) return { error: `Gagal upload gambar: ${uploadResult.error}` }
+
+  const urlToSave = uploadResult.url || ''
+  await setSystemSetting(SYSTEM_SETTING_KEYS.heroBackgroundImageUrl, urlToSave)
+  
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard')
+  
+  return { success: true, url: urlToSave }
 }

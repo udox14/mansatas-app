@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { DEFAULT_SIDEBAR_GROUPS, MENU_ITEMS, type SidebarGroupConfig } from '@/config/menu'
+import { DEFAULT_SIDEBAR_GROUPS, MENU_ITEMS, getSidebarFeatureIds, type SidebarGroupConfig } from '@/config/menu'
 import { SignOut as LogOut, X, CaretLeft as ChevronLeft, CaretRight as ChevronRight, CaretDown as ChevronDown, Moon, Sun, MagnifyingGlass as Search } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { getIconComponent } from '@/lib/icons'
@@ -80,19 +80,9 @@ export function Sidebar({
   const activeHref = getActiveMenu(pathname, MENU_ITEMS)
 
   // Filter menu berdasarkan allowedFeatures dari DB
-  const allowedSet = new Set(allowedFeatures)
-  const allowedMenus = MENU_ITEMS.filter(item =>
-    allowedSet.has(item.id) ||
-    (item.id === 'keuangan-transaksi' && allowedSet.has('keuangan-laporan')) ||
-    (item.id === 'keuangan-export' && (allowedSet.has('keuangan-dspt') || allowedSet.has('keuangan-spp')))
-  )
-  const configuredMenuIds = new Set(sidebarGroups.flatMap(group => group.items))
-  const unconfiguredAllowedIds = allowedMenus
-    .map(item => item.id)
-    .filter(id => !configuredMenuIds.has(id))
-  const effectiveSidebarGroups = unconfiguredAllowedIds.length > 0
-    ? [...sidebarGroups, { id: 'lainnya', label: 'Lainnya', items: unconfiguredAllowedIds }]
-    : sidebarGroups
+  const allowedSet = new Set(getSidebarFeatureIds(allowedFeatures))
+  const allowedMenus = MENU_ITEMS.filter(item => allowedSet.has(item.id))
+  const effectiveSidebarGroups = sidebarGroups
   const effectiveGroupIds = effectiveSidebarGroups.map(group => group.id)
   const activeGroupId = effectiveSidebarGroups.find(group =>
     group.items.some(id => allowedMenus.find(item => item.id === id)?.href === activeHref)

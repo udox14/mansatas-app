@@ -610,7 +610,6 @@ export function parseSidebarRoleOverride(raw?: string | null): SidebarRoleOverri
       return normalizeSidebarRoleOverride({
         groupOrder: legacyGroups.map(group => group.id),
         groupLabels: Object.fromEntries(legacyGroups.map(group => [group.id, group.label])),
-        itemPlacements: Object.fromEntries(legacyGroups.map(group => [group.id, group.items])),
       })
     }
     if (parsed && typeof parsed === 'object') return normalizeSidebarRoleOverride(parsed as SidebarRoleOverrideConfig)
@@ -622,13 +621,26 @@ export function serializeSidebarRoleOverride(override: SidebarRoleOverrideConfig
   return JSON.stringify(normalizeSidebarRoleOverride(override))
 }
 
+export function getSidebarFeatureIds(allowedFeatures: string[] = []): string[] {
+  const allowedSet = new Set(allowedFeatures)
+  const ids = MENU_ITEMS
+    .filter(item =>
+      allowedSet.has(item.id) ||
+      (item.id === 'keuangan-transaksi' && allowedSet.has('keuangan-laporan')) ||
+      (item.id === 'keuangan-export' && (allowedSet.has('keuangan-dspt') || allowedSet.has('keuangan-spp')))
+    )
+    .map(item => item.id)
+  return Array.from(new Set(ids))
+}
+
 export function resolveSidebarGroups(
   template: SidebarGroupConfig[] = DEFAULT_SIDEBAR_GROUPS,
   rawOverride?: string | null,
   allowedFeatures?: string[]
 ): SidebarGroupConfig[] {
   const override = parseSidebarRoleOverride(rawOverride)
-  const allowedSet = allowedFeatures ? new Set(allowedFeatures) : null
+  const sidebarFeatureIds = allowedFeatures ? getSidebarFeatureIds(allowedFeatures) : []
+  const allowedSet = allowedFeatures ? new Set(sidebarFeatureIds) : null
   const hiddenGroups = new Set(override.hiddenGroupIds || [])
   const hiddenItems = new Set(override.hiddenItemIds || [])
   const templateMap = new Map(template.map(group => [group.id, group]))
@@ -665,7 +677,7 @@ export function resolveSidebarGroups(
     .filter(group => group.items.length > 0 || override.groupLabels?.[group.id])
 
   const knownTemplateIds = new Set(groups.flatMap(group => group.items))
-  const unconfiguredAllowedIds = (allowedFeatures || [])
+  const unconfiguredAllowedIds = sidebarFeatureIds
     .filter(id => MENU_ITEMS.some(item => item.id === id))
     .filter(id => !knownTemplateIds.has(id) && !hiddenItems.has(id))
 
