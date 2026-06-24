@@ -4,7 +4,6 @@ import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
 import { getAllowedMenuItems } from '@/lib/features'
 import { DEFAULT_SIDEBAR_GROUPS } from '@/config/menu'
-import { WelcomeStrip } from './shared/WelcomeStrip'
 import { StatCard } from './shared/StatCard'
 import { QuickLink } from './shared/QuickLink'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
@@ -421,8 +420,7 @@ export async function SuperAdminDashboard({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-16">
-      <WelcomeStrip nama={nama} namaDepan={namaDepan} avatarUrl={avatarUrl}
-        roleLabel={roleLabel} roleColor={roleColor} taAktif={taAktif} sapaan={sapaan} />
+      
 
       <KehadiranPribadiCard userId={userId} />
 

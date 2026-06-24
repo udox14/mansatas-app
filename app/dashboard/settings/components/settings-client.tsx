@@ -22,7 +22,7 @@ import {
   tambahTahunAjaran, setAktifTahunAjaran, hapusTahunAjaran,
   simpanDaftarJurusan, simpanJamPelajaran,
   setAgendaTimeRestrictionEnabled, setAgendaLateSetting, setAttendanceTimeRestrictionEnabled,
-  setAttendanceSkipIncompleteForDailyStatusEnabled
+  setAttendanceSkipIncompleteForDailyStatusEnabled, setHeroSettings
 } from '../actions'
 import { DEFAULT_POLA_JAM } from '../types'
 import type { PolaJam, SlotJam } from '../types'
@@ -360,6 +360,200 @@ function PolaJamEditor({ value, onChange }: { value: PolaJam[]; onChange: (v: Po
       <div className="flex gap-2 pt-1">
         <Button type="button" variant="outline" size="sm" onClick={addPola}
           className="h-7 text-xs gap-1.5 rounded-md border-dashed">
+  const colorClass = pola.hari.length > 0 ? HARI_COLORS[pola.hari[0]] : 'bg-surface-3 text-slate-500 dark:text-slate-400 border-surface'
+
+  return (
+    <div className="rounded-xl border border-surface overflow-hidden">
+      {/* Header pola */}
+      <div
+        className={cn('flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none', expanded ? 'border-b border-surface-2 bg-surface-2' : 'hover:bg-surface-2/60')}
+        onClick={() => setExpanded(e => !e)}
+      >
+        {/* Nomor */}
+        <div className={cn('h-6 w-6 rounded-md flex items-center justify-center text-[11px] font-bold border shrink-0', colorClass)}>
+          {index + 1}
+        </div>
+
+        {/* Nama pola */}
+        <Input
+          value={pola.nama}
+          onChange={e => { e.stopPropagation(); onUpdate({ ...pola, nama: e.target.value }) }}
+          onClick={e => e.stopPropagation()}
+          className="h-7 text-xs font-semibold bg-transparent border-transparent hover:border-surface focus:bg-surface focus:border-slate-200 dark:focus:border-slate-800 rounded-md flex-1 min-w-0 px-2"
+          placeholder="Nama pola..."
+        />
+
+        {/* Hari pills ringkas */}
+        <div className="hidden sm:flex items-center gap-1 shrink-0">
+          {pola.hari.length === 0
+            ? <span className="text-[10px] text-amber-500 italic">belum assign hari</span>
+            : pola.hari.map(h => (
+              <span key={h} className={cn('px-1.5 py-0.5 rounded text-[10px] font-bold border', HARI_COLORS[h])}>
+                {HARI_LABELS[h]}
+              </span>
+            ))
+          }
+        </div>
+
+        <span className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">{pola.slots.length} jam</span>
+
+        {canRemove && (
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onRemove() }}
+            className="p-1 rounded text-slate-300 dark:text-slate-600 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {expanded ? <ChevronUp className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />}
+      </div>
+
+      {/* Body pola */}
+      {expanded && (
+        <div className="p-3 space-y-3 bg-surface">
+          {/* Assign hari */}
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Berlaku untuk hari:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {[1, 2, 3, 4, 5, 6].map(h => (
+                <HariPill
+                  key={h}
+                  hari={h}
+                  active={pola.hari.includes(h)}
+                  onClick={() => toggleHari(h)}
+                  disabled={hariTerpakai.has(h)}
+                />
+              ))}
+            </div>
+            {hariTerpakai.size > 0 && (
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 italic">
+                Hari yang abu-abu sudah dipakai pola lain
+              </p>
+            )}
+          </div>
+
+          {/* Slot jam */}
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Jam Pelajaran:</p>
+
+            {pola.slots.length === 0 ? (
+              <p className="text-xs text-slate-400 dark:text-slate-500 italic py-1">Belum ada jam. Klik Tambah Jam.</p>
+            ) : (
+              <div className="space-y-1">
+                {/* Header kolom */}
+                <div className="grid grid-cols-[28px_1fr_84px_84px_28px] gap-1.5 px-0.5">
+                  <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 text-center">#</span>
+                  <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Label</span>
+                  <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 text-center">Mulai</span>
+                  <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 text-center">Selesai</span>
+                  <span />
+                </div>
+                {pola.slots.map(s => (
+                  <div key={s.id} className="grid grid-cols-[28px_1fr_84px_84px_28px] gap-1.5 items-center">
+                    <div className="h-7 flex items-center justify-center rounded bg-surface-3 text-[11px] font-bold text-slate-500 dark:text-slate-400 border border-surface">
+                      {s.id}
+                    </div>
+                    <Input
+                      value={s.nama}
+                      onChange={e => updateSlot(s.id, 'nama', e.target.value)}
+                      className="h-7 text-xs rounded bg-surface-2 border-surface px-2"
+                      placeholder="Jam 1"
+                    />
+                    <Input
+                      type="time"
+                      value={s.mulai}
+                      onChange={e => updateSlot(s.id, 'mulai', e.target.value)}
+                      className="h-7 text-xs rounded bg-surface-2 border-surface px-1.5 text-center"
+                    />
+                    <Input
+                      type="time"
+                      value={s.selesai}
+                      onChange={e => updateSlot(s.id, 'selesai', e.target.value)}
+                      className="h-7 text-xs rounded bg-surface-2 border-surface px-1.5 text-center"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeSlot(s.id)}
+                      className="h-7 w-7 flex items-center justify-center rounded text-slate-300 dark:text-slate-600 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <Button type="button" variant="outline" size="sm" onClick={addSlot}
+              className="h-7 text-xs gap-1.5 rounded-md border-dashed mt-1">
+              <Plus className="h-3 w-3" /> Tambah Jam
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Editor keseluruhan pola jam ─────────────────────────────────────────
+function PolaJamEditor({ value, onChange }: { value: PolaJam[]; onChange: (v: PolaJam[]) => void }) {
+  const addPola = () => {
+    const nextIdx = value.length + 1
+    onChange([...value, {
+      id: `pola${Date.now()}`,
+      nama: `Pola ${nextIdx}`,
+      hari: [],
+      slots: [],
+    }])
+  }
+
+  const updatePola = (idx: number, updated: PolaJam) => {
+    onChange(value.map((p, i) => i === idx ? updated : p))
+  }
+
+  const removePola = (idx: number) => {
+    onChange(value.filter((_, i) => i !== idx))
+  }
+
+  // Summary: hari yang belum tercakup
+  const allHari = [1, 2, 3, 4, 5, 6]
+  const coveredHari = new Set(value.flatMap(p => Array.isArray(p.hari) ? p.hari : []))
+  const uncoveredHari = allHari.filter(h => !coveredHari.has(h))
+
+  return (
+    <div className="space-y-2">
+      {value.length === 0 ? (
+        <div className="text-center py-4 text-xs text-slate-400 dark:text-slate-500 italic">
+          Belum ada pola jam. Klik Tambah Pola atau Pakai Template.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {value.map((pola, idx) => (
+            <PolaEditor
+              key={pola.id}
+              pola={pola}
+              allPola={value}
+              index={idx}
+              onUpdate={updated => updatePola(idx, updated)}
+              onRemove={() => removePola(idx)}
+              canRemove={value.length > 1}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Warning hari belum tercakup */}
+      {value.length > 0 && uncoveredHari.length > 0 && (
+        <div className="flex items-center gap-1.5 text-[11px] text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg">
+          <span className="font-semibold">⚠</span>
+          Hari belum tercakup: {uncoveredHari.map(h => HARI_LABELS[h]).join(', ')}
+        </div>
+      )}
+
+      <div className="flex gap-2 pt-1">
+        <Button type="button" variant="outline" size="sm" onClick={addPola}
+          className="h-7 text-xs gap-1.5 rounded-md border-dashed">
           <Plus className="h-3 w-3" /> Tambah Pola
         </Button>
         {value.length === 0 && (
@@ -383,6 +577,9 @@ export function SettingsClient({
   agendaLateThresholdByJam,
   attendanceTimeRestrictionEnabled,
   attendanceSkipIncompleteForDailyStatusEnabled,
+  heroBackgroundImageUrl,
+  heroRunningText,
+  heroTextColor,
 }: {
   taData: TAProps[]
   agendaTimeRestrictionEnabled: boolean
@@ -391,6 +588,9 @@ export function SettingsClient({
   agendaLateThresholdByJam: string
   attendanceTimeRestrictionEnabled: boolean
   attendanceSkipIncompleteForDailyStatusEnabled: boolean
+  heroBackgroundImageUrl: string
+  heroRunningText: string
+  heroTextColor: string
 }) {
   const router = useRouter()
   const [agendaTimeRestricted, setAgendaTimeRestricted] = useState(agendaTimeRestrictionEnabled)
@@ -401,6 +601,13 @@ export function SettingsClient({
   )
   const [attendanceTimeRestricted, setAttendanceTimeRestricted] = useState(attendanceTimeRestrictionEnabled)
   const [attendanceSkipIncomplete, setAttendanceSkipIncomplete] = useState(attendanceSkipIncompleteForDailyStatusEnabled)
+  
+  // Hero Section Settings
+  const [heroBgUrl, setHeroBgUrl] = useState(heroBackgroundImageUrl)
+  const [heroText, setHeroText] = useState(heroRunningText)
+  const [heroColor, setHeroColor] = useState(heroTextColor)
+  const [isSavingHero, setIsSavingHero] = useState(false)
+
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const [state, formAction] = useActionState(tambahTahunAjaran, initialState)
@@ -575,6 +782,14 @@ export function SettingsClient({
     setAgendaLateByJam(prev => ({ ...prev, [String(jamKe)]: value }))
   }
 
+  const handleSaveHeroSettings = async () => {
+    setIsSavingHero(true)
+    const res = await setHeroSettings(heroBgUrl, heroText, heroColor)
+    setIsSavingHero(false)
+    if (res?.error) alert(res.error)
+    else alert('Pengaturan Tampilan Hero berhasil disimpan.')
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-900 dark:bg-emerald-950/30">
@@ -599,8 +814,11 @@ export function SettingsClient({
         </div>
       </div>
 
-      <Tabs defaultValue="perilaku" className="space-y-4">
-        <TabsList className="grid h-auto w-full grid-cols-2 sm:max-w-md">
+      <Tabs defaultValue="tampilan" className="space-y-4">
+        <TabsList className="grid h-auto w-full grid-cols-3 sm:max-w-2xl">
+          <TabsTrigger value="tampilan" className="gap-1.5 py-2 text-xs sm:text-sm">
+            <Tags className="h-3.5 w-3.5" /> Tampilan Dashboard
+          </TabsTrigger>
           <TabsTrigger value="perilaku" className="gap-1.5 py-2 text-xs sm:text-sm">
             <Clock className="h-3.5 w-3.5" /> Perilaku Guru
           </TabsTrigger>
@@ -608,6 +826,57 @@ export function SettingsClient({
             <CalendarDays className="h-3.5 w-3.5" /> Tahun Ajaran
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="tampilan" className="mt-0">
+          <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-surface-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Pengaturan Hero Section</p>
+                <p className="text-xs text-slate-400 mt-0.5">Atur gambar latar belakang, teks warna, dan teks berjalan di dashboard.</p>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">URL Gambar Latar Belakang (Hero Image)</p>
+                <Input 
+                  value={heroBgUrl} 
+                  onChange={e => setHeroBgUrl(e.target.value)} 
+                  placeholder="https://example.com/image.jpg" 
+                  className="bg-surface-2 border-surface text-sm h-10" 
+                />
+                <p className="text-[11px] text-slate-500">Kosongkan untuk menggunakan warna gradasi bawaan.</p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Teks Berjalan (Running Text)</p>
+                <Input 
+                  value={heroText} 
+                  onChange={e => setHeroText(e.target.value)} 
+                  placeholder="Pengumuman penting..." 
+                  className="bg-surface-2 border-surface text-sm h-10" 
+                />
+                <p className="text-[11px] text-slate-500">Teks ini akan berjalan (marquee) persis di bawah frame Hero Section.</p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Warna Teks Hero</p>
+                <Select value={heroColor} onValueChange={setHeroColor}>
+                  <SelectTrigger className="w-[180px] bg-surface-2 border-surface h-10">
+                    <SelectValue placeholder="Pilih warna teks" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="white">Putih Terang</SelectItem>
+                    <SelectItem value="black">Hitam Gelap</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-slate-500">Sesuaikan dengan dominasi warna gambar latar belakang.</p>
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-surface-2 bg-surface-2/30">
+              <Button onClick={handleSaveHeroSettings} disabled={isSavingHero} className="bg-emerald-600 hover:bg-emerald-700 text-white h-9">
+                {isSavingHero ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Pengaturan Tampilan'}
+              </Button>
+            </div>
+          </div>
+        </TabsContent>
 
         <TabsContent value="perilaku" className="mt-0">
           <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">

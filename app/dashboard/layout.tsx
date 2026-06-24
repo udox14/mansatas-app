@@ -9,7 +9,9 @@ import { BottomNav } from '@/components/layout/bottom-nav'
 import { getUserAllowedFeatures, getUserRoles, getPrimaryRole } from '@/lib/features'
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
-import { DEFAULT_SIDEBAR_GROUPS, type SidebarGroupConfig } from '@/config/menu'
+import { DEFAULT_SIDEBAR_GROUPS, parseSidebarGroups, resolveSidebarGroups, type SidebarGroupConfig } from '@/config/menu'
+
+const SIDEBAR_TEMPLATE_KEY = 'default'
 
 export const metadata = {
   title: 'Dashboard - MANSATAS App',
@@ -58,6 +60,13 @@ export default async function DashboardLayout({
         )
       `).run(),
       db.prepare(`
+        CREATE TABLE IF NOT EXISTS sidebar_template_config (
+          id TEXT PRIMARY KEY DEFAULT '${SIDEBAR_TEMPLATE_KEY}',
+          groups_json TEXT NOT NULL DEFAULT '[]',
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `).run(),
+      db.prepare(`
         CREATE TABLE IF NOT EXISTS feature_display_settings (
           feature_id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
@@ -65,20 +74,23 @@ export default async function DashboardLayout({
         )
       `).run(),
     ])
+    await db.prepare(`
+      INSERT OR IGNORE INTO sidebar_template_config (id, groups_json, updated_at)
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+    `).bind(SIDEBAR_TEMPLATE_KEY, JSON.stringify(DEFAULT_SIDEBAR_GROUPS)).run()
     const roleConfig = await db.prepare(`
-      SELECT mr.mobile_nav_links, rsc.groups_json
+      SELECT mr.mobile_nav_links, rsc.groups_json AS role_sidebar_override, stc.groups_json AS sidebar_template
       FROM master_roles mr
       LEFT JOIN role_sidebar_configs rsc ON rsc.role = mr.value
+      LEFT JOIN sidebar_template_config stc ON stc.id = ?
       WHERE mr.value = ?
-    `).bind(primaryRole).first<any>()
+    `).bind(SIDEBAR_TEMPLATE_KEY, primaryRole).first<any>()
     const featureLabelRows = await db.prepare('SELECT feature_id, title FROM feature_display_settings').all<{ feature_id: string; title: string }>()
     if (roleConfig?.mobile_nav_links) {
       navLinks = JSON.parse(roleConfig.mobile_nav_links)
     }
-    if (roleConfig?.groups_json) {
-      const parsed = JSON.parse(roleConfig.groups_json)
-      if (Array.isArray(parsed) && parsed.length > 0) sidebarGroups = parsed
-    }
+    const templateGroups = parseSidebarGroups(roleConfig?.sidebar_template, DEFAULT_SIDEBAR_GROUPS)
+    sidebarGroups = resolveSidebarGroups(templateGroups, roleConfig?.role_sidebar_override, allowedFeatures)
     for (const row of featureLabelRows.results ?? []) featureLabels[row.feature_id] = row.title
   } catch(e) {}
   

@@ -197,7 +197,7 @@ export function DashboardSPAShell({
               />
             )}
             <House weight={activeTab === 'dashboard' ? 'duotone' : 'bold'} className="h-5 w-5" />
-            Ringkasan
+            Home
           </button>
           <button
             onClick={() => handleSetTab('menu')}
@@ -215,7 +215,7 @@ export function DashboardSPAShell({
               />
             )}
             <SquaresFour weight={activeTab === 'menu' ? 'duotone' : 'bold'} className="h-5 w-5" />
-            Semua Fitur
+            Menu
           </button>
         </div>
       </div>
@@ -226,20 +226,38 @@ export function DashboardSPAShell({
           {activeTab === 'dashboard' ? (
             <motion.div
               key="dashboard"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.22, ease: 'easeInOut' }}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.05}
+              dragDirectionLock
+              onDragEnd={(e, { offset, velocity }) => {
+                if (offset.x < -50 || velocity.x < -500) {
+                  handleSetTab('menu')
+                }
+              }}
             >
               {children}
             </motion.div>
           ) : (
             <motion.div
               key="menu"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.22, ease: 'easeInOut' }}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.05}
+              dragDirectionLock
+              onDragEnd={(e, { offset, velocity }) => {
+                if (offset.x > 50 || velocity.x > 500) {
+                  handleSetTab('dashboard')
+                }
+              }}
               className="max-w-2xl mx-auto space-y-6 px-2"
             >
               {/* Search Bar */}

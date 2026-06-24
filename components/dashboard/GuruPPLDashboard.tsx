@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
-import { WelcomeStrip } from './shared/WelcomeStrip'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import { Calendar, PlayCircle, Info, ClipboardText as ClipboardList, PaperPlaneTilt as Send, ArrowRight } from '@phosphor-icons/react/dist/ssr'
 
@@ -34,8 +33,7 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
 
   return (
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
-      <WelcomeStrip nama={nama} namaDepan={namaDepan} avatarUrl={avatarUrl}
-        roleLabel={roleLabel} roleColor={roleColor} taAktif={taAktif} sapaan={sapaan} />
+      
 
       {/* Penugasan Masuk (jika dia guru piket) */}
       {isGuruPiket && <PenugasanMasukCard userId={userId} />}

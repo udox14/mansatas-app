@@ -1,5 +1,4 @@
 // components/dashboard/GuruDashboard.tsx
-import { WelcomeStrip } from './shared/WelcomeStrip'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
@@ -14,8 +13,7 @@ type Props = {
 export async function GuruDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
   return (
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
-      <WelcomeStrip nama={nama} namaDepan={namaDepan} avatarUrl={avatarUrl}
-        roleLabel={roleLabel} roleColor={roleColor} taAktif={taAktif} sapaan={sapaan} />
+      
 
       <KehadiranPribadiCard userId={userId} />
 

@@ -2,7 +2,6 @@
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
-import { WelcomeStrip } from './shared/WelcomeStrip'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
@@ -72,8 +71,7 @@ export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, role
 
   return (
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
-      <WelcomeStrip nama={nama} namaDepan={namaDepan} avatarUrl={avatarUrl}
-        roleLabel={roleLabel} roleColor={roleColor} taAktif={taAktif} sapaan={sapaan} />
+      
 
       <KehadiranPribadiCard userId={userId} />
 
