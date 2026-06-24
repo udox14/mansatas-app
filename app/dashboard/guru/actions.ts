@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache'
 import { uploadFotoSiswa, validateImageFile } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
+import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
 async function getAuth() {
   const { env } = await getCloudflareContext({ async: true })
@@ -89,6 +90,16 @@ export async function tambahPegawai(prevState: any, formData: FormData) {
     // Insert ke user_roles
     await db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)')
       .bind(res.user.id, role).run()
+    await logActivity({
+      db,
+      module: 'pegawai',
+      action: 'create',
+      summary: `Menambahkan akun pegawai ${nama_lengkap}`,
+      entityType: 'user',
+      entityId: res.user.id,
+      entityLabel: nama_lengkap,
+      after: { id: res.user.id, nama_lengkap, email, role, nip, jabatan_cetak, nomor_whatsapp, jabatan_struktural_id },
+    })
   } catch (e: any) {
     const msg = e?.message || ''
     return { error: msg.includes('already') || msg.includes('exists') ? 'Email sudah terdaftar!' : msg, success: null }
@@ -105,6 +116,8 @@ export async function editPegawai(id: string, nama_lengkap: string, email: strin
   if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
   await ensureJabatanStrukturalSchema(db)
+  const before = await db.prepare('SELECT id, name, email, role, nama_lengkap, nip, jabatan_cetak, jabatan_struktural_id, nomor_whatsapp FROM "user" WHERE id = ?').bind(id).first<any>()
+  if (!before) return { error: 'Pegawai tidak ditemukan.' }
   const strukturalId = jabatan_struktural_id?.trim() && jabatan_struktural_id !== '_none' ? jabatan_struktural_id : null
   const result = await dbUpdate(
     db, '"user"',
@@ -121,6 +134,28 @@ export async function editPegawai(id: string, nama_lengkap: string, email: strin
     { id }
   )
   if (result.error) return { error: result.error }
+  const after = {
+    ...before,
+    nama_lengkap,
+    name: nama_lengkap,
+    email,
+    nip: nip?.trim() || null,
+    jabatan_cetak: jabatan_cetak?.trim() || null,
+    nomor_whatsapp: nomor_whatsapp?.trim() || null,
+    jabatan_struktural_id: strukturalId,
+  }
+  await logActivity({
+    db,
+    module: 'pegawai',
+    action: 'update',
+    summary: `Mengubah data pegawai ${before.nama_lengkap || before.name}`,
+    entityType: 'user',
+    entityId: id,
+    entityLabel: before.nama_lengkap || before.name || id,
+    before,
+    after,
+    diff: createActivityDiff(before, after),
+  })
   revalidatePath('/dashboard/guru')
   return { success: 'Data pegawai berhasil diperbarui.' }
 }
@@ -135,6 +170,18 @@ export async function resetPasswordPegawai(id: string) {
     const passwordHash = await hashPassword('mansatas2026')
     await db.prepare(`UPDATE account SET password = ?, updatedAt = datetime('now') WHERE userId = ? AND providerId = 'credential'`)
       .bind(passwordHash, id).run()
+    const target = await db.prepare('SELECT id, nama_lengkap, name, email FROM "user" WHERE id = ?').bind(id).first<any>()
+    await logActivity({
+      db,
+      module: 'pegawai',
+      action: 'reset_password',
+      severity: 'warning',
+      summary: `Mereset password pegawai ${target?.nama_lengkap || target?.name || id}`,
+      entityType: 'user',
+      entityId: id,
+      entityLabel: target?.nama_lengkap || target?.name || id,
+      metadata: { password_reset: true },
+    })
   } catch (e: any) {
     return { error: 'Gagal mereset password: ' + (e?.message || '') }
   }
@@ -150,6 +197,8 @@ export async function setUserRoles(userId: string, roles: string[], primaryRole:
   if (!roles.includes(primaryRole)) return { error: 'Role utama harus termasuk dalam daftar role.' }
 
   const db = await getDB()
+  const beforeUser = await db.prepare('SELECT id, role, nama_lengkap, name, email FROM "user" WHERE id = ?').bind(userId).first<any>()
+  const beforeRoles = await db.prepare('SELECT role FROM user_roles WHERE user_id = ? ORDER BY role ASC').bind(userId).all<{ role: string }>()
 
   const stmts: D1PreparedStatement[] = [
     // Update primary role
@@ -168,6 +217,23 @@ export async function setUserRoles(userId: string, roles: string[], primaryRole:
     return { error: 'Gagal menyimpan role: ' + (e?.message || '') }
   }
 
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'set_user_roles',
+    severity: 'warning',
+    summary: `Mengubah role pegawai ${beforeUser?.nama_lengkap || beforeUser?.name || userId}`,
+    entityType: 'user',
+    entityId: userId,
+    entityLabel: beforeUser?.nama_lengkap || beforeUser?.name || userId,
+    before: { primaryRole: beforeUser?.role, roles: beforeRoles.results?.map(r => r.role) ?? [] },
+    after: { primaryRole, roles },
+    diff: createActivityDiff(
+      { primaryRole: beforeUser?.role, roles: beforeRoles.results?.map(r => r.role) ?? [] },
+      { primaryRole, roles }
+    ),
+  })
+
   revalidatePath('/dashboard/guru')
   revalidatePath('/dashboard')
   return { success: 'Role berhasil diperbarui.' }
@@ -179,6 +245,7 @@ export async function setUserRoles(userId: string, roles: string[], primaryRole:
 export async function ubahRolePegawai(id: string, newRole: string) {
   if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
+  const beforeUser = await db.prepare('SELECT id, role, nama_lengkap, name, email FROM "user" WHERE id = ?').bind(id).first<any>()
 
   const stmts: D1PreparedStatement[] = [
     db.prepare('UPDATE "user" SET role = ?, updatedAt = datetime(\'now\') WHERE id = ?').bind(newRole, id),
@@ -192,6 +259,20 @@ export async function ubahRolePegawai(id: string, newRole: string) {
     return { error: e.message }
   }
 
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'change_role',
+    severity: 'warning',
+    summary: `Mengubah jabatan/role pegawai ${beforeUser?.nama_lengkap || beforeUser?.name || id}`,
+    entityType: 'user',
+    entityId: id,
+    entityLabel: beforeUser?.nama_lengkap || beforeUser?.name || id,
+    before: { role: beforeUser?.role },
+    after: { role: newRole },
+    diff: createActivityDiff({ role: beforeUser?.role }, { role: newRole }),
+  })
+
   revalidatePath('/dashboard/guru')
   return { success: 'Jabatan/Role berhasil diperbarui.' }
 }
@@ -202,6 +283,7 @@ export async function ubahRolePegawai(id: string, newRole: string) {
 export async function hapusPegawai(id: string) {
   if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
+  const before = await db.prepare('SELECT id, name, email, role, nama_lengkap, nip, jabatan_cetak, nomor_whatsapp FROM "user" WHERE id = ?').bind(id).first<any>()
   try {
     await db.prepare('DELETE FROM user_feature_overrides WHERE user_id = ?').bind(id).run()
     await db.prepare('DELETE FROM user_roles WHERE user_id = ?').bind(id).run()
@@ -211,6 +293,17 @@ export async function hapusPegawai(id: string) {
   } catch (e: any) {
     return { error: 'Gagal menghapus akun: ' + (e?.message || '') }
   }
+  await logActivity({
+    db,
+    module: 'pegawai',
+    action: 'delete',
+    severity: 'danger',
+    summary: `Menghapus permanen akun pegawai ${before?.nama_lengkap || before?.name || id}`,
+    entityType: 'user',
+    entityId: id,
+    entityLabel: before?.nama_lengkap || before?.name || id,
+    before,
+  })
   revalidatePath('/dashboard/guru')
   return { success: 'Akun pegawai berhasil dihapus permanen.' }
 }
@@ -311,6 +404,18 @@ export async function importPegawaiMassal(dataExcel: any[]) {
   }
 
   revalidatePath('/dashboard/guru')
+  await logActivity({
+    db,
+    module: 'pegawai',
+    action: 'bulk_import',
+    summary: `Import massal ${successCount} akun pegawai`,
+    metadata: { successCount, errorCount: errorLogs.length, errors: errorLogs.slice(0, 10) },
+    targets: toInsert.map(row => ({
+      type: 'user',
+      label: row.nama_lengkap,
+      metadata: { email: row.email, role: row.role },
+    })),
+  })
   return {
     success: `Berhasil mengimport ${successCount} akun pegawai. Password default: mansatas2026`,
     error: null,
@@ -336,12 +441,26 @@ export async function uploadFotoPegawaiAction(userId: string, formData: FormData
   const versionedUrl = `${url}?v=${Date.now()}`
 
   const db = await getDB()
+  const before = await db.prepare('SELECT id, nama_lengkap, name, avatar_url FROM "user" WHERE id = ?').bind(userId).first<any>()
   const result = await dbUpdate(
     db, '"user"',
     { avatar_url: versionedUrl, updatedAt: new Date().toISOString() },
     { id: userId }
   )
   if (result.error) return { error: result.error }
+
+  await logActivity({
+    db,
+    module: 'pegawai',
+    action: 'upload_photo',
+    summary: `Mengganti foto pegawai ${before?.nama_lengkap || before?.name || userId}`,
+    entityType: 'user',
+    entityId: userId,
+    entityLabel: before?.nama_lengkap || before?.name || userId,
+    before: { avatar_url: before?.avatar_url ?? null },
+    after: { avatar_url: versionedUrl },
+    diff: createActivityDiff({ avatar_url: before?.avatar_url ?? null }, { avatar_url: versionedUrl }),
+  })
 
   revalidatePath('/dashboard/guru')
   return { success: 'Foto berhasil diperbarui!', url: versionedUrl }

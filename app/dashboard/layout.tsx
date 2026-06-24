@@ -35,7 +35,7 @@ export default async function DashboardLayout({
   // Query semua data user sekaligus (parallel)
   const [freshUser, userRoles, allowedFeatures] = await Promise.all([
     db.prepare(
-      'SELECT nama_lengkap, role, avatar_url FROM "user" WHERE id = ?'
+      'SELECT nama_lengkap, role, avatar_url, bottom_nav_override FROM "user" WHERE id = ?'
     ).bind(user.id).first<any>(),
     getUserRoles(db, user.id),
     getUserAllowedFeatures(db, user.id),
@@ -86,7 +86,11 @@ export default async function DashboardLayout({
       WHERE mr.value = ?
     `).bind(SIDEBAR_TEMPLATE_KEY, primaryRole).first<any>()
     const featureLabelRows = await db.prepare('SELECT feature_id, title FROM feature_display_settings').all<{ feature_id: string; title: string }>()
-    if (roleConfig?.mobile_nav_links) {
+    if (freshUser?.bottom_nav_override) {
+      try {
+        navLinks = JSON.parse(freshUser.bottom_nav_override)
+      } catch (e) {}
+    } else if (roleConfig?.mobile_nav_links) {
       navLinks = JSON.parse(roleConfig.mobile_nav_links)
     }
     const templateGroups = parseSidebarGroups(roleConfig?.sidebar_template, DEFAULT_SIDEBAR_GROUPS)
@@ -106,6 +110,7 @@ export default async function DashboardLayout({
         allowedFeatures={allowedFeatures}
         sidebarGroups={sidebarGroups}
         featureLabels={featureLabels}
+        navEnabled={navEnabled}
       />
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
         <Header

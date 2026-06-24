@@ -487,6 +487,14 @@ export const MENU_ITEMS: MenuItem[] = [
     desc: 'Mengubah profil identitas sekolah, logo, penentuan tahun ajaran aktif, dan variabel aplikasi'
   },
   {
+    id: 'log-aktivitas',
+    title: 'Log Aktivitas',
+    href: '/dashboard/log-aktivitas',
+    icon: Activity,
+    roles: ['super_admin'],
+    desc: 'Memonitor tindakan kritis pengguna pada data master, akses, dan pengaturan sistem'
+  },
+  {
     id: 'settings-fitur',
     title: 'Manajemen Fitur',
     href: '/dashboard/settings/fitur',
@@ -553,7 +561,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'sp', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'documentation', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
   { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
-  { id: 'sistem', label: 'Sistem', items: ['settings', 'whatsapp', 'settings-notifications', 'settings-jadwal-notif', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
+  { id: 'sistem', label: 'Sistem', items: ['settings', 'log-aktivitas', 'whatsapp', 'settings-notifications', 'settings-jadwal-notif', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
 ]
 
 export const SIDEBAR_ROOT_ITEM_IDS = ['dashboard'] as const

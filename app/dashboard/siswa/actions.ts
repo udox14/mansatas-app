@@ -6,6 +6,7 @@ import { uploadFotoSiswa, validateImageFile, deleteFromR2 } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
+import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
 const FK_FIELDS = ['kelas_id', 'wali_murid_id']
 
@@ -39,7 +40,7 @@ export async function tambahSiswa(prevState: any, formData: FormData) {
     return { error: 'NISN dan Nama wajib diisi', success: null }
   }
 
-  const result = await dbInsert(db, 'siswa', payload)
+  const result = await dbInsert<any>(db, 'siswa', payload)
   if (result.error) {
     if (result.error.includes('UNIQUE')) {
       // Bisa jadi bentrok dengan siswa yang ada di sampah (soft delete)
@@ -54,6 +55,17 @@ export async function tambahSiswa(prevState: any, formData: FormData) {
     }
     return { error: result.error, success: null }
   }
+
+  await logActivity({
+    db,
+    module: 'siswa',
+    action: 'create',
+    summary: `Menambahkan siswa ${payload.nama_lengkap}`,
+    entityType: 'siswa',
+    entityId: result.data?.id,
+    entityLabel: payload.nama_lengkap,
+    after: result.data ?? payload,
+  })
 
   revalidatePath('/dashboard/siswa')
   return { error: null, success: 'Siswa berhasil ditambahkan' }
@@ -72,9 +84,9 @@ export async function hapusSiswa(id: string) {
   // Foto R2 ikut dibuang. Catatan: "siswa keluar" beda mekanisme (status='keluar',
   // tetap tersimpan & bisa dikembalikan).
   const siswa = await db
-    .prepare('SELECT foto_url FROM siswa WHERE id = ?')
+    .prepare('SELECT id, nisn, nis_lokal, nama_lengkap, status, kelas_id, foto_url FROM siswa WHERE id = ?')
     .bind(id)
-    .first<{ foto_url: string | null }>()
+    .first<any>()
   if (!siswa) return { error: 'Siswa tidak ditemukan.' }
 
   try {
@@ -98,6 +110,18 @@ export async function hapusSiswa(id: string) {
     try { await deleteFromR2(siswa.foto_url) } catch {}
   }
 
+  await logActivity({
+    db,
+    module: 'siswa',
+    action: 'delete',
+    severity: 'danger',
+    summary: `Menghapus permanen siswa ${siswa.nama_lengkap}`,
+    entityType: 'siswa',
+    entityId: id,
+    entityLabel: siswa.nama_lengkap,
+    before: siswa,
+  })
+
   revalidatePath('/dashboard/siswa')
   return { success: 'Data siswa berhasil dihapus permanen.' }
 }
@@ -108,6 +132,8 @@ export async function hapusSiswa(id: string) {
 export async function editSiswa(id: string, payload: any) {
   if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.', success: null }
   const db = await getDB()
+  const before = await dbSelectOne<any>(db, 'siswa', { id })
+  if (!before) return { error: 'Data siswa tidak ditemukan', success: null }
 
   // Bersihkan FK kosong agar tidak simpan string kosong
   for (const field of FK_FIELDS) {
@@ -130,6 +156,20 @@ export async function editSiswa(id: string, payload: any) {
     }
   }
 
+  const after = { ...before, ...payload, updated_at: new Date().toISOString() }
+  await logActivity({
+    db,
+    module: 'siswa',
+    action: 'update',
+    summary: `Mengubah data siswa ${before.nama_lengkap}`,
+    entityType: 'siswa',
+    entityId: id,
+    entityLabel: before.nama_lengkap,
+    before,
+    after,
+    diff: createActivityDiff(before, after),
+  })
+
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${id}`)
   return { error: null, success: 'Data siswa berhasil diperbarui.' }
@@ -141,6 +181,8 @@ export async function editSiswa(id: string, payload: any) {
 export async function editDetailSiswa(id: string, payload: any) {
   if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.', success: null }
   const db = await getDB()
+  const before = await dbSelectOne<any>(db, 'siswa', { id })
+  if (!before) return { error: 'Data siswa tidak ditemukan', success: null }
 
   for (const field of FK_FIELDS) {
     if (payload[field] === '' || payload[field] === 'none') {
@@ -157,6 +199,20 @@ export async function editDetailSiswa(id: string, payload: any) {
 
   if (result.error) return { error: result.error, success: null }
 
+  const after = { ...before, ...payload, updated_at: new Date().toISOString() }
+  await logActivity({
+    db,
+    module: 'siswa',
+    action: 'update_detail',
+    summary: `Mengubah biodata lengkap siswa ${before.nama_lengkap}`,
+    entityType: 'siswa',
+    entityId: id,
+    entityLabel: before.nama_lengkap,
+    before,
+    after,
+    diff: createActivityDiff(before, after),
+  })
+
   revalidatePath(`/dashboard/siswa/${id}`)
   revalidatePath('/dashboard/siswa')
   return { error: null, success: 'Data lengkap siswa berhasil diperbarui.' }
@@ -168,6 +224,8 @@ export async function editDetailSiswa(id: string, payload: any) {
 export async function ubahStatusSiswa(id: string, status: string) {
   if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
+  const before = await dbSelectOne<any>(db, 'siswa', { id })
+  if (!before) return { error: 'Data siswa tidak ditemukan.' }
   const result = await dbUpdate(
     db,
     'siswa',
@@ -175,6 +233,20 @@ export async function ubahStatusSiswa(id: string, status: string) {
     { id }
   )
   if (result.error) return { error: result.error }
+  const after = { ...before, status, updated_at: new Date().toISOString() }
+  await logActivity({
+    db,
+    module: 'siswa',
+    action: 'change_status',
+    severity: status === 'aktif' ? 'info' : 'warning',
+    summary: `Mengubah status siswa ${before.nama_lengkap} menjadi ${status}`,
+    entityType: 'siswa',
+    entityId: id,
+    entityLabel: before.nama_lengkap,
+    before,
+    after,
+    diff: createActivityDiff(before, after),
+  })
   revalidatePath('/dashboard/siswa')
   return { success: `Status siswa berhasil diubah menjadi ${status}.` }
 }
@@ -188,6 +260,8 @@ export async function tandaiSiswaKeluar(payload: {
 }) {
   if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
+  const before = await dbSelectOne<any>(db, 'siswa', { id: payload.siswa_id })
+  if (!before) return { error: 'Data siswa tidak ditemukan.' }
   const result = await dbUpdate(db, 'siswa', {
     status: 'keluar',
     kelas_id: null,
@@ -197,6 +271,28 @@ export async function tandaiSiswaKeluar(payload: {
     updated_at: new Date().toISOString(),
   }, { id: payload.siswa_id })
   if (result.error) return { error: result.error }
+  const after = {
+    ...before,
+    status: 'keluar',
+    kelas_id: null,
+    tanggal_keluar: payload.tanggal_keluar,
+    alasan_keluar: payload.alasan_keluar,
+    keterangan_keluar: payload.keterangan_keluar || null,
+    updated_at: new Date().toISOString(),
+  }
+  await logActivity({
+    db,
+    module: 'siswa',
+    action: 'mark_exit',
+    severity: 'warning',
+    summary: `Menandai siswa ${before.nama_lengkap} keluar`,
+    entityType: 'siswa',
+    entityId: payload.siswa_id,
+    entityLabel: before.nama_lengkap,
+    before,
+    after,
+    diff: createActivityDiff(before, after),
+  })
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${payload.siswa_id}`)
   return { success: 'Siswa berhasil ditandai keluar.' }
@@ -206,6 +302,8 @@ export async function tandaiSiswaKeluar(payload: {
 export async function batalkanKeluarSiswa(siswa_id: string) {
   if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
+  const before = await dbSelectOne<any>(db, 'siswa', { id: siswa_id })
+  if (!before) return { error: 'Data siswa tidak ditemukan.' }
   const result = await dbUpdate(db, 'siswa', {
     status: 'aktif',
     tanggal_keluar: null,
@@ -214,6 +312,26 @@ export async function batalkanKeluarSiswa(siswa_id: string) {
     updated_at: new Date().toISOString(),
   }, { id: siswa_id })
   if (result.error) return { error: result.error }
+  const after = {
+    ...before,
+    status: 'aktif',
+    tanggal_keluar: null,
+    alasan_keluar: null,
+    keterangan_keluar: null,
+    updated_at: new Date().toISOString(),
+  }
+  await logActivity({
+    db,
+    module: 'siswa',
+    action: 'cancel_exit',
+    summary: `Membatalkan status keluar siswa ${before.nama_lengkap}`,
+    entityType: 'siswa',
+    entityId: siswa_id,
+    entityLabel: before.nama_lengkap,
+    before,
+    after,
+    diff: createActivityDiff(before, after),
+  })
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${siswa_id}`)
   return { success: 'Status keluar siswa berhasil dibatalkan.' }
@@ -315,6 +433,7 @@ export async function uploadFotoSiswaAction(siswaId: string, formData: FormData)
   const versionedUrl = `${url}?v=${Date.now()}`
 
   const db = await getDB()
+  const before = await dbSelectOne<any>(db, 'siswa', { id: siswaId })
   const result = await dbUpdate(
     db,
     'siswa',
@@ -322,6 +441,19 @@ export async function uploadFotoSiswaAction(siswaId: string, formData: FormData)
     { id: siswaId }
   )
   if (result.error) return { error: result.error }
+
+  await logActivity({
+    db,
+    module: 'siswa',
+    action: 'upload_photo',
+    summary: `Mengganti foto siswa ${before?.nama_lengkap || siswaId}`,
+    entityType: 'siswa',
+    entityId: siswaId,
+    entityLabel: before?.nama_lengkap || siswaId,
+    before: before ? { foto_url: before.foto_url } : undefined,
+    after: { foto_url: versionedUrl },
+    diff: before ? createActivityDiff({ foto_url: before.foto_url }, { foto_url: versionedUrl }) : undefined,
+  })
 
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${siswaId}`)
@@ -575,6 +707,33 @@ export async function importSiswaMassal(dataSiswa: any[]) {
     }
   }
 
+  await logActivity({
+    db,
+    module: 'siswa',
+    action: 'bulk_import',
+    summary: `Import massal siswa: ${insertCount} ditambahkan, ${updateCount} diperbarui`,
+    metadata: {
+      insertCount,
+      updateCount,
+      errorCount: errors.length,
+      errors: errors.slice(0, 10),
+    },
+    targets: [
+      ...toInsert.map(row => ({
+        type: 'siswa',
+        id: row.siswaData.id,
+        label: row.siswaData.nama_lengkap,
+        metadata: { mode: 'insert', nisn: row.siswaData.nisn },
+      })),
+      ...toUpdate.map(row => ({
+        type: 'siswa',
+        id: row.id,
+        label: row.siswaData.nama_lengkap,
+        metadata: { mode: 'update', nisn: row.siswaData.nisn },
+      })),
+    ],
+  })
+
   revalidatePath('/dashboard/siswa')
   return {
     error: errors.length > 0 ? errors.slice(0, 5).join('; ') : null,
@@ -640,6 +799,20 @@ export async function editSiswaLengkap(prevState: any, formData: FormData) {
     }
   }
 
+  const after = { ...existing, ...payload }
+  await logActivity({
+    db,
+    module: 'siswa',
+    action: 'update_detail',
+    summary: `Mengubah biodata lengkap siswa ${existing.nama_lengkap}`,
+    entityType: 'siswa',
+    entityId: id,
+    entityLabel: existing.nama_lengkap,
+    before: existing,
+    after,
+    diff: createActivityDiff(existing, after),
+  })
+
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${id}`)
   return { error: null, success: 'Biodata lengkap berhasil diperbarui!' }
@@ -651,6 +824,11 @@ export async function bulkSetTahunMasuk(kelasId: string, tahunMasuk: number) {
   if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.', success: null }
   if (!tahunMasuk || tahunMasuk < 2000 || tahunMasuk > 2099) return { error: 'Tahun masuk tidak valid', success: null }
   const db = await getDB()
+  const targets = await db.prepare(
+    kelasId === 'semua'
+      ? 'SELECT id, nama_lengkap, tahun_masuk FROM siswa'
+      : 'SELECT id, nama_lengkap, tahun_masuk FROM siswa WHERE kelas_id = ?'
+  ).bind(...(kelasId === 'semua' ? [] : [kelasId])).all<any>()
   let result
   if (kelasId === 'semua') {
     result = await db.prepare(
@@ -661,6 +839,19 @@ export async function bulkSetTahunMasuk(kelasId: string, tahunMasuk: number) {
       "UPDATE siswa SET tahun_masuk = ?, updated_at = datetime('now') WHERE kelas_id = ?"
     ).bind(tahunMasuk, kelasId).run()
   }
+  await logActivity({
+    db,
+    module: 'siswa',
+    action: 'bulk_set_tahun_masuk',
+    summary: `Mengubah tahun masuk ${result.meta.changes} siswa menjadi ${tahunMasuk}`,
+    metadata: { kelasId, tahunMasuk, affected: result.meta.changes },
+    targets: (targets.results ?? []).map(row => ({
+      type: 'siswa',
+      id: row.id,
+      label: row.nama_lengkap,
+      metadata: { before: row.tahun_masuk, after: tahunMasuk },
+    })),
+  })
   revalidatePath('/dashboard/siswa')
   return { error: null, success: `${result.meta.changes} data siswa berhasil diperbarui angkatannya` }
 }

@@ -4,6 +4,7 @@
 import { getDB, dbInsert, dbUpdate, dbDelete, dbSelect, dbBatchInsert } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
+import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
 // ============================================================
 // HELPER: Sinkronisasi role 'wali_kelas' di tabel user_roles
@@ -60,11 +61,22 @@ export async function tambahKelas(prevState: any, formData: FormData) {
     kapasitas: parseInt(formData.get('kapasitas') as string) || 36,
   }
 
-  const result = await dbInsert(db, 'kelas', payload)
+  const result = await dbInsert<any>(db, 'kelas', payload)
   if (result.error) return { error: result.error, success: null }
 
   // Sync role wali_kelas otomatis
   await syncWaliKelasRole(db, wali_kelas_id, null)
+
+  await logActivity({
+    db,
+    module: 'kelas',
+    action: 'create',
+    summary: `Menambahkan kelas ${formatNamaKelas(payload.tingkat, payload.nomor_kelas, payload.kelompok)}`,
+    entityType: 'kelas',
+    entityId: result.data?.id,
+    entityLabel: formatNamaKelas(payload.tingkat, payload.nomor_kelas, payload.kelompok),
+    after: result.data ?? payload,
+  })
 
   revalidatePath('/dashboard/kelas')
   return { error: null, success: 'Kelas berhasil ditambahkan!' }
@@ -72,16 +84,43 @@ export async function tambahKelas(prevState: any, formData: FormData) {
 
 export async function editKelas(id: string, payload: any) {
   const db = await getDB()
+  const before = await db.prepare('SELECT * FROM kelas WHERE id = ?').bind(id).first<any>()
+  if (!before) return { error: 'Kelas tidak ditemukan.', success: null }
   const result = await dbUpdate(db, 'kelas', payload, { id })
   if (result.error) return { error: result.error, success: null }
+  const after = { ...before, ...payload }
+  await logActivity({
+    db,
+    module: 'kelas',
+    action: 'update',
+    summary: `Mengubah kelas ${formatNamaKelas(before.tingkat, before.nomor_kelas, before.kelompok)}`,
+    entityType: 'kelas',
+    entityId: id,
+    entityLabel: formatNamaKelas(after.tingkat, after.nomor_kelas, after.kelompok),
+    before,
+    after,
+    diff: createActivityDiff(before, after),
+  })
   revalidatePath('/dashboard/kelas')
   return { error: null, success: 'Kelas berhasil diperbarui!' }
 }
 
 export async function hapusKelas(id: string) {
   const db = await getDB()
+  const before = await db.prepare('SELECT * FROM kelas WHERE id = ?').bind(id).first<any>()
   const result = await dbDelete(db, 'kelas', { id })
   if (result.error) return { error: result.error, success: null }
+  await logActivity({
+    db,
+    module: 'kelas',
+    action: 'delete',
+    severity: 'danger',
+    summary: `Menghapus kelas ${before ? formatNamaKelas(before.tingkat, before.nomor_kelas, before.kelompok) : id}`,
+    entityType: 'kelas',
+    entityId: id,
+    entityLabel: before ? formatNamaKelas(before.tingkat, before.nomor_kelas, before.kelompok) : id,
+    before,
+  })
   revalidatePath('/dashboard/kelas')
   return { error: null, success: 'Kelas berhasil dihapus!' }
 }
@@ -124,6 +163,19 @@ export async function importKelasMassal(dataExcel: any[]) {
     await db.batch(roleStmts)
   }
 
+  await logActivity({
+    db,
+    module: 'kelas',
+    action: 'bulk_import',
+    summary: `Import massal ${toInsert.length} kelas`,
+    metadata: { count: toInsert.length },
+    targets: toInsert.map(row => ({
+      type: 'kelas',
+      label: formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok),
+      metadata: row,
+    })),
+  })
+
   revalidatePath('/dashboard/kelas')
   return { error: null, success: `Berhasil mengimport ${toInsert.length} kelas.` }
 }
@@ -136,7 +188,7 @@ export async function editKelasForm(prevState: any, formData: FormData) {
   const id = formData.get('id') as string
 
   // Ambil wali kelas lama sebelum diupdate
-  const existing = await db.prepare('SELECT wali_kelas_id FROM kelas WHERE id = ?').bind(id).first<{ wali_kelas_id: string | null }>()
+  const existing = await db.prepare('SELECT * FROM kelas WHERE id = ?').bind(id).first<any>()
   const guruIdLama = existing?.wali_kelas_id ?? null
 
   const wali_raw = formData.get('wali_kelas_id') as string
@@ -166,6 +218,20 @@ export async function editKelasForm(prevState: any, formData: FormData) {
   // Sync role wali_kelas otomatis
   await syncWaliKelasRole(db, guruIdBaru, guruIdLama)
 
+  const after = { ...existing, ...payload }
+  await logActivity({
+    db,
+    module: 'kelas',
+    action: 'update_form',
+    summary: `Mengubah rombongan belajar ${existing ? formatNamaKelas(existing.tingkat, existing.nomor_kelas, existing.kelompok) : id}`,
+    entityType: 'kelas',
+    entityId: id,
+    entityLabel: formatNamaKelas(after.tingkat, after.nomor_kelas, after.kelompok),
+    before: existing,
+    after,
+    diff: createActivityDiff(existing, after),
+  })
+
   revalidatePath('/dashboard/kelas')
   revalidatePath('/dashboard/agenda-kelas')
   revalidatePath(`/dashboard/kelas/${id}`)
@@ -177,7 +243,7 @@ export async function setWaliKelas(kelasId: string, guruId: string | null) {
   const guruIdBaru = guruId === 'none' ? null : guruId
 
   // Ambil wali kelas lama
-  const existing = await db.prepare('SELECT wali_kelas_id FROM kelas WHERE id = ?').bind(kelasId).first<{ wali_kelas_id: string | null }>()
+  const existing = await db.prepare('SELECT * FROM kelas WHERE id = ?').bind(kelasId).first<any>()
   const guruIdLama = existing?.wali_kelas_id ?? null
 
   const result = await dbUpdate(db, 'kelas', { wali_kelas_id: guruIdBaru }, { id: kelasId })
@@ -185,6 +251,20 @@ export async function setWaliKelas(kelasId: string, guruId: string | null) {
 
   // Sync role wali_kelas otomatis
   await syncWaliKelasRole(db, guruIdBaru, guruIdLama)
+
+  const after = { ...existing, wali_kelas_id: guruIdBaru }
+  await logActivity({
+    db,
+    module: 'kelas',
+    action: 'set_wali_kelas',
+    summary: `Mengubah wali kelas ${existing ? formatNamaKelas(existing.tingkat, existing.nomor_kelas, existing.kelompok) : kelasId}`,
+    entityType: 'kelas',
+    entityId: kelasId,
+    entityLabel: existing ? formatNamaKelas(existing.tingkat, existing.nomor_kelas, existing.kelompok) : kelasId,
+    before: existing,
+    after,
+    diff: createActivityDiff(existing, after),
+  })
 
   revalidatePath('/dashboard/kelas')
   return { error: null, success: 'Wali kelas berhasil ditugaskan!' }
@@ -199,6 +279,7 @@ export async function setStatusKbmKelas(kelasId: string, aktif: boolean, tanggal
   const db = await getDB()
   const tanggal = validateDateInput(tanggalMulai)
   if (!aktif && !tanggal) return { error: 'Tanggal mulai nonaktif wajib diisi.', success: null }
+  const before = await db.prepare('SELECT * FROM kelas WHERE id = ?').bind(kelasId).first<any>()
 
   const result = await dbUpdate(
     db,
@@ -207,6 +288,23 @@ export async function setStatusKbmKelas(kelasId: string, aktif: boolean, tanggal
     { id: kelasId }
   )
   if (result.error) return { error: result.error, success: null }
+
+  const after = { ...before, kbm_nonaktif_mulai: aktif ? null : tanggal }
+  await logActivity({
+    db,
+    module: 'kelas',
+    action: 'set_kbm_status',
+    severity: aktif ? 'info' : 'warning',
+    summary: aktif
+      ? `Mengaktifkan kembali KBM kelas ${before ? formatNamaKelas(before.tingkat, before.nomor_kelas, before.kelompok) : kelasId}`
+      : `Menonaktifkan KBM kelas ${before ? formatNamaKelas(before.tingkat, before.nomor_kelas, before.kelompok) : kelasId} mulai ${tanggal}`,
+    entityType: 'kelas',
+    entityId: kelasId,
+    entityLabel: before ? formatNamaKelas(before.tingkat, before.nomor_kelas, before.kelompok) : kelasId,
+    before,
+    after,
+    diff: createActivityDiff(before, after),
+  })
 
   revalidatePath('/dashboard/kelas')
   revalidatePath('/dashboard/agenda')
@@ -232,6 +330,20 @@ export async function setStatusKbmTingkat(tingkat: number, aktif: boolean, tangg
   ).bind(aktif ? null : tanggal, tingkat).run()
 
   if (!result.success) return { error: 'Gagal memperbarui status KBM tingkat kelas.', success: null }
+
+  await logActivity({
+    db,
+    module: 'kelas',
+    action: 'set_kbm_status_tingkat',
+    severity: aktif ? 'info' : 'warning',
+    summary: aktif
+      ? `Mengaktifkan kembali KBM semua kelas tingkat ${tingkat}`
+      : `Menonaktifkan KBM semua kelas tingkat ${tingkat} mulai ${tanggal}`,
+    entityType: 'tingkat',
+    entityId: String(tingkat),
+    entityLabel: `Kelas ${tingkat}`,
+    metadata: { tingkat, aktif, tanggalMulai: tanggal, affected: result.meta.changes },
+  })
 
   revalidatePath('/dashboard/kelas')
   revalidatePath('/dashboard/agenda')
@@ -268,6 +380,9 @@ export async function batchUpdateKelas(
       rows.results.forEach(r => oldWaliMap.set(r.id, r.wali_kelas_id))
     }
 
+    const beforeRows = await db.prepare(`SELECT * FROM kelas WHERE id IN (${updates.map(() => '?').join(',')})`).bind(...updates.map(u => u.id)).all<any>()
+    const beforeMap = new Map((beforeRows.results ?? []).map(row => [row.id, row]))
+
     const stmts = updates.map(update => {
       const payload: any = {}
       if (update.kelompok !== undefined) payload.kelompok = update.kelompok
@@ -287,6 +402,24 @@ export async function batchUpdateKelas(
       const guruIdLama = oldWaliMap.get(u.id) ?? null
       await syncWaliKelasRole(db, guruIdBaru, guruIdLama)
     }
+
+    await logActivity({
+      db,
+      module: 'kelas',
+      action: 'bulk_update',
+      summary: `Menyimpan perubahan massal pada ${updates.length} kelas`,
+      metadata: { count: updates.length },
+      targets: updates.map(update => {
+        const before = beforeMap.get(update.id)
+        const after = { ...before, ...update }
+        return {
+          type: 'kelas',
+          id: update.id,
+          label: before ? formatNamaKelas(before.tingkat, before.nomor_kelas, after.kelompok ?? before.kelompok) : update.id,
+          metadata: { before, after, diff: createActivityDiff(before, after) },
+        }
+      }),
+    })
 
     revalidatePath('/dashboard/kelas')
     return { error: null, success: `Berhasil menyimpan perubahan pada ${updates.length} kelas!` }
@@ -312,8 +445,22 @@ export async function getSiswaTanpaKelas() {
 
 export async function assignSiswaKeKelas(siswaId: string, kelasId: string) {
   const db = await getDB()
+  const before = await db.prepare('SELECT id, nama_lengkap, kelas_id FROM siswa WHERE id = ?').bind(siswaId).first<any>()
   const result = await dbUpdate(db, 'siswa', { kelas_id: kelasId }, { id: siswaId })
   if (result.error) return { error: result.error }
+  await logActivity({
+    db,
+    module: 'kelas',
+    action: 'assign_siswa',
+    summary: `Memasukkan siswa ${before?.nama_lengkap || siswaId} ke kelas`,
+    entityType: 'siswa',
+    entityId: siswaId,
+    entityLabel: before?.nama_lengkap || siswaId,
+    before,
+    after: { ...before, kelas_id: kelasId },
+    diff: createActivityDiff(before, { ...before, kelas_id: kelasId }),
+    metadata: { kelasId },
+  })
   revalidatePath(`/dashboard/kelas/${kelasId}`)
   revalidatePath('/dashboard/kelas')
   return { success: 'Berhasil memasukkan siswa ke kelas!' }
@@ -362,6 +509,10 @@ export async function prosesMutasi(payload: {
   siswaIdBarter: string | null
 }) {
   const db = await getDB()
+  const siswaLama = await db.prepare('SELECT id, nama_lengkap, kelas_id FROM siswa WHERE id = ?').bind(payload.siswaIdLama).first<any>()
+  const siswaBarter = payload.siswaIdBarter
+    ? await db.prepare('SELECT id, nama_lengkap, kelas_id FROM siswa WHERE id = ?').bind(payload.siswaIdBarter).first<any>()
+    : null
 
   try {
     if (payload.siswaIdBarter) {
@@ -380,6 +531,29 @@ export async function prosesMutasi(payload: {
         .bind(payload.kelasIdTujuan, payload.siswaIdLama)
         .run()
     }
+
+    await logActivity({
+      db,
+      module: 'kelas',
+      action: payload.siswaIdBarter ? 'swap_mutasi_siswa' : 'mutasi_siswa',
+      severity: 'warning',
+      summary: payload.siswaIdBarter
+        ? `Mutasi barter siswa ${siswaLama?.nama_lengkap || payload.siswaIdLama} dengan ${siswaBarter?.nama_lengkap || payload.siswaIdBarter}`
+        : `Mutasi siswa ${siswaLama?.nama_lengkap || payload.siswaIdLama} ke kelas tujuan`,
+      entityType: 'siswa',
+      entityId: payload.siswaIdLama,
+      entityLabel: siswaLama?.nama_lengkap || payload.siswaIdLama,
+      before: { siswaLama, siswaBarter },
+      after: {
+        siswaLama: { ...siswaLama, kelas_id: payload.kelasIdTujuan },
+        siswaBarter: siswaBarter ? { ...siswaBarter, kelas_id: payload.kelasIdLama } : null,
+      },
+      metadata: payload,
+      targets: [
+        { type: 'siswa', id: payload.siswaIdLama, label: siswaLama?.nama_lengkap || payload.siswaIdLama },
+        ...(payload.siswaIdBarter ? [{ type: 'siswa', id: payload.siswaIdBarter, label: siswaBarter?.nama_lengkap || payload.siswaIdBarter }] : []),
+      ],
+    })
 
     revalidatePath(`/dashboard/kelas/${payload.kelasIdLama}`)
     revalidatePath(`/dashboard/kelas/${payload.kelasIdTujuan}`)
