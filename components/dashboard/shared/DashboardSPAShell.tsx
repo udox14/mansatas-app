@@ -290,7 +290,7 @@ export function DashboardSPAShell({
                   handleSetTab('dashboard')
                 }
               }}
-              className="w-full space-y-6 mt-6 pb-20"
+              className="w-full space-y-6 mt-0 sm:mt-2 pb-20"
             >
               {/* Dynamic Content: Search Results | Group Drill-down | Group List */}
               {isSearching ? (

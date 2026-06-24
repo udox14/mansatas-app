@@ -14,6 +14,7 @@ import {
   type SidebarGroupConfig,
   type SidebarRoleOverrideConfig,
 } from '@/config/menu'
+import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
 const SIDEBAR_TEMPLATE_KEY = 'default'
 
@@ -186,6 +187,19 @@ export async function toggleRoleFeature(role: string, featureId: string, enabled
     ])
   }
 
+  await logActivity({
+    db,
+    module: 'akses',
+    action: enabled ? 'enable_role_feature' : 'disable_role_feature',
+    severity: 'warning',
+    summary: `${enabled ? 'Mengaktifkan' : 'Menonaktifkan'} akses fitur ${featureId} untuk role ${role}`,
+    entityType: 'role_feature',
+    entityId: `${role}:${featureId}`,
+    entityLabel: `${role} - ${featureId}`,
+    before: { role, featureId, enabled: !enabled },
+    after: { role, featureId, enabled },
+  })
+
   revalidatePath('/dashboard')
   return { success: true }
 }
@@ -203,6 +217,8 @@ export async function setRoleFeatures(role: string, featureIds: string[]) {
 
   // Delete existing, then insert new
   await ensureRoleFeaturePermissionsTable(db)
+  const beforeRows = await db.prepare('SELECT feature_id FROM role_features WHERE role = ? ORDER BY feature_id ASC').bind(role).all<{ feature_id: string }>()
+  const before = { role, featureIds: beforeRows.results?.map(row => row.feature_id) ?? [] }
   const stmts: D1PreparedStatement[] = [
     db.prepare('DELETE FROM role_features WHERE role = ?').bind(role),
     db.prepare('DELETE FROM role_feature_permissions WHERE role = ?').bind(role),
@@ -219,6 +235,21 @@ export async function setRoleFeatures(role: string, featureIds: string[]) {
   ]
 
   await db.batch(stmts)
+
+  const after = { role, featureIds }
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'set_role_features',
+    severity: 'warning',
+    summary: `Mengubah daftar fitur role ${role}`,
+    entityType: 'role',
+    entityId: role,
+    entityLabel: role,
+    before,
+    after,
+    diff: createActivityDiff(before, after),
+  })
 
   revalidatePath('/dashboard')
   return { success: true }
@@ -238,6 +269,11 @@ export async function setRoleFeaturePermission(
   if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengelola hak CRUD.' }
 
   await ensureRoleFeaturePermissionsTable(db)
+  const before = await db.prepare(`
+    SELECT role, feature_id, can_create, can_read, can_update, can_delete
+    FROM role_feature_permissions
+    WHERE role = ? AND feature_id = ?
+  `).bind(role, featureId).first<any>()
 
   const allowedActions: Array<keyof CrudPermission> = ['create', 'read', 'update', 'delete']
   if (!allowedActions.includes(action)) return { error: 'Aksi tidak valid.' }
@@ -286,6 +322,25 @@ export async function setRoleFeaturePermission(
     `).bind(role, featureId, enabled ? 1 : 0).run()
   }
 
+  const after = await db.prepare(`
+    SELECT role, feature_id, can_create, can_read, can_update, can_delete
+    FROM role_feature_permissions
+    WHERE role = ? AND feature_id = ?
+  `).bind(role, featureId).first<any>()
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'set_role_feature_permission',
+    severity: 'warning',
+    summary: `Mengubah izin ${action} fitur ${featureId} untuk role ${role}`,
+    entityType: 'role_feature_permission',
+    entityId: `${role}:${featureId}`,
+    entityLabel: `${role} - ${featureId}`,
+    before,
+    after,
+    diff: createActivityDiff(before, after),
+  })
+
   revalidatePath('/dashboard/settings/fitur')
   revalidatePath('/dashboard')
   return { success: true }
@@ -317,6 +372,8 @@ export async function setUserRoles(userId: string, roles: string[], primaryRole:
   if (!roles.includes(primaryRole)) return { error: 'Role utama harus termasuk dalam daftar role.' }
 
   const db = await getDB()
+  const beforeUser = await db.prepare('SELECT id, role, nama_lengkap, name, email FROM "user" WHERE id = ?').bind(userId).first<any>()
+  const beforeRoles = await db.prepare('SELECT role FROM user_roles WHERE user_id = ? ORDER BY role ASC').bind(userId).all<{ role: string }>()
 
   const stmts: D1PreparedStatement[] = [
     // Update primary role di tabel user
@@ -330,6 +387,23 @@ export async function setUserRoles(userId: string, roles: string[], primaryRole:
   ]
 
   await db.batch(stmts)
+
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'set_user_roles',
+    severity: 'warning',
+    summary: `Mengubah role user ${beforeUser?.nama_lengkap || beforeUser?.name || userId}`,
+    entityType: 'user',
+    entityId: userId,
+    entityLabel: beforeUser?.nama_lengkap || beforeUser?.name || userId,
+    before: { primaryRole: beforeUser?.role, roles: beforeRoles.results?.map(row => row.role) ?? [] },
+    after: { primaryRole, roles },
+    diff: createActivityDiff(
+      { primaryRole: beforeUser?.role, roles: beforeRoles.results?.map(row => row.role) ?? [] },
+      { primaryRole, roles }
+    ),
+  })
 
   revalidatePath('/dashboard/guru')
   revalidatePath('/dashboard')
@@ -373,6 +447,7 @@ export async function setUserFeatureOverride(
   if (!user) return { error: 'Unauthorized' }
 
   const db = await getDB()
+  const before = await db.prepare('SELECT feature_id, action FROM user_feature_overrides WHERE user_id = ? AND feature_id = ?').bind(userId, featureId).first<any>()
 
   if (action === 'remove') {
     await db.prepare(
@@ -386,6 +461,19 @@ export async function setUserFeatureOverride(
        ON CONFLICT(user_id, feature_id) DO UPDATE SET action = excluded.action`
     ).bind(userId, featureId, action).run()
   }
+
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'set_user_feature_override',
+    severity: 'warning',
+    summary: `Mengubah override fitur ${featureId} untuk user ${userId}`,
+    entityType: 'user_feature_override',
+    entityId: `${userId}:${featureId}`,
+    entityLabel: `${userId} - ${featureId}`,
+    before,
+    after: action === 'remove' ? null : { user_id: userId, feature_id: featureId, action },
+  })
 
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/guru')
@@ -403,6 +491,7 @@ export async function setUserFeatureOverrides(
   if (!user) return { error: 'Unauthorized' }
 
   const db = await getDB()
+  const beforeRows = await db.prepare('SELECT feature_id, action FROM user_feature_overrides WHERE user_id = ? ORDER BY feature_id ASC').bind(userId).all<any>()
 
   const stmts: D1PreparedStatement[] = [
     db.prepare('DELETE FROM user_feature_overrides WHERE user_id = ?').bind(userId),
@@ -414,6 +503,19 @@ export async function setUserFeatureOverrides(
   ]
 
   await db.batch(stmts)
+
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'set_user_feature_overrides',
+    severity: 'warning',
+    summary: `Mengubah semua override fitur untuk user ${userId}`,
+    entityType: 'user',
+    entityId: userId,
+    entityLabel: userId,
+    before: beforeRows.results ?? [],
+    after: overrides,
+  })
 
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/guru')
@@ -462,6 +564,17 @@ export async function createCustomRole(label: string, value: string) {
     return { error: e.message }
   }
 
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'create_custom_role',
+    summary: `Membuat custom role ${label.trim()}`,
+    entityType: 'role',
+    entityId: slug,
+    entityLabel: label.trim(),
+    after: { value: slug, label: label.trim(), is_custom: 1 },
+  })
+
   revalidatePath('/dashboard/settings/fitur')
   return { success: true, slug }
 }
@@ -479,9 +592,24 @@ export async function editCustomRole(value: string, newLabel: string) {
 
   if (!newLabel.trim()) return { error: 'Label tidak boleh kosong.' }
 
+  const before = await db.prepare('SELECT value, label, is_custom FROM master_roles WHERE value = ?').bind(value).first<any>()
+
   await db.prepare(
     'UPDATE master_roles SET label = ? WHERE value = ?'
   ).bind(newLabel.trim(), value).run()
+
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'edit_custom_role',
+    summary: `Mengubah label role ${value}`,
+    entityType: 'role',
+    entityId: value,
+    entityLabel: newLabel.trim(),
+    before,
+    after: { ...before, label: newLabel.trim() },
+    diff: createActivityDiff(before, { ...before, label: newLabel.trim() }),
+  })
 
   revalidatePath('/dashboard/settings/fitur')
   revalidatePath('/dashboard')
@@ -508,6 +636,7 @@ export async function deleteCustomRole(value: string) {
     return { error: `Role ini masih dipakai oleh ${inUse!.cnt} user. Hapus assignment dulu.` }
   }
 
+  const before = await db.prepare('SELECT value, label, is_custom FROM master_roles WHERE value = ?').bind(value).first<any>()
   // Hapus dari role_features dan master_roles
   await db.batch([
     db.prepare('DELETE FROM role_features WHERE role = ?').bind(value),
@@ -515,6 +644,18 @@ export async function deleteCustomRole(value: string) {
     db.prepare('DELETE FROM role_sidebar_configs WHERE role = ?').bind(value),
     db.prepare('DELETE FROM master_roles WHERE value = ?').bind(value),
   ])
+
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'delete_custom_role',
+    severity: 'danger',
+    summary: `Menghapus custom role ${before?.label || value}`,
+    entityType: 'role',
+    entityId: value,
+    entityLabel: before?.label || value,
+    before,
+  })
 
   revalidatePath('/dashboard/settings/fitur')
   revalidatePath('/dashboard')
@@ -532,10 +673,25 @@ export async function setRoleMobileNav(value: string, navLinks: string[]) {
   const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<any>()
   if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengedit role.' }
 
+  const before = await db.prepare('SELECT value, label, mobile_nav_links FROM master_roles WHERE value = ?').bind(value).first<any>()
   const jsonStr = JSON.stringify(navLinks)
   await db.prepare(
     'UPDATE master_roles SET mobile_nav_links = ? WHERE value = ?'
   ).bind(jsonStr, value).run()
+
+  const after = { ...before, mobile_nav_links: jsonStr }
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'set_role_mobile_nav',
+    summary: `Mengubah mobile nav role ${value}`,
+    entityType: 'role',
+    entityId: value,
+    entityLabel: before?.label || value,
+    before,
+    after,
+    diff: createActivityDiff(before, after),
+  })
 
   revalidatePath('/dashboard/settings/fitur')
   revalidatePath('/dashboard')
@@ -552,6 +708,7 @@ export async function setSidebarTemplateConfig(groups: SidebarGroupConfig[]) {
   if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengedit template sidebar.' }
 
   await ensureSidebarTemplateTable(db)
+  const before = await db.prepare('SELECT groups_json FROM sidebar_template_config WHERE id = ?').bind(SIDEBAR_TEMPLATE_KEY).first<any>()
 
   const knownIds = new Set(MENU_ITEMS.map(item => item.id))
   const rootIds = new Set<string>(SIDEBAR_ROOT_ITEM_IDS)
@@ -577,6 +734,19 @@ export async function setSidebarTemplateConfig(groups: SidebarGroupConfig[]) {
       updated_at = CURRENT_TIMESTAMP
   `).bind(SIDEBAR_TEMPLATE_KEY, groupsJson).run()
 
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'set_sidebar_template',
+    summary: 'Mengubah template sidebar default',
+    entityType: 'sidebar_template',
+    entityId: SIDEBAR_TEMPLATE_KEY,
+    entityLabel: 'Default',
+    before,
+    after: { groups_json: groupsJson },
+    diff: createActivityDiff(before, { groups_json: groupsJson }),
+  })
+
   revalidatePath('/dashboard/settings/fitur')
   revalidatePath('/dashboard')
   revalidatePath('/', 'layout')
@@ -595,6 +765,7 @@ export async function setRoleSidebarConfig(value: string, override: SidebarRoleO
   if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengedit override sidebar.' }
 
   await ensureSidebarConfigTable(db)
+  const before = await db.prepare('SELECT role, groups_json FROM role_sidebar_configs WHERE role = ?').bind(value).first<any>()
 
   const groupsJson = serializeSidebarRoleOverride(normalizeSidebarRoleOverride(override))
   await db.prepare(`
@@ -604,6 +775,19 @@ export async function setRoleSidebarConfig(value: string, override: SidebarRoleO
       groups_json = excluded.groups_json,
       updated_at = CURRENT_TIMESTAMP
   `).bind(value, groupsJson).run()
+
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'set_role_sidebar',
+    summary: `Mengubah sidebar role ${value}`,
+    entityType: 'role',
+    entityId: value,
+    entityLabel: value,
+    before,
+    after: { role: value, groups_json: groupsJson },
+    diff: createActivityDiff(before, { role: value, groups_json: groupsJson }),
+  })
 
   revalidatePath('/dashboard/settings/fitur')
   revalidatePath('/dashboard')
@@ -626,6 +810,7 @@ export async function setFeatureDisplayTitle(featureId: string, title: string) {
   if (!feature) return { error: 'Fitur tidak ditemukan.' }
 
   await ensureFeatureDisplayTable(db)
+  const before = await db.prepare('SELECT feature_id, title FROM feature_display_settings WHERE feature_id = ?').bind(featureId).first<any>()
 
   const cleanTitle = title.trim()
   if (!cleanTitle) return { error: 'Nama fitur tidak boleh kosong.' }
@@ -641,6 +826,18 @@ export async function setFeatureDisplayTitle(featureId: string, title: string) {
         updated_at = CURRENT_TIMESTAMP
     `).bind(featureId, cleanTitle).run()
   }
+
+  await logActivity({
+    db,
+    module: 'akses',
+    action: 'set_feature_display_title',
+    summary: `Mengubah nama tampilan fitur ${featureId}`,
+    entityType: 'feature',
+    entityId: featureId,
+    entityLabel: cleanTitle,
+    before,
+    after: cleanTitle === feature.title ? null : { feature_id: featureId, title: cleanTitle },
+  })
 
   revalidatePath('/dashboard/settings/fitur')
   revalidatePath('/dashboard')

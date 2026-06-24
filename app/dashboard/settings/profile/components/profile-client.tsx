@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Camera, Loader2, Save, KeyRound, User, CheckCircle2, AlertCircle, BellRing, PenLine, Phone } from 'lucide-react'
-import { updateProfileInfo, updatePassword, uploadAvatarAction, uploadSignatureAction } from '../actions'
+import { updateProfileInfo, updatePassword, uploadAvatarAction, uploadSignatureAction, saveBottomNavOverride } from '../actions'
 import { PushNotificationManager } from '@/components/shared/PushNotificationManager'
+import { BottomNavConfig } from './bottom-nav-config'
 
 const initialState = { error: null as string | null, success: null as string | null }
 
@@ -86,7 +87,7 @@ function SubmitPasswordBtn() {
   )
 }
 
-export function ProfileClient({ profile, email }: { profile: any; email: string }) {
+export function ProfileClient({ profile, email, allowedFeatures }: { profile: any; email: string; allowedFeatures: string[] }) {
   const [profileState, profileAction] = useActionState(updateProfileInfo, initialState)
   const [passwordState, passwordAction] = useActionState(updatePassword, initialState)
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '')
@@ -202,12 +203,6 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
           </div>
           <input type="file" ref={signatureInputRef} className="hidden" accept="image/png,image/webp,image/jpeg" onChange={handleSignatureChange} />
         </div>
-      </div>
-
-      {/* KOLOM KANAN — forms */}
-      <div className="lg:col-span-2 space-y-4">
-
-        {/* Form ubah nama */}
         <div className="rounded-xl border border-surface bg-surface p-5 shadow-sm">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 mb-0.5">Informasi Dasar</p>
           <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Ubah nama tampilan dan data CKH Anda di dalam sistem.</p>
@@ -282,6 +277,15 @@ export function ProfileClient({ profile, email }: { profile: any; email: string 
             </div>
             <SubmitPasswordBtn />
           </form>
+        </div>
+
+        {/* Form Konfigurasi Bottom Nav */}
+        <div className="rounded-xl border border-surface bg-surface p-5 shadow-sm">
+          <BottomNavConfig 
+            allowedFeatures={allowedFeatures} 
+            initialConfig={profile.bottom_nav_override} 
+            onSave={saveBottomNavOverride} 
+          />
         </div>
 
         {/* Form Notifikasi */}

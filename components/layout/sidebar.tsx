@@ -40,6 +40,7 @@ interface SidebarProps {
   allowedFeatures?: string[]
   sidebarGroups?: SidebarGroupConfig[]
   featureLabels?: Record<string, string>
+  navEnabled?: boolean
 }
 
 export function Sidebar({
@@ -49,6 +50,7 @@ export function Sidebar({
   allowedFeatures = [],
   sidebarGroups = DEFAULT_SIDEBAR_GROUPS,
   featureLabels = {},
+  navEnabled = false,
 }: SidebarProps) {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
@@ -377,7 +379,7 @@ export function Sidebar({
         </nav>
 
         {/* ── FOOTER ── */}
-        <div className={cn('border-t shrink-0 p-3 space-y-1', theme.border, mobile && 'pb-20')}>
+        <div className={cn('border-t shrink-0 p-3 space-y-1', theme.border, (mobile && navEnabled) ? 'pb-20' : 'pb-3')}>
 
           {/* Tema + dark toggle */}
           {!collapsed && (

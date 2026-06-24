@@ -90,10 +90,12 @@ export default async function DashboardPage() {
   } catch (e) {}
 
   // Fetch Hero Settings
-  const [bgUrlRow, runningTextRow, textColorRow] = await Promise.all([
+  const [bgUrlRow, runningTextRow, textColorRow, runningTextBgRow, runningTextColorRow] = await Promise.all([
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_background_image_url').first<{ value: string }>(),
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_running_text').first<{ value: string }>(),
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_text_color').first<{ value: string }>(),
+    db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_running_text_bg').first<{ value: string }>(),
+    db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_running_text_color').first<{ value: string }>(),
   ])
 
   const commonProps = {
@@ -111,6 +113,8 @@ export default async function DashboardPage() {
     bgImageUrl: bgUrlRow?.value || undefined,
     runningText: runningTextRow?.value || undefined,
     textColor: textColorRow?.value || 'white',
+    runningTextBg: runningTextBgRow?.value || '#1e1e1e',
+    runningTextColor: runningTextColorRow?.value || '#ffffff',
   }
 
   const dashboardContent = (() => {

@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS "user" (
   avatar_url        TEXT,
   banned            INTEGER DEFAULT 0,
   banReason         TEXT,
-  banExpires        TEXT
+  banExpires        TEXT,
+  bottom_nav_override TEXT
 );
 
 CREATE TABLE IF NOT EXISTS session (

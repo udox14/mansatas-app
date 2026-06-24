@@ -124,3 +124,28 @@ export async function uploadSignatureAction(formData: FormData) {
   revalidatePath('/dashboard/ckh-generator')
   return { success: 'Tanda tangan berhasil diperbarui!', url }
 }
+
+// ============================================================
+// SIMPAN KONFIGURASI BOTTOM NAV
+// ============================================================
+export async function saveBottomNavOverride(features: string[]) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Anda belum login' }
+
+  if (features.length > 4) {
+    return { error: 'Maksimal 4 fitur' }
+  }
+
+  const db = await getDB()
+  const result = await dbUpdate(
+    db,
+    '"user"',
+    { bottom_nav_override: JSON.stringify(features), updatedAt: new Date().toISOString() },
+    { id: user.id }
+  )
+
+  if (result.error) return { error: 'Gagal menyimpan konfigurasi: ' + result.error }
+
+  revalidatePath('/', 'layout')
+  return { success: 'Konfigurasi Bottom Nav berhasil disimpan.' }
+}

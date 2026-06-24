@@ -4,6 +4,7 @@
 import { getDB } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
 import { ensureRiwayatKelasSnapshotColumns, formatKelasSnapshot } from '@/lib/riwayat-kelas'
+import { logActivity } from '@/lib/activity-log'
 
 type TahunAjaranRef = {
   id: string
@@ -458,6 +459,27 @@ export async function simpanPlottingMassal(
     revalidatePath('/dashboard/plotting')
     revalidatePath('/dashboard/siswa')
 
+    await logActivity({
+      db,
+      module: 'plotting',
+      action: 'apply_plotting_massal',
+      severity: 'warning',
+      summary: `Menyimpan ${hasilPlotting.length} hasil plotting siswa`,
+      entityType: 'tahun_ajaran',
+      entityId: target.id,
+      entityLabel: `${target.nama} SMT ${target.semester}`,
+      metadata: {
+        source_tahun_ajaran_id: source.id,
+        target_tahun_ajaran_id: target.id,
+        targetIsActive: target.is_active === 1,
+      },
+      targets: hasilPlotting.map(plot => ({
+        type: 'siswa',
+        id: plot.siswa_id,
+        metadata: { kelas_id: plot.kelas_id },
+      })),
+    })
+
     const mode = target.is_active === 1
       ? 'dan memperbarui kelas aktif siswa'
       : `sebagai rencana TA ${target.nama} SMT ${target.semester}. Kelas aktif siswa belum berubah sampai TA tersebut diaktifkan.`
@@ -477,6 +499,7 @@ export async function prosesKelulusanMassal(siswaIds: string[]) {
   const db = await getDB()
 
   try {
+    const beforeRows = await db.prepare(`SELECT id, nama_lengkap, status, kelas_id FROM siswa WHERE id IN (${siswaIds.map(() => '?').join(', ')})`).bind(...siswaIds).all<any>()
     const now = new Date().toISOString()
     const chunkSize = 100
 
@@ -493,6 +516,23 @@ export async function prosesKelulusanMassal(siswaIds: string[]) {
     revalidatePath('/dashboard/kelas')
     revalidatePath('/dashboard/plotting')
     revalidatePath('/dashboard/siswa')
+    await logActivity({
+      db,
+      module: 'plotting',
+      action: 'bulk_graduate',
+      severity: 'warning',
+      summary: `Meluluskan ${siswaIds.length} siswa`,
+      entityType: 'siswa',
+      entityId: null,
+      entityLabel: 'Kelulusan massal',
+      metadata: { count: siswaIds.length },
+      targets: (beforeRows.results ?? []).map(row => ({
+        type: 'siswa',
+        id: row.id,
+        label: row.nama_lengkap,
+        metadata: { before: row, after: { ...row, status: 'lulus', kelas_id: null } },
+      })),
+    })
     return { success: `Berhasil meluluskan ${siswaIds.length} siswa kelas 12!` }
   } catch (err: any) {
     return { error: 'Terjadi kesalahan sistem saat memproses kelulusan.' }
@@ -506,6 +546,7 @@ export async function batalkanKelulusanMassal(siswaIds: string[]) {
   const ta = await getTahunAjaranAktif()
 
   try {
+    const beforeRows = await db.prepare(`SELECT id, nama_lengkap, status, kelas_id FROM siswa WHERE id IN (${siswaIds.map(() => '?').join(', ')})`).bind(...siswaIds).all<any>()
     const placeholders = siswaIds.map(() => '?').join(', ')
     const restorable = await db
       .prepare(
@@ -540,6 +581,26 @@ export async function batalkanKelulusanMassal(siswaIds: string[]) {
     revalidatePath('/dashboard/siswa')
 
     const skipped = siswaIds.length - rows.length
+    await logActivity({
+      db,
+      module: 'plotting',
+      action: 'bulk_cancel_graduate',
+      severity: 'warning',
+      summary: `Membatalkan kelulusan ${rows.length} siswa`,
+      entityType: 'siswa',
+      entityId: null,
+      entityLabel: 'Pembatalan kelulusan massal',
+      metadata: { requested: siswaIds.length, restored: rows.length, skipped },
+      targets: rows.map(row => {
+        const before = beforeRows.results?.find(item => item.id === row.id)
+        return {
+          type: 'siswa',
+          id: row.id,
+          label: before?.nama_lengkap || row.id,
+          metadata: { before, after: { ...before, status: 'aktif', kelas_id: row.kelas_id } },
+        }
+      }),
+    })
     const suffix = skipped > 0 ? ` ${skipped} siswa dilewati karena riwayat kelas aktifnya tidak ditemukan.` : ''
     return { success: `Berhasil memulihkan ${rows.length} siswa ke kelas semula.${suffix}` }
   } catch (err: any) {

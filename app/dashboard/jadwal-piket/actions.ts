@@ -4,6 +4,7 @@ import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { checkFeatureAccess } from '@/lib/features'
+import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
 export type ShiftPiket = {
   id: number
@@ -100,11 +101,23 @@ export async function tambahJadwalPiket(user_id: string, hari: number, shift_id:
   const exist = await db.prepare('SELECT id FROM jadwal_guru_piket WHERE user_id = ? AND hari = ? AND shift_id = ?').bind(user_id, hari, shift_id).first()
   if (exist) return { error: 'Guru ini sudah memiliki jadwal pada shift tersebut.' }
 
-  const res = await dbInsert(db, 'jadwal_guru_piket', {
+  const guru = await db.prepare('SELECT id, nama_lengkap FROM "user" WHERE id = ?').bind(user_id).first<any>()
+  const res = await dbInsert<any>(db, 'jadwal_guru_piket', {
     user_id, hari, shift_id
   })
 
   if (res.error) return { error: res.error }
+
+  await logActivity({
+    db,
+    module: 'jadwal-piket',
+    action: 'create_jadwal',
+    summary: `Menambahkan jadwal piket ${guru?.nama_lengkap || user_id}`,
+    entityType: 'jadwal_guru_piket',
+    entityId: res.data?.id,
+    entityLabel: guru?.nama_lengkap || user_id,
+    after: res.data ?? { user_id, hari, shift_id },
+  })
 
   revalidatePath('/dashboard/jadwal-piket')
   revalidatePath('/dashboard/penugasan')
@@ -119,6 +132,12 @@ export async function hapusJadwalPiket(id: string): Promise<{ error?: string, su
     if (!(await checkFeatureAccess(db, user.id, 'jadwal-piket'))) {
       return { error: 'Tidak memiliki akses' }
     }
+    const before = await db.prepare(`
+      SELECT j.*, u.nama_lengkap
+      FROM jadwal_guru_piket j
+      LEFT JOIN "user" u ON u.id = j.user_id
+      WHERE j.id = ?
+    `).bind(id).first<any>()
 
     const [hasAgendaPiket, hasGuruPplMapping] = await Promise.all([
       tableExists(db, 'agenda_piket'),
@@ -136,6 +155,18 @@ export async function hapusJadwalPiket(id: string): Promise<{ error?: string, su
 
     const res = await dbDelete(db, 'jadwal_guru_piket', { id })
     if (res.error) return { error: res.error }
+
+    await logActivity({
+      db,
+      module: 'jadwal-piket',
+      action: 'delete_jadwal',
+      severity: 'danger',
+      summary: `Menghapus jadwal piket ${before?.nama_lengkap || id}`,
+      entityType: 'jadwal_guru_piket',
+      entityId: id,
+      entityLabel: before?.nama_lengkap || id,
+      before,
+    })
 
     revalidatePath('/dashboard/jadwal-piket')
     revalidatePath('/dashboard/penugasan')
@@ -156,12 +187,26 @@ export async function simpanPengaturanShift(data: Array<{ id: number, jam_mulai:
   }
 
   await ensureDefaultShiftPiket(db)
+  const beforeRows = await db.prepare('SELECT * FROM pengaturan_shift_piket ORDER BY id ASC').all<any>()
 
   for (const s of data) {
     if (s.jam_mulai < 1 || s.jam_selesai < s.jam_mulai) return { error: 'Rentang jam tidak valid.' }
     await db.prepare('UPDATE pengaturan_shift_piket SET jam_mulai = ?, jam_selesai = ? WHERE id = ?')
             .bind(s.jam_mulai, s.jam_selesai, s.id).run()
   }
+
+  await logActivity({
+    db,
+    module: 'jadwal-piket',
+    action: 'set_shift',
+    summary: 'Mengubah pengaturan shift piket',
+    entityType: 'pengaturan_shift_piket',
+    entityId: 'default',
+    entityLabel: 'Shift piket',
+    before: beforeRows.results ?? [],
+    after: data,
+    diff: createActivityDiff({ shifts: beforeRows.results ?? [] }, { shifts: data }),
+  })
 
   revalidatePath('/dashboard/jadwal-piket')
   revalidatePath('/dashboard/penugasan')

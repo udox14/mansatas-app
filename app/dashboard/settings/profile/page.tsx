@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { UserCircle } from 'lucide-react'
 import { ProfileClient } from './components/profile-client'
 import { PageHeader } from '@/components/layout/page-header'
+import { getUserAllowedFeatures } from '@/lib/features'
 
 export const metadata = { title: 'Profil Saya - MANSATAS App' }
 
@@ -15,9 +16,12 @@ export default async function ProfilePage() {
 
   // Query DB langsung untuk dapat data terbaru (termasuk avatar_url)
   const db = await getDB()
-  const freshUser = await db.prepare(
-    'SELECT id, name, nama_lengkap, role, avatar_url, signature_url, nip, pangkat_golongan, jabatan_cetak, nomor_whatsapp FROM "user" WHERE id = ?'
-  ).bind(user.id).first<any>()
+  const [freshUser, allowedFeatures] = await Promise.all([
+    db.prepare(
+      'SELECT id, name, nama_lengkap, role, avatar_url, signature_url, nip, pangkat_golongan, jabatan_cetak, nomor_whatsapp, bottom_nav_override FROM "user" WHERE id = ?'
+    ).bind(user.id).first<any>(),
+    getUserAllowedFeatures(db, user.id)
+  ])
 
   const profile = {
     id: user.id,
@@ -29,12 +33,13 @@ export default async function ProfilePage() {
     pangkat_golongan: freshUser?.pangkat_golongan ?? '',
     jabatan_cetak: freshUser?.jabatan_cetak ?? '',
     nomor_whatsapp: freshUser?.nomor_whatsapp ?? '',
+    bottom_nav_override: freshUser?.bottom_nav_override ? JSON.parse(freshUser.bottom_nav_override) : null,
   }
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader title="Profil Saya" description="Kelola informasi pribadi, foto profil, dan kata sandi." />
-      <ProfileClient profile={profile} email={user.email ?? ''} />
+      <ProfileClient profile={profile} email={user.email ?? ''} allowedFeatures={allowedFeatures} />
     </div>
   )
 }

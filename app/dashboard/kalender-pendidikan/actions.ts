@@ -13,6 +13,7 @@ import {
   type KbmExceptionTargetType,
   type KalenderKategori,
 } from '@/lib/kalender-pendidikan'
+import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
 const VALID_CATEGORIES = new Set<KalenderKategori>([
   'TANGGAL_MERAH',
@@ -188,6 +189,9 @@ export async function saveKalenderEvent(payload: {
 
   const db = await getDB()
   await ensureKalenderPendidikanTables(db)
+  const before = payload.id
+    ? await db.prepare('SELECT * FROM kalender_pendidikan_events WHERE id = ?').bind(payload.id).first<any>()
+    : null
 
   if (payload.id) {
     await db.prepare(`
@@ -221,6 +225,22 @@ export async function saveKalenderEvent(payload: {
       user.id,
     ).run()
   }
+
+  const after = payload.id
+    ? { ...before, ...payload, title: payload.title.trim(), is_effective: payload.is_effective ? 1 : 0 }
+    : payload
+  await logActivity({
+    db,
+    module: 'kalender-pendidikan',
+    action: payload.id ? 'update_event' : 'create_event',
+    summary: `${payload.id ? 'Mengubah' : 'Menambahkan'} event kalender ${payload.title.trim()}`,
+    entityType: 'kalender_pendidikan_event',
+    entityId: payload.id ?? null,
+    entityLabel: payload.title.trim(),
+    before,
+    after,
+    diff: before ? createActivityDiff(before, after) : undefined,
+  })
 
   revalidatePath('/dashboard/kalender-pendidikan')
   revalidatePath('/dashboard/kehadiran')
@@ -265,6 +285,9 @@ export async function saveKbmException(payload: {
 
   const db = await getDB()
   await ensureKalenderPendidikanTables(db)
+  const before = payload.id
+    ? await db.prepare('SELECT * FROM kbm_exceptions WHERE id = ?').bind(payload.id).first<any>()
+    : null
 
   if (payload.target_type === 'KELAS' && targetValue) {
     const kelas = await db.prepare('SELECT id FROM kelas WHERE id = ?').bind(targetValue).first<{ id: string }>()
@@ -307,6 +330,22 @@ export async function saveKbmException(payload: {
       user.id,
     ).run()
   }
+
+  const after = payload.id
+    ? { ...before, ...payload, judul: payload.judul.trim(), target_value: targetValue }
+    : { ...payload, judul: payload.judul.trim(), target_value: targetValue }
+  await logActivity({
+    db,
+    module: 'kalender-pendidikan',
+    action: payload.id ? 'update_kbm_exception' : 'create_kbm_exception',
+    summary: `${payload.id ? 'Mengubah' : 'Menambahkan'} pengecualian KBM ${payload.judul.trim()}`,
+    entityType: 'kbm_exception',
+    entityId: payload.id ?? null,
+    entityLabel: payload.judul.trim(),
+    before,
+    after,
+    diff: before ? createActivityDiff(before, after) : undefined,
+  })
 
   revalidatePath('/dashboard/kalender-pendidikan')
   revalidatePath('/dashboard/kehadiran')

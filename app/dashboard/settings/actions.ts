@@ -8,6 +8,7 @@ import type { SlotJam, PolaJam } from './types'
 import { setSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { ensureRiwayatKelasSnapshotColumns, formatKelasSnapshot } from '@/lib/riwayat-kelas'
 import { uploadToR2 } from '@/utils/r2'
+import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
 // ============================================================
 // TAMBAH TAHUN AJARAN
@@ -36,8 +37,19 @@ export async function tambahTahunAjaran(prevState: any, formData: FormData) {
     jam_pelajaran: JSON.stringify(jam_pelajaran),
   }
 
-  const result = await dbInsert(db, 'tahun_ajaran', payload)
+  const result = await dbInsert<any>(db, 'tahun_ajaran', payload)
   if (result.error) return { error: result.error, success: null }
+
+  await logActivity({
+    db,
+    module: 'pengaturan',
+    action: 'create_tahun_ajaran',
+    summary: `Menambahkan tahun ajaran ${payload.nama} semester ${payload.semester}`,
+    entityType: 'tahun_ajaran',
+    entityId: result.data?.id,
+    entityLabel: `${payload.nama} SMT ${payload.semester}`,
+    after: result.data ?? payload,
+  })
 
   revalidatePath('/', 'layout')
   return { error: null, success: 'Tahun Ajaran berhasil ditambahkan' }
@@ -119,6 +131,19 @@ export async function setAktifTahunAjaran(id: string) {
       db.prepare('UPDATE tahun_ajaran SET is_active = 1 WHERE id = ?').bind(id),
     ])
 
+    await logActivity({
+      db,
+      module: 'pengaturan',
+      action: 'activate_tahun_ajaran',
+      severity: 'warning',
+      summary: `Mengaktifkan tahun ajaran ${nextActive.nama} semester ${nextActive.semester}`,
+      entityType: 'tahun_ajaran',
+      entityId: id,
+      entityLabel: `${nextActive.nama} SMT ${nextActive.semester}`,
+      before: { active: currentActive },
+      after: { active: nextActive, restoredRows: targetRows.length },
+    })
+
     revalidatePath('/dashboard/kelas')
     revalidatePath('/dashboard/plotting')
     revalidatePath('/dashboard/siswa')
@@ -137,8 +162,20 @@ export async function hapusTahunAjaran(id: string, isActive: boolean) {
     return { error: 'Tidak bisa menghapus Tahun Ajaran yang sedang aktif. Aktifkan tahun ajaran lain terlebih dahulu.' }
   }
   const db = await getDB()
+  const before = await db.prepare('SELECT * FROM tahun_ajaran WHERE id = ?').bind(id).first<any>()
   const result = await dbDelete(db, 'tahun_ajaran', { id })
   if (result.error) return { error: 'Gagal menghapus: ' + result.error }
+  await logActivity({
+    db,
+    module: 'pengaturan',
+    action: 'delete_tahun_ajaran',
+    severity: 'danger',
+    summary: `Menghapus tahun ajaran ${before?.nama || id}`,
+    entityType: 'tahun_ajaran',
+    entityId: id,
+    entityLabel: before ? `${before.nama} SMT ${before.semester}` : id,
+    before,
+  })
   revalidatePath('/', 'layout')
   return { success: 'Tahun Ajaran berhasil dihapus.' }
 }
@@ -149,8 +186,22 @@ export async function hapusTahunAjaran(id: string, isActive: boolean) {
 export async function simpanDaftarJurusan(tahun_ajaran_id: string, daftar_jurusan: string[]) {
   const db = await getDB()
   if (!daftar_jurusan.includes('UMUM')) daftar_jurusan.push('UMUM')
+  const before = await db.prepare('SELECT id, nama, semester, daftar_jurusan FROM tahun_ajaran WHERE id = ?').bind(tahun_ajaran_id).first<any>()
   const result = await dbUpdate(db, 'tahun_ajaran', { daftar_jurusan: JSON.stringify(daftar_jurusan) }, { id: tahun_ajaran_id })
   if (result.error) return { error: result.error }
+  const after = { ...before, daftar_jurusan: JSON.stringify(daftar_jurusan) }
+  await logActivity({
+    db,
+    module: 'pengaturan',
+    action: 'set_daftar_jurusan',
+    summary: `Mengubah daftar jurusan tahun ajaran ${before?.nama || tahun_ajaran_id}`,
+    entityType: 'tahun_ajaran',
+    entityId: tahun_ajaran_id,
+    entityLabel: before ? `${before.nama} SMT ${before.semester}` : tahun_ajaran_id,
+    before,
+    after,
+    diff: createActivityDiff(before, after),
+  })
   revalidatePath('/', 'layout')
   return { success: 'Daftar Master Jurusan berhasil diperbarui!' }
 }
@@ -182,9 +233,24 @@ export async function simpanJamPelajaran(tahun_ajaran_id: string, pola_jam: Pola
     const jsonStr = JSON.stringify(sanitized)
 
     const db = await getDB()
+    const before = await db.prepare('SELECT id, nama, semester, jam_pelajaran FROM tahun_ajaran WHERE id = ?').bind(tahun_ajaran_id).first<any>()
     await db.prepare(
       'UPDATE tahun_ajaran SET jam_pelajaran = ? WHERE id = ?'
     ).bind(jsonStr, tahun_ajaran_id).run()
+
+    const after = { ...before, jam_pelajaran: jsonStr }
+    await logActivity({
+      db,
+      module: 'pengaturan',
+      action: 'set_jam_pelajaran',
+      summary: `Mengubah jam pelajaran tahun ajaran ${before?.nama || tahun_ajaran_id}`,
+      entityType: 'tahun_ajaran',
+      entityId: tahun_ajaran_id,
+      entityLabel: before ? `${before.nama} SMT ${before.semester}` : tahun_ajaran_id,
+      before,
+      after,
+      diff: createActivityDiff(before, after),
+    })
 
     revalidatePath('/', 'layout')
     return { success: 'Jam pelajaran berhasil disimpan!' }
@@ -221,6 +287,17 @@ export async function setAgendaTimeRestrictionEnabled(enabled: boolean) {
     enabled ? '1' : '0'
   )
 
+  await logActivity({
+    db,
+    module: 'pengaturan',
+    action: 'set_agenda_time_restriction',
+    summary: `${enabled ? 'Mengaktifkan' : 'Menonaktifkan'} pembatasan waktu agenda`,
+    entityType: 'system_setting',
+    entityId: SYSTEM_SETTING_KEYS.agendaTimeRestriction,
+    entityLabel: 'Pembatasan waktu agenda',
+    after: { enabled },
+  })
+
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard/agenda')
   return { success: true }
@@ -254,6 +331,17 @@ export async function setAgendaLateSetting(
   await setSystemSetting(SYSTEM_SETTING_KEYS.agendaLateThresholdMinutes, String(sanitizedMinutes))
   await setSystemSetting(SYSTEM_SETTING_KEYS.agendaLateThresholdByJam, JSON.stringify(sanitizedByJam))
 
+  await logActivity({
+    db,
+    module: 'pengaturan',
+    action: 'set_agenda_late_setting',
+    summary: 'Mengubah pengaturan keterlambatan agenda',
+    entityType: 'system_setting',
+    entityId: SYSTEM_SETTING_KEYS.agendaLateEnabled,
+    entityLabel: 'Keterlambatan agenda',
+    after: { enabled, thresholdMinutes: sanitizedMinutes, thresholdByJam: sanitizedByJam },
+  })
+
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard/agenda')
   revalidatePath('/dashboard/monitoring-agenda')
@@ -275,6 +363,17 @@ export async function setAttendanceTimeRestrictionEnabled(enabled: boolean) {
     enabled ? '1' : '0'
   )
 
+  await logActivity({
+    db,
+    module: 'pengaturan',
+    action: 'set_attendance_time_restriction',
+    summary: `${enabled ? 'Mengaktifkan' : 'Menonaktifkan'} pembatasan waktu absensi`,
+    entityType: 'system_setting',
+    entityId: SYSTEM_SETTING_KEYS.attendanceTimeRestriction,
+    entityLabel: 'Pembatasan waktu absensi',
+    after: { enabled },
+  })
+
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard/kehadiran')
   return { success: true }
@@ -294,6 +393,17 @@ export async function setAttendanceSkipIncompleteForDailyStatusEnabled(enabled: 
     SYSTEM_SETTING_KEYS.attendanceSkipIncompleteForDailyStatus,
     enabled ? '1' : '0'
   )
+
+  await logActivity({
+    db,
+    module: 'pengaturan',
+    action: 'set_attendance_incomplete_skip',
+    summary: `${enabled ? 'Mengaktifkan' : 'Menonaktifkan'} skip absensi tidak lengkap`,
+    entityType: 'system_setting',
+    entityId: SYSTEM_SETTING_KEYS.attendanceSkipIncompleteForDailyStatus,
+    entityLabel: 'Skip absensi tidak lengkap',
+    after: { enabled },
+  })
 
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard/rekap-absensi')
@@ -317,6 +427,17 @@ export async function setHeroSettings(bgUrl: string, runningText: string, textCo
   await setSystemSetting(SYSTEM_SETTING_KEYS.heroTextColor, textColor)
   await setSystemSetting(SYSTEM_SETTING_KEYS.heroRunningTextBg, runningTextBg)
   await setSystemSetting(SYSTEM_SETTING_KEYS.heroRunningTextColor, runningTextColor)
+
+  await logActivity({
+    db,
+    module: 'pengaturan',
+    action: 'set_hero_settings',
+    summary: 'Mengubah pengaturan hero dashboard',
+    entityType: 'system_setting',
+    entityId: 'hero',
+    entityLabel: 'Hero dashboard',
+    after: { bgUrl, runningText, textColor, runningTextBg, runningTextColor },
+  })
 
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard')
@@ -344,6 +465,16 @@ export async function uploadHeroImageAction(formData: FormData) {
 
   const urlToSave = uploadResult.url || ''
   await setSystemSetting(SYSTEM_SETTING_KEYS.heroBackgroundImageUrl, urlToSave)
+  await logActivity({
+    db,
+    module: 'pengaturan',
+    action: 'upload_hero_image',
+    summary: 'Mengunggah gambar hero dashboard',
+    entityType: 'system_setting',
+    entityId: SYSTEM_SETTING_KEYS.heroBackgroundImageUrl,
+    entityLabel: 'Gambar hero dashboard',
+    after: { url: urlToSave },
+  })
   
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard')

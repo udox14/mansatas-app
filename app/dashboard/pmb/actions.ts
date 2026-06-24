@@ -5,6 +5,7 @@ import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { revalidatePath } from 'next/cache'
+import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
 const PMB_ROLES = ['super_admin', 'admin_tu', 'kepsek', 'wakamad']
 
@@ -50,10 +51,25 @@ export async function setFlagBerkas(id: string, keys: string[]) {
 export async function setKelulusan(ids: string[], status: 'DITERIMA' | 'TIDAK DITERIMA' | 'PENDING') {
   if (!(await verifyPmbAccess())) return { error: 'Akses ditolak' }
   const db = await getDB()
+  const beforeRows = await db.prepare(`SELECT id, no_pendaftaran, nama_lengkap, status_kelulusan FROM pmb_pendaftar WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all<any>()
   const now = new Date().toISOString()
   for (const id of ids) {
     await dbUpdate(db, 'pmb_pendaftar', { status_kelulusan: status, updated_at: now }, { id })
   }
+  await logActivity({
+    db,
+    module: 'pmb',
+    action: 'set_kelulusan',
+    severity: 'warning',
+    summary: `Mengubah status kelulusan ${ids.length} pendaftar menjadi ${status}`,
+    metadata: { status },
+    targets: (beforeRows.results ?? []).map(row => ({
+      type: 'pmb_pendaftar',
+      id: row.id,
+      label: row.nama_lengkap || row.no_pendaftaran,
+      metadata: { before: row, after: { ...row, status_kelulusan: status } },
+    })),
+  })
   revalidatePath('/dashboard/pmb')
   return { success: `${ids.length} pendaftar diperbarui` }
 }
@@ -95,6 +111,14 @@ export async function autoPlotting() {
     cap[si]--
     assigned++
   }
+  await logActivity({
+    db,
+    module: 'pmb',
+    action: 'auto_plotting_jadwal',
+    summary: `Auto-plotting jadwal tes untuk ${assigned} pendaftar`,
+    metadata: { assigned },
+    targets: pendaftar.slice(0, assigned).map(row => ({ type: 'pmb_pendaftar', id: row.id })),
+  })
   revalidatePath('/dashboard/pmb')
   return { success: `${assigned} pendaftar terjadwal` }
 }
@@ -165,6 +189,22 @@ export async function terimaJadiSiswa(pendaftarId: string) {
   if (res.error || !res.data) return { error: res.error || 'Gagal membuat siswa' }
 
   await dbUpdate(db, 'pmb_pendaftar', { siswa_id: res.data.id, daftar_ulang_status: 'SELESAI', updated_at: new Date().toISOString() }, { id: pendaftarId })
+  await logActivity({
+    db,
+    module: 'pmb',
+    action: 'accept_as_student',
+    severity: 'warning',
+    summary: `Menerima pendaftar ${p.nama_lengkap} menjadi siswa`,
+    entityType: 'pmb_pendaftar',
+    entityId: pendaftarId,
+    entityLabel: p.nama_lengkap,
+    before: p,
+    after: { siswa_id: res.data.id, daftar_ulang_status: 'SELESAI' },
+    targets: [
+      { type: 'pmb_pendaftar', id: pendaftarId, label: p.nama_lengkap },
+      { type: 'siswa', id: res.data.id, label: p.nama_lengkap },
+    ],
+  })
   revalidatePath('/dashboard/pmb')
   revalidatePath('/dashboard/siswa')
   return { success: `${p.nama_lengkap} berhasil menjadi siswa` }
@@ -219,6 +259,15 @@ export async function bulkTerimaJadiSiswa(pendaftarIds: string[]) {
 
   revalidatePath('/dashboard/pmb')
   revalidatePath('/dashboard/siswa')
+  await logActivity({
+    db,
+    module: 'pmb',
+    action: 'bulk_accept_as_student',
+    severity: 'warning',
+    summary: `Menerima ${berhasil} pendaftar menjadi siswa`,
+    metadata: { requested: pendaftarIds.length, berhasil, dilewati, gagalNames },
+    targets: (list ?? []).map((p: any) => ({ type: 'pmb_pendaftar', id: p.id, label: p.nama_lengkap })),
+  })
   const msg = `${berhasil} siswa berhasil dibuat`
   const detail = [
     dilewati > 0 && `${dilewati} dilewati (bukan DITERIMA / sudah siswa)`,
@@ -248,6 +297,7 @@ export async function getExportData() {
 export async function bulkAlihReguler(ids: string[]) {
   if (!(await verifyPmbAccess())) return { error: 'Akses ditolak' }
   const db = await getDB()
+  const beforeRows = await db.prepare(`SELECT id, no_pendaftaran, nama_lengkap, jalur, status_kelulusan, status_verifikasi, ruang_tes, tanggal_tes, sesi_tes FROM pmb_pendaftar WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all<any>()
   const now = new Date().toISOString()
   for (const id of ids) {
     await dbUpdate(db, 'pmb_pendaftar', {
@@ -256,6 +306,19 @@ export async function bulkAlihReguler(ids: string[]) {
       updated_at: now,
     }, { id })
   }
+  await logActivity({
+    db,
+    module: 'pmb',
+    action: 'bulk_alih_reguler',
+    severity: 'warning',
+    summary: `Mengalihkan ${ids.length} pendaftar ke Reguler`,
+    targets: (beforeRows.results ?? []).map(row => ({
+      type: 'pmb_pendaftar',
+      id: row.id,
+      label: row.nama_lengkap || row.no_pendaftaran,
+      metadata: { before: row },
+    })),
+  })
   revalidatePath('/dashboard/pmb')
   return { success: `${ids.length} pendaftar dialihkan ke Reguler` }
 }
@@ -278,10 +341,23 @@ const ADMIN_EDITABLE = new Set([
 export async function editPendaftar(id: string, payload: Record<string, any>) {
   if (!(await verifyPmbAccess())) return { error: 'Akses ditolak' }
   const db = await getDB()
+  const before = await db.prepare('SELECT * FROM pmb_pendaftar WHERE id = ?').bind(id).first<any>()
   const safe: Record<string, any> = {}
   for (const [k, v] of Object.entries(payload)) { if (ADMIN_EDITABLE.has(k)) safe[k] = v }
   if (!Object.keys(safe).length) return { error: 'Tidak ada field valid' }
   await dbUpdate(db, 'pmb_pendaftar', { ...safe, updated_at: new Date().toISOString() }, { id })
+  await logActivity({
+    db,
+    module: 'pmb',
+    action: 'edit_pendaftar',
+    summary: `Mengubah data pendaftar ${before?.nama_lengkap || id}`,
+    entityType: 'pmb_pendaftar',
+    entityId: id,
+    entityLabel: before?.nama_lengkap || before?.no_pendaftaran || id,
+    before,
+    after: { ...before, ...safe },
+    diff: createActivityDiff(before, { ...before, ...safe }),
+  })
   revalidatePath('/dashboard/pmb')
   return { success: 'Data pendaftar diperbarui' }
 }
@@ -292,6 +368,7 @@ export async function saveManualPlotting(
 ) {
   if (!(await verifyPmbAccess())) return { error: 'Akses ditolak' }
   const db = await getDB()
+  const beforeRows = await db.prepare(`SELECT id, no_pendaftaran, nama_lengkap, tanggal_tes, sesi_tes, ruang_tes FROM pmb_pendaftar WHERE id IN (${changes.map(() => '?').join(',')})`).bind(...changes.map(c => c.id)).all<any>()
   const now = new Date().toISOString()
   for (const c of changes) {
     await dbUpdate(db, 'pmb_pendaftar', {
@@ -301,6 +378,21 @@ export async function saveManualPlotting(
       updated_at: now,
     }, { id: c.id })
   }
+  await logActivity({
+    db,
+    module: 'pmb',
+    action: 'manual_plotting_jadwal',
+    summary: `Menyimpan manual plotting ${changes.length} pendaftar`,
+    targets: changes.map(change => {
+      const before = beforeRows.results?.find(row => row.id === change.id)
+      return {
+        type: 'pmb_pendaftar',
+        id: change.id,
+        label: before?.nama_lengkap || before?.no_pendaftaran || change.id,
+        metadata: { before, after: change },
+      }
+    }),
+  })
   revalidatePath('/dashboard/pmb')
   return { success: `${changes.length} plotting disimpan` }
 }
@@ -321,6 +413,15 @@ export async function importKelulusan(
     await dbUpdate(db, 'pmb_pendaftar', { status_kelulusan: row.status_kelulusan, updated_at: now }, { id: p.id })
     updated++
   }
+  await logActivity({
+    db,
+    module: 'pmb',
+    action: 'import_kelulusan',
+    severity: 'warning',
+    summary: `Import kelulusan PMB: ${updated} data diperbarui`,
+    metadata: { inputRows: rows.length, updated },
+    targets: rows.map(row => ({ type: 'pmb_pendaftar', id: row.no_pendaftaran, label: row.no_pendaftaran, metadata: row })),
+  })
   revalidatePath('/dashboard/pmb')
   return { success: `${updated} kelulusan diperbarui` }
 }
