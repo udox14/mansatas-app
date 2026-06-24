@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/settings/components/settings-client.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
 import Link from 'next/link'
@@ -420,6 +420,21 @@ export function SettingsClient({
   const [isSavingHero, setIsSavingHero] = useState(false)
   const [isUploadingHero, setIsUploadingHero] = useState(false)
 
+  // Cropper states
+  const [editImageSrc, setEditImageSrc] = useState<string | null>(null)
+  const [originalFile, setOriginalFile] = useState<File | null>(null)
+  const [isCropOpen, setIsCropOpen] = useState(false)
+  const [zoom, setZoom] = useState(1)
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+  const [displayDims, setDisplayDims] = useState({ w: 0, h: 0 })
+  const [imageDims, setImageDims] = useState({ w: 0, h: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
+
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const [state, formAction] = useActionState(tambahTahunAjaran, initialState)
@@ -605,16 +620,180 @@ export function SettingsClient({
   const handleUploadHero = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return
     const file = e.target.files[0]
-    const formData = new FormData()
-    formData.append('file', file)
-    
+    setOriginalFile(file)
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setEditImageSrc(event.target.result as string)
+        setIsCropOpen(true)
+      }
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  const limitPosition = (x: number, y: number, currentZoom: number) => {
+    if (!viewportRef.current) return { x, y }
+    const vW = viewportRef.current.offsetWidth
+    const vH = vW * 9 / 16
+
+    const sW = displayDims.w * currentZoom
+    const sH = displayDims.h * currentZoom
+
+    let minX = vW - sW
+    let maxX = 0
+    if (sW < vW) {
+      minX = (vW - sW) / 2
+      maxX = minX
+    }
+
+    let minY = vH - sH
+    let maxY = 0
+    if (sH < vH) {
+      minY = (vH - sH) / 2
+      maxY = minY
+    }
+
+    return {
+      x: Math.min(maxX, Math.max(minX, x)),
+      y: Math.min(maxY, Math.max(minY, y)),
+    }
+  }
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true)
+    setDragStart({ x: e.clientX, y: e.clientY })
+    setDragOffset({ x: position.x, y: position.y })
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return
+    const dx = e.clientX - dragStart.x
+    const dy = e.clientY - dragStart.y
+    const nextPos = limitPosition(dragOffset.x + dx, dragOffset.y + dy, zoom)
+    setPosition(nextPos)
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches[0]) {
+      setIsDragging(true)
+      setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY })
+      setDragOffset({ x: position.x, y: position.y })
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging || !e.touches[0]) return
+    const dx = e.touches[0].clientX - dragStart.x
+    const dy = e.touches[0].clientY - dragStart.y
+    const nextPos = limitPosition(dragOffset.x + dx, dragOffset.y + dy, zoom)
+    setPosition(nextPos)
+  }
+
+  const handleTouchEnd = () => {
+    setIsDragging(false)
+  }
+
+  const handleZoomChange = (val: number) => {
+    setZoom(val)
+    setPosition((prev) => limitPosition(prev.x, prev.y, val))
+  }
+
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget
+    setImageDims({ w: img.naturalWidth, h: img.naturalHeight })
+
+    const vW = viewportRef.current?.offsetWidth || 400
+    const vH = vW * 9 / 16
+    const vAspect = 16 / 9
+    const imgAspect = img.naturalWidth / img.naturalHeight
+
+    let initialWidth = 0
+    let initialHeight = 0
+
+    if (imgAspect > vAspect) {
+      initialHeight = vH
+      initialWidth = vH * imgAspect
+    } else {
+      initialWidth = vW
+      initialHeight = vW / imgAspect
+    }
+
+    setDisplayDims({ w: initialWidth, h: initialHeight })
+    setPosition({
+      x: (vW - initialWidth) / 2,
+      y: (vH - initialHeight) / 2,
+    })
+    setZoom(1)
+  }
+
+  const handleCropAndUpload = async () => {
+    if (!originalFile || !editImageSrc || !viewportRef.current || !imageRef.current) return
+
     setIsUploadingHero(true)
-    const res = await uploadHeroImageAction(formData)
-    setIsUploadingHero(false)
-    if (res.error) alert(res.error)
-    else if (res.url) {
-      setHeroBgUrl(res.url)
-      alert('Gambar berhasil diunggah! Jangan lupa klik Simpan Pengaturan Tampilan.')
+    setIsCropOpen(false)
+
+    try {
+      const img = new Image()
+      img.src = editImageSrc
+      await new Promise((resolve) => {
+        img.onload = resolve
+      })
+
+      const vW = viewportRef.current.offsetWidth
+      const vH = vW * 9 / 16
+      
+      const ratio = imageDims.w / displayDims.w
+
+      const sx = (-position.x / zoom) * ratio
+      const sy = (-position.y / zoom) * ratio
+      const sWidth = (vW / zoom) * ratio
+      const sHeight = (vH / zoom) * ratio
+
+      const canvas = document.createElement('canvas')
+      canvas.width = 1280
+      canvas.height = 720
+      const ctx = canvas.getContext('2d')
+      
+      if (ctx) {
+        ctx.clearRect(0, 0, 1280, 720)
+        ctx.drawImage(
+          img,
+          sx, sy, sWidth, sHeight,
+          0, 0, 1280, 720
+        )
+        
+        const fileToUpload = await new Promise<File | null>((resolve) => {
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(new File([blob], originalFile.name || 'hero.jpg', { type: originalFile.type || 'image/jpeg' }))
+            } else {
+              resolve(null)
+            }
+          }, originalFile.type || 'image/jpeg', 0.85)
+        })
+
+        if (fileToUpload) {
+          const formData = new FormData()
+          formData.append('file', fileToUpload)
+          const res = await uploadHeroImageAction(formData)
+          if (res.error) alert(res.error)
+          else if (res.url) {
+            setHeroBgUrl(res.url)
+            alert('Gambar berhasil dipotong dan diunggah! Jangan lupa klik Simpan Pengaturan Tampilan.')
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Gagal memproses gambar.')
+    } finally {
+      setIsUploadingHero(false)
     }
   }
 
@@ -1208,6 +1387,88 @@ export function SettingsClient({
             <Button onClick={submitEditJam} disabled={isSavingJam}
               className="w-full h-9 text-sm bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-medium">
               {isSavingJam ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Menyimpan...</> : 'Simpan Jam Pelajaran'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Crop Hero Image */}
+      <Dialog open={isCropOpen} onOpenChange={setIsCropOpen}>
+        <DialogContent className="sm:max-w-xl rounded-xl border-surface">
+          <DialogHeader className="border-b border-surface-2 pb-3">
+            <DialogTitle className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+              Sesuaikan Gambar Hero (16:9)
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <p className="text-xs text-slate-500">
+              Seret/geser gambar untuk memposisikan bagian yang ingin ditampilkan, gunakan slider untuk memperbesar/memperkecil gambar.
+            </p>
+
+            <div 
+              ref={viewportRef}
+              className="relative w-full aspect-[16/9] bg-slate-950 border border-surface-2 rounded-xl overflow-hidden cursor-move select-none"
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              {editImageSrc && (
+                <img
+                  ref={imageRef}
+                  src={editImageSrc}
+                  alt="Crop Preview"
+                  onLoad={handleImageLoad}
+                  style={{
+                    width: displayDims.w,
+                    height: displayDims.h,
+                    transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
+                    transformOrigin: '0 0',
+                  }}
+                  className="absolute max-w-none pointer-events-none"
+                />
+              )}
+
+              <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none">
+                <div className="border-r border-b border-white/20"></div>
+                <div className="border-r border-b border-white/20"></div>
+                <div className="border-b border-white/20"></div>
+                <div className="border-r border-b border-white/20"></div>
+                <div className="border-r border-b border-white/20"></div>
+                <div className="border-b border-white/20"></div>
+                <div className="border-r border-white/20"></div>
+                <div className="border-r border-white/20"></div>
+                <div></div>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-slate-500">
+                <span>Perkecil (Zoom Out)</span>
+                <span>Perbesar (Zoom In)</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="3"
+                step="0.01"
+                value={zoom}
+                onChange={(e) => handleZoomChange(parseFloat(e.target.value))}
+                className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-surface-2 pt-3">
+            <Button variant="outline" size="sm" onClick={() => setIsCropOpen(false)}>
+              Batal
+            </Button>
+            <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white" onClick={handleCropAndUpload}>
+              Potong & Unggah
             </Button>
           </div>
         </DialogContent>

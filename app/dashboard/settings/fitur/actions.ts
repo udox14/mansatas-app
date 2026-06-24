@@ -723,7 +723,6 @@ export async function setSidebarTemplateConfig(groups: SidebarGroupConfig[]) {
         return true
       }),
     }))
-    .filter(group => group.items.length > 0)
 
   const groupsJson = JSON.stringify(cleanGroups.length > 0 ? cleanGroups : DEFAULT_SIDEBAR_GROUPS)
   await db.prepare(`

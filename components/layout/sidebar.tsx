@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { DEFAULT_SIDEBAR_GROUPS, MENU_ITEMS, SIDEBAR_ROOT_ITEM_IDS, getSidebarFeatureIds, type SidebarGroupConfig } from '@/config/menu'
-import { SignOut as LogOut, X, CaretLeft as ChevronLeft, CaretRight as ChevronRight, CaretDown as ChevronDown, Moon, Sun, MagnifyingGlass as Search } from '@phosphor-icons/react'
+import { X, CaretLeft as ChevronLeft, CaretRight as ChevronRight, CaretDown as ChevronDown, Moon, Sun, MagnifyingGlass as Search } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { getIconComponent } from '@/lib/icons'
 
@@ -55,7 +55,6 @@ export function Sidebar({
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [themeId, setThemeId] = useState<ThemeKey>('slate')
   const [isDark, setIsDark] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -63,6 +62,7 @@ export function Sidebar({
   const [menuSearch, setMenuSearch] = useState('')
   const userCollapsedRef = useRef(false)
   const initializedAccordionRef = useRef(false)
+  const prevActiveGroupIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     setMounted(true)
@@ -123,13 +123,17 @@ export function Sidebar({
   }, [mounted, activeGroupId, effectiveGroupIds, effectiveSidebarGroups])
 
   useEffect(() => {
-    if (!mounted || !activeGroupId || openGroupIds.includes(activeGroupId)) return
-    setOpenGroupIds(prev => {
-      const next = [...prev, activeGroupId]
-      localStorage.setItem('mansatas_sidebar_open_groups', JSON.stringify(next))
-      return next
-    })
-  }, [mounted, activeGroupId, openGroupIds])
+    if (!mounted) return
+    if (activeGroupId && activeGroupId !== prevActiveGroupIdRef.current) {
+      setOpenGroupIds(prev => {
+        if (prev.includes(activeGroupId)) return prev
+        const next = [...prev, activeGroupId]
+        localStorage.setItem('mansatas_sidebar_open_groups', JSON.stringify(next))
+        return next
+      })
+    }
+    prevActiveGroupIdRef.current = activeGroupId
+  }, [mounted, activeGroupId])
 
   const changeTheme = (id: ThemeKey) => { setThemeId(id); localStorage.setItem('mansatas_sidebar_theme', id) }
 
@@ -146,18 +150,6 @@ export function Sidebar({
     setIsCollapsed(next)
     userCollapsedRef.current = next
     localStorage.setItem('mansatas_collapsed', String(next))
-  }
-
-  const handleLogout = async () => {
-    if (!confirm('Yakin ingin keluar dari aplikasi?')) return
-    setIsLoggingOut(true)
-    await fetch('/api/auth/sign-out', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-      credentials: 'include',
-    })
-    window.location.href = '/'
   }
 
   const toggleGroup = (groupId: string) => {
@@ -310,28 +302,23 @@ export function Sidebar({
                     type="button"
                     onClick={() => toggleGroup(group.id)}
                     className={cn(
-                      'group/header flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-200',
+                      'group/header flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-all duration-200',
                       hasActiveItem ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5' : cn(theme.text, 'hover:bg-white/5 hover:text-white')
                     )}
                     aria-expanded={isGroupOpen}
                     aria-controls={`sidebar-group-${group.id}`}
                   >
-                    <span className={cn(
-                      'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors',
-                      hasActiveItem ? cn(theme.activeBg, theme.activeText) : 'bg-black/15 text-white/70 group-hover/header:bg-white/10 group-hover/header:text-white'
-                    )}>
-                      {GroupIcon && <GroupIcon className="h-4 w-4" />}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-semibold leading-snug text-white/90 group-hover/header:text-white">
-                        {group.label}
-                      </span>
-                      <span className={cn("mt-0.5 block text-[10px] font-medium leading-tight", theme.textMuted)}>
-                        {groupItems.length} menu
-                      </span>
+                    {GroupIcon && (
+                      <GroupIcon className={cn(
+                        'h-4 w-4 shrink-0 transition-all duration-300',
+                        hasActiveItem ? 'opacity-100 scale-105 text-white' : 'opacity-70 group-hover/header:opacity-100'
+                      )} />
+                    )}
+                    <span className="min-w-0 flex-1 text-[13px] font-semibold truncate leading-snug">
+                      {group.label}
                     </span>
                     <ChevronDown className={cn(
-                      'mt-2 h-4 w-4 shrink-0 text-white/50 transition-transform duration-300 group-hover/header:text-white/80',
+                      'h-3.5 w-3.5 shrink-0 text-white/50 transition-transform duration-300 group-hover/header:text-white/80',
                       isGroupOpen ? 'rotate-0' : '-rotate-90'
                     )} />
                   </button>
@@ -348,7 +335,7 @@ export function Sidebar({
                   )}
                 >
                   <div className={cn('min-h-0 overflow-hidden', !collapsed && 'pt-2')}>
-                <div className={cn("space-y-0.5", !collapsed && "relative ml-7 border-l border-white/10 pl-3")}>
+                <div className={cn("space-y-0.5", !collapsed && "relative ml-5 border-l border-white/10 pl-3")}>
                   {groupItems.map(item => {
                     const isActive = activeHref === item.href
                     const Icon = getIconComponent(item.icon)
@@ -444,19 +431,6 @@ export function Sidebar({
               </div>
             )}
           </Link>
-
-          {/* Logout */}
-          <button onClick={handleLogout} disabled={isLoggingOut}
-            title={collapsed ? 'Keluar' : undefined}
-            className={cn(
-              'w-full flex items-center rounded-xl transition-all duration-200 hover:bg-red-500/10 hover:text-red-400 group',
-              theme.textMuted,
-              collapsed ? 'justify-center p-2.5 mx-auto w-[42px] h-[42px]' : 'gap-3 px-3 py-2.5'
-            )}
-          >
-            <LogOut className="h-[18px] w-[18px] shrink-0 transition-transform duration-300 group-hover:-translate-x-1" />
-            {!collapsed && <span className="text-[12px] font-medium">{isLoggingOut ? 'Keluar...' : 'Keluar Aplikasi'}</span>}
-          </button>
         </div>
 
       </div>
@@ -465,7 +439,7 @@ export function Sidebar({
 
   return (
     <>
-      {isOpen && <div onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden transition-opacity" />}
+      {isOpen && <div onClick={() => setIsOpen(false)} className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[45] lg:hidden transition-opacity" />}
 
       {/* Desktop sidebar */}
       <aside className={cn(

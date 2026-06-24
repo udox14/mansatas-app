@@ -50,8 +50,8 @@ export function WelcomeStrip({
     ? '' // No gradient effect if image is provided
     : `bg-gradient-to-r ${fallbackGradient}`
 
-  const textClass = textColor === 'white' ? 'text-white drop-shadow-md' : 'text-slate-800 dark:text-slate-50 drop-shadow-md'
-  const subTextClass = textColor === 'white' ? 'text-slate-200 drop-shadow-md' : 'text-slate-600 dark:text-slate-300 drop-shadow-md'
+  const textClass = textColor === 'white' ? 'text-white drop-shadow-md' : 'text-slate-800 drop-shadow-none'
+  const subTextClass = textColor === 'white' ? 'text-slate-200 drop-shadow-md' : 'text-slate-600 drop-shadow-none'
 
   return (
     <div 
@@ -78,11 +78,11 @@ export function WelcomeStrip({
               {nama}
             </h1>
             <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
-              <span className={`text-[10px] md:text-xs font-bold px-2.5 py-0.5 md:px-3 md:py-1 rounded-full backdrop-blur-md shadow-sm ${textColor === 'white' ? 'bg-white/20 text-white' : 'bg-black/10 text-slate-700 dark:text-slate-200'}`}>
+              <span className={`text-[10px] md:text-xs font-bold px-2.5 py-0.5 md:px-3 md:py-1 rounded-full backdrop-blur-md shadow-sm ${textColor === 'white' ? 'bg-white/20 text-white' : 'bg-black/10 text-slate-700'}`}>
                 {roleLabel}
               </span>
               {taAktif && (
-                <span className={`text-[10px] md:text-xs font-semibold flex items-center gap-1 md:gap-1.5 backdrop-blur-md px-2.5 py-0.5 md:px-3 md:py-1 rounded-full shadow-sm ${textColor === 'white' ? 'bg-black/20 text-white' : 'bg-white/40 text-slate-800 dark:text-slate-100'}`}>
+                <span className={`text-[10px] md:text-xs font-semibold flex items-center gap-1 md:gap-1.5 backdrop-blur-md px-2.5 py-0.5 md:px-3 md:py-1 rounded-full shadow-sm ${textColor === 'white' ? 'bg-black/20 text-white' : 'bg-white/40 text-slate-800'}`}>
                   <CalendarCheck className="h-3.5 w-3.5 md:h-4 md:w-4" weight="duotone" />
                   TA {taAktif.nama} • Smt {taAktif.semester}
                 </span>
