@@ -180,18 +180,18 @@ function TodayMetric({
   return (
     <Link
       href={href}
-      className="group rounded-3xl bg-white dark:bg-slate-800 p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:-translate-y-1"
+      className="group flex flex-col justify-between rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-slate-100 dark:border-slate-700/50 hover:shadow-md transition-all active:scale-[0.98]"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className={`h-11 w-11 rounded-2xl flex items-center justify-center ${color} shadow-sm`}>{icon}</div>
-        <div className="p-2 bg-slate-50 dark:bg-slate-700/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-          <ArrowRight className="h-4 w-4 text-slate-400 dark:text-slate-300" />
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <div className={`h-8 w-8 rounded-xl flex items-center justify-center ${color}`}>{icon}</div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{title}</p>
         </div>
+        <ArrowRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 transition-colors" />
       </div>
-      <div className="mt-4">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">{title}</p>
-        <p className="text-3xl font-extrabold leading-none tracking-tight text-slate-800 dark:text-slate-50 tabular-nums">{value}</p>
-        <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400 leading-snug">{desc}</p>
+      <div>
+        <p className="text-xl sm:text-2xl font-extrabold leading-none tracking-tight text-slate-800 dark:text-slate-50 tabular-nums">{value}</p>
+        <p className="mt-1 text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 leading-snug">{desc}</p>
       </div>
     </Link>
   )
@@ -207,29 +207,20 @@ function ProgressPanel({
   const tone = progressTone(agenda.percent)
 
   return (
-    <Link href={href} className="group block rounded-3xl bg-white dark:bg-slate-800 p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] dark:hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)] hover:-translate-y-1">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Agenda Guru</p>
-          <p className="text-3xl font-extrabold text-slate-900 dark:text-slate-50 tabular-nums">{agenda.filled}</p>
-        </div>
-        <div className={`px-3 py-1.5 rounded-xl font-bold tabular-nums text-sm ${tone.split(' ')[1]} ${tone.split(' ')[0].replace('bg-', 'bg-opacity-20 bg-')}`}>{agenda.percent}%</div>
+    <Link href={href} className="group flex flex-col justify-between rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-slate-100 dark:border-slate-700/50 hover:shadow-md transition-all active:scale-[0.98]">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Agenda Guru</p>
+        <div className={`px-2 py-0.5 rounded-md font-bold tabular-nums text-[10px] ${tone.split(' ')[1]} ${tone.split(' ')[0].replace('bg-', 'bg-opacity-20 bg-')}`}>{agenda.percent}%</div>
       </div>
-      <div className="mt-2 flex items-center justify-between gap-3">
-        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">dari {agenda.total} jadwal</p>
-        <div className="p-2 bg-slate-50 dark:bg-slate-700/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-          <ArrowRight className="h-4 w-4 text-slate-400 dark:text-slate-300" />
-        </div>
+      <div className="flex items-end justify-between gap-3 mb-2">
+        <p className="text-xl sm:text-2xl font-extrabold text-slate-800 dark:text-slate-50 tabular-nums">{agenda.filled}</p>
+        <p className="text-[10px] font-medium text-slate-400 mb-1">dari {agenda.total}</p>
       </div>
-      <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/50">
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/50">
         <div className={`h-full rounded-full ${tone.split(' ')[0]}`} style={{ width: `${agenda.percent}%` }} />
       </div>
-      <p className="mt-3 text-xs font-medium text-slate-500 dark:text-slate-400">
-        {agenda.total === 0
-          ? 'Tidak ada jadwal mengajar hari ini'
-          : agenda.percent >= 80
-            ? 'Pengisian agenda berjalan baik'
-            : 'Masih ada jurnal yang perlu dikejar'}
+      <p className="mt-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+        {agenda.total === 0 ? 'Tidak ada jadwal' : agenda.percent >= 80 ? 'Pengisian berjalan baik' : 'Masih ada yang tertinggal'}
       </p>
     </Link>
   )
@@ -245,20 +236,18 @@ function ActionCard({ item }: { item: ActionItem }) {
   }[item.tone]
 
   return (
-    <Link href={item.href} className="group flex items-center gap-4 rounded-3xl bg-white dark:bg-slate-800 p-4 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5">
-      <div className={`h-12 w-12 shrink-0 rounded-2xl flex items-center justify-center ${toneClass}`}>{item.icon}</div>
+    <Link href={item.href} className="group flex items-center gap-3 rounded-2xl bg-white dark:bg-slate-800 p-3 shadow-sm border border-slate-100 dark:border-slate-700/50 hover:shadow-md transition-all active:scale-[0.99]">
+      <div className={`h-10 w-10 shrink-0 rounded-xl flex items-center justify-center ${toneClass}`}>{item.icon}</div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{item.title}</p>
-        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate mt-0.5">{item.desc}</p>
+        <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{item.title}</p>
+        <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 truncate mt-0.5">{item.desc}</p>
       </div>
       {item.badge !== undefined && (
-        <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+        <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
           {item.badge}
         </span>
       )}
-      <div className="shrink-0 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-        <ArrowRight className="h-4 w-4 text-slate-400 dark:text-slate-300" />
-      </div>
+      <ArrowRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 transition-colors shrink-0 ml-1" />
     </Link>
   )
 }
@@ -597,9 +586,9 @@ function SnapshotRow({
   href: string
 }) {
   return (
-    <Link href={href} className="flex items-center justify-between gap-4 rounded-2xl px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-      <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{label}</span>
-      <span className="text-sm font-extrabold text-slate-900 dark:text-slate-100 tabular-nums">{value}</span>
+    <Link href={href} className="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{label}</span>
+      <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{value}</span>
     </Link>
   )
 }

@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition, type Dispatch, type SetStateAction } 
 import {
   DEFAULT_SIDEBAR_GROUPS,
   MENU_ITEMS,
+  SIDEBAR_ROOT_ITEM_IDS,
   getSidebarFeatureIds,
   normalizeSidebarRoleOverride,
   parseSidebarRoleOverride,
@@ -508,8 +509,9 @@ function TemplateSidebarView({
 }) {
   const [isSaving, setIsSaving] = useState(false)
   const [newGroupLabel, setNewGroupLabel] = useState('')
+  const rootIds = new Set<string>(SIDEBAR_ROOT_ITEM_IDS)
   const configuredIds = new Set(sidebarTemplate.flatMap(group => group.items))
-  const availableItems = features.filter(item => !configuredIds.has(item.id))
+  const availableItems = features.filter(item => !rootIds.has(item.id) && !configuredIds.has(item.id))
 
   const saveTemplate = async (nextGroups: SidebarGroupConfig[]) => {
     setIsSaving(true)

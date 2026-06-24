@@ -545,7 +545,6 @@ export const MENU_ITEMS: MenuItem[] = [
 ]
 
 export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
-  { id: 'utama', label: 'Utama', items: ['dashboard'] },
   { id: 'data-master', label: 'Data Master', items: ['siswa', 'guru', 'kelas', 'plotting', 'ekstrakurikuler-master', 'pmb'] },
   { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'agenda-kelas', 'ckh-generator', 'rppm-generator', 'kehadiran', 'nilai-harian', 'penugasan', 'ekstrakurikuler'] },
   { id: 'monitoring-akademik', label: 'Monitoring Akademik', items: ['akademik', 'kalender-pendidikan', 'analitik'] },
@@ -556,6 +555,9 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
   { id: 'sistem', label: 'Sistem', items: ['settings', 'whatsapp', 'settings-notifications', 'settings-jadwal-notif', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
 ]
+
+export const SIDEBAR_ROOT_ITEM_IDS = ['dashboard'] as const
+const SIDEBAR_ROOT_ITEM_ID_SET = new Set<string>(SIDEBAR_ROOT_ITEM_IDS)
 
 function uniqueStrings(values: unknown): string[] {
   if (!Array.isArray(values)) return []
@@ -572,9 +574,9 @@ export function parseSidebarGroups(raw?: string | null, fallback: SidebarGroupCo
       .map((group: any, index: number) => ({
         id: typeof group?.id === 'string' && group.id.trim() ? group.id.trim() : `group-${index + 1}`,
         label: typeof group?.label === 'string' && group.label.trim() ? group.label.trim() : `Group ${index + 1}`,
-        items: uniqueStrings(group?.items).filter(id => knownIds.has(id)),
+        items: uniqueStrings(group?.items).filter(id => knownIds.has(id) && !SIDEBAR_ROOT_ITEM_ID_SET.has(id)),
       }))
-      .filter(group => group.label || group.items.length > 0)
+      .filter(group => group.items.length > 0)
     return groups.length > 0 ? groups : fallback
   } catch {
     return fallback
@@ -585,7 +587,7 @@ export function normalizeSidebarRoleOverride(input: SidebarRoleOverrideConfig): 
   const knownIds = new Set(MENU_ITEMS.map(item => item.id))
   const groupOrder = uniqueStrings(input.groupOrder)
   const hiddenGroupIds = uniqueStrings(input.hiddenGroupIds)
-  const hiddenItemIds = uniqueStrings(input.hiddenItemIds).filter(id => knownIds.has(id))
+  const hiddenItemIds = uniqueStrings(input.hiddenItemIds).filter(id => knownIds.has(id) && !SIDEBAR_ROOT_ITEM_ID_SET.has(id))
 
   const groupLabels: Record<string, string> = {}
   for (const [groupId, label] of Object.entries(input.groupLabels || {})) {
@@ -594,7 +596,7 @@ export function normalizeSidebarRoleOverride(input: SidebarRoleOverrideConfig): 
 
   const itemPlacements: Record<string, string[]> = {}
   for (const [groupId, items] of Object.entries(input.itemPlacements || {})) {
-    const cleanItems = uniqueStrings(items).filter(id => knownIds.has(id))
+    const cleanItems = uniqueStrings(items).filter(id => knownIds.has(id) && !SIDEBAR_ROOT_ITEM_ID_SET.has(id))
     if (cleanItems.length > 0 || groupLabels[groupId] || groupOrder.includes(groupId)) itemPlacements[groupId] = cleanItems
   }
 
@@ -625,7 +627,7 @@ export function getSidebarFeatureIds(allowedFeatures: string[] = []): string[] {
   const allowedSet = new Set(allowedFeatures)
   const ids = MENU_ITEMS
     .filter(item =>
-      allowedSet.has(item.id) ||
+      (allowedSet.has(item.id) && !SIDEBAR_ROOT_ITEM_ID_SET.has(item.id)) ||
       (item.id === 'keuangan-transaksi' && allowedSet.has('keuangan-laporan')) ||
       (item.id === 'keuangan-export' && (allowedSet.has('keuangan-dspt') || allowedSet.has('keuangan-spp')))
     )
@@ -685,7 +687,7 @@ export function resolveSidebarGroups(
     groups.push({ id: 'lainnya', label: 'Lainnya', items: unconfiguredAllowedIds })
   }
 
-  return groups.length > 0 ? groups : template
+  return groups.length > 0 ? groups : (allowedFeatures ? [] : template)
 }
 
 // Registry semua role yang tersedia di sistem
