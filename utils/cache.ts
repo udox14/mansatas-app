@@ -127,12 +127,16 @@ async function computeSuperAdminDashboardStats(db: D1Database): Promise<SuperAdm
       GROUP BY mp.id ORDER BY c DESC LIMIT 5
     `).all<{ nama: string; c: number }>(),
 
+    // presensi_pegawai belum tentu ada di D1 (fitur presensi pegawai belum aktif
+    // di prod — migration tabelnya belum dijalankan). Guard agar 1 tabel hilang
+    // tidak menjatuhkan seluruh dashboard.
     db.prepare(`
       SELECT status, COUNT(*) AS c
       FROM presensi_pegawai
       WHERE tanggal = ?
       GROUP BY status
-    `).bind(today).all<{ status: string; c: number }>(),
+    `).bind(today).all<{ status: string; c: number }>()
+      .catch(() => ({ results: [] as { status: string; c: number }[] })),
   ])
 
   // Pivot aktivitas -> per hari {info,warning,danger}
