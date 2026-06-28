@@ -15,9 +15,11 @@ type Props = {
   roleLabel: string; roleColor: string; sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
   isGuruPiket?: boolean
+  dashboardVisibility?: Record<string, boolean>
 }
 
-export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
+export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket, dashboardVisibility }: Props) {
+  const show = (id: string) => dashboardVisibility?.[id] !== false
   const db = await getDB()
   const today = todayWIB()
 
@@ -73,14 +75,15 @@ export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, role
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
       
 
-      <KehadiranPribadiCard userId={userId} />
+      {show('kehadiran_pribadi') && <KehadiranPribadiCard userId={userId} />}
 
       {/* Penugasan Masuk (jika dia guru piket) */}
       {isGuruPiket && <PenugasanMasukCard userId={userId} />}
 
-      <JadwalMengajarToday userId={userId} taAktif={taAktif} showAbsensiAction={true} />
+      {show('jadwal_mengajar') && <JadwalMengajarToday userId={userId} taAktif={taAktif} showAbsensiAction={true} />}
 
       {/* Summary Hari Ini */}
+      {show('summary_hari_ini') && (
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-xl border border-surface bg-surface shadow-sm p-4 flex flex-col gap-2">
           <div className="p-1.5 rounded-md bg-rose-50 border border-rose-100 w-fit">
@@ -112,9 +115,12 @@ export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, role
           </div>
         </div>
       </div>
+      )}
 
+      {(show('siswa_prioritas') || show('kasus_terbaru')) && (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Siswa Prioritas */}
+        {show('siswa_prioritas') && (
         <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
             <div className="p-1.5 rounded-md bg-rose-50 border border-rose-100">
@@ -152,8 +158,10 @@ export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, role
             </div>
           )}
         </div>
+        )}
 
         {/* Kasus Terbaru */}
+        {show('kasus_terbaru') && (
         <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
             <div className="p-1.5 rounded-md bg-rose-50 border border-rose-100">
@@ -188,10 +196,12 @@ export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, role
             </div>
           )}
         </div>
+        )}
       </div>
+      )}
 
       {/* Tren Pelanggaran per Jenis */}
-      {trenPelanggaran.length > 0 && (
+      {show('tren_jenis_pelanggaran') && trenPelanggaran.length > 0 && (
         <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
             <div className="p-1.5 rounded-md bg-rose-50 border border-rose-100">

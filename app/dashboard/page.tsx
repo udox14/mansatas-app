@@ -16,6 +16,7 @@ import { GuruPPLDashboard } from '@/components/dashboard/GuruPPLDashboard'
 import { BendaharaDashboard } from '@/components/dashboard/BendaharaDashboard'
 import { DashboardSPAShell } from '@/components/dashboard/shared/DashboardSPAShell'
 import { WelcomeStrip } from '@/components/dashboard/shared/WelcomeStrip'
+import { DASHBOARD_VISIBILITY_KEY, dashboardKeyForRole, parseVisibility } from '@/lib/dashboard-visibility'
 
 export const metadata = { title: 'Dashboard - MANSATAS App' }
 export const dynamic  = 'force-dynamic'
@@ -97,13 +98,16 @@ export default async function DashboardPage() {
   }
 
   // Fetch Hero Settings
-  const [bgUrlRow, runningTextRow, textColorRow, runningTextBgRow, runningTextColorRow] = await Promise.all([
+  const [bgUrlRow, runningTextRow, textColorRow, runningTextBgRow, runningTextColorRow, visibilityRow] = await Promise.all([
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_background_image_url').first<{ value: string }>(),
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_running_text').first<{ value: string }>(),
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_text_color').first<{ value: string }>(),
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_running_text_bg').first<{ value: string }>(),
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_running_text_color').first<{ value: string }>(),
+    db.prepare('SELECT value FROM system_settings WHERE key = ?').bind(DASHBOARD_VISIBILITY_KEY).first<{ value: string }>(),
   ])
+
+  const dashboardVisibility = parseVisibility(visibilityRow?.value)[dashboardKeyForRole(userRole)] ?? {}
 
   const commonProps = {
     userId:    user.id,
@@ -122,6 +126,7 @@ export default async function DashboardPage() {
     textColor: textColorRow?.value || 'white',
     runningTextBg: runningTextBgRow?.value || '#1e1e1e',
     runningTextColor: runningTextColorRow?.value || '#ffffff',
+    dashboardVisibility,
   }
 
   const dashboardContent = (() => {

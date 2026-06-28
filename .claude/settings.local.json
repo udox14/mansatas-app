@@ -32,7 +32,9 @@
       "Bash(node -e ' *)",
       "Bash(node -e 'let d=\"\";process.stdin.on\\(\"data\",c=>d+=c\\);process.stdin.on\\(\"end\",\\(\\)=>{const j=JSON.parse\\(d\\);const r=j[0].results[0];console.log\\(JSON.stringify\\({host:new URL\\(r.endpoint\\).host, endpoint:r.endpoint, p256dh:r.p256dh, auth:r.auth}\\)\\);}\\)')",
       "Bash(cp /tmp/vtest.mjs ./vtest.mjs)",
-      "Bash(node ./vtest.mjs)"
+      "Bash(node ./vtest.mjs)",
+      "Bash(xargs cat)",
+      "Bash(xargs grep -l \"recharts\\\\|chart\\\\.js\\\\|nivo\\\\|visx\\\\|victory\")"
     ]
   }
 }

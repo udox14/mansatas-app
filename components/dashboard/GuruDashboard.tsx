@@ -8,20 +8,22 @@ type Props = {
   roleLabel: string; roleColor: string; sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
   isGuruPiket?: boolean
+  dashboardVisibility?: Record<string, boolean>
 }
 
-export async function GuruDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
+export async function GuruDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket, dashboardVisibility }: Props) {
+  const show = (id: string) => dashboardVisibility?.[id] !== false
   return (
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
-      
 
-      <KehadiranPribadiCard userId={userId} />
+
+      {show('kehadiran_pribadi') && <KehadiranPribadiCard userId={userId} />}
 
       {/* Penugasan Masuk (jika dia guru piket) */}
       {isGuruPiket && <PenugasanMasukCard userId={userId} />}
 
       {/* Jadwal via Shared Component */}
-      <JadwalMengajarToday userId={userId} taAktif={taAktif} showAbsensiAction={true} />
+      {show('jadwal_mengajar') && <JadwalMengajarToday userId={userId} taAktif={taAktif} showAbsensiAction={true} />}
     </div>
   )
 }
