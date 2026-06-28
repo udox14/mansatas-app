@@ -10,7 +10,7 @@ import { SEMESTER_MAP, SEMESTER_KEYS } from './constants'
 // KV CACHE — rekap nilai jarang berubah (update per semester).
 // Invalidasi manual saat import/reset, bukan TTL pendek.
 // ============================================================
-const REKAP_TABEL_KEY = 'rekap:nilai:tabel:v1'
+const REKAP_TABEL_KEY = 'rekap:nilai:tabel:v2'
 const REKAP_TABEL_TTL = 86400 // 24 jam (safety net; sumber kebenaran = invalidasi saat tulis)
 
 async function getRekapKV(): Promise<KVNamespace | null> {
@@ -245,7 +245,11 @@ export type RekapSiswaRow = {
   nilai: Record<string, Record<string, number>> // { nilai_smt1: {...}, ... }
 }
 
-export type RekapTabelPayload = { siswa: RekapSiswaRow[]; mapelOrder: string[] }
+export type RekapTabelPayload = {
+  siswa: RekapSiswaRow[]
+  mapelOrder: string[]
+  kodeByMapel: Record<string, string> // nama_mapel -> kode_mapel (RDM) dari pusat akademik
+}
 
 export async function getRekapNilaiTabel(): Promise<RekapTabelPayload> {
   const kv = await getRekapKV()
@@ -272,7 +276,7 @@ export async function getRekapNilaiTabel(): Promise<RekapTabelPayload> {
       WHERE s.status = 'aktif'
       ORDER BY k.tingkat, k.kelompok, k.nomor_kelas, s.nama_lengkap
     `).all<any>(),
-    db.prepare('SELECT nama_mapel FROM mata_pelajaran ORDER BY kategori, nama_mapel').all<any>(),
+    db.prepare('SELECT nama_mapel, kode_mapel FROM mata_pelajaran ORDER BY kategori, nama_mapel').all<any>(),
   ])
 
   const siswa: RekapSiswaRow[] = siswaRes.results.map((s: any) => ({
@@ -294,9 +298,15 @@ export async function getRekapNilaiTabel(): Promise<RekapTabelPayload> {
     },
   }))
 
+  const kodeByMapel: Record<string, string> = {}
+  for (const m of mapelRes.results) {
+    if (m.kode_mapel) kodeByMapel[m.nama_mapel] = String(m.kode_mapel).trim()
+  }
+
   const payload: RekapTabelPayload = {
     siswa,
     mapelOrder: mapelRes.results.map((m: any) => m.nama_mapel as string),
+    kodeByMapel,
   }
 
   if (kv) {
