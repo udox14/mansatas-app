@@ -33,7 +33,7 @@ export async function KepsekDashboard({ userId, nama, namaDepan, avatarUrl, role
     db.prepare(`
       SELECT DATE(tanggal) as tgl, COUNT(*) as cnt
       FROM siswa_pelanggaran
-      WHERE tanggal >= date(?, '-6 days')
+      WHERE tanggal >= date(?, '-6 days') AND DATE(tanggal) IS NOT NULL
       GROUP BY DATE(tanggal) ORDER BY tgl
     `).bind(today).all<{ tgl: string; cnt: number }>().then(r => r.results ?? []),
   ])

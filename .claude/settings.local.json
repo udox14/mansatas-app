@@ -40,7 +40,10 @@
       "Bash(node -e 'const j=JSON.parse\\(require\\(\"fs\"\\).readFileSync\\(\"scratch/_cols.json\",\"utf8\"\\)\\);\\(j[0].results||j.result?.[0]?.results||[]\\).forEach\\(r=>console.log\\(\"\\\\n[\"+r.t+\"]\\\\n  \"+r.cols\\)\\)')",
       "Bash(node -e 'const j=JSON.parse\\(require\\(\"fs\"\\).readFileSync\\(\"scratch/_cols.json\",\"utf8\"\\)\\);j[0].results.forEach\\(r=>console.log\\(\"\\\\n[\"+r.t+\"]\\\\n  \"+r.cols\\)\\)')",
       "Bash(node -e 'let s=require\\(\"fs\"\\).readFileSync\\(\"scratch/_cols.json\",\"utf8\"\\);let i=s.indexOf\\(\"[\"\\);let j=JSON.parse\\(s.slice\\(i\\)\\);j[0].results.forEach\\(r=>console.log\\(\"\\\\n[\"+r.t+\"]\\\\n  \"+r.cols\\)\\)')",
-      "Bash(node -e 'const s=require\\(\"./package.json\"\\).scripts; for\\(const k of [\"dev\",\"start\",\"preview\",\"build\",\"deploy\"]\\) if\\(s[k]\\) console.log\\(k+\": \"+s[k]\\)')"
+      "Bash(node -e 'const s=require\\(\"./package.json\"\\).scripts; for\\(const k of [\"dev\",\"start\",\"preview\",\"build\",\"deploy\"]\\) if\\(s[k]\\) console.log\\(k+\": \"+s[k]\\)')",
+      "Bash(node -e 'let s=\"\";process.stdin.on\\(\"data\",d=>s+=d\\).on\\(\"end\",\\(\\)=>{let i=s.indexOf\\(\"[\"\\);JSON.parse\\(s.slice\\(i\\)\\)[0].results.forEach\\(r=>console.log\\(JSON.stringify\\(r\\)\\)\\)}\\)')",
+      "Bash(node -e 'let s=\"\";process.stdin.on\\(\"data\",d=>s+=d\\).on\\(\"end\",\\(\\)=>{let i=s.indexOf\\(\"[\"\\);console.log\\(JSON.stringify\\(JSON.parse\\(s.slice\\(i\\)\\)[0].results[0]\\)\\)}\\)')",
+      "Bash(node -e 'let s=require\\(\"fs\"\\).readFileSync\\(0,\"utf8\"\\);let i=s.indexOf\\(\"[\"\\);let rows=JSON.parse\\(s.slice\\(i\\)\\)[0].results;require\\(\"fs\"\\).writeFileSync\\(\"scratch/pelanggaran_tanggal_backup_2026-06-28.json\",JSON.stringify\\(rows,null,2\\)\\);console.log\\(\"backed up\",rows.length,\"rows to scratch/pelanggaran_tanggal_backup_2026-06-28.json\"\\)')"
     ]
   }
 }
