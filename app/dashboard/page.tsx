@@ -17,6 +17,8 @@ import { BendaharaDashboard } from '@/components/dashboard/BendaharaDashboard'
 import { DashboardSPAShell } from '@/components/dashboard/shared/DashboardSPAShell'
 import { WelcomeStrip } from '@/components/dashboard/shared/WelcomeStrip'
 import { DASHBOARD_VISIBILITY_KEY, dashboardKeyForRole, parseVisibility } from '@/lib/dashboard-visibility'
+import { DASHBOARD_WIDGETS_CONFIG_KEY, parseWidgetsConfig, getWidgetMeta } from '@/lib/dashboard-widgets-meta'
+import { WIDGET_COMPONENTS } from '@/lib/dashboard-widgets'
 
 export const metadata = { title: 'Dashboard - MANSATAS App' }
 export const dynamic  = 'force-dynamic'
@@ -98,16 +100,26 @@ export default async function DashboardPage() {
   }
 
   // Fetch Hero Settings
-  const [bgUrlRow, runningTextRow, textColorRow, runningTextBgRow, runningTextColorRow, visibilityRow] = await Promise.all([
+  const [bgUrlRow, runningTextRow, textColorRow, runningTextBgRow, runningTextColorRow, visibilityRow, extraWidgetsRow] = await Promise.all([
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_background_image_url').first<{ value: string }>(),
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_running_text').first<{ value: string }>(),
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_text_color').first<{ value: string }>(),
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_running_text_bg').first<{ value: string }>(),
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind('hero_running_text_color').first<{ value: string }>(),
     db.prepare('SELECT value FROM system_settings WHERE key = ?').bind(DASHBOARD_VISIBILITY_KEY).first<{ value: string }>(),
+    db.prepare('SELECT value FROM system_settings WHERE key = ?').bind(DASHBOARD_WIDGETS_CONFIG_KEY).first<{ value: string }>(),
   ])
 
-  const dashboardVisibility = parseVisibility(visibilityRow?.value)[dashboardKeyForRole(userRole)] ?? {}
+  const dashboardKey = dashboardKeyForRole(userRole)
+  const dashboardVisibility = parseVisibility(visibilityRow?.value)[dashboardKey] ?? {}
+
+  // Widget tambahan (katalog) untuk dashboard role ini, difilter izin fitur user
+  const extraWidgetIds = (parseWidgetsConfig(extraWidgetsRow?.value)[dashboardKey] ?? [])
+    .filter(id => {
+      const meta = getWidgetMeta(id)
+      if (!meta || !WIDGET_COMPONENTS[id]) return false
+      return !meta.feature || allowedFeatures.includes(meta.feature)
+    })
 
   const commonProps = {
     userId:    user.id,
@@ -167,15 +179,34 @@ export default async function DashboardPage() {
     }
   })()
 
+  const widgetProps = {
+    userId: user.id,
+    taAktif: taAktif ?? null,
+    isGuruPiket,
+    userRoles,
+    primaryRole: userRole,
+    allowedFeatures,
+  }
+
+  const extraWidgetsNode = extraWidgetIds.length > 0 ? (
+    <div className="space-y-3 pb-12">
+      {extraWidgetIds.map(id => {
+        const Widget = WIDGET_COMPONENTS[id]
+        return <Widget key={id} {...widgetProps} />
+      })}
+    </div>
+  ) : null
+
   return (
     <div className="pb-20">
-      <DashboardSPAShell 
-        allowedFeatures={allowedFeatures} 
+      <DashboardSPAShell
+        allowedFeatures={allowedFeatures}
         featureLabels={featureLabels}
         heroNode={<WelcomeStrip {...commonProps} />}
         polaJam={polaJam}
       >
         {dashboardContent}
+        {extraWidgetsNode}
       </DashboardSPAShell>
     </div>
   )

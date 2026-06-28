@@ -23,9 +23,10 @@ import {
   simpanDaftarJurusan, simpanJamPelajaran,
   setAgendaTimeRestrictionEnabled, setAgendaLateSetting, setAttendanceTimeRestrictionEnabled,
   setAttendanceSkipIncompleteForDailyStatusEnabled, setHeroSettings, uploadHeroImageAction,
-  setDashboardItemVisibility
+  setDashboardItemVisibility, setDashboardExtraWidgets
 } from '../actions'
 import { DASHBOARD_GROUPS, isVisible, type VisibilityMap } from '@/lib/dashboard-visibility'
+import { WIDGET_CATALOG_META, type WidgetsConfigMap } from '@/lib/dashboard-widgets-meta'
 import { DEFAULT_POLA_JAM } from '../types'
 import type { PolaJam, SlotJam } from '../types'
 import { cn } from '@/lib/utils'
@@ -390,6 +391,7 @@ export function SettingsClient({
   heroRunningTextBg,
   heroRunningTextColor,
   dashboardVisibility,
+  dashboardExtraWidgets,
 }: {
   taData: TAProps[]
   agendaTimeRestrictionEnabled: boolean
@@ -404,6 +406,7 @@ export function SettingsClient({
   heroRunningTextBg: string
   heroRunningTextColor: string
   dashboardVisibility: VisibilityMap
+  dashboardExtraWidgets: WidgetsConfigMap
 }) {
   const router = useRouter()
   const [agendaTimeRestricted, setAgendaTimeRestricted] = useState(agendaTimeRestrictionEnabled)
@@ -439,6 +442,41 @@ export function SettingsClient({
     setIsSavingVis(true)
     const res = await setDashboardItemVisibility(visMap)
     setIsSavingVis(false)
+    if (res?.error) alert(res.error)
+    else alert(res?.success ?? 'Tersimpan')
+  }
+
+  // Widget tambahan (katalog) per dashboard
+  const [widgetsMap, setWidgetsMap] = useState<WidgetsConfigMap>(dashboardExtraWidgets || {})
+  const [isSavingWidgets, setIsSavingWidgets] = useState(false)
+
+  const addWidget = (groupKey: string, widgetId: string) => {
+    if (!widgetId) return
+    setWidgetsMap(prev => {
+      const cur = prev[groupKey] || []
+      if (cur.includes(widgetId)) return prev
+      return { ...prev, [groupKey]: [...cur, widgetId] }
+    })
+  }
+
+  const removeWidget = (groupKey: string, widgetId: string) => {
+    setWidgetsMap(prev => ({ ...prev, [groupKey]: (prev[groupKey] || []).filter(id => id !== widgetId) }))
+  }
+
+  const moveWidget = (groupKey: string, index: number, dir: -1 | 1) => {
+    setWidgetsMap(prev => {
+      const cur = [...(prev[groupKey] || [])]
+      const j = index + dir
+      if (j < 0 || j >= cur.length) return prev
+      ;[cur[index], cur[j]] = [cur[j], cur[index]]
+      return { ...prev, [groupKey]: cur }
+    })
+  }
+
+  const handleSaveWidgets = async () => {
+    setIsSavingWidgets(true)
+    const res = await setDashboardExtraWidgets(widgetsMap)
+    setIsSavingWidgets(false)
     if (res?.error) alert(res.error)
     else alert(res?.success ?? 'Tersimpan')
   }
@@ -1036,6 +1074,84 @@ export function SettingsClient({
               <p className="text-[11px] text-slate-500">Hijau = tampil.</p>
               <EyeOff className="h-3.5 w-3.5 text-slate-400 ml-2" />
               <p className="text-[11px] text-slate-500">Abu = disembunyikan. Jangan lupa klik Simpan.</p>
+            </div>
+          </div>
+
+          {/* ── WIDGET TAMBAHAN (katalog) ── */}
+          <div className="mt-4 rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-surface-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Widget Tambahan</p>
+                <p className="text-xs text-slate-400 mt-0.5">Tambahkan widget dari katalog ke dashboard tiap role. Bisa diurutkan. Widget hanya tampil jika role punya izin fitur terkait.</p>
+              </div>
+              <Button onClick={handleSaveWidgets} disabled={isSavingWidgets} className="h-9 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white">
+                {isSavingWidgets ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan'}
+              </Button>
+            </div>
+            <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {DASHBOARD_GROUPS.map(group => {
+                const added = widgetsMap[group.key] || []
+                const available = WIDGET_CATALOG_META.filter(w => !added.includes(w.id))
+                return (
+                  <div key={group.key} className="rounded-xl border border-surface overflow-hidden">
+                    <div className="flex items-center gap-2 px-4 py-2.5 bg-surface-2 border-b border-surface-2">
+                      <LayoutDashboard className="h-3.5 w-3.5 text-slate-500" />
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{group.label}</p>
+                      <span className="ml-auto text-[10px] text-slate-400">{added.length} widget</span>
+                    </div>
+
+                    {/* Daftar widget aktif (urut) */}
+                    {added.length === 0 ? (
+                      <p className="px-4 py-3 text-[11px] text-slate-400 italic">Belum ada widget tambahan.</p>
+                    ) : (
+                      <div className="divide-y divide-surface-2">
+                        {added.map((id, idx) => {
+                          const meta = WIDGET_CATALOG_META.find(w => w.id === id)
+                          return (
+                            <div key={id} className="flex items-center gap-2 px-3 py-2">
+                              <div className="flex flex-col">
+                                <button type="button" onClick={() => moveWidget(group.key, idx, -1)} disabled={idx === 0}
+                                  className="text-slate-300 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                                  <ChevronUp className="h-3.5 w-3.5" />
+                                </button>
+                                <button type="button" onClick={() => moveWidget(group.key, idx, 1)} disabled={idx === added.length - 1}
+                                  className="text-slate-300 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                              <span className="flex h-5 w-5 items-center justify-center rounded bg-emerald-50 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">{idx + 1}</span>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{meta?.label ?? id}</p>
+                                {meta?.description && <p className="text-[10px] text-slate-400 truncate">{meta.description}</p>}
+                              </div>
+                              <button type="button" onClick={() => removeWidget(group.key, id)}
+                                className="p-1 rounded text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0" title="Hapus">
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Katalog: widget yang bisa ditambahkan */}
+                    {available.length > 0 && (
+                      <div className="border-t border-surface-2 px-3 py-2.5 bg-surface-2/30">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Tambah dari katalog</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {available.map(w => (
+                            <button key={w.id} type="button" onClick={() => addWidget(group.key, w.id)}
+                              title={w.description}
+                              className="inline-flex items-center gap-1 rounded-md border border-dashed border-emerald-300 bg-surface px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-900/20">
+                              <Plus className="h-3 w-3" /> {w.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </TabsContent>

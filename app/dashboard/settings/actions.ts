@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import type { SlotJam, PolaJam } from './types'
 import { setSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { DASHBOARD_VISIBILITY_KEY, type VisibilityMap } from '@/lib/dashboard-visibility'
+import { DASHBOARD_WIDGETS_CONFIG_KEY, WIDGET_CATALOG_META, type WidgetsConfigMap } from '@/lib/dashboard-widgets-meta'
 import { ensureRiwayatKelasSnapshotColumns, formatKelasSnapshot } from '@/lib/riwayat-kelas'
 import { uploadToR2 } from '@/utils/r2'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
@@ -82,6 +83,33 @@ export async function setDashboardItemVisibility(visibility: VisibilityMap) {
 
   revalidatePath('/dashboard')
   return { error: null, success: 'Pengaturan tampilan dashboard berhasil disimpan.' }
+}
+
+// ============================================================
+// SET WIDGET TAMBAHAN PER DASHBOARD (katalog)
+// ============================================================
+export async function setDashboardExtraWidgets(config: WidgetsConfigMap) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Tidak terautentikasi' }
+
+  const validIds = new Set(WIDGET_CATALOG_META.map(w => w.id))
+  const cleaned: WidgetsConfigMap = {}
+  for (const [groupKey, ids] of Object.entries(config || {})) {
+    if (!Array.isArray(ids)) continue
+    // buang id tak dikenal + duplikat, pertahankan urutan
+    const seen = new Set<string>()
+    const list = ids.filter(id => validIds.has(id) && !seen.has(id) && seen.add(id))
+    if (list.length > 0) cleaned[groupKey] = list
+  }
+
+  try {
+    await setSystemSetting(DASHBOARD_WIDGETS_CONFIG_KEY, JSON.stringify(cleaned))
+  } catch (e: any) {
+    return { error: e?.message ?? 'Gagal menyimpan widget dashboard' }
+  }
+
+  revalidatePath('/dashboard')
+  return { error: null, success: 'Widget dashboard berhasil disimpan.' }
 }
 
 // ============================================================

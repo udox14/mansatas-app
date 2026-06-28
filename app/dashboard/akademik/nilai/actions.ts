@@ -2,8 +2,36 @@
 'use server'
 
 import { getDB, parseJsonCol } from '@/utils/db'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { revalidatePath } from 'next/cache'
 import { SEMESTER_MAP, SEMESTER_KEYS } from './constants'
+
+// ============================================================
+// KV CACHE — rekap nilai jarang berubah (update per semester).
+// Invalidasi manual saat import/reset, bukan TTL pendek.
+// ============================================================
+const REKAP_TABEL_KEY = 'rekap:nilai:tabel:v1'
+const REKAP_TABEL_TTL = 86400 // 24 jam (safety net; sumber kebenaran = invalidasi saat tulis)
+
+async function getRekapKV(): Promise<KVNamespace | null> {
+  try {
+    const { env } = await getCloudflareContext({ async: true })
+    return (env.NEXT_INC_CACHE_KV as KVNamespace) ?? null
+  } catch {
+    return null
+  }
+}
+
+async function invalidateRekapCache() {
+  const kv = await getRekapKV()
+  if (kv) {
+    try {
+      await kv.delete(REKAP_TABEL_KEY)
+    } catch {
+      // abaikan; TTL akan kedaluwarsa sendiri
+    }
+  }
+}
 
 // ============================================================
 // IMPORT NILAI DARI EXCEL (dipertahankan dari MANSATAS)
@@ -156,9 +184,10 @@ export async function simpanImportNilai(preparedRows: { siswaId: string, nilaiOb
     successCount += results.filter((r) => r.success).length
   }
 
+  await invalidateRekapCache()
   revalidatePath('/dashboard/akademik/nilai')
   revalidatePath('/dashboard/siswa')
-  
+
   return { success: `Berhasil import nilai untuk ${successCount} santri ke kolom ${SEMESTER_MAP[targetKolom as keyof typeof SEMESTER_MAP]}.` }
 }
 
@@ -176,6 +205,7 @@ export async function resetNilaiKolom(targetKolom: string) {
   } catch (e: any) {
     return { error: e.message }
   }
+  await invalidateRekapCache()
   revalidatePath('/dashboard/akademik/nilai')
   return { success: `Kolom ${SEMESTER_MAP[targetKolom]} berhasil direset.` }
 }
@@ -198,6 +228,86 @@ export async function getRekapNilaiSiswa(siswaId: string) {
     nilai_smt5: parseJsonCol<Record<string, number>>(row.nilai_smt5, {}),
     nilai_smt6: parseJsonCol<Record<string, number>>(row.nilai_smt6, {}),
   }
+}
+
+// ============================================================
+// GET REKAP NILAI TABEL (lihat semua siswa per kelas, nilai per mapel)
+// ============================================================
+export type RekapSiswaRow = {
+  id: string
+  nisn: string
+  nama_lengkap: string
+  jenis_kelamin: string
+  kelas_id: string | null
+  tingkat: number | null
+  nomor_kelas: string | null
+  kelompok: string | null
+  nilai: Record<string, Record<string, number>> // { nilai_smt1: {...}, ... }
+}
+
+export type RekapTabelPayload = { siswa: RekapSiswaRow[]; mapelOrder: string[] }
+
+export async function getRekapNilaiTabel(): Promise<RekapTabelPayload> {
+  const kv = await getRekapKV()
+
+  if (kv) {
+    try {
+      const cached = await kv.get<RekapTabelPayload>(REKAP_TABEL_KEY, 'json')
+      if (cached) return cached
+    } catch {
+      // abaikan error baca, fallback ke D1
+    }
+  }
+
+  const db = await getDB()
+  const [siswaRes, mapelRes] = await Promise.all([
+    db.prepare(`
+      SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin,
+             k.id AS kelas_id, k.tingkat, k.nomor_kelas, k.kelompok,
+             r.nilai_smt1, r.nilai_smt2, r.nilai_smt3,
+             r.nilai_smt4, r.nilai_smt5, r.nilai_smt6
+      FROM siswa s
+      LEFT JOIN kelas k ON s.kelas_id = k.id
+      LEFT JOIN rekap_nilai_akademik r ON r.siswa_id = s.id
+      WHERE s.status = 'aktif'
+      ORDER BY k.tingkat, k.kelompok, k.nomor_kelas, s.nama_lengkap
+    `).all<any>(),
+    db.prepare('SELECT nama_mapel FROM mata_pelajaran ORDER BY kategori, nama_mapel').all<any>(),
+  ])
+
+  const siswa: RekapSiswaRow[] = siswaRes.results.map((s: any) => ({
+    id: s.id,
+    nisn: s.nisn,
+    nama_lengkap: s.nama_lengkap,
+    jenis_kelamin: s.jenis_kelamin,
+    kelas_id: s.kelas_id,
+    tingkat: s.tingkat,
+    nomor_kelas: s.nomor_kelas,
+    kelompok: s.kelompok,
+    nilai: {
+      nilai_smt1: parseJsonCol<Record<string, number>>(s.nilai_smt1, {}),
+      nilai_smt2: parseJsonCol<Record<string, number>>(s.nilai_smt2, {}),
+      nilai_smt3: parseJsonCol<Record<string, number>>(s.nilai_smt3, {}),
+      nilai_smt4: parseJsonCol<Record<string, number>>(s.nilai_smt4, {}),
+      nilai_smt5: parseJsonCol<Record<string, number>>(s.nilai_smt5, {}),
+      nilai_smt6: parseJsonCol<Record<string, number>>(s.nilai_smt6, {}),
+    },
+  }))
+
+  const payload: RekapTabelPayload = {
+    siswa,
+    mapelOrder: mapelRes.results.map((m: any) => m.nama_mapel as string),
+  }
+
+  if (kv) {
+    try {
+      await kv.put(REKAP_TABEL_KEY, JSON.stringify(payload), { expirationTtl: REKAP_TABEL_TTL })
+    } catch {
+      // abaikan error tulis cache
+    }
+  }
+
+  return payload
 }
 
 // ============================================================

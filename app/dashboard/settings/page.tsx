@@ -8,6 +8,7 @@ import { SettingsClient } from './components/settings-client'
 import { PageHeader } from '@/components/layout/page-header'
 import { getSystemSetting, getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { DASHBOARD_VISIBILITY_KEY, parseVisibility } from '@/lib/dashboard-visibility'
+import { DASHBOARD_WIDGETS_CONFIG_KEY, parseWidgetsConfig } from '@/lib/dashboard-widgets-meta'
 
 export const metadata = { title: 'Pengaturan Global - MANSATAS App' }
 
@@ -86,6 +87,7 @@ export default async function SettingsPage() {
   const heroRunningTextBg = await getSystemSetting(SYSTEM_SETTING_KEYS.heroRunningTextBg, '#1e1e1e')
   const heroRunningTextColor = await getSystemSetting(SYSTEM_SETTING_KEYS.heroRunningTextColor, '#ffffff')
   const dashboardVisibility = parseVisibility(await getSystemSetting(DASHBOARD_VISIBILITY_KEY, ''))
+  const dashboardExtraWidgets = parseWidgetsConfig(await getSystemSetting(DASHBOARD_WIDGETS_CONFIG_KEY, ''))
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -107,6 +109,7 @@ export default async function SettingsPage() {
         heroRunningTextBg={heroRunningTextBg}
         heroRunningTextColor={heroRunningTextColor}
         dashboardVisibility={dashboardVisibility}
+        dashboardExtraWidgets={dashboardExtraWidgets}
       />
     </div>
   )
