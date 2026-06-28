@@ -23,8 +23,9 @@ export const TOOLTIP_STYLE = {
 export const TOOLTIP_ITEM = { color: '#e2e8f0' }
 export const TOOLTIP_LABEL = { color: '#fff', fontWeight: 600, marginBottom: 2 }
 
-// 'YYYY-MM-DD' -> 'DD/MM'
-export function shortDate(tgl: string) {
+// 'YYYY-MM-DD' -> 'DD/MM'. Null-safe: data tanggal bisa kotor / DATE() null.
+export function shortDate(tgl: string | null | undefined) {
+  if (!tgl || typeof tgl !== 'string') return '-'
   const [, m, d] = tgl.split('-')
   return d && m ? `${d}/${m}` : tgl
 }

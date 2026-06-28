@@ -135,7 +135,7 @@ async function computeSuperAdminDashboardStats(db: D1Database): Promise<SuperAdm
     db.prepare(`
       SELECT DATE(tanggal) AS tgl, COUNT(*) AS cnt
       FROM siswa_pelanggaran
-      WHERE tanggal >= date(?, '-13 days')
+      WHERE tanggal >= date(?, '-13 days') AND DATE(tanggal) IS NOT NULL
       GROUP BY tgl ORDER BY tgl
     `).bind(today).all<{ tgl: string; cnt: number }>(),
 
