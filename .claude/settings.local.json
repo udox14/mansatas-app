@@ -34,7 +34,12 @@
       "Bash(cp /tmp/vtest.mjs ./vtest.mjs)",
       "Bash(node ./vtest.mjs)",
       "Bash(xargs cat)",
-      "Bash(xargs grep -l \"recharts\\\\|chart\\\\.js\\\\|nivo\\\\|visx\\\\|victory\")"
+      "Bash(xargs grep -l \"recharts\\\\|chart\\\\.js\\\\|nivo\\\\|visx\\\\|victory\")",
+      "Bash(node -e 'let s=\"\";process.stdin.on\\(\"data\",d=>s+=d\\).on\\(\"end\",\\(\\)=>{const j=JSON.parse\\(s\\);const rows=j[0].results;require\\(\"fs\"\\).writeFileSync\\(\"scratch/_schema_dump.txt\",rows.map\\(r=>r.sql\\).join\\(\"\\\\n\\\\n\"\\)\\);console.log\\(\"written\",rows.length,\"tables\"\\)}\\)')",
+      "Bash(node -e 'let s=\"\";process.stdin.on\\(\"data\",d=>s+=d\\).on\\(\"end\",\\(\\)=>{JSON.parse\\(s\\)[0].results.forEach\\(r=>console.log\\(\"\\\\n[\"+r.t+\"]\\\\n  \"+r.cols\\)\\)}\\)')",
+      "Bash(node -e 'const j=JSON.parse\\(require\\(\"fs\"\\).readFileSync\\(\"scratch/_cols.json\",\"utf8\"\\)\\);\\(j[0].results||j.result?.[0]?.results||[]\\).forEach\\(r=>console.log\\(\"\\\\n[\"+r.t+\"]\\\\n  \"+r.cols\\)\\)')",
+      "Bash(node -e 'const j=JSON.parse\\(require\\(\"fs\"\\).readFileSync\\(\"scratch/_cols.json\",\"utf8\"\\)\\);j[0].results.forEach\\(r=>console.log\\(\"\\\\n[\"+r.t+\"]\\\\n  \"+r.cols\\)\\)')",
+      "Bash(node -e 'let s=require\\(\"fs\"\\).readFileSync\\(\"scratch/_cols.json\",\"utf8\"\\);let i=s.indexOf\\(\"[\"\\);let j=JSON.parse\\(s.slice\\(i\\)\\);j[0].results.forEach\\(r=>console.log\\(\"\\\\n[\"+r.t+\"]\\\\n  \"+r.cols\\)\\)')"
     ]
   }
 }
