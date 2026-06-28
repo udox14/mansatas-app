@@ -21,6 +21,7 @@ export function RekapTabel() {
   const [loading, setLoading] = useState(true)
   const [siswa, setSiswa] = useState<RekapSiswaRow[]>([])
   const [mapelOrder, setMapelOrder] = useState<string[]>([])
+  const [kodeByMapel, setKodeByMapel] = useState<Record<string, string>>({})
   const [semester, setSemester] = useState('nilai_smt1')
   const [kelasId, setKelasId] = useState<string>('')
   const [kkm, setKkm] = useState<number>(DEFAULT_KKM)
@@ -30,6 +31,7 @@ export function RekapTabel() {
       .then((res) => {
         setSiswa(res.siswa)
         setMapelOrder(res.mapelOrder)
+        setKodeByMapel(res.kodeByMapel || {})
       })
       .finally(() => setLoading(false))
   }, [])
@@ -133,7 +135,7 @@ export function RekapTabel() {
           Belum ada nilai untuk {SEMESTER_MAP[semester]} di kelas {activeKelas.label}.
         </div>
       ) : (
-        <RekapTable kelas={activeKelas} semester={semester} mapelCols={mapelCols} kkm={kkm} />
+        <RekapTable kelas={activeKelas} semester={semester} mapelCols={mapelCols} kkm={kkm} kodeByMapel={kodeByMapel} />
       )}
     </div>
   )
@@ -144,11 +146,13 @@ function RekapTable({
   semester,
   mapelCols,
   kkm,
+  kodeByMapel,
 }: {
   kelas: KelasGroup
   semester: string
   mapelCols: string[]
   kkm: number
+  kodeByMapel: Record<string, string>
 }) {
   // Hitung per-siswa
   const rows = kelas.siswa.map((s) => {
@@ -173,33 +177,42 @@ function RekapTable({
   return (
     <div className="rounded-lg border border-surface overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-xs">
+        <table className="w-full table-fixed border-collapse text-xs">
+          <colgroup>
+            <col className="w-7" />
+            <col className="w-[150px]" />
+            {mapelCols.map((m) => (
+              <col key={m} />
+            ))}
+            <col className="w-10" />
+            <col className="w-10" />
+          </colgroup>
           <thead>
             <tr className="bg-surface-2 text-slate-600 dark:text-slate-300">
-              <th className="sticky left-0 z-20 bg-surface-2 px-2 py-2 text-left font-semibold w-8 border-b border-surface">#</th>
-              <th className="sticky left-8 z-20 bg-surface-2 px-3 py-2 text-left font-semibold min-w-[180px] border-b border-r border-surface">
+              <th className="sticky left-0 z-20 bg-surface-2 px-1 py-2 text-left font-semibold border-b border-surface">#</th>
+              <th className="sticky left-7 z-20 bg-surface-2 px-3 py-2 text-left font-semibold border-b border-r border-surface">
                 Nama Siswa
               </th>
               {mapelCols.map((m) => (
                 <th
                   key={m}
                   title={m}
-                  className="px-2 py-2 text-center font-semibold border-b border-surface whitespace-nowrap max-w-[90px] truncate"
+                  className="px-1 py-2 text-center font-semibold border-b border-surface truncate cursor-help"
                 >
-                  {m}
+                  {kodeByMapel[m] || m}
                 </th>
               ))}
-              <th className="px-2 py-2 text-center font-bold border-b border-l border-surface bg-surface-2">Jml</th>
-              <th className="px-2 py-2 text-center font-bold border-b border-surface bg-surface-2">Rata</th>
+              <th className="px-1 py-2 text-center font-bold border-b border-l border-surface bg-surface-2">Jml</th>
+              <th className="px-1 py-2 text-center font-bold border-b border-surface bg-surface-2">Rata</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r, ri) => (
               <tr key={r.s.id} className="hover:bg-muted/40 border-b border-surface last:border-0">
-                <td className="sticky left-0 z-10 bg-surface px-2 py-1.5 text-muted-foreground tabular-nums">{ri + 1}</td>
-                <td className="sticky left-8 z-10 bg-surface px-3 py-1.5 border-r border-surface">
+                <td className="sticky left-0 z-10 bg-surface px-1 py-1.5 text-muted-foreground tabular-nums">{ri + 1}</td>
+                <td className="sticky left-7 z-10 bg-surface px-3 py-1.5 border-r border-surface">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[160px]">{r.s.nama_lengkap}</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200 truncate">{r.s.nama_lengkap}</span>
                     {r.belowCount > 0 && (
                       <span title={`${r.belowCount} mapel di bawah KKM`}>
                         <AlertTriangle className="h-3 w-3 text-rose-500 shrink-0" />
@@ -211,7 +224,7 @@ function RekapTable({
                 {r.vals.map((v, ci) => (
                   <td
                     key={ci}
-                    className={`px-2 py-1.5 text-center tabular-nums ${
+                    className={`px-1 py-1.5 text-center tabular-nums ${
                       cellBelow(v)
                         ? 'bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 font-semibold'
                         : 'text-slate-700 dark:text-slate-300'
@@ -220,11 +233,11 @@ function RekapTable({
                     {fmt(v)}
                   </td>
                 ))}
-                <td className="px-2 py-1.5 text-center font-bold tabular-nums border-l border-surface bg-surface-2/40">
+                <td className="px-1 py-1.5 text-center font-bold tabular-nums border-l border-surface bg-surface-2/40">
                   {fmt(r.jumlah)}
                 </td>
                 <td
-                  className={`px-2 py-1.5 text-center font-bold tabular-nums bg-surface-2/40 ${
+                  className={`px-1 py-1.5 text-center font-bold tabular-nums bg-surface-2/40 ${
                     cellBelow(r.rata) ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
                   }`}
                 >
@@ -235,12 +248,12 @@ function RekapTable({
           </tbody>
           <tfoot>
             <tr className="bg-surface-2 font-semibold text-slate-700 dark:text-slate-200">
-              <td className="sticky left-0 z-10 bg-surface-2 px-2 py-2 border-t border-surface" />
-              <td className="sticky left-8 z-10 bg-surface-2 px-3 py-2 border-t border-r border-surface">Rata-rata Kelas</td>
+              <td className="sticky left-0 z-10 bg-surface-2 px-1 py-2 border-t border-surface" />
+              <td className="sticky left-7 z-10 bg-surface-2 px-3 py-2 border-t border-r border-surface">Rata-rata Kelas</td>
               {mapelAvg.map((v, ci) => (
                 <td
                   key={ci}
-                  className={`px-2 py-2 text-center tabular-nums border-t border-surface ${
+                  className={`px-1 py-2 text-center tabular-nums border-t border-surface ${
                     cellBelow(v) ? 'text-rose-600 dark:text-rose-400' : ''
                   }`}
                 >
@@ -257,6 +270,7 @@ function RekapTable({
         <span>Total siswa: <strong>{rows.length}</strong></span>
         <span>Tuntas semua mapel: <strong className="text-emerald-600 dark:text-emerald-400">{rows.filter((r) => r.tuntas).length}</strong></span>
         <span>Ada nilai &lt; KKM: <strong className="text-rose-600 dark:text-rose-400">{rows.filter((r) => r.belowCount > 0).length}</strong></span>
+        <span className="italic opacity-80">Header = kode mapel RDM; arahkan kursor untuk nama lengkap.</span>
       </div>
     </div>
   )
