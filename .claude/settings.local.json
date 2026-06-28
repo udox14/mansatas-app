@@ -39,7 +39,8 @@
       "Bash(node -e 'let s=\"\";process.stdin.on\\(\"data\",d=>s+=d\\).on\\(\"end\",\\(\\)=>{JSON.parse\\(s\\)[0].results.forEach\\(r=>console.log\\(\"\\\\n[\"+r.t+\"]\\\\n  \"+r.cols\\)\\)}\\)')",
       "Bash(node -e 'const j=JSON.parse\\(require\\(\"fs\"\\).readFileSync\\(\"scratch/_cols.json\",\"utf8\"\\)\\);\\(j[0].results||j.result?.[0]?.results||[]\\).forEach\\(r=>console.log\\(\"\\\\n[\"+r.t+\"]\\\\n  \"+r.cols\\)\\)')",
       "Bash(node -e 'const j=JSON.parse\\(require\\(\"fs\"\\).readFileSync\\(\"scratch/_cols.json\",\"utf8\"\\)\\);j[0].results.forEach\\(r=>console.log\\(\"\\\\n[\"+r.t+\"]\\\\n  \"+r.cols\\)\\)')",
-      "Bash(node -e 'let s=require\\(\"fs\"\\).readFileSync\\(\"scratch/_cols.json\",\"utf8\"\\);let i=s.indexOf\\(\"[\"\\);let j=JSON.parse\\(s.slice\\(i\\)\\);j[0].results.forEach\\(r=>console.log\\(\"\\\\n[\"+r.t+\"]\\\\n  \"+r.cols\\)\\)')"
+      "Bash(node -e 'let s=require\\(\"fs\"\\).readFileSync\\(\"scratch/_cols.json\",\"utf8\"\\);let i=s.indexOf\\(\"[\"\\);let j=JSON.parse\\(s.slice\\(i\\)\\);j[0].results.forEach\\(r=>console.log\\(\"\\\\n[\"+r.t+\"]\\\\n  \"+r.cols\\)\\)')",
+      "Bash(node -e 'const s=require\\(\"./package.json\"\\).scripts; for\\(const k of [\"dev\",\"start\",\"preview\",\"build\",\"deploy\"]\\) if\\(s[k]\\) console.log\\(k+\": \"+s[k]\\)')"
     ]
   }
 }
