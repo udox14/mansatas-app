@@ -61,8 +61,27 @@ export type SuperAdminDashboardStats = {
   presensiPegawai: { status: string; count: number }[]
 }
 
-const SUPERADMIN_STATS_KEY = 'dash:superadmin:v1'
+const SUPERADMIN_STATS_KEY = 'dash:superadmin:v2'
 const SUPERADMIN_STATS_TTL = 600 // 10 menit
+
+// Pastikan semua field ada & bertipe benar. Lindungi dari cache lama (shape beda)
+// yang bisa bikin chart client crash (mis. .reduce di undefined).
+function normalizeStats(s: any): SuperAdminDashboardStats {
+  const arr = (v: any) => (Array.isArray(v) ? v : [])
+  return {
+    generatedAt: typeof s?.generatedAt === 'string' ? s.generatedAt : new Date().toISOString(),
+    aktivitas7h: arr(s?.aktivitas7h),
+    perluPerhatian: arr(s?.perluPerhatian),
+    gender: {
+      L: Number(s?.gender?.L) || 0,
+      P: Number(s?.gender?.P) || 0,
+    },
+    domisili: arr(s?.domisili),
+    pelanggaran14h: arr(s?.pelanggaran14h),
+    topPelanggaran: arr(s?.topPelanggaran),
+    presensiPegawai: arr(s?.presensiPegawai),
+  }
+}
 
 async function getKV(): Promise<KVNamespace | null> {
   try {
@@ -173,14 +192,14 @@ export async function getSuperAdminDashboardStats(): Promise<SuperAdminDashboard
   if (kv) {
     try {
       const cached = await kv.get(SUPERADMIN_STATS_KEY, 'json')
-      if (cached) return cached as SuperAdminDashboardStats
+      if (cached) return normalizeStats(cached)
     } catch {
       // abaikan error baca cache, fallback ke D1
     }
   }
 
   const db = await getDB()
-  const stats = await computeSuperAdminDashboardStats(db)
+  const stats = normalizeStats(await computeSuperAdminDashboardStats(db))
 
   if (kv) {
     try {
