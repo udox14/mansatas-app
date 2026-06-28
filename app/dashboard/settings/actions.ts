@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import type { SlotJam, PolaJam } from './types'
 import { setSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { DASHBOARD_VISIBILITY_KEY, type VisibilityMap } from '@/lib/dashboard-visibility'
 import { ensureRiwayatKelasSnapshotColumns, formatKelasSnapshot } from '@/lib/riwayat-kelas'
 import { uploadToR2 } from '@/utils/r2'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
@@ -53,6 +54,34 @@ export async function tambahTahunAjaran(prevState: any, formData: FormData) {
 
   revalidatePath('/', 'layout')
   return { error: null, success: 'Tahun Ajaran berhasil ditambahkan' }
+}
+
+// ============================================================
+// SET VISIBILITAS ITEM DASHBOARD (per role)
+// ============================================================
+export async function setDashboardItemVisibility(visibility: VisibilityMap) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Tidak terautentikasi' }
+
+  // Bersihkan: hanya simpan entri false (item tampil = default)
+  const cleaned: VisibilityMap = {}
+  for (const [groupKey, items] of Object.entries(visibility || {})) {
+    if (!items || typeof items !== 'object') continue
+    const hidden: Record<string, boolean> = {}
+    for (const [itemId, visible] of Object.entries(items)) {
+      if (visible === false) hidden[itemId] = false
+    }
+    if (Object.keys(hidden).length > 0) cleaned[groupKey] = hidden
+  }
+
+  try {
+    await setSystemSetting(DASHBOARD_VISIBILITY_KEY, JSON.stringify(cleaned))
+  } catch (e: any) {
+    return { error: e?.message ?? 'Gagal menyimpan pengaturan dashboard' }
+  }
+
+  revalidatePath('/dashboard')
+  return { error: null, success: 'Pengaturan tampilan dashboard berhasil disimpan.' }
 }
 
 // ============================================================

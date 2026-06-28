@@ -15,9 +15,11 @@ type Props = {
   roleLabel: string; roleColor: string; sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
   isGuruPiket?: boolean
+  dashboardVisibility?: Record<string, boolean>
 }
 
-export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
+export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket, dashboardVisibility }: Props) {
+  const show = (id: string) => dashboardVisibility?.[id] !== false
   const db = await getDB()
   const tahun = new Date().getFullYear()
   const bulanIni = new Date().getMonth() + 1
@@ -76,12 +78,13 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
       
 
-      <KehadiranPribadiCard userId={userId} />
+      {show('kehadiran_pribadi') && <KehadiranPribadiCard userId={userId} />}
 
       {/* Penugasan Masuk (jika dia guru piket) */}
       {isGuruPiket && <PenugasanMasukCard userId={userId} />}
 
       {/* Quick Links */}
+      {show('quick_links') && (
       <div className="grid grid-cols-5 gap-2">
         {quickLinks.map(({ href, label, icon: Icon, color }) => (
           <Link key={href} href={href}
@@ -93,8 +96,10 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
           </Link>
         ))}
       </div>
+      )}
 
       {/* Stat Cards */}
+      {show('stat_keuangan') && (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* DSPT */}
         <div className="bg-surface border border-surface rounded-xl p-4 space-y-3">
@@ -161,8 +166,10 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
         </div>
 
       </div>
+      )}
 
       {/* Kas Keluar bulan ini + Transaksi terbaru */}
+      {show('kas_transaksi') && (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Kas Keluar */}
         <div className="bg-surface border border-surface rounded-xl p-4">
@@ -210,6 +217,7 @@ export async function BendaharaDashboard({ userId, nama, namaDepan, avatarUrl, r
           )}
         </div>
       </div>
+      )}
     </div>
   )
 }

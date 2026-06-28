@@ -9,9 +9,11 @@ type Props = {
   roleLabel: string; roleColor: string; sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
   isGuruPiket?: boolean
+  dashboardVisibility?: Record<string, boolean>
 }
 
-export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
+export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket, dashboardVisibility }: Props) {
+  const show = (id: string) => dashboardVisibility?.[id] !== false
   const db = await getDB()
   const today = todayWIB()
   
@@ -38,8 +40,10 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
       {/* Penugasan Masuk (jika dia guru piket) */}
       {isGuruPiket && <PenugasanMasukCard userId={userId} />}
 
+      {(show('status_praktik') || show('menu_cepat')) && (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Ringkasan Tugas */}
+        {show('status_praktik') && (
         <div className="rounded-xl border border-emerald-100 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-900/10 shadow-sm overflow-hidden p-5">
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-800 border border-emerald-200 dark:border-emerald-700">
@@ -72,8 +76,10 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
             </div>
           </div>
         </div>
+        )}
 
         {/* Cepat Menu */}
+        {show('menu_cepat') && (
         <div className="space-y-3">
           <Link href="/dashboard/agenda" className="group flex items-center justify-between p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors shadow-sm">
             <div className="flex items-center gap-3">
@@ -101,7 +107,9 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
             <PlayCircle className="h-4 w-4 text-slate-300 group-hover:text-rose-500 transition-colors" />
           </Link>
         </div>
+        )}
       </div>
+      )}
     </div>
   )
 }

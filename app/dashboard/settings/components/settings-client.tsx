@@ -16,14 +16,16 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   CalendarDays, Loader2, PlusCircle, CheckCircle2, AlertCircle,
   Trash2, Power, X, Tags, Edit3, Clock, Copy, Plus, ChevronDown, ChevronUp,
-  Smartphone, Upload
+  Smartphone, Upload, LayoutDashboard, Eye, EyeOff
 } from 'lucide-react'
 import {
   tambahTahunAjaran, setAktifTahunAjaran, hapusTahunAjaran,
   simpanDaftarJurusan, simpanJamPelajaran,
   setAgendaTimeRestrictionEnabled, setAgendaLateSetting, setAttendanceTimeRestrictionEnabled,
-  setAttendanceSkipIncompleteForDailyStatusEnabled, setHeroSettings, uploadHeroImageAction
+  setAttendanceSkipIncompleteForDailyStatusEnabled, setHeroSettings, uploadHeroImageAction,
+  setDashboardItemVisibility
 } from '../actions'
+import { DASHBOARD_GROUPS, isVisible, type VisibilityMap } from '@/lib/dashboard-visibility'
 import { DEFAULT_POLA_JAM } from '../types'
 import type { PolaJam, SlotJam } from '../types'
 import { cn } from '@/lib/utils'
@@ -387,6 +389,7 @@ export function SettingsClient({
   heroTextColor,
   heroRunningTextBg,
   heroRunningTextColor,
+  dashboardVisibility,
 }: {
   taData: TAProps[]
   agendaTimeRestrictionEnabled: boolean
@@ -400,6 +403,7 @@ export function SettingsClient({
   heroTextColor: string
   heroRunningTextBg: string
   heroRunningTextColor: string
+  dashboardVisibility: VisibilityMap
 }) {
   const router = useRouter()
   const [agendaTimeRestricted, setAgendaTimeRestricted] = useState(agendaTimeRestrictionEnabled)
@@ -419,6 +423,25 @@ export function SettingsClient({
   const [heroRunningTextColorState, setHeroRunningTextColorState] = useState(heroRunningTextColor)
   const [isSavingHero, setIsSavingHero] = useState(false)
   const [isUploadingHero, setIsUploadingHero] = useState(false)
+
+  // Visibilitas item dashboard per role
+  const [visMap, setVisMap] = useState<VisibilityMap>(dashboardVisibility || {})
+  const [isSavingVis, setIsSavingVis] = useState(false)
+
+  const setItemVisible = (groupKey: string, itemId: string, visible: boolean) => {
+    setVisMap(prev => ({
+      ...prev,
+      [groupKey]: { ...(prev[groupKey] || {}), [itemId]: visible },
+    }))
+  }
+
+  const handleSaveVisibility = async () => {
+    setIsSavingVis(true)
+    const res = await setDashboardItemVisibility(visMap)
+    setIsSavingVis(false)
+    if (res?.error) alert(res.error)
+    else alert(res?.success ?? 'Tersimpan')
+  }
 
   // Cropper states
   const [editImageSrc, setEditImageSrc] = useState<string | null>(null)
@@ -822,9 +845,12 @@ export function SettingsClient({
       </div>
 
       <Tabs defaultValue="tampilan" className="space-y-4">
-        <TabsList className="grid h-auto w-full grid-cols-3 sm:max-w-2xl">
+        <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4 sm:max-w-3xl">
           <TabsTrigger value="tampilan" className="gap-1.5 py-2 text-xs sm:text-sm">
             <Tags className="h-3.5 w-3.5" /> Tampilan Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="item-dashboard" className="gap-1.5 py-2 text-xs sm:text-sm">
+            <LayoutDashboard className="h-3.5 w-3.5" /> Item Dashboard
           </TabsTrigger>
           <TabsTrigger value="perilaku" className="gap-1.5 py-2 text-xs sm:text-sm">
             <Clock className="h-3.5 w-3.5" /> Perilaku Guru
@@ -954,6 +980,62 @@ export function SettingsClient({
               <Button onClick={handleSaveHeroSettings} disabled={isSavingHero} className="bg-emerald-600 hover:bg-emerald-700 text-white h-9">
                 {isSavingHero ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan Pengaturan Tampilan'}
               </Button>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="item-dashboard" className="mt-0">
+          <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-surface-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Item Tampil per Dashboard</p>
+                <p className="text-xs text-slate-400 mt-0.5">Atur kartu/seksi mana yang tampil di dashboard tiap role. Item nonaktif disembunyikan dari pengguna role tersebut.</p>
+              </div>
+              <Button onClick={handleSaveVisibility} disabled={isSavingVis} className="h-9 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white">
+                {isSavingVis ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Menyimpan...</> : 'Simpan'}
+              </Button>
+            </div>
+            <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {DASHBOARD_GROUPS.map(group => (
+                <div key={group.key} className="rounded-xl border border-surface overflow-hidden">
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-surface-2 border-b border-surface-2">
+                    <LayoutDashboard className="h-3.5 w-3.5 text-slate-500" />
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">{group.label}</p>
+                    <span className="ml-auto text-[10px] text-slate-400">{group.items.length} item</span>
+                  </div>
+                  <div className="divide-y divide-surface-2">
+                    {group.items.map(item => {
+                      const visible = isVisible(visMap[group.key], item.id)
+                      return (
+                        <div key={item.id} className="flex items-start justify-between gap-3 px-4 py-2.5">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-slate-700 dark:text-slate-300">{item.label}</p>
+                            {item.desc && <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{item.desc}</p>}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setItemVisible(group.key, item.id, !visible)}
+                            className={cn(
+                              'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors',
+                              visible ? 'bg-emerald-500 border-emerald-500' : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700'
+                            )}
+                            aria-pressed={visible}
+                            title={visible ? 'Tampil — klik untuk sembunyikan' : 'Tersembunyi — klik untuk tampilkan'}
+                          >
+                            <span className={cn('inline-block h-4 w-4 transform rounded-full bg-white transition-transform', visible ? 'translate-x-6' : 'translate-x-1')} />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-5 py-4 border-t border-surface-2 bg-surface-2/30 flex items-center gap-2">
+              <Eye className="h-3.5 w-3.5 text-emerald-500" />
+              <p className="text-[11px] text-slate-500">Hijau = tampil.</p>
+              <EyeOff className="h-3.5 w-3.5 text-slate-400 ml-2" />
+              <p className="text-[11px] text-slate-500">Abu = disembunyikan. Jangan lupa klik Simpan.</p>
             </div>
           </div>
         </TabsContent>

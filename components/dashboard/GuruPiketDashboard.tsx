@@ -15,9 +15,11 @@ type Props = {
   roleLabel: string; roleColor: string; sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
   isGuruPiket?: boolean
+  dashboardVisibility?: Record<string, boolean>
 }
 
-export async function GuruPiketDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
+export async function GuruPiketDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket, dashboardVisibility }: Props) {
+  const show = (id: string) => dashboardVisibility?.[id] !== false
   const db = await getDB()
   const today = todayWIB()
 
@@ -51,12 +53,12 @@ export async function GuruPiketDashboard({ userId, nama, namaDepan, avatarUrl, r
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
       
 
-      <KehadiranPribadiCard userId={userId} />
+      {show('kehadiran_pribadi') && <KehadiranPribadiCard userId={userId} />}
 
       {/* Penugasan Masuk */}
       {isGuruPiket && <PenugasanMasukCard userId={userId} />}
 
-      <JadwalMengajarToday userId={userId} taAktif={taAktif} />
+      {show('jadwal_mengajar') && <JadwalMengajarToday userId={userId} taAktif={taAktif} />}
     </div>
   )
 }

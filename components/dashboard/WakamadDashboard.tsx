@@ -16,9 +16,11 @@ type Props = {
   roleLabel: string; roleColor: string; sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
   isGuruPiket?: boolean
+  dashboardVisibility?: Record<string, boolean>
 }
 
-export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
+export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket, dashboardVisibility }: Props) {
+  const show = (id: string) => dashboardVisibility?.[id] !== false
   const db = await getDB()
   const today = todayWIB()
 
@@ -74,16 +76,18 @@ export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, rol
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
       
 
-      <KehadiranPribadiCard userId={userId} />
+      {show('kehadiran_pribadi') && <KehadiranPribadiCard userId={userId} />}
 
       {/* Penugasan Masuk (jika dia guru piket) */}
       {isGuruPiket && <PenugasanMasukCard userId={userId} />}
 
-      <JadwalMengajarToday userId={userId} taAktif={taAktif} />
+      {show('jadwal_mengajar') && <JadwalMengajarToday userId={userId} taAktif={taAktif} />}
 
+      {(show('rekap_agenda') || show('kehadiran_siswa')) && (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
         {/* Rekap Agenda Guru */}
+        {show('rekap_agenda') && (
         <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
             <div className="p-1.5 rounded-md bg-cyan-50 border border-cyan-100">
@@ -132,8 +136,10 @@ export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, rol
             )}
           </div>
         </div>
+        )}
 
         {/* Kehadiran Siswa Hari Ini */}
+        {show('kehadiran_siswa') && (
         <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
             <div className="p-1.5 rounded-md bg-emerald-50 border border-emerald-100">
@@ -168,7 +174,9 @@ export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, rol
             </div>
           )}
         </div>
+        )}
       </div>
+      )}
 
     </div>
   )

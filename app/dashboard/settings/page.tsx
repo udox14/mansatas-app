@@ -7,6 +7,7 @@ import { Settings } from 'lucide-react'
 import { SettingsClient } from './components/settings-client'
 import { PageHeader } from '@/components/layout/page-header'
 import { getSystemSetting, getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { DASHBOARD_VISIBILITY_KEY, parseVisibility } from '@/lib/dashboard-visibility'
 
 export const metadata = { title: 'Pengaturan Global - MANSATAS App' }
 
@@ -84,6 +85,7 @@ export default async function SettingsPage() {
   const heroTextColor = await getSystemSetting(SYSTEM_SETTING_KEYS.heroTextColor, 'white')
   const heroRunningTextBg = await getSystemSetting(SYSTEM_SETTING_KEYS.heroRunningTextBg, '#1e1e1e')
   const heroRunningTextColor = await getSystemSetting(SYSTEM_SETTING_KEYS.heroRunningTextColor, '#ffffff')
+  const dashboardVisibility = parseVisibility(await getSystemSetting(DASHBOARD_VISIBILITY_KEY, ''))
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -104,6 +106,7 @@ export default async function SettingsPage() {
         heroTextColor={heroTextColor}
         heroRunningTextBg={heroRunningTextBg}
         heroRunningTextColor={heroRunningTextColor}
+        dashboardVisibility={dashboardVisibility}
       />
     </div>
   )

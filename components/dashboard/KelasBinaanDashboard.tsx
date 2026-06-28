@@ -40,6 +40,7 @@ type Props = {
   showWelcome?: boolean
   showTopCards?: boolean
   showFeatureShortcuts?: boolean
+  dashboardVisibility?: Record<string, boolean>
 }
 
 export type KelasBinaanView = 'home' | 'keputusan' | 'siswa' | 'rekap' | 'perhatian' | 'agenda'
@@ -108,7 +109,9 @@ export async function KelasBinaanDashboard({
   view = 'home',
   showWelcome = true,
   showTopCards = true,
+  dashboardVisibility,
 }: Props) {
+  const show = (id: string) => dashboardVisibility?.[id] !== false
   const db = await getDB()
   const today = todayWIB()
   const start30 = new Date(today + 'T00:00:00')
@@ -418,7 +421,7 @@ export async function KelasBinaanDashboard({
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       {showWelcome && null}
 
-      {showTopCards && (
+      {showTopCards && show('top_cards') && (
         <>
           <KehadiranPribadiCard userId={userId} />
           {/* Penugasan Masuk (jika dia guru piket) */}
@@ -453,7 +456,7 @@ export async function KelasBinaanDashboard({
         </div>
       </div>
 
-      {(view === 'home' || view === 'rekap') && (!isTodayEffective ? (
+      {(view === 'home' || view === 'rekap') && show('today_summary') && (!isTodayEffective ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
           <div className="flex items-start gap-3">
             <div className="rounded-lg bg-white p-2 text-slate-500 shadow-sm dark:bg-slate-800">
@@ -485,6 +488,7 @@ export async function KelasBinaanDashboard({
 
       {view === 'home' && (
         <>
+          {show('menu_navigasi') && (
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-5">
             {menuItems.map(item => {
               const Icon = item.icon
@@ -511,7 +515,9 @@ export async function KelasBinaanDashboard({
               )
             })}
           </div>
+          )}
 
+          {show('keputusan_list') && (
           <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
               <div className="p-1.5 rounded-md bg-purple-50 border border-purple-100">
@@ -549,6 +555,7 @@ export async function KelasBinaanDashboard({
               )}
             </div>
           </div>
+          )}
         </>
       )}
 

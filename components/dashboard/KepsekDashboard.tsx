@@ -17,9 +17,11 @@ type Props = {
   roleLabel: string; roleColor: string; sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
   isGuruPiket?: boolean
+  dashboardVisibility?: Record<string, boolean>
 }
 
-export async function KepsekDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
+export async function KepsekDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket, dashboardVisibility }: Props) {
+  const show = (id: string) => dashboardVisibility?.[id] !== false
   const db = await getDB()
   const today = todayWIB()
 
@@ -76,16 +78,18 @@ export async function KepsekDashboard({ userId, nama, namaDepan, avatarUrl, role
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
       
 
-      <KehadiranPribadiCard userId={userId} />
+      {show('kehadiran_pribadi') && <KehadiranPribadiCard userId={userId} />}
 
       {/* Penugasan Masuk (jika dia guru piket) */}
       {isGuruPiket && <PenugasanMasukCard userId={userId} />}
 
-      <JadwalMengajarToday userId={userId} taAktif={taAktif} />
+      {show('jadwal_mengajar') && <JadwalMengajarToday userId={userId} taAktif={taAktif} />}
 
+      {(show('monitoring_agenda') || show('tren_pelanggaran')) && (
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
 
         {/* Monitoring Agenda Hari Ini */}
+        {show('monitoring_agenda') && (
         <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
             <div className="p-1.5 rounded-md bg-purple-50 border border-purple-100">
@@ -123,9 +127,11 @@ export async function KepsekDashboard({ userId, nama, namaDepan, avatarUrl, role
             </p>
           </div>
         </div>
+        )}
 
 
         {/* Tren Pelanggaran 7 Hari */}
+        {show('tren_pelanggaran') && (
         <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden md:col-span-2 xl:col-span-1">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
             <div className="p-1.5 rounded-md bg-rose-50 border border-rose-100">
@@ -168,7 +174,9 @@ export async function KepsekDashboard({ userId, nama, namaDepan, avatarUrl, role
             )}
           </div>
         </div>
+        )}
       </div>
+      )}
 
     </div>
   )

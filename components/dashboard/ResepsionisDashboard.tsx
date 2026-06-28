@@ -15,9 +15,11 @@ type Props = {
   roleLabel: string; roleColor: string; sapaan: string
   taAktif: { id?: string; nama: string; semester: number } | null
   isGuruPiket?: boolean
+  dashboardVisibility?: Record<string, boolean>
 }
 
-export async function ResepsionisDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket }: Props) {
+export async function ResepsionisDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket, dashboardVisibility }: Props) {
+  const show = (id: string) => dashboardVisibility?.[id] !== false
   const db = await getDB()
   const today = todayWIB()
 
@@ -49,14 +51,15 @@ export async function ResepsionisDashboard({ userId, nama, namaDepan, avatarUrl,
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
       
 
-      <KehadiranPribadiCard userId={userId} />
+      {show('kehadiran_pribadi') && <KehadiranPribadiCard userId={userId} />}
 
       {/* Penugasan Masuk (jika dia guru piket) */}
       {isGuruPiket && <PenugasanMasukCard userId={userId} />}
 
-      <JadwalMengajarToday userId={userId} taAktif={taAktif} />
+      {show('jadwal_mengajar') && <JadwalMengajarToday userId={userId} taAktif={taAktif} />}
 
       {/* Live Counter */}
+      {show('live_counter') && (
       <div className="grid grid-cols-2 gap-3">
         <div className={`rounded-xl border shadow-sm p-4 transition-all ${
           diLuar > 0 ? 'border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-900/20' : 'border-surface bg-surface'
@@ -89,10 +92,12 @@ export async function ResepsionisDashboard({ userId, nama, namaDepan, avatarUrl,
           <p className="text-[10px] text-slate-400 dark:text-slate-500">Dari {totalKeluar} yang keluar</p>
         </div>
       </div>
+      )}
 
       {/* Remove Quick Actions */}
 
       {/* Log Perizinan Hari Ini */}
+      {show('log_perizinan') && (
       <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
           <div className="p-1.5 rounded-md bg-sky-50 border border-sky-100">
@@ -144,6 +149,7 @@ export async function ResepsionisDashboard({ userId, nama, namaDepan, avatarUrl,
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }
