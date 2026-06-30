@@ -213,7 +213,6 @@ export default async function PlottingPage({
         )}
         {plottingContext.source_tahun_ajaran_id && plottingContext.target_tahun_ajaran_id && (
           <ExportPlottingModal
-            sourceTaId={plottingContext.source_tahun_ajaran_id}
             targetTaId={plottingContext.target_tahun_ajaran_id}
             targetTaLabel={plottingContext.target_tahun_ajaran_label}
           />

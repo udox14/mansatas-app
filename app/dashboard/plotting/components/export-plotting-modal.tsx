@@ -37,11 +37,9 @@ function sortData(
 }
 
 export function ExportPlottingModal({
-  sourceTaId,
   targetTaId,
   targetTaLabel,
 }: {
-  sourceTaId: string
   targetTaId: string
   targetTaLabel?: string
 }) {
@@ -66,7 +64,7 @@ export function ExportPlottingModal({
     setLoading(true)
     setError('')
     try {
-      const res = await getPlottingExportData(sourceTaId, targetTaId, selectedTingkat)
+      const res = await getPlottingExportData(targetTaId, selectedTingkat)
       if (!res.data.length) {
         setError('Tidak ada data plotting ditemukan untuk tingkat yang dipilih.')
         return
