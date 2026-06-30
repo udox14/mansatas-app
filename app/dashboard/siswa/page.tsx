@@ -19,7 +19,7 @@ async function SiswaDataFetcher({ userId, userRoles, isFullListAccess, allowedKe
 
   // Ambil kelas — kolom minimal saja
   const kelasResult = await db.prepare(
-    'SELECT id, tingkat, nomor_kelas, kelompok, wali_kelas_id FROM kelas ORDER BY tingkat ASC, kelompok ASC, nomor_kelas ASC'
+    'SELECT id, tingkat, nomor_kelas, kelompok, wali_kelas_id FROM kelas ORDER BY tingkat ASC, CAST(nomor_kelas AS INTEGER) ASC, kelompok ASC'
   ).all<any>()
   const kelasData = kelasResult.results || []
 
