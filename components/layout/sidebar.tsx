@@ -307,7 +307,7 @@ export function Sidebar({
                     className={cn(
                       'group/header flex w-full items-center text-left transition-all duration-200 rounded-xl',
                       mobile ? 'gap-2 px-2.5 py-1' : 'gap-2.5 px-3 py-2',
-                      hasActiveItem ? cn(theme.id === 'white' ? 'bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-white/5' : 'bg-white/10 text-white shadow-sm ring-1 ring-white/5') : cn(theme.text, theme.id === 'white' ? 'hover:bg-slate-50 hover:text-slate-900 dark:hover:bg-white/5 dark:hover:text-white' : 'hover:bg-white/5 hover:text-white')
+                      hasActiveItem ? cn(theme.activeText, theme.id === 'white' ? 'hover:bg-slate-50 dark:hover:bg-white/5' : 'hover:bg-white/5') : cn(theme.text, theme.id === 'white' ? 'hover:bg-slate-50 hover:text-slate-900 dark:hover:bg-white/5 dark:hover:text-white' : 'hover:bg-white/5 hover:text-white')
                     )}
                     aria-expanded={isGroupOpen}
                     aria-controls={`sidebar-group-${group.id}`}
@@ -342,7 +342,7 @@ export function Sidebar({
                   )}
                 >
                   <div className={cn('min-w-0 overflow-hidden', !collapsed && (mobile ? 'pt-1' : 'pt-2'))}>
-                <div className={cn("space-y-0.5", !collapsed && "relative ml-5 border-l border-white/10 pl-3")}>
+                <div className={cn("space-y-0.5", !collapsed && "relative ml-5 mr-4 border-l border-white/10 pl-3")}>
                   {groupItems.map(item => {
                     const isActive = activeHref === item.href
                     const Icon = getIconComponent(item.icon)
