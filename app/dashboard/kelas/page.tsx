@@ -68,13 +68,13 @@ async function KelasDataFetcher({ userRole, selectedTahunAjaranId }: { userRole:
 
   const siswaQuery = isSelectedActive
     ? `
-      SELECT id, kelas_id, nama_lengkap
+      SELECT id, kelas_id, nama_lengkap, jenis_kelamin
       FROM siswa
       WHERE status = 'aktif' AND kelas_id IS NOT NULL
       ORDER BY nama_lengkap ASC
     `
     : `
-      SELECT s.id, rk.kelas_id, s.nama_lengkap
+      SELECT s.id, rk.kelas_id, s.nama_lengkap, s.jenis_kelamin
       FROM riwayat_kelas rk
       JOIN siswa s ON s.id = rk.siswa_id
       WHERE rk.tahun_ajaran_id = ?
@@ -109,9 +109,9 @@ async function KelasDataFetcher({ userRole, selectedTahunAjaranId }: { userRole:
     kbm_nonaktif_mulai: item.kbm_nonaktif_mulai || null,
   }))
 
-  const siswaByKelas = (siswaResult.results || []).reduce<Record<string, Array<{ id: string; nama_lengkap: string }>>>((acc, item: any) => {
+  const siswaByKelas = (siswaResult.results || []).reduce<Record<string, Array<{ id: string; nama_lengkap: string; jenis_kelamin: string }>>>((acc, item: any) => {
     if (!acc[item.kelas_id]) acc[item.kelas_id] = []
-    acc[item.kelas_id].push({ id: item.id, nama_lengkap: item.nama_lengkap })
+    acc[item.kelas_id].push({ id: item.id, nama_lengkap: item.nama_lengkap, jenis_kelamin: item.jenis_kelamin || '' })
     return acc
   }, {})
 
