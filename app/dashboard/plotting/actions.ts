@@ -543,7 +543,6 @@ export async function prosesKelulusanMassal(siswaIds: string[]) {
 // 8. EXPORT DATA PLOTTING KE EXCEL
 // ============================================================
 export async function getPlottingExportData(
-  source_tahun_ajaran_id: string,
   target_tahun_ajaran_id: string,
   tingkat: number[]
 ) {
@@ -560,28 +559,39 @@ export async function getPlottingExportData(
 
   const placeholders = tingkat.map(() => '?').join(', ')
 
+  // kelas_lama = riwayat dengan tingkat (target-1), exclude target TA agar tidak bentrok
+  // Ini benar ketika source=target (TA aktif sama): JOIN ke TA berbeda untuk lama
   const result = await db
     .prepare(
       `SELECT
          s.nisn,
          s.nama_lengkap,
          s.jenis_kelamin,
-         rk_src.kelas_tingkat AS tingkat_lama,
-         rk_src.kelas_nomor   AS nomor_lama,
-         rk_tgt.kelas_tingkat AS tingkat_baru,
-         rk_tgt.kelas_nomor   AS nomor_baru,
-         rk_tgt.kelas_kelompok AS kelompok_baru
+         rk_lama.kelas_tingkat AS tingkat_lama,
+         rk_lama.kelas_nomor   AS nomor_lama,
+         rk_baru.kelas_tingkat AS tingkat_baru,
+         rk_baru.kelas_nomor   AS nomor_baru,
+         rk_baru.kelas_kelompok AS kelompok_baru
        FROM siswa s
-       JOIN riwayat_kelas rk_tgt
-         ON rk_tgt.siswa_id = s.id
-        AND rk_tgt.tahun_ajaran_id = ?
-       LEFT JOIN riwayat_kelas rk_src
-         ON rk_src.siswa_id = s.id
-        AND rk_src.tahun_ajaran_id = ?
-       WHERE rk_tgt.kelas_tingkat IN (${placeholders})
+       JOIN riwayat_kelas rk_baru
+         ON rk_baru.siswa_id = s.id
+        AND rk_baru.tahun_ajaran_id = ?
+       LEFT JOIN (
+         SELECT siswa_id, kelas_tingkat, kelas_nomor, kelas_kelompok,
+                ROW_NUMBER() OVER (
+                  PARTITION BY siswa_id, kelas_tingkat
+                  ORDER BY created_at DESC
+                ) AS rn
+         FROM riwayat_kelas
+         WHERE tahun_ajaran_id != ?
+       ) rk_lama
+         ON rk_lama.siswa_id = s.id
+        AND rk_lama.kelas_tingkat = rk_baru.kelas_tingkat - 1
+        AND rk_lama.rn = 1
+       WHERE rk_baru.kelas_tingkat IN (${placeholders})
        ORDER BY s.nama_lengkap COLLATE NOCASE ASC`
     )
-    .bind(target_tahun_ajaran_id, source_tahun_ajaran_id, ...tingkat)
+    .bind(target_tahun_ajaran_id, target_tahun_ajaran_id, ...tingkat)
     .all<any>()
 
   return {
