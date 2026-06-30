@@ -6,15 +6,14 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, Users, Trash2, MapPin, Loader2, Pencil, LayoutGrid, List, Camera, ChevronRight, LogOut, CalendarX2, GraduationCap } from 'lucide-react'
+import { Search, Users, Trash2, MapPin, Loader2, Pencil, LayoutGrid, List, Camera, ChevronRight, LogOut, CalendarX2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getSiswaKeluar } from '../actions'
 import { TambahModal } from './tambah-modal'
 import { ImportModalSiswa } from './import-modal'
-import { hapusSiswa, uploadFotoSiswaAction, getDetailSiswaLengkap, bulkSetTahunMasuk } from '../actions'
+import { hapusSiswa, uploadFotoSiswaAction, getDetailSiswaLengkap } from '../actions'
 import { EditSiswaModal } from './edit-modal'
 import { ExportModalSiswa } from './export-modal'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatNamaKelas, cn } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 
@@ -122,11 +121,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
   const [editingSiswa, setEditingSiswa] = useState<any | null>(null)
   const [isFetchingDetail, setIsFetchingDetail] = useState<string | null>(null)
   const [filterAngkatan, setFilterAngkatan] = useState('Semua')
-  const [showBulkAngkatan, setShowBulkAngkatan] = useState(false)
-  const [bulkKelasId, setBulkKelasId] = useState('semua')
-  const [bulkTahun, setBulkTahun] = useState(String(new Date().getFullYear()))
-  const [bulkMsg, setBulkMsg] = useState('')
-  const [isBulkPending, setIsBulkPending] = useState(false)
+  const [filterTingkat, setFilterTingkat] = useState('Semua')
 
   // Tab Keluar — lazy load
   const [keluarLoaded, setKeluarLoaded] = useState(false)
@@ -158,7 +153,8 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
     const matchKelas = filterKelas === 'Semua' || (filterKelas === 'null' ? !s.kelas?.id : s.kelas?.id === filterKelas)
     const matchStatus = filterStatus === 'Semua' || s.status === filterStatus
     const matchAngkatan = filterAngkatan === 'Semua' || String(s.tahun_masuk) === filterAngkatan
-    return matchSearch && matchKelas && matchStatus && matchAngkatan
+    const matchTingkat = filterTingkat === 'Semua' || String(s.kelas?.tingkat) === filterTingkat
+    return matchSearch && matchKelas && matchStatus && matchAngkatan && matchTingkat
   })
 
   const dynamicItemsPerPage = viewMode === 'gallery' ? 24 : itemsPerPage
@@ -185,15 +181,6 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
       setKeluarSearchDebounce(val)
       loadSiswaKeluar(val)
     }, 400)
-  }
-
-  const handleBulkAngkatan = async () => {
-    if (!bulkTahun || isNaN(parseInt(bulkTahun))) { setBulkMsg('Tahun masuk tidak valid'); return }
-    if (!confirm(`Yakin update tahun masuk ke ${bulkTahun} untuk ${bulkKelasId === 'semua' ? 'SEMUA siswa' : 'siswa kelas ini'}?`)) return
-    setIsBulkPending(true)
-    const res = await bulkSetTahunMasuk(bulkKelasId, parseInt(bulkTahun))
-    setBulkMsg(res.error ?? res.success ?? '')
-    setIsBulkPending(false)
   }
 
   const handleHapus = async (id: string, nama: string) => {
@@ -329,6 +316,17 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={filterTingkat} onValueChange={v => { setFilterTingkat(v); setCurrentPage(1) }}>
+                <SelectTrigger className="h-8 w-28 text-xs rounded-lg shrink-0">
+                  <SelectValue placeholder="Tingkat" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Semua">Semua Tingkat</SelectItem>
+                  <SelectItem value="10">Kelas 10</SelectItem>
+                  <SelectItem value="11">Kelas 11</SelectItem>
+                  <SelectItem value="12">Kelas 12</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={filterAngkatan} onValueChange={v => { setFilterAngkatan(v); setCurrentPage(1) }}>
                 <SelectTrigger className="h-8 w-32 text-xs rounded-lg shrink-0">
                   <SelectValue placeholder="Angkatan" />
@@ -351,11 +349,6 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                   <SelectItem value="keluar">Keluar</SelectItem>
                 </SelectContent>
               </Select>
-              {canFullEdit && (
-                <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 shrink-0" onClick={() => { setBulkMsg(''); setShowBulkAngkatan(true) }}>
-                  <GraduationCap className="h-3.5 w-3.5" /> Atur Angkatan
-                </Button>
-              )}
             </div>
           </div>
 
@@ -723,54 +716,6 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
       </TabsContent>
     </Tabs>
 
-    {/* Modal Bulk Update Angkatan */}
-    <Dialog open={showBulkAngkatan} onOpenChange={v => { if (!v) setShowBulkAngkatan(false) }}>
-      <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
-        <DialogHeader className="px-5 py-4 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-200 dark:border-indigo-800">
-          <DialogTitle className="text-sm font-semibold flex items-center gap-2 text-indigo-800 dark:text-indigo-200">
-            <GraduationCap className="h-4 w-4" /> Atur Tahun Masuk (Angkatan)
-          </DialogTitle>
-        </DialogHeader>
-        <div className="p-5 space-y-4">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Update tahun masuk siswa secara massal. Berguna untuk memperbaiki data angkatan yang belum diisi dengan benar.</p>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Filter Kelas</label>
-            <Select value={bulkKelasId} onValueChange={setBulkKelasId}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent className="max-h-72">
-                <SelectItem value="semua">Semua Siswa</SelectItem>
-                {kelasList.map(k => (
-                  <SelectItem key={k.id} value={k.id}>
-                    {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">Tahun Masuk</label>
-            <input
-              type="number"
-              min={2000}
-              max={2099}
-              value={bulkTahun}
-              onChange={e => setBulkTahun(e.target.value)}
-              placeholder="cth: 2024"
-              className="w-full h-9 text-sm rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-white dark:bg-slate-900 dark:bg-slate-800 px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
-          {bulkMsg && (
-            <p className={`text-xs px-3 py-2 rounded-md ${bulkMsg.includes('berhasil') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50' : 'text-rose-600 bg-rose-50'}`}>{bulkMsg}</p>
-          )}
-          <div className="flex gap-2 pt-1">
-            <Button variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setShowBulkAngkatan(false)}>Batal</Button>
-            <Button size="sm" className="flex-1 h-9 text-sm bg-indigo-600 hover:bg-indigo-700 text-white" disabled={isBulkPending} onClick={handleBulkAngkatan}>
-              {isBulkPending ? 'Menyimpan...' : 'Update Angkatan'}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-    </>
+</>
   )
 }
