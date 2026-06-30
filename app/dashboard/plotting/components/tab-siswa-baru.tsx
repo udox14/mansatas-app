@@ -59,26 +59,41 @@ export function TabSiswaBaru({
 
       if (!selectedKelas.length) { alert('Pilih minimal satu kelas tujuan!'); setIsSimulating(false); return }
 
-      const siswaL = [...siswaList].filter(s => s.jenis_kelamin === 'L').sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
-      const siswaP = [...siswaList].filter(s => s.jenis_kelamin === 'P').sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
+      const gL = [...siswaList].filter(s => s.jenis_kelamin === 'L').sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
+      const gP = [...siswaList].filter(s => s.jenis_kelamin === 'P').sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
+      const totalL = gL.length, total = gL.length + gP.length
+
+      // Floor-even proportional L quota per class, deficit distributed in steps of 2
+      const quotaL = selectedKelas.map(k => Math.floor((totalL / total) * k.sisa / 2) * 2)
+      let deficit = totalL - quotaL.reduce((a, b) => a + b, 0)
+      const byRoom = selectedKelas.map((_, i) => i).sort((a, b) => (selectedKelas[b].sisa - quotaL[b]) - (selectedKelas[a].sisa - quotaL[a]))
+      for (const i of byRoom) {
+        if (deficit <= 0) break
+        const add = deficit >= 2 ? 2 : 1
+        if (selectedKelas[i].sisa - quotaL[i] >= add) { quotaL[i] += add; deficit -= add }
+      }
+      const quotaP = selectedKelas.map((k, i) => k.sisa - quotaL[i])
 
       const hasil: HasilPlottingType[] = []
-      let ki = 0, sisa = 0
+      let sisaGagal = 0
 
-      const assign = (siswa: SiswaType) => {
-        for (let i = 0; i < selectedKelas.length; i++) {
-          const t = selectedKelas[ki]
-          ki = (ki + 1) % selectedKelas.length
-          if (t.sisa > 0) {
-            hasil.push({ siswa_id: siswa.id, nama_lengkap: siswa.nama_lengkap, jk: siswa.jenis_kelamin, kelas_id: t.id, kelas_nama: t.nama })
-            t.sisa--; return
+      const distrib = (group: SiswaType[], rem: number[]) => {
+        let ki = 0
+        for (const s of group) {
+          let placed = false
+          for (let i = 0; i < selectedKelas.length; i++) {
+            const idx = (ki + i) % selectedKelas.length
+            if (rem[idx] > 0) {
+              hasil.push({ siswa_id: s.id, nama_lengkap: s.nama_lengkap, jk: s.jenis_kelamin, kelas_id: selectedKelas[idx].id, kelas_nama: selectedKelas[idx].nama })
+              rem[idx]--; ki = (idx + 1) % selectedKelas.length; placed = true; break
+            }
           }
+          if (!placed) sisaGagal++
         }
-        sisa++
       }
 
-      siswaL.forEach(assign); siswaP.forEach(assign)
-      if (sisa > 0) alert(`Peringatan: ${sisa} siswa tidak kebagian kursi!`)
+      distrib(gL, quotaL.slice()); distrib(gP, quotaP.slice())
+      if (sisaGagal > 0) alert(`Peringatan: ${sisaGagal} siswa tidak kebagian kursi!`)
       setSimulasiResult(hasil); setIsSimulating(false)
     }, 400)
   }
