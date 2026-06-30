@@ -23,7 +23,7 @@ type KelasData = {
   kbm_nonaktif_mulai: string | null
 }
 type GuruType = { id: string; nama_lengkap: string }
-type SiswaOption = { id: string; nama_lengkap: string }
+type SiswaOption = { id: string; nama_lengkap: string; jenis_kelamin: string }
 type TahunAjaranOption = { id: string; label: string; is_active: boolean }
 
 function defaultDateInputValue() {
@@ -341,6 +341,18 @@ export function KelasClient({
                   <span className={cn("text-xs font-semibold px-2 py-0.5 rounded border", isFull ? 'bg-red-50 text-red-600 border-red-200' : 'bg-surface-2 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 border-surface')}>
                     {k.jumlah_siswa}/{k.kapasitas}
                   </span>
+                  {(() => {
+                    const list = daftarSiswaByKelas[k.id] || []
+                    const l = list.filter(s => s.jenis_kelamin === 'L').length
+                    const p = list.filter(s => s.jenis_kelamin === 'P').length
+                    return list.length > 0 ? (
+                      <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                        <span className="text-blue-600 dark:text-blue-400">{l}L</span>
+                        <span className="text-slate-300 dark:text-slate-600 mx-0.5">/</span>
+                        <span className="text-pink-600 dark:text-pink-400">{p}P</span>
+                      </span>
+                    ) : null
+                  })()}
                   {!isHistoricalView && <ChevronRight className="h-4 w-4 text-slate-400 dark:text-slate-500" />}
                 </div>
               </div>
@@ -459,6 +471,18 @@ export function KelasClient({
                       <div className="w-20 h-1.5 bg-surface-3 rounded-full overflow-hidden">
                         <div className={cn("h-full rounded-full", isFull ? 'bg-red-500' : 'bg-blue-500')} style={{ width: `${pct}%` }} />
                       </div>
+                      {(() => {
+                        const list = daftarSiswaByKelas[k.id] || []
+                        const l = list.filter(s => s.jenis_kelamin === 'L').length
+                        const p = list.filter(s => s.jenis_kelamin === 'P').length
+                        return list.length > 0 ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">{l}L</span>
+                            <span className="text-[10px] text-slate-300 dark:text-slate-600">/</span>
+                            <span className="text-[10px] font-bold text-pink-600 dark:text-pink-400">{p}P</span>
+                          </div>
+                        ) : null
+                      })()}
                     </div>
                   </TableCell>
                   <TableCell className="py-2.5 px-4 text-right">
