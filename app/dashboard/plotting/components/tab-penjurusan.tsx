@@ -368,27 +368,46 @@ export function TabPenjurusan({
       const hasil: HasilPlottingType[] = []
       let sisa = 0, err = ''
 
-      const distribute = (group: SiswaType[], kelompok: string) => {
-        const wadah = target.filter(k => k.kelompok === kelompok)
-        if (group.length && !wadah.length) { err += `\n- Kelas ${kelompok} belum dicentang!`; sisa += group.length; return }
-        let ki = 0
-        for (const s of group) {
-          let ok = false
-          for (let i = 0; i < wadah.length; i++) {
-            const t = wadah[ki]; ki = (ki + 1) % wadah.length
-            if (t.sisa > 0) { hasil.push({ siswa_id: s.id, nama_lengkap: s.nama_lengkap, jk: s.jenis_kelamin, kelas_lama: s.kelas_lama, kelas_id: t.id, kelas_nama: t.nama }); t.sisa--; ok = true; break }
-          }
-          if (!ok) sisa++
-        }
-      }
-
       const siap = siswaList.filter(s => !!penjurusan[s.id])
       if (!siap.length) { alert('Belum ada siswa yang diberi jurusan pilihan.'); setIsSimulating(false); return }
 
       Array.from(new Set(siap.map(s => penjurusan[s.id]))).forEach(kel => {
+        const wadah = target.filter(k => k.kelompok === kel)
         const g = siap.filter(s => penjurusan[s.id] === kel)
-        distribute(g.filter(s => s.jenis_kelamin === 'L').sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap)), kel)
-        distribute(g.filter(s => s.jenis_kelamin === 'P').sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap)), kel)
+        if (!g.length) return
+        if (!wadah.length) { err += `\n- Kelas ${kel} belum dicentang!`; sisa += g.length; return }
+
+        const gL = g.filter(s => s.jenis_kelamin === 'L').sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
+        const gP = g.filter(s => s.jenis_kelamin === 'P').sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
+        const totalL = gL.length, total = gL.length + gP.length
+
+        // Floor-even proportional L quota per class, deficit distributed in steps of 2
+        const quotaL = wadah.map(k => Math.floor((totalL / total) * k.sisa / 2) * 2)
+        let deficit = totalL - quotaL.reduce((a, b) => a + b, 0)
+        const byRoom = wadah.map((_, i) => i).sort((a, b) => (wadah[b].sisa - quotaL[b]) - (wadah[a].sisa - quotaL[a]))
+        for (const i of byRoom) {
+          if (deficit <= 0) break
+          const add = deficit >= 2 ? 2 : 1
+          if (wadah[i].sisa - quotaL[i] >= add) { quotaL[i] += add; deficit -= add }
+        }
+        const quotaP = wadah.map((k, i) => k.sisa - quotaL[i])
+
+        const distrib = (group: SiswaType[], rem: number[]) => {
+          let ki = 0
+          for (const s of group) {
+            let placed = false
+            for (let i = 0; i < wadah.length; i++) {
+              const idx = (ki + i) % wadah.length
+              if (rem[idx] > 0) {
+                hasil.push({ siswa_id: s.id, nama_lengkap: s.nama_lengkap, jk: s.jenis_kelamin, kelas_lama: s.kelas_lama, kelas_id: wadah[idx].id, kelas_nama: wadah[idx].nama })
+                rem[idx]--; ki = (idx + 1) % wadah.length; placed = true; break
+              }
+            }
+            if (!placed) sisa++
+          }
+        }
+
+        distrib(gL, quotaL.slice()); distrib(gP, quotaP.slice())
       })
 
       if (sisa > 0) alert(`PERINGATAN! ${sisa} siswa gagal di-plot.${err}`)

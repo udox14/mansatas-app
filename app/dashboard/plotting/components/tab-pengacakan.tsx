@@ -78,21 +78,19 @@ export function TabPengacakan({
         const gP = g.filter(s => s.jenis_kelamin === 'P').sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
         const totalL = gL.length, total = gL.length + gP.length
 
-        // Compute per-class L quota rounded to nearest even number (best-effort; last class gets remainder)
-        const quotaL: number[] = []
-        let allocL = 0
-        for (let i = 0; i < wadah.length; i++) {
-          if (i === wadah.length - 1) {
-            quotaL.push(Math.min(totalL - allocL, wadah[i].sisa))
-          } else {
-            const raw = (totalL / total) * wadah[i].sisa
-            let t = Math.round(raw)
-            if (t % 2 !== 0) t = (raw - (t - 1)) <= ((t + 1) - raw) ? t - 1 : t + 1
-            t = Math.max(0, Math.min(t, wadah[i].sisa, totalL - allocL))
-            quotaL.push(t)
-            allocL += t
-          }
+        // Step 1: proportional L per class, floor to nearest even
+        const quotaL = wadah.map(k => Math.floor((totalL / total) * k.sisa / 2) * 2)
+
+        // Step 2: distribute deficit in steps of 2 (keeps all quotas even).
+        // If totalL is odd, the final +1 is unavoidable — one class gets odd L.
+        let deficit = totalL - quotaL.reduce((a, b) => a + b, 0)
+        const byRoom = wadah.map((_, i) => i).sort((a, b) => (wadah[b].sisa - quotaL[b]) - (wadah[a].sisa - quotaL[a]))
+        for (const i of byRoom) {
+          if (deficit <= 0) break
+          const add = deficit >= 2 ? 2 : 1
+          if (wadah[i].sisa - quotaL[i] >= add) { quotaL[i] += add; deficit -= add }
         }
+
         const quotaP = wadah.map((k, i) => k.sisa - quotaL[i])
 
         // Distribute L round-robin within per-class quotas (preserves alphabetical spread)
