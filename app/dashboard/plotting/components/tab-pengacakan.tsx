@@ -68,24 +68,62 @@ export function TabPengacakan({
       const hasil: HasilType[] = []
       let sisaSiswa = 0, errMsg = ''
 
-      const dist = (group: SiswaType[], kelompok: string) => {
-        const wadah = targetKelas.filter(k => k.kelompok === kelompok)
-        if (group.length && !wadah.length) { errMsg += `\n- Kelas 12 ${kelompok} belum dicentang!`; sisaSiswa += group.length; return }
-        let ki = 0
-        for (const s of group) {
-          let ok = false
-          for (let i = 0; i < wadah.length; i++) {
-            const t = wadah[ki]; ki = (ki + 1) % wadah.length
-            if (t.sisa > 0) { hasil.push({ siswa_id: s.id, nama_lengkap: s.nama_lengkap, jk: s.jenis_kelamin, kelas_lama: s.kelas_lama, kelas_id: t.id, kelas_nama: t.nama }); t.sisa--; ok = true; break }
-          }
-          if (!ok) sisaSiswa++
-        }
-      }
-
       Array.from(new Set(siswaList.map(s => s.kelompok))).forEach(kelompok => {
+        const wadah = targetKelas.filter(k => k.kelompok === kelompok)
         const g = siswaList.filter(s => s.kelompok === kelompok)
-        dist(g.filter(s => s.jenis_kelamin === 'L').sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap)), kelompok)
-        dist(g.filter(s => s.jenis_kelamin === 'P').sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap)), kelompok)
+        if (!g.length) return
+        if (!wadah.length) { errMsg += `\n- Kelas 12 ${kelompok} belum dicentang!`; sisaSiswa += g.length; return }
+
+        const gL = g.filter(s => s.jenis_kelamin === 'L').sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
+        const gP = g.filter(s => s.jenis_kelamin === 'P').sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
+        const totalL = gL.length, total = gL.length + gP.length
+
+        // Compute per-class L quota rounded to nearest even number (best-effort; last class gets remainder)
+        const quotaL: number[] = []
+        let allocL = 0
+        for (let i = 0; i < wadah.length; i++) {
+          if (i === wadah.length - 1) {
+            quotaL.push(Math.min(totalL - allocL, wadah[i].sisa))
+          } else {
+            const raw = (totalL / total) * wadah[i].sisa
+            let t = Math.round(raw)
+            if (t % 2 !== 0) t = (raw - (t - 1)) <= ((t + 1) - raw) ? t - 1 : t + 1
+            t = Math.max(0, Math.min(t, wadah[i].sisa, totalL - allocL))
+            quotaL.push(t)
+            allocL += t
+          }
+        }
+        const quotaP = wadah.map((k, i) => k.sisa - quotaL[i])
+
+        // Distribute L round-robin within per-class quotas (preserves alphabetical spread)
+        const remL = quotaL.slice()
+        let ki = 0
+        for (const s of gL) {
+          let placed = false
+          for (let i = 0; i < wadah.length; i++) {
+            const idx = (ki + i) % wadah.length
+            if (remL[idx] > 0) {
+              hasil.push({ siswa_id: s.id, nama_lengkap: s.nama_lengkap, jk: s.jenis_kelamin, kelas_lama: s.kelas_lama, kelas_id: wadah[idx].id, kelas_nama: wadah[idx].nama })
+              remL[idx]--; ki = (idx + 1) % wadah.length; placed = true; break
+            }
+          }
+          if (!placed) sisaSiswa++
+        }
+
+        // Distribute P round-robin within remaining slots (sisa - quotaL, also even when sisa is even)
+        const remP = quotaP.slice()
+        ki = 0
+        for (const s of gP) {
+          let placed = false
+          for (let i = 0; i < wadah.length; i++) {
+            const idx = (ki + i) % wadah.length
+            if (remP[idx] > 0) {
+              hasil.push({ siswa_id: s.id, nama_lengkap: s.nama_lengkap, jk: s.jenis_kelamin, kelas_lama: s.kelas_lama, kelas_id: wadah[idx].id, kelas_nama: wadah[idx].nama })
+              remP[idx]--; ki = (idx + 1) % wadah.length; placed = true; break
+            }
+          }
+          if (!placed) sisaSiswa++
+        }
       })
 
       if (sisaSiswa > 0) alert(`PERINGATAN! ${sisaSiswa} siswa gagal di-plot.${errMsg}`)
