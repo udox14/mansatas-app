@@ -18,8 +18,27 @@ export function DetailKelasClient({ siswaData, kelasId, tingkatKelas }: { siswaD
     s.nama_lengkap.toLowerCase().includes(searchTerm.toLowerCase()) || s.nisn.includes(searchTerm)
   )
 
+  const jumlahL = siswaData.filter(s => s.jenis_kelamin === 'L').length
+  const jumlahP = siswaData.filter(s => s.jenis_kelamin === 'P').length
+
   return (
     <div className="space-y-3">
+      {/* Statistik L/P */}
+      <div className="flex gap-2">
+        <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-lg px-3 py-2">
+          <span className="text-[10px] font-bold text-blue-500 dark:text-blue-400 uppercase tracking-wide">Laki-laki</span>
+          <span className="text-lg font-black text-blue-700 dark:text-blue-300 leading-none">{jumlahL}</span>
+        </div>
+        <div className="flex items-center gap-2 bg-pink-50 dark:bg-pink-950/30 border border-pink-100 dark:border-pink-900 rounded-lg px-3 py-2">
+          <span className="text-[10px] font-bold text-pink-500 dark:text-pink-400 uppercase tracking-wide">Perempuan</span>
+          <span className="text-lg font-black text-pink-700 dark:text-pink-300 leading-none">{jumlahP}</span>
+        </div>
+        <div className="flex items-center gap-2 bg-surface border border-surface rounded-lg px-3 py-2">
+          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Total</span>
+          <span className="text-lg font-black text-slate-700 dark:text-slate-300 leading-none">{siswaData.length}</span>
+        </div>
+      </div>
+
       <div className="flex gap-2 items-center">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
