@@ -539,6 +539,65 @@ export async function prosesKelulusanMassal(siswaIds: string[]) {
   }
 }
 
+// ============================================================
+// 8. EXPORT DATA PLOTTING KE EXCEL
+// ============================================================
+export async function getPlottingExportData(
+  source_tahun_ajaran_id: string,
+  target_tahun_ajaran_id: string,
+  tingkat: number[]
+) {
+  if (!tingkat.length) return { data: [] }
+
+  const db = await getDB()
+
+  await db
+    .prepare(
+      `CREATE INDEX IF NOT EXISTS idx_riwayat_kelas_ta_tingkat
+       ON riwayat_kelas(tahun_ajaran_id, kelas_tingkat)`
+    )
+    .run()
+
+  const placeholders = tingkat.map(() => '?').join(', ')
+
+  const result = await db
+    .prepare(
+      `SELECT
+         s.nisn,
+         s.nama_lengkap,
+         s.jenis_kelamin,
+         rk_src.kelas_tingkat AS tingkat_lama,
+         rk_src.kelas_nomor   AS nomor_lama,
+         rk_tgt.kelas_tingkat AS tingkat_baru,
+         rk_tgt.kelas_nomor   AS nomor_baru,
+         rk_tgt.kelas_kelompok AS kelompok_baru
+       FROM siswa s
+       JOIN riwayat_kelas rk_tgt
+         ON rk_tgt.siswa_id = s.id
+        AND rk_tgt.tahun_ajaran_id = ?
+       LEFT JOIN riwayat_kelas rk_src
+         ON rk_src.siswa_id = s.id
+        AND rk_src.tahun_ajaran_id = ?
+       WHERE rk_tgt.kelas_tingkat IN (${placeholders})
+       ORDER BY s.nama_lengkap COLLATE NOCASE ASC`
+    )
+    .bind(target_tahun_ajaran_id, source_tahun_ajaran_id, ...tingkat)
+    .all<any>()
+
+  return {
+    data: (result.results ?? []).map((row: any) => ({
+      nisn: row.nisn ?? '',
+      nama_lengkap: row.nama_lengkap ?? '',
+      jenis_kelamin: row.jenis_kelamin ?? '',
+      kelas_lama: row.tingkat_lama ? `${row.tingkat_lama}-${row.nomor_lama}` : '',
+      kelas_baru: row.tingkat_baru
+        ? `${row.tingkat_baru}-${row.nomor_baru}${row.kelompok_baru && row.kelompok_baru !== 'UMUM' ? ' ' + row.kelompok_baru : ''}`
+        : '',
+      tingkat: row.tingkat_baru as number,
+    })),
+  }
+}
+
 export async function batalkanKelulusanMassal(siswaIds: string[]) {
   if (!siswaIds.length) return { error: 'Tidak ada siswa yang dipilih.' }
 

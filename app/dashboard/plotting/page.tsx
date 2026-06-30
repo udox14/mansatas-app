@@ -16,6 +16,7 @@ import { TabPenjurusan } from './components/tab-penjurusan'
 import { TabPengacakan } from './components/tab-pengacakan'
 import { TabKelulusan } from './components/tab-kelulusan'
 import { PlottingTabs } from './components/plotting-tabs'
+import { ExportPlottingModal } from './components/export-plotting-modal'
 import { CalendarDays, Network, Users, GitBranch, Shuffle, GraduationCap } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
@@ -209,6 +210,13 @@ export default async function PlottingPage({
             <CalendarDays className="h-3.5 w-3.5" />
             <span>TA aktif: <strong className="text-slate-800 dark:text-slate-100 font-semibold">{active.nama}</strong> SMT {active.semester}</span>
           </div>
+        )}
+        {plottingContext.source_tahun_ajaran_id && plottingContext.target_tahun_ajaran_id && (
+          <ExportPlottingModal
+            sourceTaId={plottingContext.source_tahun_ajaran_id}
+            targetTaId={plottingContext.target_tahun_ajaran_id}
+            targetTaLabel={plottingContext.target_tahun_ajaran_label}
+          />
         )}
       </PageHeader>
 
