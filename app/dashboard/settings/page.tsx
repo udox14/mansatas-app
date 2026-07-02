@@ -6,7 +6,7 @@ import { checkFeatureAccess } from '@/lib/features'
 import { Settings } from 'lucide-react'
 import { SettingsClient } from './components/settings-client'
 import { PageHeader } from '@/components/layout/page-header'
-import { getSystemSetting, getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { getSystemSetting, getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS, DEFAULT_PARENT_LOGIN_HELP_WHATSAPP, DEFAULT_PARENT_LOGIN_HELP_INFO, DEFAULT_PARENT_LOGIN_BLOCK_MESSAGE, parseBlockedTingkat } from '@/lib/system-settings'
 import { DASHBOARD_VISIBILITY_KEY, parseVisibility } from '@/lib/dashboard-visibility'
 import { DASHBOARD_WIDGETS_CONFIG_KEY, parseWidgetsConfig } from '@/lib/dashboard-widgets-meta'
 
@@ -86,6 +86,12 @@ export default async function SettingsPage() {
   const heroTextColor = await getSystemSetting(SYSTEM_SETTING_KEYS.heroTextColor, 'white')
   const heroRunningTextBg = await getSystemSetting(SYSTEM_SETTING_KEYS.heroRunningTextBg, '#1e1e1e')
   const heroRunningTextColor = await getSystemSetting(SYSTEM_SETTING_KEYS.heroRunningTextColor, '#ffffff')
+  const parentLoginHelpEnabled = await getSystemSettingBoolean(SYSTEM_SETTING_KEYS.parentLoginHelpEnabled, true)
+  const parentLoginHelpWhatsapp = await getSystemSetting(SYSTEM_SETTING_KEYS.parentLoginHelpWhatsapp, DEFAULT_PARENT_LOGIN_HELP_WHATSAPP)
+  const parentLoginHelpInfo = await getSystemSetting(SYSTEM_SETTING_KEYS.parentLoginHelpInfo, DEFAULT_PARENT_LOGIN_HELP_INFO)
+  const parentLoginBlockEnabled = await getSystemSettingBoolean(SYSTEM_SETTING_KEYS.parentLoginBlockEnabled, false)
+  const parentLoginBlockTingkat = parseBlockedTingkat(await getSystemSetting(SYSTEM_SETTING_KEYS.parentLoginBlockTingkat, '[]'))
+  const parentLoginBlockMessage = await getSystemSetting(SYSTEM_SETTING_KEYS.parentLoginBlockMessage, DEFAULT_PARENT_LOGIN_BLOCK_MESSAGE)
   const dashboardVisibility = parseVisibility(await getSystemSetting(DASHBOARD_VISIBILITY_KEY, ''))
   const dashboardExtraWidgets = parseWidgetsConfig(await getSystemSetting(DASHBOARD_WIDGETS_CONFIG_KEY, ''))
 
@@ -108,6 +114,12 @@ export default async function SettingsPage() {
         heroTextColor={heroTextColor}
         heroRunningTextBg={heroRunningTextBg}
         heroRunningTextColor={heroRunningTextColor}
+        parentLoginHelpEnabled={parentLoginHelpEnabled}
+        parentLoginHelpWhatsapp={parentLoginHelpWhatsapp}
+        parentLoginHelpInfo={parentLoginHelpInfo}
+        parentLoginBlockEnabled={parentLoginBlockEnabled}
+        parentLoginBlockTingkat={parentLoginBlockTingkat}
+        parentLoginBlockMessage={parentLoginBlockMessage}
         dashboardVisibility={dashboardVisibility}
         dashboardExtraWidgets={dashboardExtraWidgets}
       />

@@ -369,10 +369,11 @@ export function createAuth(db: D1Database) {
 
         // Beberapa NISN hasil import Excel tersimpan dengan tanda petik depan.
         const siswa = await db.prepare(
-          `SELECT id, nisn, nama_lengkap, tanggal_lahir, status
-           FROM siswa
-           WHERE nisn = ?
-              OR REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(nisn, ''), '''', ''), ' ', ''), '.', ''), '-', '') = ?
+          `SELECT s.id, s.nisn, s.nama_lengkap, s.tanggal_lahir, s.status, k.tingkat AS kelas_tingkat
+           FROM siswa s
+           LEFT JOIN kelas k ON k.id = s.kelas_id
+           WHERE s.nisn = ?
+              OR REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(s.nisn, ''), '''', ''), ' ', ''), '.', ''), '-', '') = ?
            LIMIT 1`
         ).bind(nisn, nisn).first<any>()
 
@@ -427,6 +428,35 @@ export function createAuth(db: D1Database) {
         if (!valid) {
           if (opts.asResponse) return new Response('Invalid credentials', { status: 401 })
           throw new Error('Invalid credentials')
+        }
+
+        // Guard: blokir login untuk tingkat kelas tertentu bila diaktifkan admin.
+        // Dicek setelah password valid agar pesan blokir hanya muncul untuk akun sah.
+        // Baca setting terpisah (try/catch) supaya error DB tidak menggagalkan login.
+        const blockSettings = new Map<string, string>()
+        try {
+          const rows = await db.prepare(
+            `SELECT key, value FROM system_settings
+             WHERE key IN ('parent_login_block_enabled', 'parent_login_block_tingkat', 'parent_login_block_message')`
+          ).all<{ key: string; value: string }>()
+          for (const r of rows.results || []) blockSettings.set(r.key, r.value)
+        } catch {
+          // Tabel belum ada / error baca → anggap tidak ada blokir.
+        }
+
+        if (blockSettings.get('parent_login_block_enabled') === '1') {
+          let blockedTingkat: number[] = []
+          try {
+            const parsed = JSON.parse(blockSettings.get('parent_login_block_tingkat') || '[]')
+            if (Array.isArray(parsed)) blockedTingkat = parsed.map((v) => Number(v)).filter((v) => Number.isInteger(v))
+          } catch {}
+          const tingkat = Number(siswa.kelas_tingkat)
+          if (Number.isInteger(tingkat) && blockedTingkat.includes(tingkat)) {
+            const message = (blockSettings.get('parent_login_block_message') || '').trim()
+              || 'Login portal orang tua untuk tingkat kelas Anda sedang dinonaktifkan sementara oleh sekolah.'
+            if (opts.asResponse) return new Response(message, { status: 403 })
+            throw new Error(message)
+          }
         }
 
         await ensureParentSessionTable(db)

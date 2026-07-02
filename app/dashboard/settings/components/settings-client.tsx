@@ -16,15 +16,16 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   CalendarDays, Loader2, PlusCircle, CheckCircle2, AlertCircle,
   Trash2, Power, X, Tags, Edit3, Clock, Copy, Plus, ChevronDown, ChevronUp,
-  Smartphone, Upload, LayoutDashboard, Eye, EyeOff
+  Smartphone, Upload, LayoutDashboard, Eye, EyeOff, MessageCircle
 } from 'lucide-react'
 import {
   tambahTahunAjaran, setAktifTahunAjaran, hapusTahunAjaran,
   simpanDaftarJurusan, simpanJamPelajaran,
   setAgendaTimeRestrictionEnabled, setAgendaLateSetting, setAttendanceTimeRestrictionEnabled,
   setAttendanceSkipIncompleteForDailyStatusEnabled, setHeroSettings, uploadHeroImageAction,
-  setDashboardItemVisibility, setDashboardExtraWidgets
+  setDashboardItemVisibility, setDashboardExtraWidgets, setParentLoginHelpSettings, setParentLoginBlockSettings
 } from '../actions'
+import { PARENT_LOGIN_TINGKAT_OPTIONS } from '@/lib/system-settings'
 import { DASHBOARD_GROUPS, isVisible, type VisibilityMap } from '@/lib/dashboard-visibility'
 import { WIDGET_CATALOG_META, type WidgetsConfigMap } from '@/lib/dashboard-widgets-meta'
 import { DEFAULT_POLA_JAM } from '../types'
@@ -390,6 +391,12 @@ export function SettingsClient({
   heroTextColor,
   heroRunningTextBg,
   heroRunningTextColor,
+  parentLoginHelpEnabled,
+  parentLoginHelpWhatsapp,
+  parentLoginHelpInfo,
+  parentLoginBlockEnabled,
+  parentLoginBlockTingkat,
+  parentLoginBlockMessage,
   dashboardVisibility,
   dashboardExtraWidgets,
 }: {
@@ -405,6 +412,12 @@ export function SettingsClient({
   heroTextColor: string
   heroRunningTextBg: string
   heroRunningTextColor: string
+  parentLoginHelpEnabled: boolean
+  parentLoginHelpWhatsapp: string
+  parentLoginHelpInfo: string
+  parentLoginBlockEnabled: boolean
+  parentLoginBlockTingkat: number[]
+  parentLoginBlockMessage: string
   dashboardVisibility: VisibilityMap
   dashboardExtraWidgets: WidgetsConfigMap
 }) {
@@ -417,6 +430,22 @@ export function SettingsClient({
   )
   const [attendanceTimeRestricted, setAttendanceTimeRestricted] = useState(attendanceTimeRestrictionEnabled)
   const [attendanceSkipIncomplete, setAttendanceSkipIncomplete] = useState(attendanceSkipIncompleteForDailyStatusEnabled)
+
+  // Portal Ortu — tombol bantuan akun (lupa password) di halaman login
+  const [parentHelpEnabled, setParentHelpEnabled] = useState(parentLoginHelpEnabled)
+  const [parentHelpWhatsapp, setParentHelpWhatsapp] = useState(parentLoginHelpWhatsapp)
+  const [parentHelpInfo, setParentHelpInfo] = useState(parentLoginHelpInfo)
+  const [isSavingParentHelp, setIsSavingParentHelp] = useState(false)
+
+  // Portal Ortu — pembatasan login per tingkat kelas
+  const [blockEnabled, setBlockEnabled] = useState(parentLoginBlockEnabled)
+  const [blockTingkat, setBlockTingkat] = useState<number[]>(parentLoginBlockTingkat || [])
+  const [blockMessage, setBlockMessage] = useState(parentLoginBlockMessage)
+  const [isSavingBlock, setIsSavingBlock] = useState(false)
+
+  const toggleBlockTingkat = (t: number) => {
+    setBlockTingkat(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t].sort((a, b) => a - b))
+  }
   
   // Hero Section Settings
   const [heroBgUrl, setHeroBgUrl] = useState(heroBackgroundImageUrl)
@@ -653,6 +682,48 @@ export function SettingsClient({
     }
   }
 
+  const handleSaveParentHelp = async () => {
+    const normalized = parentHelpWhatsapp.replace(/\D/g, '')
+    const info = parentHelpInfo.trim()
+    if (parentHelpEnabled && !normalized) {
+      alert('Nomor WhatsApp admin wajib diisi saat tombol bantuan diaktifkan.')
+      return
+    }
+    if (!parentHelpEnabled && !info) {
+      alert('Teks info wajib diisi saat tombol bantuan dinonaktifkan (dipakai di modal).')
+      return
+    }
+    setIsSavingParentHelp(true)
+    const res = await setParentLoginHelpSettings(parentHelpEnabled, normalized, info)
+    setIsSavingParentHelp(false)
+    if (res?.error) alert(res.error)
+    else {
+      setParentHelpWhatsapp(normalized)
+      setParentHelpInfo(info)
+      alert('Pengaturan bantuan akun portal ortu berhasil disimpan.')
+    }
+  }
+
+  const handleSaveBlock = async () => {
+    const msg = blockMessage.trim()
+    if (blockEnabled && blockTingkat.length === 0) {
+      alert('Pilih minimal satu tingkat yang diblokir saat pembatasan diaktifkan.')
+      return
+    }
+    if (blockEnabled && !msg) {
+      alert('Pesan penolakan wajib diisi saat pembatasan diaktifkan.')
+      return
+    }
+    setIsSavingBlock(true)
+    const res = await setParentLoginBlockSettings(blockEnabled, blockTingkat, msg)
+    setIsSavingBlock(false)
+    if (res?.error) alert(res.error)
+    else {
+      setBlockMessage(msg)
+      alert('Pengaturan pembatasan login berhasil disimpan.')
+    }
+  }
+
   // Summary jam untuk card TA
   const getJamSummary = (pola: PolaJam[]) => {
     if (!pola || pola.length === 0) return null
@@ -883,7 +954,7 @@ export function SettingsClient({
       </div>
 
       <Tabs defaultValue="tampilan" className="space-y-4">
-        <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4 sm:max-w-3xl">
+        <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-5 sm:max-w-4xl">
           <TabsTrigger value="tampilan" className="gap-1.5 py-2 text-xs sm:text-sm">
             <Tags className="h-3.5 w-3.5" /> Tampilan Dashboard
           </TabsTrigger>
@@ -892,6 +963,9 @@ export function SettingsClient({
           </TabsTrigger>
           <TabsTrigger value="perilaku" className="gap-1.5 py-2 text-xs sm:text-sm">
             <Clock className="h-3.5 w-3.5" /> Perilaku Guru
+          </TabsTrigger>
+          <TabsTrigger value="portal-ortu" className="gap-1.5 py-2 text-xs sm:text-sm">
+            <MessageCircle className="h-3.5 w-3.5" /> Portal Ortu
           </TabsTrigger>
           <TabsTrigger value="tahun-ajaran" className="gap-1.5 py-2 text-xs sm:text-sm">
             <CalendarDays className="h-3.5 w-3.5" /> Tahun Ajaran
@@ -1340,6 +1414,175 @@ export function SettingsClient({
           </button>
         </div>
       </div>
+        </TabsContent>
+
+        <TabsContent value="portal-ortu" className="mt-0">
+          <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-surface-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Bantuan Akun (Lupa Password)</p>
+                <p className="text-xs text-slate-400 mt-0.5">Atur tombol &quot;Bantuan Akun? Hubungi Admin&quot; di halaman login Portal Orang Tua. Aktif = tombol buka chat WhatsApp admin. Nonaktif = tombol buka modal berisi teks info di bawah.</p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 flex items-start justify-between gap-4 border-b border-surface-2">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Tampilkan tombol bantuan akun</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Jika aktif, orang tua/wali yang lupa password bisa menekan tombol untuk menghubungi admin via WhatsApp. Jika nonaktif, tombol disembunyikan dari halaman login.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setParentHelpEnabled(v => !v)}
+                disabled={isSavingParentHelp}
+                className={cn(
+                  'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors',
+                  parentHelpEnabled ? 'bg-emerald-500 border-emerald-500' : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700',
+                  isSavingParentHelp && 'opacity-60 cursor-wait'
+                )}
+                aria-pressed={parentHelpEnabled}
+              >
+                <span className={cn('inline-block h-5 w-5 transform rounded-full bg-white transition-transform', parentHelpEnabled ? 'translate-x-6' : 'translate-x-1')} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 border-b border-surface-2">
+              <div className="space-y-1.5 max-w-md">
+                <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Nomor WhatsApp Admin</Label>
+                <Input
+                  type="tel"
+                  inputMode="numeric"
+                  value={parentHelpWhatsapp}
+                  onChange={e => setParentHelpWhatsapp(e.target.value)}
+                  disabled={!parentHelpEnabled || isSavingParentHelp}
+                  placeholder="Contoh: 6282218943383"
+                  className="h-9 rounded-lg bg-surface-2 text-sm"
+                />
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Tulis format 62 (mis. 6282218943383). Nomor ini jadi tujuan chat WhatsApp saat orang tua menekan tombol bantuan (saat tombol aktif).
+                </p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-b border-surface-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Teks Info Modal (saat tombol nonaktif)</Label>
+                <textarea
+                  value={parentHelpInfo}
+                  onChange={e => setParentHelpInfo(e.target.value)}
+                  disabled={isSavingParentHelp}
+                  rows={4}
+                  placeholder="Mis: Untuk bantuan akun, silakan datang ke bagian Tata Usaha sekolah pada jam kerja."
+                  className="w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 outline-none focus:border-slate-300 dark:focus:border-slate-700 disabled:opacity-60"
+                />
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Teks ini tampil di modal saat orang tua menekan tombol bantuan sementara mode WhatsApp dinonaktifkan.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 bg-surface-2/30">
+              <Button
+                type="button"
+                onClick={handleSaveParentHelp}
+                disabled={isSavingParentHelp}
+                className="h-9 text-xs gap-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg"
+              >
+                {isSavingParentHelp ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Menyimpan...</> : 'Simpan Pengaturan Portal Ortu'}
+              </Button>
+            </div>
+          </div>
+
+          {/* ── PEMBATASAN LOGIN PER TINGKAT ── */}
+          <div className="mt-4 rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-surface-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Pembatasan Login per Tingkat</p>
+                <p className="text-xs text-slate-400 mt-0.5">Blokir login portal untuk tingkat kelas tertentu. Tingkat yang dicentang akan ditolak; tingkat lain tetap bisa login.</p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 flex items-start justify-between gap-4 border-b border-surface-2">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Aktifkan pembatasan login</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Jika aktif, orang tua/wali dari tingkat yang dipilih tidak bisa login dan menerima pesan penolakan di bawah. Jika nonaktif, semua tingkat bisa login normal.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBlockEnabled(v => !v)}
+                disabled={isSavingBlock}
+                className={cn(
+                  'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors',
+                  blockEnabled ? 'bg-rose-500 border-rose-500' : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700',
+                  isSavingBlock && 'opacity-60 cursor-wait'
+                )}
+                aria-pressed={blockEnabled}
+              >
+                <span className={cn('inline-block h-5 w-5 transform rounded-full bg-white transition-transform', blockEnabled ? 'translate-x-6' : 'translate-x-1')} />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 border-b border-surface-2">
+              <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Tingkat yang diblokir</Label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {PARENT_LOGIN_TINGKAT_OPTIONS.map(t => {
+                  const active = blockTingkat.includes(t)
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => toggleBlockTingkat(t)}
+                      disabled={!blockEnabled || isSavingBlock}
+                      aria-pressed={active}
+                      className={cn(
+                        'px-4 py-2 rounded-lg text-sm font-semibold border transition-colors',
+                        active
+                          ? 'bg-rose-500 border-rose-500 text-white'
+                          : 'bg-surface-2 border-surface text-slate-600 dark:text-slate-300 hover:bg-surface-3',
+                        (!blockEnabled || isSavingBlock) && 'opacity-50 cursor-not-allowed'
+                      )}
+                    >
+                      Kelas {t}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                Merah = login tingkat itu diblokir. Contoh: pilih Kelas 11 &amp; 12 → hanya Kelas 10 yang bisa login.
+              </p>
+            </div>
+
+            <div className="px-5 py-4 border-b border-surface-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Pesan Penolakan Login</Label>
+                <textarea
+                  value={blockMessage}
+                  onChange={e => setBlockMessage(e.target.value)}
+                  disabled={isSavingBlock}
+                  rows={3}
+                  placeholder="Mis: Login untuk tingkat kelas Anda sedang dinonaktifkan sementara oleh sekolah."
+                  className="w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 outline-none focus:border-slate-300 dark:focus:border-slate-700 disabled:opacity-60"
+                />
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Pesan ini tampil di halaman login saat orang tua dari tingkat yang diblokir mencoba masuk (dengan password benar).
+                </p>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 bg-surface-2/30">
+              <Button
+                type="button"
+                onClick={handleSaveBlock}
+                disabled={isSavingBlock}
+                className="h-9 text-xs gap-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg"
+              >
+                {isSavingBlock ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Menyimpan...</> : 'Simpan Pembatasan Login'}
+              </Button>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="tahun-ajaran" className="mt-0">

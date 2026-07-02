@@ -3,14 +3,25 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { AlertCircle, Eye, EyeOff, Loader2, LockKeyhole, MessageCircle, UserSquare2 } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff, Info, Loader2, LockKeyhole, MessageCircle, UserSquare2 } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 
-export default function ParentLoginClient() {
+export default function ParentLoginClient({
+  helpEnabled = true,
+  helpWhatsapp = '6282218943383',
+  helpInfo = '',
+}: {
+  helpEnabled?: boolean
+  helpWhatsapp?: string
+  helpInfo?: string
+}) {
   const [nisn, setNisn] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  const helpNumber = String(helpWhatsapp || '').replace(/\D/g, '')
+  const infoText = String(helpInfo || '').trim()
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,7 +35,13 @@ export default function ParentLoginClient() {
         credentials: 'include',
       })
       if (!res.ok) {
-        setError('NISN atau password tidak sesuai.')
+        // 403 = login diblokir admin (mis. pembatasan per tingkat) → tampilkan pesan dari server.
+        if (res.status === 403) {
+          const msg = (await res.text()).trim()
+          setError(msg || 'Login Anda sedang dinonaktifkan oleh sekolah.')
+        } else {
+          setError('NISN atau password tidak sesuai.')
+        }
         setPending(false)
         return
       }
@@ -151,16 +168,41 @@ export default function ParentLoginClient() {
               )}
             </button>
 
-            <a
-              href="https://wa.me/6282218943383?text=Assalamu%27alaikum%2C%20saya%20orang%20tua%2Fwali%20siswa%20membutuhkan%20bantuan%20akun%20Portal%20Orang%20Tua."
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-3 text-[11px] font-bold text-teal-950 transition-all hover:bg-teal-50/50 hover:border-teal-400 shadow-sm"
-            >
-              <MessageCircle className="h-3.5 w-3.5 text-teal-600" />
-              <span>Bantuan Akun? Hubungi Admin</span>
-            </a>
-            
+            {helpEnabled && helpNumber ? (
+              <a
+                href={`https://wa.me/${helpNumber}?text=Assalamu%27alaikum%2C%20saya%20orang%20tua%2Fwali%20siswa%20membutuhkan%20bantuan%20akun%20Portal%20Orang%20Tua.`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-3 text-[11px] font-bold text-teal-950 transition-all hover:bg-teal-50/50 hover:border-teal-400 shadow-sm"
+              >
+                <MessageCircle className="h-3.5 w-3.5 text-teal-600" />
+                <span>Bantuan Akun? Hubungi Admin</span>
+              </a>
+            ) : infoText ? (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-3 text-[11px] font-bold text-teal-950 transition-all hover:bg-teal-50/50 hover:border-teal-400 shadow-sm"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5 text-teal-600" />
+                    <span>Bantuan Akun? Hubungi Admin</span>
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-sm rounded-2xl p-0 border-0 overflow-hidden bg-white">
+                  <DialogHeader className="p-5 pb-3 border-b border-slate-100">
+                    <DialogTitle className="flex items-center gap-2 text-base font-semibold text-slate-800">
+                      <Info className="h-4 w-4 text-teal-600" />
+                      Bantuan Akun
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="p-5">
+                    <p className="whitespace-pre-line text-sm leading-relaxed text-slate-600">{infoText}</p>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            ) : null}
+
             <Link href="/login" className="block text-center text-[11px] font-bold text-slate-500 transition-colors hover:text-teal-700">
               Login Pegawai / Guru
             </Link>

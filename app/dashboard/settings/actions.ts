@@ -501,6 +501,93 @@ export async function setHeroSettings(bgUrl: string, runningText: string, textCo
   return { success: true }
 }
 
+export async function setParentLoginHelpSettings(enabled: boolean, whatsapp: string, info: string) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<{ role: string }>()
+  if (userRow?.role !== 'super_admin') {
+    return { error: 'Hanya Super Admin yang bisa mengubah pengaturan ini.' }
+  }
+
+  // Normalisasi nomor: hanya digit
+  const normalizedWhatsapp = String(whatsapp || '').replace(/\D/g, '')
+  if (enabled && !normalizedWhatsapp) {
+    return { error: 'Nomor WhatsApp admin wajib diisi saat tombol bantuan diaktifkan.' }
+  }
+
+  const normalizedInfo = String(info || '').trim()
+  if (!enabled && !normalizedInfo) {
+    return { error: 'Teks info wajib diisi saat tombol bantuan dinonaktifkan (dipakai di modal).' }
+  }
+
+  await setSystemSetting(SYSTEM_SETTING_KEYS.parentLoginHelpEnabled, enabled ? '1' : '0')
+  await setSystemSetting(SYSTEM_SETTING_KEYS.parentLoginHelpWhatsapp, normalizedWhatsapp)
+  await setSystemSetting(SYSTEM_SETTING_KEYS.parentLoginHelpInfo, normalizedInfo)
+
+  await logActivity({
+    db,
+    module: 'pengaturan',
+    action: 'set_parent_login_help',
+    summary: `${enabled ? 'Mengaktifkan' : 'Menonaktifkan'} tombol bantuan akun login portal ortu`,
+    entityType: 'system_setting',
+    entityId: SYSTEM_SETTING_KEYS.parentLoginHelpEnabled,
+    entityLabel: 'Tombol bantuan akun portal ortu',
+    after: { enabled, whatsapp: normalizedWhatsapp, info: normalizedInfo },
+  })
+
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/portal-ortu/login')
+  return { success: true }
+}
+
+export async function setParentLoginBlockSettings(enabled: boolean, tingkat: number[], message: string) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<{ role: string }>()
+  if (userRow?.role !== 'super_admin') {
+    return { error: 'Hanya Super Admin yang bisa mengubah pengaturan ini.' }
+  }
+
+  // Sanitasi: hanya tingkat valid (10/11/12), unik, urut
+  const allowed = new Set([10, 11, 12])
+  const cleanTingkat = Array.from(new Set(
+    (Array.isArray(tingkat) ? tingkat : []).map((v) => Number(v)).filter((v) => allowed.has(v))
+  )).sort((a, b) => a - b)
+
+  const cleanMessage = String(message || '').trim()
+  if (enabled && cleanTingkat.length === 0) {
+    return { error: 'Pilih minimal satu tingkat yang diblokir saat pembatasan diaktifkan.' }
+  }
+  if (enabled && !cleanMessage) {
+    return { error: 'Pesan penolakan wajib diisi saat pembatasan diaktifkan.' }
+  }
+
+  await setSystemSetting(SYSTEM_SETTING_KEYS.parentLoginBlockEnabled, enabled ? '1' : '0')
+  await setSystemSetting(SYSTEM_SETTING_KEYS.parentLoginBlockTingkat, JSON.stringify(cleanTingkat))
+  await setSystemSetting(SYSTEM_SETTING_KEYS.parentLoginBlockMessage, cleanMessage)
+
+  await logActivity({
+    db,
+    module: 'pengaturan',
+    action: 'set_parent_login_block',
+    severity: enabled ? 'warning' : undefined,
+    summary: enabled
+      ? `Memblokir login portal ortu tingkat ${cleanTingkat.join(', ')}`
+      : 'Menonaktifkan pembatasan login portal ortu per tingkat',
+    entityType: 'system_setting',
+    entityId: SYSTEM_SETTING_KEYS.parentLoginBlockEnabled,
+    entityLabel: 'Pembatasan login portal ortu per tingkat',
+    after: { enabled, tingkat: cleanTingkat, message: cleanMessage },
+  })
+
+  revalidatePath('/dashboard/settings')
+  return { success: true }
+}
+
 export async function uploadHeroImageAction(formData: FormData) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }

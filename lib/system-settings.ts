@@ -12,7 +12,40 @@ export const SYSTEM_SETTING_KEYS = {
   heroTextColor: 'hero_text_color',
   heroRunningTextBg: 'hero_running_text_bg',
   heroRunningTextColor: 'hero_running_text_color',
+  parentLoginHelpEnabled: 'parent_login_help_enabled',
+  parentLoginHelpWhatsapp: 'parent_login_help_whatsapp',
+  parentLoginHelpInfo: 'parent_login_help_info',
+  parentLoginBlockEnabled: 'parent_login_block_enabled',
+  parentLoginBlockTingkat: 'parent_login_block_tingkat',
+  parentLoginBlockMessage: 'parent_login_block_message',
 } as const
+
+// Tingkat kelas yang bisa dibatasi loginnya (MA: 10, 11, 12)
+export const PARENT_LOGIN_TINGKAT_OPTIONS = [10, 11, 12] as const
+
+// Pesan bawaan saat login tingkat tertentu diblokir
+export const DEFAULT_PARENT_LOGIN_BLOCK_MESSAGE =
+  'Login portal orang tua untuk tingkat kelas Anda sedang dinonaktifkan sementara oleh sekolah. Silakan hubungi admin sekolah untuk informasi lebih lanjut.'
+
+// Parse daftar tingkat yang diblokir dari nilai tersimpan (JSON array angka)
+export function parseBlockedTingkat(raw: string): number[] {
+  try {
+    const parsed = JSON.parse(raw || '[]')
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map((v) => Number(v))
+      .filter((v) => Number.isInteger(v) && PARENT_LOGIN_TINGKAT_OPTIONS.includes(v as any))
+  } catch {
+    return []
+  }
+}
+
+// Nomor WA bantuan akun portal ortu bawaan (dipakai bila admin belum set)
+export const DEFAULT_PARENT_LOGIN_HELP_WHATSAPP = '6282218943383'
+
+// Teks info bawaan yang tampil di modal saat tombol WA bantuan dinonaktifkan
+export const DEFAULT_PARENT_LOGIN_HELP_INFO =
+  'Untuk bantuan akun (lupa password atau username), silakan hubungi admin sekolah atau datang langsung ke bagian Tata Usaha MAN 1 Tasikmalaya pada jam kerja.'
 
 async function ensureSystemSettingsTable(db: D1Database) {
   await db.prepare(`
