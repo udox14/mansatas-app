@@ -474,12 +474,12 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-surface-2 hover:bg-surface-2">
-                      <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 w-72">Siswa</TableHead>
-                      <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">Kelas</TableHead>
-                      <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 hidden xl:table-cell text-center">Angkatan</TableHead>
-                      <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 hidden lg:table-cell">Domisili</TableHead>
-                      <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center">Status</TableHead>
-                      <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 text-right px-4">Aksi</TableHead>
+                      <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 min-w-[300px] w-auto">Siswa</TableHead>
+                      <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 w-32">Kelas</TableHead>
+                      <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 hidden xl:table-cell text-center w-24">Angkatan</TableHead>
+                      <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 hidden lg:table-cell w-40">Domisili</TableHead>
+                      <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 text-center w-24">Status</TableHead>
+                      <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 text-right px-4 w-24">Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
