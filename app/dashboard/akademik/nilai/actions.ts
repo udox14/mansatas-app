@@ -138,7 +138,7 @@ export async function validateImportNilai(dataExcel: any[], targetKolom: string)
 }
 
 // Eksekusi Pukulan Akhir
-export async function simpanImportNilai(preparedRows: { siswaId: string, nilaiObj: Record<string, number> }[], targetKolom: string) {
+export async function simpanImportNilai(preparedRows: { siswaId: string, nilaiObj: Record<string, number>, newNisn?: string }[], targetKolom: string) {
   if (!SEMESTER_KEYS.includes(targetKolom)) return { error: `Kolom target tidak valid.` }
   if (preparedRows.length === 0) return { error: 'Daftar penyisipan kosong.' }
   
@@ -177,12 +177,21 @@ export async function simpanImportNilai(preparedRows: { siswaId: string, nilaiOb
     }
   })
 
+  // Tambahkan statement untuk update NISN jika ada
+  preparedRows.forEach(({ siswaId, newNisn }) => {
+    if (newNisn) {
+      stmts.push(db.prepare('UPDATE siswa SET nisn = ?, updated_at = ? WHERE id = ?').bind(newNisn, now, siswaId))
+    }
+  })
+
   let successCount = 0
   const chunkSize = 50
   for (let i = 0; i < stmts.length; i += chunkSize) {
     const results = await db.batch(stmts.slice(i, i + chunkSize))
-    successCount += results.filter((r) => r.success).length
+    // Filter results to only count updates/inserts to rekap_nilai_akademik roughly by checking chunk size or we just count preparedRows.
+    // For simplicity, we just count based on preparedRows instead of db.batch results since db.batch either succeeds or throws on D1.
   }
+  successCount = preparedRows.length
 
   await invalidateRekapCache()
   revalidatePath('/dashboard/akademik/nilai')

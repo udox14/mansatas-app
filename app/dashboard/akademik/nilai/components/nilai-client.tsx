@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { FileSpreadsheet, Loader2, AlertCircle, Upload, Trash2, CheckCircle2, Info, UserCheck } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Checkbox } from '@/components/ui/checkbox'
 import { validateImportNilai, simpanImportNilai, resetNilaiKolom } from '../actions'
 import { SEMESTER_MAP, SEMESTER_KEYS } from '../constants'
 import { useRouter } from 'next/navigation'
@@ -27,6 +28,7 @@ export function NilaiClient() {
   const [readyImportList, setReadyImportList] = useState<any[]>([])
   const [isVerifyDialogOpen, setIsVerifyDialogOpen] = useState(false)
   const [manualSelections, setManualSelections] = useState<Record<string, string>>({})
+  const [updateNisnSelections, setUpdateNisnSelections] = useState<Record<string, boolean>>({})
 
   const executeFinalImport = async (rowsToImport: any[]) => {
     setIsImporting(true)
@@ -49,10 +51,12 @@ export function NilaiClient() {
     for (const v of verificationList) {
       const mapKey = v.rowId + v.fileName
       const selectedId = manualSelections[mapKey]
+      const shouldUpdateNisn = updateNisnSelections[mapKey]
       if (selectedId && selectedId !== 'IGNORE') {
         verifiedRows.push({
           siswaId: selectedId,
-          nilaiObj: v.nilaiObj
+          nilaiObj: v.nilaiObj,
+          newNisn: (shouldUpdateNisn && v.nisnExcel) ? String(v.nisnExcel).trim() : undefined
         })
       }
     }
@@ -79,6 +83,7 @@ export function NilaiClient() {
     setVerificationList([])
     setReadyImportList([])
     setManualSelections({})
+    setUpdateNisnSelections({})
 
     const XLSX = (window as any).XLSX
     if (!XLSX) {
@@ -197,10 +202,13 @@ export function NilaiClient() {
       setVerificationList(masterVerify)
       
       const initialSelections: Record<string, string> = {}
+      const initialNisnSelections: Record<string, boolean> = {}
       masterVerify.forEach(v => {
         initialSelections[v.rowId + v.fileName] = 'IGNORE'
+        initialNisnSelections[v.rowId + v.fileName] = false
       })
       setManualSelections(initialSelections)
+      setUpdateNisnSelections(initialNisnSelections)
       
       setIsVerifyDialogOpen(true)
       setIsImporting(false) 
@@ -297,6 +305,20 @@ export function NilaiClient() {
                           ))}
                         </SelectContent>
                       </Select>
+                      
+                      {manualSelections[mapKey] && manualSelections[mapKey] !== 'IGNORE' && item.nisnExcel && String(item.nisnExcel).trim() !== '' && (
+                        <div className="flex items-start space-x-2 mt-3 pt-3 border-t border-muted/50">
+                          <Checkbox 
+                            id={`update-nisn-${mapKey}`} 
+                            checked={updateNisnSelections[mapKey] || false}
+                            onCheckedChange={(checked) => setUpdateNisnSelections(p => ({...p, [mapKey]: !!checked}))}
+                            className="mt-0.5"
+                          />
+                          <Label htmlFor={`update-nisn-${mapKey}`} className="text-[11px] sm:text-xs font-medium leading-tight peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-muted-foreground">
+                            Update NISN di database menjadi <span className="font-bold text-emerald-600 dark:text-emerald-400">{item.nisnExcel}</span>
+                          </Label>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
