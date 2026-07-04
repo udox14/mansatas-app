@@ -4,7 +4,7 @@
 import { getDB } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
 import { ensureRiwayatKelasSnapshotColumns, formatKelasSnapshot } from '@/lib/riwayat-kelas'
-import { logActivity } from '@/lib/activity-log'
+import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
 type TahunAjaranRef = {
   id: string
@@ -278,6 +278,15 @@ export async function setDraftPenjurusan(
   await ensureRiwayatKelasSnapshotColumns(db)
   const { source, target } = await resolvePlottingContext(db, context)
   const now = new Date().toISOString()
+  const normalizedJurusan = normalizeJurusan(minat_jurusan)
+
+  const before = await db
+    .prepare(
+      `SELECT minat_jurusan FROM plotting_penjurusan_draft
+       WHERE siswa_id = ? AND source_tahun_ajaran_id = ? AND target_tahun_ajaran_id = ?`
+    )
+    .bind(siswa_id, source.id, target.id)
+    .first<{ minat_jurusan: string | null }>()
 
   await db
     .prepare(
@@ -291,8 +300,22 @@ export async function setDraftPenjurusan(
          status = 'draft',
          updated_at = excluded.updated_at`
     )
-    .bind(crypto.randomUUID(), siswa_id, source.id, target.id, normalizeJurusan(minat_jurusan), now)
+    .bind(crypto.randomUUID(), siswa_id, source.id, target.id, normalizedJurusan, now)
     .run()
+
+  const siswa = await db.prepare('SELECT nama_lengkap FROM siswa WHERE id = ?').bind(siswa_id).first<{ nama_lengkap: string }>()
+
+  await logActivity({
+    db,
+    module: 'plotting',
+    action: 'set_penjurusan',
+    summary: `Menetapkan minat jurusan ${siswa?.nama_lengkap || siswa_id} ke ${normalizedJurusan || '(kosong)'}`,
+    entityType: 'siswa',
+    entityId: siswa_id,
+    entityLabel: siswa?.nama_lengkap || siswa_id,
+    metadata: { source_tahun_ajaran_id: source.id, target_tahun_ajaran_id: target.id },
+    diff: createActivityDiff({ minat_jurusan: before?.minat_jurusan ?? null }, { minat_jurusan: normalizedJurusan }),
+  })
 
   revalidatePath('/dashboard/plotting')
   return { success: true }
@@ -328,6 +351,23 @@ export async function setDraftPenjurusanMassal(
     )
     await db.batch(stmts)
   }
+
+  await logActivity({
+    db,
+    module: 'plotting',
+    action: 'set_penjurusan_massal',
+    severity: 'warning',
+    summary: `Menetapkan minat jurusan ${payload.length} siswa`,
+    entityType: 'siswa',
+    entityId: null,
+    entityLabel: 'Penetapan jurusan massal',
+    metadata: { source_tahun_ajaran_id: source.id, target_tahun_ajaran_id: target.id, count: payload.length },
+    targets: payload.map(p => ({
+      type: 'siswa',
+      id: p.id,
+      metadata: { minat_jurusan: normalizeJurusan(p.minat_jurusan) },
+    })),
+  })
 
   revalidatePath('/dashboard/plotting')
   return { success: true }

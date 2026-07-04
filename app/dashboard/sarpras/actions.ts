@@ -3,7 +3,6 @@
 import { getDB } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
-import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
 // ============================================================
 // TYPES
@@ -56,18 +55,6 @@ export async function saveKategori(id: string | null, nama: string) {
     } else {
       after = await db.prepare('INSERT INTO sarpras_kategori (nama) VALUES (?) RETURNING *').bind(nama).first<any>()
     }
-    await logActivity({
-      db,
-      module: 'sarpras',
-      action: id ? 'update_kategori' : 'create_kategori',
-      summary: `${id ? 'Mengubah' : 'Menambahkan'} kategori sarpras ${nama}`,
-      entityType: 'sarpras_kategori',
-      entityId: id ?? after?.id,
-      entityLabel: nama,
-      before,
-      after,
-      diff: before ? createActivityDiff(before, after) : undefined,
-    })
     revalidatePath('/dashboard/sarpras')
     return { success: true, error: null }
   } catch (e: any) {
@@ -81,19 +68,7 @@ export async function saveKategori(id: string | null, nama: string) {
 export async function deleteKategori(id: string) {
   const db = await getDB()
   try {
-    const before = await db.prepare('SELECT * FROM sarpras_kategori WHERE id = ?').bind(id).first<any>()
     await db.prepare('DELETE FROM sarpras_kategori WHERE id = ?').bind(id).run()
-    await logActivity({
-      db,
-      module: 'sarpras',
-      action: 'delete_kategori',
-      severity: 'danger',
-      summary: `Menghapus kategori sarpras ${before?.nama || id}`,
-      entityType: 'sarpras_kategori',
-      entityId: id,
-      entityLabel: before?.nama || id,
-      before,
-    })
     revalidatePath('/dashboard/sarpras')
     return { success: true, error: null }
   } catch (e: any) {
@@ -138,7 +113,6 @@ export async function getAsetList(filters?: { kategoriId?: string, keadaan?: str
 export async function saveAset(data: Partial<SarprasAset>) {
   const db = await getDB()
   try {
-    const before = data.id ? await db.prepare('SELECT * FROM sarpras_aset WHERE id = ?').bind(data.id).first<any>() : null
     const userId = data.diinput_oleh || null // Biasanya di supply dari frontend jika perlu diset, karena kita mock getUser server side tidak full jika auth di client. Di sistem ini biasanya dikirim dari client atau diambil dari session
     
     // Convert undefined to null for DB binding
@@ -167,35 +141,12 @@ export async function saveAset(data: Partial<SarprasAset>) {
         data.tahun_pembuatan || null, data.asal_anggaran || null, data.keadaan_barang || null, 
         data.harga || null, data.foto_url || null, data.keterangan || null, data.id
       ).run()
-      const after = { ...before, ...data, updated_at: new Date().toISOString() }
-      await logActivity({
-        db,
-        module: 'sarpras',
-        action: 'update_aset',
-        summary: `Mengubah aset sarpras ${before?.nama_barang || data.nama_barang || data.id}`,
-        entityType: 'sarpras_aset',
-        entityId: data.id,
-        entityLabel: before?.nama_barang || data.nama_barang || data.id,
-        before,
-        after,
-        diff: createActivityDiff(before, after),
-      })
     } else {
-      const after = await db.prepare(`
+      await db.prepare(`
         INSERT INTO sarpras_aset (tanggal_pembukuan, kategori_id, nama_barang, merek, kuantitas, tahun_pembuatan, asal_anggaran, keadaan_barang, harga, foto_url, keterangan, diinput_oleh)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING *
       `).bind(...fields).first<any>()
-      await logActivity({
-        db,
-        module: 'sarpras',
-        action: 'create_aset',
-        summary: `Menambahkan aset sarpras ${data.nama_barang}`,
-        entityType: 'sarpras_aset',
-        entityId: after?.id,
-        entityLabel: data.nama_barang,
-        after,
-      })
     }
     
     revalidatePath('/dashboard/sarpras')
@@ -208,19 +159,7 @@ export async function saveAset(data: Partial<SarprasAset>) {
 export async function deleteAset(id: string) {
   const db = await getDB()
   try {
-    const before = await db.prepare('SELECT * FROM sarpras_aset WHERE id = ?').bind(id).first<any>()
     await db.prepare('DELETE FROM sarpras_aset WHERE id = ?').bind(id).run()
-    await logActivity({
-      db,
-      module: 'sarpras',
-      action: 'delete_aset',
-      severity: 'danger',
-      summary: `Menghapus aset sarpras ${before?.nama_barang || id}`,
-      entityType: 'sarpras_aset',
-      entityId: id,
-      entityLabel: before?.nama_barang || id,
-      before,
-    })
     revalidatePath('/dashboard/sarpras')
     return { success: true, error: null }
   } catch (e: any) {

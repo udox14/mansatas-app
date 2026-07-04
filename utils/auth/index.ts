@@ -2,6 +2,8 @@
 // Custom lightweight auth — pengganti better-auth
 // Hanya pakai Web Crypto (PBKDF2) + D1 — zero external dependencies
 
+import { logActivity } from '@/lib/activity-log'
+
 // ============================================================
 // PASSWORD HASHING (PBKDF2 — native Web Crypto, jalan di Workers)
 // ============================================================
@@ -275,6 +277,23 @@ export function createAuth(db: D1Database) {
           `INSERT INTO session (id, token, userId, expiresAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`
         ).bind(sessionId, token, user.id, expiresAt, now, now).run()
 
+        await logActivity({
+          db,
+          module: 'auth',
+          action: 'login',
+          summary: `${user.nama_lengkap || user.name || user.email} login`,
+          entityType: 'user',
+          entityId: user.id,
+          entityLabel: user.nama_lengkap || user.name || user.email,
+          actor: {
+            id: user.id,
+            name: user.nama_lengkap || user.name,
+            email: user.email,
+            roles: [user.role].filter(Boolean),
+            sessionId,
+          },
+        })
+
         const maxAge = SESSION_EXPIRY_DAYS * 24 * 60 * 60
         const setCookie = buildSetCookie(token, maxAge)
 
@@ -317,9 +336,32 @@ export function createAuth(db: D1Database) {
       async signOut(opts: { headers: Headers }) {
         const token = extractToken(opts.headers)
         if (token) {
+          const row = await db.prepare(
+            `SELECT s.id as sid, u.* FROM session s JOIN "user" u ON s.userId = u.id WHERE s.token = ?`
+          ).bind(token).first<any>()
+
           await db.prepare('DELETE FROM session WHERE token = ?').bind(token).run()
           await ensureParentSessionTable(db)
           await db.prepare('DELETE FROM parent_session WHERE token = ?').bind(token).run()
+
+          if (row) {
+            await logActivity({
+              db,
+              module: 'auth',
+              action: 'logout',
+              summary: `${row.nama_lengkap || row.name || row.email} logout`,
+              entityType: 'user',
+              entityId: row.id,
+              entityLabel: row.nama_lengkap || row.name || row.email,
+              actor: {
+                id: row.id,
+                name: row.nama_lengkap || row.name,
+                email: row.email,
+                roles: [row.role].filter(Boolean),
+                sessionId: row.sid,
+              },
+            })
+          }
         }
       },
 
