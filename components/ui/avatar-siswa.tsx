@@ -56,16 +56,16 @@ export function AvatarSiswa({ fotoUrl, nama, size = 'sm', className }: AvatarSis
         className={cn('focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:opacity-80 transition-opacity flex-shrink-0 cursor-pointer', size === 'full' && 'h-full w-full')}
       >
         {content}
-      </div>
-      <div onClick={stopEventPropagation} onPointerDown={stopEventPropagation} onKeyDown={stopEventPropagation}>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent
-            className="max-w-md p-1 overflow-hidden bg-transparent border-none shadow-none flex justify-center [&>button.absolute]:bg-slate-900/50 [&>button.absolute]:text-white [&>button.absolute]:hover:bg-slate-900"
-          >
-            <DialogTitle className="sr-only">Foto {nama}</DialogTitle>
-            <img src={fotoUrl} alt={nama} className="w-auto max-w-full max-h-[85vh] rounded-xl object-contain shadow-2xl" />
-          </DialogContent>
-        </Dialog>
+        <div className="hidden" onClick={stopEventPropagation} onPointerDown={stopEventPropagation} onKeyDown={stopEventPropagation}>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent
+              className="max-w-md p-1 overflow-hidden bg-transparent border-none shadow-none flex justify-center [&>button.absolute]:bg-slate-900/50 [&>button.absolute]:text-white [&>button.absolute]:hover:bg-slate-900"
+            >
+              <DialogTitle className="sr-only">Foto {nama}</DialogTitle>
+              <img src={fotoUrl} alt={nama} className="w-auto max-w-full max-h-[85vh] rounded-xl object-contain shadow-2xl" />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
     </>
   )
