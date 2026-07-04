@@ -12,6 +12,14 @@ export type ActivityLogTarget = {
   metadata?: unknown
 }
 
+export type ActivityLogActorOverride = {
+  id: string
+  name?: string | null
+  email?: string | null
+  roles?: string[]
+  sessionId?: string | null
+}
+
 export type ActivityLogInput = {
   db?: D1Database
   module: string
@@ -26,6 +34,8 @@ export type ActivityLogInput = {
   diff?: unknown
   metadata?: unknown
   targets?: ActivityLogTarget[]
+  // Dipakai saat session cookie belum/tidak lagi bisa dibaca dari headers (login & logout)
+  actor?: ActivityLogActorOverride
 }
 
 const SENSITIVE_KEY_PATTERN = /(password|token|secret|hash|cookie|authorization|accessToken|refreshToken|idToken|session)/i
@@ -133,12 +143,22 @@ export async function logActivity(input: ActivityLogInput) {
     const db = input.db ?? await getDB()
     await ensureActivityLogTables(db)
 
-    const [session, hdrs] = await Promise.all([
-      getSession().catch(() => null),
-      headers().catch(() => null),
-    ])
-    const actor = session?.user ?? null
-    const roles = actor ? await getUserRoles(db, actor.id).catch(() => [actor.role].filter(Boolean)) : []
+    const hdrs = await headers().catch(() => null)
+    let actor: { id: string; name?: string | null; email?: string | null; role?: string | null } | null = null
+    let roles: string[] = []
+    let sessionId: string | null = null
+
+    if (input.actor) {
+      actor = input.actor
+      roles = input.actor.roles ?? []
+      sessionId = input.actor.sessionId ?? null
+    } else {
+      const session = await getSession().catch(() => null)
+      actor = session?.user ?? null
+      roles = actor ? await getUserRoles(db, actor.id).catch(() => [actor?.role].filter((r): r is string => Boolean(r))) : []
+      sessionId = session?.session?.id ?? null
+    }
+
     const id = crypto.randomUUID()
     const before = input.before === undefined ? null : JSON.stringify(redactForActivityLog(input.before))
     const after = input.after === undefined ? null : JSON.stringify(redactForActivityLog(input.after))
@@ -155,10 +175,10 @@ export async function logActivity(input: ActivityLogInput) {
       id,
       new Date().toISOString(),
       actor?.id ?? null,
-      actor?.nama_lengkap || actor?.name || null,
+      (actor as any)?.nama_lengkap || actor?.name || null,
       actor?.email ?? null,
       JSON.stringify(roles),
-      session?.session?.id ?? null,
+      sessionId,
       input.module,
       input.action,
       input.severity ?? 'info',
