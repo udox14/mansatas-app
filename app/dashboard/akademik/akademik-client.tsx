@@ -14,6 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { BookOpen, FileSpreadsheet, Trash2, Loader2, Download, AlertCircle, Pencil, CalendarDays, RefreshCw, Search, Eye, Layers, User, Save, Users, RotateCcw } from 'lucide-react'
 import { tambahMapel, editMapel, hapusMapel, importPenugasanASC, hapusPenugasan, importMapelMassal, resetPenugasanSemesterIni, getPenugasanBergilir, setGuruAktifMingguIni, tambahGuruPiket, hapusGuruPiket } from './actions'
 import { JadwalTab } from './components/jadwal-tab'
+import { AkademikInputWizard } from './components/akademik-input-wizard'
 import { cn, formatNamaKelas } from '@/lib/utils'
 
 type MapelType = { id: string; nama_mapel: string; kode_mapel?: string; kode_asc?: string; kelompok: string; tingkat: string; kategori: string }
@@ -648,6 +649,15 @@ export function AkademikClient({
 
       {/* ── MAIN ── */}
       <div className="space-y-3 pb-20">
+        <AkademikInputWizard
+          taAktif={taAktif}
+          kelasList={kelasList}
+          guruList={guruList}
+          mapelData={mapelData}
+          polaDaftar={polaDaftar}
+          userRole={userRole}
+        />
+
         <Tabs defaultValue="jadwal" className="space-y-3">
           <TabsList className="bg-surface border border-surface p-0.5 grid grid-cols-4 h-auto rounded-lg">
             <TabsTrigger value="jadwal" className="py-2 rounded-md data-[state=active]:bg-blue-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
