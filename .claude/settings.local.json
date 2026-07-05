@@ -45,7 +45,10 @@
       "Bash(node -e 'let s=\"\";process.stdin.on\\(\"data\",d=>s+=d\\).on\\(\"end\",\\(\\)=>{let i=s.indexOf\\(\"[\"\\);console.log\\(JSON.stringify\\(JSON.parse\\(s.slice\\(i\\)\\)[0].results[0]\\)\\)}\\)')",
       "Bash(node -e 'let s=require\\(\"fs\"\\).readFileSync\\(0,\"utf8\"\\);let i=s.indexOf\\(\"[\"\\);let rows=JSON.parse\\(s.slice\\(i\\)\\)[0].results;require\\(\"fs\"\\).writeFileSync\\(\"scratch/pelanggaran_tanggal_backup_2026-06-28.json\",JSON.stringify\\(rows,null,2\\)\\);console.log\\(\"backed up\",rows.length,\"rows to scratch/pelanggaran_tanggal_backup_2026-06-28.json\"\\)')",
       "mcp__visualize__read_me",
-      "mcp__visualize__show_widget"
+      "mcp__visualize__show_widget",
+      "Read(//c/DATA/eskahade-master/**)",
+      "Bash(ls -la provisioner/)",
+      "Bash(ls -la scripts/lib/)"
     ]
   }
 }
