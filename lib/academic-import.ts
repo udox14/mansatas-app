@@ -4,7 +4,6 @@ export type AcademicImportStats = {
   mapel: number
   penugasan: number
   jadwal: number
-  guruPiket: number
 }
 
 export type AcademicImportResult = {
@@ -18,7 +17,6 @@ export type AcademicDataset = {
   mapel: AcademicMapelInput[]
   penugasan: AcademicPenugasanInput[]
   jadwal: AcademicJadwalInput[]
-  bergilir: AcademicBergilirInput[]
 }
 
 export type AcademicMapelInput = {
@@ -34,7 +32,6 @@ export type AcademicPenugasanInput = {
   nama_guru: string
   nama_mapel: string
   nama_kelas: string
-  bergilir?: boolean
 }
 
 export type AcademicJadwalInput = {
@@ -45,20 +42,8 @@ export type AcademicJadwalInput = {
   jam_ke: number
 }
 
-export type AcademicBergilirInput = {
-  nama_guru: string
-  nama_mapel: string
-  nama_kelas: string
-  urutan?: number
-  aktif_minggu_ini?: boolean
-}
-
-export const ACADEMIC_WIZARD_STEPS = ['mapel', 'penugasan', 'jadwal', 'bergilir'] as const
+export const ACADEMIC_WIZARD_STEPS = ['mapel', 'penugasan', 'jadwal'] as const
 export type AcademicWizardStepKey = typeof ACADEMIC_WIZARD_STEPS[number]
-
-const MAPEL_BERGILIR_KEYWORDS = [
-  'RISET', 'KSM', 'MUHADATSAH', 'SPEAKING', 'THEATER BAHASA',
-]
 
 const GURU_ALIAS_MAP: Record<string, string> = {
   ARI: 'Ari Anugrah, S.Pd',
@@ -71,11 +56,6 @@ export function resolveGuruAlias(xmlName: string): string {
   const match = String(xmlName || '').trim().match(/^([A-Z]+)\s+\d+$/)
   if (match) return GURU_ALIAS_MAP[match[1]] || xmlName
   return xmlName
-}
-
-export function isMapelBergilir(namaMapel: string): boolean {
-  const upper = String(namaMapel || '').toUpperCase().trim()
-  return MAPEL_BERGILIR_KEYWORDS.some(kw => upper.startsWith(kw))
 }
 
 export function parseKelasName(name: string): { tingkat: number; nomor: string } | null {
@@ -130,11 +110,6 @@ function normalizeKey(value: string): string {
   return String(value || '').toLowerCase().trim()
 }
 
-function boolFromValue(value: unknown): boolean {
-  const normalized = String(value ?? '').trim().toLowerCase()
-  return ['1', 'true', 'ya', 'y', 'aktif', 'yes'].includes(normalized)
-}
-
 function findByName(map: Map<string, string>, name: string): string | undefined {
   const lower = normalizeKey(name)
   const exact = map.get(lower)
@@ -150,7 +125,7 @@ function defaultMapelMeta(namaMapel: string) {
   return {
     kelompok: 'UMUM',
     tingkat: tingkatMatch ? tingkatMatch[1] : 'Semua',
-    kategori: isMapelBergilir(namaMapel) ? 'Kelompok Mata Pelajaran Pilihan' : 'Kelompok Mata Pelajaran Umum',
+    kategori: 'Kelompok Mata Pelajaran Umum',
   }
 }
 
@@ -226,11 +201,10 @@ export function buildAcademicDatasetFromAscXml(xmlText: string): AcademicDataset
       nama_guru: row.nama_guru,
       nama_mapel: row.nama_mapel,
       nama_kelas: row.nama_kelas,
-      bergilir: isMapelBergilir(row.nama_mapel),
     })
   }
 
-  return { mapel, penugasan, jadwal, bergilir: [] }
+  return { mapel, penugasan, jadwal }
 }
 
 export function buildAcademicDatasetFromWizard(rowsByStep: Record<string, any[]>): AcademicDataset {
@@ -247,9 +221,6 @@ export function buildAcademicDatasetFromWizard(rowsByStep: Record<string, any[]>
     nama_guru: String(row.NAMA_GURU || row.nama_guru || '').trim(),
     nama_mapel: String(row.NAMA_MAPEL || row.nama_mapel || '').trim(),
     nama_kelas: String(row.NAMA_KELAS || row.nama_kelas || '').trim(),
-    bergilir: row.BERGILIR === undefined && row.bergilir === undefined
-      ? undefined
-      : boolFromValue(row.BERGILIR ?? row.bergilir),
   })).filter(row => row.nama_guru && row.nama_mapel && row.nama_kelas)
 
   const jadwal = (rowsByStep.jadwal || []).map(row => ({
@@ -260,15 +231,7 @@ export function buildAcademicDatasetFromWizard(rowsByStep: Record<string, any[]>
     jam_ke: Number(row.JAM_KE ?? row.jam_ke ?? 0),
   })).filter(row => row.nama_guru && row.nama_mapel && row.nama_kelas && row.hari && row.jam_ke)
 
-  const bergilir = (rowsByStep.bergilir || []).map(row => ({
-    nama_guru: String(row.NAMA_GURU || row.nama_guru || '').trim(),
-    nama_mapel: String(row.NAMA_MAPEL || row.nama_mapel || '').trim(),
-    nama_kelas: String(row.NAMA_KELAS || row.nama_kelas || '').trim(),
-    urutan: Number(row.URUTAN ?? row.urutan ?? 0) || undefined,
-    aktif_minggu_ini: boolFromValue(row.AKTIF_MINGGU_INI ?? row.aktif_minggu_ini),
-  })).filter(row => row.nama_guru && row.nama_mapel && row.nama_kelas)
-
-  return { mapel, penugasan, jadwal, bergilir }
+  return { mapel, penugasan, jadwal }
 }
 
 export async function applyAcademicDataset(
@@ -277,7 +240,7 @@ export async function applyAcademicDataset(
   dataset: AcademicDataset
 ): Promise<AcademicImportResult> {
   const logs: string[] = []
-  const emptyStats = { mapel: 0, penugasan: 0, jadwal: 0, guruPiket: 0 }
+  const emptyStats = { mapel: 0, penugasan: 0, jadwal: 0 }
 
   const existingMapelRows = await db.prepare('SELECT id, LOWER(TRIM(nama_mapel)) as nama FROM mata_pelajaran').all<any>()
   const mapelMap = new Map<string, string>()
@@ -333,11 +296,11 @@ export async function applyAcademicDataset(
   const kelasMap = new Map<string, string>()
   for (const row of kelasAll.results || []) kelasMap.set(`${row.tingkat}-${String(row.nomor).trim()}`, row.id)
 
-  type ResolvedAssignment = { guruId: string; mapelId: string; kelasId: string; isBergilir: boolean; sourceName: string }
+  type ResolvedAssignment = { guruId: string; mapelId: string; kelasId: string; sourceName: string }
   type ResolvedSchedule = ResolvedAssignment & { hari: number; jamKe: number }
 
   const resolveAssignment = (
-    row: { nama_guru: string; nama_mapel: string; nama_kelas: string; bergilir?: boolean },
+    row: { nama_guru: string; nama_mapel: string; nama_kelas: string },
     rowLabel: string
   ): ResolvedAssignment | null => {
     const guruName = resolveGuruAlias(row.nama_guru)
@@ -356,7 +319,6 @@ export async function applyAcademicDataset(
       guruId,
       mapelId,
       kelasId,
-      isBergilir: row.bergilir ?? isMapelBergilir(row.nama_mapel),
       sourceName: `${row.nama_guru} - ${row.nama_mapel} - ${row.nama_kelas}`,
     }
   }
@@ -371,12 +333,7 @@ export async function applyAcademicDataset(
   dataset.jadwal.forEach((row, index) => {
     if (row.hari < 1 || row.hari > 6) { logs.push(`Jadwal baris ${index + 2}: Hari harus 1-6.`); return }
     if (row.jam_ke < 1) { logs.push(`Jadwal baris ${index + 2}: Jam ke tidak valid.`); return }
-    const explicit = dataset.penugasan.find(p =>
-      normalizeKey(p.nama_guru) === normalizeKey(row.nama_guru) &&
-      normalizeKey(p.nama_mapel) === normalizeKey(row.nama_mapel) &&
-      normalizeKey(p.nama_kelas) === normalizeKey(row.nama_kelas)
-    )
-    const resolved = resolveAssignment({ ...row, bergilir: explicit?.bergilir }, `Jadwal baris ${index + 2}`)
+    const resolved = resolveAssignment(row, `Jadwal baris ${index + 2}`)
     if (resolved) {
       assignmentRows.push(resolved)
       scheduleRows.push({ ...resolved, hari: row.hari, jamKe: row.jam_ke })
@@ -387,22 +344,13 @@ export async function applyAcademicDataset(
     return { success: null, error: 'Tidak ada beban mengajar atau jadwal valid yang bisa diterapkan.', logs, stats: emptyStats }
   }
 
-  try {
-    await db.prepare(`
-      DELETE FROM penugasan_guru_piket
-      WHERE penugasan_id IN (SELECT id FROM penugasan_mengajar WHERE tahun_ajaran_id = ?)
-    `).bind(tahunAjaranId).run()
-  } catch { /* schema lama mungkin belum punya tabel ini */ }
   await db.prepare('DELETE FROM penugasan_mengajar WHERE tahun_ajaran_id = ?').bind(tahunAjaranId).run()
 
   const keyToId = new Map<string, string>()
   const keyToAssignment = new Map<string, ResolvedAssignment>()
-  const keyToGuruSet = new Map<string, Set<string>>()
 
   const assignmentKey = (row: ResolvedAssignment) =>
-    row.isBergilir
-      ? `BERGILIR|${row.mapelId}|${row.kelasId}`
-      : `${row.guruId}|${row.mapelId}|${row.kelasId}`
+    `${row.guruId}|${row.mapelId}|${row.kelasId}`
 
   for (const row of assignmentRows) {
     const key = assignmentKey(row)
@@ -410,29 +358,6 @@ export async function applyAcademicDataset(
       keyToId.set(key, crypto.randomUUID().replace(/-/g, ''))
       keyToAssignment.set(key, row)
     }
-    if (row.isBergilir) {
-      if (!keyToGuruSet.has(key)) keyToGuruSet.set(key, new Set())
-      keyToGuruSet.get(key)!.add(row.guruId)
-    }
-  }
-
-  for (const row of scheduleRows) {
-    if (!row.isBergilir) continue
-    const key = assignmentKey(row)
-    if (!keyToGuruSet.has(key)) keyToGuruSet.set(key, new Set())
-    keyToGuruSet.get(key)!.add(row.guruId)
-  }
-
-  for (const row of dataset.bergilir) {
-    const resolved = resolveAssignment({ ...row, bergilir: true }, 'Bergilir')
-    if (!resolved) continue
-    const key = assignmentKey(resolved)
-    if (!keyToId.has(key)) {
-      keyToId.set(key, crypto.randomUUID().replace(/-/g, ''))
-      keyToAssignment.set(key, resolved)
-    }
-    if (!keyToGuruSet.has(key)) keyToGuruSet.set(key, new Set())
-    keyToGuruSet.get(key)!.add(resolved.guruId)
   }
 
   const penugasanRows = Array.from(keyToId.entries()).map(([key, id]) => {
@@ -443,52 +368,13 @@ export async function applyAcademicDataset(
   let penugasanCount = 0
   for (let i = 0; i < penugasanRows.length; i += 10) {
     const chunk = penugasanRows.slice(i, i + 10)
-    const placeholders = chunk.map(() => `(?, ?, ?, ?, ?, ?, datetime('now'))`).join(', ')
-    const values = chunk.flatMap(row => [row.id, row.guruId, row.mapelId, row.kelasId, tahunAjaranId, row.isBergilir ? 1 : 0])
+    const placeholders = chunk.map(() => `(?, ?, ?, ?, ?, datetime('now'))`).join(', ')
+    const values = chunk.flatMap(row => [row.id, row.guruId, row.mapelId, row.kelasId, tahunAjaranId])
     await db.prepare(`
-      INSERT OR IGNORE INTO penugasan_mengajar (id, guru_id, mapel_id, kelas_id, tahun_ajaran_id, is_piket_bergilir, created_at)
+      INSERT OR IGNORE INTO penugasan_mengajar (id, guru_id, mapel_id, kelas_id, tahun_ajaran_id, created_at)
       VALUES ${placeholders}
     `).bind(...values).run()
     penugasanCount += chunk.length
-  }
-
-  const explicitBergilir = new Map<string, AcademicBergilirInput[]>()
-  for (const row of dataset.bergilir) {
-    const parsed = parseKelasName(row.nama_kelas)
-    const mapelId = findByName(mapelMap, row.nama_mapel)
-    const kelasId = parsed ? kelasMap.get(`${parsed.tingkat}-${parsed.nomor}`) : undefined
-    if (!mapelId || !kelasId) continue
-    const key = `BERGILIR|${mapelId}|${kelasId}`
-    if (!explicitBergilir.has(key)) explicitBergilir.set(key, [])
-    explicitBergilir.get(key)!.push(row)
-  }
-
-  let guruPiketCount = 0
-  for (const [key, guruSet] of keyToGuruSet) {
-    const penugasanId = keyToId.get(key)
-    if (!penugasanId) continue
-
-    const explicitRows = explicitBergilir.get(key) || []
-    const sortedGuruIds = Array.from(guruSet)
-    const ordered = sortedGuruIds.map((guruId, index) => {
-      const explicit = explicitRows.find(row => findByName(guruMap, resolveGuruAlias(row.nama_guru)) === guruId)
-      return {
-        guruId,
-        urutan: explicit?.urutan || index + 1,
-        aktif: explicit?.aktif_minggu_ini ? 1 : 0,
-      }
-    }).sort((a, b) => a.urutan - b.urutan)
-
-    for (let i = 0; i < ordered.length; i += 10) {
-      const chunk = ordered.slice(i, i + 10)
-      const placeholders = chunk.map(() => `(?, ?, ?, ?, ?, datetime('now'))`).join(', ')
-      const values = chunk.flatMap(row => [crypto.randomUUID().replace(/-/g, ''), penugasanId, row.guruId, row.urutan, row.aktif])
-      await db.prepare(`
-        INSERT OR IGNORE INTO penugasan_guru_piket (id, penugasan_id, guru_id, urutan, is_aktif_minggu_ini, created_at)
-        VALUES ${placeholders}
-      `).bind(...values).run()
-      guruPiketCount += chunk.length
-    }
   }
 
   const seenSchedule = new Set<string>()
@@ -515,9 +401,9 @@ export async function applyAcademicDataset(
     jadwalCount += chunk.length
   }
 
-  const stats = { mapel: mapelTouched, penugasan: penugasanCount, jadwal: jadwalCount, guruPiket: guruPiketCount }
+  const stats = { mapel: mapelTouched, penugasan: penugasanCount, jadwal: jadwalCount }
   return {
-    success: `Import selesai: ${stats.mapel} mapel, ${stats.penugasan} penugasan, ${stats.jadwal} slot jadwal, ${stats.guruPiket} guru bergilir.`,
+    success: `Import selesai: ${stats.mapel} mapel, ${stats.penugasan} penugasan, ${stats.jadwal} slot jadwal.`,
     error: null,
     logs,
     stats,
