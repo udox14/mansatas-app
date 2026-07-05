@@ -1,15 +1,14 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn, formatNamaKelas } from '@/lib/utils'
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Download, FileSpreadsheet,
-  Loader2, Plus, RefreshCw, Save, Trash2, Upload
+  ArrowLeft, ArrowRight, CheckCircle2, Download, Loader2, Plus, RefreshCw,
+  Save, Trash2, Upload
 } from 'lucide-react'
 import {
   applyAkademikInputSession,
@@ -19,7 +18,7 @@ import {
   saveAkademikInputRows,
 } from '../actions'
 
-type StepKey = 'mapel' | 'penugasan' | 'jadwal' | 'bergilir' | 'review'
+type StepKey = 'mapel' | 'penugasan' | 'jadwal' | 'review'
 type KelasItem = { id: string; tingkat: number; nomor_kelas: string; kelompok: string }
 type GuruItem = { id: string; nama_lengkap: string }
 type MapelItem = { id: string; nama_mapel: string; kode_asc?: string | null }
@@ -37,15 +36,13 @@ const STEPS: Array<{ key: StepKey; label: string }> = [
   { key: 'mapel', label: 'Master Mapel' },
   { key: 'penugasan', label: 'Beban Mengajar' },
   { key: 'jadwal', label: 'Jadwal' },
-  { key: 'bergilir', label: 'Bergilir' },
   { key: 'review', label: 'Review' },
 ]
 
 const STEP_COLUMNS: Record<Exclude<StepKey, 'review'>, string[]> = {
   mapel: ['KODE_ASC', 'NAMA_MAPEL', 'KODE_RDM', 'KELOMPOK', 'TINGKAT', 'KATEGORI'],
-  penugasan: ['NAMA_GURU', 'NAMA_MAPEL', 'NAMA_KELAS', 'BERGILIR'],
+  penugasan: ['NAMA_GURU', 'NAMA_MAPEL', 'NAMA_KELAS'],
   jadwal: ['NAMA_KELAS', 'HARI', 'JAM_KE', 'NAMA_MAPEL', 'NAMA_GURU'],
-  bergilir: ['NAMA_MAPEL', 'NAMA_KELAS', 'NAMA_GURU', 'URUTAN', 'AKTIF_MINGGU_INI'],
 }
 
 const SAMPLE_ROWS: Record<Exclude<StepKey, 'review'>, Record<string, any>[]> = {
@@ -53,13 +50,10 @@ const SAMPLE_ROWS: Record<Exclude<StepKey, 'review'>, Record<string, any>[]> = {
     { KODE_ASC: 'MTK', NAMA_MAPEL: 'Matematika', KODE_RDM: 'MTK', KELOMPOK: 'UMUM', TINGKAT: 'Semua', KATEGORI: 'Kelompok Mata Pelajaran Umum' },
   ],
   penugasan: [
-    { NAMA_GURU: 'Nama Guru, S.Pd', NAMA_MAPEL: 'Matematika', NAMA_KELAS: 'X-01', BERGILIR: 'Tidak' },
+    { NAMA_GURU: 'Nama Guru, S.Pd', NAMA_MAPEL: 'Matematika', NAMA_KELAS: 'X-01' },
   ],
   jadwal: [
     { NAMA_KELAS: 'X-01', HARI: 1, JAM_KE: 1, NAMA_MAPEL: 'Matematika', NAMA_GURU: 'Nama Guru, S.Pd' },
-  ],
-  bergilir: [
-    { NAMA_MAPEL: 'RISET', NAMA_KELAS: 'X-01', NAMA_GURU: 'Nama Guru, S.Pd', URUTAN: 1, AKTIF_MINGGU_INI: 'Ya' },
   ],
 }
 
@@ -121,7 +115,6 @@ export function AkademikInputWizard({
   userRole: string
 }) {
   const isSuperAdmin = userRole === 'super_admin'
-  const [open, setOpen] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [activeStep, setActiveStep] = useState<StepKey>('mapel')
   const [rows, setRows] = useState<Record<string, Record<string, any>[]>>({})
@@ -139,7 +132,6 @@ export function AkademikInputWizard({
       mapel: grouped.mapel?.length || 0,
       penugasan: grouped.penugasan?.length || 0,
       jadwal: grouped.jadwal?.length || 0,
-      bergilir: grouped.bergilir?.length || 0,
       errors: draftRows.filter(row => row.status === 'error').length,
     }
   }, [draftRows])
@@ -157,7 +149,6 @@ export function AkademikInputWizard({
 
   const handleOpen = async () => {
     if (!taAktif) return
-    setOpen(true)
     setIsLoading(true)
     setMessage(null)
     const res = await createAkademikInputSession(taAktif.id)
@@ -170,6 +161,12 @@ export function AkademikInputWizard({
     }
     setIsLoading(false)
   }
+
+  useEffect(() => {
+    if (!isSuperAdmin || !taAktif || sessionId || isLoading) return
+    handleOpen()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuperAdmin, taAktif?.id, sessionId])
 
   const handleSave = async () => {
     if (!sessionId || activeStep === 'review') return
@@ -206,7 +203,6 @@ export function AkademikInputWizard({
     setRows({})
     setDraftRows([])
     setSessionId(null)
-    setOpen(false)
     setIsLoading(false)
   }
 
@@ -240,7 +236,6 @@ export function AkademikInputWizard({
 
     const firstGuru = guruList[0]?.nama_lengkap || SAMPLE_ROWS.penugasan[0].NAMA_GURU
     const firstMapel = mapelData[0]?.nama_mapel || SAMPLE_ROWS.mapel[0].NAMA_MAPEL
-    const firstBergilir = mapelData.find(m => /^(RISET|KSM|MUHADATSAH|SPEAKING|THEATER BAHASA)/i.test(m.nama_mapel))?.nama_mapel || firstMapel
     const firstKelas = kelasTemplateName(kelasList[0])
     const sampleByStep: Record<Exclude<StepKey, 'review'>, Record<string, any>[]> = {
       mapel: [{
@@ -255,7 +250,6 @@ export function AkademikInputWizard({
         NAMA_GURU: firstGuru,
         NAMA_MAPEL: firstMapel,
         NAMA_KELAS: firstKelas,
-        BERGILIR: 'Tidak',
       }],
       jadwal: [{
         NAMA_KELAS: firstKelas,
@@ -263,13 +257,6 @@ export function AkademikInputWizard({
         JAM_KE: polaDaftar[0]?.slots?.[0]?.id || 1,
         NAMA_MAPEL: firstMapel,
         NAMA_GURU: firstGuru,
-      }],
-      bergilir: [{
-        NAMA_MAPEL: firstBergilir,
-        NAMA_KELAS: firstKelas,
-        NAMA_GURU: firstGuru,
-        URUTAN: 1,
-        AKTIF_MINGGU_INI: 'Ya',
       }],
     }
 
@@ -328,7 +315,6 @@ export function AkademikInputWizard({
       ['Isi hanya sheet Input_* lalu import kembali dari wizard.'],
       ['NAMA_GURU, NAMA_MAPEL, dan NAMA_KELAS sebaiknya disalin dari sheet referensi agar validasi tidak gagal.'],
       ['Untuk HARI: 1=Senin, 2=Selasa, 3=Rabu, 4=Kamis, 5=Jumat, 6=Sabtu.'],
-      ['Untuk BERGILIR dan AKTIF_MINGGU_INI gunakan Ya/Tidak.'],
     ])
     setSheetWidths(petunjukWs, [110])
     XLSX.utils.book_append_sheet(wb, petunjukWs, 'Petunjuk')
@@ -357,34 +343,25 @@ export function AkademikInputWizard({
     reader.readAsBinaryString(file)
   }
 
-  if (!isSuperAdmin) return null
+  if (!isSuperAdmin) {
+    return (
+      <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-700">
+        Halaman input bertahap hanya tersedia untuk super admin.
+      </div>
+    )
+  }
+
+  if (!taAktif) {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+        Tahun ajaran aktif belum diatur. Atur dulu di menu Pengaturan.
+      </div>
+    )
+  }
 
   return (
-    <>
-      <div className="bg-surface border border-surface rounded-lg px-3 py-2 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <div className="h-8 w-8 rounded-md bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center shrink-0">
-            <ClipboardList className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Input Bertahap Akademik</p>
-            <p className="text-xs text-slate-400 truncate">Draft checkpoint untuk mapel, beban, jadwal, dan pelajaran bergilir.</p>
-          </div>
-        </div>
-        <Button onClick={handleOpen} disabled={!taAktif} size="sm" className="h-8 text-xs rounded-md bg-blue-600 hover:bg-blue-700 text-white">
-          <ClipboardList className="h-3.5 w-3.5 mr-1" /> Input Bertahap
-        </Button>
-      </div>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[96vw] sm:max-w-5xl rounded-xl p-0 overflow-hidden">
-          <DialogHeader className="px-4 py-3 border-b border-surface-2 bg-surface">
-            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 text-blue-600" /> Input Bertahap Pusat Akademik
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="grid lg:grid-cols-[220px_1fr] max-h-[82vh]">
+    <div className="bg-surface border border-surface rounded-xl overflow-hidden">
+          <div className="grid lg:grid-cols-[240px_1fr] min-h-[calc(100vh-220px)]">
             <aside className="border-r border-surface-2 bg-surface-2 p-3 space-y-3 overflow-y-auto">
               <div className="rounded-lg bg-surface border border-surface p-3 space-y-2">
                 <p className="text-xs font-semibold text-slate-500">Tahun Ajaran</p>
@@ -415,6 +392,11 @@ export function AkademikInputWizard({
             </aside>
 
             <main className="p-4 overflow-y-auto space-y-3">
+              {isLoading && !sessionId && (
+                <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800 flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Menyiapkan draft input bertahap...
+                </div>
+              )}
               {message && (
                 <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800">
                   {message}
@@ -502,7 +484,6 @@ export function AkademikInputWizard({
                       ['Mapel', summary.mapel],
                       ['Beban', summary.penugasan],
                       ['Jadwal', summary.jadwal],
-                      ['Bergilir', summary.bergilir],
                       ['Error', summary.errors],
                     ].map(([label, count]) => (
                       <div key={label} className="rounded-lg border border-surface bg-surface p-3">
@@ -543,8 +524,6 @@ export function AkademikInputWizard({
               </div>
             </main>
           </div>
-        </DialogContent>
-      </Dialog>
-    </>
+    </div>
   )
 }
