@@ -1,8 +1,19 @@
 // Lokasi: app/dashboard/akademik/actions.ts
 'use server'
 
-import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
+import { getDB, dbInsert, dbUpdate, dbDelete, parseJsonCol } from '@/utils/db'
+import { requireUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
+import {
+  applyAcademicDataset,
+  buildAcademicDatasetFromAscXml,
+  buildAcademicDatasetFromWizard,
+  parseKelasName as parseSharedKelasName,
+  parseWizardRows,
+  resolveGuruAlias as resolveSharedGuruAlias,
+  isMapelBergilir as isSharedMapelBergilir,
+  type AcademicWizardStepKey,
+} from '@/lib/academic-import'
 
 // ============================================================
 // 1. MAPEL ACTIONS
@@ -154,10 +165,23 @@ export async function importJadwalASC(xmlText: string): Promise<{
   const db = await getDB()
   const emptyStats = { mapel: 0, penugasan: 0, jadwal: 0 }
 
+  const activeTa = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
+  if (!activeTa) return { success: null, error: 'Tahun Ajaran aktif belum diatur.', logs: [], stats: emptyStats }
+
+  const dataset = buildAcademicDatasetFromAscXml(xmlText)
+  const result = await applyAcademicDataset(db, activeTa.id, dataset)
+  revalidatePath('/dashboard/akademik')
+  return {
+    success: result.success,
+    error: result.error,
+    logs: result.logs,
+    stats: { mapel: result.stats.mapel, penugasan: result.stats.penugasan, jadwal: result.stats.jadwal },
+  }
+
   // Ambil TA aktif
   const taRow = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
   if (!taRow) return { success: null, error: 'Tahun Ajaran aktif belum diatur.', logs: [], stats: emptyStats }
-  const taId = taRow.id
+  const taId = taRow!.id
 
   // ── Parse XML ──────────────────────────────────────────────────────────
   const parseAttrs = (tag: string): Map<string, string> => {
@@ -208,7 +232,7 @@ export async function importJadwalASC(xmlText: string): Promise<{
     const subjectid = a.get('subjectid') || ''
     const teacherids = a.get('teacherids') || ''
     if (id && classids && subjectid && teacherids) {
-      xmlLessons.set(id, { classId: classids, subjectId: subjectid, teacherId: teacherids })
+      xmlLessons.set(id!, { classId: classids, subjectId: subjectid, teacherId: teacherids })
     }
   }
 
@@ -236,7 +260,7 @@ export async function importJadwalASC(xmlText: string): Promise<{
       const newId = crypto.randomUUID().replace(/-/g, '')
       // Tentukan tingkat dari nama mapel (misal "RISET 7" → "7", "MATEMATIKA" → "Semua")
       const tingkatMatch = subj.name.match(/\b([789])\b/)
-      const tingkat = tingkatMatch ? tingkatMatch[1] : 'Semua'
+      const tingkat = tingkatMatch?.[1] ?? 'Semua'
       const kategori = isMapelBergilir(subj.name) ? 'Kelompok Mata Pelajaran Pilihan' : 'Kelompok Mata Pelajaran Umum'
 
       try {
@@ -335,7 +359,7 @@ export async function importJadwalASC(xmlText: string): Promise<{
     if (!hari) { skipped.noHari++; continue }
 
     // Resolve guru — handle alias (ARI 1 → Ari Anugrah, S.Pd)
-    const guruNamaXml = xmlTeachers.get(lesson.teacherId) || ''
+    const guruNamaXml = xmlTeachers.get(lesson!.teacherId) || ''
     const guruNamaResolved = resolveGuruAlias(guruNamaXml)
     const guruId = findGuru(guruNamaResolved)
     if (!guruId) {
@@ -350,7 +374,7 @@ export async function importJadwalASC(xmlText: string): Promise<{
     }
 
     // Resolve mapel
-    const subjInfo = xmlSubjects.get(lesson.subjectId)
+    const subjInfo = xmlSubjects.get(lesson!.subjectId)
     const mapelNamaXml = subjInfo?.name || ''
     const mapelId = mapelMap.get(mapelNamaXml.toLowerCase().trim())
     if (!mapelId) {
@@ -360,14 +384,14 @@ export async function importJadwalASC(xmlText: string): Promise<{
     }
 
     // Resolve kelas
-    const kelasNamaXml = xmlClasses.get(lesson.classId) || ''
+    const kelasNamaXml = xmlClasses.get(lesson!.classId) || ''
     const parsed = parseKelasName(kelasNamaXml)
     if (!parsed) { skipped.noKelas++; logs.push(`Format kelas tidak dikenali: "${kelasNamaXml}"`); continue }
-    const kelasId = kelasMap.get(`${parsed.tingkat}-${parsed.nomor}`)
-    if (!kelasId) { skipped.noKelas++; logs.push(`Kelas tidak ditemukan di DB: "${kelasNamaXml}" (${parsed.tingkat}-${parsed.nomor})`); continue }
+    const kelasId = kelasMap.get(`${parsed!.tingkat}-${parsed!.nomor}`)
+    if (!kelasId) { skipped.noKelas++; logs.push(`Kelas tidak ditemukan di DB: "${kelasNamaXml}" (${parsed!.tingkat}-${parsed!.nomor})`); continue }
 
     const isBergilir = isMapelBergilir(mapelNamaXml)
-    jadwalRows.push({ guruId, mapelId, kelasId, hari, jamKe: period, isBergilir, guruNamaAsli: guruNamaResolved })
+    jadwalRows.push({ guruId: guruId!, mapelId: mapelId!, kelasId: kelasId!, hari, jamKe: period, isBergilir, guruNamaAsli: guruNamaResolved })
   }
 
   if (jadwalRows.length === 0) {
@@ -453,7 +477,7 @@ export async function importJadwalASC(xmlText: string): Promise<{
     if (!pid) continue
     let urutan = 1
     for (const gid of guruSet) {
-      guruPiketList.push({ penugasanId: pid, guruId: gid, urutan })
+      guruPiketList.push({ penugasanId: pid!, guruId: gid, urutan })
       urutan++
     }
   }
@@ -493,7 +517,7 @@ export async function importJadwalASC(xmlText: string): Promise<{
     const uniqKey = `${pid}|${row.hari}|${row.jamKe}`
     if (jadwalSeen.has(uniqKey)) continue
     jadwalSeen.add(uniqKey)
-    jadwalToInsert.push({ pid, hari: row.hari, jamKe: row.jamKe })
+    jadwalToInsert.push({ pid: pid!, hari: row.hari, jamKe: row.jamKe })
   }
 
   let jadwalCount = 0
@@ -822,4 +846,380 @@ export async function hapusGuruPiket(id: string) {
   if (result.error) return { error: result.error }
   revalidatePath('/dashboard/akademik')
   return { success: 'Guru berhasil dihapus dari daftar piket.' }
+}
+
+// ============================================================
+// 7. INPUT BERTAHAP AKADEMIK (DRAFT WIZARD)
+// ============================================================
+
+type WizardRowRecord = {
+  id: string
+  session_id: string
+  step_key: AcademicWizardStepKey
+  row_key: string
+  payload_json: string
+  status: string
+  error_message: string | null
+}
+
+async function ensureAkademikInputSchema(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS akademik_input_sessions (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      tahun_ajaran_id TEXT NOT NULL REFERENCES tahun_ajaran(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','applied','discarded')),
+      active_step TEXT NOT NULL DEFAULT 'persiapan',
+      summary_json TEXT NOT NULL DEFAULT '{}',
+      logs_json TEXT NOT NULL DEFAULT '[]',
+      created_by TEXT REFERENCES "user"(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      applied_at TEXT
+    )
+  `).run()
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS akademik_input_rows (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      session_id TEXT NOT NULL REFERENCES akademik_input_sessions(id) ON DELETE CASCADE,
+      step_key TEXT NOT NULL,
+      row_key TEXT NOT NULL,
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'draft',
+      error_message TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(session_id, step_key, row_key)
+    )
+  `).run()
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS akademik_input_apply_backups (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      session_id TEXT NOT NULL REFERENCES akademik_input_sessions(id) ON DELETE CASCADE,
+      tahun_ajaran_id TEXT NOT NULL REFERENCES tahun_ajaran(id) ON DELETE CASCADE,
+      snapshot_json TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `).run()
+  await db.prepare('CREATE INDEX IF NOT EXISTS idx_akademik_input_rows_session_step ON akademik_input_rows(session_id, step_key)').run()
+  await db.prepare('CREATE INDEX IF NOT EXISTS idx_akademik_input_sessions_ta_status ON akademik_input_sessions(tahun_ajaran_id, status, updated_at)').run()
+}
+
+function normalizeWizardStep(stepKey: string): AcademicWizardStepKey {
+  if (['mapel', 'penugasan', 'jadwal', 'bergilir'].includes(stepKey)) return stepKey as AcademicWizardStepKey
+  return 'mapel'
+}
+
+async function getRowsForSession(db: D1Database, sessionId: string) {
+  const rows = await db.prepare(`
+    SELECT * FROM akademik_input_rows
+    WHERE session_id = ?
+    ORDER BY step_key ASC, row_key ASC
+  `).bind(sessionId).all<WizardRowRecord>()
+  return rows.results || []
+}
+
+async function updateSessionSummary(db: D1Database, sessionId: string) {
+  const rows = await getRowsForSession(db, sessionId)
+  const summary = rows.reduce<Record<string, { total: number; error: number; valid: number }>>((acc, row) => {
+    if (!acc[row.step_key]) acc[row.step_key] = { total: 0, error: 0, valid: 0 }
+    acc[row.step_key].total++
+    if (row.status === 'error') acc[row.step_key].error++
+    else acc[row.step_key].valid++
+    return acc
+  }, {})
+  const logs = rows.filter(row => row.status === 'error').map(row => `${row.step_key} ${row.row_key}: ${row.error_message}`)
+  await db.prepare(`
+    UPDATE akademik_input_sessions
+    SET summary_json = ?, logs_json = ?, updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(JSON.stringify(summary), JSON.stringify(logs.slice(0, 100)), sessionId).run()
+  return { summary, logs }
+}
+
+async function validateRows(db: D1Database, sessionId: string, stepKey: AcademicWizardStepKey) {
+  const rows = await db.prepare(`
+    SELECT * FROM akademik_input_rows
+    WHERE session_id = ? AND step_key = ?
+    ORDER BY row_key ASC
+  `).bind(sessionId, stepKey).all<WizardRowRecord>()
+
+  const [guruAll, mapelAll, kelasAll] = await Promise.all([
+    db.prepare('SELECT id, LOWER(TRIM(nama_lengkap)) as nama FROM "user" WHERE nama_lengkap IS NOT NULL').all<any>(),
+    db.prepare('SELECT id, LOWER(TRIM(nama_mapel)) as nama, kode_asc FROM mata_pelajaran').all<any>(),
+    db.prepare('SELECT id, CAST(tingkat AS INTEGER) as tingkat, TRIM(nomor_kelas) as nomor FROM kelas').all<any>(),
+  ])
+
+  const guruMap = new Map<string, string>()
+  for (const row of guruAll.results || []) guruMap.set(row.nama, row.id)
+  const mapelMap = new Map<string, string>()
+  for (const row of mapelAll.results || []) mapelMap.set(row.nama, row.id)
+  const draftMapelRows = await db.prepare(`
+    SELECT payload_json FROM akademik_input_rows
+    WHERE session_id = ? AND step_key = 'mapel'
+  `).bind(sessionId).all<{ payload_json: string }>()
+  for (const row of draftMapelRows.results || []) {
+    const payload = parseJsonCol<any>(row.payload_json, {})
+    const nama = String(payload.NAMA_MAPEL || payload.nama_mapel || '').trim().toLowerCase()
+    if (nama && !mapelMap.has(nama)) mapelMap.set(nama, `draft:${nama}`)
+  }
+  const kelasMap = new Map<string, string>()
+  for (const row of kelasAll.results || []) kelasMap.set(`${row.tingkat}-${String(row.nomor).trim()}`, row.id)
+
+  const findName = (map: Map<string, string>, raw: string) => {
+    const value = raw.toLowerCase().trim()
+    if (map.has(value)) return map.get(value)
+    for (const [candidate, id] of map) {
+      if (value.includes(candidate) || candidate.includes(value)) return id
+    }
+    return undefined
+  }
+
+  const seen = new Set<string>()
+  let errorCount = 0
+
+  for (const row of rows.results || []) {
+    const payload = parseJsonCol<any>(row.payload_json, {})
+    let status = 'valid'
+    let error: string | null = null
+
+    if (stepKey === 'mapel') {
+      const nama = String(payload.NAMA_MAPEL || payload.nama_mapel || '').trim()
+      if (!nama) {
+        status = 'error'
+        error = 'NAMA_MAPEL wajib diisi.'
+      } else {
+        const key = nama.toLowerCase()
+        if (seen.has(key)) {
+          status = 'duplicate'
+          error = 'Duplikat di draft step ini.'
+        } else {
+          seen.add(key)
+          status = mapelMap.has(key) ? 'update' : 'new'
+        }
+      }
+    }
+
+    if (stepKey === 'penugasan' || stepKey === 'jadwal' || stepKey === 'bergilir') {
+      const namaGuru = String(payload.NAMA_GURU || payload.nama_guru || '').trim()
+      const namaMapel = String(payload.NAMA_MAPEL || payload.nama_mapel || '').trim()
+      const namaKelas = String(payload.NAMA_KELAS || payload.nama_kelas || '').trim()
+      const parsedKelas = parseSharedKelasName(namaKelas)
+      const key = `${namaGuru.toLowerCase()}|${namaMapel.toLowerCase()}|${namaKelas.toLowerCase()}`
+
+      if (!namaGuru || !namaMapel || !namaKelas) {
+        status = 'error'
+        error = 'NAMA_GURU, NAMA_MAPEL, dan NAMA_KELAS wajib diisi.'
+      } else if (!findName(guruMap, resolveSharedGuruAlias(namaGuru))) {
+        status = 'error'
+        error = `Guru "${namaGuru}" tidak ditemukan.`
+      } else if (!findName(mapelMap, namaMapel)) {
+        status = 'error'
+        error = `Mapel "${namaMapel}" belum ada di master aktif/draft yang sudah diterapkan.`
+      } else if (!parsedKelas || !kelasMap.get(`${parsedKelas.tingkat}-${parsedKelas.nomor}`)) {
+        status = 'error'
+        error = `Kelas "${namaKelas}" tidak ditemukan.`
+      } else if (seen.has(key) && stepKey !== 'jadwal') {
+        status = 'duplicate'
+        error = 'Duplikat di draft step ini.'
+      } else {
+        seen.add(key)
+      }
+
+      if (!error && stepKey === 'jadwal') {
+        const hari = Number(payload.HARI ?? payload.hari ?? 0)
+        const jamKe = Number(payload.JAM_KE ?? payload.jam_ke ?? 0)
+        const slotKey = `${namaKelas.toLowerCase()}|${hari}|${jamKe}`
+        if (hari < 1 || hari > 6) {
+          status = 'error'
+          error = 'HARI wajib angka 1-6.'
+        } else if (jamKe < 1) {
+          status = 'error'
+          error = 'JAM_KE wajib lebih dari 0.'
+        } else if (seen.has(slotKey)) {
+          status = 'duplicate'
+          error = 'Slot kelas/hari/jam duplikat di draft.'
+        } else {
+          seen.add(slotKey)
+        }
+      }
+
+      if (!error && stepKey === 'bergilir') {
+        const nama = String(payload.NAMA_MAPEL || payload.nama_mapel || '')
+        if (!isSharedMapelBergilir(nama) && String(payload.BERGILIR || payload.bergilir || '').toLowerCase() !== 'ya') {
+          status = 'valid'
+        }
+      }
+    }
+
+    if (status === 'error') errorCount++
+    await db.prepare(`
+      UPDATE akademik_input_rows
+      SET status = ?, error_message = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(status, error, row.id).run()
+  }
+
+  const { summary, logs } = await updateSessionSummary(db, sessionId)
+  return { errorCount, summary, logs }
+}
+
+export async function createAkademikInputSession(tahunAjaranId?: string) {
+  const db = await getDB()
+  const user = await requireUser()
+  await ensureAkademikInputSchema(db)
+
+  const ta = tahunAjaranId
+    ? await db.prepare('SELECT id FROM tahun_ajaran WHERE id = ?').bind(tahunAjaranId).first<{ id: string }>()
+    : await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
+  if (!ta) return { error: 'Tahun Ajaran aktif belum diatur.', sessionId: null }
+
+  const existing = await db.prepare(`
+    SELECT id FROM akademik_input_sessions
+    WHERE tahun_ajaran_id = ? AND status = 'draft'
+    ORDER BY updated_at DESC
+    LIMIT 1
+  `).bind(ta.id).first<{ id: string }>()
+  if (existing) return { success: 'Draft sebelumnya dilanjutkan.', sessionId: existing.id }
+
+  const sessionId = crypto.randomUUID().replace(/-/g, '')
+  await db.prepare(`
+    INSERT INTO akademik_input_sessions (id, tahun_ajaran_id, created_by, summary_json, logs_json)
+    VALUES (?, ?, ?, '{}', '[]')
+  `).bind(sessionId, ta.id, user!.id).run()
+  return { success: 'Draft input bertahap dibuat.', sessionId }
+}
+
+export async function getAkademikInputSession(sessionId: string) {
+  const db = await getDB()
+  await ensureAkademikInputSchema(db)
+  const session = await db.prepare(`
+    SELECT s.*, ta.nama as tahun_ajaran_nama, ta.semester
+    FROM akademik_input_sessions s
+    JOIN tahun_ajaran ta ON ta.id = s.tahun_ajaran_id
+    WHERE s.id = ?
+  `).bind(sessionId).first<any>()
+  if (!session) return { error: 'Draft tidak ditemukan.', session: null, rows: [] }
+  const rows = await getRowsForSession(db, sessionId)
+  return {
+    session: {
+      ...session,
+      summary: parseJsonCol(session.summary_json, {}),
+      logs: parseJsonCol(session.logs_json, []),
+    },
+    rows: rows.map(row => ({
+      ...row,
+      payload: parseJsonCol(row.payload_json, {}),
+    })),
+  }
+}
+
+export async function saveAkademikInputRows(sessionId: string, stepKeyRaw: string, rows: any[]) {
+  const db = await getDB()
+  await ensureAkademikInputSchema(db)
+  const stepKey = normalizeWizardStep(stepKeyRaw)
+  const session = await db.prepare('SELECT id, status FROM akademik_input_sessions WHERE id = ?').bind(sessionId).first<any>()
+  if (!session) return { error: 'Draft tidak ditemukan.' }
+  if (session.status !== 'draft') return { error: 'Draft ini sudah tidak bisa diedit.' }
+
+  await db.prepare('DELETE FROM akademik_input_rows WHERE session_id = ? AND step_key = ?').bind(sessionId, stepKey).run()
+  for (let i = 0; i < rows.length; i++) {
+    const payload = rows[i] || {}
+    await db.prepare(`
+      INSERT INTO akademik_input_rows (session_id, step_key, row_key, payload_json, status)
+      VALUES (?, ?, ?, ?, 'draft')
+    `).bind(sessionId, stepKey, String(i + 1).padStart(4, '0'), JSON.stringify(payload)).run()
+  }
+
+  await db.prepare(`
+    UPDATE akademik_input_sessions
+    SET active_step = ?, updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(stepKey, sessionId).run()
+  const validation = await validateRows(db, sessionId, stepKey)
+  return { success: `Checkpoint ${stepKey} tersimpan.`, ...validation }
+}
+
+export async function validateAkademikInputStep(sessionId: string, stepKeyRaw: string) {
+  const db = await getDB()
+  await ensureAkademikInputSchema(db)
+  return validateRows(db, sessionId, normalizeWizardStep(stepKeyRaw))
+}
+
+export async function importAkademikInputExcel(sessionId: string, stepKeyRaw: string, rows: any[]) {
+  return saveAkademikInputRows(sessionId, stepKeyRaw, rows)
+}
+
+async function createAcademicApplyBackup(db: D1Database, sessionId: string, tahunAjaranId: string) {
+  const [penugasan, jadwal, piket, mapel] = await Promise.all([
+    db.prepare('SELECT * FROM penugasan_mengajar WHERE tahun_ajaran_id = ?').bind(tahunAjaranId).all<any>(),
+    db.prepare('SELECT * FROM jadwal_mengajar WHERE tahun_ajaran_id = ?').bind(tahunAjaranId).all<any>(),
+    db.prepare(`
+      SELECT pgp.* FROM penugasan_guru_piket pgp
+      JOIN penugasan_mengajar pm ON pm.id = pgp.penugasan_id
+      WHERE pm.tahun_ajaran_id = ?
+    `).bind(tahunAjaranId).all<any>(),
+    db.prepare('SELECT * FROM mata_pelajaran').all<any>(),
+  ])
+  const snapshot = {
+    penugasan: penugasan.results || [],
+    jadwal: jadwal.results || [],
+    guru_piket: piket.results || [],
+    mapel: mapel.results || [],
+  }
+  await db.prepare(`
+    INSERT INTO akademik_input_apply_backups (session_id, tahun_ajaran_id, snapshot_json)
+    VALUES (?, ?, ?)
+  `).bind(sessionId, tahunAjaranId, JSON.stringify(snapshot)).run()
+}
+
+export async function applyAkademikInputSession(sessionId: string) {
+  const db = await getDB()
+  await ensureAkademikInputSchema(db)
+  const session = await db.prepare('SELECT * FROM akademik_input_sessions WHERE id = ?').bind(sessionId).first<any>()
+  if (!session) return { error: 'Draft tidak ditemukan.', success: null, logs: [] }
+  if (session.status !== 'draft') return { error: 'Draft ini sudah pernah diproses.', success: null, logs: [] }
+
+  for (const step of ['mapel', 'penugasan', 'jadwal', 'bergilir']) {
+    await validateRows(db, sessionId, step as AcademicWizardStepKey)
+  }
+
+  const allRows = await getRowsForSession(db, sessionId)
+  const hasErrors = allRows.some(row => row.status === 'error')
+  if (hasErrors) {
+    const logs = allRows.filter(row => row.status === 'error').map(row => `${row.step_key} ${row.row_key}: ${row.error_message}`)
+    return { error: 'Masih ada data error. Perbaiki checkpoint dulu sebelum menerapkan final.', success: null, logs }
+  }
+
+  const rowsByStep = parseWizardRows(allRows)
+  const dataset = buildAcademicDatasetFromWizard(rowsByStep)
+  await createAcademicApplyBackup(db, sessionId, session.tahun_ajaran_id)
+  const result = await applyAcademicDataset(db, session.tahun_ajaran_id, dataset)
+
+  if (result.error) {
+    await db.prepare(`
+      UPDATE akademik_input_sessions
+      SET logs_json = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(JSON.stringify(result.logs), sessionId).run()
+    return result
+  }
+
+  await db.prepare(`
+    UPDATE akademik_input_sessions
+    SET status = 'applied', summary_json = ?, logs_json = ?, updated_at = datetime('now'), applied_at = datetime('now')
+    WHERE id = ?
+  `).bind(JSON.stringify(result.stats), JSON.stringify(result.logs), sessionId).run()
+  revalidatePath('/dashboard/akademik')
+  return result
+}
+
+export async function discardAkademikInputSession(sessionId: string) {
+  const db = await getDB()
+  await ensureAkademikInputSchema(db)
+  await db.prepare(`
+    UPDATE akademik_input_sessions
+    SET status = 'discarded', updated_at = datetime('now')
+    WHERE id = ? AND status = 'draft'
+  `).bind(sessionId).run()
+  return { success: 'Draft input bertahap dibatalkan.' }
 }
