@@ -10,6 +10,7 @@ import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { currentTimeWIB, todayWIB, nowWIB } from '@/lib/time'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
+import { notifyParentsAttendance } from '@/lib/fcm'
 import {
   findTeachingBlockException,
   getKbmExceptionsForDate,
@@ -446,6 +447,12 @@ export async function simpanAbsensi(
     })
   } catch (waError) {
     console.error('Gagal enqueue notifikasi WhatsApp ALFA:', waError)
+  }
+
+  try {
+    await notifyParentsAttendance(db, { penugasanId, tanggal })
+  } catch (fcmError) {
+    console.error('Gagal kirim notifikasi FCM absensi ke ortu:', fcmError)
   }
 
   revalidatePath('/dashboard/kehadiran')

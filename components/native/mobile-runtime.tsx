@@ -40,6 +40,7 @@ export function MobileRuntime() {
   useEffect(() => {
     let backListener: { remove: () => Promise<void> } | null = null
     let linkHandler: ((event: MouseEvent) => void) | null = null
+    const pushListeners: { remove: () => Promise<void> }[] = []
     let cancelled = false
 
     async function boot() {
@@ -51,6 +52,38 @@ export function MobileRuntime() {
       ])
 
       if (cancelled || !Capacitor.isNativePlatform()) return
+
+      // ── FCM: minta izin, register, kirim token ke server ──
+      try {
+        const { PushNotifications } = await import('@capacitor/push-notifications')
+        const perm = await PushNotifications.requestPermissions()
+        if (perm.receive === 'granted') {
+          const regListener = await PushNotifications.addListener('registration', (token) => {
+            fetch('/api/fcm/register', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: token.value, platform: Capacitor.getPlatform() }),
+            }).catch(() => {})
+          })
+          const errListener = await PushNotifications.addListener('registrationError', (err) => {
+            console.error('FCM registration error:', err)
+          })
+          const tapListener = await PushNotifications.addListener(
+            'pushNotificationActionPerformed',
+            (action) => {
+              const url = action?.notification?.data?.url
+              if (url && typeof url === 'string') {
+                if (url.startsWith('http')) window.location.href = url
+                else window.location.pathname = url
+              }
+            }
+          )
+          pushListeners.push(regListener, errListener, tapListener)
+          await PushNotifications.register()
+        }
+      } catch (e) {
+        console.error('FCM init gagal:', e)
+      }
 
       const getSettings = () => readMobileRuntimeSettings()
 
@@ -104,6 +137,7 @@ export function MobileRuntime() {
     return () => {
       cancelled = true
       backListener?.remove().catch(() => {})
+      pushListeners.forEach((l) => l.remove().catch(() => {}))
       if (linkHandler) document.removeEventListener('click', linkHandler)
     }
   }, [])

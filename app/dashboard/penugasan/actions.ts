@@ -6,8 +6,9 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import { nowWIBISO } from '@/lib/time'
-import { sendPushNotification } from '@/lib/web-push'
+import { notify } from '@/lib/notify'
 import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
+import { notifyParentsAttendance } from '@/lib/fcm'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 
 // ============================================================
@@ -365,7 +366,7 @@ export async function kirimDelegasiTugas(
   try {
     const jumlahSesi = items.length;
     await Promise.allSettled(guruPiket.map(piket =>
-      sendPushNotification({
+      notify({
         title: 'Tugas Baru Masuk!',
         body: `Ada penugasan piket dari ${user.name || 'Guru'} (${alasanKetidakhadiran}) untuk ${jumlahSesi} sesi kelas pada tanggal ${tanggal}.`,
         url: '/dashboard/penugasan'
@@ -771,6 +772,14 @@ export async function simpanAbsensiDelegasi(
       })
     } catch (waError) {
       console.error('Gagal enqueue notifikasi WhatsApp ALFA delegasi:', waError)
+    }
+  }
+
+  if (toSave.length > 0) {
+    try {
+      await notifyParentsAttendance(db, { penugasanId: penugasanMengajarId, tanggal })
+    } catch (fcmError) {
+      console.error('Gagal kirim notifikasi FCM absensi delegasi ke ortu:', fcmError)
     }
   }
 

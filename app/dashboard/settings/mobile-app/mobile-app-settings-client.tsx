@@ -33,6 +33,7 @@ import {
   readMobileRuntimeSettings,
   writeMobileRuntimeSettings,
 } from '@/components/native/mobile-runtime'
+import { sendTestFcmToSelf } from './actions'
 
 type NativeStatus = {
   native: boolean
@@ -274,7 +275,7 @@ export function MobileAppSettingsClient() {
               {log.text}
             </div>
             <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-              Push native butuh Firebase/FCM untuk token produksi. Tombol permission bisa dites sekarang, tapi pengiriman push APK perlu tahap setup Firebase.
+              Alur test: buka via APK Android → "Izin & Daftar Token" (simpan token FCM) → "Test Kirim FCM" (kirim ke perangkat ini). Perlu google-services.json + secret FCM sudah diset. Di browser/PWA token FCM tidak muncul (pakai VAPID).
             </div>
           </CardContent>
         </Card>
@@ -321,11 +322,29 @@ export function MobileAppSettingsClient() {
               const photo = await Camera.getPhoto({ quality: 75, resultType: CameraResultType.Uri, source: CameraSource.Prompt })
               return `Foto diterima: ${photo.webPath || photo.path || 'URI tersedia'}`
             })} />
-            <ActionButton icon={Bell} label="Izin Notif" busy={busy === 'push'} onClick={() => runTest('push', async () => {
-              const { PushNotifications } = await import('@capacitor/push-notifications')
+            <ActionButton icon={Bell} label="Izin & Daftar Token" busy={busy === 'push'} onClick={() => runTest('push', async () => {
+              const [{ PushNotifications }, { Capacitor }] = await Promise.all([
+                import('@capacitor/push-notifications'),
+                import('@capacitor/core'),
+              ])
               const permission = await PushNotifications.requestPermissions()
-              if (permission.receive === 'granted') await PushNotifications.register()
-              return `Permission push: ${permission.receive}`
+              if (permission.receive !== 'granted') return `Permission push: ${permission.receive}`
+              // Daftarkan token ke server saat event registration muncul
+              const reg = await PushNotifications.addListener('registration', token => {
+                fetch('/api/fcm/register', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token: token.value, platform: Capacitor.getPlatform() }),
+                }).catch(() => {})
+              })
+              await PushNotifications.register()
+              setTimeout(() => reg.remove().catch(() => {}), 15000)
+              return `Permission push: ${permission.receive}. Token didaftarkan ke server.`
+            })} />
+            <ActionButton icon={Bell} label="Test Kirim FCM" busy={busy === 'fcm-test'} onClick={() => runTest('fcm-test', async () => {
+              const res = await sendTestFcmToSelf()
+              if (res.error) throw new Error(res.error)
+              return res.success || 'Terkirim.'
             })} />
             <ActionButton icon={MapPin} label="Test Lokasi" busy={busy === 'geo'} onClick={() => runTest('geo', async () => {
               const { Geolocation } = await import('@capacitor/geolocation')

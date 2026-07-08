@@ -49,6 +49,10 @@ VAPID_SUBJECT = "mailto:admin@man1tasikmalaya.sch.id"
 # wrangler secret put WABLAS_BASE_URL         # contoh: https://texas.wablas.com
 # wrangler secret put WABLAS_TOKEN
 # wrangler secret put WABLAS_SECRET_KEY
+# FCM (Firebase Cloud Messaging) HTTP v1 — service account:
+# wrangler secret put FCM_PROJECT_ID
+# wrangler secret put FCM_CLIENT_EMAIL
+# wrangler secret put FCM_PRIVATE_KEY         # PEM lengkap (dgn newline) dari service account JSON
 
 [triggers]
 crons = ["* * * * *"] # Setiap menit — handler cek jadwal_notifikasi di DB

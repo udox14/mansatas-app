@@ -106,7 +106,7 @@ export async function testKirimJadwal(id: string) {
   const jadwal = await db.prepare('SELECT * FROM jadwal_notifikasi WHERE id = ?').bind(id).first<any>()
   if (!jadwal) return { error: 'Jadwal tidak ditemukan.' }
 
-  const { sendPushNotification } = await import('@/lib/web-push')
+  const { notify } = await import('@/lib/notify')
 
   let target: any = {}
   if (jadwal.target_type === 'all') target.all = true
@@ -117,7 +117,7 @@ export async function testKirimJadwal(id: string) {
   }
 
   try {
-    const res = await sendPushNotification(
+    const res = await notify(
       { title: `[TEST] ${jadwal.judul}`, body: jadwal.isi, url: jadwal.url },
       target
     )

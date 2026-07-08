@@ -4,7 +4,7 @@ import { getDB, dbInsert, dbUpdate } from '@/utils/db'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
-import { sendPushNotification } from '@/lib/web-push'
+import { notify } from '@/lib/notify'
 import { nowWIBISO, todayWIB } from '@/lib/time'
 
 // ============================================================
@@ -95,7 +95,7 @@ export async function buatUndanganRapat(
 
   // Kirim Push Notification (user IDs spesifik)
   try {
-    await sendPushNotification(
+    await notify(
       {
         title: 'Undangan Rapat Baru',
         body: `Agenda: ${agenda} pada ${tanggal} jam ${waktu} di ${tempat}. Harap konfirmasi kehadiran Anda.`,
@@ -193,7 +193,7 @@ export async function kirimUlangUndangan(
   if (!peserta) return { error: 'Peserta tidak ditemukan, bukan pending, atau rapat bukan milik Anda.' }
 
   try {
-    await sendPushNotification(
+    await notify(
       {
         title: '🔔 Pengingat Undangan Rapat',
         body: `Agenda: ${peserta.agenda} pada ${peserta.tanggal} jam ${peserta.waktu}. Harap segera konfirmasi kehadiran Anda.`,

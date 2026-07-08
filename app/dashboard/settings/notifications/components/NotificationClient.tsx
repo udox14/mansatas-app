@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { sendCustomNotification } from '../actions'
+import { sendCustomNotification, sendBroadcast } from '../actions'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
@@ -34,6 +34,16 @@ function SubmitBtn() {
     <Button disabled={pending} className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg h-10 mt-2">
       {pending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
       Kirim Broadcast Notifikasi
+    </Button>
+  )
+}
+
+function BroadcastSubmitBtn() {
+  const { pending } = useFormStatus()
+  return (
+    <Button disabled={pending} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-10 mt-2">
+      {pending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+      Kirim Broadcast ke Semua
     </Button>
   )
 }
@@ -162,6 +172,7 @@ export function NotificationClient({ roles = [], allUsers = [], diagnostics }: {
   }
 }) {
   const [state, action] = useActionState(sendCustomNotification, {} as any)
+  const [bcState, bcAction] = useActionState(sendBroadcast, {} as any)
   const [targetType, setTargetType] = useState('all')
   const [targetRole, setTargetRole] = useState(roles[0]?.value || '')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(allUsers.map(u => u.id)))
@@ -189,6 +200,67 @@ export function NotificationClient({ roles = [], allUsers = [], diagnostics }: {
 
   return (
     <div className="space-y-4">
+      {/* Broadcast Semua (pegawai + orang tua) — teks + link + gambar */}
+      <div className="rounded-xl border border-surface bg-surface p-4 sm:p-5 shadow-none">
+        <form action={bcAction} className="space-y-4" encType="multipart/form-data">
+          <div className="flex items-center gap-2 mb-2">
+            <Send className="h-4 w-4 text-emerald-500" />
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+              Broadcast ke Semua (Pegawai + Orang Tua)
+            </h3>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2">
+            Pegawai via VAPID + FCM, orang tua via FCM (perlu APK). Juga tersimpan di portal ortu.
+          </p>
+
+          {bcState?.error && (
+            <div className="p-3 text-sm text-rose-600 bg-rose-50 rounded-lg border border-rose-100 flex gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" /> {bcState.error}
+            </div>
+          )}
+          {bcState?.success && (
+            <div className="p-3 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-100 flex gap-2">
+              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" /> {bcState.success}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Judul</Label>
+            <Input name="title" required placeholder="Cth: Libur Semester" className="h-9 text-sm rounded-lg" />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Penerima</Label>
+            <Select name="audience" defaultValue="all">
+              <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua (Pegawai + Orang Tua)</SelectItem>
+                <SelectItem value="staff">Pegawai saja</SelectItem>
+                <SelectItem value="parents">Orang Tua saja</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Isi Pesan</Label>
+            <Textarea name="body" required rows={3} placeholder="Tulis pesan..." className="resize-none text-sm rounded-lg min-h-[80px]" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">URL Tujuan</Label>
+              <Input name="url" defaultValue="/dashboard" placeholder="/dashboard" className="h-9 text-sm rounded-lg" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Gambar (opsional, maks 2MB)</Label>
+              <Input name="image" type="file" accept="image/jpeg,image/png,image/webp" className="h-9 text-sm rounded-lg file:text-xs" />
+            </div>
+          </div>
+
+          <BroadcastSubmitBtn />
+        </form>
+      </div>
+
       {/* Broadcast Form Card */}
       <div className="rounded-xl border border-surface bg-surface p-4 sm:p-5 shadow-none">
         <form
