@@ -83,4 +83,9 @@ interface CloudflareEnv {
   BETTER_AUTH_SECRET: string
   BETTER_AUTH_URL: string
   R2_PUBLIC_URL: string
+
+  // FCM (Firebase Cloud Messaging) HTTP v1 — service account secrets
+  FCM_PROJECT_ID: string
+  FCM_CLIENT_EMAIL: string
+  FCM_PRIVATE_KEY: string
 }

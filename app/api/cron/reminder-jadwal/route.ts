@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDB } from '@/utils/db'
-import { sendPushNotification } from '@/lib/web-push'
+import { notify } from '@/lib/notify'
 import { nowWIB } from '@/lib/time'
 import { findTeachingBlockException, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
 
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
         target.userIds = ids
       }
 
-      const result = await sendPushNotification(
+      const result = await notify(
         { title: jadwal.judul, body: jadwal.isi, url: jadwal.url || '/dashboard' },
         target
       )

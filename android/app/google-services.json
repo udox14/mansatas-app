@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "482778232339",
+    "project_id": "mansatasapp",
+    "storage_bucket": "mansatasapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:482778232339:android:84fee26a0365cc0a8471e6",
+        "android_client_info": {
+          "package_name": "com.mansatas.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDD0uBxg-bIXVdVdd-Zw-FJtFjvAV9J61s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
