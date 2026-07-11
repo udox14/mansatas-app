@@ -18,12 +18,12 @@ import { CKH_DEFAULT_SATUAN, CKH_DEFAULT_VOL, CKH_SATUAN_OPTIONS, buildCkhDateRo
 import {
   acceptCkhSuggestion,
   addCkhRow,
-  copyCkhRowsFromPreviousMonth,
   deleteCkhRow,
   deleteCkhTemplate,
   deleteCkhTemplateNote,
   finalizeCkhDocument,
   refreshCkhDraft,
+  saveCkhDayPattern,
   saveCkhRow,
   saveCkhSignatureSettings,
   saveCkhTemplate,
@@ -56,6 +56,25 @@ type Template = {
   is_active: number
   notes: Array<{ id: string; template_id: string; note: string; sort_order: number; is_active: number }>
 }
+
+type DayPattern = {
+  id?: string
+  user_id?: string
+  weekday: number
+  kegiatan_bulanan: string
+  catatan_harian: string
+  vol: number
+  satuan: string
+}
+
+const WEEKDAYS = [
+  { value: 1, label: 'Senin' },
+  { value: 2, label: 'Selasa' },
+  { value: 3, label: 'Rabu' },
+  { value: 4, label: 'Kamis' },
+  { value: 5, label: 'Jumat' },
+  { value: 6, label: 'Sabtu' },
+]
 
 const MONTHS = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -92,9 +111,10 @@ const roleOptions = [
   'guru_bk', 'guru_piket', 'guru_tahfidz', 'operator', 'pramubakti', 'satpam',
 ]
 
-function sourceLabel(source: string) {
-  if (source === 'autofill') return 'Agenda'
-  if (source === 'calendar') return 'Kalender'
+function sourceLabel(row: Pick<Row, 'source' | 'source_key'>) {
+  if (row.source_key?.startsWith('pattern:')) return 'Pola'
+  if (row.source === 'autofill') return 'Agenda'
+  if (row.source === 'calendar') return 'Kalender'
   return 'Manual'
 }
 
@@ -580,43 +600,24 @@ export function CkhGeneratorClient({
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
   const [isSyncing, setIsSyncing] = useState(false)
-  const [isCopying, setIsCopying] = useState(false)
   const [busyRowId, setBusyRowId] = useState<string | null>(null)
   const [addingForRowId, setAddingForRowId] = useState<string | null>(null)
   const [selectedMonth, setSelectedMonth] = useState(String(month))
   const [selectedYear, setSelectedYear] = useState(String(year))
-  const [allTemplates, setAllTemplates] = useState<Template[]>(initialData.allTemplates)
+  const [dayPatterns, setDayPatterns] = useState<DayPattern[]>(initialData.dayPatterns || [])
   const [signatureSettings, setSignatureSettings] = useState<SignatureSettings>(normalizeSignatureSettings(initialData.document))
   const [documentStatus, setDocumentStatus] = useState<string>(initialData.document?.status || 'DRAFT')
 
-  const templates = useMemo(
-    () => getApplicableTemplates(allTemplates, initialData.userRoles || [], initialData.user?.jabatan_cetak),
-    [allTemplates, initialData.userRoles, initialData.user?.jabatan_cetak],
-  )
   const yearOptions = useMemo(() => {
     const currentYear = new Date().getFullYear()
     const start = Math.min(year, currentYear) - 2
     const end = Math.max(year, currentYear) + 1
     return Array.from({ length: end - start + 1 }, (_, index) => start + index)
   }, [year])
-  const activityTitles = useMemo(() => Array.from(new Set(templates.map(t => t.title))), [templates])
-  const notesByActivity = useMemo(() => {
-    const map = new Map<string, string[]>()
-    for (const template of templates) {
-      map.set(template.title, template.notes.map(note => note.note))
-    }
-    return map
-  }, [templates])
   const signatureUsesKepalaTu = shouldUseKepalaTu(initialData.user, initialData.userRoles)
   const primarySigner = signatureUsesKepalaTu ? initialData.kepalaTu : initialData.kepsek
   const primarySignerLabel = signatureUsesKepalaTu ? 'KEPALA TU' : 'KEPALA MAN 1 TASIKMALAYA'
   const missingSignerLabel = signatureUsesKepalaTu ? 'KEPALA TU BELUM DIATUR' : 'KEPALA MADRASAH BELUM DIATUR'
-  const manageableTemplates = useMemo(
-    () => canManageTemplates
-      ? allTemplates
-      : allTemplates.filter(template => template.user_id === initialData.user.id),
-    [allTemplates, canManageTemplates, initialData.user.id],
-  )
   const rowDateSpans = useMemo(() => buildCkhDateRowSpans(rows), [rows])
 
   useEffect(() => {
@@ -624,8 +625,8 @@ export function CkhGeneratorClient({
   }, [initialData.rows])
 
   useEffect(() => {
-    setAllTemplates(initialData.allTemplates)
-  }, [initialData.allTemplates])
+    setDayPatterns(initialData.dayPatterns || [])
+  }, [initialData.dayPatterns])
 
   useEffect(() => {
     setSelectedMonth(String(month))
@@ -678,23 +679,6 @@ export function CkhGeneratorClient({
       setMessage({ type: 'success', text: res.success || 'Draft disinkronkan.' })
     } finally {
       setIsSyncing(false)
-    }
-  }
-
-  const copyFromPreviousMonth = async () => {
-    if (!confirm('Salin isi CKH dari bulan lalu ke tanggal yang sama? Baris yang sudah berisi data tidak akan ditimpa.')) return
-    setIsCopying(true)
-    try {
-      const res = await copyCkhRowsFromPreviousMonth(initialData.document.id)
-      if (res?.error) {
-        setMessage({ type: 'error', text: res.error })
-        return
-      }
-      if (res?.rows) setRows(sortCkhRows(res.rows as Row[]))
-      setDocumentStatus('DRAFT')
-      setMessage({ type: 'success', text: res.success || 'Data bulan lalu disalin.' })
-    } finally {
-      setIsCopying(false)
     }
   }
 
@@ -773,7 +757,7 @@ export function CkhGeneratorClient({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <TabsList className="grid w-full max-w-xl grid-cols-2">
             <TabsTrigger value="dokumen" className="gap-1.5"><FileText className="h-3.5 w-3.5" /> Dokumen</TabsTrigger>
-            <TabsTrigger value="template" className="gap-1.5"><Settings2 className="h-3.5 w-3.5" /> {canManageTemplates ? 'Template' : 'Template Saya'}</TabsTrigger>
+            <TabsTrigger value="pola" className="gap-1.5"><Settings2 className="h-3.5 w-3.5" /> Pola Harian</TabsTrigger>
           </TabsList>
           <div className="flex w-full min-w-0 items-center gap-1 rounded-lg border border-surface bg-surface p-1 sm:w-auto">
             <Button size="sm" variant="ghost" onClick={() => shiftMonth(-1)} className="h-8 w-8 shrink-0 p-0" title="Bulan sebelumnya">
@@ -825,10 +809,6 @@ export function CkhGeneratorClient({
             <Button variant="outline" onClick={syncDraft} disabled={isSyncing} className="h-10 gap-2 whitespace-nowrap">
               {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
               Sinkronkan Agenda
-            </Button>
-            <Button variant="outline" onClick={copyFromPreviousMonth} disabled={isCopying} className="h-10 gap-2 whitespace-nowrap">
-              {isCopying ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-              Salin Bulan Lalu
             </Button>
             <SignatureSettingsDialog
               documentId={initialData.document.id}
@@ -971,35 +951,6 @@ export function CkhGeneratorClient({
                             {addingForRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                           </button>
                         </div>
-                        {(notesByActivity.get(row.kegiatan_bulanan) || []).length > 0 && (
-                          <select
-                            value=""
-                            onChange={e => {
-                              if (!e.target.value) return
-                              const catatan = e.target.value
-                              const vol = countCkhItems(catatan)
-                              updateRowLocal(row.id, { catatan_harian: catatan, vol })
-                              startTransition(async () => {
-                                const res = await saveCkhRow(row.id, {
-                                  tanggal: row.tanggal,
-                                  kegiatan_bulanan: row.kegiatan_bulanan,
-                                  catatan_harian: catatan,
-                                  vol,
-                                  satuan: row.satuan,
-                                })
-                                if (res?.row) updateRowLocal(row.id, res.row as Partial<Row>)
-                                if (!res?.error) setDocumentStatus('DRAFT')
-                                setMessage(res?.error ? { type: 'error', text: res.error } : { type: 'success', text: 'Baris CKH disimpan.' })
-                              })
-                            }}
-                            className="mt-1 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] text-slate-600 print:hidden"
-                          >
-                            <option value="">Pilih catatan template...</option>
-                            {(notesByActivity.get(row.kegiatan_bulanan) || []).map(note => (
-                              <option key={note} value={note}>{note}</option>
-                            ))}
-                          </select>
-                        )}
                         {row.has_conflict ? (
                           <div className="mt-2 rounded border border-amber-300 bg-amber-100 p-2 text-[11px] text-amber-800">
                             <div className="flex items-start gap-1.5">
@@ -1039,7 +990,7 @@ export function CkhGeneratorClient({
                       </td>
                       <td className="border border-slate-300 p-1.5 align-top print:hidden">
                         <div className="flex items-center justify-center gap-1">
-                          <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500">{sourceLabel(row.source)}</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500">{sourceLabel(row)}</span>
                           <button disabled={busyRowId === row.id} onClick={() => removeRow(row.id)} className="rounded-md p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50" title="Hapus baris">
                             {busyRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                           </button>
@@ -1049,14 +1000,6 @@ export function CkhGeneratorClient({
                   )})}
                 </tbody>
               </table>
-              <datalist id="ckh-activities">
-                {activityTitles.map(title => <option key={title} value={title} />)}
-              </datalist>
-              <datalist id="ckh-notes">
-                {Array.from(new Set(rows.flatMap(row => notesByActivity.get(row.kegiatan_bulanan) || []))).map(note => (
-                  <option key={note} value={note} />
-                ))}
-              </datalist>
             </div>
 
             <div className="mt-12 flex justify-between text-sm text-black">
@@ -1080,20 +1023,100 @@ export function CkhGeneratorClient({
         </div>
       </TabsContent>
 
-      <TabsContent value="template" className="mt-0">
-        <TemplateAdmin
-          templates={manageableTemplates}
-          canManageGlobal={canManageTemplates}
-          primaryRole={initialData.primaryRole || 'guru'}
-          onTemplatesChange={nextTemplates => {
-            setAllTemplates(prev => canManageTemplates
-              ? nextTemplates
-              : [...prev.filter(template => template.user_id !== initialData.user.id), ...nextTemplates])
+      <TabsContent value="pola" className="mt-0">
+        <DayPatternEditor
+          patterns={dayPatterns}
+          onChange={setDayPatterns}
+          onSaved={async text => {
+            await syncDraft()
+            setMessage({ type: 'success', text })
           }}
+          onError={text => setMessage({ type: 'error', text })}
         />
       </TabsContent>
 
     </Tabs>
+  )
+}
+
+function DayPatternEditor({
+  patterns,
+  onChange,
+  onSaved,
+  onError,
+}: {
+  patterns: DayPattern[]
+  onChange: (patterns: DayPattern[]) => void
+  onSaved: (message: string) => Promise<void>
+  onError: (message: string) => void
+}) {
+  const [savingDay, setSavingDay] = useState<number | null>(null)
+  const patternFor = (weekday: number): DayPattern => patterns.find(item => item.weekday === weekday) || {
+    weekday,
+    kegiatan_bulanan: '',
+    catatan_harian: '',
+    vol: CKH_DEFAULT_VOL,
+    satuan: CKH_DEFAULT_SATUAN,
+  }
+  const update = (weekday: number, patch: Partial<DayPattern>) => {
+    const current = patternFor(weekday)
+    onChange([...patterns.filter(item => item.weekday !== weekday), { ...current, ...patch }].sort((a, b) => a.weekday - b.weekday))
+  }
+  const save = async (weekday: number) => {
+    setSavingDay(weekday)
+    try {
+      const current = patternFor(weekday)
+      const result = await saveCkhDayPattern(current)
+      if (result?.error) {
+        onError(result.error)
+        return
+      }
+      if (!result?.pattern) onChange(patterns.filter(item => item.weekday !== weekday))
+      await onSaved(result?.success || 'Pola harian disimpan.')
+    } finally {
+      setSavingDay(null)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-surface bg-surface">
+      <div className="border-b border-surface-2 px-4 py-4">
+        <h3 className="font-semibold text-slate-800 dark:text-slate-100">Pola kegiatan hari tanpa jadwal mengajar</h3>
+        <p className="mt-1 text-sm text-slate-500">Isi sekali untuk hari yang biasanya tidak ada jadwal mengajar. Pola otomatis dipakai setiap bulan dan dapat diubah pada dokumen bulan tertentu tanpa mengubah pola.</p>
+      </div>
+      <div className="divide-y divide-surface-2">
+        {WEEKDAYS.map(day => {
+          const pattern = patternFor(day.value)
+          return (
+            <div key={day.value} className="grid gap-3 p-4 lg:grid-cols-[90px_minmax(0,1fr)_minmax(0,1.3fr)_80px_120px_auto] lg:items-end">
+              <div className="pb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{day.label}</div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Kegiatan bulanan</Label>
+                <Input value={pattern.kegiatan_bulanan} onChange={event => update(day.value, { kegiatan_bulanan: event.target.value })} placeholder="Kosongkan bila ada jadwal mengajar" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Catatan kinerja harian</Label>
+                <Input value={pattern.catatan_harian} onChange={event => update(day.value, { catatan_harian: event.target.value })} placeholder="Kegiatan rutin pada hari ini" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Vol</Label>
+                <Input type="number" min={1} value={pattern.vol} onChange={event => update(day.value, { vol: Math.max(1, Number(event.target.value) || 1) })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Satuan</Label>
+                <Select value={pattern.satuan} onValueChange={value => update(day.value, { satuan: value })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{CKH_SATUAN_OPTIONS.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <Button onClick={() => save(day.value)} disabled={savingDay === day.value} className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700">
+                {savingDay === day.value ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Simpan
+              </Button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 

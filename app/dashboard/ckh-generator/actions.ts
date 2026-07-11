@@ -7,7 +7,6 @@ import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import {
   CKH_DEFAULT_SATUAN,
   CKH_DEFAULT_VOL,
-  CKH_TEACHING_ACTIVITY,
   CKH_OTHER_DUTY_ACTIVITY,
   buildTeachingRows,
   countCkhItems,
@@ -19,7 +18,6 @@ import {
   type CkhTemplate,
   type CkhTemplateNote,
 } from '@/lib/ckh'
-import { findTeachingBlockException, getKbmExceptionsForRange } from '@/lib/kalender-pendidikan'
 
 type CkhUser = {
   id: string
@@ -65,6 +63,16 @@ type CkhKepsek = {
   nama_lengkap: string
   nip: string | null
   jabatan_cetak: string | null
+}
+
+type CkhDayPattern = {
+  id: string
+  user_id: string
+  weekday: number
+  kegiatan_bulanan: string
+  catatan_harian: string
+  vol: number
+  satuan: string
 }
 
 type CkhSigner = CkhKepsek
@@ -212,6 +220,7 @@ async function buildGeneratedRows(db: D1Database, userId: string, year: number, 
   const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
 
   const generated: CkhGeneratedRow[] = []
+  const datesWithTeaching = new Set<string>()
 
   if (ta) {
     const agendaRes = await db.prepare(`
@@ -229,52 +238,31 @@ async function buildGeneratedRows(db: D1Database, userId: string, year: number, 
     `).bind(userId, startDate, endDate, ta.id).all<any>()
 
     generated.push(...buildTeachingRows((agendaRes.results || []).filter(row => effectiveSet.has(row.tanggal))))
+    generated.forEach(row => datesWithTeaching.add(row.tanggal))
+  }
 
-    const jadwalRes = await db.prepare(`
-      SELECT DISTINCT jm.penugasan_id, jm.hari, jm.jam_ke, k.id as kelas_id, k.tingkat, k.kbm_nonaktif_mulai
-      FROM jadwal_mengajar jm
-      JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
-      JOIN kelas k ON pm.kelas_id = k.id
-      WHERE pm.guru_id = ? AND jm.tahun_ajaran_id = ?
-    `).bind(userId, ta.id).all<{ penugasan_id: string; hari: number; jam_ke: number; kelas_id: string; tingkat: number; kbm_nonaktif_mulai: string | null }>()
-    const teachingDates = new Set(generated.filter(row => row.source === 'autofill').map(row => row.tanggal))
-    const teachingSchedules = new Map<string, { hari: number; jamSet: Set<number>; kelasId: string; tingkat: number; kbmNonaktifMulai: string | null }>()
-    for (const row of jadwalRes.results || []) {
-      if (!teachingSchedules.has(row.penugasan_id)) {
-        teachingSchedules.set(row.penugasan_id, {
-          hari: Number(row.hari),
-          jamSet: new Set(),
-          kelasId: row.kelas_id,
-          tingkat: Number(row.tingkat),
-          kbmNonaktifMulai: row.kbm_nonaktif_mulai || null,
-        })
-      }
-      teachingSchedules.get(row.penugasan_id)!.jamSet.add(Number(row.jam_ke))
-    }
-    const exceptionsByDate = new Map<string, Awaited<ReturnType<typeof getKbmExceptionsForRange>>>()
-    for (const exception of await getKbmExceptionsForRange(db, startDate, endDate)) {
-      if (!exceptionsByDate.has(exception.tanggal)) exceptionsByDate.set(exception.tanggal, [])
-      exceptionsByDate.get(exception.tanggal)!.push(exception)
-    }
-    for (const tanggal of effectiveDates) {
-      const day = new Date(tanggal + 'T00:00:00').getDay()
-      const hari = day === 0 ? 7 : day
-      const hasActiveTeaching = Array.from(teachingSchedules.values()).some(row => {
-        if (row.hari !== hari) return false
-        if (row.kbmNonaktifMulai && row.kbmNonaktifMulai <= tanggal) return false
-        const jamList = Array.from(row.jamSet).sort((a, b) => a - b)
-        return !findTeachingBlockException(exceptionsByDate.get(tanggal) || [], { id: row.kelasId, tingkat: row.tingkat }, jamList[0], jamList[jamList.length - 1])
-      })
-      if (hasActiveTeaching && !teachingDates.has(tanggal)) {
-        generated.push({
-          tanggal,
-          kegiatan_bulanan: CKH_TEACHING_ACTIVITY,
-          catatan_harian: '',
-          source: 'autofill',
-          source_key: `schedule:${tanggal}`,
-        })
-      }
-    }
+  const patterns = (await db.prepare(`
+    SELECT id, user_id, weekday, kegiatan_bulanan, catatan_harian, vol, satuan
+    FROM ckh_day_patterns
+    WHERE user_id = ?
+    ORDER BY weekday ASC
+  `).bind(userId).all<CkhDayPattern>()).results || []
+  const patternByWeekday = new Map(patterns.map(pattern => [Number(pattern.weekday), pattern]))
+  for (const tanggal of effectiveDates) {
+    if (datesWithTeaching.has(tanggal)) continue
+    const jsDay = new Date(`${tanggal}T00:00:00`).getDay()
+    const weekday = jsDay === 0 ? 7 : jsDay
+    const pattern = patternByWeekday.get(weekday)
+    if (!pattern) continue
+    generated.push({
+      tanggal,
+      kegiatan_bulanan: pattern.kegiatan_bulanan,
+      catatan_harian: pattern.catatan_harian,
+      vol: pattern.vol,
+      satuan: pattern.satuan,
+      source: 'autofill',
+      source_key: `pattern:${weekday}:${tanggal}`,
+    })
   }
 
   const calendarRes = await db.prepare(`
@@ -319,6 +307,7 @@ async function insertInitialRows(db: D1Database, documentId: string, generated: 
         kegiatan_bulanan: '',
         catatan_harian: '',
         vol: CKH_DEFAULT_VOL,
+        satuan: CKH_DEFAULT_SATUAN,
         source: 'manual' as const,
         source_key: `blank:${tanggal}:${index}`,
       })),
@@ -335,7 +324,7 @@ async function insertInitialRows(db: D1Database, documentId: string, generated: 
     row.kegiatan_bulanan,
     row.catatan_harian,
     row.vol || countCkhItems(row.catatan_harian) || CKH_DEFAULT_VOL,
-    CKH_DEFAULT_SATUAN,
+    row.satuan || CKH_DEFAULT_SATUAN,
     row.source,
     row.source_key,
     row.source === 'manual' ? 1 : 0,
@@ -362,8 +351,14 @@ export async function getCkhPageData(year: number, month: number) {
   const generated = await buildGeneratedRows(db, authUser.id, year, month)
   await insertInitialRows(db, doc.id, generated, year, month)
 
-  const [rows, templates, allTemplatesRes, kepsek, kepalaTu] = await Promise.all([
+  const [rows, patterns, templates, allTemplatesRes, kepsek, kepalaTu] = await Promise.all([
     getRows(db, doc.id),
+    db.prepare(`
+      SELECT id, user_id, weekday, kegiatan_bulanan, catatan_harian, vol, satuan
+      FROM ckh_day_patterns
+      WHERE user_id = ?
+      ORDER BY weekday ASC
+    `).bind(authUser.id).all<CkhDayPattern>(),
     getTemplatesForUser(db, authUser.id, roles, freshUser.jabatan_cetak),
     db.prepare(`
       SELECT t.id, t.user_id, t.role, t.jabatan_cetak, t.title, t.sort_order, t.is_active,
@@ -432,6 +427,7 @@ export async function getCkhPageData(year: number, month: number) {
     primaryRole: getPrimaryRoleFromRows(roles, freshUser.role),
     document: doc,
     rows,
+    dayPatterns: patterns.results || [],
     templates,
     allTemplates: Array.from(templateMap.values()),
     kepsek: kepsek || null,
@@ -459,12 +455,16 @@ export async function saveCkhRow(rowId: string, payload: {
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
   const row = await db.prepare(`
-    SELECT r.id, d.id as document_id, d.user_id
+    SELECT r.id, d.id as document_id, d.user_id, d.year, d.month
     FROM ckh_rows r
     JOIN ckh_documents d ON r.document_id = d.id
     WHERE r.id = ?
-  `).bind(rowId).first<{ id: string; document_id: string; user_id: string }>()
+  `).bind(rowId).first<{ id: string; document_id: string; user_id: string; year: number; month: number }>()
   if (!row || row.user_id !== authUser.id) return { error: 'Baris CKH tidak ditemukan.' }
+  const { startDate, endDate } = monthRange(row.year, row.month)
+  if (payload.tanggal < startDate || payload.tanggal > endDate) return { error: 'Tanggal harus berada dalam bulan dokumen CKH.' }
+  const effectiveDates = new Set(await getCkhEffectiveDates(db, row.year, row.month))
+  if (!effectiveDates.has(payload.tanggal)) return { error: 'Tanggal bukan hari kerja efektif CKH.' }
 
   await markCkhDocumentDraft(db, row.document_id)
   await db.prepare(`
@@ -480,22 +480,76 @@ export async function saveCkhRow(rowId: string, payload: {
   return { success: true, row: { id: rowId, tanggal: payload.tanggal, kegiatan_bulanan: kegiatan, catatan_harian: catatan, vol, satuan } }
 }
 
+export async function saveCkhDayPattern(payload: {
+  weekday: number
+  kegiatan_bulanan: string
+  catatan_harian: string
+  vol?: number
+  satuan?: string
+}) {
+  const authUser = await getCurrentUser()
+  if (!authUser) return { error: 'Unauthorized' }
+
+  const weekday = Number(payload.weekday)
+  if (!Number.isInteger(weekday) || weekday < 1 || weekday > 6) return { error: 'Hari tidak valid.' }
+  const kegiatan = cleanCkhMultiline(payload.kegiatan_bulanan)
+  const catatan = cleanCkhMultiline(payload.catatan_harian)
+  const vol = cleanCkhVolume(payload.vol, catatan)
+  const satuan = normalizeCkhSatuan(payload.satuan)
+  const db = await getDB()
+  await requireCkhAccess(db, authUser.id)
+
+  if (!kegiatan && !catatan) {
+    await db.prepare('DELETE FROM ckh_day_patterns WHERE user_id = ? AND weekday = ?').bind(authUser.id, weekday).run()
+  } else {
+    await db.prepare(`
+      INSERT INTO ckh_day_patterns (user_id, weekday, kegiatan_bulanan, catatan_harian, vol, satuan)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(user_id, weekday) DO UPDATE SET
+        kegiatan_bulanan = excluded.kegiatan_bulanan,
+        catatan_harian = excluded.catatan_harian,
+        vol = excluded.vol,
+        satuan = excluded.satuan,
+        updated_at = datetime('now')
+    `).bind(authUser.id, weekday, kegiatan, catatan, vol, satuan).run()
+  }
+
+  revalidatePath('/dashboard/ckh-generator')
+  return {
+    success: kegiatan || catatan ? 'Pola harian disimpan.' : 'Pola harian dihapus.',
+    pattern: kegiatan || catatan ? { user_id: authUser.id, weekday, kegiatan_bulanan: kegiatan, catatan_harian: catatan, vol, satuan } : null,
+  }
+}
+
 export async function finalizeCkhDocument(documentId: string) {
   const authUser = await getCurrentUser()
   if (!authUser) return { error: 'Unauthorized' }
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
-  const doc = await db.prepare('SELECT id, user_id FROM ckh_documents WHERE id = ?').bind(documentId).first<{ id: string; user_id: string }>()
+  const doc = await db.prepare('SELECT id, user_id, year, month FROM ckh_documents WHERE id = ?').bind(documentId).first<{ id: string; user_id: string; year: number; month: number }>()
   if (!doc || doc.user_id !== authUser.id) return { error: 'Dokumen CKH tidak ditemukan.' }
 
-  const rowCount = await db.prepare(`
-    SELECT COUNT(*) as count
+  const validation = await db.prepare(`
+    SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN TRIM(kegiatan_bulanan) = '' OR TRIM(catatan_harian) = '' THEN 1 ELSE 0 END) as incomplete,
+      SUM(CASE WHEN has_conflict = 1 THEN 1 ELSE 0 END) as conflicts
     FROM ckh_rows
     WHERE document_id = ?
-      AND (TRIM(kegiatan_bulanan) <> '' OR TRIM(catatan_harian) <> '')
-  `).bind(documentId).first<{ count: number }>()
-  if (!rowCount || Number(rowCount.count) === 0) return { error: 'Isi CKH dulu sebelum dikirim.' }
+  `).bind(documentId).first<{ total: number; incomplete: number; conflicts: number }>()
+  if (!validation || Number(validation.total) === 0) return { error: 'Isi CKH dulu sebelum dikirim.' }
+  if (Number(validation.incomplete) > 0) return { error: `Masih ada ${validation.incomplete} baris yang kegiatan atau catatannya belum lengkap.` }
+  if (Number(validation.conflicts) > 0) return { error: `Selesaikan ${validation.conflicts} perubahan agenda terlebih dahulu.` }
+  const effectiveDates = await getCkhEffectiveDates(db, doc.year, doc.month)
+  const coveredRows = await db.prepare(`
+    SELECT DISTINCT tanggal
+    FROM ckh_rows
+    WHERE document_id = ? AND TRIM(kegiatan_bulanan) <> '' AND TRIM(catatan_harian) <> ''
+  `).bind(documentId).all<{ tanggal: string }>()
+  const coveredDates = new Set((coveredRows.results || []).map(row => row.tanggal))
+  const missingDates = effectiveDates.filter(tanggal => !coveredDates.has(tanggal))
+  if (missingDates.length > 0) return { error: `Masih ada ${missingDates.length} hari kerja yang belum memiliki catatan CKH.` }
 
   await db.prepare(`
     UPDATE ckh_documents
@@ -554,8 +608,12 @@ export async function addCkhRow(documentId: string, tanggal: string) {
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
-  const doc = await db.prepare('SELECT id, user_id FROM ckh_documents WHERE id = ?').bind(documentId).first<{ id: string; user_id: string }>()
+  const doc = await db.prepare('SELECT id, user_id, year, month FROM ckh_documents WHERE id = ?').bind(documentId).first<{ id: string; user_id: string; year: number; month: number }>()
   if (!doc || doc.user_id !== authUser.id) return { error: 'Dokumen CKH tidak ditemukan.' }
+  const { startDate, endDate } = monthRange(doc.year, doc.month)
+  if (tanggal < startDate || tanggal > endDate) return { error: 'Tanggal harus berada dalam bulan dokumen CKH.' }
+  const effectiveDates = new Set(await getCkhEffectiveDates(db, doc.year, doc.month))
+  if (!effectiveDates.has(tanggal)) return { error: 'Tanggal bukan hari kerja efektif CKH.' }
 
   const maxRow = await db.prepare('SELECT COALESCE(MAX(row_order), 0) as max_order FROM ckh_rows WHERE document_id = ? AND tanggal = ?')
     .bind(documentId, tanggal).first<{ max_order: number }>()
@@ -699,9 +757,19 @@ export async function refreshCkhDraft(documentId: string) {
   const generated = await buildGeneratedRows(db, authUser.id, doc.year, doc.month)
   const existing = await getRows(db, documentId)
   const existingBySource = new Map(existing.filter(row => row.source_key).map(row => [row.source_key!, row]))
-  const existingDates = new Set(existing.map(row => row.tanggal))
   const generatedDates = new Set(generated.map(row => row.tanggal))
   const statements: D1PreparedStatement[] = []
+  const generatedSourceKeys = new Set(generated.map(row => row.source_key))
+
+  existing
+    .filter(row => Number(row.is_manual) === 0 && row.source_key && !generatedSourceKeys.has(row.source_key))
+    .forEach(row => statements.push(db.prepare('DELETE FROM ckh_rows WHERE id = ?').bind(row.id)))
+
+  // A newly configured pattern or agenda replaces placeholder rows instead of
+  // leaving an extra empty line on the same date.
+  existing
+    .filter(row => generatedDates.has(row.tanggal) && !row.kegiatan_bulanan.trim() && !row.catatan_harian.trim())
+    .forEach(row => statements.push(db.prepare('DELETE FROM ckh_rows WHERE id = ?').bind(row.id)))
 
   generated.forEach((row, index) => {
     const current = existingBySource.get(row.source_key)
@@ -710,7 +778,7 @@ export async function refreshCkhDraft(documentId: string) {
         INSERT OR IGNORE INTO ckh_rows
           (document_id, tanggal, row_order, kegiatan_bulanan, catatan_harian, vol, satuan, source, source_key, is_manual)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-      `).bind(documentId, row.tanggal, index + 1, row.kegiatan_bulanan, row.catatan_harian, row.vol || countCkhItems(row.catatan_harian) || CKH_DEFAULT_VOL, CKH_DEFAULT_SATUAN, row.source, row.source_key))
+      `).bind(documentId, row.tanggal, index + 1, row.kegiatan_bulanan, row.catatan_harian, row.vol || countCkhItems(row.catatan_harian) || CKH_DEFAULT_VOL, row.satuan || CKH_DEFAULT_SATUAN, row.source, row.source_key))
       return
     }
 
@@ -726,17 +794,24 @@ export async function refreshCkhDraft(documentId: string) {
     } else {
       statements.push(db.prepare(`
         UPDATE ckh_rows
-        SET tanggal = ?, row_order = ?, kegiatan_bulanan = ?, catatan_harian = ?, vol = ?,
+        SET tanggal = ?, row_order = ?, kegiatan_bulanan = ?, catatan_harian = ?, vol = ?, satuan = ?,
             has_conflict = 0, suggested_kegiatan_bulanan = NULL, suggested_catatan_harian = NULL,
             updated_at = datetime('now')
         WHERE id = ?
-      `).bind(row.tanggal, index + 1, row.kegiatan_bulanan, row.catatan_harian, row.vol || countCkhItems(row.catatan_harian) || CKH_DEFAULT_VOL, current.id))
+      `).bind(row.tanggal, index + 1, row.kegiatan_bulanan, row.catatan_harian, row.vol || countCkhItems(row.catatan_harian) || CKH_DEFAULT_VOL, row.satuan || CKH_DEFAULT_SATUAN, current.id))
     }
   })
 
   const effectiveDates = await getCkhEffectiveDates(db, doc.year, doc.month)
+  const retainedDates = new Set(existing
+    .filter(row => {
+      if (Number(row.is_manual) === 0 && row.source_key && !generatedSourceKeys.has(row.source_key)) return false
+      if (generatedDates.has(row.tanggal) && !row.kegiatan_bulanan.trim() && !row.catatan_harian.trim()) return false
+      return true
+    })
+    .map(row => row.tanggal))
   effectiveDates
-    .filter(tanggal => !existingDates.has(tanggal) && !generatedDates.has(tanggal))
+    .filter(tanggal => !retainedDates.has(tanggal) && !generatedDates.has(tanggal))
     .forEach((tanggal, index) => {
       statements.push(db.prepare(`
         INSERT OR IGNORE INTO ckh_rows
