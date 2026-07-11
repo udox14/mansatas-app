@@ -14,6 +14,7 @@ export type CkhGeneratedRow = {
   kegiatan_bulanan: string
   catatan_harian: string
   vol?: number
+  satuan?: string
   source: 'autofill' | 'calendar'
   source_key: string
 }
