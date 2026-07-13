@@ -1,0 +1,150 @@
+{"path":"app/dashboard/sp/page.tsx","area":".","score":8,"include":true,"reason":"Production dashboard server page on an academic or administrative data access path."}
+{"path":"app/dashboard/surat/actions.ts","area":".","score":10,"include":true,"reason":"Production server actions handling authorization and sensitive application data mutations."}
+{"path":"app/dashboard/surat/components/surat-client.tsx","area":".","score":6,"include":true,"reason":"Production client workflow for sensitive academic or administrative records and server actions."}
+{"path":"app/dashboard/surat/components/surat-templates.tsx","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/surat/constants.ts","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/surat/page.tsx","area":".","score":8,"include":true,"reason":"Production dashboard server page on an academic or administrative data access path."}
+{"path":"app/dashboard/tahfidz/actions.ts","area":".","score":10,"include":true,"reason":"Production server actions handling authorization and sensitive application data mutations."}
+{"path":"app/dashboard/tahfidz/analitik/page.tsx","area":".","score":8,"include":true,"reason":"Production dashboard server page on an academic or administrative data access path."}
+{"path":"app/dashboard/tahfidz/components/AnalitikClient.tsx","area":".","score":6,"include":true,"reason":"Production client workflow for sensitive academic or administrative records and server actions."}
+{"path":"app/dashboard/tahfidz/components/AyatGrid.tsx","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/tahfidz/components/CetakLaporanModal.tsx","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/tahfidz/components/RiwayatModal.tsx","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/tahfidz/components/TahfidzClient.tsx","area":".","score":6,"include":true,"reason":"Production client workflow for sensitive academic or administrative records and server actions."}
+{"path":"app/dashboard/tahfidz/components/TahfidzNav.tsx","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/tahfidz/components/TambahSiswaModal.tsx","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/tahfidz/data/juz-data.ts","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/tahfidz/data/quran-data.ts","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/tahfidz/layout.tsx","area":".","score":7,"include":true,"reason":"Production dashboard layout that can enforce access and navigation boundaries."}
+{"path":"app/dashboard/tahfidz/page.tsx","area":".","score":8,"include":true,"reason":"Production dashboard server page on an academic or administrative data access path."}
+{"path":"app/dashboard/tka/actions.ts","area":".","score":10,"include":true,"reason":"Production server actions handling authorization and sensitive application data mutations."}
+{"path":"app/dashboard/tka/components/tab-analitik.tsx","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/tka/components/tab-hasil.tsx","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/tka/components/tab-mapel-pilihan.tsx","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/tka/components/tab-rekap.tsx","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/tka/components/tka-client.tsx","area":".","score":6,"include":true,"reason":"Production client workflow for sensitive academic or administrative records and server actions."}
+{"path":"app/dashboard/tka/constants.ts","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/tka/page.tsx","area":".","score":8,"include":true,"reason":"Production dashboard server page on an academic or administrative data access path."}
+{"path":"app/dashboard/tpg-dokumen/actions.ts","area":".","score":10,"include":true,"reason":"Production server actions handling authorization and sensitive application data mutations."}
+{"path":"app/dashboard/tpg-dokumen/page.tsx","area":".","score":8,"include":true,"reason":"Production dashboard server page on an academic or administrative data access path."}
+{"path":"app/dashboard/tpg-dokumen/print-ckh/page.tsx","area":".","score":8,"include":true,"reason":"Production dashboard server page on an academic or administrative data access path."}
+{"path":"app/dashboard/tpg-dokumen/print-ckh/print-toolbar.tsx","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/tpg-dokumen/tpg-dokumen-client.tsx","area":".","score":6,"include":true,"reason":"Production client workflow for sensitive academic or administrative records and server actions."}
+{"path":"app/dashboard/whatsapp/actions.ts","area":".","score":10,"include":true,"reason":"Production server actions handling authorization and sensitive application data mutations."}
+{"path":"app/dashboard/whatsapp/components/settings-modal.tsx","area":".","score":5,"include":true,"reason":"Production dashboard component participating in academic or administrative workflows."}
+{"path":"app/dashboard/whatsapp/page.tsx","area":".","score":8,"include":true,"reason":"Production dashboard server page on an academic or administrative data access path."}
+{"path":"app/globals.css","area":".","score":4,"include":false,"reason":"Low-risk presentation or support code with limited direct security impact."}
+{"path":"app/layout.tsx","area":".","score":7,"include":true,"reason":"Top-level production application entry point affecting request rendering and access flow."}
+{"path":"app/page.tsx","area":".","score":7,"include":true,"reason":"Top-level production application entry point affecting request rendering and access flow."}
+{"path":"app/portal-ortu/actions.ts","area":".","score":10,"include":true,"reason":"Production server actions handling authorization and sensitive application data mutations."}
+{"path":"app/portal-ortu/components/change-password-form.tsx","area":".","score":7,"include":true,"reason":"Parent-facing production surface handling authenticated student, family, or payment interactions."}
+{"path":"app/portal-ortu/components/mobile-bottom-nav.tsx","area":".","score":7,"include":true,"reason":"Parent-facing production surface handling authenticated student, family, or payment interactions."}
+{"path":"app/portal-ortu/components/parent-whatsapp-form.tsx","area":".","score":7,"include":true,"reason":"Parent-facing production surface handling authenticated student, family, or payment interactions."}
+{"path":"app/portal-ortu/components/portal-ortu-client.tsx","area":".","score":7,"include":true,"reason":"Parent-facing production surface handling authenticated student, family, or payment interactions."}
+{"path":"app/portal-ortu/components/portal-tour.tsx","area":".","score":7,"include":true,"reason":"Parent-facing production surface handling authenticated student, family, or payment interactions."}
+{"path":"app/portal-ortu/components/schedule-tabs.tsx","area":".","score":7,"include":true,"reason":"Parent-facing production surface handling authenticated student, family, or payment interactions."}
+{"path":"app/portal-ortu/components/summon-response-form.tsx","area":".","score":7,"include":true,"reason":"Parent-facing production surface handling authenticated student, family, or payment interactions."}
+{"path":"app/portal-ortu/kuitansi/[id]/kuitansi-page-client.tsx","area":".","score":7,"include":true,"reason":"Parent-facing production surface handling authenticated student, family, or payment interactions."}
+{"path":"app/portal-ortu/kuitansi/[id]/page.tsx","area":".","score":9,"include":true,"reason":"Identifier-based parent receipt page requiring strict authorization and data isolation."}
+{"path":"app/portal-ortu/login/page.tsx","area":".","score":9,"include":true,"reason":"Parent portal authentication or session-gated server page exposing student and family data."}
+{"path":"app/portal-ortu/login/parent-login-client.tsx","area":".","score":7,"include":true,"reason":"Parent-facing production surface handling authenticated student, family, or payment interactions."}
+{"path":"app/portal-ortu/page.tsx","area":".","score":9,"include":true,"reason":"Parent portal authentication or session-gated server page exposing student and family data."}
+{"path":"app/template.tsx","area":".","score":4,"include":false,"reason":"Low-risk presentation or support code with limited direct security impact."}
+{"path":"capacitor.config.ts","area":".","score":2,"include":false,"reason":"Build or tooling configuration outside production authorization and data flows."}
+{"path":"components.json","area":".","score":2,"include":false,"reason":"Build or tooling configuration outside production authorization and data flows."}
+{"path":"components/dashboard/BendaharaDashboard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/GuruBKDashboard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/GuruDashboard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/GuruPPLDashboard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/GuruPiketDashboard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/KelasBinaanDashboard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/KepsekDashboard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/KeputusanAbsensiHariIni.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/ParentCommActions.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/ResepsionisDashboard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/SuperAdminDashboard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/WakamadDashboard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/charts/AktivitasSeverityChart.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/charts/ChartCard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/charts/DemografiCharts.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/charts/KedisiplinanCharts.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/charts/chartPrimitives.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/shared/BreakdownSiswaModal.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/shared/DashboardSPAShell.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/shared/FeatureShortcuts.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/shared/JadwalMengajarToday.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/shared/KehadiranPribadiCard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/shared/PenugasanMasukCard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/shared/QuickLink.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/shared/StatCard.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/shared/WelcomeStrip.tsx","area":".","score":6,"include":true,"reason":"Role-specific production dashboard surface displaying sensitive institutional data."}
+{"path":"components/dashboard/widgets/KehadiranSiswaSekolahWidget.tsx","area":".","score":8,"include":true,"reason":"Server-rendered dashboard widget querying sensitive attendance or discipline data."}
+{"path":"components/dashboard/widgets/RekapKehadiranGuruWidget.tsx","area":".","score":8,"include":true,"reason":"Server-rendered dashboard widget querying sensitive attendance or discipline data."}
+{"path":"components/dashboard/widgets/TrenPelanggaranSekolahWidget.tsx","area":".","score":8,"include":true,"reason":"Server-rendered dashboard widget querying sensitive attendance or discipline data."}
+{"path":"components/documentation/markdown-viewer.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/layout/act-as-banner.tsx","area":".","score":8,"include":true,"reason":"Impersonation UI surface tied to privileged effective-user session state."}
+{"path":"components/layout/bottom-nav.tsx","area":".","score":6,"include":true,"reason":"Production navigation surface reflecting role and feature access decisions."}
+{"path":"components/layout/header.tsx","area":".","score":6,"include":true,"reason":"Production navigation surface reflecting role and feature access decisions."}
+{"path":"components/layout/page-header.tsx","area":".","score":4,"include":false,"reason":"Low-risk presentation or support code with limited direct security impact."}
+{"path":"components/layout/page-loading.tsx","area":".","score":4,"include":false,"reason":"Low-risk presentation or support code with limited direct security impact."}
+{"path":"components/layout/page-transition.tsx","area":".","score":4,"include":false,"reason":"Low-risk presentation or support code with limited direct security impact."}
+{"path":"components/layout/sidebar.tsx","area":".","score":6,"include":true,"reason":"Production navigation surface reflecting role and feature access decisions."}
+{"path":"components/native/mobile-runtime.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/shared/PageSkeleton.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/shared/PushNotificationBanner.tsx","area":".","score":7,"include":true,"reason":"Production push-notification registration and delivery surface."}
+{"path":"components/shared/PushNotificationManager.tsx","area":".","score":7,"include":true,"reason":"Production push-notification registration and delivery surface."}
+{"path":"components/shared/features-drawer.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/shared/school-slideshow.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/shared/typing-hero.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/alert.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/avatar-siswa.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/avatar.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/badge.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/button.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/card.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/checkbox.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/data-pagination.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/dialog.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/dropdown-menu.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/global-alert.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/input.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/label.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/scroll-area.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/select.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/sheet.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/table.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/tabs.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"components/ui/textarea.tsx","area":".","score":3,"include":false,"reason":"Primarily reusable presentation or client support component with limited direct security authority."}
+{"path":"config/menu.ts","area":".","score":7,"include":true,"reason":"Role-aware menu and feature configuration influences exposed application capabilities."}
+{"path":"config/mobile-branding.json","area":".","score":3,"include":false,"reason":"Static client or branding configuration with limited security impact."}
+{"path":"data/kampus.json","area":".","score":2,"include":false,"reason":"Static reference dataset without executable authorization or data access logic."}
+{"path":"env.d.ts","area":".","score":4,"include":false,"reason":"Type declarations for platform bindings, not executable runtime logic."}
+{"path":"generate-vapid.js","area":".","score":2,"include":false,"reason":"Developer-only key generation helper, not production request handling."}
+{"path":"hooks/use-push-notifications.ts","area":".","score":7,"include":true,"reason":"Client push subscription flow handling notification permissions and endpoint registration."}
+{"path":"hooks/use-pwa-install.ts","area":".","score":3,"include":false,"reason":"Client convenience hook with limited direct security authority."}
+{"path":"lib/academic-import.ts","area":".","score":10,"include":true,"reason":"Bulk academic import parser and D1 mutation path with high data-integrity impact."}
+{"path":"lib/act-as-actions.ts","area":".","score":10,"include":true,"reason":"Privileged impersonation and effective-user session logic requiring strict authorization."}
+{"path":"lib/act-as.ts","area":".","score":10,"include":true,"reason":"Privileged impersonation and effective-user session logic requiring strict authorization."}
+{"path":"lib/activity-log.ts","area":".","score":8,"include":true,"reason":"Production D1-backed institutional data and settings logic with authorization or integrity impact."}
+{"path":"lib/ckh.ts","area":".","score":8,"include":true,"reason":"Production D1-backed institutional data and settings logic with authorization or integrity impact."}
+{"path":"lib/dashboard-visibility.ts","area":".","score":8,"include":true,"reason":"Role-based dashboard visibility decision logic affecting feature exposure."}
+{"path":"lib/dashboard-widgets-meta.ts","area":".","score":4,"include":false,"reason":"Shared metadata, formatting, or deterministic helper with limited direct security authority."}
+{"path":"lib/dashboard-widgets.tsx","area":".","score":8,"include":true,"reason":"Server-only registry for database-querying dashboard widgets."}
+{"path":"lib/documentation.ts","area":".","score":8,"include":true,"reason":"Production D1-backed institutional data and settings logic with authorization or integrity impact."}
+{"path":"lib/fcm.ts","area":".","score":9,"include":true,"reason":"External notification delivery path handling credentials, tokens, and recipient selection."}
+{"path":"lib/features.ts","area":".","score":10,"include":true,"reason":"Central role, feature, and CRUD authorization decision logic."}
+{"path":"lib/icons.ts","area":".","score":4,"include":false,"reason":"Shared metadata, formatting, or deterministic helper with limited direct security authority."}
+{"path":"lib/kalender-pendidikan.ts","area":".","score":8,"include":true,"reason":"Production D1-backed institutional data and settings logic with authorization or integrity impact."}
+{"path":"lib/komite-payment-settings.ts","area":".","score":8,"include":true,"reason":"Production D1-backed institutional data and settings logic with authorization or integrity impact."}
+{"path":"lib/notify.ts","area":".","score":9,"include":true,"reason":"External notification delivery path handling credentials, tokens, and recipient selection."}
+{"path":"lib/parent-suggestions.ts","area":".","score":8,"include":true,"reason":"Production D1-backed institutional data and settings logic with authorization or integrity impact."}
+{"path":"lib/pdf/ckh-template.ts","area":".","score":4,"include":false,"reason":"Document rendering template or serializer with limited direct authorization responsibility."}
+{"path":"lib/pdf/download.ts","area":".","score":7,"include":true,"reason":"Document download flow where URL handling and sensitive file access matter."}
+{"path":"lib/pdf/ekskul-kehadiran-template.ts","area":".","score":4,"include":false,"reason":"Document rendering template or serializer with limited direct authorization responsibility."}
+{"path":"lib/pdf/nilai-harian-template.ts","area":".","score":4,"include":false,"reason":"Document rendering template or serializer with limited direct authorization responsibility."}
+{"path":"lib/riwayat-kelas.ts","area":".","score":8,"include":true,"reason":"Production D1-backed institutional data and settings logic with authorization or integrity impact."}
+{"path":"lib/rppm-docx.ts","area":".","score":4,"include":false,"reason":"Document rendering template or serializer with limited direct authorization responsibility."}
+{"path":"lib/rppm.ts","area":".","score":4,"include":false,"reason":"Shared metadata, formatting, or deterministic helper with limited direct security authority."}
+{"path":"lib/system-settings.ts","area":".","score":8,"include":true,"reason":"Production D1-backed institutional data and settings logic with authorization or integrity impact."}
+{"path":"lib/tahun-ajaran.ts","area":".","score":4,"include":false,"reason":"Shared metadata, formatting, or deterministic helper with limited direct security authority."}
+{"path":"lib/time.ts","area":".","score":4,"include":false,"reason":"Shared metadata, formatting, or deterministic helper with limited direct security authority."}
