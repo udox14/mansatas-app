@@ -41,7 +41,7 @@ const getAvatarColor = (name: string) => {
 
 export function AkademikClient({
   mapelData, penugasanData, taAktif, daftarJurusan = [],
-  kelasList = [], guruList = [], polaDaftar = [], userRole = 'guru'
+  kelasList = [], guruList = [], polaDaftar = [], userRole = 'guru', userId
 }: {
   mapelData: MapelType[]
   penugasanData: PenugasanType[]
