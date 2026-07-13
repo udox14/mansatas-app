@@ -1,8 +1,21 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { BellRing, MessageCircle, PhoneCall } from 'lucide-react'
+import { BellRing, Ellipsis, MessageCircle, PhoneCall, TriangleAlert } from 'lucide-react'
 import { cancelLatestParentSummonFromKelasBinaan, createParentSummonFromKelasBinaan } from '@/app/dashboard/kelas-binaan/actions'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 
 function normalizeWa(raw: string | null | undefined) {
   const digits = String(raw || '').replace(/\D/g, '')
@@ -24,6 +37,7 @@ type Props = {
 export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, summonStatus = null, phone, compact = false }: Props) {
   const [isPending, startTransition] = useTransition()
   const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null)
+  const [showActionsModal, setShowActionsModal] = useState(false)
   const [showSummonModal, setShowSummonModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [eventDate, setEventDate] = useState('')
@@ -78,75 +92,90 @@ export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, summ
   }
 
   const openWa = (url: string) => {
+    setShowActionsModal(false)
     if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer')
   }
 
-  const btnCls = compact
-    ? 'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold'
-    : 'inline-flex min-h-9 w-full items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-[10px] font-bold transition-colors'
-
-  const actionGridCls = compact
-    ? 'flex flex-wrap gap-1.5 items-center'
-    : `grid w-full gap-1.5 ${hasActiveSummon ? 'grid-cols-2' : wa ? 'grid-cols-3' : 'grid-cols-2'}`
-
   return (
     <>
-      <div className={actionGridCls} onClick={(e) => e.stopPropagation()}>
-        {wa ? (
-          <>
-            <button
+      <Dialog open={showActionsModal} onOpenChange={setShowActionsModal}>
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className={compact ? 'h-7 px-2.5 text-[10px]' : 'w-full'}>
+            <Ellipsis className="h-4 w-4" /> Tindakan
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-sm gap-3 rounded-lg p-4">
+          <DialogHeader>
+            <DialogTitle className="text-base">Tindakan Wali Kelas</DialogTitle>
+            <DialogDescription className="text-xs">Pilih tindak lanjut untuk {namaSiswa}.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-2">
+            {wa ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto justify-start whitespace-normal px-3 py-3 text-left"
+                  onClick={() => openWa(`https://wa.me/${wa}?text=${encodeURIComponent(templates.warning)}`)}
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  <span>
+                    <span className="block text-xs font-medium">WA Peringatan</span>
+                    <span className="block text-[10px] font-normal text-muted-foreground">Kirim pesan tindak lanjut kepada orang tua.</span>
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto justify-start whitespace-normal px-3 py-3 text-left"
+                  onClick={() => openWa(`https://wa.me/${wa}?text=${encodeURIComponent(templates.summon)}`)}
+                >
+                  <PhoneCall className="h-4 w-4" />
+                  <span>
+                    <span className="block text-xs font-medium">WA Panggilan</span>
+                    <span className="block text-[10px] font-normal text-muted-foreground">Kirim undangan hadir ke madrasah.</span>
+                  </span>
+                </Button>
+              </>
+            ) : (
+              <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
+                <TriangleAlert className="h-4 w-4" /> Nomor WhatsApp belum tersedia.
+              </div>
+            )}
+
+            <Button
               type="button"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                openWa(`https://wa.me/${wa}?text=${encodeURIComponent(templates.warning)}`)
+              variant="outline"
+              className="h-auto justify-start whitespace-normal px-3 py-3 text-left"
+              onClick={() => {
+                setShowActionsModal(false)
+                setShowSummonModal(true)
               }}
-              className={`${btnCls} border-emerald-200 bg-emerald-50 text-emerald-700`}
             >
-              <MessageCircle className="h-3 w-3" /> WA Peringatan
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                openWa(`https://wa.me/${wa}?text=${encodeURIComponent(templates.summon)}`)
-              }}
-              className={`${btnCls} border-blue-200 bg-blue-50 text-blue-700`}
-            >
-              <PhoneCall className="h-3 w-3" /> WA Panggilan
-            </button>
-          </>
-        ) : (
-          <span className="text-[10px] text-slate-400">No WA belum ada</span>
-        )}
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            setShowSummonModal(true)
-          }}
-          className={`${btnCls} border-amber-200 bg-amber-50 text-amber-700 disabled:opacity-60`}
-        >
-          <BellRing className="h-3 w-3" /> {isPending ? 'Memproses...' : 'Pemanggilan'}
-        </button>
-        {hasActiveSummon ? (
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              setShowCancelModal(true)
-            }}
-            className={`${btnCls} border-rose-200 bg-rose-50 text-rose-700 disabled:opacity-60`}
-          >
-            Batalkan
-          </button>
-        ) : null}
-      </div>
+              <BellRing className="h-4 w-4" />
+              <span>
+                <span className="block text-xs font-medium">Buat Pemanggilan</span>
+                <span className="block text-[10px] font-normal text-muted-foreground">Catat jadwal pemanggilan orang tua.</span>
+              </span>
+            </Button>
+
+            {hasActiveSummon ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="justify-start text-xs text-destructive hover:text-destructive"
+                onClick={() => {
+                  setShowActionsModal(false)
+                  setShowCancelModal(true)
+                }}
+              >
+                Batalkan pemanggilan aktif
+              </Button>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {toast ? (
         <div className={`fixed top-4 right-4 z-[80] rounded-md px-3 py-2 text-xs font-semibold shadow ${toast.error ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'}`}>
@@ -154,57 +183,59 @@ export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, summ
         </div>
       ) : null}
 
-      {showSummonModal ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4" onClick={() => !isPending && setShowSummonModal(false)}>
-          <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <p className="text-sm font-semibold text-slate-800">Pemanggilan Orang Tua</p>
-            <p className="mt-1 text-xs text-slate-500">{namaSiswa}</p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] text-slate-600">Tanggal</label>
-                <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1.5 text-xs" />
+      <Dialog open={showSummonModal} onOpenChange={(open) => !isPending && setShowSummonModal(open)}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md gap-4 rounded-lg p-4">
+          <DialogHeader>
+            <DialogTitle className="text-base">Pemanggilan Orang Tua</DialogTitle>
+            <DialogDescription className="text-xs">Lengkapi jadwal pemanggilan untuk {namaSiswa}.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="grid gap-1.5">
+                <Label htmlFor={`summon-date-${siswaId}`} className="text-xs">Tanggal</Label>
+                <Input id={`summon-date-${siswaId}`} type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="h-9 text-xs" />
               </div>
-              <div>
-                <label className="text-[11px] text-slate-600">Jam</label>
-                <input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1.5 text-xs" />
+              <div className="grid gap-1.5">
+                <Label htmlFor={`summon-time-${siswaId}`} className="text-xs">Jam</Label>
+                <Input id={`summon-time-${siswaId}`} type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} className="h-9 text-xs" />
               </div>
             </div>
-            <div className="mt-2">
-              <label className="text-[11px] text-slate-600">Lokasi</label>
-              <input value={location} onChange={(e) => setLocation(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1.5 text-xs" />
+            <div className="grid gap-1.5">
+              <Label htmlFor={`summon-location-${siswaId}`} className="text-xs">Lokasi</Label>
+              <Input id={`summon-location-${siswaId}`} value={location} onChange={(e) => setLocation(e.target.value)} className="h-9 text-xs" />
             </div>
-            <div className="mt-2">
-              <label className="text-[11px] text-slate-600">Alasan</label>
-              <input value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1 w-full rounded-md border px-2 py-1.5 text-xs" />
+            <div className="grid gap-1.5">
+              <Label htmlFor={`summon-reason-${siswaId}`} className="text-xs">Alasan</Label>
+              <Input id={`summon-reason-${siswaId}`} value={reason} onChange={(e) => setReason(e.target.value)} className="h-9 text-xs" />
             </div>
-            <div className="mt-2">
-              <label className="text-[11px] text-slate-600">Catatan</label>
-              <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="mt-1 w-full rounded-md border px-2 py-1.5 text-xs" />
-            </div>
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" disabled={isPending} onClick={() => setShowSummonModal(false)} className="rounded-md border px-3 py-1.5 text-xs">Tutup</button>
-              <button type="button" disabled={isPending} onClick={onSummon} className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
-                {isPending ? 'Memproses...' : 'Kirim Pemanggilan'}
-              </button>
+            <div className="grid gap-1.5">
+              <Label htmlFor={`summon-note-${siswaId}`} className="text-xs">Catatan</Label>
+              <Textarea id={`summon-note-${siswaId}`} value={note} onChange={(e) => setNote(e.target.value)} rows={3} className="text-xs" />
             </div>
           </div>
-        </div>
-      ) : null}
+          <DialogFooter className="flex-row justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={isPending} onClick={() => setShowSummonModal(false)}>Tutup</Button>
+            <Button type="button" size="sm" disabled={isPending} onClick={onSummon}>
+              {isPending ? 'Memproses...' : 'Simpan Pemanggilan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {showCancelModal ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4" onClick={() => !isPending && setShowCancelModal(false)}>
-          <div className="w-full max-w-sm rounded-xl bg-white p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <p className="text-sm font-semibold text-slate-800">Batalkan Pemanggilan?</p>
-            <p className="mt-1 text-xs text-slate-500">Status pemanggilan terbaru untuk {namaSiswa} akan diubah menjadi dibatalkan.</p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" disabled={isPending} onClick={() => setShowCancelModal(false)} className="rounded-md border px-3 py-1.5 text-xs">Tutup</button>
-              <button type="button" disabled={isPending} onClick={onCancelSummon} className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60">
-                {isPending ? 'Memproses...' : 'Ya, Batalkan'}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <Dialog open={showCancelModal} onOpenChange={(open) => !isPending && setShowCancelModal(open)}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-sm gap-4 rounded-lg p-4">
+          <DialogHeader>
+            <DialogTitle className="text-base">Batalkan Pemanggilan?</DialogTitle>
+            <DialogDescription className="text-xs">Pemanggilan terbaru untuk {namaSiswa} akan dibatalkan.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={isPending} onClick={() => setShowCancelModal(false)}>Tutup</Button>
+            <Button type="button" variant="destructive" size="sm" disabled={isPending} onClick={onCancelSummon}>
+              {isPending ? 'Memproses...' : 'Ya, Batalkan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

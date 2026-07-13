@@ -7,6 +7,8 @@ import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 import { ParentCommActions } from './ParentCommActions'
 import { KeputusanAbsensiHariIni, type KeputusanAbsensiRow } from './KeputusanAbsensiHariIni'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
+import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
@@ -701,15 +703,15 @@ export async function KelasBinaanDashboard({
             const statusHariIni = isTodayEffective ? (row.todayStatus?.status_akhir || 'BELUM_ADA_DATA') : 'LIBUR'
             const sumberHariIni = isTodayEffective ? sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data') : 'Kalender Pendidikan'
             const monthlyItems = [
-              { label: 'Sakit', value: row.monthly.sakit, tone: 'border-amber-100 bg-amber-50/70 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300' },
-              { label: 'Izin', value: row.monthly.izin, tone: 'border-blue-100 bg-blue-50/70 text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300' },
-              { label: 'Alfa', value: row.monthly.alfa, tone: 'border-rose-100 bg-rose-50/70 text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-300' },
-              { label: 'Bolos', value: row.monthly.parsial, tone: 'border-violet-100 bg-violet-50/70 text-violet-700 dark:border-violet-900/40 dark:bg-violet-900/20 dark:text-violet-300' },
-              { label: 'Keputusan Wali', value: row.monthly.perluKonfirmasiWali, tone: 'border-purple-100 bg-purple-50/70 text-purple-700 dark:border-purple-900/40 dark:bg-purple-900/20 dark:text-purple-300' },
+              { label: 'Sakit', value: row.monthly.sakit },
+              { label: 'Izin', value: row.monthly.izin },
+              { label: 'Alfa', value: row.monthly.alfa },
+              { label: 'Bolos', value: row.monthly.parsial },
             ]
+            const monthlyWithValue = monthlyItems.filter(item => item.value > 0)
             return (
-              <article key={row.siswa_id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow dark:border-slate-700 dark:bg-slate-900">
-                <div className="p-3.5">
+              <Card key={row.siswa_id} className="overflow-hidden border-slate-200 shadow-sm dark:border-slate-800">
+                <div className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <Link href={detailHref} className="group flex min-w-0 flex-1 items-center gap-3">
                       <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
@@ -721,13 +723,13 @@ export async function KelasBinaanDashboard({
                         <p className="mt-0.5 text-[11px] font-medium tracking-wide text-slate-400">{row.nisn}</p>
                       </div>
                     </Link>
-                    <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[10px] font-bold ${badgeClass(statusHariIni)}`}>
+                    <Badge variant="outline" className={`shrink-0 px-2.5 py-1 text-[10px] ${badgeClass(statusHariIni)}`}>
                       {attendanceStatusLabel(statusHariIni)}
-                    </span>
+                    </Badge>
                   </div>
 
                   {sumberHariIni !== 'Kalender Pendidikan' && (
-                    <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2 text-[10px] dark:border-slate-800 dark:bg-slate-800/60">
+                    <div className="mt-3 border-l-2 border-muted-foreground/20 pl-2.5 text-[10px]">
                       <span className="text-slate-400">Sumber status: </span>
                       <span className="font-semibold text-slate-600 dark:text-slate-300">{sumberHariIni}</span>
                       {row.todayStatus?.keterangan_wali_kelas ? (
@@ -736,33 +738,36 @@ export async function KelasBinaanDashboard({
                     </div>
                   )}
 
-                  <div className="mt-3 grid grid-cols-3 divide-x divide-slate-100 rounded-xl border border-slate-100 bg-slate-50/80 py-2.5 dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-800/40">
-                    <div className="px-2.5">
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Poin</p>
-                      <p className={`mt-0.5 text-sm font-bold ${Number(row.totalPoin) > 0 ? 'text-rose-600' : 'text-slate-700 dark:text-slate-200'}`}>{row.totalPoin}</p>
+                  <div className="mt-4 grid grid-cols-3 gap-4 border-y py-3">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Poin</p>
+                      <p className="mt-0.5 text-sm font-semibold">{row.totalPoin}</p>
                     </div>
-                    <div className="px-2.5">
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Komunikasi</p>
-                      <p className={`mt-0.5 truncate text-[11px] font-bold ${row.komunikasi.unread > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Komunikasi</p>
+                      <p className="mt-0.5 truncate text-[11px] font-medium">
                         {row.komunikasi.unread > 0 ? `${row.komunikasi.unread} belum dibaca` : 'Terbaca'}
                       </p>
                     </div>
-                    <div className="px-2.5">
-                      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Pemanggilan</p>
-                      <p className="mt-0.5 truncate text-[11px] font-bold text-slate-700 dark:text-slate-200">{summonStatusLabel(row.komunikasi.summonStatus)}</p>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Pemanggilan</p>
+                      <p className="mt-0.5 truncate text-[11px] font-medium">{summonStatusLabel(row.komunikasi.summonStatus)}</p>
                     </div>
                   </div>
 
                   <div className="mt-3">
-                    <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">Bulan Ini</p>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {monthlyItems.map((item, index) => (
-                        <div key={item.label} className={`rounded-lg border px-2 py-1.5 ${item.tone} ${index === 4 ? 'col-span-2' : ''}`}>
-                          <p className="text-[9px] font-semibold opacity-75">{item.label}</p>
-                          <p className="mt-0.5 text-sm font-bold leading-none">{item.value}</p>
-                        </div>
-                      ))}
-                    </div>
+                    <p className="text-[10px] text-muted-foreground">Bulan Ini</p>
+                    {monthlyWithValue.length === 0 ? (
+                      <p className="mt-1 text-xs font-medium text-foreground">Tidak ada catatan absensi.</p>
+                    ) : (
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {monthlyWithValue.map(item => (
+                          <Badge key={item.label} variant="secondary" className="gap-1 rounded-md font-normal">
+                            {item.label} <span className="font-semibold">{item.value}</span>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {row.timeline ? (
@@ -773,7 +778,7 @@ export async function KelasBinaanDashboard({
                   ) : null}
                 </div>
 
-                <div className="border-t border-slate-100 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-800/30">
+                <div className="border-t p-3">
                   <ParentCommActions
                     siswaId={row.siswa_id}
                     kelasId={kelas.id}
@@ -783,7 +788,7 @@ export async function KelasBinaanDashboard({
                     phone={row.phone}
                   />
                 </div>
-              </article>
+              </Card>
             )
           })}
         </div>
@@ -825,7 +830,7 @@ export async function KelasBinaanDashboard({
                     <span>{row.komunikasi.unread > 0 ? `${row.komunikasi.unread} belum dibaca` : 'Terbaca'}</span>
                     <span className="text-[10px] text-slate-400">Pemanggilan: {summonStatusLabel(row.komunikasi.summonStatus)}</span>
                   </div>
-                  <div className="flex items-center text-[11px] text-slate-500">Sakit {row.monthly.sakit} • Izin {row.monthly.izin} • Alfa {row.monthly.alfa} • Bolos {row.monthly.parsial} • Keputusan Wali {row.monthly.perluKonfirmasiWali}</div>
+                  <div className="flex items-center text-[11px] text-slate-500">Sakit {row.monthly.sakit} • Izin {row.monthly.izin} • Alfa {row.monthly.alfa} • Bolos {row.monthly.parsial}</div>
                   <div className="flex items-center text-[11px] font-semibold text-slate-700 dark:text-slate-200">{row.totalPoin}</div>
                   <div className="flex flex-wrap gap-1.5 items-center">
                     <ParentCommActions
