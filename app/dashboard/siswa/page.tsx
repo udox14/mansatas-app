@@ -97,9 +97,9 @@ export default async function SiswaPage() {
 
   if (!isFullListAccess) {
     const [penugasan, wali, waliBk] = await Promise.all([
-      db.prepare('SELECT DISTINCT kelas_id FROM penugasan_mengajar WHERE guru_id = ?').bind(user.id).all<{ kelas_id: string }>(),
+      db.prepare('SELECT DISTINCT kelas_id FROM penugasan_mengajar WHERE guru_id = ? AND tahun_ajaran_id = (SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1)').bind(user.id).all<{ kelas_id: string }>(),
       db.prepare('SELECT id FROM kelas WHERE wali_kelas_id = ?').bind(user.id).all<{ id: string }>(),
-      db.prepare('SELECT DISTINCT kelas_id FROM kelas_binaan_bk WHERE guru_bk_id = ?').bind(user.id).all<{ kelas_id: string }>()
+      db.prepare('SELECT DISTINCT kelas_id FROM kelas_binaan_bk WHERE guru_bk_id = ? AND tahun_ajaran_id = (SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1)').bind(user.id).all<{ kelas_id: string }>()
     ])
     penugasan.results?.forEach((p) => allowedKelasIds.add(p.kelas_id))
     wali.results?.forEach((w) => allowedKelasIds.add(w.id))

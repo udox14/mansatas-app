@@ -40,6 +40,7 @@ interface DsptRow {
   kelompok: string | null
   catatan?: string | null
   metode_bayar_set?: string | null
+  bulan_bayar_set?: string | null
 }
 
 interface PaymentProofSubmission {
@@ -116,6 +117,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
   const [filterMetode, setFilterMetode] = useState('semua')
   const [filterAngkatan, setFilterAngkatan] = useState(searchParams.get('angkatan') ?? 'semua')
   const [filterKelas, setFilterKelas] = useState('semua')
+  const [filterBulan, setFilterBulan] = useState('semua')
   const [msg, setMsg] = useState('')
 
   // ── Data state ──────────────────────────────────────────────────────────────
@@ -203,6 +205,16 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
     return [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
   }, [data])
 
+  const bulanList = useMemo(() => {
+    const set = new Set<string>()
+    data.forEach(d => {
+      if (d.bulan_bayar_set) {
+        d.bulan_bayar_set.split(',').forEach(b => set.add(b.trim()))
+      }
+    })
+    return [...set].sort((a, b) => b.localeCompare(a))
+  }, [data])
+
   const filtered = useMemo(() => {
     reset()
     return data.filter(row => {
@@ -215,10 +227,11 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           : metodeSet.some(metode => metode === 'transfer' || metode === 'qris'))
       const matchAngkatan = filterAngkatan === 'semua' || String(row.tahun_masuk) === filterAngkatan
       const matchKelas = filterKelas === 'semua' || `${row.tingkat}-${row.nomor_kelas}${row.kelompok ? ' ' + row.kelompok : ''}` === filterKelas
-      return matchSearch && matchStatus && matchMetode && matchAngkatan && matchKelas
+      const matchBulan = filterBulan === 'semua' || (row.bulan_bayar_set ?? '').includes(filterBulan)
+      return matchSearch && matchStatus && matchMetode && matchAngkatan && matchKelas && matchBulan
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, search, filterStatus, filterMetode, filterAngkatan, filterKelas])
+  }, [data, search, filterStatus, filterMetode, filterAngkatan, filterKelas, filterBulan])
 
   const filteredProofHistory = useMemo(() => {
     const term = proofSearch.trim().toLowerCase()
@@ -465,6 +478,17 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
             <SelectItem value="semua">Semua Metode</SelectItem>
             <SelectItem value="tunai">Tunai</SelectItem>
             <SelectItem value="transfer">Transfer</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterBulan} onValueChange={setFilterBulan}>
+          <SelectTrigger className="h-8 w-32 text-xs rounded-md"><SelectValue placeholder="Bulan" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="semua">Semua Bulan</SelectItem>
+            {bulanList.map(b => (
+              <SelectItem key={b} value={b}>
+                {new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date(parseInt(b.split('-')[0]), parseInt(b.split('-')[1]) - 1))}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <div className="ml-auto flex gap-2">
