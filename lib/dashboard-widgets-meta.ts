@@ -40,6 +40,12 @@ export const WIDGET_CATALOG_META: WidgetMeta[] = [
     description: 'Grafik pelanggaran siswa 7 hari terakhir',
     feature: 'kedisiplinan',
   },
+  {
+    id: 'saran_orang_tua',
+    label: 'Saran Orang Tua',
+    description: 'Ringkasan status dan saran terbaru dari Kotak Saran Orang Tua',
+    feature: 'kotak-saran-ortu',
+  },
 ]
 
 export const DASHBOARD_WIDGETS_CONFIG_KEY = 'dashboard_extra_widgets'
