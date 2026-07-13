@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/akademik/components/jadwal-tab.tsx
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -18,7 +18,7 @@ import { cn, formatNamaKelas } from '@/lib/utils'
 // ── Types ──────────────────────────────────────────────────────────────
 type SlotJam = { id: number; nama: string; mulai: string; selesai: string }
 type PolaJam = { id: string; nama: string; hari: number[]; slots: SlotJam[] }
-type KelasItem = { id: string; tingkat: number; nomor_kelas: string; kelompok: string }
+type KelasItem = { id: string; tingkat: number; nomor_kelas: string; kelompok: string; wali_kelas_id?: string | null }
 type GuruItem = { id: string; nama_lengkap: string }
 
 type JadwalByKelasRow = {
@@ -310,18 +310,23 @@ export function JadwalTab({
   guruList,
   polaDaftar,
   userRole = 'guru',
+  userId,
 }: {
   taAktif: { id: string; nama: string; semester: number } | null
   kelasList: KelasItem[]
   guruList: GuruItem[]
   polaDaftar: PolaJam[]
   userRole?: string
+  userId?: string
 }) {
   const isSuperAdmin = userRole === 'super_admin'
+  const isGuru = userRole === 'guru'
+  const isWaliKelas = userRole === 'wali_kelas'
+  const isTeacher = isGuru || isWaliKelas
 
-  const [viewMode, setViewMode]       = useState<'kelas' | 'guru'>('kelas')
+  const [viewMode, setViewMode]       = useState<'kelas' | 'guru'>(isWaliKelas ? 'kelas' : 'guru')
   const [selectedKelas, setSelectedKelas] = useState('')
-  const [selectedGuru,  setSelectedGuru]  = useState('')
+  const [selectedGuru,  setSelectedGuru]  = useState(isGuru && userId ? userId : '')
 
   const [jadwalKelas, setJadwalKelas] = useState<JadwalByKelasRow[]>([])
   const [jadwalGuru,  setJadwalGuru]  = useState<JadwalByGuruRow[]>([])
@@ -379,6 +384,22 @@ export function JadwalTab({
     setSelectedGuru('')
   }
 
+  useEffect(() => {
+    if (!taAktif || !userId) return
+    if (isGuru) {
+      setSelectedGuru(userId)
+      setViewMode('guru')
+      loadJadwal(userId, 'guru')
+    } else if (isWaliKelas) {
+      const waliClass = kelasList.find(k => k.wali_kelas_id === userId)
+      if (waliClass) {
+        setSelectedKelas(waliClass.id)
+        setViewMode('kelas')
+        loadJadwal(waliClass.id, 'kelas')
+      }
+    }
+  }, [taAktif, userId, isGuru, isWaliKelas, kelasList, loadJadwal])
+
   // Kelompokkan kelas per tingkat, sort nomor kelas secara numerik
   const kelasByTingkat = kelasList.reduce((acc, k) => {
     const t = String(k.tingkat)
@@ -406,6 +427,7 @@ export function JadwalTab({
     <div className="space-y-3">
 
       {/* TOOLBAR */}
+      {!isTeacher && (
       <div className="bg-surface border border-surface rounded-xl overflow-hidden">
 
         {/* Baris 1: toggle + aksi kanan */}
@@ -500,6 +522,36 @@ export function JadwalTab({
           )}
         </div>
       </div>
+      )}
+
+      {isTeacher && loaded && (
+        <div className="bg-surface border border-surface rounded-xl p-3 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0 border border-indigo-100">
+              {isGuru ? <User className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 font-medium">Menampilkan Jadwal</p>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                {isGuru 
+                  ? guruList.find(g => g.id === userId)?.nama_lengkap || 'Saya'
+                  : (() => {
+                      const k = kelasList.find(c => c.id === selectedKelas)
+                      return k ? `Kelas ${formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}` : 'Kelas Binaan'
+                    })()
+                }
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => loadJadwal(isGuru ? userId! : selectedKelas, isGuru ? 'guru' : 'kelas')}
+            className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:bg-surface-2 hover:text-slate-600 dark:hover:text-slate-400 transition-colors shrink-0"
+            title="Refresh"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* KONTEN */}
       <div className="bg-surface border border-surface rounded-xl overflow-hidden">

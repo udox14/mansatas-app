@@ -1,0 +1,8 @@
+{"path":"types/xlsx.d.ts","area":".","score":2,"include":false,"reason":"Type declaration only; no production runtime behavior."}
+{"path":"utils/auth/index.ts","area":".","score":10,"include":true,"reason":"Critical authentication, credential, token, or session security surface."}
+{"path":"utils/auth/server.ts","area":".","score":10,"include":true,"reason":"Critical authentication, credential, token, or session security surface."}
+{"path":"utils/cache.ts","area":".","score":7,"include":true,"reason":"Shared production server utility with cross-cutting runtime impact."}
+{"path":"utils/db.ts","area":".","score":9,"include":true,"reason":"Database and D1 access surface with broad data integrity and isolation impact."}
+{"path":"utils/r2.ts","area":".","score":9,"include":true,"reason":"File import, export, upload, or download surface processing attacker-controlled data."}
+{"path":"worker-entry.ts","area":".","score":8,"include":true,"reason":"Cloudflare Worker runtime entry and scheduled execution surface."}
+{"path":"wrangler.toml","area":".","score":7,"include":true,"reason":"Production Worker bindings, variables, assets, and trigger configuration."}

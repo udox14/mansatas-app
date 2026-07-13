@@ -1,0 +1,150 @@
+{"path":"app/dashboard/kelas/[id]/components/detail-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/kelas/[id]/components/mutasi-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/kelas/[id]/components/tambah-siswa-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/kelas/[id]/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/kelas/actions-print.ts","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/kelas/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/kelas/components/assign-bk-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/kelas/components/blanko-absensi-template.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/kelas/components/cetak-absensi-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/kelas/components/edit-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/kelas/components/import-modal.tsx","area":".","score":9,"include":true,"reason":"File import, export, upload, or download surface processing attacker-controlled data."}
+{"path":"app/dashboard/kelas/components/kelas-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/kelas/components/tambah-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/kelas/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/kelas/validation.ts","area":".","score":6,"include":true,"reason":"Production application source contributing to runtime behavior."}
+{"path":"app/dashboard/kelola-ppl/actions.ts","area":".","score":8,"include":true,"reason":"Production server actions expose privileged mutations and data access."}
+{"path":"app/dashboard/kelola-ppl/components/KelolaPplClient.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/kelola-ppl/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/keterangan-absensi/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/keterangan-absensi/components/keterangan-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/keterangan-absensi/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/keuangan/actions.ts","area":".","score":8,"include":true,"reason":"Production server actions expose privileged mutations and data access."}
+{"path":"app/dashboard/keuangan/components/export-excel-dialog.tsx","area":".","score":9,"include":true,"reason":"File import, export, upload, or download surface processing attacker-controlled data."}
+{"path":"app/dashboard/keuangan/components/kuitansi-print.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/keuangan/daftar-ulang/actions.ts","area":".","score":8,"include":true,"reason":"Production server actions expose privileged mutations and data access."}
+{"path":"app/dashboard/keuangan/daftar-ulang/daftar-ulang-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/keuangan/daftar-ulang/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/keuangan/dspt/components/tambah-dspt-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/keuangan/dspt/dspt-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/keuangan/dspt/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/keuangan/export/export-client.tsx","area":".","score":9,"include":true,"reason":"File import, export, upload, or download surface processing attacker-controlled data."}
+{"path":"app/dashboard/keuangan/export/page.tsx","area":".","score":9,"include":true,"reason":"File import, export, upload, or download surface processing attacker-controlled data."}
+{"path":"app/dashboard/keuangan/kas-keluar/kas-keluar-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/keuangan/kas-keluar/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/keuangan/laporan/laporan-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/keuangan/laporan/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/keuangan/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/keuangan/pengaturan/actions.ts","area":".","score":8,"include":true,"reason":"Production server actions expose privileged mutations and data access."}
+{"path":"app/dashboard/keuangan/pengaturan/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/keuangan/pengaturan/pengaturan-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/keuangan/siswa/[id]/back-button.tsx","area":".","score":6,"include":true,"reason":"Production application source contributing to runtime behavior."}
+{"path":"app/dashboard/keuangan/siswa/[id]/buku-besar-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/keuangan/siswa/[id]/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/keuangan/spp/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/keuangan/spp/spp-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/keuangan/transaksi/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/keuangan/transaksi/transaksi-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/kotak-saran-ortu/actions.ts","area":".","score":8,"include":true,"reason":"Production server actions expose privileged mutations and data access."}
+{"path":"app/dashboard/kotak-saran-ortu/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/layout.tsx","area":".","score":6,"include":true,"reason":"Production application source contributing to runtime behavior."}
+{"path":"app/dashboard/loading.tsx","area":".","score":6,"include":true,"reason":"Production application source contributing to runtime behavior."}
+{"path":"app/dashboard/log-aktivitas/actions.ts","area":".","score":8,"include":true,"reason":"Production server actions expose privileged mutations and data access."}
+{"path":"app/dashboard/log-aktivitas/log-aktivitas-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/log-aktivitas/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/monitoring-agenda/actions.ts","area":".","score":8,"include":true,"reason":"Production server actions expose privileged mutations and data access."}
+{"path":"app/dashboard/monitoring-agenda/components/monitoring-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/monitoring-agenda/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/monitoring-kedisiplinan/components/monitoring-kedisiplinan-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/monitoring-kedisiplinan/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/monitoring-penugasan/actions.ts","area":".","score":8,"include":true,"reason":"Production server actions expose privileged mutations and data access."}
+{"path":"app/dashboard/monitoring-penugasan/components/monitoring-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/monitoring-penugasan/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/nilai-harian/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/nilai-harian/components/NilaiHarianClient.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/nilai-harian/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/penerimaan-pt/actions.ts","area":".","score":8,"include":true,"reason":"Production server actions expose privileged mutations and data access."}
+{"path":"app/dashboard/penerimaan-pt/components/penerimaan-pt-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/penerimaan-pt/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/penerimaan-pt/types.ts","area":".","score":6,"include":true,"reason":"Production application source contributing to runtime behavior."}
+{"path":"app/dashboard/pengumuman-ortu/actions.ts","area":".","score":8,"include":true,"reason":"Production server actions expose privileged mutations and data access."}
+{"path":"app/dashboard/pengumuman-ortu/create-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/pengumuman-ortu/kelas-multi-select.tsx","area":".","score":6,"include":true,"reason":"Production application source contributing to runtime behavior."}
+{"path":"app/dashboard/pengumuman-ortu/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/penugasan/actions.ts","area":".","score":8,"include":true,"reason":"Production server actions expose privileged mutations and data access."}
+{"path":"app/dashboard/penugasan/components/penugasan-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/penugasan/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/plotting/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/plotting/components/blanko-penjurusan-template.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/plotting/components/cetak-penjurusan-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/plotting/components/export-plotting-modal.tsx","area":".","score":9,"include":true,"reason":"File import, export, upload, or download surface processing attacker-controlled data."}
+{"path":"app/dashboard/plotting/components/plotting-tabs.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/plotting/components/tab-kelulusan.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/plotting/components/tab-pengacakan.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/plotting/components/tab-penjurusan.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/plotting/components/tab-siswa-baru.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/plotting/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/pmb/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/pmb/components/detail-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/pmb/components/export-panel.tsx","area":".","score":9,"include":true,"reason":"File import, export, upload, or download surface processing attacker-controlled data."}
+{"path":"app/dashboard/pmb/components/jadwal-panel.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/pmb/components/pengaturan-panel.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/pmb/components/pmb-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/pmb/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/psikotes/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/psikotes/components/psikotes-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/psikotes/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/rapat/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/rapat/components/RapatClient.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/rapat/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/rekap-absensi/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/rekap-absensi/components/rekap-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/rekap-absensi/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/rppm-generator/actions.ts","area":".","score":8,"include":true,"reason":"Production server actions expose privileged mutations and data access."}
+{"path":"app/dashboard/rppm-generator/components/rppm-generator-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/rppm-generator/components/rppm-print-document.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/rppm-generator/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/sarpras/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/sarpras/aset-form-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/sarpras/aset-tab.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/sarpras/kategori-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/sarpras/page.tsx","area":".","score":7,"include":true,"reason":"Production Next.js page and server-rendering entry point."}
+{"path":"app/dashboard/sarpras/sarpras-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/sarpras/statistik-tab.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/settings/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/settings/components/settings-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/settings/fitur/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/settings/fitur/fitur-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/settings/fitur/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/settings/jadwal-notif/actions.ts","area":".","score":9,"include":true,"reason":"Scheduled, webhook, or notification surface with privileged side effects."}
+{"path":"app/dashboard/settings/jadwal-notif/components/JadwalNotifClient.tsx","area":".","score":9,"include":true,"reason":"Scheduled, webhook, or notification surface with privileged side effects."}
+{"path":"app/dashboard/settings/jadwal-notif/page.tsx","area":".","score":9,"include":true,"reason":"Scheduled, webhook, or notification surface with privileged side effects."}
+{"path":"app/dashboard/settings/mobile-app/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/settings/mobile-app/mobile-app-settings-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/settings/mobile-app/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/settings/notifications/actions.ts","area":".","score":9,"include":true,"reason":"Scheduled, webhook, or notification surface with privileged side effects."}
+{"path":"app/dashboard/settings/notifications/components/NotificationClient.tsx","area":".","score":9,"include":true,"reason":"Scheduled, webhook, or notification surface with privileged side effects."}
+{"path":"app/dashboard/settings/notifications/page.tsx","area":".","score":9,"include":true,"reason":"Scheduled, webhook, or notification surface with privileged side effects."}
+{"path":"app/dashboard/settings/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/settings/profile/actions.ts","area":".","score":9,"include":true,"reason":"File import, export, upload, or download surface processing attacker-controlled data."}
+{"path":"app/dashboard/settings/profile/components/bottom-nav-config.tsx","area":".","score":9,"include":true,"reason":"File import, export, upload, or download surface processing attacker-controlled data."}
+{"path":"app/dashboard/settings/profile/components/profile-client.tsx","area":".","score":9,"include":true,"reason":"File import, export, upload, or download surface processing attacker-controlled data."}
+{"path":"app/dashboard/settings/profile/page.tsx","area":".","score":9,"include":true,"reason":"File import, export, upload, or download surface processing attacker-controlled data."}
+{"path":"app/dashboard/settings/types.ts","area":".","score":6,"include":true,"reason":"Production application source contributing to runtime behavior."}
+{"path":"app/dashboard/siswa/[id]/components/detail-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/siswa/[id]/components/rekap-absensi-tab.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/siswa/[id]/components/tandai-keluar-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/siswa/[id]/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/siswa/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/siswa/components/edit-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/siswa/components/export-modal.tsx","area":".","score":9,"include":true,"reason":"File import, export, upload, or download surface processing attacker-controlled data."}
+{"path":"app/dashboard/siswa/components/import-modal.tsx","area":".","score":9,"include":true,"reason":"File import, export, upload, or download surface processing attacker-controlled data."}
+{"path":"app/dashboard/siswa/components/siswa-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/siswa/components/tambah-modal.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/siswa/page.tsx","area":".","score":8,"include":true,"reason":"Production Next.js page serving sensitive academic, student, or administrative data."}
+{"path":"app/dashboard/siswa/validation.ts","area":".","score":6,"include":true,"reason":"Production application source contributing to runtime behavior."}
+{"path":"app/dashboard/sp/actions.ts","area":".","score":9,"include":true,"reason":"Production server actions mutate sensitive academic, student, access, or administrative data."}
+{"path":"app/dashboard/sp/components/sp-client.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/sp/components/sp-templates.tsx","area":".","score":5,"include":true,"reason":"Production UI surface that handles or displays application data and user input."}
+{"path":"app/dashboard/sp/constants.ts","area":".","score":6,"include":true,"reason":"Production application source contributing to runtime behavior."}

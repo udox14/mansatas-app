@@ -1,0 +1,75 @@
+{"path":"app/(auth)/login/actions.ts","area":"."}
+{"path":"app/api/auth/[...all]/route.ts","area":"."}
+{"path":"app/api/cron/reminder-jadwal/route.ts","area":"."}
+{"path":"app/api/cron/whatsapp/route.ts","area":"."}
+{"path":"app/api/media/[...path]/route.ts","area":"."}
+{"path":"app/api/migrate/route.ts","area":"."}
+{"path":"app/api/pmb/download-berkas/route.ts","area":"."}
+{"path":"app/api/tpg/s36/download/route.ts","area":"."}
+{"path":"app/api/whatsapp/webhook/route.ts","area":"."}
+{"path":"app/auth/signout/route.ts","area":"."}
+{"path":"app/dashboard/agenda-kelas/actions.ts","area":"."}
+{"path":"app/dashboard/akademik/actions.ts","area":"."}
+{"path":"app/dashboard/akademik/nilai/actions.ts","area":"."}
+{"path":"app/dashboard/guru/actions.ts","area":"."}
+{"path":"app/dashboard/izin/actions.ts","area":"."}
+{"path":"app/dashboard/kedisiplinan/actions.ts","area":"."}
+{"path":"app/dashboard/kehadiran/actions.ts","area":"."}
+{"path":"app/dashboard/kelas-binaan/actions.ts","area":"."}
+{"path":"app/dashboard/kelas-binaan/attendance-actions.ts","area":"."}
+{"path":"app/dashboard/surat/actions.ts","area":"."}
+{"path":"app/dashboard/tahfidz/actions.ts","area":"."}
+{"path":"app/dashboard/tka/actions.ts","area":"."}
+{"path":"app/dashboard/tpg-dokumen/actions.ts","area":"."}
+{"path":"app/dashboard/whatsapp/actions.ts","area":"."}
+{"path":"app/portal-ortu/actions.ts","area":"."}
+{"path":"lib/academic-import.ts","area":"."}
+{"path":"lib/act-as-actions.ts","area":"."}
+{"path":"lib/act-as.ts","area":"."}
+{"path":"lib/features.ts","area":"."}
+{"path":"utils/auth/index.ts","area":"."}
+{"path":"utils/auth/server.ts","area":"."}
+{"path":"app/api/fcm/register/route.ts","area":"."}
+{"path":"app/api/logout/route.ts","area":"."}
+{"path":"app/api/pdf/ckh/route.ts","area":"."}
+{"path":"app/api/pdf/ekskul-kehadiran/route.ts","area":"."}
+{"path":"app/api/pdf/nilai-harian/route.ts","area":"."}
+{"path":"app/api/web-push/register/route.ts","area":"."}
+{"path":"app/dashboard/actions.ts","area":"."}
+{"path":"app/dashboard/agenda-kelas/page.tsx","area":"."}
+{"path":"app/dashboard/agenda/actions-piket.ts","area":"."}
+{"path":"app/dashboard/agenda/actions.ts","area":"."}
+{"path":"app/dashboard/akademik/input-bertahap/page.tsx","area":"."}
+{"path":"app/dashboard/akademik/nilai/page.tsx","area":"."}
+{"path":"app/dashboard/akademik/page.tsx","area":"."}
+{"path":"app/dashboard/analitik/actions.ts","area":"."}
+{"path":"app/dashboard/bk/actions.ts","area":"."}
+{"path":"app/dashboard/buku-tamu/actions.ts","area":"."}
+{"path":"app/dashboard/ckh-generator/actions.ts","area":"."}
+{"path":"app/dashboard/dokumentasi/actions.ts","area":"."}
+{"path":"app/dashboard/kelas/actions.ts","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/kelas/page.tsx","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/kelola-ppl/actions.ts","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/monitoring-agenda/actions.ts","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/monitoring-penugasan/actions.ts","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/nilai-harian/actions.ts","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/penugasan/actions.ts","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/penugasan/components/penugasan-client.tsx","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/plotting/actions.ts","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/plotting/components/tab-kelulusan.tsx","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/rekap-absensi/actions.ts","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/rppm-generator/actions.ts","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/settings/actions.ts","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/siswa/[id]/page.tsx","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/siswa/actions.ts","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/dashboard/siswa/page.tsx","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"app/portal-ortu/page.tsx","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"components/dashboard/KelasBinaanDashboard.tsx","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"components/dashboard/KepsekDashboard.tsx","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"components/dashboard/shared/JadwalMengajarToday.tsx","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"components/dashboard/shared/KehadiranPribadiCard.tsx","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"components/dashboard/SuperAdminDashboard.tsx","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"components/dashboard/WakamadDashboard.tsx","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"components/dashboard/widgets/RekapKehadiranGuruWidget.tsx","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"lib/riwayat-kelas.ts","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}
+{"path":"lib/wali-kelas-attendance.ts","area":".","add_back_reason":"Explicit cross-academic-year authorization seed"}

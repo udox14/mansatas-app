@@ -57,7 +57,7 @@ async function AkademikDataFetcher({ userRole }: { userRole: string }) {
   }
 
   const kelasResult = taAktif
-    ? await db.prepare('SELECT id, tingkat, nomor_kelas, kelompok FROM kelas ORDER BY tingkat ASC, kelompok ASC, nomor_kelas ASC').all<any>()
+    ? await db.prepare('SELECT id, tingkat, nomor_kelas, kelompok, wali_kelas_id FROM kelas ORDER BY tingkat ASC, kelompok ASC, nomor_kelas ASC').all<any>()
     : { results: [] }
 
   const daftarJurusan = taAktif?.daftar_jurusan
@@ -76,6 +76,7 @@ async function AkademikDataFetcher({ userRole }: { userRole: string }) {
       guruList={guruResult.results || []}
       polaDaftar={polaDaftar}
       userRole={userRole}
+      userId={user.id}
     />
   )
 }

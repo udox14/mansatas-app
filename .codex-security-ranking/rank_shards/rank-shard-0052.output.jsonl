@@ -1,0 +1,150 @@
+{"path":"lib/tpg-schema.ts","area":".","score":8,"include":true,"reason":"Production document/data helper processes sensitive personnel records and storage schema."}
+{"path":"lib/tpg.ts","area":".","score":8,"include":true,"reason":"Production document/data helper processes sensitive personnel records and storage schema."}
+{"path":"lib/utils.ts","area":".","score":6,"include":true,"reason":"Shared production library code can influence server-side validation and data handling."}
+{"path":"lib/wali-kelas-attendance.ts","area":".","score":9,"include":true,"reason":"Production attendance helper enforces class-scoped access to sensitive student records."}
+{"path":"lib/web-push.ts","area":".","score":9,"include":true,"reason":"Production messaging helper handles external notification delivery and sensitive integration data."}
+{"path":"lib/whatsapp.ts","area":".","score":9,"include":true,"reason":"Production messaging helper handles external notification delivery and sensitive integration data."}
+{"path":"lib/zip.ts","area":".","score":8,"include":true,"reason":"Archive processing helper can expose resource-exhaustion, path, and untrusted-file handling risks."}
+{"path":"migrations/0001_add_web_push_subscriptions.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0002_add_undangan_rapat.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0003_add_role_features_rapat.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0004_fix_permissions_and_tables.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0005_add_jadwal_notifikasi.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0006_add_nilai_harian.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0007_add_features_nilai_harian.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0008_add_tahfidz.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0009_add_kedisiplinan_config.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0010_add_guru_tahfidz_role.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0010_add_jam_input_to_siswa_pelanggaran.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0011_add_guru_ppl_mapping.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0012_add_buku_tamu.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0012_remove_pu_dependency_from_guru_ppl_mapping.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0013_add_tahun_masuk_siswa.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0014_add_bottom_nav_override_to_user.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0014_create_master_jabatan_struktural.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0015_add_daftar_ulang_feature.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0016_add_keterangan_absensi_wali_kelas.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0017_add_alasan_izin_kelas.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0017_remove_koperasi.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0018_add_kelas_binaan_feature.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0019_add_absensi_sesi_guru.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0020_add_parent_portal_role.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0021_add_parent_communication.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0022_add_parent_credentials.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0023_add_parent_announcements.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0024_add_parent_announcement_targets.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0025_backfill_wali_kelas_role.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0026_fix_backfill_primary_roles.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0027_add_kalender_pendidikan.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0028_add_official_calendar_source.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0029_allow_alfa_keterangan_absensi_wali_kelas.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0030_relax_izin_kelas_alasan_constraint.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0031_broadcast_delegasi_piket.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0032_drop_siswa_ppdb.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0033_add_ckh_generator.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0034_add_pangkat_golongan.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0035_expand_jabatan_struktural.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0036_add_role_sidebar_configs.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0037_add_feature_display_settings.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0038_add_rppm_generator.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0039_add_plotting_penjurusan_draft.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0040_add_kelas_kbm_nonaktif_mulai.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0041_add_kbm_exceptions.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0041_grant_satpam_izin_kedisiplinan.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0042_add_role_feature_permissions.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0043_add_ckh_signature_settings.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0044_add_tpg_dokumen.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0045_add_monitoring_kedisiplinan.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0046_allow_hadir_keterangan_absensi_wali_kelas.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0047_personal_ckh_templates.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0048_add_agenda_kelas.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0048_ckh_day_patterns.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0049_add_delegasi_absence_reason.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0050_add_asal_sekolah_siswa.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0051_restore_siswa_kelas_from_active_riwayat.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0052_add_fin_dspt_audit_log.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0053_add_payment_submissions.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0054_add_parent_suggestion_box.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0055_add_whatsapp_messaging.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0056_add_user_nomor_whatsapp.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0057_add_documentation_articles.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0058_add_mobile_app_settings.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0059_add_fin_trx_detail_ref_index.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0060_add_bank_tujuan_payment_submissions.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0060_add_ekstrakurikuler.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0060_add_fcm_tokens.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0061_add_features_ekstrakurikuler.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0062_add_riwayat_kelas_snapshots.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/0063_add_sidebar_template_config.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0064_add_activity_logs.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0065_add_dashboard_indexes.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/0066_add_akademik_input_wizard.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/add-navbar-to-roles.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/fix-photo-urls.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/fix-tempat-tinggal.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/migration_mts_to_man.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/patch_01_schema_fix.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/patch_02_full_audit.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/patch_04_align_with_mts.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/patch_05_fix_pu_kelas_unggulan.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/patch_05_seed_critical.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/patch_06_soft_delete_siswa.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/schema-migration-absensi-v2.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-agenda-piket.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-agenda.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-asc-import-v2.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-asrama.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-bk-catatan-tindak.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-bk-ta.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-bk.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-delegasi-tugas.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-feature-management.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-indexes.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-jadwal.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-keuangan.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/schema-migration-master-roles.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/schema-migration-pmb.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-ppdb-fixed.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-ppdb.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-presensi.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-program-unggulan.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-psikotes.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-pu-v2.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-pu-v3.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-sarpras.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-siswa-keluar.sql","area":".","score":7,"include":true,"reason":"Database migration defines sensitive identity, authorization, financial, or student-data structures and constraints."}
+{"path":"migrations/schema-migration-smt6.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-sp.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-surat.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration-tempat-tinggal.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema-migration.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/schema.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/tambah-agenda-piket.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"migrations/tambah-jadwal-piket.sql","area":".","score":5,"include":true,"reason":"Database schema migration can materially affect production data integrity and access assumptions."}
+{"path":"next-env.d.ts","area":".","score":2,"include":false,"reason":"Development or build configuration with limited direct runtime security exposure."}
+{"path":"next.config.ts","area":".","score":7,"include":true,"reason":"Production Next.js configuration sets server action limits and runtime security-relevant behavior."}
+{"path":"open-next.config.ts","area":".","score":7,"include":true,"reason":"Production Cloudflare deployment configuration affects server bundling and runtime behavior."}
+{"path":"package.json","area":".","score":6,"include":true,"reason":"Application dependency and deployment scripts define the production supply-chain and runtime stack."}
+{"path":"postcss.config.mjs","area":".","score":2,"include":false,"reason":"Development or build configuration with limited direct runtime security exposure."}
+{"path":"public/manifest.json","area":".","score":3,"include":false,"reason":"Static public metadata or asset with little direct security logic."}
+{"path":"public/sw.js","area":".","score":8,"include":true,"reason":"Production service worker controls caching, push notifications, and navigation behavior in the client trust boundary."}
+{"path":"remove-welcome.js","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scratch/diagnosa_roles.sql","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scratch/fix.js","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scratch/fix_darkmode.js","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scratch/fix_jadwal_absensi.js","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scratch/import-master-remote.json","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scratch/import-siswa-remote.json","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scratch/mansatas-db-current-before-time-travel.sql","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scratch/pelanggaran_tanggal_backup_2026-06-28.json","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scratch/replace.js","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scratch/restore.js","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scratch/schema.js","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scratch/wrangler.preview.toml","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scratch/xdg.config/.wrangler/metrics.json","area":".","score":1,"include":false,"reason":"Scratch or one-off development utility outside the production runtime."}
+{"path":"scripts/android-apply-branding.js","area":".","score":2,"include":false,"reason":"Build-time script or compatibility stub outside normal production request handling."}
+{"path":"scripts/android-release-build.js","area":".","score":2,"include":false,"reason":"Build-time script or compatibility stub outside normal production request handling."}
+{"path":"scripts/generate-icons.js","area":".","score":2,"include":false,"reason":"Build-time script or compatibility stub outside normal production request handling."}
+{"path":"stubs/og-stub.js","area":".","score":2,"include":false,"reason":"Build-time script or compatibility stub outside normal production request handling."}
+{"path":"tailwind.config.ts","area":".","score":2,"include":false,"reason":"Development or build configuration with limited direct runtime security exposure."}
+{"path":"tsconfig.json","area":".","score":2,"include":false,"reason":"Development or build configuration with limited direct runtime security exposure."}

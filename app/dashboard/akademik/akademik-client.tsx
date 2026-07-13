@@ -24,7 +24,7 @@ type PenugasanType = {
   mapel: { nama_mapel: string; kelompok: string }
   kelas: { tingkat: number; nomor_kelas: string; kelompok: string }
 }
-type KelasItem = { id: string; tingkat: number; nomor_kelas: string; kelompok: string }
+type KelasItem = { id: string; tingkat: number; nomor_kelas: string; kelompok: string; wali_kelas_id?: string | null }
 type GuruItem = { id: string; nama_lengkap: string }
 type PolaJam = { id: string; nama: string; hari: number[]; slots: any[] }
 
@@ -51,6 +51,7 @@ export function AkademikClient({
   guruList?: GuruItem[]
   polaDaftar?: PolaJam[]
   userRole?: string
+  userId?: string
 }) {
   const [isMapelPending, setIsMapelPending] = useState(false)
   const [searchMapel, setSearchMapel] = useState('')
@@ -433,17 +434,19 @@ export function AkademikClient({
         )}
 
         <Tabs defaultValue="jadwal" className="space-y-3">
-          <TabsList className="bg-surface border border-surface p-0.5 grid grid-cols-3 h-auto rounded-lg">
-            <TabsTrigger value="jadwal" className="py-2 rounded-md data-[state=active]:bg-blue-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
-              Jadwal Mengajar
-            </TabsTrigger>
-            <TabsTrigger value="penugasan" className="py-2 rounded-md data-[state=active]:bg-indigo-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
-              Beban Mengajar
-            </TabsTrigger>
-            <TabsTrigger value="mapel" className="py-2 rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
-              Master Mapel
-            </TabsTrigger>
-          </TabsList>
+          {userRole !== 'guru' && userRole !== 'wali_kelas' && (
+            <TabsList className="bg-surface border border-surface p-0.5 grid grid-cols-3 h-auto rounded-lg">
+              <TabsTrigger value="jadwal" className="py-2 rounded-md data-[state=active]:bg-blue-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
+                Jadwal Mengajar
+              </TabsTrigger>
+              <TabsTrigger value="penugasan" className="py-2 rounded-md data-[state=active]:bg-indigo-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
+                Beban Mengajar
+              </TabsTrigger>
+              <TabsTrigger value="mapel" className="py-2 rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
+                Master Mapel
+              </TabsTrigger>
+            </TabsList>
+          )}
 
           {/* ══ TAB 0: JADWAL MENGAJAR ══════════════════════════════════ */}
           <TabsContent value="jadwal" className="space-y-3 m-0">
@@ -453,9 +456,12 @@ export function AkademikClient({
               guruList={guruList}
               polaDaftar={polaDaftar}
               userRole={userRole}
+              userId={userId}
             />
           </TabsContent>
-          <TabsContent value="penugasan" className="space-y-3 m-0">
+          {userRole !== 'guru' && userRole !== 'wali_kelas' && (
+            <>
+              <TabsContent value="penugasan" className="space-y-3 m-0">
             {/* TA Banner */}
             {!taAktif ? (
               <div className="p-3 bg-rose-50 text-rose-600 rounded-lg border border-rose-200 flex items-center gap-2 text-xs font-medium">
@@ -846,6 +852,8 @@ export function AkademikClient({
               </div>
             </div>
           </TabsContent>
+          </>
+          )}
         </Tabs>
       </div>
 
