@@ -32,6 +32,7 @@ export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, summ
   const [reason, setReason] = useState('Pemanggilan orang tua oleh wali kelas')
   const [note, setNote] = useState('Mohon hadir untuk koordinasi perkembangan akademik/kedisiplinan siswa.')
   const wa = normalizeWa(phone)
+  const hasActiveSummon = ['terkirim', 'reschedule_diminta', 'dikonfirmasi'].includes(String(summonStatus || ''))
 
   const templates = useMemo(() => {
     return {
@@ -82,11 +83,15 @@ export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, summ
 
   const btnCls = compact
     ? 'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold'
-    : 'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold'
+    : 'inline-flex min-h-9 w-full items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-[10px] font-bold transition-colors'
+
+  const actionGridCls = compact
+    ? 'flex flex-wrap gap-1.5 items-center'
+    : `grid w-full gap-1.5 ${hasActiveSummon ? 'grid-cols-2' : wa ? 'grid-cols-3' : 'grid-cols-2'}`
 
   return (
     <>
-      <div className="flex flex-wrap gap-1.5 items-center" onClick={(e) => e.stopPropagation()}>
+      <div className={actionGridCls} onClick={(e) => e.stopPropagation()}>
         {wa ? (
           <>
             <button
@@ -127,7 +132,7 @@ export function ParentCommActions({ siswaId, kelasId, namaKelas, namaSiswa, summ
         >
           <BellRing className="h-3 w-3" /> {isPending ? 'Memproses...' : 'Pemanggilan'}
         </button>
-        {['terkirim', 'reschedule_diminta', 'dikonfirmasi'].includes(String(summonStatus || '')) ? (
+        {hasActiveSummon ? (
           <button
             type="button"
             disabled={isPending}
