@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AgendaClient } from './components/agenda-client'
 import { AgendaPiketClient } from './components/agenda-piket-client'
 import { RiwayatMateriTab } from './components/riwayat-materi-tab'
-import { getJadwalGuruHariIni, getRiwayatMateri } from './actions'
+import { getJadwalGuruHariIni, getRiwayatMateri, getRiwayatTahunAjaran, type RiwayatTahunAjaran } from './actions'
 import { getJadwalPiketHariIni } from './actions-piket'
 import { getEffectiveUser, getActAsUserList, getActAsDate } from '@/lib/act-as'
 import { ActAsBanner } from '@/components/layout/act-as-banner'
@@ -42,16 +42,34 @@ async function AgendaPiketDataFetcher({
   return <AgendaPiketClient initialData={result} isActingAs={isActingAs} />
 }
 
-async function RiwayatDataFetcher({ effectiveUserId }: { effectiveUserId: string }) {
-  const data = await getRiwayatMateri(effectiveUserId)
-  return <RiwayatMateriTab data={data} />
+async function RiwayatDataFetcher({
+  effectiveUserId,
+  selectedTahunAjaranId,
+  tahunAjaranOptions,
+}: {
+  effectiveUserId: string
+  selectedTahunAjaranId?: string
+  tahunAjaranOptions: RiwayatTahunAjaran[]
+}) {
+  const data = await getRiwayatMateri(effectiveUserId, selectedTahunAjaranId)
+  const activeTahunAjaranId = tahunAjaranOptions.find(ta => ta.is_active === 1)?.id || null
+  const resolvedTahunAjaranId = selectedTahunAjaranId || activeTahunAjaranId
+
+  return (
+    <RiwayatMateriTab
+      key={resolvedTahunAjaranId || 'tanpa-tahun-ajaran'}
+      data={data}
+      tahunAjaranOptions={tahunAjaranOptions}
+      selectedTahunAjaranId={resolvedTahunAjaranId}
+    />
+  )
 }
 
 export const dynamic = 'force-dynamic'
 export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>
+  searchParams: Promise<{ date?: string; tahun_ajaran_id?: string }>
 }) {
   const params = await searchParams
   const user = await getCurrentUser()
@@ -78,6 +96,12 @@ export default async function AgendaPage({
 
   // Ambil daftar guru hanya jika super admin
   const actAsUsers = isSuperAdmin ? await getActAsUserList() : []
+  const tahunAjaranOptions = await getRiwayatTahunAjaran(effectiveUserId)
+  const activeTahunAjaranId = tahunAjaranOptions.find(ta => ta.is_active === 1)?.id
+  const requestedTahunAjaranId = params?.tahun_ajaran_id
+  const selectedTahunAjaranId = requestedTahunAjaranId && tahunAjaranOptions.some(ta => ta.id === requestedTahunAjaranId)
+    ? requestedTahunAjaranId
+    : activeTahunAjaranId
 
   // Cek apakah user ini punya jadwal piket (untuk tampilkan/sembunyikan tab)
   // const targetUserId = effectiveUserId || user.id
@@ -156,7 +180,11 @@ export default async function AgendaPage({
 
         <TabsContent value="riwayat">
           <Suspense fallback={<PageLoading text="Memuat riwayat materi..." />}>
-            <RiwayatDataFetcher effectiveUserId={effectiveUserId} />
+            <RiwayatDataFetcher
+              effectiveUserId={effectiveUserId}
+              selectedTahunAjaranId={selectedTahunAjaranId}
+              tahunAjaranOptions={tahunAjaranOptions}
+            />
           </Suspense>
         </TabsContent>
       </Tabs>

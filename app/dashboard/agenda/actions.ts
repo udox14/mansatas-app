@@ -383,9 +383,17 @@ export async function getAgendaDetail(agendaId: string) {
 // ============================================================
 // 4. AMBIL RIWAYAT MATERI (khusus teks)
 // ============================================================
-export async function getRiwayatMateri(guruIdOverride?: string): Promise<any[]> {
+export type RiwayatTahunAjaran = {
+  id: string
+  nama: string
+  semester: number
+  is_active: number
+  jumlah_agenda: number
+}
+
+async function resolveRiwayatGuruId(guruIdOverride?: string): Promise<string | null> {
   const user = await getCurrentUser()
-  if (!user) return []
+  if (!user) return null
 
   // Check Act As
   let guruId = guruIdOverride || user.id
@@ -396,7 +404,49 @@ export async function getRiwayatMateri(guruIdOverride?: string): Promise<any[]> 
     }
   }
 
+  return guruId
+}
+
+export async function getRiwayatTahunAjaran(guruIdOverride?: string): Promise<RiwayatTahunAjaran[]> {
+  const guruId = await resolveRiwayatGuruId(guruIdOverride)
+  if (!guruId) return []
+
   const db = await getDB()
+  const result = await db.prepare(`
+    SELECT
+      ta.id,
+      ta.nama,
+      ta.semester,
+      ta.is_active,
+      COUNT(DISTINCT ag.id) as jumlah_agenda
+    FROM tahun_ajaran ta
+    LEFT JOIN penugasan_mengajar pm
+      ON pm.tahun_ajaran_id = ta.id AND pm.guru_id = ?
+    LEFT JOIN agenda_guru ag
+      ON ag.penugasan_id = pm.id AND ag.guru_id = ?
+    GROUP BY ta.id, ta.nama, ta.semester, ta.is_active
+    ORDER BY ta.is_active DESC, ta.nama DESC, ta.semester DESC
+  `).bind(guruId, guruId).all<any>()
+
+  return (result.results || []).map((row: any) => ({
+    id: row.id,
+    nama: row.nama,
+    semester: Number(row.semester),
+    is_active: Number(row.is_active),
+    jumlah_agenda: Number(row.jumlah_agenda || 0),
+  }))
+}
+
+export async function getRiwayatMateri(guruIdOverride?: string, tahunAjaranId?: string): Promise<any[]> {
+  const guruId = await resolveRiwayatGuruId(guruIdOverride)
+  if (!guruId) return []
+
+  const db = await getDB()
+  const selectedTahunAjaranId = tahunAjaranId || (
+    await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
+  )?.id
+  if (!selectedTahunAjaranId) return []
+
   const result = await db.prepare(`
     SELECT 
       ag.id, ag.tanggal, ag.materi, ag.waktu_input,
@@ -408,10 +458,10 @@ export async function getRiwayatMateri(guruIdOverride?: string): Promise<any[]> 
     JOIN penugasan_mengajar pm ON ag.penugasan_id = pm.id
     JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
     JOIN kelas k ON pm.kelas_id = k.id
-    WHERE ag.guru_id = ?
+    WHERE ag.guru_id = ? AND pm.tahun_ajaran_id = ?
     ORDER BY ag.waktu_input DESC
     LIMIT 100
-  `).bind(guruId).all<any>()
+  `).bind(guruId, selectedTahunAjaranId).all<any>()
 
   return result.results || []
 }

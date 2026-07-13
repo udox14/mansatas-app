@@ -60,7 +60,6 @@ export const DASHBOARD_GROUPS: DashGroup[] = [
       { id: 'top_cards', label: 'Kartu Atas', desc: 'Kehadiran pribadi & jadwal mengajar' },
       { id: 'today_summary', label: 'Ringkasan Absensi Hari Ini', desc: 'Hadir, sakit, izin, alfa, dll' },
       { id: 'menu_navigasi', label: 'Menu Navigasi', desc: 'Keputusan, siswa, rekap, perhatian, agenda' },
-      { id: 'keputusan_list', label: 'Daftar Perlu Keputusan Wali', desc: 'Siswa yang status hariannya perlu ditetapkan' },
     ],
   },
   {
