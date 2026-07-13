@@ -2,9 +2,18 @@
 
 import { useMemo, useState } from 'react'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ArrowLeft, BookOpen, Calendar, ChevronRight, Clock, Search } from 'lucide-react'
 import { formatNamaKelas } from '@/lib/utils'
 import { formatTimeWIB } from '@/lib/time'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import type { RiwayatTahunAjaran } from '../actions'
 
 interface RiwayatItem {
   id: string
@@ -31,11 +40,16 @@ interface KelasGroup {
 
 interface Props {
   data: RiwayatItem[]
+  tahunAjaranOptions: RiwayatTahunAjaran[]
+  selectedTahunAjaranId: string | null | undefined
 }
 
-export function RiwayatMateriTab({ data }: Props) {
+export function RiwayatMateriTab({ data, tahunAjaranOptions, selectedTahunAjaranId }: Props) {
   const [selectedKelasId, setSelectedKelasId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
   const fmtTgl = (tgl: string) => {
     return new Date(tgl + 'T00:00:00').toLocaleDateString('id-ID', {
@@ -81,11 +95,56 @@ export function RiwayatMateriTab({ data }: Props) {
     item.materi.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  const selectedTahunAjaran = tahunAjaranOptions.find(ta => ta.id === selectedTahunAjaranId)
+  const handleTahunAjaranChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tahun_ajaran_id', value)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
+
+  const tahunAjaranFilter = (
+    <div className="rounded-lg border bg-white dark:bg-slate-900 px-4 py-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Riwayat Materi</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Pilih tahun ajaran untuk melihat riwayat agenda mengajar.
+          </p>
+        </div>
+        {tahunAjaranOptions.length > 0 && (
+          <div className="w-full sm:w-64">
+            <label className="mb-1 block text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              Tahun Ajaran
+            </label>
+            <Select value={selectedTahunAjaranId || undefined} onValueChange={handleTahunAjaranChange}>
+              <SelectTrigger className="h-9 bg-slate-50 dark:bg-slate-800 text-xs">
+                <SelectValue placeholder="Pilih tahun ajaran" />
+              </SelectTrigger>
+              <SelectContent>
+                {tahunAjaranOptions.map(ta => (
+                  <SelectItem key={ta.id} value={ta.id} className="text-xs">
+                    {ta.nama} SMT {ta.semester}{ta.is_active === 1 ? ' · Aktif' : ''} ({ta.jumlah_agenda})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+      {selectedTahunAjaran && selectedTahunAjaran.is_active === 1 && (
+        <p className="mt-2 text-[11px] text-emerald-600 dark:text-emerald-400">Menampilkan tahun ajaran aktif.</p>
+      )}
+    </div>
+  )
+
   if (data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <BookOpen className="h-10 w-10 text-slate-300 mb-2" />
-        <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Belum ada riwayat agenda.</p>
+      <div className="space-y-3">
+        {tahunAjaranFilter}
+        <div className="flex flex-col items-center justify-center py-12 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+          <BookOpen className="h-10 w-10 text-slate-300 mb-2" />
+          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Belum ada riwayat agenda pada tahun ajaran ini.</p>
+        </div>
       </div>
     )
   }
@@ -93,6 +152,7 @@ export function RiwayatMateriTab({ data }: Props) {
   if (!selectedGroup) {
     return (
       <div className="space-y-2">
+        {tahunAjaranFilter}
         <div className="rounded-lg border bg-white dark:bg-slate-900 px-4 py-3">
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Pilih Kelas</p>
           <p className="text-xs text-slate-500 dark:text-slate-400">{kelasGroups.length} kelas memiliki riwayat agenda.</p>
@@ -132,6 +192,7 @@ export function RiwayatMateriTab({ data }: Props) {
 
   return (
     <div className="space-y-3">
+      {tahunAjaranFilter}
       <div className="rounded-lg border bg-white dark:bg-slate-900 px-3 py-3">
         <div className="flex items-start gap-2">
           <button
