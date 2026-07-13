@@ -6,6 +6,7 @@ import type { WidgetProps } from './dashboard-widgets-meta'
 import { RekapKehadiranGuruWidget } from '@/components/dashboard/widgets/RekapKehadiranGuruWidget'
 import { KehadiranSiswaSekolahWidget } from '@/components/dashboard/widgets/KehadiranSiswaSekolahWidget'
 import { TrenPelanggaranSekolahWidget } from '@/components/dashboard/widgets/TrenPelanggaranSekolahWidget'
+import { SaranOrangTuaWidget } from '@/components/dashboard/widgets/SaranOrangTuaWidget'
 
 export type { WidgetProps } from './dashboard-widgets-meta'
 
@@ -15,4 +16,5 @@ export const WIDGET_COMPONENTS: Record<string, WidgetComponent> = {
   rekap_kehadiran_guru: RekapKehadiranGuruWidget,
   kehadiran_siswa_sekolah: KehadiranSiswaSekolahWidget,
   tren_pelanggaran_sekolah: TrenPelanggaranSekolahWidget,
+  saran_orang_tua: SaranOrangTuaWidget,
 }
