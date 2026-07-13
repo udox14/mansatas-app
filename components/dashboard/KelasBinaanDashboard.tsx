@@ -700,56 +700,80 @@ export async function KelasBinaanDashboard({
             const detailHref = `/dashboard/siswa/${row.siswa_id}?tab=absensi&returnTo=${returnToKelasBinaan}`
             const statusHariIni = isTodayEffective ? (row.todayStatus?.status_akhir || 'BELUM_ADA_DATA') : 'LIBUR'
             const sumberHariIni = isTodayEffective ? sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data') : 'Kalender Pendidikan'
+            const monthlyItems = [
+              { label: 'Sakit', value: row.monthly.sakit, tone: 'border-amber-100 bg-amber-50/70 text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300' },
+              { label: 'Izin', value: row.monthly.izin, tone: 'border-blue-100 bg-blue-50/70 text-blue-700 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-300' },
+              { label: 'Alfa', value: row.monthly.alfa, tone: 'border-rose-100 bg-rose-50/70 text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-300' },
+              { label: 'Bolos', value: row.monthly.parsial, tone: 'border-violet-100 bg-violet-50/70 text-violet-700 dark:border-violet-900/40 dark:bg-violet-900/20 dark:text-violet-300' },
+              { label: 'Keputusan Wali', value: row.monthly.perluKonfirmasiWali, tone: 'border-purple-100 bg-purple-50/70 text-purple-700 dark:border-purple-900/40 dark:bg-purple-900/20 dark:text-purple-300' },
+            ]
             return (
-              <Link key={row.siswa_id} href={detailHref} className="block rounded-xl border border-surface-2 bg-slate-50/80 dark:bg-slate-800/40 p-3 active:scale-[0.99] transition-transform">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold leading-snug text-slate-800 break-words dark:text-slate-100">{row.nama_lengkap}</p>
-                      <p className="text-[11px] text-slate-400">{row.nisn}</p>
-                    </div>
+              <article key={row.siswa_id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow dark:border-slate-700 dark:bg-slate-900">
+                <div className="p-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <Link href={detailHref} className="group flex min-w-0 flex-1 items-center gap-3">
+                      <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1">
+                          <p className="truncate text-sm font-bold text-slate-900 group-hover:text-blue-700 dark:text-slate-100 dark:group-hover:text-blue-400">{row.nama_lengkap}</p>
+                          <ArrowRight className="h-3 w-3 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-blue-500" />
+                        </div>
+                        <p className="mt-0.5 text-[11px] font-medium tracking-wide text-slate-400">{row.nisn}</p>
+                      </div>
+                    </Link>
+                    <span className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-[10px] font-bold ${badgeClass(statusHariIni)}`}>
+                      {attendanceStatusLabel(statusHariIni)}
+                    </span>
                   </div>
-                  <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(statusHariIni)}`}>
-                    {attendanceStatusLabel(statusHariIni)}
-                  </span>
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+
                   {sumberHariIni !== 'Kalender Pendidikan' && (
-                    <div>
-                      <p className="text-slate-400">Sumber</p>
-                      <p className="font-medium text-slate-600 dark:text-slate-300">{sumberHariIni}</p>
+                    <div className="mt-3 rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2 text-[10px] dark:border-slate-800 dark:bg-slate-800/60">
+                      <span className="text-slate-400">Sumber status: </span>
+                      <span className="font-semibold text-slate-600 dark:text-slate-300">{sumberHariIni}</span>
                       {row.todayStatus?.keterangan_wali_kelas ? (
-                        <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">{row.todayStatus.keterangan_wali_kelas}</p>
+                        <p className="mt-0.5 line-clamp-2 text-slate-500 dark:text-slate-400">{row.todayStatus.keterangan_wali_kelas}</p>
                       ) : null}
                     </div>
                   )}
-                  <div>
-                    <p className="text-slate-400">Poin</p>
-                    <p className="font-semibold text-slate-700 dark:text-slate-200">{row.totalPoin}</p>
+
+                  <div className="mt-3 grid grid-cols-3 divide-x divide-slate-100 rounded-xl border border-slate-100 bg-slate-50/80 py-2.5 dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-800/40">
+                    <div className="px-2.5">
+                      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Poin</p>
+                      <p className={`mt-0.5 text-sm font-bold ${Number(row.totalPoin) > 0 ? 'text-rose-600' : 'text-slate-700 dark:text-slate-200'}`}>{row.totalPoin}</p>
+                    </div>
+                    <div className="px-2.5">
+                      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Komunikasi</p>
+                      <p className={`mt-0.5 truncate text-[11px] font-bold ${row.komunikasi.unread > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                        {row.komunikasi.unread > 0 ? `${row.komunikasi.unread} belum dibaca` : 'Terbaca'}
+                      </p>
+                    </div>
+                    <div className="px-2.5">
+                      <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Pemanggilan</p>
+                      <p className="mt-0.5 truncate text-[11px] font-bold text-slate-700 dark:text-slate-200">{summonStatusLabel(row.komunikasi.summonStatus)}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-slate-400">Komunikasi</p>
-                    <p className="font-medium text-slate-600 dark:text-slate-300">
-                      {row.komunikasi.unread > 0 ? `${row.komunikasi.unread} belum dibaca` : 'Terbaca'}
-                    </p>
+
+                  <div className="mt-3">
+                    <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-400">Bulan Ini</p>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {monthlyItems.map((item, index) => (
+                        <div key={item.label} className={`rounded-lg border px-2 py-1.5 ${item.tone} ${index === 4 ? 'col-span-2' : ''}`}>
+                          <p className="text-[9px] font-semibold opacity-75">{item.label}</p>
+                          <p className="mt-0.5 text-sm font-bold leading-none">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-slate-400">Pemanggilan</p>
-                    <p className="font-medium text-slate-600 dark:text-slate-300">{summonStatusLabel(row.komunikasi.summonStatus)}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-slate-400">Bulan Ini</p>
-                    <p className="font-medium text-slate-600 dark:text-slate-300">Sakit {row.monthly.sakit} • Izin {row.monthly.izin} • Alfa {row.monthly.alfa} • Bolos {row.monthly.parsial} • Keputusan Wali {row.monthly.perluKonfirmasiWali}</p>
-                  </div>
+
                   {row.timeline ? (
-                    <div className="col-span-2">
-                      <p className="text-slate-400">Timeline Terakhir</p>
-                      <p className="font-medium text-slate-600 dark:text-slate-300 line-clamp-2">{row.timeline.content}</p>
+                    <div className="mt-3 border-l-2 border-slate-200 pl-2.5 dark:border-slate-700">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Timeline Terakhir</p>
+                      <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-slate-600 dark:text-slate-300">{row.timeline.content}</p>
                     </div>
                   ) : null}
                 </div>
-                <div className="mt-2 flex flex-wrap gap-2">
+
+                <div className="border-t border-slate-100 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-800/30">
                   <ParentCommActions
                     siswaId={row.siswa_id}
                     kelasId={kelas.id}
@@ -759,7 +783,7 @@ export async function KelasBinaanDashboard({
                     phone={row.phone}
                   />
                 </div>
-              </Link>
+              </article>
             )
           })}
         </div>
