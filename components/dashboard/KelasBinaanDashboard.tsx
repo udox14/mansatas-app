@@ -719,7 +719,7 @@ export async function KelasBinaanDashboard({
           <span className="ml-auto text-[10px] text-slate-400 self-center">{filteredStudentRows.length} siswa</span>
         </div>
 
-        <div className="md:hidden p-3 space-y-2">
+        <div className="lg:hidden p-3 space-y-2">
           {filteredStudentRows.map(row => {
             const detailHref = `/dashboard/siswa/${row.siswa_id}?tab=absensi&returnTo=${returnToKelasBinaan}`
             const statusHariIni = isTodayEffective ? (row.todayStatus?.status_akhir || 'BELUM_ADA_DATA') : 'LIBUR'
@@ -739,7 +739,7 @@ export async function KelasBinaanDashboard({
                       <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1">
-                          <p className="truncate text-sm font-bold text-slate-900 group-hover:text-blue-700 dark:text-slate-100 dark:group-hover:text-blue-400">{row.nama_lengkap}</p>
+                          <p className="min-w-0 flex-1 break-words text-sm font-bold leading-snug text-slate-900 group-hover:text-blue-700 dark:text-slate-100 dark:group-hover:text-blue-400">{row.nama_lengkap}</p>
                           <ArrowRight className="h-3 w-3 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-blue-500" />
                         </div>
                         <p className="mt-0.5 text-[11px] font-medium tracking-wide text-slate-400">{row.nisn}</p>
@@ -828,7 +828,7 @@ export async function KelasBinaanDashboard({
           })}
         </div>
 
-        <div className="hidden md:block">
+        <div className="hidden lg:block">
           <div className="grid grid-cols-[minmax(0,1.8fr)_minmax(140px,1fr)_minmax(170px,1fr)_minmax(160px,1fr)_80px_minmax(220px,1.4fr)] gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800/40 border-t border-surface-2 text-[11px] font-semibold text-slate-500">
             <div>Siswa</div>
             <div>Status Hari Ini</div>
