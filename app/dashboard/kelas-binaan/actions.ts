@@ -4,6 +4,17 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
+import { createActivityDiff, logActivity } from '@/lib/activity-log'
+
+const KELAS_BINAAN_DOMISILI = [
+  'Pesantren Sukamanah',
+  'Pesantren Sukahideng',
+  'Pesantren Sukaguru',
+  "Pesantren Al-Ma'mur",
+  'Warga Desa Sukarapih',
+  'Warga Desa Wargakerta',
+  'KELUAR DARI PESANTREN',
+] as const
 
 async function ensureParentCommunicationTables(db: D1Database) {
   await db.prepare(`
@@ -67,6 +78,110 @@ async function canAccessStudentClass(db: D1Database, userId: string, siswaId: st
     LIMIT 1
   `).bind(siswaId, userId).first<any>()
   return !!row
+}
+
+function normalizeWhatsAppNumber(raw: string) {
+  let value = String(raw || '').trim().replace(/[^\d+]/g, '')
+  if (value.startsWith('+')) value = value.slice(1)
+  if (value.startsWith('0')) value = `62${value.slice(1)}`
+  if (value.startsWith('8')) value = `62${value}`
+  return value
+}
+
+export async function updateStudentQuickDataFromKelasBinaan(payload: {
+  siswaId: string
+  tempatTinggal: string
+  nomorWhatsapp: string
+}) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Sesi berakhir. Silakan login kembali.' }
+
+  const siswaId = String(payload.siswaId || '').trim()
+  const tempatTinggal = String(payload.tempatTinggal || '').trim()
+  const nomorWhatsapp = normalizeWhatsAppNumber(payload.nomorWhatsapp)
+
+  if (!siswaId) return { error: 'Siswa tidak valid.' }
+  if (!KELAS_BINAAN_DOMISILI.includes(tempatTinggal as (typeof KELAS_BINAAN_DOMISILI)[number])) {
+    return { error: 'Status domisili tidak valid. Silakan pilih salah satu opsi yang tersedia.' }
+  }
+  if (nomorWhatsapp && (!/^\d{10,15}$/.test(nomorWhatsapp) || !nomorWhatsapp.startsWith('62'))) {
+    return { error: 'Nomor WhatsApp tidak valid. Gunakan format 08..., 628..., atau +628...' }
+  }
+
+  const db = await getDB()
+  const roles = await getUserRoles(db, user.id)
+  const allowed = await canAccessStudentClass(db, user.id, siswaId, roles)
+  if (!allowed) return { error: 'Akses ditolak. Siswa bukan bagian dari kelas binaan Anda.' }
+
+  const before = await db.prepare(`
+    SELECT id, nama_lengkap, kelas_id, tempat_tinggal, desa_kelurahan, nomor_whatsapp
+    FROM siswa
+    WHERE id = ? AND status = 'aktif'
+    LIMIT 1
+  `).bind(siswaId).first<any>()
+  if (!before) return { error: 'Data siswa aktif tidak ditemukan.' }
+
+  const storedTempatTinggal = tempatTinggal.startsWith('Pesantren ')
+    ? tempatTinggal
+    : 'Non-Pesantren'
+  let storedDesaKelurahan = before.desa_kelurahan || null
+  if (tempatTinggal === 'Warga Desa Sukarapih') storedDesaKelurahan = 'Sukarapih'
+  if (tempatTinggal === 'Warga Desa Wargakerta') storedDesaKelurahan = 'Wargakerta'
+  if (tempatTinggal === 'KELUAR DARI PESANTREN') {
+    const currentVillage = String(before.desa_kelurahan || '').trim().toLowerCase()
+    if (!currentVillage || currentVillage.includes('sukarapih') || currentVillage.includes('wargakerta')) {
+      storedDesaKelurahan = 'KELUAR DARI PESANTREN'
+    }
+  }
+
+  try {
+    await db.prepare(`
+      UPDATE siswa
+      SET tempat_tinggal = ?, desa_kelurahan = ?, nomor_whatsapp = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(storedTempatTinggal, storedDesaKelurahan, nomorWhatsapp || null, siswaId).run()
+  } catch (error: any) {
+    const isConstraintError = String(error?.message || error).toLowerCase().includes('constraint')
+    return {
+      error: isConstraintError
+        ? 'Data domisili tidak dapat disimpan karena validasi database.'
+        : 'Gagal menyimpan data siswa. Silakan coba lagi.',
+    }
+  }
+
+  const after = {
+    ...before,
+    tempat_tinggal: storedTempatTinggal,
+    desa_kelurahan: storedDesaKelurahan,
+    nomor_whatsapp: nomorWhatsapp || null,
+  }
+  await logActivity({
+    db,
+    module: 'kelas-binaan',
+    action: 'quick_edit_siswa',
+    severity: tempatTinggal === 'KELUAR DARI PESANTREN' ? 'warning' : 'info',
+    summary: `Memperbarui domisili dan WhatsApp orang tua ${before.nama_lengkap}`,
+    entityType: 'siswa',
+    entityId: siswaId,
+    entityLabel: before.nama_lengkap,
+    before,
+    after,
+    diff: createActivityDiff(before, after),
+    metadata: { flagged: tempatTinggal === 'KELUAR DARI PESANTREN' },
+  })
+
+  revalidatePath('/dashboard/kelas-binaan')
+  revalidatePath('/dashboard/siswa')
+  revalidatePath(`/dashboard/siswa/${siswaId}`)
+  revalidatePath('/portal-ortu')
+
+  return {
+    success: tempatTinggal === 'KELUAR DARI PESANTREN'
+      ? 'Data tersimpan dan siswa otomatis ditandai keluar dari pesantren.'
+      : 'Data siswa berhasil diperbarui.',
+    nomorWhatsapp,
+    flagged: tempatTinggal === 'KELUAR DARI PESANTREN',
+  }
 }
 
 export async function createParentSummonFromKelasBinaan(formData: FormData) {

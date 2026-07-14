@@ -33,9 +33,9 @@ const KELAS_BINAAN_VIEWS: KelasBinaanView[] = ['home', 'keputusan', 'siswa', 're
 export default async function KelasBinaanPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kelas?: string; risiko?: string; view?: string }>
+  searchParams: Promise<{ kelas?: string; risiko?: string; view?: string; edit?: string }>
 }) {
-  const { kelas: kelasId, risiko, view } = await searchParams
+  const { kelas: kelasId, risiko, view, edit } = await searchParams
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
@@ -74,6 +74,7 @@ export default async function KelasBinaanPage({
   const buildKelasHref = (nextKelasId: string) => {
     const params = new URLSearchParams({ kelas: nextKelasId, view: activeView })
     if (risiko) params.set('risiko', risiko)
+    if (edit === '1') params.set('edit', '1')
     return `/dashboard/kelas-binaan?${params.toString()}`
   }
 
@@ -110,6 +111,7 @@ export default async function KelasBinaanPage({
             selectedKelasId={selectedKelasId}
             view={activeView}
             risiko={risiko}
+            quickEdit={edit === '1'}
           />
         )
       )}
@@ -126,6 +128,7 @@ export default async function KelasBinaanPage({
         kelasIdOverride={selectedKelasId}
         riskFilter={risiko || 'all'}
         view={activeView}
+        quickEdit={edit === '1'}
         showWelcome={false}
         showTopCards={false}
         showFeatureShortcuts={false}
