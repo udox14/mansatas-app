@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/card'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
+import { QuickEditSiswa } from '@/app/dashboard/kelas-binaan/components/quick-edit-siswa'
 import {
   Warning as AlertTriangle,
   ArrowRight,
@@ -42,6 +43,7 @@ type Props = {
   showTopCards?: boolean
   showFeatureShortcuts?: boolean
   dashboardVisibility?: Record<string, boolean>
+  quickEdit?: boolean
 }
 
 export type KelasBinaanView = 'home' | 'keputusan' | 'siswa' | 'rekap' | 'perhatian' | 'agenda'
@@ -95,6 +97,17 @@ function attentionPriority(status: string | null | undefined) {
   return 5
 }
 
+function quickEditDomisiliLabel(tempatTinggal: string | null, desaKelurahan: string | null) {
+  if (tempatTinggal?.startsWith('Pesantren ')) return tempatTinggal
+  if (tempatTinggal === 'Non-Pesantren') {
+    const desa = String(desaKelurahan || '').trim().toLowerCase()
+    if (desa.includes('sukarapih')) return 'Warga Desa Sukarapih'
+    if (desa.includes('wargakerta')) return 'Warga Desa Wargakerta'
+    return 'KELUAR DARI PESANTREN'
+  }
+  return tempatTinggal
+}
+
 export async function KelasBinaanDashboard({
   userId,
   nama,
@@ -111,6 +124,7 @@ export async function KelasBinaanDashboard({
   showWelcome = true,
   showTopCards = true,
   dashboardVisibility,
+  quickEdit = false,
 }: Props) {
   const show = (id: string) => dashboardVisibility?.[id] !== false
   const db = await getDB()
@@ -260,12 +274,15 @@ export async function KelasBinaanDashboard({
   ])
 
   const contactRows = await db.prepare(`
-    SELECT s.id AS siswa_id, s.nomor_whatsapp AS phone
+    SELECT s.id AS siswa_id, s.nomor_whatsapp AS phone, s.tempat_tinggal, s.desa_kelurahan
     FROM siswa s
     WHERE s.kelas_id = ? AND s.status = 'aktif'
   `).bind(kelas.id).all<any>()
-  const studentContacts: Record<string, { phone: string | null }> = Object.fromEntries(
-    (contactRows.results || []).map((r: any) => [r.siswa_id, { phone: r.phone || null }])
+  const studentContacts: Record<string, { phone: string | null; tempatTinggal: string | null }> = Object.fromEntries(
+    (contactRows.results || []).map((r: any) => [r.siswa_id, {
+      phone: r.phone || null,
+      tempatTinggal: quickEditDomisiliLabel(r.tempat_tinggal || null, r.desa_kelurahan || null),
+    }])
   )
 
   const jumlahSiswa = snapshotMonth?.siswa.length ?? 0
@@ -327,12 +344,13 @@ export async function KelasBinaanDashboard({
       komunikasi: komunikasiMap.get(siswa.id) || { unread: 0, summonStatus: null },
       timeline: timelineMap.get(siswa.id) || null,
       phone: studentContacts[siswa.id]?.phone || null,
+      tempatTinggal: studentContacts[siswa.id]?.tempatTinggal || null,
     }
   }) || []
 
   const filteredStudentRows = studentRows.filter(row => {
     if (riskFilter === 'all') return true
-    if (riskFilter === 'high') return row.monthly.alfa >= 2 || row.totalPoin >= 25 || row.komunikasi.summonStatus === 'terkirim'
+    if (riskFilter === 'high') return row.monthly.alfa >= 2 || row.totalPoin >= 25 || row.komunikasi.summonStatus === 'terkirim' || row.tempatTinggal === 'KELUAR DARI PESANTREN'
     if (riskFilter === 'pending_comm') return row.komunikasi.unread > 0 || row.komunikasi.summonStatus === 'terkirim' || row.komunikasi.summonStatus === 'reschedule_diminta'
     if (riskFilter === 'alfa') return row.monthly.alfa >= 1 || (row.todayStatus && row.todayStatus.status_akhir === 'ALFA')
     if (riskFilter === 'point') return row.totalPoin >= 25
@@ -392,6 +410,7 @@ export async function KelasBinaanDashboard({
     if (extra) {
       for (const [key, value] of Object.entries(extra)) params.set(key, value)
     }
+    if (quickEdit && targetView === 'siswa' && extra?.edit === undefined) params.set('edit', '1')
     return `/dashboard/kelas-binaan?${params.toString()}`
   }
   const returnToKelasBinaan = encodeURIComponent(viewHref(view))
@@ -665,8 +684,11 @@ export async function KelasBinaanDashboard({
             <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Daftar Siswa Binaan</p>
             <p className="text-[10px] text-slate-400 dark:text-slate-500">Status harian, komunikasi orang tua, rekap bulan ini, poin, dan aksi tindak lanjut</p>
           </div>
-          <Link href="/dashboard/siswa" className="text-[11px] text-slate-400 hover:text-slate-600 flex items-center gap-1">
-            Data siswa <ArrowRight className="h-3 w-3" />
+          <Link
+            href={viewHref('siswa', { ...(riskFilter !== 'all' ? { risiko: riskFilter } : {}), edit: quickEdit ? '0' : '1' })}
+            className={`flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${quickEdit ? 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
+          >
+            {quickEdit ? 'Selesai Edit' : 'EDIT DATA SISWA'}
           </Link>
         </div>
 
@@ -776,6 +798,19 @@ export async function KelasBinaanDashboard({
                       <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-slate-600 dark:text-slate-300">{row.timeline.content}</p>
                     </div>
                   ) : null}
+
+                  {quickEdit ? (
+                    <QuickEditSiswa
+                      siswaId={row.siswa_id}
+                      initialTempatTinggal={row.tempatTinggal}
+                      initialPhone={row.phone}
+                      className="mt-3"
+                    />
+                  ) : row.tempatTinggal === 'KELUAR DARI PESANTREN' ? (
+                    <p className="mt-3 flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-[10px] font-semibold text-rose-700">
+                      <AlertTriangle className="h-3.5 w-3.5" /> Keluar dari pesantren
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="border-t p-3">
@@ -843,6 +878,18 @@ export async function KelasBinaanDashboard({
                       compact
                     />
                   </div>
+                  {quickEdit ? (
+                    <QuickEditSiswa
+                      siswaId={row.siswa_id}
+                      initialTempatTinggal={row.tempatTinggal}
+                      initialPhone={row.phone}
+                      className="col-span-full mt-1"
+                    />
+                  ) : row.tempatTinggal === 'KELUAR DARI PESANTREN' ? (
+                    <p className="col-span-full flex items-center gap-1.5 text-[10px] font-semibold text-rose-700 dark:text-rose-400">
+                      <AlertTriangle className="h-3.5 w-3.5" /> Keluar dari pesantren
+                    </p>
+                  ) : null}
                 </div>
               )
             })}
