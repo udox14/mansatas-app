@@ -1,14 +1,33 @@
 'use client'
 
 import React from 'react'
-import type { AgendaKelasPageData } from '../actions'
+import type {
+  AgendaKelasPageData,
+  AgendaKelasSignaturePlacement,
+  AgendaKelasSignatureSettings,
+} from '../actions'
 
 const FONT = '"Book Antiqua", "Palatino Linotype", Palatino, "Times New Roman", serif'
 const BORDER = '1px solid #000'
 
 type Props = {
   data: AgendaKelasPageData
+  signatureSettings: AgendaKelasSignatureSettings
   pageBreak?: boolean
+}
+
+function signatureImageStyle(settings: AgendaKelasSignaturePlacement): React.CSSProperties {
+  return {
+    position: 'absolute',
+    left: `${settings.x_mm}mm`,
+    top: `${settings.y_mm}mm`,
+    width: `${settings.width_mm}mm`,
+    height: 'auto',
+    maxHeight: '30mm',
+    objectFit: 'contain',
+    zIndex: 10,
+    pointerEvents: 'none',
+  }
 }
 
 function formatTanggal(date: string) {
@@ -25,7 +44,7 @@ function Check({ active }: { active: boolean }) {
 }
 
 export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
-  ({ data, pageBreak = false }, ref) => {
+  ({ data, signatureSettings, pageBreak = false }, ref) => {
     const absensiList = data.absensiRows.slice(0, 20)
 
     return (
@@ -290,11 +309,25 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           </div>
 
           {/* Row 6 */}
-          <div style={{ gridRow: 6, gridColumn: 1, marginTop: '1mm' }}>
+          <div style={{ gridRow: 6, gridColumn: 1, marginTop: '1mm', position: 'relative' }}>
             Kepala MAN 1 Tasikmalaya,
+            {signatureSettings.kepala.enabled && data.kepala.signature_url ? (
+              <img
+                src={data.kepala.signature_url}
+                alt="Tanda tangan Kepala Madrasah"
+                style={signatureImageStyle(signatureSettings.kepala)}
+              />
+            ) : null}
           </div>
-          <div style={{ gridRow: 6, gridColumn: 2, paddingLeft: '6mm', marginTop: '1mm' }}>
+          <div style={{ gridRow: 6, gridColumn: 2, paddingLeft: '6mm', marginTop: '1mm', position: 'relative' }}>
             Wali Kelas,
+            {signatureSettings.wali.enabled && data.kelas.wali_kelas_signature_url ? (
+              <img
+                src={data.kelas.wali_kelas_signature_url}
+                alt="Tanda tangan Wali Kelas"
+                style={signatureImageStyle(signatureSettings.wali)}
+              />
+            ) : null}
           </div>
           <div style={{ gridRow: 6, gridColumn: 3, marginTop: '1mm' }}>
             NIS
@@ -307,11 +340,11 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           <div style={{ gridRow: 8, gridColumn: 1, fontWeight: 'bold' }}>
             {data.kepala.nama}
           </div>
-          {/* 4. Hilangkan titik-titik pada nama Wali Kelas jika terisi + Kapital semua */}
+          {/* Nama wali kelas mengikuti penulisan di database. */}
           <div style={{ gridRow: 8, gridColumn: 2, paddingLeft: '6mm' }}>
             {data.kelas.wali_kelas_nama ? (
               <span style={{ fontWeight: 'bold', textDecoration: 'underline' }}>
-                {data.kelas.wali_kelas_nama.toUpperCase()}
+                {data.kelas.wali_kelas_nama}
               </span>
             ) : (
               <span>...........................................................</span>
@@ -320,7 +353,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
 
           {/* Row 9 */}
           <div style={{ gridRow: 9, gridColumn: 1 }}>
-            NIP. {data.kepala.nip}
+            NIP. {data.kepala.nip || '...........................................................'}
           </div>
           {/* 4. Hilangkan titik-titik pada NIP jika terisi */}
           <div style={{ gridRow: 9, gridColumn: 2, paddingLeft: '6mm' }}>

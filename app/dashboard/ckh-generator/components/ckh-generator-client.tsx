@@ -118,10 +118,6 @@ function sourceLabel(row: Pick<Row, 'source' | 'source_key'>) {
   return 'Manual'
 }
 
-function upper(value: string | null | undefined) {
-  return String(value || '').toUpperCase()
-}
-
 function isoToDisplayDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return value || ''
   const [year, month, day] = value.split('-')
@@ -281,7 +277,7 @@ function CkhPrintDocument({
           <div style={signatureRoleStyle}>
             {signerLabel}
           </div>
-          <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(signer?.nama_lengkap) || missingSignerLabel}</div>
+          <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{signer?.nama_lengkap || missingSignerLabel}</div>
           <div>NIP. {signer?.nip || <MissingProfilePrint />}</div>
         </div>
         <div style={{ ...signatureColumnStyle, position: 'relative' }}>
@@ -292,7 +288,7 @@ function CkhPrintDocument({
           <div style={signatureRoleStyle}>
             {user.jabatan_cetak || user.role || 'Pegawai'}
           </div>
-          <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(user.nama_lengkap)}</div>
+          <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{user.nama_lengkap}</div>
           <div>NIP. {user.nip || <MissingProfilePrint />}</div>
         </div>
       </div>
@@ -1006,7 +1002,7 @@ export function CkhGeneratorClient({
               <div style={signatureColumnStyle}>
                 <p>Mengetahui :</p>
                 <p style={signatureRoleStyle}>{primarySignerLabel}</p>
-                <p style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(primarySigner?.nama_lengkap) || missingSignerLabel}</p>
+                <p style={{ fontWeight: 700, textDecoration: 'underline' }}>{primarySigner?.nama_lengkap || missingSignerLabel}</p>
                 <p>NIP. {primarySigner?.nip || <MissingProfileInline />}</p>
               </div>
               <div style={{ ...signatureColumnStyle, position: 'relative' }}>
@@ -1015,7 +1011,7 @@ export function CkhGeneratorClient({
                 ) : null}
                 <p>Tasikmalaya, {new Date(year, month, 0).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                 <p style={signatureRoleStyle}>{initialData.user.jabatan_cetak || initialData.user.role}</p>
-                <p style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(initialData.user.nama_lengkap)}</p>
+                <p style={{ fontWeight: 700, textDecoration: 'underline' }}>{initialData.user.nama_lengkap}</p>
                 <p>NIP. {initialData.user.nip || <MissingProfileInline />}</p>
               </div>
             </div>

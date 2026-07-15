@@ -5,6 +5,7 @@ import { getDB } from '@/utils/db'
 import { checkFeatureAccess } from '@/lib/features'
 import { formatNamaKelas } from '@/lib/utils'
 import { todayWIB, currentTimeWIB } from '@/lib/time'
+import { getSystemSetting, setSystemSetting } from '@/lib/system-settings'
 import {
   findTeachingBlockException,
   getEffectiveDatesInRange,
@@ -19,9 +20,23 @@ import type { FinalAttendanceStatus } from '@/lib/wali-kelas-attendance'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 
 const HARI = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
-const KEPALA_MADRASAH = {
-  nama: 'H. EKA MULYANA, S.Ag., M.Pd.I.',
-  nip: '197601202007011001',
+const AGENDA_KELAS_SIGNATURE_SETTING_PREFIX = 'agenda_kelas_signature_settings:'
+
+export type AgendaKelasSignaturePlacement = {
+  enabled: number
+  x_mm: number
+  y_mm: number
+  width_mm: number
+}
+
+export type AgendaKelasSignatureSettings = {
+  kepala: AgendaKelasSignaturePlacement
+  wali: AgendaKelasSignaturePlacement
+}
+
+const DEFAULT_AGENDA_KELAS_SIGNATURE_SETTINGS: AgendaKelasSignatureSettings = {
+  kepala: { enabled: 1, x_mm: 8, y_mm: 4, width_mm: 38 },
+  wali: { enabled: 1, x_mm: 8, y_mm: 4, width_mm: 38 },
 }
 
 export type AgendaKelasOption = {
@@ -60,9 +75,14 @@ export type AgendaKelasPageData = {
     label: string
     wali_kelas_nama: string
     wali_kelas_nip: string | null
+    wali_kelas_signature_url: string | null
     km_nama: string
   }
-  kepala: typeof KEPALA_MADRASAH
+  kepala: {
+    nama: string
+    nip: string | null
+    signature_url: string | null
+  }
   tanggal: string
   hariNama: string
   agendaRows: AgendaKelasRow[]
@@ -116,7 +136,7 @@ function isTeachingBlockEnded(tanggal: string, slotSelesai?: SlotJam): boolean {
 }
 
 // Status kehadiran guru utk kolom cetak: mirror logic monitoring-agenda.
-// agenda_guru.status > delegasi (TUGAS, pakai alasan) > ALFA bila blok selesai.
+// agenda_guru.status > alasan delegasi > ALFA bila blok selesai.
 function resolveGuruStatus(opts: {
   agendaStatus?: string | null
   hasDelegasi: boolean
@@ -133,10 +153,59 @@ function resolveGuruStatus(opts: {
   }
   if (hasDelegasi) {
     if (delegasiAlasan === 'SAKIT') return 'SAKIT'
-    if (delegasiAlasan === 'IZIN') return 'IZIN'
-    return 'TUGAS'
+    return 'IZIN'
   }
   return ended ? 'ALFA' : ''
+}
+
+function clampSignaturePlacement(
+  value: Partial<AgendaKelasSignaturePlacement> | null | undefined,
+  fallback: AgendaKelasSignaturePlacement
+): AgendaKelasSignaturePlacement {
+  const x = Number(value?.x_mm)
+  const y = Number(value?.y_mm)
+  const width = Number(value?.width_mm)
+  return {
+    enabled: value?.enabled === undefined ? fallback.enabled : (Number(value.enabled) ? 1 : 0),
+    x_mm: Math.max(-20, Math.min(80, Number.isFinite(x) ? x : fallback.x_mm)),
+    y_mm: Math.max(-20, Math.min(80, Number.isFinite(y) ? y : fallback.y_mm)),
+    width_mm: Math.max(15, Math.min(120, Number.isFinite(width) ? width : fallback.width_mm)),
+  }
+}
+
+function normalizeSignatureSettings(value: unknown): AgendaKelasSignatureSettings {
+  const parsed = value && typeof value === 'object' ? value as Partial<AgendaKelasSignatureSettings> : {}
+  return {
+    kepala: clampSignaturePlacement(parsed.kepala, DEFAULT_AGENDA_KELAS_SIGNATURE_SETTINGS.kepala),
+    wali: clampSignaturePlacement(parsed.wali, DEFAULT_AGENDA_KELAS_SIGNATURE_SETTINGS.wali),
+  }
+}
+
+export async function getAgendaKelasSignatureSettings() {
+  const access = await ensureAccess()
+  if (access.error || !access.user) {
+    return { error: access.error, settings: DEFAULT_AGENDA_KELAS_SIGNATURE_SETTINGS }
+  }
+
+  const raw = await getSystemSetting(`${AGENDA_KELAS_SIGNATURE_SETTING_PREFIX}${access.user.id}`, '')
+  if (!raw) return { error: null, settings: DEFAULT_AGENDA_KELAS_SIGNATURE_SETTINGS }
+  try {
+    return { error: null, settings: normalizeSignatureSettings(JSON.parse(raw)) }
+  } catch {
+    return { error: null, settings: DEFAULT_AGENDA_KELAS_SIGNATURE_SETTINGS }
+  }
+}
+
+export async function saveAgendaKelasSignatureSettings(payload: AgendaKelasSignatureSettings) {
+  const access = await ensureAccess()
+  if (access.error || !access.user) return { error: access.error, settings: null }
+
+  const settings = normalizeSignatureSettings(payload)
+  await setSystemSetting(
+    `${AGENDA_KELAS_SIGNATURE_SETTING_PREFIX}${access.user.id}`,
+    JSON.stringify(settings)
+  )
+  return { error: null, settings }
 }
 
 function monthRange(month: string) {
@@ -305,17 +374,26 @@ async function buildAgendaKelasHari(
   const hari = hariNum(tanggal)
   const hariNama = HARI[hari] || ''
 
-  const [kelas, calendarStatus, ta] = await Promise.all([
+  const [kelas, kepala, calendarStatus, ta] = await Promise.all([
     db.prepare(`
       SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.kbm_nonaktif_mulai,
         wali.nama_lengkap as wali_kelas_nama,
         wali.nip as wali_kelas_nip,
+        wali.signature_url as wali_kelas_signature_url,
         km.nama_lengkap as km_nama
       FROM kelas k
       LEFT JOIN "user" wali ON k.wali_kelas_id = wali.id
       LEFT JOIN siswa km ON k.km_siswa_id = km.id AND km.kelas_id = k.id AND km.status = 'aktif'
       WHERE k.id = ?
     `).bind(kelasId).first<any>(),
+    db.prepare(`
+      SELECT COALESCE(u.nama_lengkap, u.name) as nama, u.nip, u.signature_url
+      FROM "user" u
+      LEFT JOIN user_roles ur ON ur.user_id = u.id
+      WHERE u.role = 'kepsek' OR ur.role = 'kepsek'
+      ORDER BY u.nama_lengkap ASC
+      LIMIT 1
+    `).first<{ nama: string; nip: string | null; signature_url: string | null }>(),
     getKalenderDateStatus(db, tanggal),
     db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>(),
   ])
@@ -339,9 +417,14 @@ async function buildAgendaKelasHari(
       label: classLabel,
       wali_kelas_nama: kelas.wali_kelas_nama || '..................................................',
       wali_kelas_nip: kelas.wali_kelas_nip || null,
+      wali_kelas_signature_url: kelas.wali_kelas_signature_url || null,
       km_nama: kelas.km_nama || '..................................................',
     },
-    kepala: KEPALA_MADRASAH,
+    kepala: {
+      nama: kepala?.nama || 'Kepala Madrasah Belum Diatur',
+      nip: kepala?.nip || null,
+      signature_url: kepala?.signature_url || null,
+    },
     tanggal,
     hariNama,
     agendaRows: baseRows,
@@ -370,6 +453,9 @@ async function buildAgendaKelasHari(
         guru.nama_lengkap as guru_nama,
         mp.nama_mapel,
         ag.materi,
+        ag.status as agenda_status,
+        dtk.id as delegasi_kelas_id,
+        dt_info.alasan_ketidakhadiran as delegasi_alasan,
         dtk.tugas
       FROM jadwal_mengajar jm
       JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
@@ -380,6 +466,7 @@ async function buildAgendaKelasHari(
         AND dtk.delegasi_id IN (
           SELECT dt.id FROM delegasi_tugas dt WHERE dt.dari_user_id = pm.guru_id AND dt.tanggal = ?
         )
+      LEFT JOIN delegasi_tugas dt_info ON dtk.delegasi_id = dt_info.id
       WHERE pm.kelas_id = ? AND jm.tahun_ajaran_id = ? AND jm.hari = ?
       ORDER BY jm.jam_ke ASC
     `).bind(tanggal, tanggal, kelasId, ta.id, hari).all<any>(),
@@ -525,7 +612,17 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
   const db = access.db
 
   // 1. Pre-fetch the active Ta
-  const ta = await db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
+  const [ta, kepala] = await Promise.all([
+    db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>(),
+    db.prepare(`
+      SELECT COALESCE(u.nama_lengkap, u.name) as nama, u.nip, u.signature_url
+      FROM "user" u
+      LEFT JOIN user_roles ur ON ur.user_id = u.id
+      WHERE u.role = 'kepsek' OR ur.role = 'kepsek'
+      ORDER BY u.nama_lengkap ASC
+      LIMIT 1
+    `).first<{ nama: string; nip: string | null; signature_url: string | null }>(),
+  ])
   if (!ta?.id) return { error: 'Tahun ajaran aktif belum diatur.', pages: [] }
 
   // 2. Pre-fetch all kelas details in the jobs list
@@ -535,6 +632,7 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
     SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.kbm_nonaktif_mulai,
       wali.nama_lengkap as wali_kelas_nama,
       wali.nip as wali_kelas_nip,
+      wali.signature_url as wali_kelas_signature_url,
       km.nama_lengkap as km_nama
     FROM kelas k
     LEFT JOIN "user" wali ON k.wali_kelas_id = wali.id
@@ -629,9 +727,14 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
         label: classLabel,
         wali_kelas_nama: kelas.wali_kelas_nama || '..................................................',
         wali_kelas_nip: kelas.wali_kelas_nip || null,
+        wali_kelas_signature_url: kelas.wali_kelas_signature_url || null,
         km_nama: kelas.km_nama || '..................................................',
       },
-      kepala: KEPALA_MADRASAH,
+      kepala: {
+        nama: kepala?.nama || 'Kepala Madrasah Belum Diatur',
+        nip: kepala?.nip || null,
+        signature_url: kepala?.signature_url || null,
+      },
       tanggal,
       hariNama,
       agendaRows: baseRows,
@@ -671,8 +774,12 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
         JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
         JOIN "user" guru ON pm.guru_id = guru.id
         LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
-        LEFT JOIN delegasi_tugas dt ON dt.dari_user_id = pm.guru_id AND dt.tanggal = ?
-        LEFT JOIN delegasi_tugas_kelas dtk ON dtk.delegasi_id = dt.id AND dtk.penugasan_mengajar_id = jm.penugasan_id
+        LEFT JOIN delegasi_tugas_kelas dtk ON dtk.penugasan_mengajar_id = jm.penugasan_id
+          AND dtk.delegasi_id IN (
+            SELECT dt_lookup.id FROM delegasi_tugas dt_lookup
+            WHERE dt_lookup.dari_user_id = pm.guru_id AND dt_lookup.tanggal = ?
+          )
+        LEFT JOIN delegasi_tugas dt ON dtk.delegasi_id = dt.id
         WHERE pm.kelas_id = ? AND jm.tahun_ajaran_id = ? AND jm.hari = ?
         ORDER BY jm.jam_ke ASC
       `).bind(tanggal, tanggal, kelasId, ta.id, hari).all<any>()

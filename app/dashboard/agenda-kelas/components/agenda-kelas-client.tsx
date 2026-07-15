@@ -1,19 +1,25 @@
 'use client'
 
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { CalendarDays, ChevronLeft, ChevronRight, FileText, Loader2, Printer, Search, X } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, FileText, Loader2, Printer, Search, Settings2, X } from 'lucide-react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import type { AgendaKelasOption, AgendaKelasPageData } from '../actions'
-import { getAdjacentAgendaKelasDate, getAgendaKelasCetakBulanan, getAgendaKelasHari, getAgendaKelasCetakJobs, getAgendaKelasCetakBatch } from '../actions'
+import type { AgendaKelasOption, AgendaKelasPageData, AgendaKelasSignaturePlacement, AgendaKelasSignatureSettings } from '../actions'
+import { getAdjacentAgendaKelasDate, getAgendaKelasCetakBulanan, getAgendaKelasHari, getAgendaKelasCetakJobs, getAgendaKelasCetakBatch, saveAgendaKelasSignatureSettings } from '../actions'
 import { AgendaKelasTemplate } from './agenda-kelas-template'
 
 type Props = {
   daftarKelas: AgendaKelasOption[]
   today: string
+  initialSignatureSettings: AgendaKelasSignatureSettings
+}
+
+const DEFAULT_SIGNATURE_SETTINGS: AgendaKelasSignatureSettings = {
+  kepala: { enabled: 1, x_mm: 8, y_mm: 4, width_mm: 38 },
+  wali: { enabled: 1, x_mm: 8, y_mm: 4, width_mm: 38 },
 }
 
 function monthLabel(month: string) {
@@ -32,12 +38,13 @@ function currentMonth() {
   return local.toISOString().slice(0, 7)
 }
 
-export function AgendaKelasClient({ daftarKelas, today }: Props) {
+export function AgendaKelasClient({ daftarKelas, today, initialSignatureSettings }: Props) {
   const [selectedKelasId, setSelectedKelasId] = useState('')
   const [tanggal, setTanggal] = useState('')
   const [data, setData] = useState<AgendaKelasPageData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [signatureSettings, setSignatureSettings] = useState(initialSignatureSettings)
   const dayCacheRef = useRef<Map<string, AgendaKelasPageData | null>>(new Map())
 
   const selectedKelas = daftarKelas.find(k => k.id === selectedKelasId)
@@ -155,7 +162,16 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
             </Button>
           </div>
 
-          <CetakAgendaKelasModal daftarKelas={daftarKelas} initialKelasId={selectedKelasId} />
+          <SignatureSettingsModal
+            settings={signatureSettings}
+            previewData={data}
+            onApply={setSignatureSettings}
+          />
+          <CetakAgendaKelasModal
+            daftarKelas={daftarKelas}
+            initialKelasId={selectedKelasId}
+            signatureSettings={signatureSettings}
+          />
         </div>
       </div>
 
@@ -209,7 +225,7 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
               marginBottom: 'calc(215mm * -0.42 + 16px)',
             }}
           >
-            <AgendaKelasTemplate data={data} />
+            <AgendaKelasTemplate data={data} signatureSettings={signatureSettings} />
           </div>
         </div>
       )}
@@ -217,7 +233,210 @@ export function AgendaKelasClient({ daftarKelas, today }: Props) {
   )
 }
 
-function CetakAgendaKelasModal({ daftarKelas, initialKelasId }: { daftarKelas: AgendaKelasOption[]; initialKelasId: string }) {
+function SignatureSettingsModal({
+  settings,
+  previewData,
+  onApply,
+}: {
+  settings: AgendaKelasSignatureSettings
+  previewData: AgendaKelasPageData | null
+  onApply: (settings: AgendaKelasSignatureSettings) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState(settings)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen)
+    if (nextOpen) {
+      setDraft(settings)
+      setMessage(null)
+    }
+  }
+
+  const updatePlacement = (
+    signer: keyof AgendaKelasSignatureSettings,
+    key: keyof AgendaKelasSignaturePlacement,
+    value: number
+  ) => {
+    setDraft(prev => ({
+      ...prev,
+      [signer]: { ...prev[signer], [key]: value },
+    }))
+  }
+
+  const saveSettings = async () => {
+    setSaving(true)
+    setMessage(null)
+    try {
+      const result = await saveAgendaKelasSignatureSettings(draft)
+      if (result.error || !result.settings) {
+        setMessage(result.error || 'Pengaturan gagal disimpan.')
+        return
+      }
+      setDraft(result.settings)
+      onApply(result.settings)
+      setMessage('Pengaturan tanda tangan berhasil diterapkan.')
+    } catch {
+      setMessage('Pengaturan gagal disimpan.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const signerPanels: Array<{
+    key: keyof AgendaKelasSignatureSettings
+    label: string
+    role: string
+    name: string
+    nip: string
+    signatureUrl: string | null
+  }> = [
+    {
+      key: 'kepala',
+      label: 'Kepala Madrasah',
+      role: 'Kepala MAN 1 Tasikmalaya,',
+      name: previewData?.kepala.nama || 'Nama Kepala Madrasah',
+      nip: previewData?.kepala.nip || '000000000000000000',
+      signatureUrl: previewData?.kepala.signature_url || null,
+    },
+    {
+      key: 'wali',
+      label: 'Wali Kelas',
+      role: 'Wali Kelas,',
+      name: previewData?.kelas.wali_kelas_nama || 'Nama Wali Kelas',
+      nip: previewData?.kelas.wali_kelas_nip || '000000000000000000',
+      signatureUrl: previewData?.kelas.wali_kelas_signature_url || null,
+    },
+  ]
+
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={handleOpenChange}>
+      <DialogPrimitive.Trigger asChild>
+        <Button type="button" size="sm" variant="outline" className="h-9 gap-1.5 text-xs">
+          <Settings2 className="h-3.5 w-3.5 text-indigo-500" />
+          Tanda Tangan
+        </Button>
+      </DialogPrimitive.Trigger>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
+        <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[96vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-xl border border-surface bg-background p-5 shadow-2xl">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <DialogPrimitive.Title className="text-base font-semibold">Pengaturan Tanda Tangan Agenda Kelas</DialogPrimitive.Title>
+              <DialogPrimitive.Description className="mt-1 text-xs text-slate-500">
+                Posisi disimpan untuk akun Anda dan dipakai pada preview serta seluruh cetak Agenda Kelas.
+              </DialogPrimitive.Description>
+            </div>
+            <DialogPrimitive.Close className="rounded-md p-1.5 text-slate-400 hover:bg-surface-2">
+              <X className="h-4 w-4" />
+            </DialogPrimitive.Close>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {signerPanels.map(panel => {
+              const placement = draft[panel.key]
+              return (
+                <div key={panel.key} className="space-y-3 rounded-lg border border-surface p-3">
+                  <label className="flex items-center gap-2 text-sm font-semibold">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(placement.enabled)}
+                      onChange={e => updatePlacement(panel.key, 'enabled', e.target.checked ? 1 : 0)}
+                      className="h-4 w-4"
+                    />
+                    Pakai tanda tangan {panel.label}
+                  </label>
+
+                  {!panel.signatureUrl ? (
+                    <p className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] text-amber-700">
+                      PNG tanda tangan {panel.label} belum tersedia di profil{panel.key === 'wali' && !previewData ? ' kelas yang dipilih' : ''}.
+                    </p>
+                  ) : null}
+
+                  <div className="overflow-hidden rounded-md border border-slate-200 bg-white p-3 text-black">
+                    <div className="relative min-h-[43mm] font-serif text-[10pt]">
+                      <div>{panel.role}</div>
+                      {placement.enabled && panel.signatureUrl ? (
+                        <img
+                          src={panel.signatureUrl}
+                          alt={`Preview tanda tangan ${panel.label}`}
+                          style={{
+                            position: 'absolute',
+                            left: `${placement.x_mm}mm`,
+                            top: `${placement.y_mm}mm`,
+                            width: `${placement.width_mm}mm`,
+                            maxHeight: '30mm',
+                            objectFit: 'contain',
+                            zIndex: 10,
+                            pointerEvents: 'none',
+                          }}
+                        />
+                      ) : null}
+                      <div className="mt-[18mm] font-bold underline">{panel.name}</div>
+                      <div>NIP. {panel.nip}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <SignatureControl label="Geser kanan (mm)" value={placement.x_mm} min={-20} max={80} onChange={value => updatePlacement(panel.key, 'x_mm', value)} />
+                    <SignatureControl label="Geser turun (mm)" value={placement.y_mm} min={-20} max={80} onChange={value => updatePlacement(panel.key, 'y_mm', value)} />
+                    <div className="sm:col-span-2">
+                      <SignatureControl label="Ukuran tanda tangan (mm)" value={placement.width_mm} min={15} max={120} onChange={value => updatePlacement(panel.key, 'width_mm', value)} />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {message ? <p className="mt-3 text-xs text-slate-500">{message}</p> : null}
+          <div className="mt-4 flex justify-end gap-2">
+            <Button type="button" variant="outline" disabled={saving} onClick={() => setDraft(DEFAULT_SIGNATURE_SETTINGS)}>
+              Reset
+            </Button>
+            <Button type="button" disabled={saving} onClick={saveSettings} className="bg-emerald-600 text-white hover:bg-emerald-700">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Apply'}
+            </Button>
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
+  )
+}
+
+function SignatureControl({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  onChange: (value: number) => void
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[11px] text-slate-600">{label}</label>
+      <Input type="number" value={value} min={min} max={max} onChange={e => onChange(Number(e.target.value))} className="h-8 text-xs" />
+      <input type="range" value={value} min={min} max={max} onChange={e => onChange(Number(e.target.value))} className="w-full" />
+    </div>
+  )
+}
+
+function CetakAgendaKelasModal({
+  daftarKelas,
+  initialKelasId,
+  signatureSettings,
+}: {
+  daftarKelas: AgendaKelasOption[]
+  initialKelasId: string
+  signatureSettings: AgendaKelasSignatureSettings
+}) {
   const [open, setOpen] = useState(false)
   const [selectedKelasIds, setSelectedKelasIds] = useState<string[]>([])
   const [selectedMonths, setSelectedMonths] = useState<string[]>([currentMonth()])
@@ -480,7 +699,7 @@ html, body { margin: 0; padding: 0; background: #fff; }
                           Halaman {index + 1} - {page.kelas.label} - {formatInfoDate(page.tanggal)}
                         </div>
                         <div className="origin-top-left bg-white shadow-xl ring-1 ring-black/10" style={{ width: '330mm', transform: 'scale(0.44)', transformOrigin: 'top left', marginBottom: 'calc(215mm * -0.56 + 16px)' }}>
-                          <AgendaKelasTemplate data={page} />
+                          <AgendaKelasTemplate data={page} signatureSettings={signatureSettings} />
                         </div>
                       </div>
                     ))}
@@ -494,7 +713,7 @@ html, body { margin: 0; padding: 0; background: #fff; }
 
       <div ref={printRef} style={{ position: 'absolute', left: '-99999px', top: 0 }}>
         {pages.map((page, index) => (
-          <AgendaKelasTemplate key={`${page.kelas.id}-${page.tanggal}-print`} data={page} pageBreak={index > 0} />
+          <AgendaKelasTemplate key={`${page.kelas.id}-${page.tanggal}-print`} data={page} signatureSettings={signatureSettings} pageBreak={index > 0} />
         ))}
       </div>
     </>
