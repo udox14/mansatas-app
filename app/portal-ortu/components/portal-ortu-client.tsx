@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, ArrowLeft, Download, Loader2, UploadCloud, Image as ImageIcon, RefreshCw, CircleHelp } from 'lucide-react'
+import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, ArrowLeft, Download, Loader2, UploadCloud, Image as ImageIcon, RefreshCw, CircleHelp, CalendarRange, TrendingUp, Clock3 } from 'lucide-react'
 import { MobileBottomNav } from './mobile-bottom-nav'
 import { ScheduleTabs } from './schedule-tabs'
 import { ChangePasswordForm } from './change-password-form'
@@ -11,7 +11,7 @@ import { ParentWhatsAppForm } from './parent-whatsapp-form'
 import { SummonResponseForm } from './summon-response-form'
 import { PortalTour, type PortalTourStep } from './portal-tour'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { createParentDsptPaymentSubmission, createParentSuggestion, getParentSemesterGrades, markParentNotificationRead, uploadParentPaymentProof } from '../actions'
+import { createParentDsptPaymentSubmission, createParentSuggestion, getParentAttendanceByAcademicYear, getParentSemesterGrades, markParentNotificationRead, uploadParentPaymentProof } from '../actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { PARENT_SUGGESTION_CATEGORIES } from '@/lib/parent-suggestions'
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
@@ -92,6 +92,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [suggestionFeedback, setSuggestionFeedback] = useState('')
   const [tourOpen, setTourOpen] = useState(false)
   const [selectedDocId, setSelectedDocId] = useState('')
+  const [selectedAttendanceYearId, setSelectedAttendanceYearId] = useState(data.attendanceInitial?.tahunAjaran?.id || '')
+  const [attendanceDetail, setAttendanceDetail] = useState<any>(data.attendanceInitial || null)
+  const [attendanceLoading, setAttendanceLoading] = useState(false)
 
   const {
     profil,
@@ -99,8 +102,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
     waliKelasRow,
     waUrl,
     pengumumanRows,
-    absensiRekap,
-    absensiTerbaru,
+    weeklyAttendanceSummary,
+    weekRange,
+    attendanceYears,
+    attendanceInitial,
     disciplineSummary,
     semesters,
     semesterAvg,
@@ -181,7 +186,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   ].filter((item) => item.value > 0 && item.value <= Number(dsptSisa || 0))
   const needsDisciplineAttention = Boolean(disciplineSummary?.needsFollowUp)
   const disciplineLevelLabel = disciplineSummary?.levelLabel || 'Baik'
-  const recentAttendanceRows = absensiTerbaru.results || []
+  const recentAttendanceRows = attendanceDetail?.recent || []
   const suggestionRows = parentSuggestions?.results || []
   const docsRows = documentationArticles || []
   const selectedDoc = docsRows.find((article: any) => article.id === selectedDocId) || docsRows[0]
@@ -437,6 +442,14 @@ export function PortalOrtuClient({ data }: { data: any }) {
     router.refresh()
   }
 
+  const changeAttendanceYear = async (tahunAjaranId: string) => {
+    setSelectedAttendanceYearId(tahunAjaranId)
+    setAttendanceLoading(true)
+    const result = await getParentAttendanceByAcademicYear(tahunAjaranId)
+    if (!(result as any).error) setAttendanceDetail(result)
+    setAttendanceLoading(false)
+  }
+
   const renderBeranda = () => {
     const activeSummons = (summons.results || []).filter((s: any) => s.status === 'terkirim' && !s.parent_response)
     const activeNotifications = (notifications.results || []).filter((n: any) => !n.is_read && !hiddenNotifications.has(n.id))
@@ -450,10 +463,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
         transition={{ duration: 0.3 }}
         className="portal-tab-panel space-y-5"
       >
-        {/* Social Media Style Hero Profile Section */}
-        <div data-tour-id="beranda-profile" className="relative bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col items-center pb-6 text-center">
+        <div data-tour-id="beranda-profile" className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white pb-5 text-center shadow-sm">
           {/* Cover Banner */}
-          <div className="w-full h-28 sm:h-36 bg-gradient-to-r from-teal-900 via-teal-700 to-slate-900 relative">
+          <div className="relative h-24 w-full bg-gradient-to-r from-teal-950 via-teal-800 to-slate-900 sm:h-28">
             <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
               <GraduationCap className="w-48 h-48 -mt-12 -mr-12 text-white" />
             </div>
@@ -478,7 +490,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </div>
 
           {/* Overlapping 3:4 Portrait Avatar */}
-          <div className="-mt-14 sm:-mt-16 relative z-10">
+          <div className="relative z-10 -mt-14">
             <AvatarSiswa 
               fotoUrl={profil.foto_url} 
               nama={profil.nama_lengkap || initialLetter} 
@@ -506,53 +518,45 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          {/* Wali Kelas */}
-          <div data-tour-id="beranda-wali" className="col-span-2 sm:col-span-1">
-            <StandardCard className="h-full flex flex-col justify-between hover:border-sky-200 transition-colors">
-              <div className="flex items-start gap-4">
-                <div className="bg-sky-50 text-sky-600 p-3 rounded-xl">
-                  <ShieldAlert className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-slate-500 mb-0.5">Wali Kelas</p>
-                  <h3 className="text-sm font-semibold text-slate-800 leading-tight">
-                    {waliKelasRow?.nama_lengkap || 'Belum diatur'}
-                  </h3>
-                </div>
-              </div>
-              <div className="mt-4 pt-4 border-t border-slate-100">
-                {waUrl ? (
-                  <a href={waUrl} target="_blank" className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100 transition-colors">
-                    <MessageCircle className="h-4 w-4" /> Hubungi via WhatsApp
-                  </a>
-                ) : (
-                  <span className="inline-block text-xs font-medium text-slate-400">Kontak tidak tersedia</span>
-                )}
-              </div>
-            </StandardCard>
+        <StandardCard data-tour-id="beranda-stats" className="p-0 overflow-hidden">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5">
+            <div>
+              <p className="text-sm font-bold text-slate-900">Kehadiran minggu ini</p>
+              <p className="mt-0.5 text-[11px] text-slate-500">Senin–Sabtu · {formatDateWIB(weekRange.start)}–{formatDateWIB(weekRange.end)}</p>
+            </div>
+            <CalendarRange className="h-5 w-5 text-teal-700" />
           </div>
+          <div className="grid grid-cols-4 divide-x divide-slate-100">
+            {[
+              { label: 'Hadir', value: weeklyAttendanceSummary?.hadir || 0, tone: 'text-teal-700' },
+              { label: 'Sakit', value: weeklyAttendanceSummary?.sakit || 0, tone: 'text-amber-600' },
+              { label: 'Izin', value: weeklyAttendanceSummary?.izin || 0, tone: 'text-sky-600' },
+              { label: 'Alfa', value: weeklyAttendanceSummary?.alfa || 0, tone: 'text-rose-600' },
+            ].map((item) => (
+              <div key={item.label} className="px-2 py-4 text-center">
+                <p className={`text-2xl font-black tabular-nums ${item.tone}`}>{item.value}</p>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
+              </div>
+            ))}
+          </div>
+        </StandardCard>
 
-          {/* Quick Stats */}
-          <div data-tour-id="beranda-stats" className="col-span-2 sm:col-span-1 grid grid-cols-2 gap-3">
-            <div className="bg-white rounded-2xl border border-teal-100 p-4 flex flex-col items-center justify-center text-center shadow-sm">
-              <span className="text-2xl font-bold text-teal-700">{absensiRekap?.hadir || 0}</span>
-              <span className="text-[11px] font-medium text-slate-500 mt-1">Kehadiran</span>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <StandardCard data-tour-id="beranda-wali" className="flex items-center gap-3 p-4">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700"><ShieldAlert className="h-5 w-5" /></div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Wali kelas</p>
+              <p className="truncate text-sm font-bold text-slate-900">{waliKelasRow?.nama_lengkap || 'Belum diatur'}</p>
             </div>
-            <div className={`bg-white rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-sm ${needsDisciplineAttention ? 'border border-amber-100' : 'border border-teal-100'}`}>
-              <span className={`text-sm font-bold leading-tight ${needsDisciplineAttention ? 'text-amber-700' : 'text-teal-700'}`}>{disciplineLevelLabel}</span>
-              <span className="text-[11px] font-medium text-slate-500 mt-1">Perlu Perhatian</span>
+            {waUrl && <a href={waUrl} target="_blank" aria-label="Hubungi wali kelas" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700 hover:bg-teal-100"><MessageCircle className="h-4 w-4" /></a>}
+          </StandardCard>
+          <StandardCard className="flex items-center gap-3 p-4">
+            <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${needsDisciplineAttention ? 'bg-amber-50 text-amber-700' : 'bg-teal-50 text-teal-700'}`}><ShieldAlert className="h-5 w-5" /></div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Pendampingan</p>
+              <p className={`truncate text-sm font-bold ${needsDisciplineAttention ? 'text-amber-800' : 'text-teal-800'}`}>{disciplineLevelLabel}</p>
             </div>
-            <div className="col-span-2 bg-white rounded-2xl border border-amber-100 p-4 flex items-center justify-between shadow-sm">
-              <div>
-                <span className="text-[11px] font-medium text-slate-500 block mb-0.5">Sakit & Izin</span>
-                <p className="text-lg font-bold text-amber-600">{(absensiRekap?.sakit || 0) + (absensiRekap?.izin || 0)} <span className="text-xs font-medium text-slate-500">hari</span></p>
-              </div>
-              <div className="p-2 bg-amber-50 rounded-lg text-amber-500">
-                <AlertTriangle className="h-5 w-5" />
-              </div>
-            </div>
-          </div>
+          </StandardCard>
         </div>
 
         {/* Critical Notifications / Summons */}
@@ -748,119 +752,120 @@ export function PortalOrtuClient({ data }: { data: any }) {
     </motion.div>
   )
 
-  const renderKehadiran = () => (
-    <motion.div
-      key="kehadiran"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.3 }}
-      className="portal-tab-panel space-y-5"
-    >
-      {/* Kehadiran Summary */}
-      <div data-tour-id="kehadiran-summary" className="grid grid-cols-3 gap-3">
-        <div className="col-span-3 bg-white rounded-2xl border border-teal-100 p-6 flex items-center justify-between shadow-sm">
+  const renderKehadiran = () => {
+    const summary = attendanceDetail?.summary || {}
+    const monthly = attendanceDetail?.monthly || []
+    const statusMeta: Record<string, { label: string; className: string }> = {
+      HADIR: { label: 'Hadir', className: 'bg-teal-50 text-teal-700' },
+      SAKIT: { label: 'Sakit', className: 'bg-amber-50 text-amber-700' },
+      IZIN: { label: 'Izin', className: 'bg-sky-50 text-sky-700' },
+      ALFA: { label: 'Tanpa keterangan', className: 'bg-rose-50 text-rose-700' },
+      PARSIAL: { label: 'Parsial', className: 'bg-violet-50 text-violet-700' },
+      PERLU_KONFIRMASI_WALI: { label: 'Perlu konfirmasi', className: 'bg-violet-50 text-violet-700' },
+      BELUM_ADA_INPUT: { label: 'Belum diinput', className: 'bg-slate-100 text-slate-600' },
+      BELUM_ADA_DATA: { label: 'Data belum lengkap', className: 'bg-slate-100 text-slate-600' },
+    }
+
+    return (
+      <motion.div key="kehadiran" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="portal-tab-panel space-y-5">
+        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-500 mb-1">Total Kehadiran</p>
-            <h2 className="text-3xl font-bold text-teal-700">{absensiRekap?.hadir || 0} <span className="text-base font-medium text-teal-700/60">hari</span></h2>
+            <p className="text-sm font-bold text-slate-900">Rekap kehadiran</p>
+            <p className="mt-0.5 text-xs text-slate-500">Bandingkan catatan anak per tahun ajaran dan semester.</p>
           </div>
-          <div className="w-12 h-12 bg-teal-50 rounded-full flex items-center justify-center">
-            <CheckCircle2 className="h-6 w-6 text-teal-600" />
-          </div>
+          <label className="relative min-w-[210px]">
+            <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <select value={selectedAttendanceYearId} onChange={(event) => changeAttendanceYear(event.target.value)} className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-8 text-sm font-bold text-slate-800 outline-none focus:border-teal-500">
+              {(attendanceYears || []).map((item: any) => <option key={item.id} value={item.id}>{item.nama} · Semester {item.semester}</option>)}
+            </select>
+          </label>
         </div>
 
-        <div className="col-span-1 bg-white rounded-2xl border border-amber-100 p-4 shadow-sm flex flex-col items-center justify-center text-center">
-          <p className="text-xs font-medium text-slate-500 mb-2">Izin</p>
-          <span className="text-xl font-bold text-amber-600">{absensiRekap?.izin || 0}</span>
-        </div>
-        <div className="col-span-1 bg-white rounded-2xl border border-amber-100 p-4 shadow-sm flex flex-col items-center justify-center text-center">
-          <p className="text-xs font-medium text-slate-500 mb-2">Sakit</p>
-          <span className="text-xl font-bold text-amber-600">{absensiRekap?.sakit || 0}</span>
-        </div>
-        <div className="col-span-1 bg-white rounded-2xl border border-rose-100 p-4 shadow-sm flex flex-col items-center justify-center text-center">
-          <p className="text-xs font-medium text-slate-500 mb-2">Tanpa Ket.</p>
-          <span className="text-xl font-bold text-rose-600">{absensiRekap?.alfa || 0}</span>
-        </div>
-      </div>
-
-      <div data-tour-id="kehadiran-recent" className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1">Catatan Kehadiran Terbaru</h2>
-        <StandardCard className="p-0 overflow-hidden">
-          {recentAttendanceRows.length === 0 ? (
-            <p className="text-sm text-slate-500 p-6 text-center">Belum ada catatan izin, sakit, tanpa keterangan, atau catatan khusus dari guru.</p>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {recentAttendanceRows.map((r: any, i: number) => {
-                const isHadir = r.status === 'HADIR';
-                return (
-                  <div key={i} className="flex items-center gap-4 p-4 hover:bg-slate-50 transition-colors">
-                    <div className={`p-2 rounded-full ${
-                      isHadir ? 'bg-teal-50 text-teal-600' : 'bg-amber-50 text-amber-500'
-                    }`}>
-                      {isHadir ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-sm font-semibold text-slate-800">{r.status}</h4>
-                      <p className="text-xs text-slate-500 mt-0.5">{r.tanggal}</p>
-                    </div>
-                    {r.catatan && (
-                      <div className="text-xs text-slate-500 bg-slate-50 px-2 py-1 rounded">
-                        {r.catatan}
-                      </div>
-                    )}
+        {attendanceLoading ? (
+          <div className="grid min-h-56 place-items-center rounded-2xl border border-slate-200 bg-white"><Loader2 className="h-6 w-6 animate-spin text-teal-700" /></div>
+        ) : (
+          <>
+            <div data-tour-id="kehadiran-summary" className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <div className="col-span-2 rounded-2xl bg-slate-950 p-5 text-white sm:col-span-2">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-400">Tingkat kehadiran</p>
+                    <p className="mt-1 text-4xl font-black tracking-tight">{summary.attendanceRate ?? '-'}{summary.attendanceRate !== null && summary.attendanceRate !== undefined ? '%' : ''}</p>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </StandardCard>
-      </div>
-
-      <div data-tour-id="kehadiran-discipline" className="pt-4 mt-4 border-t border-slate-200">
-        <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1 mb-3">Ringkasan Perhatian Siswa</h2>
-        
-        <div className={`rounded-2xl p-6 shadow-md flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between ${
-          needsDisciplineAttention ? 'bg-amber-50 border border-amber-100 text-amber-950' : 'bg-teal-50 border border-teal-100 text-teal-950'
-        }`}>
-          <div>
-            <p className={`text-xs font-medium uppercase tracking-wide mb-1 ${needsDisciplineAttention ? 'text-amber-700' : 'text-teal-700'}`}>Status Pendampingan</p>
-            <p className="text-2xl font-bold">{disciplineLevelLabel}</p>
-            <p className={`mt-2 text-sm leading-6 ${needsDisciplineAttention ? 'text-amber-800' : 'text-teal-800'}`}>
-              {needsDisciplineAttention
-                ? 'Ada catatan yang perlu didampingi bersama wali kelas atau BK. Detail lengkap disampaikan melalui jalur resmi sekolah.'
-                : 'Belum ada catatan kedisiplinan yang perlu tindak lanjut khusus.'}
-            </p>
-          </div>
-          <div className="shrink-0 rounded-xl bg-white/70 px-4 py-3 text-left sm:text-right">
-            <p className={`text-[10px] font-bold uppercase tracking-wide ${needsDisciplineAttention ? 'text-amber-700' : 'text-teal-700'}`}>Catatan Tercatat</p>
-            <p className="mt-1 text-xl font-bold">{disciplineSummary?.totalKasus || 0}</p>
-            {disciplineSummary?.lastDate && (
-              <p className="mt-1 text-[11px] font-medium opacity-75">Terakhir {disciplineSummary.lastDate}</p>
-            )}
-          </div>
-        </div>
-
-        {needsDisciplineAttention && (
-          <StandardCard className="mt-4 border-l-4 border-l-sky-500" data-tour-id="kehadiran-contact">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h4 className="text-sm font-semibold text-slate-800">Koordinasi dengan sekolah</h4>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Orang tua dapat menghubungi wali kelas untuk memahami langkah pendampingan yang tepat.
-                </p>
+                  <TrendingUp className="h-5 w-5 text-teal-400" />
+                </div>
+                <p className="mt-4 text-xs leading-5 text-slate-400">{summary.hadir || 0} hari hadir dari {summary.completedDays || 0} hari dengan status final.</p>
               </div>
-              {waUrl && (
-                <a href={waUrl} target="_blank" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-sky-50 px-4 text-sm font-bold text-sky-700 hover:bg-sky-100">
-                  <MessageCircle className="h-4 w-4" />
-                  Hubungi Wali Kelas
-                </a>
-              )}
+              {[
+                { label: 'Sakit', value: summary.sakit || 0, tone: 'text-amber-700', bg: 'bg-amber-50' },
+                { label: 'Izin', value: summary.izin || 0, tone: 'text-sky-700', bg: 'bg-sky-50' },
+                { label: 'Alfa', value: summary.alfa || 0, tone: 'text-rose-700', bg: 'bg-rose-50' },
+              ].map((item) => (
+                <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className={`grid h-8 w-8 place-items-center rounded-lg ${item.bg}`}><Clock3 className={`h-4 w-4 ${item.tone}`} /></div>
+                  <p className={`mt-4 text-2xl font-black tabular-nums ${item.tone}`}>{item.value}</p>
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
+                </div>
+              ))}
             </div>
-          </StandardCard>
+
+            <StandardCard className="space-y-4" data-tour-id="kehadiran-trend">
+              <div>
+                <p className="text-sm font-bold text-slate-900">Perubahan bulanan</p>
+                <p className="mt-0.5 text-xs text-slate-500">Proporsi status final pada setiap bulan pembelajaran.</p>
+              </div>
+              {monthly.length === 0 ? <p className="py-6 text-center text-sm text-slate-500">Belum ada data pada periode ini.</p> : (
+                <div className="space-y-3">
+                  {monthly.map((item: any) => {
+                    const total = item.hadir + item.sakit + item.izin + item.alfa + item.perluKonfirmasi
+                    return (
+                      <div key={item.month} className="grid grid-cols-[74px_1fr_34px] items-center gap-3">
+                        <span className="text-xs font-bold text-slate-600">{new Intl.DateTimeFormat('id-ID', { month: 'short', year: '2-digit' }).format(new Date(`${item.month}-01T00:00:00`))}</span>
+                        <div className="flex h-2.5 overflow-hidden rounded-full bg-slate-100">
+                          {total > 0 && <>
+                            <span className="bg-teal-500" style={{ width: `${(item.hadir / total) * 100}%` }} />
+                            <span className="bg-amber-400" style={{ width: `${(item.sakit / total) * 100}%` }} />
+                            <span className="bg-sky-400" style={{ width: `${(item.izin / total) * 100}%` }} />
+                            <span className="bg-rose-500" style={{ width: `${(item.alfa / total) * 100}%` }} />
+                            <span className="bg-violet-400" style={{ width: `${(item.perluKonfirmasi / total) * 100}%` }} />
+                          </>}
+                        </div>
+                        <span className="text-right text-xs font-bold text-slate-500">{total}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-[10px] font-semibold text-slate-500">
+                {[['bg-teal-500','Hadir'],['bg-amber-400','Sakit'],['bg-sky-400','Izin'],['bg-rose-500','Alfa'],['bg-violet-400','Perlu cek']].map(([color,label]) => <span key={label} className="flex items-center gap-1.5"><i className={`h-2 w-2 rounded-full ${color}`} />{label}</span>)}
+              </div>
+            </StandardCard>
+
+            <div data-tour-id="kehadiran-recent" className="space-y-3">
+              <div className="ml-1"><h2 className="text-sm font-bold text-slate-900">Catatan yang perlu diketahui</h2><p className="mt-0.5 text-xs text-slate-500">Ketidakhadiran dan catatan khusus terbaru.</p></div>
+              <StandardCard className="overflow-hidden p-0">
+                {recentAttendanceRows.length === 0 ? <p className="p-6 text-center text-sm text-slate-500">Tidak ada catatan khusus pada periode ini.</p> : (
+                  <div className="divide-y divide-slate-100">
+                    {recentAttendanceRows.map((row: any, index: number) => {
+                      const meta = statusMeta[row.status_akhir] || statusMeta.BELUM_ADA_DATA
+                      const note = row.keterangan_wali_kelas || row.detail_guru?.find((detail: any) => detail.catatan)?.catatan
+                      return <div key={`${row.tanggal}-${index}`} className="flex items-start gap-3 p-4"><span className={`mt-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.className}`}>{meta.label}</span><div className="min-w-0 flex-1"><p className="text-sm font-bold text-slate-800">{formatDateWIB(row.tanggal)}</p>{note && <p className="mt-1 text-xs leading-5 text-slate-500">{note}</p>}</div></div>
+                    })}
+                  </div>
+                )}
+              </StandardCard>
+            </div>
+
+            <StandardCard data-tour-id="kehadiran-discipline" className={`flex items-center gap-4 p-4 ${needsDisciplineAttention ? 'border-amber-200' : 'border-teal-100'}`}>
+              <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${needsDisciplineAttention ? 'bg-amber-50 text-amber-700' : 'bg-teal-50 text-teal-700'}`}><ShieldAlert className="h-5 w-5" /></div>
+              <div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Status pendampingan</p><p className="text-sm font-bold text-slate-900">{disciplineLevelLabel}</p><p className="mt-0.5 text-xs text-slate-500">{disciplineSummary?.totalKasus || 0} catatan kedisiplinan tercatat.</p></div>
+              {needsDisciplineAttention && waUrl && <a href={waUrl} target="_blank" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700"><MessageCircle className="h-4 w-4" /></a>}
+            </StandardCard>
+          </>
         )}
-      </div>
-    </motion.div>
-  )
+      </motion.div>
+    )
+  }
 
   const renderNilai = () => (
     <motion.div
@@ -880,6 +885,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
         {semesterAvg === null && (
           <p className="mt-3 text-sm leading-6 text-slate-500">Rekap nilai semester belum tersedia di portal orang tua.</p>
         )}
+        <div className="mx-auto mt-4 flex max-w-md items-start gap-2 rounded-xl bg-indigo-50 px-3 py-2.5 text-left">
+          <BookOpenCheck className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600" />
+          <p className="text-xs leading-5 text-indigo-800">Data yang tampil adalah <strong>nilai rapor</strong> dan diperbarui oleh sekolah pada setiap akhir semester.</p>
+        </div>
       </div>
 
       <div data-tour-id="nilai-semesters" className="space-y-3">
@@ -1469,18 +1478,11 @@ export function PortalOrtuClient({ data }: { data: any }) {
         transition={{ duration: 0.3 }}
         className="portal-tab-panel space-y-5"
       >
-        <div data-tour-id="saran-hero" className="rounded-[28px] bg-gradient-to-br from-teal-900 to-slate-900 p-6 text-white shadow-md">
-          <div className="flex items-start gap-4">
-            <div className="rounded-2xl bg-white/10 p-3 text-white">
-              <MessageSquareText className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Kotak Saran</p>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight">Sampaikan masukan untuk sekolah</h1>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Saran Bapak/Ibu akan diterima oleh pimpinan madrasah dan Tata Usaha untuk ditindaklanjuti.
-              </p>
-            </div>
+        <div data-tour-id="saran-hero" className="flex items-center gap-3 rounded-2xl border border-teal-100 bg-white p-4 shadow-sm">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700"><MessageSquareText className="h-5 w-5" /></div>
+          <div className="min-w-0">
+            <h1 className="text-base font-bold text-slate-900">Kotak Saran Orang Tua</h1>
+            <p className="mt-0.5 text-xs leading-5 text-slate-500">Masukan diteruskan kepada pimpinan madrasah dan Tata Usaha untuk ditindaklanjuti.</p>
           </div>
         </div>
 
