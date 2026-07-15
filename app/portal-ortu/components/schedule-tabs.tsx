@@ -103,6 +103,7 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
           </div>
         ) : rows.map((item, index) => {
           let statusClass = 'border-[#D8D4CC] bg-[#F2F0EC] text-[#6B6B63]'
+          let cardClass = 'border-[#D8D4CC] bg-white hover:border-[#BDB7AE] hover:bg-[#FEFDFB]'
           let StatusIcon = Clock
 
           if (item.isToday && item.absensi) {
@@ -112,12 +113,18 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
                 StatusIcon = CheckCircle
                 break
               case 'SAKIT':
-              case 'IZIN':
                 statusClass = 'border-[#E5CFA7] bg-[#FFF7E8] text-[#8A5B16]'
+                cardClass = 'border-[#DEC394] bg-[#FFF8E8] shadow-[inset_4px_0_0_#B97820] hover:border-[#CBA969]'
+                StatusIcon = Warning
+                break
+              case 'IZIN':
+                statusClass = 'border-[#B8C9CD] bg-[#F1F7F7] text-[#3F6F72]'
+                cardClass = 'border-[#B8C9CD] bg-[#F1F7F7] shadow-[inset_4px_0_0_#487A7C] hover:border-[#91ACB1]'
                 StatusIcon = Warning
                 break
               case 'ALFA':
                 statusClass = 'border-[#E5B9B3] bg-[#FFF1EF] text-[#A63D32]'
+                cardClass = 'border-[#D79B92] bg-[#FFF1EF] shadow-[inset_4px_0_0_#C2522D] hover:border-[#C9786D]'
                 StatusIcon = XCircle
                 break
               case 'KBM_EXCEPTION':
@@ -137,7 +144,7 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
               <DialogTrigger asChild>
                 <button
                   type="button"
-                  className="group w-full rounded-2xl border border-[#D8D4CC] bg-white p-4 text-left outline-none transition-colors duration-150 hover:border-[#BDB7AE] hover:bg-[#FEFDFB] focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2"
+                  className={`group w-full rounded-2xl border p-4 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2 ${cardClass}`}
                 >
                   <div className="flex min-w-0 items-center justify-between gap-3 border-b border-[#E8E5E0] pb-3">
                     <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-[#6B6B63]">
