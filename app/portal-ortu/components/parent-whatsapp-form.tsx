@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
-import { MessageCircle, Phone, Save } from 'lucide-react'
+import { ChatCircle as MessageCircle, FloppyDisk as Save, Phone } from '@phosphor-icons/react'
 import { updateOwnParentWhatsApp } from '../actions'
 
 export function ParentWhatsAppForm({ initialNumber = '' }: { initialNumber?: string }) {
@@ -49,7 +49,7 @@ export function ParentWhatsAppForm({ initialNumber = '' }: { initialNumber?: str
               value={nomorWhatsapp}
               onChange={(e) => setNomorWhatsapp(e.target.value)}
               placeholder="Contoh: 081234567890"
-              className="w-full h-10 rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-50 transition-all placeholder:text-slate-400"
+              className="h-11 w-full rounded-lg border border-[#D8D4CC] bg-white pl-9 pr-3 text-sm text-[#1A1A18] outline-none transition-colors placeholder:text-[#8B877F] focus:border-[#C2522D] focus:ring-2 focus:ring-[#C2522D]/15"
             />
           </div>
           <p className="mt-2 text-[11px] font-medium text-slate-400">
@@ -70,7 +70,7 @@ export function ParentWhatsAppForm({ initialNumber = '' }: { initialNumber?: str
           type="button"
           onClick={submit}
           disabled={isPending}
-          className="h-10 rounded-xl bg-teal-700 px-5 text-sm font-bold text-white hover:bg-teal-800 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 transition-all flex items-center gap-2 shrink-0 shadow-md shadow-teal-700/10"
+          className="flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-[#C2522D] px-5 text-sm font-bold text-white transition-colors hover:bg-[#A8421F] disabled:opacity-60"
         >
           <Save className="w-4 h-4" />
           {isPending ? 'Menyimpan...' : 'Simpan Nomor'}

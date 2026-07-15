@@ -3,7 +3,36 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, BookOpenCheck, CalendarDays, GraduationCap, House, MessageCircle, Wallet, AlertOctagon, Settings, LogOut, CheckCircle2, AlertTriangle, ShieldAlert, ChevronRight, MessageSquareText, Megaphone, QrCode, Landmark, ArrowLeft, Download, Loader2, UploadCloud, Image as ImageIcon, RefreshCw, CircleHelp, CalendarRange, TrendingUp, Clock3 } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowsClockwise as RefreshCw,
+  Bank as Landmark,
+  Bell,
+  BookOpenText as BookOpenCheck,
+  CalendarBlank as CalendarDays,
+  CalendarDots as CalendarRange,
+  CaretRight as ChevronRight,
+  ChatCircle as MessageCircle,
+  ChatText as MessageSquareText,
+  CheckCircle as CheckCircle2,
+  Clock as Clock3,
+  DownloadSimple as Download,
+  Gear as Settings,
+  House,
+  ImageSquare as ImageIcon,
+  Megaphone,
+  QrCode,
+  Question as CircleHelp,
+  ShieldWarning as ShieldAlert,
+  SignOut as LogOut,
+  SpinnerGap as Loader2,
+  Student as GraduationCap,
+  TrendUp as TrendingUp,
+  UploadSimple as UploadCloud,
+  Wallet,
+  Warning as AlertTriangle,
+  WarningOctagon as AlertOctagon,
+} from '@phosphor-icons/react'
 import { MobileBottomNav } from './mobile-bottom-nav'
 import { ScheduleTabs } from './schedule-tabs'
 import { ChangePasswordForm } from './change-password-form'
@@ -32,7 +61,7 @@ type SemesterDetailState = {
 
 function StandardCard({ children, className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`bg-white rounded-2xl border border-slate-200/60 shadow-sm p-5 ${className}`} {...props}>
+    <div className={`rounded-2xl border border-[#D8D4CC] bg-white p-5 ${className}`} {...props}>
       {children}
     </div>
   )
@@ -91,6 +120,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [suggestionSubmitting, setSuggestionSubmitting] = useState(false)
   const [suggestionFeedback, setSuggestionFeedback] = useState('')
   const [tourOpen, setTourOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
   const [selectedDocId, setSelectedDocId] = useState('')
   const [selectedAttendanceYearId, setSelectedAttendanceYearId] = useState(data.attendanceInitial?.tahunAjaran?.id || '')
   const [attendanceDetail, setAttendanceDetail] = useState<any>(data.attendanceInitial || null)
@@ -461,64 +491,51 @@ export function PortalOrtuClient({ data }: { data: any }) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
         transition={{ duration: 0.3 }}
-        className="portal-tab-panel space-y-5"
+        className="portal-tab-panel flex flex-col gap-5"
       >
-        <div data-tour-id="beranda-profile" className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white pb-5 text-center shadow-sm">
-          {/* Cover Banner */}
-          <div className="relative h-24 w-full bg-gradient-to-r from-teal-950 via-teal-800 to-slate-900 sm:h-28">
-            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-              <GraduationCap className="w-48 h-48 -mt-12 -mr-12 text-white" />
+        <section
+          data-tour-id="beranda-profile"
+          className="relative order-1 overflow-hidden rounded-2xl border border-[#D8D4CC] bg-[#F2F0EC] p-4 sm:p-6"
+        >
+          <button
+            type="button"
+            onClick={() => setAccountOpen(true)}
+            aria-label="Buka pengaturan akun"
+            className="absolute right-3 top-3 z-20 grid h-11 w-11 place-items-center rounded-lg border border-[#D8D4CC] bg-[#FAF9F7] text-[#6B6B63] outline-none transition-colors hover:text-[#C2522D] focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2"
+          >
+            <Settings className="h-5 w-5" />
+          </button>
+
+          <div className="grid min-w-0 grid-cols-[96px_minmax(0,1fr)] items-stretch gap-4 pr-8 sm:grid-cols-[132px_minmax(0,1fr)] sm:gap-6 md:grid-cols-[156px_minmax(0,1fr)]">
+            <div className="portal-student-photo aspect-[3/4] min-w-0 overflow-hidden rounded-xl border border-[#D8D4CC] bg-[#E8E5E0]">
+              <AvatarSiswa
+                fotoUrl={profil.foto_url}
+                nama={profil.nama_lengkap || initialLetter}
+                size="full"
+                className="h-full w-full rounded-none border-0 bg-[#E8E5E0] text-[#6B6B63]"
+              />
             </div>
-            
-            <Dialog>
-              <DialogTrigger asChild>
-                <button className="absolute top-4 right-4 w-9 h-9 bg-black/20 hover:bg-black/35 text-white backdrop-blur-sm rounded-full flex items-center justify-center transition-colors z-20 border border-white/10">
-                  <Settings className="w-4 h-4 text-white" />
-                </button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md rounded-2xl p-0 border-0 overflow-hidden bg-white">
-                <DialogHeader className="p-6 pb-4 border-b border-slate-100">
-                  <DialogTitle className="text-lg font-semibold text-slate-800">Pengaturan Akun</DialogTitle>
-                </DialogHeader>
-                <div className="max-h-[78vh] space-y-6 overflow-y-auto bg-slate-50 p-6">
-                  <ParentWhatsAppForm initialNumber={profil.nomor_whatsapp || ''} />
-                  <div className="h-px bg-slate-200" />
-                  <ChangePasswordForm />
+
+            <div className="flex min-w-0 flex-col justify-end py-1 sm:py-2">
+              <p className="mb-2 text-xs font-semibold text-[#C2522D]">Portal orang tua</p>
+              <h1 className="line-clamp-2 max-w-2xl text-[clamp(1.35rem,5.4vw,2.35rem)] font-medium leading-[1.08] tracking-[-0.035em] text-[#1A1A18]">
+                {profil.nama_lengkap}
+              </h1>
+              <dl className="mt-4 grid min-w-0 gap-2 border-t border-[#D8D4CC] pt-3 text-xs sm:max-w-md sm:grid-cols-2 sm:text-sm">
+                <div className="flex min-w-0 items-center justify-between gap-2 sm:block">
+                  <dt className="shrink-0 text-[#6B6B63]">Kelas</dt>
+                  <dd className="truncate whitespace-nowrap font-semibold text-[#1A1A18] sm:mt-0.5">{kelasLabel}</dd>
                 </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {/* Overlapping 3:4 Portrait Avatar */}
-          <div className="relative z-10 -mt-14">
-            <AvatarSiswa 
-              fotoUrl={profil.foto_url} 
-              nama={profil.nama_lengkap || initialLetter} 
-              size="profile" 
-              className="rounded-2xl border-4 border-white shadow-md bg-slate-800 text-white" 
-            />
-          </div>
-
-          {/* Student Info with support for very long names */}
-          <div className="mt-4 px-6 w-full flex flex-col items-center">
-            <p className="text-teal-700 text-[10px] font-bold tracking-widest uppercase mb-1">Portal Orang Tua</p>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight max-w-lg break-words w-full">
-              {profil.nama_lengkap}
-            </h1>
-            
-            {/* Pills metadata */}
-            <div className="flex flex-wrap gap-2 mt-3 justify-center">
-              <span className="bg-teal-50 border border-teal-100 text-teal-800 px-3 py-1 rounded-full text-xs font-semibold shadow-sm">
-                Kelas {kelasLabel}
-              </span>
-              <span className="bg-slate-50 border border-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-semibold shadow-sm">
-                NISN {profil.nisn}
-              </span>
+                <div className="flex min-w-0 items-center justify-between gap-2 sm:block">
+                  <dt className="shrink-0 text-[#6B6B63]">NISN</dt>
+                  <dd className="truncate whitespace-nowrap font-semibold tabular-nums text-[#1A1A18] sm:mt-0.5">{profil.nisn || '-'}</dd>
+                </div>
+              </dl>
             </div>
           </div>
-        </div>
+        </section>
 
-        <StandardCard data-tour-id="beranda-stats" className="p-0 overflow-hidden">
+        <StandardCard data-tour-id="beranda-stats" className="order-3 overflow-hidden p-0">
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5">
             <div>
               <p className="text-sm font-bold text-slate-900">Kehadiran minggu ini</p>
@@ -528,27 +545,27 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </div>
           <div className="grid grid-cols-4 divide-x divide-slate-100">
             {[
-              { label: 'Hadir', value: weeklyAttendanceSummary?.hadir || 0, tone: 'text-teal-700' },
+              { label: 'Hadir', value: weeklyAttendanceSummary?.hadir || 0, tone: 'text-[#246142]' },
               { label: 'Sakit', value: weeklyAttendanceSummary?.sakit || 0, tone: 'text-amber-600' },
               { label: 'Izin', value: weeklyAttendanceSummary?.izin || 0, tone: 'text-sky-600' },
               { label: 'Alfa', value: weeklyAttendanceSummary?.alfa || 0, tone: 'text-rose-600' },
             ].map((item) => (
               <div key={item.label} className="px-2 py-4 text-center">
                 <p className={`text-2xl font-black tabular-nums ${item.tone}`}>{item.value}</p>
-                <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
+                <p className="mt-1 whitespace-nowrap text-[11px] font-semibold text-[#6B6B63]">{item.label}</p>
               </div>
             ))}
           </div>
         </StandardCard>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="order-4 grid gap-3 sm:grid-cols-2">
           <StandardCard data-tour-id="beranda-wali" className="flex items-center gap-3 p-4">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700"><ShieldAlert className="h-5 w-5" /></div>
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Wali kelas</p>
               <p className="truncate text-sm font-bold text-slate-900">{waliKelasRow?.nama_lengkap || 'Belum diatur'}</p>
             </div>
-            {waUrl && <a href={waUrl} target="_blank" aria-label="Hubungi wali kelas" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700 hover:bg-teal-100"><MessageCircle className="h-4 w-4" /></a>}
+            {waUrl && <a href={waUrl} target="_blank" aria-label="Hubungi wali kelas" className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-100"><MessageCircle className="h-4 w-4" /></a>}
           </StandardCard>
           <StandardCard className="flex items-center gap-3 p-4">
             <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${needsDisciplineAttention ? 'bg-amber-50 text-amber-700' : 'bg-teal-50 text-teal-700'}`}><ShieldAlert className="h-5 w-5" /></div>
@@ -561,7 +578,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
         {/* Critical Notifications / Summons */}
         {(activeSummons.length > 0 || activeNotifications.length > 0) && (
-          <div data-tour-id="beranda-alerts" className="space-y-3">
+          <div data-tour-id="beranda-alerts" className="order-2 space-y-3">
             <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1">Peringatan Penting</h2>
             
             {activeSummons.map((s: any) => (
@@ -585,7 +602,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                     </StandardCard>
                   </button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-md rounded-2xl p-0 border-0 overflow-hidden bg-white">
+                <DialogContent className="portal-dialog overflow-hidden rounded-2xl border border-[#D8D4CC] bg-[#FAF9F7] p-0 sm:max-w-md">
                   <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-rose-50/30">
                     <DialogTitle className="text-lg font-semibold text-rose-900 flex items-center gap-2">
                       <AlertOctagon className="w-5 h-5 text-rose-600" /> Panggilan Orang Tua
@@ -623,7 +640,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                    }`}>
                      <Bell className="h-4 w-4" />
                    </div>
-                   <div className="flex-1 pr-2">
+                   <div className="min-w-0 flex-1 pr-2">
                      <h3 className="text-sm font-semibold text-slate-800">{n.title}</h3>
                      <p className="text-sm text-slate-600 mt-1">{n.message}</p>
                    </div>
@@ -633,7 +650,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                        setHiddenNotifications(prev => new Set(prev).add(n.id))
                        markParentNotificationRead(n.id)
                      }}
-                     className="text-[10px] font-bold text-slate-500 hover:text-slate-800 uppercase tracking-wide bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors shrink-0" 
+                     className="shrink-0 whitespace-nowrap rounded-lg bg-slate-100 px-3 py-1.5 text-[10px] font-bold text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-800"
                    >
                      Tandai Selesai
                    </button>
@@ -644,7 +661,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         )}
 
         {/* Announcements */}
-        <div data-tour-id="beranda-announcements" className="pt-2">
+        <div data-tour-id="beranda-announcements" className="order-5 pt-2">
           <div className="flex items-center justify-between mb-3 ml-1">
             <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">Pengumuman Sekolah</h2>
           </div>
@@ -672,7 +689,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                     </StandardCard>
                   </button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-md rounded-2xl p-0 border-0 overflow-hidden bg-white">
+                <DialogContent className="portal-dialog overflow-hidden rounded-2xl border border-[#D8D4CC] bg-[#FAF9F7] p-0 sm:max-w-md">
                   <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-sky-50/50">
                     <div className="flex items-start gap-3">
                       <div className="p-2 rounded-lg bg-sky-100 text-sky-600 shrink-0 mt-0.5">
@@ -697,7 +714,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
         {/* Riwayat Respons Orang Tua */}
         {(notes.results || []).length > 0 && (
-          <div className="pt-2">
+          <div className="order-6 pt-2">
             <div className="flex items-center justify-between mb-3 ml-1">
               <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">Riwayat Respons Anda</h2>
             </div>
@@ -734,14 +751,14 @@ export function PortalOrtuClient({ data }: { data: any }) {
       transition={{ duration: 0.3 }}
       className="portal-tab-panel space-y-5"
     >
-      <div data-tour-id="jadwal-header" className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800">Jadwal Pelajaran</h1>
-          <p className="text-sm text-slate-500 mt-1">
+      <div data-tour-id="jadwal-header" className="flex min-w-0 items-start justify-between gap-4 border-b border-[#D8D4CC] pb-5">
+        <div className="min-w-0">
+          <h1 className="text-[clamp(1.75rem,7vw,2.35rem)] font-medium leading-tight tracking-[-0.035em] text-[#1A1A18]">Jadwal pelajaran</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6B6B63]">
             Lihat jadwal kelas dan status absensi anak per jam pelajaran berdasarkan input guru.
           </p>
         </div>
-        <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-400">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#D8D4CC] bg-[#F2F0EC] text-[#C2522D]">
           <CalendarDays className="h-6 w-6" />
         </div>
       </div>
@@ -756,7 +773,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
     const summary = attendanceDetail?.summary || {}
     const monthly = attendanceDetail?.monthly || []
     const statusMeta: Record<string, { label: string; className: string }> = {
-      HADIR: { label: 'Hadir', className: 'bg-teal-50 text-teal-700' },
+      HADIR: { label: 'Hadir', className: 'bg-[#EEF7F1] text-[#246142]' },
       SAKIT: { label: 'Sakit', className: 'bg-amber-50 text-amber-700' },
       IZIN: { label: 'Izin', className: 'bg-sky-50 text-sky-700' },
       ALFA: { label: 'Tanpa keterangan', className: 'bg-rose-50 text-rose-700' },
@@ -786,15 +803,15 @@ export function PortalOrtuClient({ data }: { data: any }) {
         ) : (
           <>
             <div data-tour-id="kehadiran-summary" className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <div className="col-span-2 rounded-2xl bg-slate-950 p-5 text-white sm:col-span-2">
+              <div className="col-span-2 rounded-2xl border border-[#D8D4CC] bg-[#E8E5E0] p-5 text-[#1A1A18] sm:col-span-2">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-semibold text-slate-400">Tingkat kehadiran</p>
+                    <p className="text-xs font-semibold text-[#6B6B63]">Tingkat kehadiran</p>
                     <p className="mt-1 text-4xl font-black tracking-tight">{summary.attendanceRate ?? '-'}{summary.attendanceRate !== null && summary.attendanceRate !== undefined ? '%' : ''}</p>
                   </div>
-                  <TrendingUp className="h-5 w-5 text-teal-400" />
+                  <TrendingUp className="h-5 w-5 text-[#C2522D]" />
                 </div>
-                <p className="mt-4 text-xs leading-5 text-slate-400">{summary.hadir || 0} hari hadir dari {summary.completedDays || 0} hari dengan status final.</p>
+                <p className="mt-4 text-xs leading-5 text-[#6B6B63]">{summary.hadir || 0} hari hadir dari {summary.completedDays || 0} hari dengan status final.</p>
               </div>
               {[
                 { label: 'Sakit', value: summary.sakit || 0, tone: 'text-amber-700', bg: 'bg-amber-50' },
@@ -859,7 +876,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             <StandardCard data-tour-id="kehadiran-discipline" className={`flex items-center gap-4 p-4 ${needsDisciplineAttention ? 'border-amber-200' : 'border-teal-100'}`}>
               <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${needsDisciplineAttention ? 'bg-amber-50 text-amber-700' : 'bg-teal-50 text-teal-700'}`}><ShieldAlert className="h-5 w-5" /></div>
               <div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Status pendampingan</p><p className="text-sm font-bold text-slate-900">{disciplineLevelLabel}</p><p className="mt-0.5 text-xs text-slate-500">{disciplineSummary?.totalKasus || 0} catatan kedisiplinan tercatat.</p></div>
-              {needsDisciplineAttention && waUrl && <a href={waUrl} target="_blank" className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700"><MessageCircle className="h-4 w-4" /></a>}
+              {needsDisciplineAttention && waUrl && <a href={waUrl} target="_blank" aria-label="Hubungi wali kelas" className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-700"><MessageCircle className="h-4 w-4" /></a>}
             </StandardCard>
           </>
         )}
@@ -913,18 +930,21 @@ export function PortalOrtuClient({ data }: { data: any }) {
                   className="flex w-full items-center justify-between gap-4 p-4 text-left disabled:cursor-not-allowed"
                 >
                   <div className="min-w-0">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{s.label}</span>
-                    <div className="mt-1 flex items-baseline gap-2">
-                      <span className={`text-2xl font-bold ${isFilled ? 'text-indigo-600' : 'text-slate-300'}`}>
+                    <span className="block truncate text-sm font-semibold text-slate-800">{s.label}</span>
+                    <span className="mt-1 block text-xs text-slate-500">Nilai rapor semester</span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <div className="text-right">
+                      <span className={`block whitespace-nowrap text-2xl font-bold tabular-nums ${isFilled ? 'text-indigo-600' : 'text-slate-300'}`}>
                         {s.value ?? '-'}
                       </span>
-                      <span className="text-xs font-medium text-slate-400">rata-rata</span>
+                      <span className="block whitespace-nowrap text-[10px] font-medium text-slate-400">rata-rata</span>
                     </div>
-                  </div>
-                  <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition-colors ${
-                    isFilled ? 'border-indigo-100 bg-indigo-50 text-indigo-600' : 'border-slate-100 bg-white text-slate-300'
-                  }`}>
-                    <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                    <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border transition-colors ${
+                      isFilled ? 'border-indigo-100 bg-indigo-50 text-indigo-600' : 'border-slate-100 bg-white text-slate-300'
+                    }`}>
+                      <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                    </div>
                   </div>
                 </button>
 
@@ -1011,7 +1031,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                   Belum diinput
                 </span>
               ) : dsptIsLunas ? (
-                <span className="rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-teal-800">
+                <span className="whitespace-nowrap rounded-md bg-[#EEF7F1] px-2.5 py-1 text-[10px] font-bold text-[#246142]">
                   Lunas
                 </span>
               ) : null}
@@ -1052,16 +1072,16 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 }}
               >
                 <DialogTrigger asChild>
-                  <button data-tour-id="keuangan-pay-button" className="h-11 w-full rounded-xl bg-teal-700 px-4 text-sm font-bold text-white shadow-md shadow-teal-700/10 hover:bg-teal-800 transition-all hover:scale-[1.01] active:scale-[0.99]">
+                  <button data-tour-id="keuangan-pay-button" className="h-11 w-full whitespace-nowrap rounded-lg bg-teal-700 px-4 text-sm font-bold text-white transition-colors hover:bg-teal-800">
                     Bayar DSPT
                   </button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-md max-h-[92vh] rounded-2xl p-0 border-0 overflow-hidden bg-white">
-                  <DialogHeader className="border-b border-slate-100 bg-slate-950 p-5 text-left text-white">
-                    <DialogTitle className="text-lg font-semibold">Pembayaran DSPT</DialogTitle>
+                <DialogContent className="portal-dialog max-h-[92dvh] overflow-hidden rounded-2xl border border-[#D8D4CC] bg-[#FAF9F7] p-0 sm:max-w-md">
+                  <DialogHeader className="border-b border-[#D8D4CC] bg-[#F2F0EC] p-5 text-left text-[#1A1A18]">
+                    <DialogTitle className="text-lg font-medium tracking-[-0.02em]">Pembayaran DSPT</DialogTitle>
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       {[1, 2, 3].map((step) => (
-                        <div key={step} className={`h-1.5 rounded-full ${paymentStep >= step ? 'bg-teal-500' : 'bg-white/15'}`} />
+                        <div key={step} className={`h-1.5 rounded-full ${paymentStep >= step ? 'bg-[#C2522D]' : 'bg-[#D8D4CC]'}`} />
                       ))}
                     </div>
                   </DialogHeader>
@@ -1104,7 +1124,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                               key={item.label}
                               type="button"
                               onClick={() => setPaymentAmount(String(item.value))}
-                              className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 hover:border-teal-700 hover:text-teal-900"
+                              className="h-11 whitespace-nowrap rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 hover:border-teal-700 hover:text-teal-900"
                             >
                               {item.label}
                             </button>
@@ -1114,7 +1134,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                           type="button"
                           disabled={!isPaymentAmountValid}
                           onClick={continueToPayment}
-                          className="h-11 w-full rounded-xl bg-teal-700 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                          className="h-11 w-full whitespace-nowrap rounded-lg bg-teal-700 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Lanjut ke Pembayaran
                         </button>
@@ -1140,7 +1160,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                                   key={item.value}
                                   type="button"
                                   onClick={() => setPaymentMethod(item.value as 'qris' | 'transfer')}
-                                  className={`flex h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold ${active ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-slate-200 bg-white text-slate-600'}`}
+                                  className={`flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-3 text-xs font-bold ${active ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-slate-200 bg-white text-slate-600'}`}
                                 >
                                   <Icon className="h-4 w-4" />
                                   {item.label}
@@ -1162,7 +1182,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                                   <span className="mt-2 block text-center text-[11px] font-semibold text-slate-500">Ketuk gambar untuk memperbesar</span>
                                 </button>
                               </DialogTrigger>
-                              <DialogContent className="sm:max-w-xl rounded-2xl border-0 bg-white p-0 overflow-hidden">
+                              <DialogContent className="portal-dialog overflow-hidden rounded-2xl border border-[#D8D4CC] bg-[#FAF9F7] p-0 sm:max-w-xl">
                                 <DialogHeader className="border-b border-slate-100 p-5">
                                   <DialogTitle className="text-lg font-semibold text-slate-800">QRIS Komite</DialogTitle>
                                 </DialogHeader>
@@ -1174,7 +1194,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                             <a
                               href={komiteQrisUrl}
                               download="QRISkomite.jpeg"
-                              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-teal-700 hover:text-teal-900"
+                              className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-teal-700 hover:text-teal-900"
                             >
                               <Download className="h-4 w-4" />
                                 Download QRIS
@@ -1223,7 +1243,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                             <ArrowLeft className="mr-1 inline h-4 w-4" />
                             Kembali
                           </button>
-                          <button data-tour-id="payment-paid-button" type="button" onClick={startSubmission} disabled={paymentSubmitting || (!hasQrisMethod && !hasTransferMethod)} className="h-11 flex-1 rounded-xl bg-teal-700 px-4 text-sm font-bold text-white disabled:opacity-50">
+                          <button data-tour-id="payment-paid-button" type="button" onClick={startSubmission} disabled={paymentSubmitting || (!hasQrisMethod && !hasTransferMethod)} className="h-11 flex-1 whitespace-nowrap rounded-lg bg-teal-700 px-3 text-sm font-bold text-white disabled:opacity-50">
                             {paymentSubmitting ? 'Mencatat...' : 'Saya Sudah Bayar'}
                           </button>
                         </div>
@@ -1277,7 +1297,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                           type="button"
                           disabled={!proofFile || !currentSubmissionId || paymentSubmitting}
                           onClick={submitProof}
-                          className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                          className="flex h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-teal-700 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {paymentSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
                           {paymentSubmitting ? 'Mengupload...' : 'Upload Bukti'}
@@ -1287,7 +1307,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                             {paymentMessage}
                           </p>
                         )}
-                        <button type="button" onClick={() => setPaymentOpen(false)} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700">
+                        <button type="button" onClick={() => setPaymentOpen(false)} className="h-11 w-full whitespace-nowrap rounded-lg border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700">
                           Tutup
                         </button>
                       </div>
@@ -1325,7 +1345,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
               <a
                 href={sppWaUrl}
                 target="_blank"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-4 text-sm font-bold text-teal-850 hover:bg-teal-100"
+                className="inline-flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-teal-200 bg-teal-50 px-4 text-sm font-bold text-teal-850 hover:bg-teal-100"
               >
                 <MessageCircle className="h-4 w-4" />
                 Hubungi Komite
@@ -1355,7 +1375,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             const statusClass: Record<string, string> = {
               belum_upload: 'bg-amber-50 text-amber-700',
               menunggu_konfirmasi: 'bg-sky-50 text-sky-700',
-              terkonfirmasi: 'bg-teal-50 text-teal-800',
+              terkonfirmasi: 'bg-[#EEF7F1] text-[#246142]',
               ditolak: 'bg-rose-50 text-rose-700',
             }
             const canUpload = s.status === 'belum_upload' || s.status === 'ditolak' || s.status === 'menunggu_konfirmasi'
@@ -1377,12 +1397,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
                   {s.bukti_url && (
                     <Dialog>
                       <DialogTrigger asChild>
-                        <button type="button" className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700">
+                        <button type="button" className="inline-flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700">
                           <ImageIcon className="h-3.5 w-3.5" />
                           Lihat Bukti
                         </button>
                       </DialogTrigger>
-                      <DialogContent className="sm:max-w-xl rounded-2xl border-0 bg-white p-0 overflow-hidden">
+                      <DialogContent className="portal-dialog overflow-hidden rounded-2xl border border-[#D8D4CC] bg-[#FAF9F7] p-0 sm:max-w-xl">
                         <DialogHeader className="border-b border-slate-100 p-5">
                           <DialogTitle className="text-lg font-semibold text-slate-800">Bukti Pembayaran</DialogTitle>
                         </DialogHeader>
@@ -1396,7 +1416,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                     <button
                       type="button"
                       onClick={() => openProofUpload(s)}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-800"
+                      className="inline-flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-800"
                     >
                       {s.bukti_url ? <RefreshCw className="h-3.5 w-3.5" /> : <UploadCloud className="h-3.5 w-3.5" />}
                       {s.bukti_url ? 'Ganti Bukti' : 'Upload Bukti'}
@@ -1407,7 +1427,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                       href={`/portal-ortu/kuitansi/${s.transaksi_id}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-800"
+                      className="inline-flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-800"
                     >
                       <Download className="h-3.5 w-3.5" />
                       Kuitansi
@@ -1448,7 +1468,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                   href={`/portal-ortu/kuitansi/${t.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-800 hover:bg-teal-100"
+                  className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-800 hover:bg-teal-100"
                 >
                   <Download className="h-3.5 w-3.5" />
                   Kuitansi
@@ -1466,7 +1486,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       baru: { label: 'Baru', className: 'bg-rose-50 text-rose-700 border-rose-100' },
       dibaca: { label: 'Dibaca', className: 'bg-sky-50 text-sky-700 border-sky-100' },
       diproses: { label: 'Diproses', className: 'bg-amber-50 text-amber-700 border-amber-100' },
-      selesai: { label: 'Selesai', className: 'bg-teal-50 text-teal-800 border-teal-100' },
+      selesai: { label: 'Selesai', className: 'border-[#BFD7C8] bg-[#EEF7F1] text-[#246142]' },
     }
 
     return (
@@ -1536,7 +1556,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             type="button"
             onClick={submitSuggestion}
             disabled={suggestionSubmitting}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-bold text-white transition-all hover:bg-teal-800 hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-teal-700 px-4 text-sm font-bold text-white transition-colors hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
             {suggestionSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
             Kirim Saran
@@ -1584,23 +1604,36 @@ export function PortalOrtuClient({ data }: { data: any }) {
       transition={{ duration: 0.3 }}
       className="portal-tab-panel space-y-5"
     >
-      <div className="rounded-[28px] bg-gradient-to-br from-teal-900 to-slate-900 p-6 text-white shadow-md">
+      <div className="rounded-2xl border border-[#D8D4CC] bg-[#F2F0EC] p-6 text-[#1A1A18]">
         <div className="flex items-start gap-4">
-          <div className="rounded-2xl bg-white/10 p-3 text-white">
+          <div className="rounded-xl bg-[#C2522D] p-3 text-white">
             <CircleHelp className="h-6 w-6" />
           </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Dokumentasi</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight">Panduan Portal Orang Tua</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[#C2522D]">Dokumentasi</p>
+            <h1 className="mt-1 text-2xl font-medium tracking-[-0.03em]">Panduan portal orang tua</h1>
+            <p className="mt-2 text-sm leading-6 text-[#6B6B63]">
               Baca panduan penggunaan fitur portal sesuai layanan yang tersedia untuk orang tua.
             </p>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-        <div data-tour-id="docs-list" className="space-y-2">
+      {docsRows.length > 0 && (
+        <label data-tour-id="docs-list" className="grid gap-1.5 md:hidden">
+          <span className="text-xs font-semibold text-[#6B6B63]">Pilih panduan</span>
+          <select
+            value={selectedDoc?.id || ''}
+            onChange={(event) => setSelectedDocId(event.target.value)}
+            className="h-11 w-full rounded-lg border border-[#D8D4CC] bg-white px-3 text-sm font-semibold text-[#1A1A18] outline-none focus:border-[#C2522D]"
+          >
+            {docsRows.map((article: any) => <option key={article.id} value={article.id}>{article.title}</option>)}
+          </select>
+        </label>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-[240px_minmax(0,1fr)]">
+        <div data-tour-id="docs-list" className="hidden space-y-2 md:block">
           {docsRows.length === 0 ? (
             <StandardCard className="text-center text-sm text-slate-500">Belum ada dokumentasi yang tersedia.</StandardCard>
           ) : docsRows.map((article: any) => {
@@ -1642,42 +1675,86 @@ export function PortalOrtuClient({ data }: { data: any }) {
   )
 
   return (
-    <div className="min-h-screen bg-[#fafcfa] text-slate-900 [font-family:'Plus_Jakarta_Sans',ui-sans-serif,system-ui] relative overflow-x-hidden">
+    <div className="portal-root relative min-h-[100dvh] overflow-x-hidden bg-[#FAF9F7] text-[#1A1A18] [color-scheme:light]">
       <PushNotificationBanner />
       <style dangerouslySetInnerHTML={{__html: `
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        .portal-root,
+        .portal-dialog {
+          font-family: 'Styrene A', 'Styrene B', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          color-scheme: light;
+          --portal-canvas: #FAF9F7;
+          --portal-surface: #F2F0EC;
+          --portal-surface-strong: #E8E5E0;
+          --portal-border: #D8D4CC;
+          --portal-ink: #1A1A18;
+          --portal-muted: #6B6B63;
+          --portal-primary: #C2522D;
+          --portal-primary-hover: #A8421F;
+        }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
         .portal-sidebar { display: none; }
         .portal-main { margin-left: 0; }
         .portal-mobile-header { display: flex; }
         .portal-bottom-nav { display: block; }
         .portal-tab-panel { padding-bottom: 6rem; }
-        @media (min-width: 768px) and (orientation: landscape) {
+        .portal-student-photo img { object-position: center 18%; }
+        .portal-root :focus-visible,
+        .portal-dialog :focus-visible { outline-color: #C2522D; }
+        :is(.portal-root,.portal-dialog) .bg-slate-50,
+        :is(.portal-root,.portal-dialog) .bg-slate-100 { background-color: #F2F0EC; }
+        :is(.portal-root,.portal-dialog) .border-slate-100,
+        :is(.portal-root,.portal-dialog) .border-slate-200,
+        :is(.portal-root,.portal-dialog) .border-slate-300 { border-color: #D8D4CC; }
+        :is(.portal-root,.portal-dialog) .text-slate-900,
+        :is(.portal-root,.portal-dialog) .text-slate-800,
+        :is(.portal-root,.portal-dialog) .text-slate-700 { color: #1A1A18; }
+        :is(.portal-root,.portal-dialog) .text-slate-600,
+        :is(.portal-root,.portal-dialog) .text-slate-500,
+        :is(.portal-root,.portal-dialog) .text-slate-400 { color: #6B6B63; }
+        :is(.portal-root,.portal-dialog) .bg-teal-700 { background-color: #C2522D; }
+        :is(.portal-root,.portal-dialog) .hover\\:bg-teal-800:hover { background-color: #A8421F; }
+        :is(.portal-root,.portal-dialog) .bg-teal-50,
+        :is(.portal-root,.portal-dialog) .bg-teal-100 { background-color: #F2F0EC; }
+        :is(.portal-root,.portal-dialog) .text-teal-700,
+        :is(.portal-root,.portal-dialog) .text-teal-800,
+        :is(.portal-root,.portal-dialog) .text-teal-850,
+        :is(.portal-root,.portal-dialog) .text-teal-900,
+        :is(.portal-root,.portal-dialog) .text-teal-950 { color: #C2522D; }
+        :is(.portal-root,.portal-dialog) .border-teal-100,
+        :is(.portal-root,.portal-dialog) .border-teal-200 { border-color: #D8D4CC; }
+        :is(.portal-root,.portal-dialog) .bg-indigo-50 { background-color: #F2F0EC; }
+        :is(.portal-root,.portal-dialog) .text-indigo-500,
+        :is(.portal-root,.portal-dialog) .text-indigo-600,
+        :is(.portal-root,.portal-dialog) .text-indigo-700,
+        :is(.portal-root,.portal-dialog) .text-indigo-800 { color: #C2522D; }
+        :is(.portal-root,.portal-dialog) .border-indigo-100 { border-color: #D8D4CC; }
+        @media (min-width: 1024px) {
           .portal-sidebar { display: flex; }
-          .portal-main { margin-left: 260px; }
+          .portal-main { margin-left: 264px; }
           .portal-mobile-header { display: none; }
           .portal-bottom-nav { display: none; }
           .portal-tab-panel { padding-bottom: 2rem; }
         }
-        h1, h2, h3, h4, .font-semibold, .font-bold { font-family: 'Plus Jakarta Sans', sans-serif; }
-        .bg-dots {
-          background-image: radial-gradient(rgba(13, 148, 136, 0.04) 1.5px, transparent 1.5px);
-          background-size: 24px 24px;
+        @media (prefers-reduced-motion: reduce) {
+          .portal-root *, .portal-root *::before, .portal-root *::after,
+          .portal-dialog *, .portal-dialog *::before, .portal-dialog *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            scroll-behavior: auto !important;
+            transition-duration: 0.01ms !important;
+          }
         }
       `}} />
-      
-      {/* Decorative Dot Grid Overlay */}
-      <div className="absolute inset-0 bg-dots pointer-events-none z-0" />
-      
+
       {/* Desktop Sidebar */}
-      <aside className="portal-sidebar fixed left-0 top-0 h-screen w-[260px] border-r border-slate-200 bg-white z-40 flex-col py-6 overflow-y-auto">
-        <div className="flex items-center px-6 mb-8 gap-3">
+      <aside className="portal-sidebar fixed left-0 top-0 z-40 h-[100dvh] w-[264px] flex-col overflow-y-auto border-r border-[#D8D4CC] bg-[#F2F0EC] py-6">
+        <div className="mb-8 flex items-center gap-3 px-6">
           <img src="/logokemenag.png" alt="Kemenag" className="h-8 w-auto object-contain" />
-          <h2 className="text-xl text-slate-800 tracking-tight"><span className="font-bold">MANSATAS</span> <span className="font-medium text-slate-500">App</span></h2>
+          <h2 className="whitespace-nowrap text-lg font-medium tracking-[-0.025em] text-[#1A1A18]">MANSATAS <span className="text-[#6B6B63]">App</span></h2>
         </div>
         
         <nav className="flex flex-col gap-1 px-4 flex-1">
-          <p className="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 mt-4">Menu Orang Tua</p>
+          <p className="mb-2 mt-4 px-3 text-xs font-semibold text-[#6B6B63]">Menu orang tua</p>
           {[
             { id: 'beranda', label: 'Beranda', Icon: House },
             { id: 'jadwal', label: 'Jadwal Kelas', Icon: CalendarDays },
@@ -1692,30 +1769,30 @@ export function PortalOrtuClient({ data }: { data: any }) {
               <button
                 key={id}
                 onClick={() => changeTab(id)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#C2522D] ${
                   isActive 
-                    ? 'bg-teal-700 text-white shadow-sm shadow-teal-700/10' 
-                    : 'text-slate-600 hover:bg-teal-50 hover:text-teal-900'
+                    ? 'bg-white text-[#C2522D] shadow-sm'
+                    : 'text-[#6B6B63] hover:bg-white hover:text-[#1A1A18]'
                 }`}
               >
-                <Icon className="h-4 w-4" />
-                {label}
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate whitespace-nowrap">{label}</span>
               </button>
             )
           })}
         </nav>
         
-        <div className="px-4 pt-6 mt-6 border-t border-slate-100 space-y-2">
+        <div className="mt-6 space-y-2 border-t border-[#D8D4CC] px-4 pt-6">
           <button
             type="button"
             onClick={startPortalTour}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+            className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#6B6B63] transition-colors hover:bg-white hover:text-[#1A1A18]"
           >
             <CircleHelp className="h-4 w-4" />
             Panduan Halaman
           </button>
           <form action="/api/auth/sign-out" method="post">
-            <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors">
+            <button className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#A63D32] transition-colors hover:bg-[#FFF1EF]">
               <LogOut className="h-4 w-4" />
               Keluar
             </button>
@@ -1723,12 +1800,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
         </div>
       </aside>
 
-      <main className="portal-main min-h-screen flex flex-col">
+      <main className="portal-main flex min-h-[100dvh] flex-col">
         {/* Top Header Mobile */}
-        <header className="portal-mobile-header sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200 px-5 py-4 items-center justify-between">
+        <header className="portal-mobile-header sticky top-0 z-30 items-center justify-between border-b border-[#D8D4CC] bg-[#FAF9F7]/94 px-4 py-3 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <img src="/logokemenag.png" alt="Kemenag" className="h-7 w-auto object-contain" />
-            <p className="text-lg text-slate-800 tracking-tight"><span className="font-bold">MANSATAS</span> <span className="font-medium text-slate-500">App</span></p>
+            <p className="whitespace-nowrap text-base font-medium tracking-[-0.02em] text-[#1A1A18]">MANSATAS <span className="text-[#6B6B63]">App</span></p>
           </div>
           
           <div className="flex items-center gap-1">
@@ -1736,12 +1813,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
               type="button"
               onClick={startPortalTour}
               aria-label="Buka panduan halaman"
-              className="relative w-10 h-10 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"
+              className="relative grid h-11 w-11 place-items-center rounded-lg text-[#6B6B63] transition-colors hover:bg-[#F2F0EC] hover:text-[#C2522D]"
             >
               <CircleHelp className="h-5 w-5" />
             </button>
             <form action="/api/auth/sign-out" method="post">
-              <button className="w-10 h-10 rounded-full hover:bg-rose-50 flex items-center justify-center text-rose-500 transition-colors">
+              <button className="grid h-11 w-11 place-items-center rounded-lg text-[#A63D32] transition-colors hover:bg-[#FFF1EF]">
                 <LogOut className="h-5 w-5" />
               </button>
             </form>
@@ -1749,7 +1826,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         </header>
 
         {/* Content Box */}
-        <div className="flex-1 w-full max-w-3xl mx-auto p-4 sm:p-8 pt-6">
+        <div className="mx-auto w-full max-w-[1100px] flex-1 px-4 pb-4 pt-5 sm:px-6 sm:pt-7 lg:px-8 lg:py-8">
           <AnimatePresence mode="wait">
             {activeTab === 'beranda' && renderBeranda()}
             {activeTab === 'jadwal' && renderJadwal()}
@@ -1762,7 +1839,25 @@ export function PortalOrtuClient({ data }: { data: any }) {
         </div>
       </main>
 
-      <MobileBottomNav activeTab={activeTab} onChange={changeTab} />
+      <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
+        <DialogContent className="portal-dialog max-h-[88dvh] overflow-hidden rounded-2xl border border-[#D8D4CC] bg-[#FAF9F7] p-0 text-[#1A1A18] sm:max-w-md">
+          <DialogHeader className="border-b border-[#D8D4CC] px-5 pb-4 pt-5 text-left">
+            <DialogTitle className="text-xl font-medium tracking-[-0.02em] text-[#1A1A18]">Pengaturan akun</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[calc(88dvh-76px)] space-y-6 overflow-y-auto bg-[#F2F0EC] p-5">
+            <ParentWhatsAppForm initialNumber={profil.nomor_whatsapp || ''} />
+            <div className="h-px bg-[#D8D4CC]" />
+            <ChangePasswordForm />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <MobileBottomNav
+        activeTab={activeTab}
+        onChange={changeTab}
+        onOpenAccount={() => setAccountOpen(true)}
+        onStartTour={startPortalTour}
+      />
       <PortalTour
         open={tourOpen}
         steps={activeTourSteps}

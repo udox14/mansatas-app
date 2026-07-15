@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { changeOwnParentPassword } from '../actions'
-import { KeyRound, ShieldCheck } from 'lucide-react'
+import { Key, ShieldCheck } from '@phosphor-icons/react'
 
 export function ChangePasswordForm() {
   const [currentPassword, setCurrentPassword] = useState('')
@@ -25,7 +25,7 @@ export function ChangePasswordForm() {
     })
   }
 
-  const InputClass = "w-full h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-50 transition-all placeholder:text-slate-400"
+  const InputClass = "h-11 w-full rounded-lg border border-[#D8D4CC] bg-white px-3 text-sm text-[#1A1A18] outline-none transition-colors placeholder:text-[#8B877F] focus:border-[#C2522D] focus:ring-2 focus:ring-[#C2522D]/15"
 
   return (
     <div className="space-y-5">
@@ -86,9 +86,9 @@ export function ChangePasswordForm() {
           type="button"
           onClick={submit}
           disabled={isPending}
-          className="h-10 rounded-xl bg-teal-700 px-5 text-sm font-bold text-white hover:bg-teal-800 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 transition-all flex items-center gap-2 shrink-0 shadow-md shadow-teal-700/10"
+          className="flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-[#C2522D] px-5 text-sm font-bold text-white transition-colors hover:bg-[#A8421F] disabled:opacity-60"
         >
-          <KeyRound className="w-4 h-4" />
+          <Key className="w-4 h-4" />
           {isPending ? 'Menyimpan...' : 'Simpan Password'}
         </button>
       </div>
