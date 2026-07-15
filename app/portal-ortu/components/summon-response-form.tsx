@@ -25,7 +25,7 @@ export function SummonResponseForm({ summonId, status }: { summonId: string; sta
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="Catatan untuk wali kelas/BK (opsional)"
-        className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-teal-500"
+        className="w-full rounded-lg border border-[#D8D4CC] bg-white px-3 py-2 text-sm text-[#1A1A18] outline-none focus:border-[#C2522D]"
         rows={2}
         disabled={isPending || isFinal}
       />
@@ -34,7 +34,7 @@ export function SummonResponseForm({ summonId, status }: { summonId: string; sta
           type="button"
           disabled={isPending || isFinal}
           onClick={() => onRespond('hadir')}
-          className="h-8 rounded-lg bg-teal-700 px-3 text-xs font-bold text-white hover:bg-teal-800 transition-colors disabled:opacity-60"
+          className="h-11 whitespace-nowrap rounded-lg bg-[#C2522D] px-3 text-xs font-bold text-white transition-colors hover:bg-[#A8421F] disabled:opacity-60"
         >
           Konfirmasi Hadir
         </button>
@@ -42,7 +42,7 @@ export function SummonResponseForm({ summonId, status }: { summonId: string; sta
           type="button"
           disabled={isPending || isFinal}
           onClick={() => onRespond('reschedule')}
-          className="h-8 rounded-lg border border-amber-250 bg-amber-50 px-3 text-xs font-bold text-amber-700 hover:bg-amber-100/50 transition-colors disabled:opacity-60"
+          className="h-11 whitespace-nowrap rounded-lg border border-[#D8D4CC] bg-white px-3 text-xs font-bold text-[#8A5B16] transition-colors hover:bg-[#FFF7E8] disabled:opacity-60"
         >
           Minta Jadwal Ulang
         </button>

@@ -24,6 +24,14 @@ type TargetRect = {
 
 const PADDING = 8
 
+function findVisibleTourTarget(targetId: string) {
+  const targets = Array.from(document.querySelectorAll<HTMLElement>(`[data-tour-id="${targetId}"]`))
+  return targets.find((target) => {
+    const rect = target.getBoundingClientRect()
+    return rect.width > 0 && rect.height > 0
+  }) || null
+}
+
 export function PortalTour({ open, steps, onClose, onStepChange }: PortalTourProps) {
   const [index, setIndex] = useState(0)
   const [rect, setRect] = useState<TargetRect | null>(null)
@@ -58,7 +66,7 @@ export function PortalTour({ open, steps, onClose, onStepChange }: PortalTourPro
     const measure = () => {
       if (canceled) return
 
-      const target = document.querySelector<HTMLElement>(`[data-tour-id="${step.target}"]`)
+      const target = findVisibleTourTarget(step.target)
       if (!target) {
         attempts += 1
         if (attempts < 6) {
@@ -87,7 +95,7 @@ export function PortalTour({ open, steps, onClose, onStepChange }: PortalTourPro
     measure()
 
     const refresh = () => {
-      const target = document.querySelector<HTMLElement>(`[data-tour-id="${step.target}"]`)
+      const target = findVisibleTourTarget(step.target)
       if (!target) return
       const nextRect = target.getBoundingClientRect()
       setRect({
@@ -149,39 +157,39 @@ export function PortalTour({ open, steps, onClose, onStepChange }: PortalTourPro
       )}
 
       <div
-        className="pointer-events-auto fixed rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-2xl"
+        className="portal-dialog pointer-events-auto fixed rounded-2xl border border-[#D8D4CC] bg-[#FAF9F7] p-4 text-[#1A1A18] shadow-2xl"
         style={popoverStyle}
         role="dialog"
         aria-modal="true"
         aria-label="Panduan portal orang tua"
       >
         <div className="mb-3 flex items-center justify-between gap-3">
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
+          <span className="whitespace-nowrap rounded-md bg-[#F2F0EC] px-2.5 py-1 text-[11px] font-semibold text-[#6B6B63]">
             {clampedIndex + 1}/{steps.length}
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full px-2 py-1 text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            className="min-h-11 whitespace-nowrap rounded-lg px-3 py-1 text-xs font-semibold text-[#6B6B63] hover:bg-[#F2F0EC] hover:text-[#1A1A18]"
           >
             Lewati
           </button>
         </div>
-        <h2 className="text-base font-bold leading-tight text-slate-900">{step.title}</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600">{step.description}</p>
+        <h2 className="line-clamp-2 text-base font-semibold leading-tight text-[#1A1A18]">{step.title}</h2>
+        <p className="mt-2 text-sm leading-6 text-[#6B6B63]">{step.description}</p>
         <div className="mt-4 flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={goPrev}
             disabled={clampedIndex === 0}
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-11 whitespace-nowrap rounded-lg border border-[#D8D4CC] bg-white px-3 text-sm font-semibold text-[#1A1A18] disabled:cursor-not-allowed disabled:opacity-40"
           >
             Sebelumnya
           </button>
           <button
             type="button"
             onClick={goNext}
-            className="h-10 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-800"
+            className="h-11 whitespace-nowrap rounded-lg bg-[#C2522D] px-4 text-sm font-semibold text-white hover:bg-[#A8421F]"
           >
             {clampedIndex >= steps.length - 1 ? 'Selesai' : 'Lanjut'}
           </button>
