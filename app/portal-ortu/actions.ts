@@ -8,6 +8,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { uploadPaymentProof } from '@/utils/r2'
 import { ensureParentSuggestionTable, normalizeParentSuggestionCategory } from '@/lib/parent-suggestions'
 import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
+import { getFinalAttendanceForStudent } from '@/lib/wali-kelas-attendance'
 
 type SummonResponse = 'hadir' | 'reschedule'
 const SEMESTER_NILAI_COLUMNS = ['nilai_smt1', 'nilai_smt2', 'nilai_smt3', 'nilai_smt4', 'nilai_smt5', 'nilai_smt6'] as const
@@ -70,6 +71,86 @@ async function requireParentSession() {
 
 function generateId() {
   return crypto.randomUUID()
+}
+
+function academicYearRange(nama: string, semester: number) {
+  const years = String(nama || '').match(/(\d{4})\D+(\d{4})/)
+  if (!years) return null
+  const firstYear = Number(years[1])
+  const secondYear = Number(years[2])
+  return Number(semester) === 1
+    ? { startDate: `${firstYear}-07-01`, endDate: `${firstYear}-12-31` }
+    : { startDate: `${secondYear}-01-01`, endDate: `${secondYear}-06-30` }
+}
+
+function summarizeParentAttendance(statuses: any[]) {
+  const summary = { hadir: 0, sakit: 0, izin: 0, alfa: 0, perluKonfirmasi: 0, belumLengkap: 0, totalHari: statuses.length }
+  const monthly = new Map<string, any>()
+
+  for (const row of statuses) {
+    const status = String(row.status_akhir || '')
+    if (status === 'HADIR') summary.hadir++
+    else if (status === 'SAKIT') summary.sakit++
+    else if (status === 'IZIN') summary.izin++
+    else if (status === 'ALFA') summary.alfa++
+    else if (status === 'PARSIAL' || status === 'PERLU_KONFIRMASI_WALI') summary.perluKonfirmasi++
+    else summary.belumLengkap++
+
+    const key = String(row.tanggal || '').slice(0, 7)
+    if (!key) continue
+    if (!monthly.has(key)) monthly.set(key, { month: key, hadir: 0, sakit: 0, izin: 0, alfa: 0, perluKonfirmasi: 0 })
+    const bucket = monthly.get(key)
+    if (status === 'HADIR') bucket.hadir++
+    else if (status === 'SAKIT') bucket.sakit++
+    else if (status === 'IZIN') bucket.izin++
+    else if (status === 'ALFA') bucket.alfa++
+    else if (status === 'PARSIAL' || status === 'PERLU_KONFIRMASI_WALI') bucket.perluKonfirmasi++
+  }
+
+  const completedDays = summary.hadir + summary.sakit + summary.izin + summary.alfa + summary.perluKonfirmasi
+  return {
+    summary: {
+      ...summary,
+      completedDays,
+      attendanceRate: completedDays > 0 ? Math.round((summary.hadir / completedDays) * 100) : null,
+    },
+    monthly: Array.from(monthly.values()).sort((a, b) => a.month.localeCompare(b.month)),
+  }
+}
+
+export async function getParentAttendanceByAcademicYear(tahunAjaranId: string) {
+  const session = await requireParentSession()
+  const db = await getDB()
+  const ta = await db.prepare(`
+    SELECT id, nama, semester, is_active
+    FROM tahun_ajaran
+    WHERE id = ?
+    LIMIT 1
+  `).bind(tahunAjaranId).first<any>()
+  if (!ta) return { error: 'Tahun ajaran tidak ditemukan.' }
+
+  const range = academicYearRange(ta.nama, Number(ta.semester))
+  if (!range) return { error: 'Rentang tahun ajaran belum dapat ditentukan.' }
+
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+  const endDate = range.endDate > today ? today : range.endDate
+  const result = endDate >= range.startDate
+    ? await getFinalAttendanceForStudent(db, session.user.siswa_id, range.startDate, endDate, { tahunAjaranId: ta.id })
+    : null
+  const statuses = result?.statuses || []
+  const aggregates = summarizeParentAttendance(statuses)
+  const recent = statuses
+    .filter((row: any) => row.status_akhir !== 'HADIR' || row.keterangan_wali_kelas || row.detail_guru?.some((detail: any) => detail.catatan))
+    .slice()
+    .sort((a: any, b: any) => String(b.tanggal).localeCompare(String(a.tanggal)))
+    .slice(0, 12)
+
+  return {
+    tahunAjaran: { id: ta.id, nama: ta.nama, semester: Number(ta.semester), isActive: Number(ta.is_active) === 1 },
+    range: { startDate: range.startDate, endDate },
+    ...aggregates,
+    recent,
+  }
 }
 
 function isDsptZeroUninput(

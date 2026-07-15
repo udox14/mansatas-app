@@ -242,7 +242,8 @@ export async function getFinalAttendanceForClass(
   db: D1Database,
   kelasId: string,
   startDate: string,
-  endDate: string
+  endDate: string,
+  options?: { tahunAjaranId?: string; siswaId?: string }
 ) {
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS absensi_sesi_guru (
@@ -265,13 +266,22 @@ export async function getFinalAttendanceForClass(
       LEFT JOIN "user" u ON k.wali_kelas_id = u.id
       WHERE k.id = ?
     `).bind(kelasId).first<ClassRow>(),
-    db.prepare(`
+    options?.siswaId
+      ? db.prepare(`
+          SELECT id, nama_lengkap, nisn, nis_lokal, jenis_kelamin, foto_url
+          FROM siswa
+          WHERE kelas_id = ? AND id = ?
+          ORDER BY nama_lengkap
+        `).bind(kelasId, options.siswaId).all<StudentRow>()
+      : db.prepare(`
       SELECT id, nama_lengkap, nisn, nis_lokal, jenis_kelamin, foto_url
       FROM siswa
       WHERE kelas_id = ? AND status = 'aktif'
       ORDER BY nama_lengkap
     `).bind(kelasId).all<StudentRow>(),
-    db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string; jam_pelajaran: string | null }>(),
+    options?.tahunAjaranId
+      ? db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE id = ? LIMIT 1').bind(options.tahunAjaranId).first<{ id: string; jam_pelajaran: string | null }>()
+      : db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string; jam_pelajaran: string | null }>(),
   ])
 
   if (!kelas) {
@@ -519,7 +529,8 @@ export async function getFinalAttendanceForStudent(
   db: D1Database,
   siswaId: string,
   startDate: string,
-  endDate: string
+  endDate: string,
+  options?: { tahunAjaranId?: string }
 ) {
   const siswa = await db.prepare(`
     SELECT s.id, s.nama_lengkap, s.nisn, s.kelas_id, k.tingkat, k.nomor_kelas, k.kelompok
@@ -532,7 +543,10 @@ export async function getFinalAttendanceForStudent(
     return null
   }
 
-  const classData = await getFinalAttendanceForClass(db, siswa.kelas_id, startDate, endDate)
+  const classData = await getFinalAttendanceForClass(db, siswa.kelas_id, startDate, endDate, {
+    tahunAjaranId: options?.tahunAjaranId,
+    siswaId,
+  })
   if (!classData) {
     return null
   }

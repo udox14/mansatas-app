@@ -6,6 +6,8 @@ import { findSlotException, getKalenderDateStatus, getKbmExceptionsForDate } fro
 import { ensureParentSuggestionTable } from '@/lib/parent-suggestions'
 import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
 import { getDocumentationArticles } from '@/lib/documentation'
+import { getFinalAttendanceForStudent } from '@/lib/wali-kelas-attendance'
+import { getParentAttendanceByAcademicYear } from './actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,6 +57,26 @@ const DAY_LABEL: Record<number, string> = {
   4: 'Kamis',
   5: 'Jumat',
   6: 'Sabtu',
+}
+
+function shiftDate(date: string, days: number) {
+  const value = new Date(`${date}T12:00:00Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
+}
+
+function summarizeAttendanceRows(rows: any[]) {
+  const summary = { hadir: 0, sakit: 0, izin: 0, alfa: 0, perluKonfirmasi: 0, belumLengkap: 0, totalHari: rows.length }
+  for (const row of rows) {
+    const status = String(row.status_akhir || '')
+    if (status === 'HADIR') summary.hadir++
+    else if (status === 'SAKIT') summary.sakit++
+    else if (status === 'IZIN') summary.izin++
+    else if (status === 'ALFA') summary.alfa++
+    else if (status === 'PARSIAL' || status === 'PERLU_KONFIRMASI_WALI') summary.perluKonfirmasi++
+    else summary.belumLengkap++
+  }
+  return summary
 }
 
 async function ensureParentCommunicationTables(db: D1Database) {
@@ -240,6 +262,12 @@ export default async function PortalOrtuPage() {
   `).bind(siswaId).first<any>()
   if (!profil) redirect('/portal-ortu/login')
 
+  const todayRaw = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+  const todayDayMap = new Date(`${todayRaw}T00:00:00`).getDay()
+  const todayDay = todayDayMap === 0 ? 7 : todayDayMap
+  const weekStart = shiftDate(todayRaw, 1 - todayDay)
+  const weekEnd = shiftDate(weekStart, 5)
+
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS parent_announcements (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
@@ -268,8 +296,7 @@ export default async function PortalOrtuPage() {
 
   const [
     pengumumanRows,
-    absensiRekap,
-    absensiTerbaru,
+    attendanceYears,
     nilaiRekap,
     disiplinRekap,
     disiplinTerakhir,
@@ -312,22 +339,10 @@ export default async function PortalOrtuPage() {
       LIMIT 5
     `).bind(profil.kelas_id || null, profil.kelas_id || null, Number(profil.tingkat || 0)).all<any>(),
     db.prepare(`
-      SELECT
-        SUM(CASE WHEN status = 'HADIR' THEN 1 ELSE 0 END) AS hadir,
-        SUM(CASE WHEN status = 'SAKIT' THEN 1 ELSE 0 END) AS sakit,
-        SUM(CASE WHEN status = 'IZIN' THEN 1 ELSE 0 END) AS izin,
-        SUM(CASE WHEN status = 'ALFA' THEN 1 ELSE 0 END) AS alfa
-      FROM absensi_siswa
-      WHERE siswa_id = ?
-    `).bind(siswaId).first<any>(),
-    db.prepare(`
-      SELECT tanggal, status, catatan
-      FROM absensi_siswa
-      WHERE siswa_id = ?
-        AND (status <> 'HADIR' OR (catatan IS NOT NULL AND TRIM(catatan) <> ''))
-      ORDER BY tanggal DESC
-      LIMIT 10
-    `).bind(siswaId).all<any>(),
+      SELECT id, nama, semester, is_active
+      FROM tahun_ajaran
+      ORDER BY nama DESC, semester DESC
+    `).all<any>(),
     db.prepare(`
       SELECT nilai_smt1, nilai_smt2, nilai_smt3, nilai_smt4, nilai_smt5, nilai_smt6
       FROM rekap_nilai_akademik
@@ -481,9 +496,19 @@ export default async function PortalOrtuPage() {
   const semesterNumeric = semesters.map(s => s.value).filter(v => v !== null && v !== undefined && v !== '').map(Number).filter(v => !Number.isNaN(v))
   const semesterAvg = semesterNumeric.length ? Number((semesterNumeric.reduce((a, b) => a + b, 0) / semesterNumeric.length).toFixed(1)) : null
 
-  const todayRaw = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
-  const todayDayMap = new Date(`${todayRaw}T00:00:00`).getDay()
-  const todayDay = todayDayMap === 0 ? 7 : todayDayMap
+  const weeklyAttendanceResult = await getFinalAttendanceForStudent(
+    db,
+    siswaId,
+    weekStart,
+    todayRaw < weekEnd ? todayRaw : weekEnd,
+    { tahunAjaranId: taAktif?.id }
+  )
+  const weeklyAttendanceSummary = summarizeAttendanceRows(weeklyAttendanceResult?.statuses || [])
+  const activeAttendanceYear = (attendanceYears.results || []).find((item: any) => Number(item.is_active) === 1)
+    || attendanceYears.results?.[0]
+  const attendanceInitial = activeAttendanceYear
+    ? await getParentAttendanceByAcademicYear(activeAttendanceYear.id)
+    : null
 
   const jamMap = parseJamPelajaran(taAktif?.jam_pelajaran)
   const calendarStatus = await getKalenderDateStatus(db, todayRaw)
@@ -542,13 +567,26 @@ export default async function PortalOrtuPage() {
     }
   }
 
+  const agendaRows = profil.kelas_id
+    ? await db.prepare(`
+        SELECT ag.penugasan_id, ag.tanggal, ag.materi, ag.foto_url, ag.status
+        FROM agenda_guru ag
+        JOIN penugasan_mengajar pm ON pm.id = ag.penugasan_id
+        WHERE pm.kelas_id = ? AND ag.tanggal BETWEEN ? AND ?
+      `).bind(profil.kelas_id, weekStart, weekEnd).all<any>()
+    : { results: [] as any[] }
+  const agendaMap = new Map<string, any>()
+  for (const agenda of agendaRows.results || []) {
+    agendaMap.set(`${agenda.penugasan_id}__${agenda.tanggal}`, agenda)
+  }
+
   const jadwalByDay = new Map<number, any[]>()
   for (const row of (jadwalRows.results || [])) {
     const hari = Number(row.hari)
     if (!jadwalByDay.has(hari)) jadwalByDay.set(hari, [])
     const jamKe = Number(row.jam_ke)
     const slot = jamMap.get(hari)?.get(Number(row.jam_ke))
-    let absensi = null
+    let absensi: { status: string; catatan: string | null } | null = null
     if (hari === todayDay) {
       const exception = findSlotException(
         kbmExceptions,
@@ -569,14 +607,52 @@ export default async function PortalOrtuPage() {
       }
     }
 
-    jadwalByDay.get(hari)!.push({
-      jam_ke: row.jam_ke,
-      waktu: slot ? `${slot.mulai} - ${slot.selesai}` : '-',
-      mapel: row.nama_mapel,
-      guru: row.guru_nama || '-',
-      absensi,
-      isToday: hari === todayDay
-    })
+    const dayBlocks = jadwalByDay.get(hari)!
+    const previous = dayBlocks[dayBlocks.length - 1]
+    const canMerge = previous
+      && previous.penugasan_id === row.penugasan_id
+      && Number(previous.jam_ke_selesai) + 1 === jamKe
+    if (canMerge) {
+      previous.jam_ke_selesai = jamKe
+      previous.waktu_selesai = slot?.selesai || previous.waktu_selesai
+      previous.absensiRows.push(absensi)
+    } else {
+      const agendaDate = shiftDate(weekStart, hari - 1)
+      dayBlocks.push({
+        penugasan_id: row.penugasan_id,
+        jam_ke_mulai: jamKe,
+        jam_ke_selesai: jamKe,
+        waktu_mulai: slot?.mulai || null,
+        waktu_selesai: slot?.selesai || null,
+        mapel: row.nama_mapel,
+        guru: row.guru_nama || '-',
+        absensiRows: [absensi],
+        agenda: agendaMap.get(`${row.penugasan_id}__${agendaDate}`) || null,
+        agendaDate,
+        isToday: hari === todayDay,
+      })
+    }
+  }
+
+  const attendancePriority: Record<string, number> = {
+    ALFA: 7,
+    SAKIT: 6,
+    IZIN: 5,
+    KBM_EXCEPTION: 4,
+    LIBUR: 3,
+    BELUM_ADA_DATA: 2,
+    HADIR: 1,
+  }
+  for (const blocks of jadwalByDay.values()) {
+    for (const block of blocks) {
+      block.absensi = block.absensiRows
+        .filter(Boolean)
+        .sort((a: any, b: any) => (attendancePriority[b.status] || 0) - (attendancePriority[a.status] || 0))[0] || null
+      delete block.absensiRows
+      block.waktu = block.waktu_mulai && block.waktu_selesai
+        ? `${block.waktu_mulai} - ${block.waktu_selesai}`
+        : '-'
+    }
   }
 
   const waliPhone = String(waliKelasRow?.nomor_kontak || '').replace(/\D/g, '')
@@ -589,8 +665,10 @@ export default async function PortalOrtuPage() {
     waliKelasRow,
     waUrl,
     pengumumanRows,
-    absensiRekap,
-    absensiTerbaru,
+    weeklyAttendanceSummary,
+    weekRange: { start: weekStart, end: weekEnd },
+    attendanceYears: attendanceYears.results || [],
+    attendanceInitial,
     disciplineSummary,
     semesters,
     semesterAvg,
