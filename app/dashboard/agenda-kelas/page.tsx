@@ -6,15 +6,24 @@ import { checkFeatureAccess } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
 import { todayWIB } from '@/lib/time'
-import { getAgendaKelasOptions } from './actions'
+import { getAgendaKelasOptions, getAgendaKelasSignatureSettings } from './actions'
 import { AgendaKelasClient } from './components/agenda-kelas-client'
 
 export const metadata = { title: 'Agenda Kelas - MANSATAS App' }
 export const dynamic = 'force-dynamic'
 
 async function AgendaKelasDataFetcher() {
-  const options = await getAgendaKelasOptions()
-  return <AgendaKelasClient daftarKelas={options.kelas} today={todayWIB()} />
+  const [options, signatureSettings] = await Promise.all([
+    getAgendaKelasOptions(),
+    getAgendaKelasSignatureSettings(),
+  ])
+  return (
+    <AgendaKelasClient
+      daftarKelas={options.kelas}
+      today={todayWIB()}
+      initialSignatureSettings={signatureSettings.settings}
+    />
+  )
 }
 
 export default async function AgendaKelasPage() {

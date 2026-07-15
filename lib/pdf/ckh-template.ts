@@ -50,8 +50,6 @@ function esc(value: unknown): string {
 }
 
 const MISSING = `<span style="font-style:italic">Silakan isi dulu di Profil</span>`
-const upper = (v: unknown) => String(v ?? '').toUpperCase()
-
 const TH = 'border:1px solid #000;padding:4px 3px;text-align:center;vertical-align:middle;font-weight:700'
 const TD_CENTER = 'border:1px solid #000;padding:4px 4px;text-align:center;vertical-align:middle;white-space:pre-wrap;word-break:break-word'
 const TD_LEFT = 'border:1px solid #000;padding:4px 4px;text-align:left;vertical-align:middle;white-space:pre-wrap;word-break:break-word'
@@ -142,14 +140,14 @@ export function buildCkhHtml(data: CkhPdfData): string {
     <div style="${SIG_COL}">
       <div>Mengetahui :</div>
       <div style="${SIG_ROLE}">${esc(signerLabel)}</div>
-      <div style="font-weight:700;text-decoration:underline">${signer?.nama_lengkap ? esc(upper(signer.nama_lengkap)) : esc(missingSignerLabel)}</div>
+      <div style="font-weight:700;text-decoration:underline">${signer?.nama_lengkap ? esc(signer.nama_lengkap) : esc(missingSignerLabel)}</div>
       <div>NIP. ${signer?.nip ? esc(signer.nip) : MISSING}</div>
     </div>
     <div style="${SIG_COL};position:relative">
       ${sigImg}
       <div>Tasikmalaya, ${esc(tanggalCetak)}</div>
       <div style="${SIG_ROLE}">${esc(user.jabatan_cetak || user.role || 'Pegawai')}</div>
-      <div style="font-weight:700;text-decoration:underline">${esc(upper(user.nama_lengkap))}</div>
+      <div style="font-weight:700;text-decoration:underline">${esc(user.nama_lengkap)}</div>
       <div>NIP. ${user.nip ? esc(user.nip) : MISSING}</div>
     </div>
   </div>
