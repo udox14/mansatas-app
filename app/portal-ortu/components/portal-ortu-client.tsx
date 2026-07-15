@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -45,7 +45,7 @@ import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { PARENT_SUGGESTION_CATEGORIES } from '@/lib/parent-suggestions'
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
 import { MarkdownViewer } from '@/components/documentation/markdown-viewer'
-import { formatDateTimeWIB, formatDateWIB } from '@/lib/time'
+import { currentTimeWIB, formatDateTimeWIB, formatDateWIB } from '@/lib/time'
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
@@ -244,6 +244,16 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const docsRows = documentationArticles || []
   const selectedDoc = docsRows.find((article: any) => article.id === selectedDocId) || docsRows[0]
   const hasDsptBill = Boolean(dsptIsInput) && Number(dsptSisa || 0) > 0
+  const currentHour = currentTimeWIB().hours
+  const greeting = currentHour < 4
+    ? 'Selamat malam'
+    : currentHour < 11
+      ? 'Selamat pagi'
+      : currentHour < 15
+        ? 'Selamat siang'
+        : currentHour < 18
+          ? 'Selamat sore'
+          : 'Selamat malam'
   const baseTourSteps: Record<string, PortalTourStep[]> = {
     beranda: [
       { target: 'beranda-profile', title: 'Profil siswa', description: 'Bagian ini menampilkan identitas anak, kelas, dan NISN yang sedang dipantau di portal orang tua.' },
@@ -325,8 +335,25 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const changeTab = (id: string) => {
     setTourOpen(false)
     setActiveTab(id)
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
+
+  useEffect(() => {
+    const resetScroll = () => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+      document.scrollingElement?.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
+    }
+
+    resetScroll()
+    const animationFrame = window.requestAnimationFrame(resetScroll)
+    const afterTransition = window.setTimeout(resetScroll, 360)
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame)
+      window.clearTimeout(afterTransition)
+    }
+  }, [activeTab])
 
   const handleTourStepChange = (_index: number, step: PortalTourStep) => {
     if (activeTab !== 'keuangan' || !hasDsptBill) return
@@ -535,9 +562,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
               />
             </div>
 
-            <div className="flex min-w-0 flex-col justify-center py-1 sm:justify-end sm:py-2">
-              <p className="mb-2 text-xs font-semibold text-[#C2522D]">Portal orang tua</p>
-              <h1 className="line-clamp-2 max-w-2xl text-[clamp(1.2rem,5vw,2.35rem)] font-medium leading-[1.08] tracking-[-0.035em] text-[#1A1A18]">
+            <div className="flex min-w-0 flex-col justify-end">
+              <p className="mb-2 whitespace-nowrap text-[11px] font-semibold text-[#C2522D] sm:text-xs">{greeting}, orang tua,</p>
+              <h1 className="line-clamp-3 max-w-2xl text-[clamp(1.2rem,5vw,2.35rem)] font-medium leading-[1.08] tracking-[-0.035em] text-[#1A1A18]">
                 {profil.nama_lengkap}
               </h1>
             </div>

@@ -448,7 +448,9 @@ export default async function PortalOrtuPage() {
     getDocumentationArticles(db, { audience: 'parent' }),
   ])
 
-  const kelasLabel = profil.tingkat ? `${profil.tingkat}-${profil.nomor_kelas}${profil.kelompok ? ` ${profil.kelompok}` : ''}` : '-'
+  const kelasLabel = profil.tingkat
+    ? `${profil.tingkat}-${profil.nomor_kelas}${String(profil.tingkat) !== '10' && profil.kelompok ? ` ${profil.kelompok}` : ''}`
+    : '-'
   const dsptTarget = Number(dspt?.nominal_target || 0)
   const dsptBayar = Number(dspt?.total_dibayar || 0)
   const dsptDiskon = Number(dspt?.total_diskon || 0)
