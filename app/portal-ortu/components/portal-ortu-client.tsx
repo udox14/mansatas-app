@@ -67,6 +67,30 @@ function StandardCard({ children, className = '', ...props }: React.HTMLAttribut
   )
 }
 
+function PortalPageHeader({
+  title,
+  description,
+  Icon,
+  tourId,
+}: {
+  title: string
+  description: string
+  Icon: React.ComponentType<{ className?: string }>
+  tourId?: string
+}) {
+  return (
+    <div data-tour-id={tourId} className="flex min-w-0 items-start justify-between gap-4 border-b border-[#D8D4CC] pb-5">
+      <div className="min-w-0">
+        <h1 className="text-[clamp(1.75rem,7vw,2.35rem)] font-medium leading-tight tracking-[-0.035em] text-[#1A1A18]">{title}</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6B6B63]">{description}</p>
+      </div>
+      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#D8D4CC] bg-[#F2F0EC] text-[#C2522D]">
+        <Icon className="h-6 w-6" />
+      </div>
+    </div>
+  )
+}
+
 async function compressPaymentProofImage(file: File, targetKb = 80): Promise<File> {
   const imageUrl = URL.createObjectURL(file)
   try {
@@ -120,7 +144,6 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [suggestionSubmitting, setSuggestionSubmitting] = useState(false)
   const [suggestionFeedback, setSuggestionFeedback] = useState('')
   const [tourOpen, setTourOpen] = useState(false)
-  const [accountOpen, setAccountOpen] = useState(false)
   const [selectedDocId, setSelectedDocId] = useState('')
   const [selectedAttendanceYearId, setSelectedAttendanceYearId] = useState(data.attendanceInitial?.tahunAjaran?.id || '')
   const [attendanceDetail, setAttendanceDetail] = useState<any>(data.attendanceInitial || null)
@@ -255,6 +278,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
       { target: 'docs-list', title: 'Daftar dokumentasi', description: 'Pilih topik bantuan yang ingin dibaca dari daftar dokumentasi portal orang tua.' },
       { target: 'docs-content', title: 'Isi panduan', description: 'Panduan berisi langkah penggunaan, catatan penting, dan tips agar fitur portal lebih mudah dipakai.' },
     ],
+    account: [
+      { target: 'account-contact', title: 'Nomor WhatsApp', description: 'Perbarui nomor WhatsApp yang dapat dipakai sekolah untuk menghubungi orang tua atau wali.' },
+      { target: 'account-security', title: 'Keamanan akun', description: 'Ganti password portal secara berkala untuk menjaga kerahasiaan data anak.' },
+    ],
   }
   const financeTourSteps: PortalTourStep[] = dsptNeedsInput
     ? [
@@ -298,6 +325,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const changeTab = (id: string) => {
     setTourOpen(false)
     setActiveTab(id)
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
   }
 
   const handleTourStepChange = (_index: number, step: PortalTourStep) => {
@@ -495,19 +523,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
       >
         <section
           data-tour-id="beranda-profile"
-          className="relative order-1 overflow-hidden rounded-2xl border border-[#D8D4CC] bg-[#F2F0EC] p-4 sm:p-6"
+          className="order-1 overflow-hidden rounded-2xl border border-[#D8D4CC] bg-[#F2F0EC] p-4 sm:p-6"
         >
-          <button
-            type="button"
-            onClick={() => setAccountOpen(true)}
-            aria-label="Buka pengaturan akun"
-            className="absolute right-3 top-3 z-20 grid h-11 w-11 place-items-center rounded-lg border border-[#D8D4CC] bg-[#FAF9F7] text-[#6B6B63] outline-none transition-colors hover:text-[#C2522D] focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2"
-          >
-            <Settings className="h-5 w-5" />
-          </button>
-
-          <div className="grid min-w-0 grid-cols-[96px_minmax(0,1fr)] items-stretch gap-4 pr-8 sm:grid-cols-[132px_minmax(0,1fr)] sm:gap-6 md:grid-cols-[156px_minmax(0,1fr)]">
-            <div className="portal-student-photo aspect-[3/4] min-w-0 overflow-hidden rounded-xl border border-[#D8D4CC] bg-[#E8E5E0]">
+          <div className="grid min-w-0 grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-4 sm:grid-cols-[132px_minmax(0,1fr)] sm:gap-x-6 md:grid-cols-[156px_minmax(0,1fr)]">
+            <div className="portal-student-photo aspect-[3/4] min-w-0 overflow-hidden rounded-xl border border-[#D8D4CC] bg-[#E8E5E0] sm:row-span-2">
               <AvatarSiswa
                 fotoUrl={profil.foto_url}
                 nama={profil.nama_lengkap || initialLetter}
@@ -516,22 +535,23 @@ export function PortalOrtuClient({ data }: { data: any }) {
               />
             </div>
 
-            <div className="flex min-w-0 flex-col justify-end py-1 sm:py-2">
+            <div className="flex min-w-0 flex-col justify-center py-1 sm:justify-end sm:py-2">
               <p className="mb-2 text-xs font-semibold text-[#C2522D]">Portal orang tua</p>
-              <h1 className="line-clamp-2 max-w-2xl text-[clamp(1.35rem,5.4vw,2.35rem)] font-medium leading-[1.08] tracking-[-0.035em] text-[#1A1A18]">
+              <h1 className="line-clamp-2 max-w-2xl text-[clamp(1.2rem,5vw,2.35rem)] font-medium leading-[1.08] tracking-[-0.035em] text-[#1A1A18]">
                 {profil.nama_lengkap}
               </h1>
-              <dl className="mt-4 grid min-w-0 gap-2 border-t border-[#D8D4CC] pt-3 text-xs sm:max-w-md sm:grid-cols-2 sm:text-sm">
-                <div className="flex min-w-0 items-center justify-between gap-2 sm:block">
-                  <dt className="shrink-0 text-[#6B6B63]">Kelas</dt>
-                  <dd className="truncate whitespace-nowrap font-semibold text-[#1A1A18] sm:mt-0.5">{kelasLabel}</dd>
-                </div>
-                <div className="flex min-w-0 items-center justify-between gap-2 sm:block">
-                  <dt className="shrink-0 text-[#6B6B63]">NISN</dt>
-                  <dd className="truncate whitespace-nowrap font-semibold tabular-nums text-[#1A1A18] sm:mt-0.5">{profil.nisn || '-'}</dd>
-                </div>
-              </dl>
             </div>
+
+            <dl className="col-span-2 grid min-w-0 grid-cols-2 gap-x-4 gap-y-2 border-t border-[#D8D4CC] pt-3 text-xs sm:col-span-1 sm:col-start-2 sm:max-w-md sm:text-sm">
+              <div className="min-w-0">
+                <dt className="shrink-0 text-[#6B6B63]">Kelas</dt>
+                <dd className="mt-0.5 truncate whitespace-nowrap font-semibold text-[#1A1A18]">{kelasLabel}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="shrink-0 text-[#6B6B63]">NISN</dt>
+                <dd className="mt-0.5 truncate whitespace-nowrap font-semibold tabular-nums text-[#1A1A18]">{profil.nisn || '-'}</dd>
+              </div>
+            </dl>
           </div>
         </section>
 
@@ -751,17 +771,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
       transition={{ duration: 0.3 }}
       className="portal-tab-panel space-y-5"
     >
-      <div data-tour-id="jadwal-header" className="flex min-w-0 items-start justify-between gap-4 border-b border-[#D8D4CC] pb-5">
-        <div className="min-w-0">
-          <h1 className="text-[clamp(1.75rem,7vw,2.35rem)] font-medium leading-tight tracking-[-0.035em] text-[#1A1A18]">Jadwal pelajaran</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6B6B63]">
-            Lihat jadwal kelas dan status absensi anak per jam pelajaran berdasarkan input guru.
-          </p>
-        </div>
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#D8D4CC] bg-[#F2F0EC] text-[#C2522D]">
-          <CalendarDays className="h-6 w-6" />
-        </div>
-      </div>
+      <PortalPageHeader
+        tourId="jadwal-header"
+        title="Jadwal pelajaran"
+        description="Lihat jadwal kelas dan status absensi anak per jam pelajaran berdasarkan input guru."
+        Icon={CalendarDays}
+      />
 
       <div>
         <ScheduleTabs jadwalByDay={jadwalObject as any} />
@@ -778,21 +793,24 @@ export function PortalOrtuClient({ data }: { data: any }) {
       IZIN: { label: 'Izin', className: 'bg-sky-50 text-sky-700' },
       ALFA: { label: 'Tanpa keterangan', className: 'bg-rose-50 text-rose-700' },
       PARSIAL: { label: 'Parsial', className: 'bg-violet-50 text-violet-700' },
-      PERLU_KONFIRMASI_WALI: { label: 'Perlu konfirmasi', className: 'bg-violet-50 text-violet-700' },
+      PERLU_KONFIRMASI_WALI: { label: 'Perlu dicek walas', className: 'bg-violet-50 text-violet-700' },
       BELUM_ADA_INPUT: { label: 'Belum diinput', className: 'bg-slate-100 text-slate-600' },
       BELUM_ADA_DATA: { label: 'Data belum lengkap', className: 'bg-slate-100 text-slate-600' },
     }
 
     return (
       <motion.div key="kehadiran" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="portal-tab-panel space-y-5">
-        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-bold text-slate-900">Rekap kehadiran</p>
-            <p className="mt-0.5 text-xs text-slate-500">Bandingkan catatan anak per tahun ajaran dan semester.</p>
-          </div>
-          <label className="relative min-w-[210px]">
-            <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <select value={selectedAttendanceYearId} onChange={(event) => changeAttendanceYear(event.target.value)} className="h-11 w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-8 text-sm font-bold text-slate-800 outline-none focus:border-teal-500">
+        <PortalPageHeader
+          title="Rekap kehadiran"
+          description="Bandingkan catatan anak per tahun ajaran dan semester."
+          Icon={CalendarRange}
+        />
+
+        <div className="rounded-2xl border border-[#D8D4CC] bg-white p-3">
+          <label className="relative block min-w-0">
+            <span className="sr-only">Pilih tahun ajaran dan semester</span>
+            <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6B6B63]" />
+            <select value={selectedAttendanceYearId} onChange={(event) => changeAttendanceYear(event.target.value)} className="h-11 w-full appearance-none rounded-lg border border-[#D8D4CC] bg-[#F2F0EC] pl-9 pr-8 text-sm font-semibold text-[#1A1A18] outline-none transition-colors focus:border-[#C2522D] focus:ring-2 focus:ring-[#C2522D]/20">
               {(attendanceYears || []).map((item: any) => <option key={item.id} value={item.id}>{item.nama} · Semester {item.semester}</option>)}
             </select>
           </label>
@@ -854,7 +872,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 </div>
               )}
               <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-[10px] font-semibold text-slate-500">
-                {[['bg-teal-500','Hadir'],['bg-amber-400','Sakit'],['bg-sky-400','Izin'],['bg-rose-500','Alfa'],['bg-violet-400','Perlu cek']].map(([color,label]) => <span key={label} className="flex items-center gap-1.5"><i className={`h-2 w-2 rounded-full ${color}`} />{label}</span>)}
+                {[['bg-teal-500','Hadir'],['bg-amber-400','Sakit'],['bg-sky-400','Izin'],['bg-rose-500','Alfa'],['bg-violet-400','Perlu dicek walas']].map(([color,label]) => <span key={label} className="flex items-center gap-1.5"><i className={`h-2 w-2 rounded-full ${color}`} />{label}</span>)}
               </div>
             </StandardCard>
 
@@ -893,6 +911,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
       transition={{ duration: 0.3 }}
       className="portal-tab-panel space-y-5"
     >
+      <PortalPageHeader
+        title="Akademik"
+        description="Pantau ringkasan nilai rapor dan rincian mata pelajaran pada setiap semester."
+        Icon={GraduationCap}
+      />
+
       <div data-tour-id="nilai-average" className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 text-center">
         <div className="w-12 h-12 bg-indigo-50 text-indigo-500 mx-auto rounded-full flex items-center justify-center mb-4">
           <GraduationCap className="h-6 w-6" />
@@ -1498,13 +1522,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
         transition={{ duration: 0.3 }}
         className="portal-tab-panel space-y-5"
       >
-        <div data-tour-id="saran-hero" className="flex items-center gap-3 rounded-2xl border border-teal-100 bg-white p-4 shadow-sm">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700"><MessageSquareText className="h-5 w-5" /></div>
-          <div className="min-w-0">
-            <h1 className="text-base font-bold text-slate-900">Kotak Saran Orang Tua</h1>
-            <p className="mt-0.5 text-xs leading-5 text-slate-500">Masukan diteruskan kepada pimpinan madrasah dan Tata Usaha untuk ditindaklanjuti.</p>
-          </div>
-        </div>
+        <PortalPageHeader
+          tourId="saran-hero"
+          title="Kotak saran"
+          description="Masukan diteruskan kepada pimpinan madrasah dan Tata Usaha untuk ditindaklanjuti."
+          Icon={MessageSquareText}
+        />
 
         <StandardCard data-tour-id="saran-form" className="space-y-4">
           <div>
@@ -1604,20 +1627,11 @@ export function PortalOrtuClient({ data }: { data: any }) {
       transition={{ duration: 0.3 }}
       className="portal-tab-panel space-y-5"
     >
-      <div className="rounded-2xl border border-[#D8D4CC] bg-[#F2F0EC] p-6 text-[#1A1A18]">
-        <div className="flex items-start gap-4">
-          <div className="rounded-xl bg-[#C2522D] p-3 text-white">
-            <CircleHelp className="h-6 w-6" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-[#C2522D]">Dokumentasi</p>
-            <h1 className="mt-1 text-2xl font-medium tracking-[-0.03em]">Panduan portal orang tua</h1>
-            <p className="mt-2 text-sm leading-6 text-[#6B6B63]">
-              Baca panduan penggunaan fitur portal sesuai layanan yang tersedia untuk orang tua.
-            </p>
-          </div>
-        </div>
-      </div>
+      <PortalPageHeader
+        title="Dokumentasi"
+        description="Baca panduan penggunaan fitur portal sesuai layanan yang tersedia untuk orang tua."
+        Icon={CircleHelp}
+      />
 
       {docsRows.length > 0 && (
         <label data-tour-id="docs-list" className="grid gap-1.5 md:hidden">
@@ -1670,6 +1684,32 @@ export function PortalOrtuClient({ data }: { data: any }) {
             <p className="text-sm text-slate-500">Pilih dokumentasi untuk dibaca.</p>
           )}
         </StandardCard>
+      </div>
+    </motion.div>
+  )
+
+  const renderAccount = () => (
+    <motion.div
+      key="account"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.3 }}
+      className="portal-tab-panel space-y-5"
+    >
+      <PortalPageHeader
+        title="Pengaturan akun"
+        description="Kelola nomor WhatsApp orang tua dan keamanan akun portal."
+        Icon={Settings}
+      />
+
+      <div className="grid min-w-0 gap-4 lg:grid-cols-2 lg:items-start">
+        <section data-tour-id="account-contact" className="min-w-0 rounded-2xl border border-[#D8D4CC] bg-[#F2F0EC] p-4 sm:p-5">
+          <ParentWhatsAppForm initialNumber={profil.nomor_whatsapp || ''} />
+        </section>
+        <section data-tour-id="account-security" className="min-w-0 rounded-2xl border border-[#D8D4CC] bg-[#F2F0EC] p-4 sm:p-5">
+          <ChangePasswordForm />
+        </section>
       </div>
     </motion.div>
   )
@@ -1785,6 +1825,19 @@ export function PortalOrtuClient({ data }: { data: any }) {
         <div className="mt-6 space-y-2 border-t border-[#D8D4CC] px-4 pt-6">
           <button
             type="button"
+            onClick={() => changeTab('account')}
+            aria-current={activeTab === 'account' ? 'page' : undefined}
+            className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
+              activeTab === 'account'
+                ? 'bg-white text-[#C2522D] shadow-sm'
+                : 'text-[#6B6B63] hover:bg-white hover:text-[#1A1A18]'
+            }`}
+          >
+            <Settings className="h-4 w-4" />
+            Pengaturan akun
+          </button>
+          <button
+            type="button"
             onClick={startPortalTour}
             className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#6B6B63] transition-colors hover:bg-white hover:text-[#1A1A18]"
           >
@@ -1835,27 +1888,14 @@ export function PortalOrtuClient({ data }: { data: any }) {
             {activeTab === 'keuangan' && renderKeuangan()}
             {activeTab === 'saran' && renderSaran()}
             {activeTab === 'dokumentasi' && renderDokumentasi()}
+            {activeTab === 'account' && renderAccount()}
           </AnimatePresence>
         </div>
       </main>
 
-      <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
-        <DialogContent className="portal-dialog max-h-[88dvh] overflow-hidden rounded-2xl border border-[#D8D4CC] bg-[#FAF9F7] p-0 text-[#1A1A18] sm:max-w-md">
-          <DialogHeader className="border-b border-[#D8D4CC] px-5 pb-4 pt-5 text-left">
-            <DialogTitle className="text-xl font-medium tracking-[-0.02em] text-[#1A1A18]">Pengaturan akun</DialogTitle>
-          </DialogHeader>
-          <div className="max-h-[calc(88dvh-76px)] space-y-6 overflow-y-auto bg-[#F2F0EC] p-5">
-            <ParentWhatsAppForm initialNumber={profil.nomor_whatsapp || ''} />
-            <div className="h-px bg-[#D8D4CC]" />
-            <ChangePasswordForm />
-          </div>
-        </DialogContent>
-      </Dialog>
-
       <MobileBottomNav
         activeTab={activeTab}
         onChange={changeTab}
-        onOpenAccount={() => setAccountOpen(true)}
         onStartTour={startPortalTour}
       />
       <PortalTour

@@ -38,16 +38,14 @@ const SECONDARY_ITEMS = [
 export function MobileBottomNav({
   activeTab,
   onChange,
-  onOpenAccount,
   onStartTour,
 }: {
   activeTab: string
   onChange: (id: string) => void
-  onOpenAccount: () => void
   onStartTour: () => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const menuIsActive = SECONDARY_ITEMS.some((item) => item.id === activeTab)
+  const menuIsActive = activeTab === 'account' || SECONDARY_ITEMS.some((item) => item.id === activeTab)
 
   const chooseSecondary = (id: string) => {
     onChange(id)
@@ -137,8 +135,13 @@ export function MobileBottomNav({
           <div className="grid gap-1">
             <button
               type="button"
-              onClick={() => { setMenuOpen(false); onOpenAccount() }}
-              className="flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-[#1A1A18] outline-none hover:bg-[#F2F0EC] focus-visible:ring-2 focus-visible:ring-[#C2522D]"
+              aria-current={activeTab === 'account' ? 'page' : undefined}
+              onClick={() => chooseSecondary('account')}
+              className={`flex min-h-12 items-center gap-3 rounded-lg px-3 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-[#C2522D] ${
+                activeTab === 'account'
+                  ? 'bg-[#F2F0EC] text-[#C2522D]'
+                  : 'text-[#1A1A18] hover:bg-[#F2F0EC]'
+              }`}
             >
               <Gear className="h-5 w-5 shrink-0 text-[#6B6B63]" />
               <span className="whitespace-nowrap">Pengaturan akun</span>
