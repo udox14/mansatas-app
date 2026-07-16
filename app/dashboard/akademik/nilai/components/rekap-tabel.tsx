@@ -22,6 +22,7 @@ export function RekapTabel() {
   const [siswa, setSiswa] = useState<RekapSiswaRow[]>([])
   const [mapelOrder, setMapelOrder] = useState<string[]>([])
   const [kodeByMapel, setKodeByMapel] = useState<Record<string, string>>({})
+  const [scopedToTeachingAssignments, setScopedToTeachingAssignments] = useState(false)
   const [semester, setSemester] = useState('nilai_smt1')
   const [kelasId, setKelasId] = useState<string>('')
   const [kkm, setKkm] = useState<number>(DEFAULT_KKM)
@@ -32,6 +33,7 @@ export function RekapTabel() {
         setSiswa(res.siswa)
         setMapelOrder(res.mapelOrder)
         setKodeByMapel(res.kodeByMapel || {})
+        setScopedToTeachingAssignments(res.scopedToTeachingAssignments)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -77,6 +79,11 @@ export function RekapTabel() {
 
   return (
     <div className="space-y-4">
+      {scopedToTeachingAssignments && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+          Data dibatasi pada mata pelajaran dan kelas yang Anda ajar pada tahun ajaran aktif. Gunakan filter semester untuk melihat nilai semester 1 sampai semester terakhir.
+        </div>
+      )}
       {/* Kontrol */}
       <div className="rounded-lg border border-surface bg-surface p-4 flex flex-col sm:flex-row sm:items-end gap-3">
         <div className="space-y-1.5 w-full sm:w-56">
@@ -127,7 +134,9 @@ export function RekapTabel() {
       {!activeKelas || activeKelas.siswa.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
           <Users className="h-6 w-6 opacity-40" />
-          Tidak ada siswa pada kelas ini.
+          {scopedToTeachingAssignments
+            ? 'Belum ada siswa aktif pada kelas yang Anda ajar di tahun ajaran aktif.'
+            : 'Tidak ada siswa pada kelas ini.'}
         </div>
       ) : mapelCols.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 py-16 text-sm text-muted-foreground">

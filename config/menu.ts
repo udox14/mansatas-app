@@ -119,7 +119,7 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Rekap Nilai',
     href: '/dashboard/akademik/nilai',
     icon: FileSpreadsheet,
-    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad'],
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru'],
     desc: 'Mengimpor dan merekap nilai Rapor Digital Madrasah (RDM) per semester dari file Excel'
   },
   {
