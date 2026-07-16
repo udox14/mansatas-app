@@ -5,13 +5,39 @@ import { getDB, parseJsonCol } from '@/utils/db'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { revalidatePath } from 'next/cache'
 import { SEMESTER_MAP, SEMESTER_KEYS } from './constants'
+import { getCurrentUser } from '@/utils/auth/server'
+import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 
 // ============================================================
 // KV CACHE — rekap nilai jarang berubah (update per semester).
 // Invalidasi manual saat import/reset, bukan TTL pendek.
 // ============================================================
-const REKAP_TABEL_KEY = 'rekap:nilai:tabel:v2'
+const REKAP_TABEL_KEY = 'rekap:nilai:tabel:v3'
 const REKAP_TABEL_TTL = 86400 // 24 jam (safety net; sumber kebenaran = invalidasi saat tulis)
+const NILAI_MANAGER_ROLES = ['super_admin', 'admin_tu', 'kepsek', 'wakamad']
+
+async function getNilaiAccess(db: D1Database) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const [allowed, roles] = await Promise.all([
+    checkFeatureAccess(db, user.id, 'akademik-nilai'),
+    getUserRoles(db, user.id),
+  ])
+  if (!allowed) throw new Error('Anda tidak memiliki akses Rekap Nilai.')
+
+  return {
+    user,
+    roles,
+    canManage: roles.some((role) => NILAI_MANAGER_ROLES.includes(role)),
+  }
+}
+
+async function requireNilaiManager(db: D1Database) {
+  const access = await getNilaiAccess(db)
+  if (!access.canManage) throw new Error('Hanya pengelola akademik yang dapat mengubah rekap nilai.')
+  return access
+}
 
 async function getRekapKV(): Promise<KVNamespace | null> {
   try {
@@ -43,6 +69,7 @@ export async function validateImportNilai(dataExcel: any[], targetKolom: string)
   }
 
   const db = await getDB()
+  await requireNilaiManager(db)
   const [dbSiswa, dbMapel] = await Promise.all([
     db.prepare(`
       SELECT s.id, s.nisn, s.nama_lengkap, k.tingkat, k.nomor_kelas, k.kelompok 
@@ -143,6 +170,7 @@ export async function simpanImportNilai(preparedRows: { siswaId: string, nilaiOb
   if (preparedRows.length === 0) return { error: 'Daftar penyisipan kosong.' }
   
   const db = await getDB()
+  await requireNilaiManager(db)
   const existingIds = preparedRows.map((u) => u.siswaId)
   const existingMap = new Map<string, any>()
   
@@ -206,6 +234,7 @@ export async function simpanImportNilai(preparedRows: { siswaId: string, nilaiOb
 export async function resetNilaiKolom(targetKolom: string) {
   if (!SEMESTER_KEYS.includes(targetKolom)) return { error: 'Kolom tidak valid.' }
   const db = await getDB()
+  await requireNilaiManager(db)
   try {
     await db
       .prepare(`UPDATE rekap_nilai_akademik SET ${targetKolom} = '{}', updated_at = ?`)
@@ -258,10 +287,14 @@ export type RekapTabelPayload = {
   siswa: RekapSiswaRow[]
   mapelOrder: string[]
   kodeByMapel: Record<string, string> // nama_mapel -> kode_mapel (RDM) dari pusat akademik
+  scopedToTeachingAssignments: boolean
 }
 
 export async function getRekapNilaiTabel(): Promise<RekapTabelPayload> {
-  const kv = await getRekapKV()
+  const db = await getDB()
+  const access = await getNilaiAccess(db)
+  const scopedToTeachingAssignments = !access.canManage
+  const kv = scopedToTeachingAssignments ? null : await getRekapKV()
 
   if (kv) {
     try {
@@ -272,21 +305,69 @@ export async function getRekapNilaiTabel(): Promise<RekapTabelPayload> {
     }
   }
 
-  const db = await getDB()
-  const [siswaRes, mapelRes] = await Promise.all([
-    db.prepare(`
-      SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin,
-             k.id AS kelas_id, k.tingkat, k.nomor_kelas, k.kelompok,
-             r.nilai_smt1, r.nilai_smt2, r.nilai_smt3,
-             r.nilai_smt4, r.nilai_smt5, r.nilai_smt6
-      FROM siswa s
-      LEFT JOIN kelas k ON s.kelas_id = k.id
-      LEFT JOIN rekap_nilai_akademik r ON r.siswa_id = s.id
-      WHERE s.status = 'aktif'
-      ORDER BY k.tingkat, k.kelompok, k.nomor_kelas, s.nama_lengkap
-    `).all<any>(),
-    db.prepare('SELECT nama_mapel, kode_mapel FROM mata_pelajaran ORDER BY kategori, nama_mapel').all<any>(),
-  ])
+  let siswaRes: D1Result<any>
+  let mapelRows: Array<{ nama_mapel: string; kode_mapel: string | null; kelas_id?: string }> = []
+  const allowedMapelByKelas = new Map<string, Set<string>>()
+
+  if (scopedToTeachingAssignments) {
+    const assignmentRes = await db.prepare(`
+      SELECT DISTINCT pm.kelas_id, mp.nama_mapel, mp.kode_mapel, mp.kategori
+      FROM penugasan_mengajar pm
+      JOIN tahun_ajaran ta ON ta.id = pm.tahun_ajaran_id AND ta.is_active = 1
+      JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
+      WHERE pm.guru_id = ?
+      ORDER BY mp.kategori, mp.nama_mapel
+    `).bind(access.user.id).all<any>()
+
+    mapelRows = assignmentRes.results || []
+    for (const row of mapelRows) {
+      const existing = allowedMapelByKelas.get(row.kelas_id!) || new Set<string>()
+      existing.add(row.nama_mapel)
+      allowedMapelByKelas.set(row.kelas_id!, existing)
+    }
+
+    const kelasIds = Array.from(allowedMapelByKelas.keys())
+    if (kelasIds.length === 0) {
+      siswaRes = { results: [], success: true, meta: {} } as D1Result<any>
+    } else {
+      const placeholders = kelasIds.map(() => '?').join(',')
+      siswaRes = await db.prepare(`
+        SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin,
+               k.id AS kelas_id, k.tingkat, k.nomor_kelas, k.kelompok,
+               r.nilai_smt1, r.nilai_smt2, r.nilai_smt3,
+               r.nilai_smt4, r.nilai_smt5, r.nilai_smt6
+        FROM siswa s
+        JOIN kelas k ON s.kelas_id = k.id
+        LEFT JOIN rekap_nilai_akademik r ON r.siswa_id = s.id
+        WHERE s.status = 'aktif' AND k.id IN (${placeholders})
+        ORDER BY k.tingkat, k.kelompok, k.nomor_kelas, s.nama_lengkap
+      `).bind(...kelasIds).all<any>()
+    }
+  } else {
+    const [allSiswaRes, mapelRes] = await Promise.all([
+      db.prepare(`
+        SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin,
+               k.id AS kelas_id, k.tingkat, k.nomor_kelas, k.kelompok,
+               r.nilai_smt1, r.nilai_smt2, r.nilai_smt3,
+               r.nilai_smt4, r.nilai_smt5, r.nilai_smt6
+        FROM siswa s
+        LEFT JOIN kelas k ON s.kelas_id = k.id
+        LEFT JOIN rekap_nilai_akademik r ON r.siswa_id = s.id
+        WHERE s.status = 'aktif'
+        ORDER BY k.tingkat, k.kelompok, k.nomor_kelas, s.nama_lengkap
+      `).all<any>(),
+      db.prepare('SELECT nama_mapel, kode_mapel FROM mata_pelajaran ORDER BY kategori, nama_mapel').all<any>(),
+    ])
+    siswaRes = allSiswaRes
+    mapelRows = mapelRes.results || []
+  }
+
+  const filterNilai = (raw: string | null | undefined, kelasId: string | null) => {
+    const nilai = parseJsonCol<Record<string, number>>(raw, {})
+    if (!scopedToTeachingAssignments || !kelasId) return nilai
+    const allowedMapel = allowedMapelByKelas.get(kelasId) || new Set<string>()
+    return Object.fromEntries(Object.entries(nilai).filter(([mapel]) => allowedMapel.has(mapel)))
+  }
 
   const siswa: RekapSiswaRow[] = siswaRes.results.map((s: any) => ({
     id: s.id,
@@ -298,24 +379,27 @@ export async function getRekapNilaiTabel(): Promise<RekapTabelPayload> {
     nomor_kelas: s.nomor_kelas,
     kelompok: s.kelompok,
     nilai: {
-      nilai_smt1: parseJsonCol<Record<string, number>>(s.nilai_smt1, {}),
-      nilai_smt2: parseJsonCol<Record<string, number>>(s.nilai_smt2, {}),
-      nilai_smt3: parseJsonCol<Record<string, number>>(s.nilai_smt3, {}),
-      nilai_smt4: parseJsonCol<Record<string, number>>(s.nilai_smt4, {}),
-      nilai_smt5: parseJsonCol<Record<string, number>>(s.nilai_smt5, {}),
-      nilai_smt6: parseJsonCol<Record<string, number>>(s.nilai_smt6, {}),
+      nilai_smt1: filterNilai(s.nilai_smt1, s.kelas_id),
+      nilai_smt2: filterNilai(s.nilai_smt2, s.kelas_id),
+      nilai_smt3: filterNilai(s.nilai_smt3, s.kelas_id),
+      nilai_smt4: filterNilai(s.nilai_smt4, s.kelas_id),
+      nilai_smt5: filterNilai(s.nilai_smt5, s.kelas_id),
+      nilai_smt6: filterNilai(s.nilai_smt6, s.kelas_id),
     },
   }))
 
   const kodeByMapel: Record<string, string> = {}
-  for (const m of mapelRes.results) {
+  for (const m of mapelRows) {
     if (m.kode_mapel) kodeByMapel[m.nama_mapel] = String(m.kode_mapel).trim()
   }
 
+  const mapelOrder = Array.from(new Set(mapelRows.map((m) => m.nama_mapel)))
+
   const payload: RekapTabelPayload = {
     siswa,
-    mapelOrder: mapelRes.results.map((m: any) => m.nama_mapel as string),
+    mapelOrder,
     kodeByMapel,
+    scopedToTeachingAssignments,
   }
 
   if (kv) {
@@ -334,6 +418,7 @@ export async function getRekapNilaiTabel(): Promise<RekapTabelPayload> {
 // ============================================================
 export async function getRingkasanImport() {
   const db = await getDB()
+  await requireNilaiManager(db)
   const rows = await db.prepare(`
     SELECT
       SUM(CASE WHEN nilai_smt1 != '{}' AND nilai_smt1 IS NOT NULL THEN 1 ELSE 0 END) as smt1,
