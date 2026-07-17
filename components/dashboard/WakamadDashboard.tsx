@@ -6,6 +6,7 @@ import { findTeachingBlockException, getKbmExceptionsForDate } from '@/lib/kalen
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
+import { getSchoolAttendanceEstimateForDate } from '@/lib/wali-kelas-attendance'
 import {
   ClipboardText as ClipboardCheck, Calendar as CalendarCheck, ChartBar as BarChart3,
   Clipboard as ClipboardList, FileXls as FileSpreadsheet, ArrowRight, CheckCircle as CheckCircle2,
@@ -29,11 +30,7 @@ export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, rol
 
   const [taRow, kehadiranSiswa] = await Promise.all([
     db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>(),
-    db.prepare(`
-      SELECT
-        (SELECT COUNT(DISTINCT siswa_id) FROM izin_tidak_masuk_kelas WHERE tanggal = ?) as tidak_masuk,
-        (SELECT COUNT(*) FROM siswa WHERE status = 'aktif') as total_siswa
-    `).bind(today).first<any>(),
+    getSchoolAttendanceEstimateForDate(db, today),
   ])
 
   const taId = taRow?.id
@@ -64,9 +61,9 @@ export async function WakamadDashboard({ userId, nama, namaDepan, avatarUrl, rol
     Number(row.jam_selesai)
   ))
 
-  const tidakMasuk     = kehadiranSiswa?.tidak_masuk ?? 0
-  const totalSiswa     = kehadiranSiswa?.total_siswa ?? 0
-  const hadirSiswaEst  = Math.max(0, totalSiswa - tidakMasuk)
+  const tidakMasuk     = kehadiranSiswa.tidak_masuk
+  const totalSiswa     = kehadiranSiswa.total_siswa
+  const hadirSiswaEst  = kehadiranSiswa.hadir_estimasi
   const totalPenugasan = activeAgendaRows.length
   const sudahIsi       = activeAgendaRows.filter((row: any) => !!row.agenda_id).length
   const pctAgenda      = totalPenugasan > 0 ? Math.round((sudahIsi / totalPenugasan) * 100) : 0

@@ -7,6 +7,7 @@ import {
   CheckCircle2, XCircle, Thermometer, ShieldAlert,
   Loader2, BookOpen, RefreshCw, Save,
   MessageSquare, Users, ArrowLeft, ClipboardCheck,
+  CalendarRange, ListChecks,
 } from 'lucide-react'
 import {
   getBlokMengajarHariIni, loadSiswaAbsensi, simpanAbsensi,
@@ -14,6 +15,7 @@ import {
 } from '../actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import type { KbmException } from '@/lib/kalender-pendidikan'
+import { TeacherAttendanceReportPanel } from './teacher-attendance-report'
 
 interface Props {
   initialData: {
@@ -36,6 +38,35 @@ const STATUS_UI: Record<string, { bg: string; text: string; icon: any; label: st
 }
 
 export function AbsensiClient({ initialData }: Props) {
+  const [activeTab, setActiveTab] = useState<'input' | 'rekap'>('input')
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-800 dark:bg-slate-950">
+        <button
+          type="button"
+          onClick={() => setActiveTab('input')}
+          className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition-colors ${activeTab === 'input' ? 'bg-white text-emerald-700 shadow-sm dark:bg-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          <ListChecks className="h-4 w-4" /> Input Absensi
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('rekap')}
+          className={`inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold transition-colors ${activeTab === 'rekap' ? 'bg-white text-blue-700 shadow-sm dark:bg-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          <CalendarRange className="h-4 w-4" /> Rekap Sesi Saya
+        </button>
+      </div>
+
+      {activeTab === 'input'
+        ? <AbsensiInputPanel initialData={initialData} />
+        : <TeacherAttendanceReportPanel />}
+    </div>
+  )
+}
+
+function AbsensiInputPanel({ initialData }: Props) {
   const [data, setData] = useState(initialData)
   const [activeBlock, setActiveBlock] = useState<BlokMengajar | null>(null)
   const [siswaList, setSiswaList] = useState<SiswaAbsensi[]>([])
@@ -211,7 +242,7 @@ export function AbsensiClient({ initialData }: Props) {
                     {s.keterangan_wali_kelas && (
                       <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
                         <ClipboardCheck className="h-2.5 w-2.5" />
-                        Wali Kelas
+                        Keputusan wali: {s.keterangan_wali_kelas}
                       </span>
                     )}
                     {s.ada_izin && (

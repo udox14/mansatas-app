@@ -20,6 +20,7 @@ export type FinalAttendanceSource =
   | 'guru'
   | 'wali_kelas'
   | 'koreksi_wali_kelas'
+  | 'perizinan_sekolah'
   | 'perlu_konfirmasi_wali'
   | 'belum_ada_input'
   | 'belum_ada_data'
@@ -322,9 +323,11 @@ export async function getFinalAttendanceForClass(
     `).bind(kelasId, startDate, endDate).all<any>(),
     db.prepare(`
       SELECT itk.tanggal, itk.siswa_id, itk.alasan, itk.keterangan, itk.jam_pelajaran,
+        COALESCE(aik.hitung_sebagai_hadir, 0) as hitung_sebagai_hadir,
         u.nama_lengkap as pelapor_nama
       FROM izin_tidak_masuk_kelas itk
       JOIN siswa s ON itk.siswa_id = s.id
+      LEFT JOIN alasan_izin_kelas aik ON aik.alasan = itk.alasan
       LEFT JOIN "user" u ON itk.diinput_oleh = u.id
       WHERE s.kelas_id = ? AND itk.tanggal BETWEEN ? AND ?
       ORDER BY itk.created_at ASC
@@ -385,6 +388,7 @@ export async function getFinalAttendanceForClass(
         const endSlot = slots.find(slot => Number(slot.id) === jamKeSelesai)
         return {
           penugasan_id: penugasanId,
+          jam_ke: jamList,
           jam_ke_mulai: jamKeMulai,
           jam_ke_selesai: jamKeSelesai,
           block_start: parseTimeMinutes(startSlot?.mulai),
@@ -455,7 +459,8 @@ export async function getFinalAttendanceForClass(
       const waliRecord = waliMap.get(`${siswa.id}__${tanggal}`)
       const izinKelasRows = izinKelasMap.get(`${siswa.id}__${tanggal}`) || []
       const izinKeluarRows = izinKeluarMap.get(siswa.id) || []
-      const izinBlocks = activeBlocksForDate(tanggal).flatMap(block => {
+      const activeBlocks = activeBlocksForDate(tanggal)
+      const izinBlocks = activeBlocks.flatMap(block => {
         const izinKelasForBlock = izinKelasRows.filter(row => {
           const jam = parseIzinJamPelajaran(row.jam_pelajaran)
           return jam.length === 0 || jam.some(j => j >= block.jam_ke_mulai && j <= block.jam_ke_selesai)
@@ -495,7 +500,17 @@ export async function getFinalAttendanceForClass(
         effectiveSubmittedCount,
         skipIncompleteForDailyStatus
       )
-      const finalState = buildFinalStatus(guruStatus, waliRecord?.status ?? null)
+      const activeJam = Array.from(new Set(activeBlocks.flatMap(block => block.jam_ke)))
+      const izinSekolahRows = izinKelasRows.filter(row => Number(row.hitung_sebagai_hadir) === 1)
+      const izinSekolahSehariPenuh = activeJam.length > 0 && activeJam.every(jamKe =>
+        izinSekolahRows.some(row => {
+          const jamIzin = parseIzinJamPelajaran(row.jam_pelajaran)
+          return jamIzin.length === 0 || jamIzin.includes(jamKe)
+        })
+      )
+      const finalState: { status_akhir: FinalAttendanceStatus; sumber_status: FinalAttendanceSource } = izinSekolahSehariPenuh
+        ? { status_akhir: 'HADIR', sumber_status: 'perizinan_sekolah' }
+        : buildFinalStatus(guruStatus, waliRecord?.status ?? null)
 
       perDay.push({
         siswa_id: siswa.id,
@@ -555,5 +570,87 @@ export async function getFinalAttendanceForStudent(
     siswa,
     kelas_label: formatNamaKelas(siswa.tingkat, siswa.nomor_kelas, siswa.kelompok),
     statuses: classData.statusByStudent.get(siswaId) || [],
+  }
+}
+
+export async function getSchoolAttendanceEstimateForDate(db: D1Database, tanggal: string) {
+  const hari = hariNum(new Date(`${tanggal}T00:00:00`))
+  const [ta, totalRow, izinRes, exceptions] = await Promise.all([
+    db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>(),
+    db.prepare(`SELECT COUNT(*) as total FROM siswa WHERE status = 'aktif'`).first<{ total: number }>(),
+    db.prepare(`
+      SELECT itk.siswa_id, itk.jam_pelajaran, s.kelas_id,
+        COALESCE(aik.hitung_sebagai_hadir, 0) as hitung_sebagai_hadir
+      FROM izin_tidak_masuk_kelas itk
+      JOIN siswa s ON s.id = itk.siswa_id AND s.status = 'aktif'
+      LEFT JOIN alasan_izin_kelas aik ON aik.alasan = itk.alasan
+      WHERE itk.tanggal = ?
+    `).bind(tanggal).all<any>(),
+    getKbmExceptionsForRange(db, tanggal, tanggal),
+  ])
+
+  const jadwalRes = ta?.id
+    ? await db.prepare(`
+        SELECT k.id as kelas_id, k.tingkat, jm.penugasan_id, jm.jam_ke
+        FROM jadwal_mengajar jm
+        JOIN penugasan_mengajar pm ON pm.id = jm.penugasan_id
+        JOIN kelas k ON k.id = pm.kelas_id
+        WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
+          AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
+      `).bind(ta.id, hari, tanggal).all<any>()
+    : { results: [] as any[] }
+
+  const blocksByClass = new Map<string, Map<string, { tingkat: number; jam: number[] }>>()
+  for (const row of jadwalRes.results || []) {
+    if (!blocksByClass.has(row.kelas_id)) blocksByClass.set(row.kelas_id, new Map())
+    const classBlocks = blocksByClass.get(row.kelas_id)!
+    if (!classBlocks.has(row.penugasan_id)) {
+      classBlocks.set(row.penugasan_id, { tingkat: Number(row.tingkat), jam: [] })
+    }
+    classBlocks.get(row.penugasan_id)!.jam.push(Number(row.jam_ke))
+  }
+
+  const activeJamByClass = new Map<string, Set<number>>()
+  for (const [kelasId, blocks] of blocksByClass) {
+    const activeJam = new Set<number>()
+    for (const block of blocks.values()) {
+      const jam = Array.from(new Set(block.jam)).sort((a, b) => a - b)
+      if (jam.length === 0 || findTeachingBlockException(
+        exceptions,
+        { id: kelasId, tingkat: block.tingkat },
+        jam[0],
+        jam[jam.length - 1]
+      )) continue
+      for (const jamKe of jam) activeJam.add(jamKe)
+    }
+    activeJamByClass.set(kelasId, activeJam)
+  }
+
+  const allIzinStudents = new Set<string>()
+  const schoolRowsByStudent = new Map<string, Array<{ kelas_id: string; jam_pelajaran: unknown }>>()
+  for (const row of izinRes.results || []) {
+    allIzinStudents.add(row.siswa_id)
+    if (Number(row.hitung_sebagai_hadir) !== 1) continue
+    if (!schoolRowsByStudent.has(row.siswa_id)) schoolRowsByStudent.set(row.siswa_id, [])
+    schoolRowsByStudent.get(row.siswa_id)!.push(row)
+  }
+
+  const schoolPresentStudents = new Set<string>()
+  for (const [siswaId, rows] of schoolRowsByStudent) {
+    const activeJam = Array.from(activeJamByClass.get(rows[0]?.kelas_id) || [])
+    if (activeJam.length > 0 && activeJam.every(jamKe => rows.some(row => {
+      const jamIzin = parseIzinJamPelajaran(row.jam_pelajaran)
+      return jamIzin.length === 0 || jamIzin.includes(jamKe)
+    }))) {
+      schoolPresentStudents.add(siswaId)
+    }
+  }
+
+  const izinTidakMasuk = Array.from(allIzinStudents).filter(id => !schoolPresentStudents.has(id)).length
+  const totalSiswa = Number(totalRow?.total || 0)
+  return {
+    total_siswa: totalSiswa,
+    tidak_masuk: izinTidakMasuk,
+    hadir_estimasi: Math.max(0, totalSiswa - izinTidakMasuk),
   }
 }

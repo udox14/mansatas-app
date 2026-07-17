@@ -39,7 +39,7 @@ const workstreams = [
   },
   {
     title: 'Kesiswaan, BK, dan Pendampingan',
-    description: 'Kelas binaan, keterangan absensi, perizinan, kedisiplinan, monitoring kedisiplinan, BK, psikotes, TKA, dan penerimaan PT berada dalam satu ruang koordinasi.',
+    description: 'Kelas binaan, riwayat dan koreksi absensi, perizinan, kedisiplinan, monitoring kedisiplinan, BK, psikotes, TKA, dan penerimaan PT berada dalam satu ruang koordinasi.',
     icon: UsersRound,
   },
   {
@@ -171,10 +171,10 @@ const featureDescriptions: Record<string, string> = {
   'kalender-pendidikan': 'Mengelola kalender pendidikan, hari efektif, libur, sumber kalender resmi, dan pengecualian KBM yang berdampak pada jadwal.',
   tahfidz: 'Mencatat perkembangan hafalan siswa, setoran ayat, nilai per juz, riwayat setoran, laporan, dan analitik program tahfidz.',
   guru: 'Mengelola akun guru dan pegawai, termasuk data profil, role akses, reset password, import data, dan foto pegawai.',
-  kehadiran: 'Guru dapat mengisi absensi siswa sesuai jadwal mengajar hari itu, lengkap dengan catatan hadir, sakit, izin, alfa, atau bolos.',
+  kehadiran: 'Guru dapat mengisi absensi siswa per sesi mengajar, melihat rekap asli seluruh sesinya, serta mengunduh laporan PDF dan Excel.',
   'kelas-binaan': 'Wali kelas memantau siswa binaan, absensi, catatan, komunikasi orang tua, serta membuat pemanggilan atau tindak lanjut.',
   'rekap-absensi': 'Menyajikan rekap kehadiran siswa agar wali kelas, TU, wakamad, dan pimpinan bisa melihat kondisi absensi dengan cepat.',
-  'keterangan-absensi': 'Wali kelas bisa memberi keterangan ketidakhadiran siswa per tanggal, baik satu per satu maupun sekaligus satu kelas.',
+  'keterangan-absensi': 'Wali kelas dapat melihat riwayat dan mengoreksi status akhir harian tanpa mengubah detail absensi asli yang disimpan guru.',
   agenda: 'Guru mencatat agenda mengajar dan materi pembelajaran, sementara guru piket dapat mengisi agenda piket harian.',
   'agenda-kelas': 'TU dapat memeriksa dan mencetak agenda kelas harian atau bulanan sesuai format resmi dengan data agenda guru dan absensi siswa.',
   'ckh-generator': 'Menyusun catatan kinerja harian pegawai dari template, agenda, tugas, dan catatan manual untuk kebutuhan administrasi kerja.',

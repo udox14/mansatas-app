@@ -132,20 +132,34 @@ export async function importJadwalASC(xmlText: string): Promise<{
   logs: string[]
   stats: { mapel: number; penugasan: number; jadwal: number }
 }> {
-  const db = await getDB()
   const emptyStats = { mapel: 0, penugasan: 0, jadwal: 0 }
 
-  const activeTa = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
-  if (!activeTa) return { success: null, error: 'Tahun Ajaran aktif belum diatur.', logs: [], stats: emptyStats }
+  try {
+    const db = await getDB()
+    const activeTa = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
+    if (!activeTa) return { success: null, error: 'Tahun Ajaran aktif belum diatur.', logs: [], stats: emptyStats }
 
-  const dataset = buildAcademicDatasetFromAscXml(xmlText)
-  const result = await applyAcademicDataset(db, activeTa.id, dataset)
-  revalidatePath('/dashboard/akademik')
-  return {
-    success: result.success,
-    error: result.error,
-    logs: result.logs,
-    stats: { mapel: result.stats.mapel, penugasan: result.stats.penugasan, jadwal: result.stats.jadwal },
+    const dataset = buildAcademicDatasetFromAscXml(xmlText)
+    if (dataset.jadwal.length === 0) {
+      return { success: null, error: 'File XML ASC tidak memuat jadwal yang dapat dibaca.', logs: [], stats: emptyStats }
+    }
+
+    const result = await applyAcademicDataset(db, activeTa.id, dataset)
+    revalidatePath('/dashboard/akademik')
+    return {
+      success: result.success,
+      error: result.error,
+      logs: result.logs,
+      stats: { mapel: result.stats.mapel, penugasan: result.stats.penugasan, jadwal: result.stats.jadwal },
+    }
+  } catch (error) {
+    console.error('[akademik] Import XML ASC gagal:', error)
+    return {
+      success: null,
+      error: 'Import ASC gagal diproses oleh server. Data riwayat akademik tetap dipertahankan. Silakan periksa format file lalu coba lagi.',
+      logs: [],
+      stats: emptyStats,
+    }
   }
 }
 
@@ -253,7 +267,7 @@ export async function resetJadwalKelas(kelas_id: string, tahun_ajaran_id: string
 // ============================================================
 // 5. IMPORT PENUGASAN LEGACY (dari Excel — tetap ada)
 // ============================================================
-export async function importPenugasanASC(dataExcel: any[]) {
+async function importPenugasanASCUnsafe(dataExcel: any[]) {
   const db = await getDB()
   const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1').first<{ id: string }>()
   if (!ta) return { error: 'Tahun Ajaran aktif belum diatur.', success: null, logs: [] }
@@ -328,7 +342,8 @@ export async function importPenugasanASC(dataExcel: any[]) {
 
   if (toInsert.length === 0) return { error: 'Tidak ada data yang berhasil diproses.', success: null, logs: errorLogs }
 
-  const chunkSize = 25
+  // Sisakan ruang dari batas binding D1/SQLite pada environment lama.
+  const chunkSize = 20
   let successCount = 0
   for (let i = 0; i < toInsert.length; i += chunkSize) {
     const chunk = toInsert.slice(i, i + chunkSize)
@@ -349,6 +364,22 @@ export async function importPenugasanASC(dataExcel: any[]) {
     success: `Berhasil mengimport ${successCount} dari ${dataExcel.length} penugasan.`,
     error: successCount === 0 ? 'Tidak ada data yang berhasil diimport.' : null,
     logs: errorLogs,
+  }
+}
+
+export async function importPenugasanASC(dataExcel: any[]) {
+  try {
+    if (!Array.isArray(dataExcel) || dataExcel.length === 0) {
+      return { error: 'File Excel ASC kosong atau tidak dapat dibaca.', success: null, logs: [] }
+    }
+    return await importPenugasanASCUnsafe(dataExcel)
+  } catch (error) {
+    console.error('[akademik] Import Excel ASC gagal:', error)
+    return {
+      error: 'Import ASC gagal diproses oleh server. Pastikan kolom NAMA_GURU, NAMA_KELAS, dan NAMA_MAPEL sesuai template.',
+      success: null,
+      logs: [],
+    }
   }
 }
 

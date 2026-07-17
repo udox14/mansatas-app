@@ -71,6 +71,7 @@ function attendanceStatusLabel(status: string | null | undefined) {
 function sourceLabel(source: string) {
   if (source === 'kalender') return 'Kalender Pendidikan'
   if (source === 'perizinan') return 'Perizinan'
+  if (source === 'perizinan_sekolah') return 'Perizinan Sekolah'
   if (source === 'wali_kelas') return 'Wali Kelas'
   if (source === 'koreksi_wali_kelas') return 'Koreksi Wali'
   if (source === 'guru') return 'Guru'
@@ -467,7 +468,7 @@ export async function KelasBinaanDashboard({
             </div>
           </div>
           <Link href="/dashboard/keterangan-absensi" className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-50 sm:w-auto sm:px-3 sm:py-2">
-            <NotebookPen className="h-3.5 w-3.5" /> Keterangan Absensi
+            <NotebookPen className="h-3.5 w-3.5" /> Riwayat & Koreksi
           </Link>
         </div>
       </div>

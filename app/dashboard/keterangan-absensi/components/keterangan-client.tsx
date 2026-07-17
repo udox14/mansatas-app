@@ -37,6 +37,7 @@ function statusLabel(status: string | null | undefined) {
 
 function sourceLabel(source: string | null | undefined) {
   if (source === 'perizinan') return 'Perizinan'
+  if (source === 'perizinan_sekolah') return 'Perizinan Sekolah'
   if (source === 'wali_kelas') return 'Wali Kelas'
   if (source === 'koreksi_wali_kelas') return 'Koreksi Wali'
   if (source === 'guru') return 'Guru'

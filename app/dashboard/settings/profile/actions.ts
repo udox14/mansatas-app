@@ -110,19 +110,20 @@ export async function uploadSignatureAction(formData: FormData) {
 
   const { url, error: uploadError } = await uploadSignature(user.id, file)
   if (uploadError || !url) return { error: uploadError || 'Upload gagal' }
+  const versionedUrl = `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`
 
   const db = await getDB()
   const result = await dbUpdate(
     db,
     '"user"',
-    { signature_url: url, updatedAt: new Date().toISOString() },
+    { signature_url: versionedUrl, updatedAt: new Date().toISOString() },
     { id: user.id }
   )
   if (result.error) return { error: result.error }
 
   revalidatePath('/dashboard/settings/profile')
   revalidatePath('/dashboard/ckh-generator')
-  return { success: 'Tanda tangan berhasil diperbarui!', url }
+  return { success: 'Tanda tangan berhasil diperbarui!', url: versionedUrl }
 }
 
 // ============================================================

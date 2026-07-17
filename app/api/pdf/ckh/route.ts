@@ -56,6 +56,16 @@ export async function POST(request: Request) {
     const page = await browser.newPage()
     await page.setContent(html, { waitUntil: 'networkidle0' })
     await page.evaluate(() => (document as any).fonts.ready) // pastikan @font-face termuat sebelum render
+    await page.evaluate(async () => {
+      const images = Array.from(document.images)
+      await Promise.all(images.map(image => {
+        if (image.complete) return image.decode().catch(() => undefined)
+        return new Promise<void>(resolve => {
+          image.addEventListener('load', () => resolve(), { once: true })
+          image.addEventListener('error', () => resolve(), { once: true })
+        })
+      }))
+    })
     const pdf = await page.pdf({
       width: w,
       height: h,

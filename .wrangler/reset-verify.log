@@ -1,0 +1,108 @@
+
+--- 2026-07-17T08:30:44.719Z debug
+🪵  Writing logs to "C:\DATA\mansatas-app\.wrangler\reset-verify.log"
+---
+
+--- 2026-07-17T08:30:44.719Z log
+
+ ⛅️ wrangler 4.79.0 (update available 4.111.0)
+──────────────────────────────────────────────
+---
+
+--- 2026-07-17T08:30:44.720Z log
+Resource location: remote 
+
+---
+
+--- 2026-07-17T08:30:44.726Z debug
+Metrics dispatcher: Posting data {"deviceId":"cd23a0c8-b17d-4873-9e91-bf3128670721","event":"wrangler command started","timestamp":1784277044726,"properties":{"amplitude_session_id":1784277044724,"amplitude_event_id":0,"wranglerVersion":"4.79.0","wranglerMajorVersion":4,"wranglerMinorVersion":79,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Pro","nodeVersion":24,"packageManager":"npm","isFirstUsage":false,"configFileType":"toml","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":false,"hasAssets":true,"agent":null,"argsUsed":["command","remote"],"argsCombination":"command, remote","sanitizedCommand":"d1 execute","sanitizedArgs":{}}}
+---
+
+--- 2026-07-17T08:30:44.745Z log
+🌀 Executing on remote database mansatas-db (76b7b346-3f3f-4c1e-a347-2d51497bad97):
+---
+
+--- 2026-07-17T08:30:44.745Z log
+🌀 To execute on your local development database, remove the --remote flag from your wrangler command.
+---
+
+--- 2026-07-17T08:30:44.746Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/89389959c60ad166fb81698c4289aab0/d1/database/76b7b346-3f3f-4c1e-a347-2d51497bad97/query
+---
+
+--- 2026-07-17T08:30:44.746Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:30:44.746Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:30:44.746Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:30:44.746Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-07-17T08:30:45.207Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-07-17T08:30:45.208Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:30:45.208Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:30:45.208Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-07-17T08:30:45.209Z log
+🚣 Executed 1 command in 9.32ms
+---
+
+--- 2026-07-17T08:30:45.209Z log
+[
+  {
+    "results": [
+      {
+        "sisa_target_13_16_juli": 0,
+        "agenda_mei_juni": 1033,
+        "absensi_mei_juni": 4535,
+        "sesi_absensi_mei_juni": 964,
+        "keterangan_mei_juni": 172,
+        "delegasi_mei_juni": 36,
+        "nilai_mei_juni": 19,
+        "rekap_mei_juni": 0
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_colo": "SIN",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 9.3248
+      },
+      "duration": 9.3248,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 27955200,
+      "rows_read": 7822,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]
+---
+
+--- 2026-07-17T08:30:45.211Z debug
+Metrics dispatcher: Posting data {"deviceId":"cd23a0c8-b17d-4873-9e91-bf3128670721","event":"wrangler command completed","timestamp":1784277045211,"properties":{"amplitude_session_id":1784277044724,"amplitude_event_id":1,"wranglerVersion":"4.79.0","wranglerMajorVersion":4,"wranglerMinorVersion":79,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Pro","nodeVersion":24,"packageManager":"npm","isFirstUsage":false,"configFileType":"toml","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":false,"hasAssets":true,"agent":null,"argsUsed":["command","remote"],"argsCombination":"command, remote","sanitizedCommand":"d1 execute","sanitizedArgs":{},"durationMs":495}}
+---
