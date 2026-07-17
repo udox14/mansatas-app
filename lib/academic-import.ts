@@ -344,19 +344,67 @@ export async function applyAcademicDataset(
     return { success: null, error: 'Tidak ada beban mengajar atau jadwal valid yang bisa diterapkan.', logs, stats: emptyStats }
   }
 
-  await db.prepare('DELETE FROM penugasan_mengajar WHERE tahun_ajaran_id = ?').bind(tahunAjaranId).run()
-
   const keyToId = new Map<string, string>()
   const keyToAssignment = new Map<string, ResolvedAssignment>()
 
   const assignmentKey = (row: ResolvedAssignment) =>
     `${row.guruId}|${row.mapelId}|${row.kelasId}`
 
+  // Gunakan kembali ID penugasan yang sama. Selain mencegah benturan UNIQUE,
+  // ini menjaga referensi historis (mis. delegasi_tugas_kelas) tetap valid.
+  const existingAssignments = await db.prepare(`
+    SELECT id, guru_id, mapel_id, kelas_id
+    FROM penugasan_mengajar
+    WHERE tahun_ajaran_id = ?
+  `).bind(tahunAjaranId).all<any>()
+  const existingIdByKey = new Map<string, string>()
+  for (const row of existingAssignments.results || []) {
+    existingIdByKey.set(`${row.guru_id}|${row.mapel_id}|${row.kelas_id}`, row.id)
+  }
+
   for (const row of assignmentRows) {
     const key = assignmentKey(row)
     if (!keyToId.has(key)) {
-      keyToId.set(key, crypto.randomUUID().replace(/-/g, ''))
+      keyToId.set(key, existingIdByKey.get(key) || crypto.randomUUID().replace(/-/g, ''))
       keyToAssignment.set(key, row)
+    }
+  }
+
+  // Jadwal memang diganti penuh, tetapi penugasan yang masih dirujuk riwayat
+  // tidak boleh dihapus karena FK delegasi tidak memakai ON DELETE CASCADE.
+  await db.prepare('DELETE FROM jadwal_mengajar WHERE tahun_ajaran_id = ?').bind(tahunAjaranId).run()
+
+  const desiredIds = new Set(keyToId.values())
+  const staleIds = (existingAssignments.results || [])
+    .map((row: any) => String(row.id))
+    .filter((id: string) => !desiredIds.has(id))
+
+  if (staleIds.length > 0) {
+    let hasDelegasiTable = false
+    try {
+      const table = await db.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'delegasi_tugas_kelas'"
+      ).first<{ name: string }>()
+      hasDelegasiTable = Boolean(table)
+    } catch { /* schema lama */ }
+
+    for (const id of staleIds) {
+      if (hasDelegasiTable) {
+        const referenced = await db.prepare(
+          'SELECT 1 AS found FROM delegasi_tugas_kelas WHERE penugasan_mengajar_id = ? LIMIT 1'
+        ).bind(id).first<{ found: number }>()
+        if (referenced) {
+          logs.push(`Penugasan lama ${id} dipertahankan karena masih digunakan pada riwayat delegasi tugas.`)
+          continue
+        }
+      }
+      try {
+        await db.prepare('DELETE FROM penugasan_mengajar WHERE id = ?').bind(id).run()
+      } catch {
+        // Bisa masih dirujuk tabel historis lain pada schema deployment lama.
+        // Import tetap dilanjutkan; tanpa jadwal, penugasan ini tidak aktif.
+        logs.push(`Penugasan lama ${id} dipertahankan karena masih digunakan oleh data riwayat.`)
+      }
     }
   }
 

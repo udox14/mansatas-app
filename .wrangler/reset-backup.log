@@ -1,0 +1,215 @@
+
+--- 2026-07-17T08:16:45.223Z debug
+🪵  Writing logs to "C:\DATA\mansatas-app\.wrangler\reset-backup.log"
+---
+
+--- 2026-07-17T08:16:45.223Z log
+
+ ⛅️ wrangler 4.79.0 (update available 4.111.0)
+──────────────────────────────────────────────
+---
+
+--- 2026-07-17T08:16:45.224Z log
+Resource location: remote 
+
+---
+
+--- 2026-07-17T08:16:45.231Z debug
+Metrics dispatcher: Posting data {"deviceId":"cd23a0c8-b17d-4873-9e91-bf3128670721","event":"wrangler command started","timestamp":1784276205231,"properties":{"amplitude_session_id":1784276205228,"amplitude_event_id":0,"wranglerVersion":"4.79.0","wranglerMajorVersion":4,"wranglerMinorVersion":79,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Pro","nodeVersion":24,"packageManager":"npm","isFirstUsage":false,"configFileType":"toml","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":false,"hasAssets":true,"agent":null,"argsUsed":["output","remote"],"argsCombination":"output, remote","sanitizedCommand":"d1 export","sanitizedArgs":{}}}
+---
+
+--- 2026-07-17T08:16:45.254Z log
+🌀 Executing on remote database mansatas-db (76b7b346-3f3f-4c1e-a347-2d51497bad97):
+---
+
+--- 2026-07-17T08:16:45.256Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/89389959c60ad166fb81698c4289aab0/d1/database/76b7b346-3f3f-4c1e-a347-2d51497bad97/export
+---
+
+--- 2026-07-17T08:16:45.256Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:45.256Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:45.256Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:45.256Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-07-17T08:16:47.492Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-07-17T08:16:47.493Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:47.493Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:47.493Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-07-17T08:16:47.493Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/89389959c60ad166fb81698c4289aab0/d1/database/76b7b346-3f3f-4c1e-a347-2d51497bad97/export
+---
+
+--- 2026-07-17T08:16:47.493Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:47.493Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:47.493Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:47.493Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-07-17T08:16:48.591Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-07-17T08:16:48.591Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:48.591Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:48.591Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-07-17T08:16:48.591Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/89389959c60ad166fb81698c4289aab0/d1/database/76b7b346-3f3f-4c1e-a347-2d51497bad97/export
+---
+
+--- 2026-07-17T08:16:48.591Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:48.591Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:48.591Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:48.591Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-07-17T08:16:49.811Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-07-17T08:16:49.812Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:49.812Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:49.812Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-07-17T08:16:49.812Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/89389959c60ad166fb81698c4289aab0/d1/database/76b7b346-3f3f-4c1e-a347-2d51497bad97/export
+---
+
+--- 2026-07-17T08:16:49.812Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:49.812Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:49.812Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:49.812Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-07-17T08:16:51.104Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-07-17T08:16:51.105Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:51.105Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:51.105Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-07-17T08:16:51.105Z debug
+-- START CF API REQUEST: POST https://api.cloudflare.com/client/v4/accounts/89389959c60ad166fb81698c4289aab0/d1/database/76b7b346-3f3f-4c1e-a347-2d51497bad97/export
+---
+
+--- 2026-07-17T08:16:51.105Z debug
+QUERY STRING: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:51.105Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:51.105Z debug
+INIT: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:51.105Z debug
+-- END CF API REQUEST
+---
+
+--- 2026-07-17T08:16:51.640Z debug
+-- START CF API RESPONSE: OK 200
+---
+
+--- 2026-07-17T08:16:51.640Z debug
+HEADERS: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:51.640Z debug
+RESPONSE: omitted; set WRANGLER_LOG_SANITIZE=false to include sanitized data
+---
+
+--- 2026-07-17T08:16:51.640Z debug
+-- END CF API RESPONSE
+---
+
+--- 2026-07-17T08:16:51.641Z log
+You can also download your export from the following URL manually. This link will be valid for one hour: https://1ad59b064bfa3690063414a9906129e4.r2.cloudflarestorage.com/d1-sqlio-outgoing-prod/76b7b346-3f3f-4c1e-a347-2d51497bad97-00002169-00000000-000050ab-4ae6459d9efb25a8dd58432f99738067.sql?X-Amz-Expires=3600&X-Amz-Date=20260717T081651Z&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=f591b8dcd0794c54409cf0613171d42b%2F20260717%2Fauto%2Fs3%2Faws4_request&X-Amz-SignedHeaders=host&X-Amz-Signature=8ae729a58b78b01ef1ad2b4f428b15347dca511f8697eadbff1b2f2707bbc6a4
+---
+
+--- 2026-07-17T08:16:55.227Z log
+🌀 Downloaded to C:\tmp\mansatas-db-before-reset-20260717-1515.sql successfully!
+---
+
+--- 2026-07-17T08:16:55.229Z debug
+Metrics dispatcher: Posting data {"deviceId":"cd23a0c8-b17d-4873-9e91-bf3128670721","event":"wrangler command completed","timestamp":1784276215229,"properties":{"amplitude_session_id":1784276205228,"amplitude_event_id":1,"wranglerVersion":"4.79.0","wranglerMajorVersion":4,"wranglerMinorVersion":79,"wranglerPatchVersion":0,"osPlatform":"Windows","osVersion":"Windows 11 Pro","nodeVersion":24,"packageManager":"npm","isFirstUsage":false,"configFileType":"toml","isCI":false,"isPagesCI":false,"isWorkersCI":false,"isInteractive":false,"hasAssets":true,"agent":null,"argsUsed":["output","remote"],"argsCombination":"output, remote","sanitizedCommand":"d1 export","sanitizedArgs":{},"durationMs":10009}}
+---

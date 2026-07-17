@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { KeteranganClient } from './components/keterangan-client'
 import { getKelasBinaan } from './actions'
 
-export const metadata = { title: 'Keterangan Absensi - MANSATAS App' }
+export const metadata = { title: 'Riwayat & Koreksi Absensi - MANSATAS App' }
 export const dynamic = 'force-dynamic'
 
 export default async function KeteranganAbsensiPage() {
@@ -23,8 +23,8 @@ export default async function KeteranganAbsensiPage() {
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-24">
       <PageHeader
-        title="Keterangan Absensi"
-        description="Tentukan status harian siswa kelas binaan saat perlu koreksi atau keputusan wali kelas."
+        title="Riwayat & Koreksi Absensi"
+        description="Tetapkan koreksi status akhir harian siswa tanpa mengubah detail absensi yang diinput guru."
       />
 
       {error ? (

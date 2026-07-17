@@ -5,20 +5,17 @@ import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
 import { Calendar as CalendarCheck, ArrowRight } from '@phosphor-icons/react/dist/ssr'
 import type { WidgetProps } from '@/lib/dashboard-widgets-meta'
+import { getSchoolAttendanceEstimateForDate } from '@/lib/wali-kelas-attendance'
 
 export async function KehadiranSiswaSekolahWidget(_props: WidgetProps) {
   const db = await getDB()
   const today = todayWIB()
 
-  const row = await db.prepare(`
-    SELECT
-      (SELECT COUNT(DISTINCT siswa_id) FROM izin_tidak_masuk_kelas WHERE tanggal = ?) AS tidak_masuk,
-      (SELECT COUNT(*) FROM siswa WHERE status = 'aktif') AS total_siswa
-  `).bind(today).first<any>()
+  const row = await getSchoolAttendanceEstimateForDate(db, today)
 
-  const tidakMasuk = row?.tidak_masuk ?? 0
-  const totalSiswa = row?.total_siswa ?? 0
-  const hadirEst = Math.max(0, totalSiswa - tidakMasuk)
+  const tidakMasuk = row.tidak_masuk
+  const totalSiswa = row.total_siswa
+  const hadirEst = row.hadir_estimasi
 
   return (
     <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">

@@ -258,6 +258,7 @@ CREATE TABLE IF NOT EXISTS alasan_izin_kelas (
   id         TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
   alasan     TEXT NOT NULL UNIQUE,
   urutan     INTEGER DEFAULT 0,
+  hitung_sebagai_hadir INTEGER NOT NULL DEFAULT 0 CHECK (hitung_sebagai_hadir IN (0, 1)),
   created_at TEXT DEFAULT (datetime('now'))
 );
 

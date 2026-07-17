@@ -53,6 +53,27 @@ async function ensureAbsensiSessionTable(db: D1Database) {
     CREATE INDEX IF NOT EXISTS idx_absensi_sesi_guru_penugasan_tgl
     ON absensi_sesi_guru(penugasan_id, tanggal)
   `).run()
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS absensi_sesi_siswa (
+      id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      penugasan_id    TEXT NOT NULL REFERENCES penugasan_mengajar(id) ON DELETE CASCADE,
+      siswa_id        TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
+      tanggal         TEXT NOT NULL,
+      jam_ke_mulai    INTEGER NOT NULL,
+      jam_ke_selesai  INTEGER NOT NULL,
+      jumlah_jam      INTEGER NOT NULL DEFAULT 1,
+      status          TEXT NOT NULL CHECK(status IN ('HADIR','SAKIT','ALFA','IZIN')),
+      catatan         TEXT,
+      diinput_oleh    TEXT NOT NULL REFERENCES "user"(id),
+      created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(penugasan_id, siswa_id, tanggal)
+    )
+  `).run()
+  await db.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_absensi_sesi_siswa_penugasan_tgl
+    ON absensi_sesi_siswa(penugasan_id, tanggal)
+  `).run()
 }
 
 export type SiswaAbsensi = {
@@ -106,6 +127,29 @@ function jamBeririsan(jamIzin: number[] | null, jamKeMulai?: number, jamKeSelesa
   return jamIzin.some(jam => jam >= jamKeMulai && jam <= jamKeSelesai)
 }
 
+async function getAccessiblePenugasan(
+  db: D1Database,
+  penugasanId: string,
+  guruId: string
+): Promise<{ kelas_id: string; tingkat: number; kbm_nonaktif_mulai: string | null } | null> {
+  return db.prepare(`
+    SELECT k.id AS kelas_id, k.tingkat, k.kbm_nonaktif_mulai
+    FROM penugasan_mengajar pm
+    JOIN kelas k ON pm.kelas_id = k.id
+    WHERE pm.id = ?
+      AND (
+        pm.guru_id = ?
+        OR EXISTS (
+          SELECT 1
+          FROM jadwal_mengajar jm_access
+          JOIN guru_ppl_mapping gpm ON gpm.jadwal_mengajar_id = jm_access.id
+          WHERE jm_access.penugasan_id = pm.id AND gpm.guru_ppl_id = ?
+        )
+      )
+    LIMIT 1
+  `).bind(penugasanId, guruId, guruId).first<any>()
+}
+
 // ============================================================
 // 1. AMBIL BLOK MENGAJAR GURU HARI INI
 //    Menerima optional guruId untuk fitur Act As
@@ -124,14 +168,10 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', blocks: [], tanggal: '', hari: 0, hariNama: '' }
 
-  // Gunakan guruIdOverride jika tersedia (dari Act As), atau cek cookie act-as, fallback ke user.id
-  let guruId = guruIdOverride || user.id
-  if (!guruIdOverride) {
-    const effective = await getEffectiveUser()
-    if (effective?.isActingAs) {
-      guruId = effective.effectiveUserId
-    }
-  }
+  // Override hanya boleh sama dengan identitas efektif yang sudah divalidasi oleh mekanisme Act As.
+  const effective = await getEffectiveUser()
+  const effectiveGuruId = effective?.effectiveUserId || user.id
+  const guruId = guruIdOverride === effectiveGuruId ? guruIdOverride : effectiveGuruId
 
   const db = await getDB()
   await ensureAbsensiSessionTable(db)
@@ -266,6 +306,12 @@ export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tan
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', siswa: [] }
   const db = await getDB()
+  const effective = await getEffectiveUser()
+  const guruId = effective?.effectiveUserId || user.id
+  const accessiblePenugasan = await getAccessiblePenugasan(db, penugasanId, guruId)
+  if (!accessiblePenugasan || accessiblePenugasan.kelas_id !== kelasId) {
+    return { error: 'Penugasan tidak ditemukan atau bukan sesi mengajar Anda.', siswa: [] }
+  }
 
   const [siswaRes, absensiRes, izinRes, izinKeluarRes, waliKelasRes] = await Promise.all([
     db.prepare(`SELECT id, nama_lengkap, nisn, foto_url FROM siswa WHERE kelas_id = ? AND status = 'aktif' ORDER BY nama_lengkap`).bind(kelasId).all<any>(),
@@ -317,8 +363,9 @@ export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tan
       const adaIzin = izinMap.has(s.id)
       const wali = waliMap.get(s.id)
 
-      // Prioritas status: perizinan per blok > absensi guru > keterangan wali kelas > HADIR.
-      // Perizinan bukan vonis harian wali kelas, tapi override untuk blok mengajar yang kena izin.
+      // Status input guru harus independen dari keputusan harian wali kelas.
+      // Prioritas status: perizinan per blok > absensi guru yang sudah tersimpan > HADIR.
+      // Keputusan wali tetap ditampilkan sebagai informasi, tetapi tidak menjadi nilai input guru.
       let status: SiswaAbsensi['status']
       let catatan: string
       if (adaIzin) {
@@ -327,9 +374,6 @@ export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tan
       } else if (ab) {
         status = ab.status as any
         catatan = ab.catatan
-      } else if (wali) {
-        status = wali.status as any
-        catatan = `Keterangan dari wali kelas${wali.keterangan ? ': ' + wali.keterangan : ''}`
       } else {
         status = 'HADIR'
         catatan = ''
@@ -361,6 +405,7 @@ export async function simpanAbsensi(
   // Cek act-as: gunakan real user ID untuk audit trail
   const effective = await getEffectiveUser()
   const diinputOleh = effective?.realUserId || user.id
+  const guruId = effective?.effectiveUserId || user.id
 
   const db = await getDB()
   await ensureAbsensiSessionTable(db)
@@ -369,13 +414,8 @@ export async function simpanAbsensi(
     return { error: `Tanggal ini tidak efektif pembelajaran${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}. Absensi tidak perlu disimpan.` }
   }
 
-  const penugasan = await db.prepare(`
-    SELECT k.id as kelas_id, k.tingkat, k.kbm_nonaktif_mulai
-    FROM penugasan_mengajar pm
-    JOIN kelas k ON pm.kelas_id = k.id
-    WHERE pm.id = ?
-  `).bind(penugasanId).first<{ kelas_id: string; tingkat: number; kbm_nonaktif_mulai: string | null }>()
-  if (!penugasan) return { error: 'Penugasan tidak ditemukan.' }
+  const penugasan = await getAccessiblePenugasan(db, penugasanId, guruId)
+  if (!penugasan) return { error: 'Penugasan tidak ditemukan atau bukan sesi mengajar Anda.' }
   if (penugasan.kbm_nonaktif_mulai && penugasan.kbm_nonaktif_mulai <= tanggal) {
     return { error: 'Kelas ini sudah dinonaktifkan dari kewajiban KBM. Absensi tidak perlu disimpan.' }
   }
@@ -412,6 +452,15 @@ export async function simpanAbsensi(
 
   const toSave = dataAbsen.filter(d => d.status !== 'HADIR')
   const delStmt = db.prepare('DELETE FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?').bind(penugasanId, tanggal)
+  const delSnapshotStmt = db.prepare('DELETE FROM absensi_sesi_siswa WHERE penugasan_id = ? AND tanggal = ?').bind(penugasanId, tanggal)
+  const snapshotStmts = dataAbsen.map(d => db.prepare(`
+    INSERT INTO absensi_sesi_siswa
+      (penugasan_id, siswa_id, tanggal, jam_ke_mulai, jam_ke_selesai, jumlah_jam, status, catatan, diinput_oleh)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    penugasanId, d.siswa_id, tanggal, jamKeMulai, jamKeSelesai, jumlahJam,
+    d.status, d.catatan || null, diinputOleh
+  ))
   const upsertSesiStmt = db.prepare(`
     INSERT INTO absensi_sesi_guru (penugasan_id, tanggal, submitted_at, diinput_oleh, updated_at)
     VALUES (?, ?, datetime('now'), ?, datetime('now'))
@@ -422,7 +471,7 @@ export async function simpanAbsensi(
   `).bind(penugasanId, tanggal, diinputOleh)
 
   if (toSave.length === 0) {
-    try { await db.batch([delStmt, upsertSesiStmt]) } catch (e: any) { return { error: e.message } }
+    try { await db.batch([delStmt, delSnapshotStmt, ...snapshotStmts, upsertSesiStmt]) } catch (e: any) { return { error: e.message } }
     revalidatePath('/dashboard/kehadiran')
     revalidatePath('/dashboard/rekap-absensi')
     return { success: 'Absensi disimpan! Semua siswa HADIR.' }
@@ -435,7 +484,7 @@ export async function simpanAbsensi(
   )
 
   try {
-    const all = [delStmt, ...insStmts, upsertSesiStmt]
+    const all = [delStmt, delSnapshotStmt, ...insStmts, ...snapshotStmts, upsertSesiStmt]
     for (let i = 0; i < all.length; i += 100) await db.batch(all.slice(i, i + 100))
   } catch (e: any) { return { error: e.message } }
 

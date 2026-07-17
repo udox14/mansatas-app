@@ -173,11 +173,11 @@ export const MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'keterangan-absensi',
-    title: 'Keterangan Absensi',
+    title: 'Riwayat & Koreksi Absensi',
     href: '/dashboard/keterangan-absensi',
     icon: ClipboardSignature,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas'],
-    desc: 'Mengoreksi dan memvalidasi status kehadiran harian siswa khusus untuk Wali Kelas'
+    desc: 'Melihat riwayat dan menetapkan koreksi status akhir harian tanpa mengubah absensi asli guru'
   },
   {
     id: 'agenda',

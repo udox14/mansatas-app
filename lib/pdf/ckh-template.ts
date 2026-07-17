@@ -49,6 +49,18 @@ function esc(value: unknown): string {
   ))
 }
 
+function absoluteAssetUrl(value: unknown, baseUrl: string): string {
+  const url = String(value ?? '').trim()
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url) || /^data:/i.test(url)) return url
+
+  try {
+    return new URL(url, `${baseUrl.replace(/\/$/, '')}/`).toString()
+  } catch {
+    return url
+  }
+}
+
 const MISSING = `<span style="font-style:italic">Silakan isi dulu di Profil</span>`
 const TH = 'border:1px solid #000;padding:4px 3px;text-align:center;vertical-align:middle;font-weight:700'
 const TD_CENTER = 'border:1px solid #000;padding:4px 4px;text-align:center;vertical-align:middle;white-space:pre-wrap;word-break:break-word'
@@ -85,8 +97,9 @@ export function buildCkhHtml(data: CkhPdfData): string {
     </tr>`
   }).join('')
 
-  const sigImg = signatureSettings.signature_enabled && user.signature_url
-    ? `<img src="${esc(user.signature_url)}" alt="" style="position:absolute;left:${signatureSettings.signature_x_mm}mm;top:${signatureSettings.signature_y_mm}mm;width:${signatureSettings.signature_width_mm}mm;height:auto;max-height:40mm;object-fit:contain;z-index:10;pointer-events:none">`
+  const signatureUrl = absoluteAssetUrl(user.signature_url, baseUrl)
+  const sigImg = signatureSettings.signature_enabled && signatureUrl
+    ? `<img src="${esc(signatureUrl)}" alt="" style="position:absolute;left:${signatureSettings.signature_x_mm}mm;top:${signatureSettings.signature_y_mm}mm;width:${signatureSettings.signature_width_mm}mm;height:auto;max-height:40mm;object-fit:contain;z-index:10;pointer-events:none">`
     : ''
 
   return `<!DOCTYPE html>

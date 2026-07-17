@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Trash2, Plus, Loader2, Settings2 } from 'lucide-react'
-import { tambahAlasanIzin, hapusAlasanIzin, type AlasanIzinRow } from '../actions'
+import { tambahAlasanIzin, hapusAlasanIzin, ubahAlasanIzinHitungHadir, type AlasanIzinRow } from '../actions'
 
 interface Props {
   alasanList: AlasanIzinRow[]
@@ -16,6 +16,7 @@ interface Props {
 export function KelolaAlasanModal({ alasanList, onAlasanChange }: Props) {
   const [open, setOpen] = useState(false)
   const [inputAlasan, setInputAlasan] = useState('')
+  const [inputHitungHadir, setInputHitungHadir] = useState(false)
   const [pesan, setPesan] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null)
   const [isPending, startTransition] = useTransition()
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -24,19 +25,28 @@ export function KelolaAlasanModal({ alasanList, onAlasanChange }: Props) {
     if (!inputAlasan.trim()) return
     startTransition(async () => {
       setPesan(null)
-      const res = await tambahAlasanIzin(inputAlasan.trim())
+      const res = await tambahAlasanIzin(inputAlasan.trim(), inputHitungHadir)
       if (res.error) {
         setPesan({ tipe: 'error', teks: res.error })
       } else {
-        // Optimistic update
-        const newItem: AlasanIzinRow = {
-          id: crypto.randomUUID(),
-          alasan: inputAlasan.trim().toUpperCase(),
-          urutan: alasanList.length + 1,
-        }
-        onAlasanChange([...alasanList, newItem])
+        if (res.item) onAlasanChange([...alasanList, res.item])
         setInputAlasan('')
+        setInputHitungHadir(false)
         setPesan({ tipe: 'sukses', teks: res.success || 'Berhasil ditambahkan' })
+      }
+    })
+  }
+
+  const handleHitungHadir = (item: AlasanIzinRow, checked: boolean) => {
+    onAlasanChange(alasanList.map(a => a.id === item.id ? { ...a, hitung_sebagai_hadir: checked } : a))
+    startTransition(async () => {
+      setPesan(null)
+      const res = await ubahAlasanIzinHitungHadir(item.id, checked)
+      if (res.error) {
+        onAlasanChange(alasanList)
+        setPesan({ tipe: 'error', teks: res.error })
+      } else {
+        setPesan({ tipe: 'sukses', teks: res.success || 'Pengaturan diperbarui' })
       }
     })
   }
@@ -96,9 +106,19 @@ export function KelolaAlasanModal({ alasanList, onAlasanChange }: Props) {
                   key={a.id}
                   className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"
                 >
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300 flex-1 min-w-0 truncate">
-                    {a.alasan}
-                  </span>
+                  <div className="flex-1 min-w-0">
+                    <span className="block text-xs font-medium text-slate-700 dark:text-slate-300 truncate">{a.alasan}</span>
+                    <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400">
+                      <input
+                        type="checkbox"
+                        checked={a.hitung_sebagai_hadir}
+                        onChange={e => handleHitungHadir(a, e.target.checked)}
+                        disabled={isPending}
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      Tetap dihitung hadir jika sehari penuh
+                    </label>
+                  </div>
                   <button
                     onClick={() => handleHapus(a.id)}
                     disabled={deletingId === a.id || isPending}
@@ -135,6 +155,16 @@ export function KelolaAlasanModal({ alasanList, onAlasanChange }: Props) {
                     : <Plus className="h-3.5 w-3.5" />}
                 </Button>
               </div>
+              <label className="flex cursor-pointer items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400">
+                <input
+                  type="checkbox"
+                  checked={inputHitungHadir}
+                  onChange={e => setInputHitungHadir(e.target.checked)}
+                  disabled={isPending}
+                  className="h-3.5 w-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Tetap dihitung hadir jika izin mencakup sehari penuh
+              </label>
               <p className="text-[10px] text-slate-400">Teks akan otomatis diubah ke HURUF KAPITAL.</p>
             </div>
           </div>

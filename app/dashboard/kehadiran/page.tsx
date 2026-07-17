@@ -51,7 +51,7 @@ export default async function KehadiranPage({
     <div className="space-y-4 animate-in fade-in duration-500 pb-24">
       <PageHeader
         title="Absensi Siswa"
-        description="Absen siswa di kelas yang Anda ajar hari ini."
+        description="Input absensi per sesi mengajar dan lihat rekap asli absensi yang Anda simpan."
       />
 
       {/* Act As Banner — hanya untuk super admin */}

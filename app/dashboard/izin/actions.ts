@@ -40,6 +40,7 @@ export type AlasanIzinRow = {
   id: string
   alasan: string
   urutan: number
+  hitung_sebagai_hadir: boolean
 }
 
 async function validateAlasanIzin(db: D1Database, alasan: string): Promise<string | null> {
@@ -59,12 +60,20 @@ async function validateAlasanIzin(db: D1Database, alasan: string): Promise<strin
 export async function getAlasanIzin(): Promise<AlasanIzinRow[]> {
   const db = await getDB()
   const res = await db.prepare(
-    `SELECT id, alasan, urutan FROM alasan_izin_kelas ORDER BY urutan, alasan`
+    `SELECT id, alasan, urutan, hitung_sebagai_hadir FROM alasan_izin_kelas ORDER BY urutan, alasan`
   ).all<any>()
-  return (res.results || []).map(r => ({ id: r.id, alasan: r.alasan, urutan: r.urutan }))
+  return (res.results || []).map(r => ({
+    id: r.id,
+    alasan: r.alasan,
+    urutan: r.urutan,
+    hitung_sebagai_hadir: Number(r.hitung_sebagai_hadir) === 1,
+  }))
 }
 
-export async function tambahAlasanIzin(alasan: string): Promise<{ error?: string; success?: string }> {
+export async function tambahAlasanIzin(
+  alasan: string,
+  hitungSebagaiHadir = false
+): Promise<{ error?: string; success?: string; item?: AlasanIzinRow }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
   const db = await getDB()
@@ -77,15 +86,40 @@ export async function tambahAlasanIzin(alasan: string): Promise<{ error?: string
   try {
     const maxUrutan = await db.prepare(`SELECT COALESCE(MAX(urutan), 0) as m FROM alasan_izin_kelas`).first<any>()
     const id = crypto.randomUUID()
+    const urutan = (maxUrutan?.m ?? 0) + 1
     await db.prepare(
-      `INSERT INTO alasan_izin_kelas (id, alasan, urutan) VALUES (?, ?, ?)`
-    ).bind(id, teks, (maxUrutan?.m ?? 0) + 1).run()
+      `INSERT INTO alasan_izin_kelas (id, alasan, urutan, hitung_sebagai_hadir) VALUES (?, ?, ?, ?)`
+    ).bind(id, teks, urutan, hitungSebagaiHadir ? 1 : 0).run()
     revalidateIzinViews()
-    return { success: 'Alasan berhasil ditambahkan' }
+    return {
+      success: 'Alasan berhasil ditambahkan',
+      item: { id, alasan: teks, urutan, hitung_sebagai_hadir: hitungSebagaiHadir },
+    }
   } catch (e: any) {
     if (e.message?.includes('UNIQUE')) return { error: 'Alasan sudah ada' }
     return { error: e.message }
   }
+}
+
+export async function ubahAlasanIzinHitungHadir(
+  id: string,
+  hitungSebagaiHadir: boolean
+): Promise<{ error?: string; success?: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const db = await getDB()
+  const roles = await getUserRoles(db, user.id)
+  if (!roles.includes('super_admin')) return { error: 'Hanya super admin yang dapat mengelola alasan' }
+
+  const result = await db.prepare(`
+    UPDATE alasan_izin_kelas
+    SET hitung_sebagai_hadir = ?
+    WHERE id = ?
+  `).bind(hitungSebagaiHadir ? 1 : 0, id).run()
+
+  if (!result.meta.changes) return { error: 'Alasan izin tidak ditemukan' }
+  revalidateIzinViews()
+  return { success: 'Pengaturan kategori izin diperbarui' }
 }
 
 export async function hapusAlasanIzin(id: string): Promise<{ error?: string; success?: string }> {

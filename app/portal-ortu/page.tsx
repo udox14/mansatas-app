@@ -50,6 +50,11 @@ type TodayAbsensiRow = {
   status: string
   catatan: string | null
 }
+type TodayIzinRow = {
+  jam_pelajaran: string | number | null
+  alasan: string
+  keterangan: string | null
+}
 const DAY_LABEL: Record<number, string> = {
   1: 'Senin',
   2: 'Selasa',
@@ -63,6 +68,19 @@ function shiftDate(date: string, days: number) {
   const value = new Date(`${date}T12:00:00Z`)
   value.setUTCDate(value.getUTCDate() + days)
   return value.toISOString().slice(0, 10)
+}
+
+function parseIzinJam(raw: TodayIzinRow['jam_pelajaran']) {
+  if (raw === null || raw === undefined || raw === '') return []
+  try {
+    const parsed = JSON.parse(String(raw))
+    return (Array.isArray(parsed) ? parsed : [parsed])
+      .map(Number)
+      .filter(value => Number.isInteger(value) && value > 0)
+  } catch {
+    const value = Number(raw)
+    return Number.isInteger(value) && value > 0 ? [value] : []
+  }
 }
 
 function summarizeAttendanceRows(rows: any[]) {
@@ -556,6 +574,13 @@ export default async function PortalOrtuPage() {
     WHERE siswa_id = ? AND tanggal = ?
   `).bind(siswaId, todayRaw).all<TodayAbsensiRow>()
 
+  const todayIzinRows = await db.prepare(`
+    SELECT jam_pelajaran, alasan, keterangan
+    FROM izin_tidak_masuk_kelas
+    WHERE siswa_id = ? AND tanggal = ?
+    ORDER BY created_at ASC
+  `).bind(siswaId, todayRaw).all<TodayIzinRow>()
+
   const todayAbsensiMap = new Map<string, { status: string; catatan: string | null }>()
   for (const row of todayAbsensiRows.results || []) {
     const start = Number(row.jam_ke_mulai || 0)
@@ -566,6 +591,17 @@ export default async function PortalOrtuPage() {
       }
     } else {
       todayAbsensiMap.set(`${row.penugasan_id}__all`, { status: row.status, catatan: row.catatan })
+    }
+  }
+
+  const todayIzinMap = new Map<number | 'all', string[]>()
+  for (const row of todayIzinRows.results || []) {
+    const note = [row.alasan || 'Izin', row.keterangan].filter(Boolean).join(': ')
+    const jamList = parseIzinJam(row.jam_pelajaran)
+    const keys: Array<number | 'all'> = jamList.length > 0 ? jamList : ['all']
+    for (const key of keys) {
+      if (!todayIzinMap.has(key)) todayIzinMap.set(key, [])
+      todayIzinMap.get(key)!.push(note)
     }
   }
 
@@ -596,10 +632,16 @@ export default async function PortalOrtuPage() {
         jamKe
       )
       const absRecord = todayAbsensiMap.get(`${row.penugasan_id}__${jamKe}`) || todayAbsensiMap.get(`${row.penugasan_id}__all`)
+      const izinNotes = [
+        ...(todayIzinMap.get('all') || []),
+        ...(todayIzinMap.get(jamKe) || []),
+      ]
       if (!calendarStatus.isEffective) {
         absensi = { status: 'LIBUR', catatan: calendarStatus.reason || 'Hari libur' }
       } else if (exception) {
         absensi = { status: 'KBM_EXCEPTION', catatan: exception.description || exception.judul }
+      } else if (izinNotes.length > 0) {
+        absensi = { status: 'IZIN', catatan: Array.from(new Set(izinNotes)).join(' | ') }
       } else if (absRecord) {
         absensi = absRecord
       } else if (todaySubmittedSet.has(row.penugasan_id)) {

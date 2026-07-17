@@ -533,13 +533,19 @@ function SignatureSettingsDialog({
             <div style={signaturePreviewColumnStyle}>
               <div>Tasikmalaya, 31 Januari 2026</div>
               <div style={signatureRoleStyle}>JABATAN CETAK</div>
-              {signatureUrl && draft.signature_enabled ? (
+              {signatureUrl ? (
                 <img src={signatureUrl} alt="Preview tanda tangan" style={signatureImageStyle(draft)} />
               ) : null}
               <div style={{ fontWeight: 700, textDecoration: 'underline' }}>NAMA PEGAWAI</div>
               <div>NIP. 000000000000000000</div>
             </div>
           </div>
+
+          {signatureUrl && !draft.signature_enabled ? (
+            <p className="text-xs text-amber-700">
+              Preview tersedia. Aktifkan &quot;Pakai tanda tangan&quot; lalu klik Apply agar tampil pada dokumen cetak bulan ini.
+            </p>
+          ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
