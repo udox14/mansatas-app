@@ -16,7 +16,7 @@ import {
   RotateCcw, Search, Send, Trash2, XCircle,
 } from 'lucide-react'
 import {
-  deleteApprovedKomiteAction, deleteKomiteDraftAction, reviewKomiteAction, saveKomiteDraftAction,
+  deleteKomiteAction, deleteKomiteDraftAction, reviewKomiteAction, saveKomiteDraftAction,
   setNamedKomiteSubmitterAction, submitKomiteAction,
 } from './actions'
 
@@ -88,7 +88,7 @@ export function PengajuanKomiteClient(props: Props) {
     : []
   const showOwnerActions = Boolean(detailItem && detailOriginTab === 'mine' && ['draft','perlu_revisi'].includes(detailItem.status))
   const showReviewActions = Boolean(detailItem && detailOriginTab === 'review' && ['menunggu_bendahara','menunggu_ketua','menunggu_kepala'].includes(detailItem.status))
-  const showApprovedDelete = Boolean(detailItem && props.isSuper && detailItem.status === 'disetujui')
+  const showSuperAdminDelete = Boolean(detailItem && props.isSuper)
 
   function openDetail(id: string) {
     setDetailOriginTab(activeTab)
@@ -116,11 +116,11 @@ export function PengajuanKomiteClient(props: Props) {
       )}
       {detailItem ? (
         <DetailPage item={detailItem} mode={detailOriginTab} onBack={() => { setActiveTab(detailOriginTab); setDetailId('') }}
-          actions={(showOwnerActions || showReviewActions || showApprovedDelete) ? <>
-            {showOwnerActions && <OwnerActions item={detailItem} pending={pending} onEdit={() => { setEditing(detailItem); setFormOpen(true) }} onRun={task => run(task, () => setDetailId(''))} />}
+          actions={(showOwnerActions || showReviewActions || showSuperAdminDelete) ? <>
+            {showOwnerActions && <OwnerActions item={detailItem} pending={pending} hideDelete={props.isSuper} onEdit={() => { setEditing(detailItem); setFormOpen(true) }} onRun={task => run(task, () => setDetailId(''))} />}
             {showReviewActions && <ReviewActions item={detailItem} onReview={action => setReview({ item: detailItem, action })} />}
-            {showApprovedDelete && <Button variant="destructive" className="mt-2 w-full sm:w-auto" disabled={pending} onClick={() => {
-              if (confirm('Hapus pengajuan yang sudah disetujui beserta seluruh versi dokumennya? Tindakan ini tidak dapat dibatalkan.')) run(() => deleteApprovedKomiteAction(detailItem.id), () => setDetailId(''))
+            {showSuperAdminDelete && <Button variant="destructive" className="mt-2 w-full sm:w-auto" disabled={pending} onClick={() => {
+              if (confirm(`Hapus pengajuan berstatus “${statusLabel[detailItem.status] || detailItem.status}” beserta seluruh versi dokumen dan riwayat review? Tindakan ini tidak dapat dibatalkan.`)) run(() => deleteKomiteAction(detailItem.id), () => setDetailId(''))
             }}><Trash2 className="mr-2 h-4 w-4" />Hapus Pengajuan</Button>}
           </> : null} />
       ) : <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -303,12 +303,12 @@ function StatusHint({ item, mode }: { item: Item; mode: string }) {
   return <div className={`flex gap-2.5 rounded-lg border p-3 ${color}`}><CircleHelp className="mt-0.5 h-4 w-4 shrink-0" /><div><p className="text-sm font-semibold">{title}</p><p className="mt-0.5 text-xs leading-5 opacity-90">{message}</p></div></div>
 }
 
-function OwnerActions({ item, pending, onEdit, onRun }: { item: Item; pending: boolean; onEdit: () => void; onRun: (task: () => Promise<any>) => void }) {
+function OwnerActions({ item, pending, hideDelete = false, onEdit, onRun }: { item: Item; pending: boolean; hideDelete?: boolean; onEdit: () => void; onRun: (task: () => Promise<any>) => void }) {
   if (!['draft','perlu_revisi'].includes(item.status)) return null
   return <div className="flex flex-col gap-2 sm:flex-row">
     <Button variant="outline" className="sm:flex-1" onClick={onEdit}><Pencil className="mr-2 h-4 w-4" />{item.status === 'draft' ? 'Edit Draft' : 'Upload Revisi'}</Button>
     <Button className="sm:flex-1" disabled={pending || (item.status === 'perlu_revisi' && item.versions[0]?.submitted_at)} onClick={() => onRun(() => submitKomiteAction(item.id))}><Send className="mr-2 h-4 w-4" />Kirim ke Bendahara</Button>
-    {item.status === 'draft' && <Button variant="destructive" disabled={pending} onClick={() => { if (confirm('Hapus draft ini beserta dokumennya?')) onRun(() => deleteKomiteDraftAction(item.id)) }}><Trash2 className="h-4 w-4" /></Button>}
+    {item.status === 'draft' && !hideDelete && <Button variant="destructive" disabled={pending} onClick={() => { if (confirm('Hapus draft ini beserta dokumennya?')) onRun(() => deleteKomiteDraftAction(item.id)) }}><Trash2 className="h-4 w-4" /></Button>}
   </div>
 }
 function ReviewActions({ item, onReview }: { item: Item; onReview: (action: string) => void }) {
