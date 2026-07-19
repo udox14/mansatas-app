@@ -211,6 +211,24 @@ export async function deleteKomiteDraftAction(id: string) {
   return { success: 'Draft dihapus.' }
 }
 
+export async function deleteApprovedKomiteAction(id: string) {
+  const { db, roles } = await requireContext()
+  if (!roles.includes('super_admin')) return { error: 'Hanya Super Admin yang dapat menghapus pengajuan disetujui.' }
+  const row = await db.prepare('SELECT * FROM komite_pengajuan WHERE id=?').bind(id).first<any>()
+  if (!row || row.status !== 'disetujui') return { error: 'Pengajuan disetujui tidak ditemukan.' }
+  const keys = await db.prepare(`SELECT f.r2_key FROM komite_pengajuan_files f
+    JOIN komite_pengajuan_versions v ON v.id=f.version_id WHERE v.pengajuan_id=?`).bind(id).all<{ r2_key: string }>()
+  try {
+    await db.prepare('DELETE FROM komite_pengajuan WHERE id=? AND status=?').bind(id, 'disetujui').run()
+    await deleteKomiteObjects((keys.results || []).map(item => item.r2_key))
+  } catch (error: any) {
+    return { error: error?.message || 'Gagal menghapus pengajuan.' }
+  }
+  await logActivity({ db, module: 'komite_pengajuan', action: 'delete_approved', severity: 'warning', summary: `Menghapus pengajuan disetujui ${row.judul}`, entityType: 'komite_pengajuan', entityId: id, entityLabel: row.judul, metadata: { nomorSpb: row.nomor_spb, testingCleanup: true } })
+  revalidatePath(PAGE_PATH)
+  return { success: 'Pengajuan disetujui dan seluruh dokumennya berhasil dihapus.' }
+}
+
 export async function reviewKomiteAction(formData: FormData) {
   const { db, user, roles } = await requireContext()
   const id = cleanText(formData.get('id'), 80)
@@ -264,7 +282,7 @@ export async function reviewKomiteAction(formData: FormData) {
   if (nextStatus === 'menunggu_ketua') await notify({ title: 'Pengajuan menunggu review', body: `“${row.judul}” menunggu persetujuan Ketua Komite.`, url: PAGE_PATH }, { role: 'ketua_komite' })
   else if (nextStatus === 'menunggu_kepala') await notify({ title: 'Pengajuan menunggu review', body: `“${row.judul}” menunggu persetujuan Kepala Madrasah.`, url: PAGE_PATH }, { role: 'kepsek' })
   else if (nextStatus === 'perlu_revisi') await notify({ title: 'Pengajuan perlu revisi', body: `“${row.judul}” perlu diperbaiki. Buka riwayat untuk melihat catatan reviewer.`, url: PAGE_PATH }, { userId: row.pengaju_id })
-  else if (nextStatus === 'ditolak') await notify({ title: 'Pengajuan ditolak', body: `“${row.judul}” ditolak final.`, url: PAGE_PATH }, { userId: row.pengaju_id })
+  else if (nextStatus === 'ditolak') await notify({ title: 'Pengajuan ditolak', body: `“${row.judul}” ditolak.`, url: PAGE_PATH }, { userId: row.pengaju_id })
   else if (nextStatus === 'disetujui') await notify({ title: 'Pengajuan disetujui', body: `“${row.judul}” disetujui. SPB telah tersedia.`, url: PAGE_PATH }, { userId: row.pengaju_id })
   revalidatePath(PAGE_PATH)
   return { success: nextStatus === 'disetujui' ? 'Pengajuan disetujui dan SPB telah terbit.' : 'Review berhasil disimpan.' }
