@@ -79,7 +79,7 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Dashboard',
     href: '/dashboard',
     icon: LayoutDashboard,
-    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'guru_bk', 'guru_piket', 'wali_kelas', 'resepsionis', 'guru_ppl', 'guru_tahfidz', 'satpam', 'pramubakti', 'operator', 'bendahara_komite'],
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'guru_bk', 'guru_piket', 'wali_kelas', 'resepsionis', 'guru_ppl', 'guru_tahfidz', 'satpam', 'pramubakti', 'operator', 'bendahara_komite', 'pembina_ekstrakurikuler', 'ketua_komite', 'anggota_komite'],
     desc: 'Melihat ringkasan informasi dan statistik utama dari seluruh aktivitas di madrasah'
   },
   {
@@ -477,6 +477,14 @@ export const MENU_ITEMS: MenuItem[] = [
     roles: ['super_admin', 'bendahara_komite'],
     desc: 'Mengonfigurasi rekening tujuan transfer, kontak bendahara, dan QR code pembayaran komite'
   },
+  {
+    id: 'komite-pengajuan',
+    title: 'Pengajuan',
+    href: '/dashboard/komite/pengajuan',
+    icon: FileCheck,
+    roles: ['super_admin', 'kepsek', 'wakamad', 'pembina_ekstrakurikuler', 'bendahara_komite', 'ketua_komite', 'anggota_komite'],
+    desc: 'Mengajukan, mereview, dan memantau persetujuan pencairan dana Komite'
+  },
   // ──────────────────────────────────────────────────────────────────
   {
     id: 'settings',
@@ -560,7 +568,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'sp', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'documentation', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
-  { id: 'keuangan', label: 'Keuangan', items: ['keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
+  { id: 'keuangan', label: 'Komite', items: ['komite-pengajuan', 'keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
   { id: 'sistem', label: 'Sistem', items: ['settings', 'log-aktivitas', 'whatsapp', 'settings-notifications', 'settings-jadwal-notif', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
 ]
 
@@ -677,9 +685,10 @@ export function resolveSidebarGroups(
         seen.add(id)
         return true
       })
+      const resolvedLabel = override.groupLabels?.[groupId] || templateGroup?.label || `Group ${index + 1}`
       return {
         id: groupId,
-        label: override.groupLabels?.[groupId] || templateGroup?.label || `Group ${index + 1}`,
+        label: groupId === 'keuangan' && resolvedLabel === 'Keuangan' ? 'Komite' : resolvedLabel,
         items,
       }
     })
@@ -691,7 +700,18 @@ export function resolveSidebarGroups(
     .filter(id => !knownTemplateIds.has(id) && !hiddenItems.has(id))
 
   if (unconfiguredAllowedIds.length > 0) {
-    groups.push({ id: 'lainnya', label: 'Lainnya', items: unconfiguredAllowedIds })
+    const remaining = new Set(unconfiguredAllowedIds)
+    // Template sidebar tersimpan bisa berasal dari versi lama. Tempatkan fitur baru
+    // ke grup defaultnya agar tidak tiba-tiba muncul di "Lainnya".
+    for (const defaultGroup of DEFAULT_SIDEBAR_GROUPS) {
+      const additions = defaultGroup.items.filter(id => remaining.has(id))
+      if (!additions.length) continue
+      const target = groups.find(group => group.id === defaultGroup.id)
+      if (target) target.items.push(...additions)
+      else groups.push({ id: defaultGroup.id, label: defaultGroup.label, items: additions })
+      additions.forEach(id => remaining.delete(id))
+    }
+    if (remaining.size > 0) groups.push({ id: 'lainnya', label: 'Lainnya', items: Array.from(remaining) })
   }
 
   return groups.length > 0 ? groups : (allowedFeatures ? [] : template)
@@ -714,6 +734,9 @@ export const ALL_ROLES = [
   { value: 'pramubakti', label: 'Pramubakti' },
   { value: 'operator', label: 'Operator EMIS' },
   { value: 'bendahara_komite', label: 'Bendahara Komite' },
+  { value: 'ketua_komite', label: 'Ketua Komite' },
+  { value: 'anggota_komite', label: 'Anggota Komite' },
+  { value: 'pembina_ekstrakurikuler', label: 'Pembina Ekstrakurikuler' },
   { value: 'pengurus_koperasi', label: 'Pengurus Koperasi' },
   { value: 'orang_tua', label: 'Orang Tua Siswa' },
 ] as const

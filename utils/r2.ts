@@ -34,6 +34,69 @@ async function getR2(): Promise<R2Bucket> {
   return env.R2
 }
 
+export const KOMITE_MAX_FILES = 10
+export const KOMITE_MAX_TOTAL_SIZE = 5 * 1024 * 1024
+
+export type KomiteStoredPdf = {
+  id: string
+  originalFilename: string
+  r2Key: string
+  sizeBytes: number
+  mimeType: string
+}
+
+export async function uploadKomitePdfs(files: File[], pengajuanId: string, versionId: string) {
+  if (files.length < 1) return { files: [] as KomiteStoredPdf[], error: 'Pilih minimal satu dokumen PDF.' }
+  if (files.length > KOMITE_MAX_FILES) return { files: [] as KomiteStoredPdf[], error: `Maksimal ${KOMITE_MAX_FILES} file dalam satu versi.` }
+  const total = files.reduce((sum, file) => sum + file.size, 0)
+  if (total > KOMITE_MAX_TOTAL_SIZE) return { files: [] as KomiteStoredPdf[], error: 'Ukuran gabungan dokumen maksimal 5 MB.' }
+
+  const prepared: Array<{ file: File; bytes: ArrayBuffer; meta: KomiteStoredPdf }> = []
+  for (const file of files) {
+    if (!file.size) return { files: [] as KomiteStoredPdf[], error: `${file.name || 'File'} kosong.` }
+    const name = String(file.name || 'dokumen.pdf').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 180)
+    if (!name.toLowerCase().endsWith('.pdf') || (file.type && file.type !== 'application/pdf')) {
+      return { files: [] as KomiteStoredPdf[], error: `${name} bukan PDF yang valid.` }
+    }
+    const bytes = await file.arrayBuffer()
+    const signature = new TextDecoder('ascii').decode(bytes.slice(0, 5))
+    if (signature !== '%PDF-') return { files: [] as KomiteStoredPdf[], error: `${name} tidak memiliki signature PDF yang valid.` }
+    const id = crypto.randomUUID()
+    prepared.push({
+      file,
+      bytes,
+      meta: {
+        id,
+        originalFilename: name,
+        r2Key: `private/komite-pengajuan/${pengajuanId}/${versionId}/${id}.pdf`,
+        sizeBytes: file.size,
+        mimeType: 'application/pdf',
+      },
+    })
+  }
+
+  const r2 = await getR2()
+  const uploaded: KomiteStoredPdf[] = []
+  try {
+    for (const item of prepared) {
+      await r2.put(item.meta.r2Key, item.bytes, {
+        httpMetadata: { contentType: 'application/pdf', cacheControl: 'private, no-store' },
+      })
+      uploaded.push(item.meta)
+    }
+    return { files: uploaded, error: null }
+  } catch (error: any) {
+    await Promise.all(uploaded.map(item => r2.delete(item.r2Key).catch(() => undefined)))
+    return { files: [] as KomiteStoredPdf[], error: error?.message || 'Gagal mengunggah dokumen.' }
+  }
+}
+
+export async function deleteKomiteObjects(keys: string[]) {
+  if (!keys.length) return
+  const r2 = await getR2()
+  await Promise.all(keys.filter(key => key.startsWith('private/komite-pengajuan/')).map(key => r2.delete(key).catch(() => undefined)))
+}
+
 // Ekstrak R2 key dari URL (mendukung format lama r2.dev dan format baru /api/media/)
 function urlToKey(publicUrl: string): string | null {
   const cleanUrl = publicUrl.split('?')[0]
