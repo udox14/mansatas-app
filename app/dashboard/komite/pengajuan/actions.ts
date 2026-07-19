@@ -211,22 +211,22 @@ export async function deleteKomiteDraftAction(id: string) {
   return { success: 'Draft dihapus.' }
 }
 
-export async function deleteApprovedKomiteAction(id: string) {
+export async function deleteKomiteAction(id: string) {
   const { db, roles } = await requireContext()
-  if (!roles.includes('super_admin')) return { error: 'Hanya Super Admin yang dapat menghapus pengajuan disetujui.' }
+  if (!roles.includes('super_admin')) return { error: 'Hanya Super Admin yang dapat menghapus pengajuan.' }
   const row = await db.prepare('SELECT * FROM komite_pengajuan WHERE id=?').bind(id).first<any>()
-  if (!row || row.status !== 'disetujui') return { error: 'Pengajuan disetujui tidak ditemukan.' }
+  if (!row) return { error: 'Pengajuan tidak ditemukan.' }
   const keys = await db.prepare(`SELECT f.r2_key FROM komite_pengajuan_files f
     JOIN komite_pengajuan_versions v ON v.id=f.version_id WHERE v.pengajuan_id=?`).bind(id).all<{ r2_key: string }>()
   try {
-    await db.prepare('DELETE FROM komite_pengajuan WHERE id=? AND status=?').bind(id, 'disetujui').run()
+    await db.prepare('DELETE FROM komite_pengajuan WHERE id=?').bind(id).run()
     await deleteKomiteObjects((keys.results || []).map(item => item.r2_key))
   } catch (error: any) {
     return { error: error?.message || 'Gagal menghapus pengajuan.' }
   }
-  await logActivity({ db, module: 'komite_pengajuan', action: 'delete_approved', severity: 'warning', summary: `Menghapus pengajuan disetujui ${row.judul}`, entityType: 'komite_pengajuan', entityId: id, entityLabel: row.judul, metadata: { nomorSpb: row.nomor_spb, testingCleanup: true } })
+  await logActivity({ db, module: 'komite_pengajuan', action: 'delete_by_super_admin', severity: 'warning', summary: `Menghapus pengajuan ${row.judul}`, entityType: 'komite_pengajuan', entityId: id, entityLabel: row.judul, metadata: { status: row.status, nomorSpb: row.nomor_spb, testingCleanup: true } })
   revalidatePath(PAGE_PATH)
-  return { success: 'Pengajuan disetujui dan seluruh dokumennya berhasil dihapus.' }
+  return { success: 'Pengajuan dan seluruh dokumennya berhasil dihapus.' }
 }
 
 export async function reviewKomiteAction(formData: FormData) {
