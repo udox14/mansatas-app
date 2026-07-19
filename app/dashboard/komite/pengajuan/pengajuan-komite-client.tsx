@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,9 +10,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
-  CheckCircle2, Clock3, Download, FileText, History, Loader2, Pencil, Plus,
-  RotateCcw, Search, Send, Settings2, Trash2, UserCheck, XCircle,
+  ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, CircleHelp, Download, FileText, Loader2, Pencil, Plus,
+  RotateCcw, Search, Send, Trash2, XCircle,
 } from 'lucide-react'
 import {
   deleteKomiteDraftAction, reviewKomiteAction, saveKomiteDraftAction,
@@ -61,7 +62,10 @@ function size(value: number) {
 export function PengajuanKomiteClient(props: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const [selectedId, setSelectedId] = useState(props.items[0]?.id || '')
+  const canSeeReviewerTabs = props.roles.some(role => ['super_admin', 'bendahara_komite', 'ketua_komite', 'kepsek'].includes(role))
+  const initialTab = canSeeReviewerTabs && props.reviewCount ? 'review' : 'mine'
+  const [activeTab, setActiveTab] = useState(initialTab)
+  const [detailId, setDetailId] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Item | null>(null)
   const [review, setReview] = useState<{ item: Item; action: string } | null>(null)
@@ -72,6 +76,12 @@ export function PengajuanKomiteClient(props: Props) {
   const queue = props.items.filter(item => item.pengaju_id !== props.currentUserId && isQueueFor(item, props.roles, props.isSuper))
   const history = props.items.filter(item => item.reviews.some((entry: any) => entry.actor_id === props.currentUserId))
   const approved = props.items.filter(item => item.status === 'disetujui')
+  const detailItem = props.items.find(item => item.id === detailId)
+
+  function openDetail(id: string) {
+    setDetailId(id)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   function run(task: () => Promise<any>, close?: () => void) {
     startTransition(async () => {
@@ -91,13 +101,20 @@ export function PengajuanKomiteClient(props: Props) {
           {message}
         </div>
       )}
-      <Tabs defaultValue={queue.length ? 'review' : 'mine'} className="w-full">
+      {detailItem ? (
+        <DetailPage item={detailItem} mode={activeTab} onBack={() => setDetailId('')}
+          actions={activeTab === 'mine'
+            ? <OwnerActions item={detailItem} pending={pending} onEdit={() => { setEditing(detailItem); setFormOpen(true) }} onRun={run} />
+            : activeTab === 'review'
+              ? <ReviewActions item={detailItem} onReview={action => setReview({ item: detailItem, action })} />
+              : null} />
+      ) : <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto pb-1">
           <TabsList className="h-auto min-w-max justify-start">
             <TabsTrigger value="mine">Pengajuan Saya <Count value={own.length} /></TabsTrigger>
-            <TabsTrigger value="review">Perlu Direview <Count value={props.reviewCount} alert={props.reviewCount > 0} /></TabsTrigger>
-            <TabsTrigger value="history">Riwayat Review <Count value={history.length} /></TabsTrigger>
-            <TabsTrigger value="approved">Disetujui <Count value={approved.length} /></TabsTrigger>
+            {canSeeReviewerTabs && <TabsTrigger value="review">Perlu Direview <Count value={props.reviewCount} alert={props.reviewCount > 0} /></TabsTrigger>}
+            {canSeeReviewerTabs && <TabsTrigger value="history">Riwayat Review <Count value={history.length} /></TabsTrigger>}
+            {canSeeReviewerTabs && <TabsTrigger value="approved">Disetujui <Count value={approved.length} /></TabsTrigger>}
             {props.isSuper && <TabsTrigger value="settings">Pengaturan Pengaju</TabsTrigger>}
           </TabsList>
         </div>
@@ -106,22 +123,22 @@ export function PengajuanKomiteClient(props: Props) {
           <SectionToolbar title="Pengajuan milik Anda">
             {props.canCreate && <Button size="sm" onClick={() => { setEditing(null); setFormOpen(true) }}><Plus className="mr-1.5 h-4 w-4" />Buat Pengajuan</Button>}
           </SectionToolbar>
-          <ListDetail items={own} selectedId={selectedId} onSelect={setSelectedId} currentUserId={props.currentUserId}
-            actions={item => <OwnerActions item={item} pending={pending} onEdit={() => { setEditing(item); setFormOpen(true) }} onRun={run} />} />
+          <HelpGuide type="submitter" />
+          <DataList items={own} onOpen={openDetail} />
         </TabsContent>
-        <TabsContent value="review">
+        {canSeeReviewerTabs && <TabsContent value="review">
           <SectionToolbar title="Antrean tahap Anda" />
-          <ListDetail items={queue} selectedId={selectedId} onSelect={setSelectedId} currentUserId={props.currentUserId}
-            actions={item => <ReviewActions item={item} onReview={action => setReview({ item, action })} />} />
-        </TabsContent>
-        <TabsContent value="history">
+          <HelpGuide type="reviewer" isTreasurer={props.roles.includes('bendahara_komite') || props.isSuper} />
+          <DataList items={queue} onOpen={openDetail} />
+        </TabsContent>}
+        {canSeeReviewerTabs && <TabsContent value="history">
           <SectionToolbar title="Pengajuan yang pernah Anda review" />
-          <ListDetail items={history} selectedId={selectedId} onSelect={setSelectedId} currentUserId={props.currentUserId} />
-        </TabsContent>
-        <TabsContent value="approved">
+          <DataList items={history} onOpen={openDetail} />
+        </TabsContent>}
+        {canSeeReviewerTabs && <TabsContent value="approved">
           <SectionToolbar title="Dokumen yang telah disetujui" />
-          <ListDetail items={approved} selectedId={selectedId} onSelect={setSelectedId} currentUserId={props.currentUserId} />
-        </TabsContent>
+          <DataList items={approved} onOpen={openDetail} />
+        </TabsContent>}
         {props.isSuper && (
           <TabsContent value="settings">
             <SectionToolbar title="Akun yang diizinkan mengajukan" />
@@ -140,7 +157,7 @@ export function PengajuanKomiteClient(props: Props) {
             </div>
           </TabsContent>
         )}
-      </Tabs>
+      </Tabs>}
 
       <DraftDialog open={formOpen} item={editing} pending={pending} onClose={() => setFormOpen(false)} onSubmit={formData => run(() => saveKomiteDraftAction(formData), () => setFormOpen(false))} />
       <ReviewDialog value={review} pending={pending} onClose={() => setReview(null)} onSubmit={formData => run(() => reviewKomiteAction(formData), () => setReview(null))} />
@@ -161,36 +178,111 @@ function isQueueFor(item: Item, roles: string[], isSuper: boolean) {
     (item.status === 'menunggu_kepala' && roles.includes('kepsek'))
 }
 
-function ListDetail({ items, selectedId, onSelect, currentUserId, actions }: { items: Item[]; selectedId: string; onSelect: (id: string) => void; currentUserId: string; actions?: (item: Item) => React.ReactNode }) {
-  const selected = items.find(item => item.id === selectedId) || items[0]
+function DataList({ items, onOpen }: { items: Item[]; onOpen: (id: string) => void }) {
   if (!items.length) return <Empty />
-  return <div className="grid gap-3 lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.5fr)]">
-    <div className="space-y-2">
-      {items.map(item => <button key={item.id} type="button" onClick={() => onSelect(item.id)} className={`w-full rounded-xl border p-3 text-left transition ${selected?.id === item.id ? 'border-blue-400 bg-blue-50/60 dark:bg-blue-950/20' : 'bg-white hover:border-slate-300 dark:bg-slate-900'}`}>
-        <div className="flex items-start justify-between gap-2"><p className="line-clamp-2 min-w-0 text-sm font-semibold leading-snug">{item.judul}</p><Status status={item.status} /></div>
-        <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{money(item.nominal)}</p>
-        <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-xs text-slate-500"><span className="truncate">{item.pengaju_name}</span><span className="shrink-0">v{item.current_version}</span></div>
+  return <>
+    <div className="hidden overflow-hidden rounded-xl border bg-white dark:bg-slate-900 md:block">
+      <Table>
+        <TableHeader><TableRow className="bg-slate-50/80 dark:bg-slate-800/60">
+          <TableHead className="w-[34%] text-xs">Pengajuan</TableHead><TableHead className="text-xs">Pengaju</TableHead>
+          <TableHead className="text-xs">Nominal</TableHead><TableHead className="text-xs">Status</TableHead>
+          <TableHead className="text-xs">Diperbarui</TableHead><TableHead className="w-12" />
+        </TableRow></TableHeader>
+        <TableBody>{items.map(item => <TableRow key={item.id} role="button" tabIndex={0} className="cursor-pointer transition-colors hover:bg-slate-50 focus-visible:bg-blue-50 focus-visible:outline-none dark:hover:bg-slate-800/60 dark:focus-visible:bg-blue-950/30" onClick={() => onOpen(item.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') onOpen(item.id) }}>
+          <TableCell><p className="line-clamp-1 text-sm font-semibold">{item.judul}</p><p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{item.uraian}</p></TableCell>
+          <TableCell className="max-w-[180px] truncate text-sm">{item.pengaju_name}</TableCell>
+          <TableCell className="whitespace-nowrap text-sm font-semibold">{money(item.nominal)}</TableCell>
+          <TableCell><Status status={item.status} /></TableCell>
+          <TableCell className="whitespace-nowrap text-xs text-slate-500">{date(item.updated_at)}</TableCell>
+          <TableCell><ChevronRight className="h-4 w-4 text-slate-400" /></TableCell>
+        </TableRow>)}</TableBody>
+      </Table>
+    </div>
+    <div className="space-y-2 md:hidden">
+      {items.map(item => <button key={item.id} type="button" onClick={() => onOpen(item.id)} className="w-full rounded-xl border bg-white p-3 text-left transition active:scale-[0.99] dark:bg-slate-900">
+        <div className="flex min-w-0 items-start gap-2"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{item.judul}</p><p className="mt-0.5 truncate text-xs text-slate-500">{item.pengaju_name}</p></div><Status status={item.status} /></div>
+        <div className="mt-2 flex items-center justify-between gap-3 border-t pt-2"><span className="text-sm font-semibold">{money(item.nominal)}</span><span className="flex items-center gap-1 text-[11px] text-slate-500">v{item.current_version}<ChevronRight className="h-3.5 w-3.5" /></span></div>
       </button>)}
     </div>
-    {selected && <Detail item={selected} currentUserId={currentUserId} actions={actions?.(selected)} />}
-  </div>
+  </>
 }
 function Empty() { return <div className="rounded-xl border border-dashed bg-white py-14 text-center dark:bg-slate-900"><FileText className="mx-auto mb-2 h-8 w-8 text-slate-300" /><p className="text-sm text-slate-500">Belum ada data pada bagian ini.</p></div> }
 function Status({ status }: { status: string }) { return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusStyle[status] || ''}`}>{statusLabel[status] || status}</span> }
 
-function Detail({ item, currentUserId, actions }: { item: Item; currentUserId: string; actions?: React.ReactNode }) {
-  return <Card className="min-w-0 overflow-hidden"><CardHeader className="border-b bg-slate-50/70 p-4 dark:bg-slate-900">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><CardTitle className="break-words text-base leading-snug">{item.judul}</CardTitle><p className="mt-1 text-xs text-slate-500">Diajukan oleh {item.pengaju_name} · {date(item.created_at)}</p></div><Status status={item.status} /></div>
-  </CardHeader><CardContent className="space-y-5 p-4">
-    <div className="grid gap-3 sm:grid-cols-2"><Info label="Nominal" value={money(item.nominal)} /><Info label="Nomor SPB" value={item.nomor_spb || 'Belum ditetapkan'} /><Info label="Penerima pembayaran" value={item.penerima_pembayaran || 'Belum ditetapkan'} /><Info label="Versi aktif" value={`Versi ${item.current_version}`} /></div>
+function DetailPage({ item, mode, onBack, actions }: { item: Item; mode: string; onBack: () => void; actions?: React.ReactNode }) {
+  return <div className="animate-in fade-in slide-in-from-right-2 duration-200">
+    <button type="button" onClick={onBack} className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"><ArrowLeft className="h-4 w-4" />Kembali ke daftar</button>
+    <Card className="min-w-0 overflow-hidden"><CardHeader className="border-b p-4 sm:p-5">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><CardTitle className="break-words text-lg leading-snug sm:text-xl">{item.judul}</CardTitle><p className="mt-1 text-xs text-slate-500">{item.pengaju_name} · {date(item.created_at)}</p></div><Status status={item.status} /></div>
+  </CardHeader><CardContent className="space-y-5 p-4 sm:p-5">
+    <StatusHint item={item} mode={mode} />
+    <dl className="grid grid-cols-2 overflow-hidden rounded-lg border sm:grid-cols-4">
+      <CompactInfo label="Nominal" value={money(item.nominal)} />
+      <CompactInfo label="Nomor SPB" value={item.nomor_spb || 'Belum ditetapkan'} />
+      <CompactInfo label="Penerima" value={item.penerima_pembayaran || 'Belum ditetapkan'} />
+      <CompactInfo label="Versi" value={`v${item.current_version}`} />
+    </dl>
     <div><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Uraian</p><p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 dark:text-slate-200">{item.uraian}</p></div>
     {item.status === 'disetujui' && <Button asChild className="w-full sm:w-auto"><a href={`/api/komite/pengajuan/${item.id}/spb`} target="_blank"><Download className="mr-2 h-4 w-4" />Unduh SPB</a></Button>}
     <div><p className="mb-3 text-sm font-semibold">Dokumen per versi</p><div className="space-y-3">{item.versions.map((version: any) => <div key={version.id} className="rounded-lg border p-3"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-medium">Versi {version.version_number}</p><span className="text-xs text-slate-500">{version.submitted_at ? `Dikirim ${date(version.submitted_at)}` : 'Belum dikirim'}</span></div><div className="space-y-1.5">{version.files.map((file: any) => <a key={file.id} href={`/api/komite/pengajuan/${item.id}/files/${file.id}`} target="_blank" className="flex min-w-0 items-center gap-2 rounded-md bg-slate-50 px-2.5 py-2 text-sm hover:bg-slate-100 dark:bg-slate-800"><FileText className="h-4 w-4 shrink-0 text-rose-500" /><span className="min-w-0 flex-1 truncate">{file.original_filename}</span><span className="shrink-0 text-xs text-slate-400">{size(file.size_bytes)}</span></a>)}</div></div>)}</div></div>
     <div><p className="mb-3 text-sm font-semibold">Riwayat review</p>{item.reviews.length ? <div className="relative space-y-4 border-l-2 border-slate-200 pl-4 dark:border-slate-700">{item.reviews.slice().reverse().map((entry: any) => <div key={entry.id} className="relative"><span className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ${entry.action === 'setujui' ? 'bg-emerald-500' : entry.action === 'tolak' ? 'bg-rose-500' : 'bg-orange-500'}`} /><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium">{entry.actor_name}</p><Badge variant="outline">{stageLabel[entry.stage]}</Badge>{entry.is_super_admin_bypass ? <Badge variant="secondary">Bypass Admin</Badge> : null}</div><p className="mt-0.5 text-xs text-slate-500">{actionLabel[entry.action]} · versi {entry.version_number} · {date(entry.created_at)}</p>{entry.catatan && <p className="mt-2 whitespace-pre-wrap break-words rounded-md bg-slate-50 p-2 text-sm leading-5 dark:bg-slate-800">{entry.catatan}</p>}</div>)}</div> : <p className="text-sm text-slate-500">Belum ada tindakan review.</p>}</div>
     {actions && <div className="sticky bottom-0 -mx-4 -mb-4 border-t bg-white/95 p-4 backdrop-blur dark:bg-slate-950/95">{actions}</div>}
-  </CardContent></Card>
+  </CardContent></Card></div>
 }
-function Info({ label, value }: { label: string; value: string }) { return <div className="min-w-0 rounded-lg bg-slate-50 p-3 dark:bg-slate-800"><p className="text-[11px] uppercase tracking-wide text-slate-500">{label}</p><p className="mt-0.5 break-words text-sm font-semibold">{value}</p></div> }
+function CompactInfo({ label, value }: { label: string; value: string }) { return <div className="min-w-0 border-b border-r p-3 even:border-r-0 sm:border-b-0 sm:border-r sm:even:border-r sm:last:border-r-0"><dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-0.5 break-words text-sm font-semibold">{value}</dd></div> }
+
+function HelpGuide({ type, isTreasurer = false }: { type: 'submitter' | 'reviewer'; isTreasurer?: boolean }) {
+  const steps = type === 'submitter'
+    ? [
+        ['1', 'Buat pengajuan', 'Isi judul, uraian, nominal, lalu pilih dokumen PDF.'],
+        ['2', 'Simpan sebagai draft', 'Periksa kembali data dan dokumen sebelum dikirim.'],
+        ['3', 'Kirim ke Bendahara', 'Buka detail draft, lalu tekan “Kirim ke Bendahara”.'],
+      ]
+    : [
+        ['1', 'Buka pengajuan', 'Klik baris atau kartu untuk membaca detail dan membuka PDF.'],
+        ['2', 'Periksa dokumen', 'Cocokkan uraian, nominal, dan isi proposal sebelum mengambil keputusan.'],
+        ['3', 'Pilih keputusan', 'Setujui bila benar, Minta Revisi bila perlu diperbaiki, atau Tolak Final bila tidak dapat dilanjutkan.'],
+      ]
+  return <details className="group mb-3 overflow-hidden rounded-lg border border-blue-200 bg-blue-50/60 dark:border-blue-900 dark:bg-blue-950/20">
+    <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-semibold text-blue-900 dark:text-blue-200">
+      <CircleHelp className="h-4 w-4 shrink-0" /><span className="flex-1">Petunjuk penggunaan</span><span className="text-xs font-normal text-blue-700 dark:text-blue-300">Klik untuk buka</span><ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+    </summary>
+    <div className="grid gap-2 border-t border-blue-200 p-3 dark:border-blue-900 md:grid-cols-3">
+      {steps.map(([number, title, description]) => <div key={number} className="flex gap-2.5 rounded-md bg-white/80 p-2.5 dark:bg-slate-900/70"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">{number}</span><div><p className="text-xs font-semibold text-slate-900 dark:text-white">{title}</p><p className="mt-0.5 text-xs leading-5 text-slate-600 dark:text-slate-300">{description}</p></div></div>)}
+    </div>
+    {type === 'submitter' && <p className="border-t border-blue-200 px-3 py-2 text-xs leading-5 text-blue-900 dark:border-blue-900 dark:text-blue-200"><strong>Jika diminta revisi:</strong> buka pengajuan berstatus “Perlu Revisi”, baca catatan reviewer, pilih “Upload Revisi”, lalu kirim kembali.</p>}
+    {type === 'reviewer' && <p className="border-t border-blue-200 px-3 py-2 text-xs leading-5 text-blue-900 dark:border-blue-900 dark:text-blue-200"><strong>Perhatian:</strong> Minta Revisi mengembalikan dokumen kepada pengaju. Tolak Final menutup pengajuan dan tidak dapat dilanjutkan.{isTreasurer ? ' Saat menyetujui, Bendahara wajib mengisi nomor SPB dan penerima pembayaran.' : ''}</p>}
+  </details>
+}
+
+function StatusHint({ item, mode }: { item: Item; mode: string }) {
+  let title = 'Informasi status'
+  let message = 'Baca detail dan riwayat pengajuan di bawah ini.'
+  let color = 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200'
+  if (mode === 'review' && ['menunggu_bendahara','menunggu_ketua','menunggu_kepala'].includes(item.status)) {
+    title = 'Tugas Anda sekarang'
+    message = 'Buka semua dokumen PDF, periksa isinya, lalu gunakan tombol keputusan di bagian bawah halaman.'
+  } else if (item.status === 'draft') {
+    title = 'Draft belum dikirim'
+    message = 'Periksa data dan dokumen. Jika sudah benar, tekan “Kirim ke Bendahara” di bagian bawah.'
+  } else if (item.status === 'perlu_revisi') {
+    title = 'Pengajuan perlu diperbaiki'
+    message = 'Baca catatan reviewer pada Riwayat Review, lalu tekan “Upload Revisi” dan unggah dokumen yang sudah diperbaiki.'
+    color = 'border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-200'
+  } else if (item.status === 'ditolak') {
+    title = 'Pengajuan ditolak final'
+    message = 'Pengajuan ini sudah ditutup. Lihat alasan penolakan pada Riwayat Review.'
+    color = 'border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200'
+  } else if (item.status === 'disetujui') {
+    title = 'Pengajuan sudah disetujui'
+    message = 'Surat Perintah Bayar sudah tersedia dan dapat diunduh melalui tombol “Unduh SPB”.'
+    color = 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200'
+  } else if (item.status.startsWith('menunggu_')) {
+    title = 'Sedang menunggu pemeriksaan'
+    message = `Pengajuan sedang diproses oleh ${statusLabel[item.status]?.replace('Menunggu ', '')}. Anda tidak perlu mengunggah ulang dokumen.`
+  }
+  return <div className={`flex gap-2.5 rounded-lg border p-3 ${color}`}><CircleHelp className="mt-0.5 h-4 w-4 shrink-0" /><div><p className="text-sm font-semibold">{title}</p><p className="mt-0.5 text-xs leading-5 opacity-90">{message}</p></div></div>
+}
 
 function OwnerActions({ item, pending, onEdit, onRun }: { item: Item; pending: boolean; onEdit: () => void; onRun: (task: () => Promise<any>) => void }) {
   if (!['draft','perlu_revisi'].includes(item.status)) return null
