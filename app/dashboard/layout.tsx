@@ -49,6 +49,7 @@ export default async function DashboardLayout({
   let navLinks: string[] = []
   let sidebarGroups: SidebarGroupConfig[] = DEFAULT_SIDEBAR_GROUPS
   let featureLabels: Record<string, string> = {}
+  const featureBadges: Record<string, number> = {}
   try {
     await Promise.all([
       db.prepare(`
@@ -97,6 +98,21 @@ export default async function DashboardLayout({
     sidebarGroups = resolveSidebarGroups(templateGroups, roleConfig?.role_sidebar_override, allowedFeatures)
     for (const row of featureLabelRows.results ?? []) featureLabels[row.feature_id] = row.title
   } catch(e) {}
+
+  if (allowedFeatures.includes('komite-pengajuan')) {
+    try {
+      const queueStatuses: string[] = []
+      if (userRoles.includes('super_admin') || userRoles.includes('bendahara_komite')) queueStatuses.push('menunggu_bendahara')
+      if (userRoles.includes('super_admin') || userRoles.includes('ketua_komite')) queueStatuses.push('menunggu_ketua')
+      if (userRoles.includes('super_admin') || userRoles.includes('kepsek')) queueStatuses.push('menunggu_kepala')
+      if (queueStatuses.length > 0) {
+        const placeholders = queueStatuses.map(() => '?').join(',')
+        const count = await db.prepare(`SELECT COUNT(*) AS total FROM komite_pengajuan WHERE status IN (${placeholders}) AND pengaju_id <> ?`)
+          .bind(...queueStatuses, user.id).first<{ total: number }>()
+        featureBadges['komite-pengajuan'] = Number(count?.total || 0)
+      }
+    } catch {}
+  }
   
   const navEnabled = navLinks.length > 0;
 
@@ -110,6 +126,7 @@ export default async function DashboardLayout({
         allowedFeatures={allowedFeatures}
         sidebarGroups={sidebarGroups}
         featureLabels={featureLabels}
+        featureBadges={featureBadges}
         navEnabled={navEnabled}
       />
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">

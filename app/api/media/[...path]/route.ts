@@ -12,6 +12,10 @@ export async function GET(
   try {
     const { path } = await params
     const key = path.join('/')
+    // Dokumen pengajuan Komite selalu melalui endpoint terautentikasi khusus.
+    if (key.startsWith('private/komite-pengajuan/')) {
+      return new Response('Not Found', { status: 404 })
+    }
     // Semua file dikunci cache-nya selama 1 tahun (immutable).
     // Saat foto di-update, URL-nya menggunakan parameter versi (?v=timestamp),
     // jadi browser akan otomatis unduh versi baru. Ini menghemat operasi Class B R2.

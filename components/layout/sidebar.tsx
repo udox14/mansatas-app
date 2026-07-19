@@ -40,6 +40,7 @@ interface SidebarProps {
   allowedFeatures?: string[]
   sidebarGroups?: SidebarGroupConfig[]
   featureLabels?: Record<string, string>
+  featureBadges?: Record<string, number>
   navEnabled?: boolean
 }
 
@@ -50,6 +51,7 @@ export function Sidebar({
   allowedFeatures = [],
   sidebarGroups = DEFAULT_SIDEBAR_GROUPS,
   featureLabels = {},
+  featureBadges = {},
   navEnabled = false,
 }: SidebarProps) {
   const pathname = usePathname()
@@ -277,7 +279,7 @@ export function Sidebar({
                     )}
                   >
                     <Icon className={cn('shrink-0 transition-all duration-300', mobile ? 'h-3.5 w-3.5' : 'h-4 w-4', isActive ? 'opacity-100 scale-105 drop-shadow-sm' : 'opacity-70 group-hover:opacity-100')} />
-                    {!collapsed && <span className="truncate leading-snug">{featureLabels[item.id] || item.title}</span>}
+                    {!collapsed && <><span className="min-w-0 flex-1 truncate leading-snug">{featureLabels[item.id] || item.title}</span>{featureBadges[item.id] > 0 && <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">{featureBadges[item.id]}</span>}</>}
                   </Link>
                 )
               })}
@@ -361,7 +363,7 @@ export function Sidebar({
                         )}
                       >
                         <Icon className={cn('shrink-0 transition-all duration-300', mobile ? 'h-3.5 w-3.5' : 'h-4 w-4', isActive ? 'opacity-100 scale-105 drop-shadow-sm' : 'opacity-60 group-hover:opacity-100')} />
-                        {!collapsed && <span className="truncate leading-snug">{featureLabels[item.id] || item.title}</span>}
+                        {!collapsed && <><span className="min-w-0 flex-1 truncate leading-snug">{featureLabels[item.id] || item.title}</span>{featureBadges[item.id] > 0 && <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">{featureBadges[item.id]}</span>}</>}
                       </Link>
                     )
                   })}
