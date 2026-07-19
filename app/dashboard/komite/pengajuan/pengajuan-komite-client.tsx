@@ -16,7 +16,7 @@ import {
   RotateCcw, Search, Send, Trash2, XCircle,
 } from 'lucide-react'
 import {
-  deleteKomiteDraftAction, reviewKomiteAction, saveKomiteDraftAction,
+  deleteApprovedKomiteAction, deleteKomiteDraftAction, reviewKomiteAction, saveKomiteDraftAction,
   setNamedKomiteSubmitterAction, submitKomiteAction,
 } from './actions'
 
@@ -46,7 +46,7 @@ const statusLabel: Record<string, string> = {
   menunggu_kepala: 'Menunggu Kepala', perlu_revisi: 'Perlu Revisi', ditolak: 'Ditolak', disetujui: 'Disetujui',
 }
 const stageLabel: Record<string, string> = { bendahara: 'Bendahara Komite', ketua: 'Ketua Komite', kepala: 'Kepala Madrasah' }
-const actionLabel: Record<string, string> = { setujui: 'Menyetujui', minta_revisi: 'Meminta revisi', tolak: 'Menolak final' }
+const actionLabel: Record<string, string> = { setujui: 'Menyetujui', minta_revisi: 'Meminta revisi', tolak: 'Menolak' }
 
 function money(value: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0)
@@ -66,6 +66,7 @@ export function PengajuanKomiteClient(props: Props) {
   const initialTab = canSeeReviewerTabs && props.reviewCount ? 'review' : 'mine'
   const [activeTab, setActiveTab] = useState(initialTab)
   const [detailId, setDetailId] = useState('')
+  const [detailOriginTab, setDetailOriginTab] = useState(initialTab)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Item | null>(null)
   const [review, setReview] = useState<{ item: Item; action: string } | null>(null)
@@ -77,8 +78,20 @@ export function PengajuanKomiteClient(props: Props) {
   const history = props.items.filter(item => item.reviews.some((entry: any) => entry.actor_id === props.currentUserId))
   const approved = props.items.filter(item => item.status === 'disetujui')
   const detailItem = props.items.find(item => item.id === detailId)
+  const namedUsers = props.users.filter(user => Boolean(user.is_named))
+  const normalizedQuery = query.trim().toLowerCase()
+  const searchResults = normalizedQuery.length >= 2
+    ? props.users.filter(user => {
+        const defaultRole = (user.roles || [user.role]).some((role: string) => ['super_admin','kepsek','wakamad','pembina_ekstrakurikuler'].includes(role))
+        return !user.is_named && !defaultRole && `${user.name} ${user.email}`.toLowerCase().includes(normalizedQuery)
+      }).slice(0, 8)
+    : []
+  const showOwnerActions = Boolean(detailItem && detailOriginTab === 'mine' && ['draft','perlu_revisi'].includes(detailItem.status))
+  const showReviewActions = Boolean(detailItem && detailOriginTab === 'review' && ['menunggu_bendahara','menunggu_ketua','menunggu_kepala'].includes(detailItem.status))
+  const showApprovedDelete = Boolean(detailItem && props.isSuper && detailItem.status === 'disetujui')
 
   function openDetail(id: string) {
+    setDetailOriginTab(activeTab)
     setDetailId(id)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -102,12 +115,14 @@ export function PengajuanKomiteClient(props: Props) {
         </div>
       )}
       {detailItem ? (
-        <DetailPage item={detailItem} mode={activeTab} onBack={() => setDetailId('')}
-          actions={activeTab === 'mine'
-            ? <OwnerActions item={detailItem} pending={pending} onEdit={() => { setEditing(detailItem); setFormOpen(true) }} onRun={run} />
-            : activeTab === 'review'
-              ? <ReviewActions item={detailItem} onReview={action => setReview({ item: detailItem, action })} />
-              : null} />
+        <DetailPage item={detailItem} mode={detailOriginTab} onBack={() => { setActiveTab(detailOriginTab); setDetailId('') }}
+          actions={(showOwnerActions || showReviewActions || showApprovedDelete) ? <>
+            {showOwnerActions && <OwnerActions item={detailItem} pending={pending} onEdit={() => { setEditing(detailItem); setFormOpen(true) }} onRun={task => run(task, () => setDetailId(''))} />}
+            {showReviewActions && <ReviewActions item={detailItem} onReview={action => setReview({ item: detailItem, action })} />}
+            {showApprovedDelete && <Button variant="destructive" className="mt-2 w-full sm:w-auto" disabled={pending} onClick={() => {
+              if (confirm('Hapus pengajuan yang sudah disetujui beserta seluruh versi dokumennya? Tindakan ini tidak dapat dibatalkan.')) run(() => deleteApprovedKomiteAction(detailItem.id), () => setDetailId(''))
+            }}><Trash2 className="mr-2 h-4 w-4" />Hapus Pengajuan</Button>}
+          </> : null} />
       ) : <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto pb-1">
           <TabsList className="h-auto min-w-max justify-start">
@@ -141,26 +156,30 @@ export function PengajuanKomiteClient(props: Props) {
         </TabsContent>}
         {props.isSuper && (
           <TabsContent value="settings">
-            <SectionToolbar title="Akun yang diizinkan mengajukan" />
-            <div className="mb-3 flex items-center gap-2 rounded-lg border bg-white px-3 dark:bg-slate-900">
-              <Search className="h-4 w-4 text-slate-400" /><Input className="border-0 px-0 shadow-none focus-visible:ring-0" placeholder="Cari nama atau email..." value={query} onChange={e => setQuery(e.target.value)} />
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {props.users.filter(user => `${user.name} ${user.email}`.toLowerCase().includes(query.toLowerCase())).map(user => {
-                const defaultRole = (user.roles || [user.role]).some((role: string) => ['super_admin','kepsek','wakamad','pembina_ekstrakurikuler'].includes(role))
-                return <Card key={user.id}><CardContent className="flex items-center gap-3 p-3">
+            <SectionToolbar title="Pengaju tambahan yang sudah diizinkan" />
+            <div className="relative mb-4">
+              <div className="flex items-center gap-2 rounded-lg border bg-white px-3 dark:bg-slate-900">
+                <Search className="h-4 w-4 text-slate-400" /><Input className="border-0 px-0 shadow-none focus-visible:ring-0" placeholder="Ketik minimal 2 huruf untuk mencari user..." value={query} onChange={e => setQuery(e.target.value)} />
+              </div>
+              {normalizedQuery.length >= 2 && <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border bg-white p-1 shadow-lg dark:bg-slate-900">
+                {searchResults.length ? searchResults.map(user => <div key={user.id} className="flex items-center gap-3 rounded-md px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{user.name}</p><p className="truncate text-xs text-slate-500">{user.email}</p></div>
-                  {defaultRole ? <Badge variant="secondary">Dari role</Badge> : <Button size="sm" variant={user.is_named ? 'outline' : 'default'} disabled={pending}
-                    onClick={() => run(() => setNamedKomiteSubmitterAction(user.id, !user.is_named))}>{user.is_named ? 'Cabut' : 'Izinkan'}</Button>}
-                </CardContent></Card>
-              })}
+                  <Button size="sm" disabled={pending} onClick={() => run(() => setNamedKomiteSubmitterAction(user.id, true), () => setQuery(''))}>Izinkan</Button>
+                </div>) : <p className="px-3 py-5 text-center text-sm text-slate-500">User tidak ditemukan atau sudah memiliki izin dari role.</p>}
+              </div>}
             </div>
+            {namedUsers.length ? <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {namedUsers.map(user => <Card key={user.id}><CardContent className="flex items-center gap-3 p-3">
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{user.name}</p><p className="truncate text-xs text-slate-500">{user.email}</p></div>
+                  <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => setNamedKomiteSubmitterAction(user.id, false))}>Cabut</Button>
+                </CardContent></Card>)}
+            </div> : <div className="rounded-lg border border-dashed bg-white py-10 text-center dark:bg-slate-900"><p className="text-sm font-medium">Belum ada pengaju tambahan</p><p className="mt-1 text-xs text-slate-500">Gunakan kolom pencarian di atas untuk mengizinkan user.</p></div>}
           </TabsContent>
         )}
       </Tabs>}
 
       <DraftDialog open={formOpen} item={editing} pending={pending} onClose={() => setFormOpen(false)} onSubmit={formData => run(() => saveKomiteDraftAction(formData), () => setFormOpen(false))} />
-      <ReviewDialog value={review} pending={pending} onClose={() => setReview(null)} onSubmit={formData => run(() => reviewKomiteAction(formData), () => setReview(null))} />
+      <ReviewDialog value={review} pending={pending} onClose={() => setReview(null)} onSubmit={formData => run(() => reviewKomiteAction(formData), () => { setReview(null); setDetailId(''); setActiveTab(detailOriginTab) })} />
     </>
   )
 }
@@ -241,7 +260,7 @@ function HelpGuide({ type, isTreasurer = false }: { type: 'submitter' | 'reviewe
     : [
         ['1', 'Buka pengajuan', 'Klik baris atau kartu untuk membaca detail dan membuka PDF.'],
         ['2', 'Periksa dokumen', 'Cocokkan uraian, nominal, dan isi proposal sebelum mengambil keputusan.'],
-        ['3', 'Pilih keputusan', 'Setujui bila benar, Minta Revisi bila perlu diperbaiki, atau Tolak Final bila tidak dapat dilanjutkan.'],
+        ['3', 'Pilih keputusan', 'Setujui bila benar, Minta Revisi bila perlu diperbaiki, atau Tolak bila tidak dapat dilanjutkan.'],
       ]
   return <details className="group mb-3 overflow-hidden rounded-lg border border-blue-200 bg-blue-50/60 dark:border-blue-900 dark:bg-blue-950/20">
     <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-sm font-semibold text-blue-900 dark:text-blue-200">
@@ -251,7 +270,7 @@ function HelpGuide({ type, isTreasurer = false }: { type: 'submitter' | 'reviewe
       {steps.map(([number, title, description]) => <div key={number} className="flex gap-2.5 rounded-md bg-white/80 p-2.5 dark:bg-slate-900/70"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">{number}</span><div><p className="text-xs font-semibold text-slate-900 dark:text-white">{title}</p><p className="mt-0.5 text-xs leading-5 text-slate-600 dark:text-slate-300">{description}</p></div></div>)}
     </div>
     {type === 'submitter' && <p className="border-t border-blue-200 px-3 py-2 text-xs leading-5 text-blue-900 dark:border-blue-900 dark:text-blue-200"><strong>Jika diminta revisi:</strong> buka pengajuan berstatus “Perlu Revisi”, baca catatan reviewer, pilih “Upload Revisi”, lalu kirim kembali.</p>}
-    {type === 'reviewer' && <p className="border-t border-blue-200 px-3 py-2 text-xs leading-5 text-blue-900 dark:border-blue-900 dark:text-blue-200"><strong>Perhatian:</strong> Minta Revisi mengembalikan dokumen kepada pengaju. Tolak Final menutup pengajuan dan tidak dapat dilanjutkan.{isTreasurer ? ' Saat menyetujui, Bendahara wajib mengisi nomor SPB dan penerima pembayaran.' : ''}</p>}
+    {type === 'reviewer' && <p className="border-t border-blue-200 px-3 py-2 text-xs leading-5 text-blue-900 dark:border-blue-900 dark:text-blue-200"><strong>Perhatian:</strong> Minta Revisi mengembalikan dokumen kepada pengaju. Tolak menutup pengajuan dan tidak dapat dilanjutkan.{isTreasurer ? ' Saat menyetujui, Bendahara wajib mengisi nomor SPB dan penerima pembayaran.' : ''}</p>}
   </details>
 }
 
@@ -270,7 +289,7 @@ function StatusHint({ item, mode }: { item: Item; mode: string }) {
     message = 'Baca catatan reviewer pada Riwayat Review, lalu tekan “Upload Revisi” dan unggah dokumen yang sudah diperbaiki.'
     color = 'border-orange-200 bg-orange-50 text-orange-900 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-200'
   } else if (item.status === 'ditolak') {
-    title = 'Pengajuan ditolak final'
+    title = 'Pengajuan ditolak'
     message = 'Pengajuan ini sudah ditutup. Lihat alasan penolakan pada Riwayat Review.'
     color = 'border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200'
   } else if (item.status === 'disetujui') {
@@ -293,7 +312,7 @@ function OwnerActions({ item, pending, onEdit, onRun }: { item: Item; pending: b
   </div>
 }
 function ReviewActions({ item, onReview }: { item: Item; onReview: (action: string) => void }) {
-  return <div className="grid grid-cols-1 gap-2 sm:grid-cols-3"><Button variant="outline" onClick={() => onReview('minta_revisi')}><RotateCcw className="mr-2 h-4 w-4" />Minta Revisi</Button><Button variant="destructive" onClick={() => onReview('tolak')}><XCircle className="mr-2 h-4 w-4" />Tolak Final</Button><Button onClick={() => onReview('setujui')}><CheckCircle2 className="mr-2 h-4 w-4" />Setujui</Button></div>
+  return <div className="grid grid-cols-1 gap-2 sm:grid-cols-3"><Button variant="outline" onClick={() => onReview('minta_revisi')}><RotateCcw className="mr-2 h-4 w-4" />Minta Revisi</Button><Button variant="destructive" onClick={() => onReview('tolak')}><XCircle className="mr-2 h-4 w-4" />Tolak</Button><Button onClick={() => onReview('setujui')}><CheckCircle2 className="mr-2 h-4 w-4" />Setujui</Button></div>
 }
 
 function DraftDialog({ open, item, pending, onClose, onSubmit }: { open: boolean; item: Item | null; pending: boolean; onClose: () => void; onSubmit: (data: FormData) => void }) {
