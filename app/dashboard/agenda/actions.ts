@@ -354,7 +354,7 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
   const expectedJamMulai = slotState.activeJamKe[0]
   const expectedJamSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1]
   if (jamKeMulai !== expectedJamMulai || jamKeSelesai !== expectedJamSelesai) {
-    return { error: `Jam efektif agenda berubah menjadi jam ${expectedJamMulai}-${expectedJamSelesai}. Silakan refresh halaman.` }
+    return { error: `Jam efektif agenda berubah menjadi jam ke--. Silakan refresh halaman.` }
   }
 
   // guru_id yang disimpan harus guru utama pemilik penugasan
