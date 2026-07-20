@@ -1,6 +1,6 @@
 // components/dashboard/shared/KehadiranPribadiCard.tsx
 import { getDB } from '@/utils/db'
-import { todayWIB } from '@/lib/time'
+import { todayWIB, currentTimeWIB } from '@/lib/time'
 import { getEffectiveDatesInRange, getKbmExceptionsForRange, hariNumFromDateString, hasActiveTeachingSlots } from '@/lib/kalender-pendidikan'
 import { BookOpen, Clock } from '@phosphor-icons/react/dist/ssr'
 
@@ -87,7 +87,7 @@ export async function KehadiranPribadiCard({ userId }: Props) {
   // Denominator memakai jadwal efektif, bukan hanya agenda yang sudah tersimpan.
   let dataGuru: any = null
   if (isGuru) {
-    const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
+    const ta = await db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string, jam_pelajaran: string }>()
     const effectiveDates = ta ? await getEffectiveDatesInRange(db, rangeStart, today) : []
 
     if (ta && effectiveDates.length > 0) {
@@ -158,14 +158,53 @@ export async function KehadiranPribadiCard({ userId }: Props) {
 
       const totalBlok = requiredAgendaKeys.size
       const tercatat = counts.hadir + counts.sakit + counts.izin + counts.alfa
-      const alfaBelumIsi = Math.max(0, totalBlok - tercatat)
+
+      // Cek mana saja agenda "required" yang belum diisi tapi JUGA belum melewati waktu selesai jam pelajaran
+      let notYetDue = 0
+      let polaList: any[] = []
+      try { polaList = JSON.parse(ta.jam_pelajaran || '[]') } catch {}
+      
+      const { hours, minutes } = currentTimeWIB()
+      const currentMinutes = hours * 60 + minutes
+
+      const recordedAgendaKeys = new Set(
+        (agendaRes.results || []).map((r: any) => `${r.tanggal}:${r.penugasan_id}`)
+      )
+
+      for (const key of requiredAgendaKeys) {
+        if (!recordedAgendaKeys.has(key)) {
+          const [tanggal, penugasanId] = key.split(':')
+          if (tanggal === today) {
+            // Cek apakah slot terakhir dari penugasan ini sudah lewat
+            const hari = hariNumFromDateString(today)
+            const jadwal = jadwalHari.get(penugasanId)
+            const jamSet = jadwal?.hariMap.get(hari)
+            if (jamSet) {
+              const jamList = Array.from(jamSet).sort((a, b) => a - b)
+              const lastJam = jamList[jamList.length - 1]
+              const pola = polaList.find(p => p.hari.includes(hari))
+              const slot = pola?.slots.find((s: any) => s.jam_ke === lastJam)
+              if (slot) {
+                const [selesaiH, selesaiM] = slot.selesai.split(':').map(Number)
+                const selesaiMinutes = selesaiH * 60 + selesaiM
+                // Jika waktu sekarang masih <= waktu selesai, maka belum telat (belum alfa)
+                if (currentMinutes <= selesaiMinutes) {
+                  notYetDue++
+                }
+              }
+            }
+          }
+        }
+      }
+
+      const alfaBelumIsi = Math.max(0, totalBlok - tercatat - notYetDue)
 
       dataGuru = {
         hadir: counts.hadir,
         sakit: counts.sakit,
         izin: counts.izin,
         alfa: counts.alfa + alfaBelumIsi,
-        total: totalBlok,
+        total: totalBlok - notYetDue,
         telat: counts.telat,
       }
     } else {

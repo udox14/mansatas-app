@@ -242,7 +242,7 @@ export function RiwayatMateriTab({ data, tahunAjaranOptions, selectedTahunAjaran
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      Jam {item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`} · {fmtWaktu(item.waktu_input)}
+                      Jam ke-{item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`} · {fmtWaktu(item.waktu_input)}
                     </span>
                   </div>
                 </div>

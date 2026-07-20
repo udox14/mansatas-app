@@ -237,7 +237,7 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
                           row.detail_guru.map((detail, detailIndex) => (
                             <div key={`${row.siswa_id}-${detail.nama_mapel}-${detailIndex}`} className="rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2 text-[11px] text-slate-600 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
                               <span className="font-semibold">{detail.nama_mapel}</span>
-                              <span className="text-slate-400"> Jam {detail.jam_ke_mulai === detail.jam_ke_selesai ? detail.jam_ke_mulai : `${detail.jam_ke_mulai}-${detail.jam_ke_selesai}`}</span>
+                              <span className="text-slate-400"> Jam ke-{detail.jam_ke_mulai === detail.jam_ke_selesai ? detail.jam_ke_mulai : `${detail.jam_ke_mulai}-${detail.jam_ke_selesai}`}</span>
                               <span className={`ml-2 rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${badgeClass(detail.status)}`}>{statusLabel(detail.status)}</span>
                               {detail.catatan ? <span className="ml-1 text-slate-500">Catatan: {detail.catatan}</span> : null}
                             </div>

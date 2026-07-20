@@ -125,7 +125,7 @@ function JadwalGrid({
     const jamKes = Array.from(new Set(
       jadwal.filter(j => j.hari === hari).map(j => j.jam_ke)
     )).sort((a, b) => a - b)
-    return jamKes.map(id => ({ id, nama: `Jam ${id}`, mulai: '', selesai: '' }))
+    return jamKes.map(id => ({ id, nama: `Jam ke-${id}`, mulai: '', selesai: '' }))
   }
 
   // Tinggi max jam per hari untuk menentukan jumlah baris

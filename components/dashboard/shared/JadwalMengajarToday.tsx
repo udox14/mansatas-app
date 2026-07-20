@@ -159,12 +159,12 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
                   </p>
                   {j.exception_segments.map((segment: any) => (
                     <p key={`${segment.exception_id}-${segment.jam_ke_mulai}`} className="mt-1 text-[9px] font-medium text-sky-600">
-                      Jam {segment.jam_ke_mulai === segment.jam_ke_selesai ? segment.jam_ke_mulai : `${segment.jam_ke_mulai}-${segment.jam_ke_selesai}`} non-KBM: {segment.judul}
+                      Jam ke-{segment.jam_ke_mulai === segment.jam_ke_selesai ? segment.jam_ke_mulai : `${segment.jam_ke_mulai}-${segment.jam_ke_selesai}`} non-KBM: {segment.judul}
                     </p>
                   ))}
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-[10px] font-medium text-slate-600 dark:text-slate-300">{j.is_fully_excepted ? `Jam ${j.jam_mulai}-${j.jam_selesai}` : `${slotMulai}–${slotSelesai}`}</p>
+                  <p className="text-[10px] font-medium text-slate-600 dark:text-slate-300">{j.is_fully_excepted ? `Jam ke-${j.jam_mulai}-${j.jam_selesai}` : `${slotMulai}–${slotSelesai}`}</p>
                   <p className={`text-[9px] font-medium ${j.is_fully_excepted ? 'text-slate-400' : filled ? 'text-emerald-500' : 'text-amber-500'}`}>
                     {j.is_fully_excepted ? 'Tidak wajib' : filled ? 'Terisi' : 'Belum isi'}
                   </p>

@@ -157,9 +157,9 @@ export function AkademikInputWizard({
   const jamOptions = useMemo(() => {
     const slots = polaDaftar.flatMap(pola => (pola.slots || []).map(slot => ({
       value: String(slot.id),
-      label: slot.nama ? `${slot.id} - ${slot.nama}` : `Jam ${slot.id}`,
+      label: slot.nama ? `${slot.id} - ${slot.nama}` : `Jam ke-${slot.id}`,
     })))
-    return slots.length ? slots : [{ value: '1', label: 'Jam 1' }]
+    return slots.length ? slots : [{ value: '1', label: 'Jam ke-1' }]
   }, [polaDaftar])
   const draftAssignments = useMemo(() => {
     const sourceRows = activeStep === 'penugasan' ? currentRows : (rows.penugasan || [])
@@ -402,7 +402,7 @@ export function AkademikInputWizard({
           POLA: pola.nama,
           HARI_AKTIF: pola.hari.join(','),
           JAM_KE: slot.id,
-          NAMA_JAM: slot.nama || `Jam ${slot.id}`,
+          NAMA_JAM: slot.nama || `Jam ke-${slot.id}`,
           MULAI: slot.mulai || '',
           SELESAI: slot.selesai || '',
         }))
@@ -411,7 +411,7 @@ export function AkademikInputWizard({
       setSheetWidths(hariWs, [10, 16])
       XLSX.utils.book_append_sheet(wb, hariWs, 'Referensi_Hari')
 
-      const jamWs = XLSX.utils.json_to_sheet(jamRows.length ? jamRows : [{ POLA: 'Default', HARI_AKTIF: '1,2,3,4,5,6', JAM_KE: 1, NAMA_JAM: 'Jam 1', MULAI: '', SELESAI: '' }])
+      const jamWs = XLSX.utils.json_to_sheet(jamRows.length ? jamRows : [{ POLA: 'Default', HARI_AKTIF: '1,2,3,4,5,6', JAM_KE: 1, NAMA_JAM: 'Jam ke-1', MULAI: '', SELESAI: '' }])
       setSheetWidths(jamWs, [22, 14, 10, 16, 12, 12])
       XLSX.utils.book_append_sheet(wb, jamWs, 'Referensi_Jam')
     }
