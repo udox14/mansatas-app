@@ -376,9 +376,12 @@ function AbsensiInputPanel({ initialData }: Props) {
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{block.mapel_nama}</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                {block.kelas_label} &middot; Jadwal jam ke-{block.jadwal_jam_ke_mulai === block.jadwal_jam_ke_selesai ? block.jadwal_jam_ke_mulai : `${block.jadwal_jam_ke_mulai}-${block.jadwal_jam_ke_selesai}`}
+              <div className="flex flex-col gap-0.5 mb-1">
+                <span className="text-base font-bold text-slate-800 dark:text-slate-100">{block.kelas_label}</span>
+                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{block.mapel_nama}</span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Jadwal jam ke-{block.jadwal_jam_ke_mulai === block.jadwal_jam_ke_selesai ? block.jadwal_jam_ke_mulai : `${block.jadwal_jam_ke_mulai}-${block.jadwal_jam_ke_selesai}`}
                 {block.exception_segments.length > 0 && !block.is_fully_excepted && <> &middot; Aktif jam ke-{block.jam_ke_mulai === block.jam_ke_selesai ? block.jam_ke_mulai : `${block.jam_ke_mulai}-${block.jam_ke_selesai}`} ({block.jumlah_jam} JP) &middot; {block.slot_mulai}—{block.slot_selesai}</>}
               </p>
               {block.exception_segments.length > 0 && (

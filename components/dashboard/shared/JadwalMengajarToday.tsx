@@ -153,10 +153,10 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
                   }
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-slate-800 dark:text-slate-100 truncate">{j.nama_mapel}</p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                    Kelas {j.tingkat}{j.kelompok ?? ''}-{j.nomor_kelas}
-                  </p>
+                  <div className="flex flex-col gap-0.5 mb-1">
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100">Kelas {j.tingkat}{j.kelompok ?? ''}-{j.nomor_kelas}</span>
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{j.nama_mapel}</span>
+                  </div>
                   {j.exception_segments.map((segment: any) => (
                     <p key={`${segment.exception_id}-${segment.jam_ke_mulai}`} className="mt-1 text-[9px] font-medium text-sky-600">
                       Jam ke-{segment.jam_ke_mulai === segment.jam_ke_selesai ? segment.jam_ke_mulai : `${segment.jam_ke_mulai}-${segment.jam_ke_selesai}`} non-KBM: {segment.judul}

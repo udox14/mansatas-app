@@ -326,9 +326,9 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
           <div key={block.penugasan_id} className="rounded-lg border bg-white dark:bg-slate-900 overflow-hidden">
             <div className="px-4 py-3 flex items-center justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{block.mapel_nama}</span>
-                  <span className="text-xs bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full">{block.kelas_label}</span>
+                <div className="flex flex-col gap-0.5 mb-1">
+                  <span className="text-base font-bold text-slate-800 dark:text-slate-100">{block.kelas_label}</span>
+                  <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{block.mapel_nama}</span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Jadwal jam ke-{block.jadwal_jam_ke_mulai === block.jadwal_jam_ke_selesai
