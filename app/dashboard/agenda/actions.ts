@@ -11,10 +11,11 @@ import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { getSystemSetting, getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import {
-  findTeachingBlockException,
   getKbmExceptionsForDate,
   getKalenderDateStatus,
+  splitTeachingSlotsByExceptions,
   type KbmException,
+  type TeachingSlotExceptionSegment,
 } from '@/lib/kalender-pendidikan'
 
 // ============================================================
@@ -29,8 +30,13 @@ type JadwalBlock = {
   guru_nama: string
   jam_ke_mulai: number
   jam_ke_selesai: number
+  jadwal_jam_ke_mulai: number
+  jadwal_jam_ke_selesai: number
   slot_mulai: string   // HH:mm
   slot_selesai: string // HH:mm
+  jumlah_jam_aktif: number
+  exception_segments: TeachingSlotExceptionSegment[]
+  is_fully_excepted: boolean
   sudah_isi: boolean
   agenda_id?: string
   status?: string
@@ -164,17 +170,17 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
   for (const [pid, data] of grouped) {
     const jamList = data.jamList.sort((a, b) => a - b)
     const first = data.rows[0]
-    const jamMulai = jamList[0]
-    const jamSelesai = jamList[jamList.length - 1]
-    const slotMulai = slots.find(s => s.id === jamMulai)
-    const slotSelesai = slots.find(s => s.id === jamSelesai)
-    const exception = findTeachingBlockException(
+    const jadwalJamMulai = jamList[0]
+    const jadwalJamSelesai = jamList[jamList.length - 1]
+    const slotState = splitTeachingSlotsByExceptions(
       kbmExceptions,
       { id: first.kelas_id, tingkat: Number(first.tingkat) },
-      jamMulai,
-      jamSelesai
+      jamList
     )
-    if (exception) continue
+    const jamMulai = slotState.activeJamKe[0] ?? jadwalJamMulai
+    const jamSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1] ?? jadwalJamSelesai
+    const slotMulai = slots.find(s => s.id === jamMulai)
+    const slotSelesai = slots.find(s => s.id === jamSelesai)
 
     blocks.push({
       penugasan_id: pid,
@@ -185,8 +191,13 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       guru_nama: first.guru_nama,
       jam_ke_mulai: jamMulai,
       jam_ke_selesai: jamSelesai,
+      jadwal_jam_ke_mulai: jadwalJamMulai,
+      jadwal_jam_ke_selesai: jadwalJamSelesai,
       slot_mulai: slotMulai?.mulai ?? '??:??',
       slot_selesai: slotSelesai?.selesai ?? '??:??',
+      jumlah_jam_aktif: slotState.activeJamKe.length,
+      exception_segments: slotState.exceptionSegments,
+      is_fully_excepted: slotState.activeJamKe.length === 0,
       sudah_isi: !!first.agenda_id,
       agenda_id: first.agenda_id ?? undefined,
       status: first.agenda_status ?? undefined,
@@ -313,23 +324,37 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
 
   // Ambil data penugasan untuk memastikan guru_id yang benar (terutama jika diwakilkan PPL)
   const penugasan = await db.prepare(`
-    SELECT pm.guru_id, k.id as kelas_id, k.tingkat, k.kbm_nonaktif_mulai
+    SELECT pm.guru_id, k.id as kelas_id, k.tingkat, k.kbm_nonaktif_mulai,
+      ta.id as tahun_ajaran_id, ta.jam_pelajaran
     FROM penugasan_mengajar pm
     JOIN kelas k ON pm.kelas_id = k.id
+    JOIN tahun_ajaran ta ON pm.tahun_ajaran_id = ta.id AND ta.is_active = 1
     WHERE pm.id = ?
   `).bind(penugasanId).first<any>()
   if (!penugasan) return { error: 'Penugasan tidak ditemukan.' }
   if (penugasan.kbm_nonaktif_mulai && penugasan.kbm_nonaktif_mulai <= tanggal) {
     return { error: 'Kelas ini sudah dinonaktifkan dari kewajiban KBM. Agenda tidak perlu disimpan.' }
   }
-  const exception = findTeachingBlockException(
+  const tanggalDate = new Date(tanggal + 'T00:00:00')
+  const hari = tanggalDate.getDay() === 0 ? 7 : tanggalDate.getDay()
+  const jadwalRows = await db.prepare(`
+    SELECT jam_ke FROM jadwal_mengajar
+    WHERE penugasan_id = ? AND tahun_ajaran_id = ? AND hari = ?
+    ORDER BY jam_ke
+  `).bind(penugasanId, penugasan.tahun_ajaran_id, hari).all<{ jam_ke: number }>()
+  const slotState = splitTeachingSlotsByExceptions(
     await getKbmExceptionsForDate(db, tanggal),
     { id: penugasan.kelas_id, tingkat: Number(penugasan.tingkat) },
-    jamKeMulai,
-    jamKeSelesai
+    (jadwalRows.results || []).map(row => Number(row.jam_ke))
   )
-  if (exception) {
-    return { error: `Jadwal ini masuk pengecualian KBM: ${exception.judul}. Agenda tidak perlu disimpan.` }
+  if (slotState.activeJamKe.length === 0) {
+    const alasan = slotState.exceptionSegments.map(item => item.judul).join(', ')
+    return { error: `Seluruh jam pada jadwal ini dikecualikan dari KBM${alasan ? `: ${alasan}` : ''}. Agenda tidak perlu disimpan.` }
+  }
+  const expectedJamMulai = slotState.activeJamKe[0]
+  const expectedJamSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1]
+  if (jamKeMulai !== expectedJamMulai || jamKeSelesai !== expectedJamSelesai) {
+    return { error: `Jam efektif agenda berubah menjadi jam ${expectedJamMulai}-${expectedJamSelesai}. Silakan refresh halaman.` }
   }
 
   // guru_id yang disimpan harus guru utama pemilik penugasan

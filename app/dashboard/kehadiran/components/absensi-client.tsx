@@ -7,7 +7,7 @@ import {
   CheckCircle2, XCircle, Thermometer, ShieldAlert,
   Loader2, BookOpen, RefreshCw, Save,
   MessageSquare, Users, ArrowLeft, ClipboardCheck,
-  CalendarRange, ListChecks,
+  CalendarRange, ListChecks, Ban,
 } from 'lucide-react'
 import {
   getBlokMengajarHariIni, loadSiswaAbsensi, simpanAbsensi,
@@ -144,6 +144,7 @@ function AbsensiInputPanel({ initialData }: Props) {
 
   const { blocks, tanggal, hariNama, error, calendarStatus } = data
   const activeExceptions = data.kbmExceptions || []
+  const activeBlockCount = blocks.filter(block => !block.is_fully_excepted).length
 
   // Counts
   const counts = siswaList.reduce((acc, s) => {
@@ -345,7 +346,7 @@ function AbsensiInputPanel({ initialData }: Props) {
           <p className="text-sm font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200">
             {hariNama}, {new Date(tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">{blocks.length} kelas untuk diabsen</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{activeBlockCount} kelas wajib diabsen dari {blocks.length} jadwal</p>
         </div>
         <Button variant="outline" size="sm" onClick={refresh} disabled={isRefreshing}>
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} /> Refresh
@@ -368,19 +369,34 @@ function AbsensiInputPanel({ initialData }: Props) {
       {blocks.map(block => (
         <button
           key={block.penugasan_id}
-          onClick={() => openBlock(block)}
-          className="w-full text-left rounded-lg border bg-white dark:bg-slate-900 dark:bg-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700 p-4 transition-colors active:scale-[0.99]"
+          type="button"
+          disabled={block.is_fully_excepted}
+          onClick={() => !block.is_fully_excepted && openBlock(block)}
+          className={`w-full text-left rounded-lg border p-4 transition-colors ${block.is_fully_excepted ? 'cursor-not-allowed border-slate-200 bg-slate-100 opacity-80 dark:border-slate-800 dark:bg-slate-900' : 'bg-white hover:border-emerald-300 active:scale-[0.99] dark:bg-slate-900 dark:hover:border-emerald-700'}`}
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{block.mapel_nama}</p>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                {block.kelas_label} &middot;{' '}
-                {block.jam_ke_mulai === block.jam_ke_selesai ? `Jam ${block.jam_ke_mulai}` : `Jam ${block.jam_ke_mulai}-${block.jam_ke_selesai}`}
-                {' '}({block.jumlah_jam} JP) &middot; {block.slot_mulai}—{block.slot_selesai}
+                {block.kelas_label} &middot; Jadwal jam {block.jadwal_jam_ke_mulai === block.jadwal_jam_ke_selesai ? block.jadwal_jam_ke_mulai : `${block.jadwal_jam_ke_mulai}-${block.jadwal_jam_ke_selesai}`}
+                {!block.is_fully_excepted && <> &middot; Aktif jam {block.jam_ke_mulai === block.jam_ke_selesai ? block.jam_ke_mulai : `${block.jam_ke_mulai}-${block.jam_ke_selesai}`} ({block.jumlah_jam} JP) &middot; {block.slot_mulai}—{block.slot_selesai}</>}
               </p>
+              {block.exception_segments.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {block.exception_segments.map(segment => (
+                    <p key={`${segment.exception_id}-${segment.jam_ke_mulai}`} className="inline-flex mr-1.5 items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700">
+                      <Ban className="h-3 w-3" /> Jam {segment.jam_ke_mulai === segment.jam_ke_selesai ? segment.jam_ke_mulai : `${segment.jam_ke_mulai}-${segment.jam_ke_selesai}`} non-KBM: {segment.judul}
+                    </p>
+                  ))}
+                  {!block.is_fully_excepted && <p className="text-[10px] text-emerald-600">Absensi dibuka mulai jam KBM aktif pertama.</p>}
+                </div>
+              )}
             </div>
-            {block.sudah_absen ? (
+            {block.is_fully_excepted ? (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                <Ban className="h-3 w-3" /> Tidak wajib
+              </span>
+            ) : block.sudah_absen ? (
               <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-medium border border-emerald-200 dark:border-emerald-800">
                 {block.tidak_hadir > 0 ? `${block.tidak_hadir} tdk hadir` : '✓ Semua hadir'}
               </span>

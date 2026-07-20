@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
   Camera, CheckCircle2, Clock, AlertTriangle, XCircle,
-  Loader2, BookOpen, Send, RefreshCw, ClipboardPen,
+  Loader2, BookOpen, Send, RefreshCw, ClipboardPen, Ban,
 } from 'lucide-react'
 import { submitAgenda, getJadwalGuruHariIni } from '../actions'
 import type { SlotJam } from '@/app/dashboard/settings/types'
@@ -22,8 +22,19 @@ type JadwalBlock = {
   guru_nama: string
   jam_ke_mulai: number
   jam_ke_selesai: number
+  jadwal_jam_ke_mulai: number
+  jadwal_jam_ke_selesai: number
   slot_mulai: string
   slot_selesai: string
+  jumlah_jam_aktif: number
+  exception_segments: Array<{
+    exception_id: string
+    judul: string
+    description: string | null
+    jam_ke_mulai: number
+    jam_ke_selesai: number
+  }>
+  is_fully_excepted: boolean
   sudah_isi: boolean
   agenda_id?: string
   status?: string
@@ -153,6 +164,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
 
   const { blocks, tanggal, hari, error, calendarStatus } = data
   const activeExceptions = data.kbmExceptions || []
+  const activeBlockCount = blocks.filter(block => !block.is_fully_excepted).length
 
   if (error) {
     return (
@@ -203,7 +215,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
           <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
             {HARI_NAMA[hari]}, {new Date(tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{blocks.length} blok mengajar</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{activeBlockCount} blok wajib agenda dari {blocks.length} jadwal</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => handleRefresh()} disabled={isRefreshing}>
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -224,7 +236,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
       )}
 
       {blocks.map((block) => {
-        const isExpanded = expandedBlock === block.penugasan_id
+        const isExpanded = expandedBlock === block.penugasan_id && !block.is_fully_excepted
         const style = STATUS_STYLE[block.status || 'ALFA'] || STATUS_STYLE.ALFA
         const StatusIcon = style.icon
 
@@ -237,14 +249,28 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   <span className="text-xs bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full">{block.kelas_label}</span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {block.jam_ke_mulai === block.jam_ke_selesai
-                    ? `Jam ke-${block.jam_ke_mulai}`
-                    : `Jam ke-${block.jam_ke_mulai} s/d ${block.jam_ke_selesai}`}
-                  {' '}&middot; {block.slot_mulai} - {block.slot_selesai}
+                  Jadwal jam {block.jadwal_jam_ke_mulai === block.jadwal_jam_ke_selesai
+                    ? block.jadwal_jam_ke_mulai
+                    : `${block.jadwal_jam_ke_mulai}-${block.jadwal_jam_ke_selesai}`}
+                  {!block.is_fully_excepted && <> &middot; KBM aktif jam {block.jam_ke_mulai === block.jam_ke_selesai ? block.jam_ke_mulai : `${block.jam_ke_mulai}-${block.jam_ke_selesai}`} ({block.slot_mulai}-{block.slot_selesai})</>}
                 </p>
+                {block.exception_segments.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {block.exception_segments.map(segment => (
+                      <p key={`${segment.exception_id}-${segment.jam_ke_mulai}`} className="inline-flex mr-1.5 items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700">
+                        <Ban className="h-3 w-3" /> Jam {segment.jam_ke_mulai === segment.jam_ke_selesai ? segment.jam_ke_mulai : `${segment.jam_ke_mulai}-${segment.jam_ke_selesai}`} non-KBM: {segment.judul}
+                      </p>
+                    ))}
+                    {!block.is_fully_excepted && <p className="text-[10px] text-emerald-600">Agenda dan absensi dimulai dari jam KBM aktif pertama.</p>}
+                  </div>
+                )}
               </div>
 
-              {block.sudah_isi ? (
+              {block.is_fully_excepted ? (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">
+                  <Ban className="h-3.5 w-3.5" /> Tidak wajib
+                </span>
+              ) : block.sudah_isi ? (
                 <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${style.bg} ${style.text}`}>
                   <StatusIcon className="h-3.5 w-3.5" />
                   {style.label}
@@ -284,6 +310,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                       {block.jam_ke_mulai === block.jam_ke_selesai
                         ? `Jam ke-${block.jam_ke_mulai}`
                         : `Jam ke-${block.jam_ke_mulai} s/d ${block.jam_ke_selesai}`}
+                      {block.exception_segments.length > 0 && <span className="ml-1 text-[11px] text-sky-600">({block.jumlah_jam_aktif} JP aktif setelah pengecualian)</span>}
                     </p>
                   </div>
                   <div>

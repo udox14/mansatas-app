@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
-import { findTeachingBlockException, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
+import { getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
 import { ClipboardText as ClipboardCheck, ArrowRight, CheckCircle as CheckCircle2, Warning as AlertTriangle } from '@phosphor-icons/react/dist/ssr'
 import type { WidgetProps } from '@/lib/dashboard-widgets-meta'
 
@@ -37,7 +37,7 @@ export async function RekapKehadiranGuruWidget({ taAktif }: WidgetProps) {
   `).bind(today, taId, hariIni, today).all<any>().then(r => r.results ?? []) : []
 
   const kbmExceptions = await getKbmExceptionsForDate(db, today)
-  const active = rows.filter((row: any) => !findTeachingBlockException(
+  const active = rows.filter((row: any) => hasActiveTeachingSlotsInRange(
     kbmExceptions,
     { id: row.kelas_id, tingkat: Number(row.tingkat) },
     Number(row.jam_mulai),

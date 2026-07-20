@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDB } from '@/utils/db'
 import { notify } from '@/lib/notify'
 import { nowWIB } from '@/lib/time'
-import { findTeachingBlockException, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
+import { getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
 
 /**
  * Master Cron Dispatcher — dipanggil setiap menit oleh Cloudflare Cron Trigger.
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
         `).bind(hariIni, ta.id, today).all<any>()
         const exceptions = await getKbmExceptionsForDate(db, today)
         const guruIds = Array.from(new Set((jadwalRows || [])
-          .filter((r: any) => !findTeachingBlockException(
+          .filter((r: any) => hasActiveTeachingSlotsInRange(
             exceptions,
             { id: r.kelas_id, tingkat: Number(r.tingkat) },
             Number(r.jam_mulai),

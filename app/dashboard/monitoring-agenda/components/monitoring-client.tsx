@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Search, Loader2, Eye, Edit3, CheckCircle2, Clock, XCircle,
   AlertTriangle, Calendar, BarChart3, Printer,
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react'
 import {
   getMonitoringHarian, getMonitoringHarianSlots, getRekapKehadiranGuru,
-  editAgendaStatus, getDataCetakLaporan,
+  editAgendaStatus, batchEditAgendaStatus, getDataCetakLaporan,
   getMonitoringPiketHarian, editAgendaPiketStatus,
 } from '../actions'
 import { todayWIB, nowWIB, formatTimeWIB } from '@/lib/time'
@@ -42,7 +43,7 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label:
   IZIN:        { bg: 'bg-sky-50 border-sky-200', text: 'text-sky-700', icon: AlertTriangle, label: 'Izin', dot: 'bg-sky-500' },
 }
 
-const STATUS_OPTIONS = ['TEPAT_WAKTU', 'TELAT', 'TUGAS', 'ALFA', 'SAKIT', 'IZIN']
+const STATUS_OPTIONS = ['TEPAT_WAKTU', 'TELAT', 'ALFA', 'SAKIT', 'IZIN']
 const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 type SlotOption = { id: number; nama: string; mulai: string; selesai: string }
 const ALASAN_STYLE: Record<'SAKIT' | 'IZIN', { label: string; text: string }> = {
@@ -109,6 +110,10 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
   const [editStatus, setEditStatus] = useState('')
   const [editCatatan, setEditCatatan] = useState('')
   const [isEditing, setIsEditing] = useState(false)
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
+  const [batchStatus, setBatchStatus] = useState('ALFA')
+  const [batchCatatan, setBatchCatatan] = useState('')
+  const [isBatchEditing, setIsBatchEditing] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -144,6 +149,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
       if (result.error) setPesan({ tipe: 'error', teks: result.error })
       else {
         setData(result.data || [])
+        setSelectedKeys(new Set())
         setHariNama(result.hariNama || '')
         setSlots(((result as any).slots || []) as SlotOption[])
         if ((result as any).calendarStatus && !(result as any).calendarStatus.isEffective) {
@@ -196,6 +202,65 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
 
   // Summary counts
   const filteredData = data
+
+  const itemKey = (item: any) => `${item.penugasan_id}:${item.guru_id}`
+  const selectedItems = filteredData.filter(item => selectedKeys.has(itemKey(item)))
+  const allVisibleSelected = filteredData.length > 0 && filteredData.every(item => selectedKeys.has(itemKey(item)))
+
+  const toggleSelected = (item: any) => {
+    const key = itemKey(item)
+    setSelectedKeys(current => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else if (next.size < 100) next.add(key)
+      return next
+    })
+  }
+
+  const toggleAllVisible = () => {
+    setSelectedKeys(current => {
+      const next = new Set(current)
+      if (allVisibleSelected) {
+        for (const item of filteredData) next.delete(itemKey(item))
+      } else {
+        for (const item of filteredData) {
+          if (next.size >= 100) break
+          next.add(itemKey(item))
+        }
+      }
+      return next
+    })
+  }
+
+  const handleBatchEdit = async () => {
+    if (selectedItems.length === 0) return
+    const statusLabel = STATUS_STYLE[batchStatus]?.label || batchStatus
+    if (!confirm(`Ubah ${selectedItems.length} agenda terpilih menjadi ${statusLabel}?`)) return
+
+    setIsBatchEditing(true)
+    setPesan(null)
+    try {
+      const result = await batchEditAgendaStatus(
+        tanggal,
+        selectedItems.map(item => ({ penugasan_id: item.penugasan_id, guru_id: item.guru_id })),
+        batchStatus,
+        batchCatatan,
+      )
+      if (result.error) setPesan({ tipe: 'error', teks: result.error })
+      else {
+        const successText = result.success || 'Batch status berhasil diperbarui.'
+        setSelectedKeys(new Set())
+        setBatchCatatan('')
+        await handleSearch()
+        setPesan({ tipe: 'sukses', teks: successText })
+      }
+    } catch (error) {
+      console.error('Gagal mengubah status agenda secara batch:', error)
+      setPesan({ tipe: 'error', teks: 'Batch perubahan status gagal. Silakan coba lagi.' })
+    } finally {
+      setIsBatchEditing(false)
+    }
+  }
 
   const selectedSlot = slots.find(slot => String(slot.id) === jamFilter)
 
@@ -300,12 +365,64 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
         </div>
       )}
 
+      {filteredData.length > 0 && (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-3 dark:border-indigo-900 dark:bg-indigo-950/20">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <div className="flex items-center gap-2 lg:min-w-[170px]">
+              <Checkbox
+                checked={allVisibleSelected ? true : selectedItems.length > 0 ? 'indeterminate' : false}
+                onCheckedChange={toggleAllVisible}
+                aria-label="Pilih semua agenda yang tampil"
+              />
+              <div>
+                <p className="text-xs font-semibold text-indigo-900 dark:text-indigo-200">Batch status agenda</p>
+                <p className="text-[10px] text-indigo-600 dark:text-indigo-400">{selectedItems.length} dipilih · maksimal 100 sesi</p>
+              </div>
+            </div>
+            <div className="min-w-[170px]">
+              <Label className="text-[10px] text-indigo-700 dark:text-indigo-300">Status baru</Label>
+              <Select value={batchStatus} onValueChange={setBatchStatus}>
+                <SelectTrigger className="mt-1 h-9 bg-white text-sm dark:bg-slate-900"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTIONS.map(status => <SelectItem key={status} value={status}>{STATUS_STYLE[status]?.label || status}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1">
+              <Label className="text-[10px] text-indigo-700 dark:text-indigo-300">Catatan admin (opsional)</Label>
+              <Input
+                value={batchCatatan}
+                onChange={event => setBatchCatatan(event.target.value)}
+                maxLength={1000}
+                placeholder="Contoh: koreksi massal karena outage sistem"
+                className="mt-1 h-9 bg-white text-sm dark:bg-slate-900"
+              />
+            </div>
+            <Button
+              onClick={handleBatchEdit}
+              disabled={selectedItems.length === 0 || isBatchEditing}
+              className="h-9 bg-indigo-600 text-white hover:bg-indigo-700"
+            >
+              {isBatchEditing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit3 className="mr-2 h-4 w-4" />}
+              Terapkan ke {selectedItems.length || 0} sesi
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       {filteredData.length > 0 && (
         <div className="hidden rounded-lg border bg-white dark:bg-slate-900 overflow-x-auto md:block">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={allVisibleSelected ? true : selectedItems.length > 0 ? 'indeterminate' : false}
+                    onCheckedChange={toggleAllVisible}
+                    aria-label="Pilih semua agenda"
+                  />
+                </TableHead>
                 <TableHead className="text-xs w-8">#</TableHead>
                 <TableHead className="text-xs">Guru</TableHead>
                 <TableHead className="text-xs">Mapel</TableHead>
@@ -318,7 +435,14 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
             <TableBody>
               {filteredData.map((item, idx) => {
                 return (
-                  <TableRow key={`${item.penugasan_id}-${idx}`}>
+                  <TableRow key={`${item.penugasan_id}-${idx}`} data-state={selectedKeys.has(itemKey(item)) ? 'selected' : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedKeys.has(itemKey(item))}
+                        onCheckedChange={() => toggleSelected(item)}
+                        aria-label={`Pilih agenda ${item.guru_nama}`}
+                      />
+                    </TableCell>
                     <TableCell className="text-xs text-slate-400">{idx + 1}</TableCell>
                     <TableCell className="text-xs font-medium text-slate-800 dark:text-slate-200">{item.guru_nama}</TableCell>
                     <TableCell className="text-xs text-slate-600 dark:text-slate-400">{item.mapel_nama}</TableCell>
@@ -343,7 +467,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                         </Button>
                       )}
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => {
-                        setEditItem(item); setEditStatus(item.status === 'BELUM_MENGISI' ? 'ALFA' : item.status); setEditCatatan(item.catatan_admin || '')
+                        setEditItem(item); setEditStatus(STATUS_OPTIONS.includes(item.status) ? item.status : 'ALFA'); setEditCatatan(item.catatan_admin || '')
                       }} title="Edit Status">
                         <Edit3 className="h-3.5 w-3.5 text-indigo-500" />
                       </Button>
@@ -359,9 +483,15 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
       {filteredData.length > 0 && (
         <div className="space-y-2 md:hidden">
           {filteredData.map((item, idx) => (
-            <div key={`${item.penugasan_id}-mobile-${idx}`} className="rounded-lg border bg-white p-3 shadow-sm dark:bg-slate-900">
+            <div key={`${item.penugasan_id}-mobile-${idx}`} className={`rounded-lg border p-3 shadow-sm ${selectedKeys.has(itemKey(item)) ? 'border-indigo-300 bg-indigo-50/60 dark:border-indigo-800 dark:bg-indigo-950/20' : 'bg-white dark:bg-slate-900'}`}>
               <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
+                <Checkbox
+                  checked={selectedKeys.has(itemKey(item))}
+                  onCheckedChange={() => toggleSelected(item)}
+                  aria-label={`Pilih agenda ${item.guru_nama}`}
+                  className="mt-0.5 shrink-0"
+                />
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[11px] font-semibold text-slate-400">#{idx + 1}</span>
                     <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{item.guru_nama}</p>
@@ -393,7 +523,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                     </Button>
                   )}
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => {
-                    setEditItem(item); setEditStatus(item.status === 'BELUM_MENGISI' ? 'ALFA' : item.status); setEditCatatan(item.catatan_admin || '')
+                    setEditItem(item); setEditStatus(STATUS_OPTIONS.includes(item.status) ? item.status : 'ALFA'); setEditCatatan(item.catatan_admin || '')
                   }} title="Edit Status">
                     <Edit3 className="h-3.5 w-3.5 text-indigo-500" />
                   </Button>

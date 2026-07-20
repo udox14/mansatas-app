@@ -12,10 +12,11 @@ import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-setti
 import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
 import { notifyParentsAttendance } from '@/lib/fcm'
 import {
-  findTeachingBlockException,
   getKbmExceptionsForDate,
   getKalenderDateStatus,
+  splitTeachingSlotsByExceptions,
   type KbmException,
+  type TeachingSlotExceptionSegment,
 } from '@/lib/kalender-pendidikan'
 
 // ============================================================
@@ -28,12 +29,16 @@ export type BlokMengajar = {
   kelas_label: string
   jam_ke_mulai: number
   jam_ke_selesai: number
+  jadwal_jam_ke_mulai: number
+  jadwal_jam_ke_selesai: number
   jumlah_jam: number
   slot_mulai: string
   slot_selesai: string
   sudah_absen: boolean
   total_siswa: number
   tidak_hadir: number
+  exception_segments: TeachingSlotExceptionSegment[]
+  is_fully_excepted: boolean
 }
 
 async function ensureAbsensiSessionTable(db: D1Database) {
@@ -273,24 +278,27 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
   for (const [pid, pRows] of grouped) {
     const jamList = pRows.map((r: any) => r.jam_ke).sort((a: number, b: number) => a - b)
     const f = pRows[0]
-    const jM = jamList[0], jS = jamList[jamList.length - 1]
+    const jadwalJM = jamList[0], jadwalJS = jamList[jamList.length - 1]
+    const slotState = splitTeachingSlotsByExceptions(
+      kbmExceptions,
+      { id: f.kelas_id, tingkat: Number(f.tingkat) },
+      jamList
+    )
+    const jM = slotState.activeJamKe[0] ?? jadwalJM
+    const jS = slotState.activeJamKe[slotState.activeJamKe.length - 1] ?? jadwalJS
     const sM = slots.find(s => s.id === jM), sS = slots.find(s => s.id === jS)
     const totalSiswa = siswaCountMap.get(f.kelas_id) || 0
     const tidakHadir = absenCountMap.get(pid) || 0
-    const exception = findTeachingBlockException(
-      kbmExceptions,
-      { id: f.kelas_id, tingkat: Number(f.tingkat) },
-      jM,
-      jS
-    )
-    if (exception) continue
-
     blocks.push({
       penugasan_id: pid, mapel_nama: f.nama_mapel,
       kelas_id: f.kelas_id, kelas_label: formatNamaKelas(f.tingkat, f.nomor_kelas, f.kelompok),
-      jam_ke_mulai: jM, jam_ke_selesai: jS, jumlah_jam: jamList.length,
+      jam_ke_mulai: jM, jam_ke_selesai: jS,
+      jadwal_jam_ke_mulai: jadwalJM, jadwal_jam_ke_selesai: jadwalJS,
+      jumlah_jam: slotState.activeJamKe.length,
       slot_mulai: sM?.mulai ?? '-', slot_selesai: sS?.selesai ?? '-',
       sudah_absen: sesiSet.has(pid), total_siswa: totalSiswa, tidak_hadir: tidakHadir,
+      exception_segments: slotState.exceptionSegments,
+      is_fully_excepted: slotState.activeJamKe.length === 0,
     })
   }
   blocks.sort((a, b) => a.jam_ke_mulai - b.jam_ke_mulai)
@@ -419,14 +427,28 @@ export async function simpanAbsensi(
   if (penugasan.kbm_nonaktif_mulai && penugasan.kbm_nonaktif_mulai <= tanggal) {
     return { error: 'Kelas ini sudah dinonaktifkan dari kewajiban KBM. Absensi tidak perlu disimpan.' }
   }
-  const exception = findTeachingBlockException(
+  const tanggalDate = new Date(tanggal + 'T00:00:00')
+  const hari = tanggalDate.getDay() === 0 ? 7 : tanggalDate.getDay()
+  const ta = await db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
+  if (!ta) return { error: 'Tahun ajaran aktif belum diatur.' }
+  const jadwalRows = await db.prepare(`
+    SELECT jam_ke FROM jadwal_mengajar
+    WHERE penugasan_id = ? AND tahun_ajaran_id = ? AND hari = ?
+    ORDER BY jam_ke
+  `).bind(penugasanId, ta.id, hari).all<{ jam_ke: number }>()
+  const slotState = splitTeachingSlotsByExceptions(
     await getKbmExceptionsForDate(db, tanggal),
     { id: penugasan.kelas_id, tingkat: Number(penugasan.tingkat) },
-    jamKeMulai,
-    jamKeSelesai
+    (jadwalRows.results || []).map(row => Number(row.jam_ke))
   )
-  if (exception) {
-    return { error: `Jadwal ini masuk pengecualian KBM: ${exception.judul}. Absensi tidak perlu disimpan.` }
+  if (slotState.activeJamKe.length === 0) {
+    const alasan = slotState.exceptionSegments.map(item => item.judul).join(', ')
+    return { error: `Seluruh jam pada jadwal ini dikecualikan dari KBM${alasan ? `: ${alasan}` : ''}. Absensi tidak perlu disimpan.` }
+  }
+  const expectedJamMulai = slotState.activeJamKe[0]
+  const expectedJamSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1]
+  if (jamKeMulai !== expectedJamMulai || jamKeSelesai !== expectedJamSelesai || jumlahJam !== slotState.activeJamKe.length) {
+    return { error: `Jam efektif absensi berubah menjadi jam ${expectedJamMulai}-${expectedJamSelesai} (${slotState.activeJamKe.length} JP). Silakan refresh halaman.` }
   }
   const attendanceTimeRestrictionEnabled = await getSystemSettingBoolean(
     SYSTEM_SETTING_KEYS.attendanceTimeRestriction,

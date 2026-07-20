@@ -2,8 +2,8 @@
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
-import { ClipboardText as ClipboardPen, BookOpen, CheckCircle as CheckCircle2, WarningCircle as AlertCircle, UserCheck, Calendar as CalendarDays } from '@phosphor-icons/react/dist/ssr'
-import { findTeachingBlockException, getKbmExceptionsForDate, getKalenderDateStatus } from '@/lib/kalender-pendidikan'
+import { ClipboardText as ClipboardPen, BookOpen, CheckCircle as CheckCircle2, WarningCircle as AlertCircle, UserCheck, Calendar as CalendarDays, Prohibit as Ban } from '@phosphor-icons/react/dist/ssr'
+import { getKbmExceptionsForDate, getKalenderDateStatus, splitTeachingSlotsByExceptions } from '@/lib/kalender-pendidikan'
 
 export type JadwalMengajarTodayProps = {
   userId: string
@@ -47,6 +47,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
   const jadwalRows = await db.prepare(`
     SELECT
       MIN(jm.jam_ke) as jam_mulai, MAX(jm.jam_ke) as jam_selesai,
+      GROUP_CONCAT(jm.jam_ke) as jam_list,
       jm.penugasan_id,
       mp.nama_mapel,
       k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok,
@@ -75,12 +76,21 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
   } catch {}
 
   const kbmExceptions = await getKbmExceptionsForDate(db, today)
-  const activeJadwalRows = jadwalRows.filter((j: any) => !findTeachingBlockException(
-    kbmExceptions,
-    { id: j.kelas_id, tingkat: Number(j.tingkat) },
-    Number(j.jam_mulai),
-    Number(j.jam_selesai)
-  ))
+  const displayJadwalRows = jadwalRows.map((j: any) => {
+    const jamList = String(j.jam_list || '').split(',').map(Number).filter(Number.isFinite)
+    const slotState = splitTeachingSlotsByExceptions(
+      kbmExceptions,
+      { id: j.kelas_id, tingkat: Number(j.tingkat) },
+      jamList
+    )
+    return {
+      ...j,
+      active_jam: slotState.activeJamKe,
+      exception_segments: slotState.exceptionSegments,
+      is_fully_excepted: slotState.activeJamKe.length === 0,
+    }
+  })
+  const activeJadwalRows = displayJadwalRows.filter((j: any) => !j.is_fully_excepted)
   const totalJadwal = activeJadwalRows.length
   const sudahIsiAgenda = activeJadwalRows.filter((j: any) => !!j.agenda_id).length
   const belumIsi = totalJadwal - sudahIsiAgenda
@@ -119,21 +129,25 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
         )}
       </div>
 
-      {totalJadwal === 0 ? (
+      {displayJadwalRows.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-1.5 py-7 text-slate-400">
           <BookOpen className="h-6 w-6" />
           <p className="text-xs">Tidak ada jadwal mengajar hari ini</p>
         </div>
       ) : (
         <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
-          {activeJadwalRows.map((j: any, i: number) => {
-            const slotMulai   = slotsMap[j.jam_mulai]?.mulai   ?? '-'
-            const slotSelesai = slotsMap[j.jam_selesai]?.selesai ?? '-'
+          {displayJadwalRows.map((j: any, i: number) => {
+            const activeMulai = j.active_jam[0]
+            const activeSelesai = j.active_jam[j.active_jam.length - 1]
+            const slotMulai = slotsMap[activeMulai]?.mulai ?? '-'
+            const slotSelesai = slotsMap[activeSelesai]?.selesai ?? '-'
             const filled = !!j.agenda_id
             return (
-              <div key={i} className={`flex items-center gap-3 px-4 py-2.5 ${filled ? '' : 'bg-amber-50/30 dark:bg-amber-900/10'}`}>
-                <div className={`h-8 w-8 shrink-0 rounded-lg flex items-center justify-center ${filled ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-amber-50 dark:bg-amber-900/30'}`}>
-                  {filled
+              <div key={i} className={`flex items-start gap-3 px-4 py-2.5 ${j.is_fully_excepted ? 'bg-slate-50/80 dark:bg-slate-900/40' : filled ? '' : 'bg-amber-50/30 dark:bg-amber-900/10'}`}>
+                <div className={`h-8 w-8 shrink-0 rounded-lg flex items-center justify-center ${j.is_fully_excepted ? 'bg-slate-100 dark:bg-slate-800' : filled ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-amber-50 dark:bg-amber-900/30'}`}>
+                  {j.is_fully_excepted
+                    ? <Ban className="h-4 w-4 text-slate-400" />
+                    : filled
                     ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     : <AlertCircle className="h-4 w-4 text-amber-500" />
                   }
@@ -143,11 +157,16 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
                   <p className="text-[10px] text-slate-400 dark:text-slate-500">
                     Kelas {j.tingkat}{j.kelompok ?? ''}-{j.nomor_kelas}
                   </p>
+                  {j.exception_segments.map((segment: any) => (
+                    <p key={`${segment.exception_id}-${segment.jam_ke_mulai}`} className="mt-1 text-[9px] font-medium text-sky-600">
+                      Jam {segment.jam_ke_mulai === segment.jam_ke_selesai ? segment.jam_ke_mulai : `${segment.jam_ke_mulai}-${segment.jam_ke_selesai}`} non-KBM: {segment.judul}
+                    </p>
+                  ))}
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-[10px] font-medium text-slate-600 dark:text-slate-300">{slotMulai}–{slotSelesai}</p>
-                  <p className={`text-[9px] font-medium ${filled ? 'text-emerald-500' : 'text-amber-500'}`}>
-                    {filled ? 'Terisi' : 'Belum isi'}
+                  <p className="text-[10px] font-medium text-slate-600 dark:text-slate-300">{j.is_fully_excepted ? `Jam ${j.jam_mulai}-${j.jam_selesai}` : `${slotMulai}–${slotSelesai}`}</p>
+                  <p className={`text-[9px] font-medium ${j.is_fully_excepted ? 'text-slate-400' : filled ? 'text-emerald-500' : 'text-amber-500'}`}>
+                    {j.is_fully_excepted ? 'Tidak wajib' : filled ? 'Terisi' : 'Belum isi'}
                   </p>
                 </div>
               </div>

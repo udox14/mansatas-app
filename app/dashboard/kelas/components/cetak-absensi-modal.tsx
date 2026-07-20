@@ -41,8 +41,11 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
 
   // Sort kelas
   const sortedKelas = [...daftarKelas].sort((a, b) => {
-    if (a.tingkat !== b.tingkat) return a.tingkat - b.tingkat
-    return a.nomor_kelas.localeCompare(b.nomor_kelas, undefined, { numeric: true })
+    return formatNamaKelas(a.tingkat, a.nomor_kelas, a.kelompok).localeCompare(
+      formatNamaKelas(b.tingkat, b.nomor_kelas, b.kelompok),
+      undefined,
+      { numeric: true, sensitivity: 'base' }
+    )
   })
   const grouped = sortedKelas.reduce<Record<number, KelasOption[]>>((acc, k) => {
     if (!acc[k.tingkat]) acc[k.tingkat] = []
@@ -240,8 +243,7 @@ export function CetakAbsensiModal({ daftarKelas }: CetakAbsensiModalProps) {
                                   : 'hover:bg-surface-2 text-slate-600 dark:text-slate-400 dark:text-slate-300'
                               }`}
                             >
-                              {k.tingkat}.{k.nomor_kelas}
-                              {k.kelompok !== 'UMUM' ? ` · ${k.kelompok}` : ''}
+                              {formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}
                               <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500">({k.jumlah_siswa})</span>
                             </button>
                           ))}

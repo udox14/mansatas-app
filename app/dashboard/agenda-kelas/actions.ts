@@ -7,13 +7,13 @@ import { formatNamaKelas } from '@/lib/utils'
 import { todayWIB, currentTimeWIB } from '@/lib/time'
 import { getSystemSetting, setSystemSetting } from '@/lib/system-settings'
 import {
-  findTeachingBlockException,
   getEffectiveDatesInRange,
   getKbmExceptionsForDate,
   getKalenderDateStatus,
   enumerateDateStrings,
   getKalenderEventsForRange,
   getKbmExceptionsForRange,
+  splitTeachingSlotsByExceptions,
 } from '@/lib/kalender-pendidikan'
 import type { KalenderEvent, KbmException } from '@/lib/kalender-pendidikan'
 import type { FinalAttendanceStatus } from '@/lib/wali-kelas-attendance'
@@ -482,15 +482,25 @@ async function buildAgendaKelasHari(
   for (const rows of grouped.values()) {
     const jamList = rows.map(row => Number(row.jam_ke)).sort((a, b) => a - b)
     const first = rows[0]
-    const exception = findTeachingBlockException(
+    const slotState = splitTeachingSlotsByExceptions(
       exceptions,
       { id: kelas.id, tingkat: Number(kelas.tingkat) },
-      jamList[0],
-      jamList[jamList.length - 1]
+      jamList
     )
-    if (exception) continue
+    for (const segment of slotState.exceptionSegments) {
+      for (let jam = segment.jam_ke_mulai; jam <= segment.jam_ke_selesai; jam++) {
+        if (jam < 1 || jam > 10) continue
+        baseRows[jam - 1] = {
+          ...baseRows[jam - 1],
+          mapel_nama: 'NON-KBM',
+          pokok_bahasan: segment.judul,
+          guru_status: 'TIDAK WAJIB',
+        }
+      }
+    }
+    if (slotState.activeJamKe.length === 0) continue
 
-    const slotSelesai = slots.find(s => s.id === jamList[jamList.length - 1])
+    const slotSelesai = slots.find(s => s.id === slotState.activeJamKe[slotState.activeJamKe.length - 1])
     const guruStatus = resolveGuruStatus({
       agendaStatus: first.agenda_status,
       hasDelegasi: !!first.delegasi_kelas_id,
@@ -498,7 +508,7 @@ async function buildAgendaKelasHari(
       ended: isTeachingBlockEnded(tanggal, slotSelesai),
     })
 
-    for (const jam of jamList) {
+    for (const jam of slotState.activeJamKe) {
       if (jam < 1 || jam > 10) continue
       occupied.add(jam)
       baseRows[jam - 1] = {
@@ -514,8 +524,9 @@ async function buildAgendaKelasHari(
     }
   }
 
-  const terisi = baseRows.filter(row => row.pokok_bahasan.trim()).length
-  const tugas = baseRows.filter(row => row.tugas.trim()).length
+  const activeRows = baseRows.filter(row => row.guru_status !== 'TIDAK WAJIB')
+  const terisi = activeRows.filter(row => row.pokok_bahasan.trim()).length
+  const tugas = activeRows.filter(row => row.tugas.trim()).length
   const activeJam = occupied.size
   const hasActiveBlocks = activeJam > 0 && slots.length > 0
   const statusRows = hasActiveBlocks ? await getNonHadirRowsForAgenda(db, kelasId, tanggal) : []
@@ -795,15 +806,25 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
     for (const rows of grouped.values()) {
       const jamList = rows.map(row => Number(row.jam_ke)).sort((a, b) => a - b)
       const first = rows[0]
-      const exception = findTeachingBlockException(
+      const slotState = splitTeachingSlotsByExceptions(
         dayExceptions,
         { id: kelas.id, tingkat: Number(kelas.tingkat) },
-        jamList[0],
-        jamList[jamList.length - 1]
+        jamList
       )
-      if (exception) continue
+      for (const segment of slotState.exceptionSegments) {
+        for (let jam = segment.jam_ke_mulai; jam <= segment.jam_ke_selesai; jam++) {
+          if (jam < 1 || jam > 10) continue
+          baseRows[jam - 1] = {
+            ...baseRows[jam - 1],
+            mapel_nama: 'NON-KBM',
+            pokok_bahasan: segment.judul,
+            guru_status: 'TIDAK WAJIB',
+          }
+        }
+      }
+      if (slotState.activeJamKe.length === 0) continue
 
-      const slotSelesai = slots.find(s => s.id === jamList[jamList.length - 1])
+      const slotSelesai = slots.find(s => s.id === slotState.activeJamKe[slotState.activeJamKe.length - 1])
       const guruStatus = resolveGuruStatus({
         agendaStatus: first.agenda_status,
         hasDelegasi: !!first.delegasi_kelas_id,
@@ -811,7 +832,7 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
         ended: isTeachingBlockEnded(tanggal, slotSelesai),
       })
 
-      for (const jam of jamList) {
+      for (const jam of slotState.activeJamKe) {
         if (jam < 1 || jam > 10) continue
         occupied.add(jam)
         baseRows[jam - 1] = {
@@ -827,8 +848,9 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
       }
     }
 
-    const terisi = baseRows.filter(row => row.pokok_bahasan.trim()).length
-    const tugas = baseRows.filter(row => row.tugas.trim()).length
+    const activeRows = baseRows.filter(row => row.guru_status !== 'TIDAK WAJIB')
+    const terisi = activeRows.filter(row => row.pokok_bahasan.trim()).length
+    const tugas = activeRows.filter(row => row.tugas.trim()).length
     const activeJam = occupied.size
     const hasActiveBlocks = activeJam > 0 && slots.length > 0
     

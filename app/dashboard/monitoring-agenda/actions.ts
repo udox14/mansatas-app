@@ -7,11 +7,12 @@ import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import {
-  findTeachingBlockException,
   getEffectiveDatesInRange,
   getKbmExceptionsForDate,
   getKbmExceptionsForRange,
   getKalenderDateStatus,
+  hasActiveTeachingSlots,
+  splitTeachingSlotsByExceptions,
 } from '@/lib/kalender-pendidikan'
 import { currentTimeWIB, nowWIBISO, todayWIB } from '@/lib/time'
 
@@ -33,6 +34,7 @@ function getHariFromDate(dateStr: string): number {
 }
 
 const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+const EDITABLE_AGENDA_STATUSES = new Set(['TEPAT_WAKTU', 'TELAT', 'ALFA', 'SAKIT', 'IZIN'])
 
 function timeToMinutes(value?: string | null): number | null {
   if (!value || value === '-') return null
@@ -171,17 +173,17 @@ export async function getMonitoringHarian(
   for (const [pid, pRows] of grouped) {
     const jamList = pRows.map(r => r.jam_ke).sort((a: number, b: number) => a - b)
     const first = pRows[0]
-    const jamMulai = jamList[0]
-    const jamSelesai = jamList[jamList.length - 1]
-    const slotMulai = slots.find(s => s.id === jamMulai)
-    const slotSelesai = slots.find(s => s.id === jamSelesai)
-    const exception = findTeachingBlockException(
+    const slotState = splitTeachingSlotsByExceptions(
       kbmExceptions,
       { id: first.kelas_id, tingkat: Number(first.tingkat) },
-      jamMulai,
-      jamSelesai
+      jamList
     )
-    if (exception) continue
+    if (slotState.activeJamKe.length === 0) continue
+    if (typeof jamKe === 'number' && Number.isFinite(jamKe) && !slotState.activeJamKe.includes(jamKe)) continue
+    const jamMulai = slotState.activeJamKe[0]
+    const jamSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1]
+    const slotMulai = slots.find(s => s.id === jamMulai)
+    const slotSelesai = slots.find(s => s.id === jamSelesai)
 
     // Tentukan status: agenda > delegasi (TUGAS) > BELUM_MENGISI/ALFA
     let status: string
@@ -350,7 +352,7 @@ export async function getRekapKehadiranGuru(
         const jamSet = jadwal.hariMap.get(hari)
         if (!jamSet) continue
         const jamList = Array.from(jamSet).sort((a, b) => a - b)
-        if (findTeachingBlockException(exceptionsByDate.get(tanggal) || [], { id: jadwal.kelasId, tingkat: jadwal.tingkat }, jamList[0], jamList[jamList.length - 1])) continue
+        if (!hasActiveTeachingSlots(exceptionsByDate.get(tanggal) || [], { id: jadwal.kelasId, tingkat: jadwal.tingkat }, jamList)) continue
         total++
       }
     }
@@ -466,6 +468,7 @@ export async function editAgendaStatus(
 
   const isAdmin = ['super_admin', 'admin_tu', 'kepsek'].includes(user.role)
   if (!isAdmin) return { error: 'Hanya admin yang bisa mengubah status.' }
+  if (!EDITABLE_AGENDA_STATUSES.has(newStatus)) return { error: 'Status agenda tidak valid.' }
 
   const db = await getDB()
 
@@ -498,6 +501,126 @@ export async function editAgendaStatus(
 
   revalidatePath('/dashboard/monitoring-agenda')
   return { success: `Status berhasil diubah menjadi ${newStatus}.` }
+}
+
+export type BatchAgendaStatusItem = {
+  penugasan_id: string
+  guru_id: string
+}
+
+export async function batchEditAgendaStatus(
+  tanggal: string,
+  items: BatchAgendaStatusItem[],
+  newStatus: string,
+  catatanAdmin: string
+): Promise<{ error?: string; success?: string; updated?: number; skipped?: number }> {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const isAdmin = ['super_admin', 'admin_tu', 'kepsek'].includes(user.role)
+  if (!isAdmin) return { error: 'Hanya admin yang bisa mengubah status.' }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return { error: 'Tanggal tidak valid.' }
+  if (!EDITABLE_AGENDA_STATUSES.has(newStatus)) return { error: 'Status agenda tidak valid.' }
+
+  const uniqueItems = Array.from(new Map(
+    items
+      .filter(item => item?.penugasan_id && item?.guru_id)
+      .map(item => [`${item.penugasan_id}:${item.guru_id}`, item])
+  ).values())
+  if (uniqueItems.length === 0) return { error: 'Belum ada agenda yang dipilih.' }
+  if (uniqueItems.length > 100) return { error: 'Maksimal 100 sesi dalam satu batch.' }
+
+  const db = await getDB()
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) {
+    return { error: `Tanggal ini tidak efektif pembelajaran${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}.` }
+  }
+
+  const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
+  if (!ta) return { error: 'Tahun ajaran aktif belum diatur.' }
+
+  const hari = getHariFromDate(tanggal)
+  const penugasanIds = Array.from(new Set(uniqueItems.map(item => item.penugasan_id)))
+  const placeholders = penugasanIds.map(() => '?').join(',')
+  const scheduleRows = await db.prepare(`
+    SELECT
+      pm.id as penugasan_id,
+      pm.guru_id,
+      k.id as kelas_id,
+      k.tingkat,
+      k.kbm_nonaktif_mulai,
+      GROUP_CONCAT(jm.jam_ke) as jam_list
+    FROM penugasan_mengajar pm
+    JOIN jadwal_mengajar jm ON jm.penugasan_id = pm.id
+      AND jm.tahun_ajaran_id = ? AND jm.hari = ?
+    JOIN kelas k ON pm.kelas_id = k.id
+    WHERE pm.id IN (${placeholders})
+    GROUP BY pm.id, pm.guru_id, k.id, k.tingkat, k.kbm_nonaktif_mulai
+  `).bind(ta.id, hari, ...penugasanIds).all<any>()
+
+  const scheduleMap = new Map((scheduleRows.results || []).map(row => [row.penugasan_id, row]))
+  const exceptions = await getKbmExceptionsForDate(db, tanggal)
+  const statements: D1PreparedStatement[] = []
+  let skipped = 0
+  const catatan = catatanAdmin.trim().slice(0, 1000) || null
+  const updatedAt = nowWIBISO()
+
+  for (const item of uniqueItems) {
+    const schedule = scheduleMap.get(item.penugasan_id)
+    if (!schedule || schedule.guru_id !== item.guru_id || (schedule.kbm_nonaktif_mulai && schedule.kbm_nonaktif_mulai <= tanggal)) {
+      skipped++
+      continue
+    }
+
+    const jamList = String(schedule.jam_list || '').split(',').map(Number).filter(Number.isFinite)
+    const slotState = splitTeachingSlotsByExceptions(
+      exceptions,
+      { id: schedule.kelas_id, tingkat: Number(schedule.tingkat) },
+      jamList
+    )
+    if (slotState.activeJamKe.length === 0) {
+      skipped++
+      continue
+    }
+
+    const jamKeMulai = slotState.activeJamKe[0]
+    const jamKeSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1]
+    statements.push(db.prepare(`
+      INSERT INTO agenda_guru (
+        guru_id, penugasan_id, tanggal, jam_ke_mulai, jam_ke_selesai,
+        materi, foto_url, status, waktu_input, catatan_admin, diubah_oleh, updated_at
+      ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, NULL, ?, ?, ?)
+      ON CONFLICT(penugasan_id, tanggal) DO UPDATE SET
+        status = excluded.status,
+        catatan_admin = excluded.catatan_admin,
+        diubah_oleh = excluded.diubah_oleh,
+        updated_at = excluded.updated_at
+    `).bind(
+      schedule.guru_id,
+      item.penugasan_id,
+      tanggal,
+      jamKeMulai,
+      jamKeSelesai,
+      newStatus,
+      catatan,
+      user.id,
+      updatedAt
+    ))
+  }
+
+  if (statements.length === 0) {
+    return { error: 'Tidak ada sesi wajib KBM yang valid untuk diperbarui.', updated: 0, skipped }
+  }
+
+  try {
+    await db.batch(statements)
+  } catch (error: any) {
+    return { error: error?.message || 'Batch perubahan status gagal disimpan.' }
+  }
+
+  revalidatePath('/dashboard/monitoring-agenda')
+  const success = `${statements.length} status agenda berhasil diubah menjadi ${newStatus}${skipped > 0 ? `; ${skipped} sesi dilewati karena tidak valid/non-KBM` : ''}.`
+  return { success, updated: statements.length, skipped }
 }
 
 // ============================================================

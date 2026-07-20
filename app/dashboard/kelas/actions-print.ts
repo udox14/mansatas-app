@@ -94,7 +94,7 @@ export async function getDataBlankAbsensiByTingkat(
     kelasQuery += ` WHERE k.tingkat = ?`
     params.push(parseInt(tingkat))
   }
-  kelasQuery += ` ORDER BY k.tingkat ASC, k.kelompok ASC, k.nomor_kelas ASC`
+  kelasQuery += ` ORDER BY k.tingkat ASC, k.kelompok ASC`
 
   const [kelasList, taAktif] = await Promise.all([
     db.prepare(kelasQuery).bind(...params).all<any>(),
@@ -103,6 +103,13 @@ export async function getDataBlankAbsensiByTingkat(
 
   const rows = kelasList.results ?? []
   if (rows.length === 0) return []
+
+  // Natural sort by nomor_kelas in JS since SQL ORDER BY string doesn't do natural sort
+  rows.sort((a, b) => {
+    if (a.tingkat !== b.tingkat) return a.tingkat - b.tingkat
+    if (a.kelompok !== b.kelompok) return (a.kelompok || '').localeCompare(b.kelompok || '')
+    return (a.nomor_kelas || '').toString().localeCompare((b.nomor_kelas || '').toString(), undefined, { numeric: true, sensitivity: 'base' })
+  })
 
   // Batch: ambil semua siswa sekaligus lalu group di JS
   const kelasIds = rows.map((k: any) => k.id)
