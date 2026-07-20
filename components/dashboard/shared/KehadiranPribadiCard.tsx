@@ -28,7 +28,7 @@ function BaseCard({ title, subtitle, hadir, sakit, izin, alfa, total, telat, ico
 
       {total === 0 ? (
         <div className="flex flex-col items-center justify-center gap-1.5 py-6">
-          <p className="text-xs text-slate-400 dark:text-slate-500">Belum ada data bulan ini</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Tidak ada kewajiban agenda pada periode ini</p>
         </div>
       ) : (
         <div className="grid grid-cols-4 divide-x divide-slate-100 dark:divide-slate-800">
@@ -120,40 +120,43 @@ export async function KehadiranPribadiCard({ userId }: Props) {
         exceptionsByDate.get(exception.tanggal)!.push(exception)
       }
 
-      let totalBlok = 0
+      // Satu kewajiban agenda adalah pasangan tanggal + penugasan yang jadwalnya
+      // efektif. Set ini menjadi satu-satunya sumber untuk denominator maupun
+      // agenda tercatat, agar agenda pada hari/jam non-KBM tidak ikut terhitung.
+      const requiredAgendaKeys = new Set<string>()
       for (const tanggal of effectiveDates) {
         const hari = hariNumFromDateString(tanggal)
-        for (const jadwal of jadwalHari.values()) {
+        for (const [penugasanId, jadwal] of jadwalHari) {
           if (jadwal.kbmNonaktifMulai && jadwal.kbmNonaktifMulai <= tanggal) continue
           const jamSet = jadwal.hariMap.get(hari)
           if (!jamSet) continue
           const jamList = Array.from(jamSet).sort((a, b) => a - b)
           if (findTeachingBlockException(exceptionsByDate.get(tanggal) || [], { id: jadwal.kelasId, tingkat: jadwal.tingkat }, jamList[0], jamList[jamList.length - 1])) continue
-          totalBlok++
+          requiredAgendaKeys.add(`${tanggal}:${penugasanId}`)
         }
       }
 
       const agendaRes = await db.prepare(`
-        SELECT status, COUNT(*) as cnt
+        SELECT penugasan_id, tanggal, status
         FROM agenda_guru
         WHERE guru_id = ?
           AND tanggal BETWEEN ? AND ?
           AND tanggal IN (${effectiveDates.map(() => '?').join(',')})
-        GROUP BY status
       `).bind(userId, rangeStart, today, ...effectiveDates).all<any>()
 
       const counts = { hadir: 0, sakit: 0, izin: 0, alfa: 0, telat: 0 }
       for (const row of agendaRes.results || []) {
-        const cnt = Number(row.cnt) || 0
-        if (row.status === 'TEPAT_WAKTU') counts.hadir += cnt
+        if (!requiredAgendaKeys.has(`${row.tanggal}:${row.penugasan_id}`)) continue
+        if (row.status === 'TEPAT_WAKTU') counts.hadir++
         else if (row.status === 'TELAT') {
-          counts.hadir += cnt
-          counts.telat += cnt
-        } else if (row.status === 'SAKIT') counts.sakit += cnt
-        else if (row.status === 'IZIN') counts.izin += cnt
-        else if (row.status === 'ALFA') counts.alfa += cnt
+          counts.hadir++
+          counts.telat++
+        } else if (row.status === 'SAKIT') counts.sakit++
+        else if (row.status === 'IZIN') counts.izin++
+        else if (row.status === 'ALFA') counts.alfa++
       }
 
+      const totalBlok = requiredAgendaKeys.size
       const tercatat = counts.hadir + counts.sakit + counts.izin + counts.alfa
       const alfaBelumIsi = Math.max(0, totalBlok - tercatat)
 
@@ -162,7 +165,7 @@ export async function KehadiranPribadiCard({ userId }: Props) {
         sakit: counts.sakit,
         izin: counts.izin,
         alfa: counts.alfa + alfaBelumIsi,
-        total: Math.max(totalBlok, tercatat),
+        total: totalBlok,
         telat: counts.telat,
       }
     } else {
