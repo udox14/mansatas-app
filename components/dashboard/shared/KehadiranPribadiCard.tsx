@@ -183,7 +183,7 @@ export async function KehadiranPribadiCard({ userId }: Props) {
               const jamList = Array.from(jamSet).sort((a, b) => a - b)
               const lastJam = jamList[jamList.length - 1]
               const pola = polaList.find(p => p.hari.includes(hari))
-              const slot = pola?.slots.find((s: any) => s.jam_ke === lastJam)
+              const slot = pola?.slots.find((s: any) => s.id === lastJam)
               if (slot) {
                 const [selesaiH, selesaiM] = slot.selesai.split(':').map(Number)
                 const selesaiMinutes = selesaiH * 60 + selesaiM

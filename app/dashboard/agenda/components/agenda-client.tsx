@@ -249,10 +249,10 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   <span className="text-xs bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full">{block.kelas_label}</span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Jadwal jam {block.jadwal_jam_ke_mulai === block.jadwal_jam_ke_selesai
+                  Jadwal jam ke-{block.jadwal_jam_ke_mulai === block.jadwal_jam_ke_selesai
                     ? block.jadwal_jam_ke_mulai
                     : `${block.jadwal_jam_ke_mulai}-${block.jadwal_jam_ke_selesai}`}
-                  {!block.is_fully_excepted && <> &middot; KBM aktif jam {block.jam_ke_mulai === block.jam_ke_selesai ? block.jam_ke_mulai : `${block.jam_ke_mulai}-${block.jam_ke_selesai}`} ({block.slot_mulai}-{block.slot_selesai})</>}
+                  {block.exception_segments.length > 0 && !block.is_fully_excepted && <> &middot; KBM aktif jam ke-{block.jam_ke_mulai === block.jam_ke_selesai ? block.jam_ke_mulai : `${block.jam_ke_mulai}-${block.jam_ke_selesai}`} ({block.slot_mulai}-{block.slot_selesai})</>}
                 </p>
                 {block.exception_segments.length > 0 && (
                   <div className="mt-2 space-y-1">
