@@ -196,7 +196,7 @@ export function JadwalPiketClient({
                               <div>
                                 <p className="text-sm font-medium">{item.nama_lengkap}</p>
                                 <p className="text-xs text-gray-500 mt-0.5 bg-violet-100 text-violet-700 inline-block px-1.5 py-0.5 rounded-md">
-                                  {shift?.nama_shift} (Jam {shift?.jam_mulai}-{(shift?.jam_selesai ?? 0) > 20 ? 'akhir' : shift?.jam_selesai})
+                                  {shift?.nama_shift} (Jam ke-{shift?.jam_mulai}-{(shift?.jam_selesai ?? 0) > 20 ? 'akhir' : shift?.jam_selesai})
                                 </p>
                               </div>
                               <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 opacity-0 group-hover:opacity-100 hover:bg-red-50 transition-all" onClick={() => handleHapus(item.id)}>
@@ -227,7 +227,7 @@ export function JadwalPiketClient({
                     <Label className="text-base font-semibold text-violet-800">{s.nama_shift}</Label>
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Mulai dari Jam Ke-</Label>
+                    <Label>Mulai dari Jam ke-</Label>
                     <Input type="number" min={1} max={20} value={s.jam_mulai} onChange={e => {
                       const v = parseInt(e.target.value) || 1
                       const next = [...settingShift]
@@ -236,7 +236,7 @@ export function JadwalPiketClient({
                     }} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Sampai Jam Ke-</Label>
+                    <Label>Sampai Jam ke-</Label>
                     <Input type="number" min={1} max={20} value={s.jam_selesai > 20 ? 99 : s.jam_selesai} onChange={e => {
                       const v = parseInt(e.target.value) || 1
                       const next = [...settingShift]

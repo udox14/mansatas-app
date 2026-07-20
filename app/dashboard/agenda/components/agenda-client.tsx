@@ -201,7 +201,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
         <p className="text-sm text-slate-500 dark:text-slate-400">Tidak ada jadwal mengajar hari ini ({HARI_NAMA[hari]}).</p>
         {activeExceptions.length > 0 && (
           <p className="mt-2 text-xs text-sky-600">
-            Ada pengecualian KBM: {activeExceptions.map(item => `${item.judul} (Jam ${item.jam_ke_mulai}-${item.jam_ke_selesai})`).join(', ')}
+            Ada pengecualian KBM: {activeExceptions.map(item => `${item.judul} (Jam ke-${item.jam_ke_mulai}-${item.jam_ke_selesai})`).join(', ')}
           </p>
         )}
       </div>
@@ -231,7 +231,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
 
       {activeExceptions.length > 0 && (
         <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-700">
-          Pengecualian KBM hari ini: {activeExceptions.map(item => `${item.judul} (Jam ${item.jam_ke_mulai}-${item.jam_ke_selesai})`).join(', ')}
+          Pengecualian KBM hari ini: {activeExceptions.map(item => `${item.judul} (Jam ke-${item.jam_ke_mulai}-${item.jam_ke_selesai})`).join(', ')}
         </div>
       )}
 
@@ -258,7 +258,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   <div className="mt-2 space-y-1">
                     {block.exception_segments.map(segment => (
                       <p key={`${segment.exception_id}-${segment.jam_ke_mulai}`} className="inline-flex mr-1.5 items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700">
-                        <Ban className="h-3 w-3" /> Jam {segment.jam_ke_mulai === segment.jam_ke_selesai ? segment.jam_ke_mulai : `${segment.jam_ke_mulai}-${segment.jam_ke_selesai}`} non-KBM: {segment.judul}
+                        <Ban className="h-3 w-3" /> Jam ke-{segment.jam_ke_mulai === segment.jam_ke_selesai ? segment.jam_ke_mulai : `${segment.jam_ke_mulai}-${segment.jam_ke_selesai}`} non-KBM: {segment.judul}
                       </p>
                     ))}
                     {!block.is_fully_excepted && <p className="text-[10px] text-emerald-600">Agenda dan absensi dimulai dari jam KBM aktif pertama.</p>}

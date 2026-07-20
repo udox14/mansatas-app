@@ -833,7 +833,7 @@ export function IzinClient({
                       </TableHead>
                     )}
                     <TableHead className="h-9 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">Siswa</TableHead>
-                    <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center w-44">Jam Ke-</TableHead>
+                    <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 text-center w-44">Jam ke-</TableHead>
                     <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 w-44">Alasan</TableHead>
                     <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500">Keterangan</TableHead>
                     <TableHead className="h-9 text-xs font-semibold text-slate-500 dark:text-slate-400 dark:text-slate-500 text-right px-4 w-16">Aksi</TableHead>

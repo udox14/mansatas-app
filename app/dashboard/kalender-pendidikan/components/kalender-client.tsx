@@ -547,7 +547,7 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
                         ))}
                         {data.kbmExceptions.filter(item => item.tanggal === cell.date).slice(0, 1).map(item => (
                           <div key={item.id} className="truncate rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
-                            Jam {item.jam_ke_mulai}-{item.jam_ke_selesai}: {item.judul}
+                            Jam ke-{item.jam_ke_mulai}-{item.jam_ke_selesai}: {item.judul}
                           </div>
                         ))}
                         {events.length === 0 && !status?.isEffective && (
@@ -970,7 +970,7 @@ function KbmExceptionRow({
           <div className="flex flex-wrap items-center gap-1.5">
             <p className="text-sm font-semibold text-slate-800">{item.judul}</p>
             <span className="rounded-full border border-sky-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-sky-700">
-              Jam {item.jam_ke_mulai}-{item.jam_ke_selesai}
+              Jam ke-{item.jam_ke_mulai}-{item.jam_ke_selesai}
             </span>
           </div>
           <p className="mt-1 text-xs text-slate-500">

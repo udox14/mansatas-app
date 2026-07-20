@@ -135,7 +135,7 @@ export function DashboardSPAShell({
           for (const slot of todayPola.slots) {
             if (currentTime >= slot.mulai && currentTime <= slot.selesai) {
               const isNumber = !isNaN(Number(slot.nama))
-              label = isNumber ? `Jam Ke-${slot.nama}` : slot.nama
+              label = isNumber ? `Jam ke-${slot.nama}` : slot.nama
               found = true
               break
             }
