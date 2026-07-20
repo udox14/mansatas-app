@@ -214,6 +214,75 @@ export function findSlotException(
   return findTeachingBlockException(exceptions, kelas, jamKe, jamKe)
 }
 
+export type TeachingSlotExceptionSegment = {
+  exception_id: string
+  judul: string
+  description: string | null
+  jam_ke_mulai: number
+  jam_ke_selesai: number
+}
+
+/**
+ * Memisahkan jam terjadwal menjadi jam KBM aktif dan segmen yang dikecualikan.
+ * Pengecualian parsial tidak boleh menggugurkan seluruh blok mengajar.
+ */
+export function splitTeachingSlotsByExceptions(
+  exceptions: KbmException[],
+  kelas: KbmExceptionClassTarget,
+  jamKeValues: Iterable<number>
+) {
+  const scheduledJamKe = Array.from(new Set(Array.from(jamKeValues).map(Number)))
+    .filter(Number.isFinite)
+    .sort((a, b) => a - b)
+  const activeJamKe: number[] = []
+  const exceptionSegments: TeachingSlotExceptionSegment[] = []
+
+  for (const jamKe of scheduledJamKe) {
+    const exception = findSlotException(exceptions, kelas, jamKe)
+    if (!exception) {
+      activeJamKe.push(jamKe)
+      continue
+    }
+
+    const previous = exceptionSegments[exceptionSegments.length - 1]
+    if (previous && previous.exception_id === exception.id && previous.jam_ke_selesai + 1 === jamKe) {
+      previous.jam_ke_selesai = jamKe
+    } else {
+      exceptionSegments.push({
+        exception_id: exception.id,
+        judul: exception.judul,
+        description: exception.description,
+        jam_ke_mulai: jamKe,
+        jam_ke_selesai: jamKe,
+      })
+    }
+  }
+
+  return { scheduledJamKe, activeJamKe, exceptionSegments }
+}
+
+export function hasActiveTeachingSlots(
+  exceptions: KbmException[],
+  kelas: KbmExceptionClassTarget,
+  jamKeValues: Iterable<number>
+) {
+  return splitTeachingSlotsByExceptions(exceptions, kelas, jamKeValues).activeJamKe.length > 0
+}
+
+export function hasActiveTeachingSlotsInRange(
+  exceptions: KbmException[],
+  kelas: KbmExceptionClassTarget,
+  jamKeMulai: number,
+  jamKeSelesai: number
+) {
+  const length = Math.max(0, jamKeSelesai - jamKeMulai + 1)
+  return hasActiveTeachingSlots(
+    exceptions,
+    kelas,
+    Array.from({ length }, (_, index) => jamKeMulai + index)
+  )
+}
+
 export async function getKalenderDateStatus(db: D1Database, tanggal: string): Promise<KalenderDateStatus> {
   const events = await getKalenderEventsForRange(db, tanggal, tanggal)
   const manualEvents = events.filter(event => event.source === 'manual')

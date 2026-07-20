@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
-import { findTeachingBlockException, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
+import { getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
@@ -58,7 +58,7 @@ export async function KepsekDashboard({ userId, nama, namaDepan, avatarUrl, role
   `).bind(today, taId, hariIni, today).all<any>().then(r => r.results || []) : []
 
   const kbmExceptions = await getKbmExceptionsForDate(db, today)
-  const activeAgendaRows = agendaRows.filter((row: any) => !findTeachingBlockException(
+  const activeAgendaRows = agendaRows.filter((row: any) => hasActiveTeachingSlotsInRange(
     kbmExceptions,
     { id: row.kelas_id, tingkat: Number(row.tingkat) },
     Number(row.jam_mulai),

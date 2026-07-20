@@ -1,7 +1,7 @@
 // components/dashboard/shared/KehadiranPribadiCard.tsx
 import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
-import { findTeachingBlockException, getEffectiveDatesInRange, getKbmExceptionsForRange, hariNumFromDateString } from '@/lib/kalender-pendidikan'
+import { getEffectiveDatesInRange, getKbmExceptionsForRange, hariNumFromDateString, hasActiveTeachingSlots } from '@/lib/kalender-pendidikan'
 import { BookOpen, Clock } from '@phosphor-icons/react/dist/ssr'
 
 type Props = { userId: string }
@@ -131,7 +131,7 @@ export async function KehadiranPribadiCard({ userId }: Props) {
           const jamSet = jadwal.hariMap.get(hari)
           if (!jamSet) continue
           const jamList = Array.from(jamSet).sort((a, b) => a - b)
-          if (findTeachingBlockException(exceptionsByDate.get(tanggal) || [], { id: jadwal.kelasId, tingkat: jadwal.tingkat }, jamList[0], jamList[jamList.length - 1])) continue
+          if (!hasActiveTeachingSlots(exceptionsByDate.get(tanggal) || [], { id: jadwal.kelasId, tingkat: jadwal.tingkat }, jamList)) continue
           requiredAgendaKeys.add(`${tanggal}:${penugasanId}`)
         }
       }

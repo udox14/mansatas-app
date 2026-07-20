@@ -1,8 +1,9 @@
 import { formatNamaKelas } from '@/lib/utils'
 import {
-  findTeachingBlockException,
   getEffectiveDatesInRange,
   getKbmExceptionsForRange,
+  hasActiveTeachingSlots,
+  splitTeachingSlotsByExceptions,
 } from '@/lib/kalender-pendidikan'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
@@ -368,11 +369,10 @@ export async function getFinalAttendanceForClass(
     const hari = hariNum(new Date(tanggal + 'T00:00:00'))
     return Array.from(jadwalByHari.get(hari)?.values() || []).filter(jamSet => {
       const jamList = Array.from(jamSet).sort((a, b) => a - b)
-      return !findTeachingBlockException(
+      return hasActiveTeachingSlots(
         exceptionsByDate.get(tanggal) || [],
         { id: kelas.id, tingkat: kelas.tingkat },
-        jamList[0],
-        jamList[jamList.length - 1]
+        jamList
       )
     }).length
   }
@@ -382,23 +382,23 @@ export async function getFinalAttendanceForClass(
     return Array.from(jadwalByHari.get(hari)?.entries() || [])
       .map(([penugasanId, jamSet]) => {
         const jamList = Array.from(jamSet).sort((a, b) => a - b)
-        const jamKeMulai = jamList[0]
-        const jamKeSelesai = jamList[jamList.length - 1]
+        const slotState = splitTeachingSlotsByExceptions(
+          exceptionsByDate.get(tanggal) || [],
+          { id: kelas.id, tingkat: kelas.tingkat },
+          jamList
+        )
+        const jamKeMulai = slotState.activeJamKe[0]
+        const jamKeSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1]
         const startSlot = slots.find(slot => Number(slot.id) === jamKeMulai)
         const endSlot = slots.find(slot => Number(slot.id) === jamKeSelesai)
         return {
           penugasan_id: penugasanId,
-          jam_ke: jamList,
+          jam_ke: slotState.activeJamKe,
           jam_ke_mulai: jamKeMulai,
           jam_ke_selesai: jamKeSelesai,
           block_start: parseTimeMinutes(startSlot?.mulai),
           block_end: parseTimeMinutes(endSlot?.selesai),
-          is_exception: !!findTeachingBlockException(
-            exceptionsByDate.get(tanggal) || [],
-            { id: kelas.id, tingkat: kelas.tingkat },
-            jamKeMulai,
-            jamKeSelesai
-          ),
+          is_exception: slotState.activeJamKe.length === 0,
         }
       })
       .filter(block => !block.is_exception)
@@ -615,13 +615,12 @@ export async function getSchoolAttendanceEstimateForDate(db: D1Database, tanggal
     const activeJam = new Set<number>()
     for (const block of blocks.values()) {
       const jam = Array.from(new Set(block.jam)).sort((a, b) => a - b)
-      if (jam.length === 0 || findTeachingBlockException(
+      const activeSlots = splitTeachingSlotsByExceptions(
         exceptions,
         { id: kelasId, tingkat: block.tingkat },
-        jam[0],
-        jam[jam.length - 1]
-      )) continue
-      for (const jamKe of jam) activeJam.add(jamKe)
+        jam
+      ).activeJamKe
+      for (const jamKe of activeSlots) activeJam.add(jamKe)
     }
     activeJamByClass.set(kelasId, activeJam)
   }
