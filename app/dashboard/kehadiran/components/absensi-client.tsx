@@ -332,7 +332,7 @@ function AbsensiInputPanel({ initialData }: Props) {
       <p className="text-sm text-slate-500 dark:text-slate-400">Tidak ada jadwal mengajar hari ini ({hariNama}).</p>
       {activeExceptions.length > 0 && (
         <p className="mt-2 text-xs text-sky-600">
-          Ada pengecualian KBM: {activeExceptions.map(item => `${item.judul} (Jam ${item.jam_ke_mulai}-${item.jam_ke_selesai})`).join(', ')}
+          Ada pengecualian KBM: {activeExceptions.map(item => `${item.judul} (Jam ke-${item.jam_ke_mulai}-${item.jam_ke_selesai})`).join(', ')}
         </p>
       )}
     </div>
@@ -361,7 +361,7 @@ function AbsensiInputPanel({ initialData }: Props) {
 
       {activeExceptions.length > 0 && (
         <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-700">
-          Pengecualian KBM hari ini: {activeExceptions.map(item => `${item.judul} (Jam ${item.jam_ke_mulai}-${item.jam_ke_selesai})`).join(', ')}
+          Pengecualian KBM hari ini: {activeExceptions.map(item => `${item.judul} (Jam ke-${item.jam_ke_mulai}-${item.jam_ke_selesai})`).join(', ')}
         </div>
       )}
 
@@ -378,14 +378,14 @@ function AbsensiInputPanel({ initialData }: Props) {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">{block.mapel_nama}</p>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                {block.kelas_label} &middot; Jadwal jam {block.jadwal_jam_ke_mulai === block.jadwal_jam_ke_selesai ? block.jadwal_jam_ke_mulai : `${block.jadwal_jam_ke_mulai}-${block.jadwal_jam_ke_selesai}`}
-                {!block.is_fully_excepted && <> &middot; Aktif jam {block.jam_ke_mulai === block.jam_ke_selesai ? block.jam_ke_mulai : `${block.jam_ke_mulai}-${block.jam_ke_selesai}`} ({block.jumlah_jam} JP) &middot; {block.slot_mulai}—{block.slot_selesai}</>}
+                {block.kelas_label} &middot; Jadwal jam ke-{block.jadwal_jam_ke_mulai === block.jadwal_jam_ke_selesai ? block.jadwal_jam_ke_mulai : `${block.jadwal_jam_ke_mulai}-${block.jadwal_jam_ke_selesai}`}
+                {block.exception_segments.length > 0 && !block.is_fully_excepted && <> &middot; Aktif jam ke-{block.jam_ke_mulai === block.jam_ke_selesai ? block.jam_ke_mulai : `${block.jam_ke_mulai}-${block.jam_ke_selesai}`} ({block.jumlah_jam} JP) &middot; {block.slot_mulai}—{block.slot_selesai}</>}
               </p>
               {block.exception_segments.length > 0 && (
                 <div className="mt-2 space-y-1">
                   {block.exception_segments.map(segment => (
                     <p key={`${segment.exception_id}-${segment.jam_ke_mulai}`} className="inline-flex mr-1.5 items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700">
-                      <Ban className="h-3 w-3" /> Jam {segment.jam_ke_mulai === segment.jam_ke_selesai ? segment.jam_ke_mulai : `${segment.jam_ke_mulai}-${segment.jam_ke_selesai}`} non-KBM: {segment.judul}
+                      <Ban className="h-3 w-3" /> Jam ke-{segment.jam_ke_mulai === segment.jam_ke_selesai ? segment.jam_ke_mulai : `${segment.jam_ke_mulai}-${segment.jam_ke_selesai}`} non-KBM: {segment.judul}
                     </p>
                   ))}
                   {!block.is_fully_excepted && <p className="text-[10px] text-emerald-600">Absensi dibuka mulai jam KBM aktif pertama.</p>}
