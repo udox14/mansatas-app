@@ -1,12 +1,12 @@
 // Lokasi: app/dashboard/agenda/components/agenda-client.tsx
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
   Camera, CheckCircle2, Clock, AlertTriangle, XCircle,
-  Loader2, BookOpen, Send, RefreshCw, ClipboardPen, Ban,
+  Loader2, BookOpen, Send, RefreshCw, ClipboardPen, Ban, SwitchCamera,
 } from 'lucide-react'
 import { submitAgenda, getJadwalGuruHariIni } from '../actions'
 import type { SlotJam } from '@/app/dashboard/settings/types'
@@ -78,6 +78,91 @@ async function withTimeout<T>(promise: Promise<T>, message: string): Promise<T> 
   }
 }
 
+interface CameraProps {
+  onCapture: (file: File) => void
+  onClose: () => void
+}
+
+function CameraCapture({ onCapture, onClose }: CameraProps) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const [error, setError] = useState('')
+  const [ready, setReady] = useState(false)
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
+
+  useEffect(() => {
+    let active = true
+    setReady(false)
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+    }
+
+    navigator.mediaDevices
+      .getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
+      .then(stream => {
+        if (!active) { stream.getTracks().forEach(t => t.stop()); return }
+        streamRef.current = stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          videoRef.current.onloadedmetadata = () => setReady(true)
+        }
+      })
+      .catch(() => setError('Tidak dapat mengakses kamera. Pastikan izin kamera sudah diberikan di browser Anda.'))
+    return () => {
+      active = false
+      streamRef.current?.getTracks().forEach(t => t.stop())
+    }
+  }, [facingMode])
+
+  const capture = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth || 1280
+    canvas.height = video.videoHeight || 720
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.drawImage(video, 0, 0)
+    canvas.toBlob(blob => {
+      if (blob) {
+        streamRef.current?.getTracks().forEach(t => t.stop())
+        const file = new File([blob], `capture_${Date.now()}.jpg`, { type: 'image/jpeg' })
+        onCapture(file)
+      }
+    }, 'image/jpeg', 0.85)
+  }, [onCapture])
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center p-6 bg-rose-50 rounded-lg border border-rose-200 text-center mt-1">
+        <AlertTriangle className="h-8 w-8 text-rose-500 mb-2" />
+        <p className="text-sm text-rose-700">{error}</p>
+        <Button variant="outline" size="sm" onClick={onClose} className="mt-3">Batal</Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3 mt-1">
+      <div className="relative rounded-lg overflow-hidden bg-black aspect-video flex items-center justify-center">
+        {!ready && <Loader2 className="h-8 w-8 text-slate-400 animate-spin absolute" />}
+        <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+      </div>
+      <div className="flex gap-2">
+        <Button type="button" onClick={capture} disabled={!ready} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white">
+          <Camera className="h-4 w-4 mr-2" /> Ambil Foto
+        </Button>
+        <Button type="button" variant="outline" size="icon" onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')} title="Ganti Kamera" className="shrink-0">
+          <SwitchCamera className="h-4 w-4 text-slate-700 dark:text-slate-300" />
+        </Button>
+        <Button type="button" variant="outline" onClick={onClose}>
+          Batal
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function AgendaClient({ initialData, userRole, isActingAs = false }: AgendaClientProps) {
   const [data, setData] = useState(initialData)
   const [expandedBlock, setExpandedBlock] = useState<string | null>(null)
@@ -87,8 +172,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [pesan, setPesan] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null)
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showCamera, setShowCamera] = useState(false)
 
   const handleRefresh = async ({ clearMessage = true }: { clearMessage?: boolean } = {}) => {
     setIsRefreshing(true)
@@ -106,10 +190,9 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
     }
   }
 
-  const handleFotoCapture = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleCameraCapture = useCallback(async (file: File) => {
     setPesan(null)
+    setShowCamera(false)
     try {
       const compressed = await compressAgendaImage(file)
       setFotoFile(compressed)
@@ -118,8 +201,6 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
       setPesan({ tipe: 'error', teks: 'Foto gagal diproses. Silakan ambil ulang foto.' })
       setFotoFile(null)
       setFotoPreview(null)
-    } finally {
-      e.target.value = ''
     }
   }, [])
 
@@ -153,6 +234,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
         setFotoFile(null)
         setFotoPreview(null)
         setExpandedBlock(null)
+        setShowCamera(false)
         await handleRefresh({ clearMessage: false })
       }
     } catch (error: any) {
@@ -284,6 +366,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                     setFotoFile(null)
                     setFotoPreview(null)
                     setPesan(null)
+                    setShowCamera(false)
                   }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
                 >
@@ -338,7 +421,9 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                     Foto Kegiatan {!isActingAs && <span className="text-red-500">*</span>}
                   </Label>
 
-                  {fotoPreview ? (
+                  {showCamera ? (
+                    <CameraCapture onCapture={handleCameraCapture} onClose={() => setShowCamera(false)} />
+                  ) : fotoPreview ? (
                     <div className="mt-1 relative">
                       <img src={fotoPreview} alt="Preview" className="w-full max-h-64 object-cover rounded-lg border" />
                       <button
@@ -355,21 +440,13 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   ) : (
                     <button
                       type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="mt-1 w-full flex flex-col items-center justify-center gap-2 py-8 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50/50 transition-colors"
+                      onClick={() => setShowCamera(true)}
+                      className="mt-1 w-full flex flex-col items-center justify-center gap-2 py-8 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors"
                     >
                       <Camera className="h-8 w-8 text-slate-400" />
                       <span className="text-sm text-slate-500 dark:text-slate-400">Ketuk untuk membuka kamera</span>
                     </button>
                   )}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleFotoCapture}
-                    className="hidden"
-                  />
                 </div>
 
                 {isActingAs && (
