@@ -18,7 +18,9 @@ const nextConfig: NextConfig = {
       "@radix-ui/react-tabs", "recharts", "date-fns",
     ],
     serverActions: {
-      bodySizeLimit: '5mb',
+      // Batas 5 MB berlaku untuk seluruh multipart request, bukan hanya PDF.
+      // Form pengajuan sendiri ikut memakai sebagian ukuran request.
+      bodySizeLimit: '10mb',
     },
   },
 };

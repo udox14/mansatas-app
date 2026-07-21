@@ -127,11 +127,16 @@ export function PengajuanKomiteClient(props: Props) {
 
   function run(task: () => Promise<any>, close?: () => void) {
     startTransition(async () => {
-      const result = await task()
-      setMessage(result?.error || result?.success || '')
-      if (!result?.error) {
-        close?.()
-        router.refresh()
+      try {
+        const result = await task()
+        setMessage(result?.error || result?.success || '')
+        if (!result?.error) {
+          close?.()
+          router.refresh()
+        }
+      } catch (error) {
+        console.error('Pengajuan gagal diproses', error)
+        setMessage('Gagal terhubung ke server. Muat ulang aplikasi agar memakai versi terbaru, lalu coba lagi.')
       }
     })
   }
