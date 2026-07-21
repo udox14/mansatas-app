@@ -132,12 +132,32 @@ function CameraCapture({ onCapture, onClose }: CameraProps) {
     }, 'image/jpeg', 0.85)
   }, [onCapture])
 
+  const handleFallbackUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      onCapture(file)
+    }
+  }, [onCapture])
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center p-6 bg-rose-50 rounded-lg border border-rose-200 text-center mt-1">
         <AlertTriangle className="h-8 w-8 text-rose-500 mb-2" />
         <p className="text-sm text-rose-700">{error}</p>
-        <Button variant="outline" size="sm" onClick={onClose} className="mt-3">Batal</Button>
+        <div className="mt-4 w-full flex flex-col gap-2">
+          <Label htmlFor="fallback-camera" className="cursor-pointer flex items-center justify-center gap-2 py-2 px-4 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm transition-colors">
+            <Camera className="h-4 w-4" /> Buka Aplikasi Kamera
+          </Label>
+          <input 
+            id="fallback-camera" 
+            type="file" 
+            accept="image/*" 
+            capture="environment" 
+            className="hidden" 
+            onChange={handleFallbackUpload} 
+          />
+          <Button variant="outline" onClick={onClose} className="w-full">Batal</Button>
+        </div>
       </div>
     )
   }
