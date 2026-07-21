@@ -1,8 +1,8 @@
 // Lokasi: public/sw.js
 // Service Worker MANSATAS PWA
-// Strategy: cache-first untuk static assets, network-first untuk halaman
+// Strategy: network-first untuk bundle aplikasi dan halaman, cache sebagai fallback offline
 
-const CACHE_NAME = 'mansatas-v3'
+const CACHE_NAME = 'mansatas-v4'
 const STATIC_ASSETS = [
   '/manifest.json',
   '/favicon-16x16.png',
@@ -37,17 +37,16 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return
   if (!event.request.url.startsWith('http')) return
 
-  // Static assets (_next/static) → cache-first
+  // Bundle Next harus network-first agar ID Server Action tidak tertinggal setelah deploy.
   if (event.request.url.includes('/_next/static/')) {
     event.respondWith(
-      caches.match(event.request).then((cached) => {
-        if (cached) return cached
-        return fetch(event.request).then((response) => {
+      fetch(event.request)
+        .then((response) => {
           const clone = response.clone()
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
           return response
         })
-      })
+        .catch(() => caches.match(event.request))
     )
     return
   }

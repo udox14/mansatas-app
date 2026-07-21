@@ -66,8 +66,17 @@ export default function RootLayout({
                 window.__MANSATAS_DEFERRED_PWA_PROMPT = null;
               });
               if ('serviceWorker' in navigator) {
+                var hadServiceWorkerController = !!navigator.serviceWorker.controller;
+                var serviceWorkerReloading = false;
+                navigator.serviceWorker.addEventListener('controllerchange', function() {
+                  if (!hadServiceWorkerController || serviceWorkerReloading) return;
+                  serviceWorkerReloading = true;
+                  window.location.reload();
+                });
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').catch(function() {});
+                  navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                    registration.update().catch(function() {});
+                  }).catch(function() {});
                 });
               }
             `,
