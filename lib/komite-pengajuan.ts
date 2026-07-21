@@ -48,6 +48,13 @@ export async function ensureKomitePengajuanSchema(db: D1Database) {
       actor_signature_url TEXT, is_super_admin_bypass INTEGER NOT NULL DEFAULT 0,
       nomor_spb_snapshot TEXT, penerima_snapshot TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS komite_pengajuan_rincian (
+      id TEXT PRIMARY KEY, pengajuan_id TEXT NOT NULL REFERENCES komite_pengajuan(id) ON DELETE CASCADE,
+      urutan INTEGER NOT NULL CHECK (urutan BETWEEN 1 AND 10), uraian TEXT NOT NULL,
+      penerima_penyedia TEXT NOT NULL, jumlah INTEGER NOT NULL CHECK (jumlah > 0),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE (pengajuan_id, urutan)
+    )`),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_komite_pengajuan_pengaju ON komite_pengajuan(pengaju_id, created_at)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_komite_pengajuan_status ON komite_pengajuan(status, updated_at)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_komite_versions_pengajuan ON komite_pengajuan_versions(pengajuan_id, version_number)'),
@@ -55,6 +62,36 @@ export async function ensureKomitePengajuanSchema(db: D1Database) {
     db.prepare('CREATE INDEX IF NOT EXISTS idx_komite_reviews_actor ON komite_pengajuan_reviews(actor_id, created_at)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_komite_reviews_pengajuan ON komite_pengajuan_reviews(pengajuan_id, created_at)'),
     db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS uq_komite_review_stage_version ON komite_pengajuan_reviews(pengajuan_id, version_number, stage)'),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_komite_rincian_pengajuan ON komite_pengajuan_rincian(pengajuan_id, urutan)'),
+  ])
+
+  const alterStatements = [
+    `ALTER TABLE komite_pengajuan ADD COLUMN tahun_anggaran TEXT`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN kode_rkas_program TEXT`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN realisasi_status TEXT NOT NULL DEFAULT 'belum' CHECK (realisasi_status IN ('belum','sudah'))`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN realisasi_tanggal TEXT`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN realisasi_metode TEXT CHECK (realisasi_metode IS NULL OR realisasi_metode IN ('Tunai','Transfer'))`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN realisasi_petugas TEXT`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN realisasi_catatan TEXT`,
+  ]
+  for (const sql of alterStatements) {
+    try {
+      await db.prepare(sql).run()
+    } catch (error: any) {
+      if (!String(error?.message || '').toLowerCase().includes('duplicate column')) throw error
+    }
+  }
+
+  await db.batch([
+    db.prepare(`UPDATE komite_pengajuan
+      SET tahun_anggaran=COALESCE(tahun_anggaran, strftime('%Y','now') || '/' || (CAST(strftime('%Y','now') AS INTEGER) + 1)),
+          kode_rkas_program=COALESCE(kode_rkas_program, '-')
+      WHERE tahun_anggaran IS NULL OR kode_rkas_program IS NULL`),
+    db.prepare(`INSERT OR IGNORE INTO komite_pengajuan_rincian (id,pengajuan_id,urutan,uraian,penerima_penyedia,jumlah)
+      SELECT lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))),
+        p.id, 1, COALESCE(NULLIF(p.uraian,''), p.judul), COALESCE(NULLIF(p.penerima_pembayaran,''), '-'), p.nominal
+      FROM komite_pengajuan p
+      WHERE NOT EXISTS (SELECT 1 FROM komite_pengajuan_rincian r WHERE r.pengajuan_id=p.id)`),
   ])
 
   await db.batch([
