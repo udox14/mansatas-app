@@ -1,7 +1,7 @@
 import { getUserRoles } from '@/lib/features'
 
 export const KOMITE_FEATURE_ID = 'komite-pengajuan'
-export const KOMITE_SUBMITTER_ROLES = ['super_admin', 'kepsek', 'wakamad', 'pembina_ekstrakurikuler'] as const
+export const KOMITE_SUBMITTER_ROLES = ['super_admin', 'kepsek', 'wakamad', 'pembina_ekstrakurikuler', 'bendahara_komite'] as const
 export const KOMITE_STAGE_ROLE = {
   bendahara: 'bendahara_komite',
   ketua: 'ketua_komite',
@@ -73,6 +73,9 @@ export async function ensureKomitePengajuanSchema(db: D1Database) {
     `ALTER TABLE komite_pengajuan ADD COLUMN realisasi_metode TEXT CHECK (realisasi_metode IS NULL OR realisasi_metode IN ('Tunai','Transfer'))`,
     `ALTER TABLE komite_pengajuan ADD COLUMN realisasi_petugas TEXT`,
     `ALTER TABLE komite_pengajuan ADD COLUMN realisasi_catatan TEXT`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN ketua_delegate_id TEXT REFERENCES "user"(id) ON DELETE SET NULL`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN ketua_delegated_by TEXT REFERENCES "user"(id) ON DELETE SET NULL`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN ketua_delegated_at TEXT`,
   ]
   for (const sql of alterStatements) {
     try {
@@ -105,6 +108,11 @@ export async function ensureKomitePengajuanSchema(db: D1Database) {
       db.prepare(`INSERT OR IGNORE INTO role_features (role,feature_id) VALUES (?,'dashboard')`).bind(role)
     ),
     db.prepare(`INSERT OR IGNORE INTO role_features (role,feature_id) VALUES ('pembina_ekstrakurikuler','ekstrakurikuler')`),
+    db.prepare(`INSERT OR IGNORE INTO role_feature_permissions
+      (role,feature_id,can_create,can_read,can_update,can_delete)
+      VALUES ('bendahara_komite',?,1,1,1,0)`).bind(KOMITE_FEATURE_ID),
+    db.prepare(`UPDATE role_feature_permissions SET can_create=1
+      WHERE role='bendahara_komite' AND feature_id=?`).bind(KOMITE_FEATURE_ID),
   ])
 }
 
@@ -119,24 +127,36 @@ export async function canSubmitKomite(db: D1Database, userId: string, roles?: st
   return resolved.some(role => (KOMITE_SUBMITTER_ROLES as readonly string[]).includes(role)) || isNamedKomiteSubmitter(db, userId)
 }
 
-export async function canReviewKomite(db: D1Database, userId: string, pengajuId: string, status: string, roles?: string[]) {
-  if (userId === pengajuId) return { allowed: false, stage: null as KomiteStage | null, bypass: false }
-  const stage = stageForStatus(status)
+export async function canReviewKomite(
+  db: D1Database,
+  userId: string,
+  row: { pengaju_id: string; status: string; ketua_delegate_id?: string | null },
+  roles?: string[],
+) {
+  const stage = stageForStatus(row.status)
   if (!stage) return { allowed: false, stage: null as KomiteStage | null, bypass: false }
   const resolved = roles ?? await getUserRoles(db, userId)
   if (resolved.includes('super_admin')) return { allowed: true, stage, bypass: true }
+  if (stage === 'bendahara' && userId === row.pengaju_id && resolved.includes('bendahara_komite')) {
+    return { allowed: true, stage, bypass: false }
+  }
+  if (userId === row.pengaju_id) return { allowed: false, stage: null as KomiteStage | null, bypass: false }
+  if (stage === 'ketua' && row.ketua_delegate_id) {
+    return { allowed: row.ketua_delegate_id === userId && resolved.includes('anggota_komite'), stage, bypass: false }
+  }
   return { allowed: resolved.includes(KOMITE_STAGE_ROLE[stage]), stage, bypass: false }
 }
 
 export async function canViewKomitePengajuan(
   db: D1Database,
   userId: string,
-  row: { id: string; pengaju_id: string; status: string },
+  row: { id: string; pengaju_id: string; status: string; ketua_delegate_id?: string | null },
   roles?: string[],
 ) {
   const resolved = roles ?? await getUserRoles(db, userId)
   if (resolved.includes('super_admin') || row.pengaju_id === userId) return true
   if (row.status === 'disetujui' && resolved.includes('anggota_komite')) return true
+  if (row.status === 'menunggu_ketua' && row.ketua_delegate_id === userId && resolved.includes('anggota_komite')) return true
   const stage = stageForStatus(row.status)
   if (stage && resolved.includes(KOMITE_STAGE_ROLE[stage])) return true
   const acted = await db.prepare('SELECT 1 AS ok FROM komite_pengajuan_reviews WHERE pengajuan_id = ? AND actor_id = ? LIMIT 1')
