@@ -97,8 +97,11 @@ export async function getKomiteDashboardData() {
   const { db, user, roles } = await requireContext()
   const [rowsResult, reviewedResult] = await Promise.all([
     db.prepare(`
-      SELECT p.*, COALESCE(u.nama_lengkap,u.name,u.email) AS pengaju_name
-      FROM komite_pengajuan p JOIN "user" u ON u.id = p.pengaju_id
+      SELECT p.*, COALESCE(u.nama_lengkap,u.name,u.email) AS pengaju_name,
+        COALESCE(d.nama_lengkap,d.name,d.email) AS ketua_delegate_name
+      FROM komite_pengajuan p
+      JOIN "user" u ON u.id = p.pengaju_id
+      LEFT JOIN "user" d ON d.id = p.ketua_delegate_id
       ORDER BY p.updated_at DESC, p.created_at DESC
     `).all<any>(),
     db.prepare('SELECT DISTINCT pengajuan_id FROM komite_pengajuan_reviews WHERE actor_id = ?').bind(user.id).all<{ pengajuan_id: string }>(),
@@ -109,6 +112,7 @@ export async function getKomiteDashboardData() {
   const visible = (rowsResult.results || []).filter(row => {
     if (isSuper || row.pengaju_id === user.id || reviewedIds.has(row.id)) return true
     if (isMember && row.status === 'disetujui') return true
+    if (isMember && row.status === 'menunggu_ketua' && row.ketua_delegate_id === user.id) return true
     const stage = stageForStatus(row.status)
     return Boolean(stage && roles.includes(KOMITE_STAGE_ROLE[stage]))
   })
@@ -163,15 +167,34 @@ export async function getKomiteDashboardData() {
     users = (userRows.results || []).map(row => ({ ...row, roles: String(row.roles || row.role || '').split(',').filter(Boolean) }))
   }
 
+  let committeeMembers: any[] = []
+  if (isSuper || roles.includes('ketua_komite')) {
+    const memberRows = await db.prepare(`
+      SELECT u.id,COALESCE(u.nama_lengkap,u.name,u.email) AS name,u.email
+      FROM "user" u
+      LEFT JOIN user_roles ur ON ur.user_id=u.id
+      WHERE u.id<>? AND (u.role='anggota_komite' OR ur.role='anggota_komite')
+      GROUP BY u.id,u.nama_lengkap,u.name,u.email
+      ORDER BY name
+    `).bind(user.id).all<any>()
+    committeeMembers = memberRows.results || []
+  }
+
   const reviewQueue = items.filter(item => {
-    if (item.pengaju_id === user.id) return false
     const stage = stageForStatus(item.status)
-    return Boolean(stage && (isSuper || roles.includes(KOMITE_STAGE_ROLE[stage])))
+    if (!stage) return false
+    if (isSuper) return true
+    if (stage === 'bendahara') return roles.includes('bendahara_komite')
+    if (stage === 'ketua') {
+      return roles.includes('ketua_komite') || (roles.includes('anggota_komite') && item.ketua_delegate_id === user.id)
+    }
+    return roles.includes(KOMITE_STAGE_ROLE[stage]) && item.pengaju_id !== user.id
   })
 
   return {
     items,
     users,
+    committeeMembers,
     currentUserId: user.id,
     roles,
     canCreate: await canSubmitKomite(db, user.id, roles),
@@ -311,7 +334,7 @@ export async function reviewKomiteAction(formData: FormData) {
   if (action !== 'setujui' && !catatan) return { error: 'Catatan wajib diisi untuk revisi atau penolakan.' }
   const row = await db.prepare('SELECT * FROM komite_pengajuan WHERE id=?').bind(id).first<any>()
   if (!row) return { error: 'Pengajuan tidak ditemukan.' }
-  const permission = await canReviewKomite(db, user.id, row.pengaju_id, row.status, roles)
+  const permission = await canReviewKomite(db, user.id, row, roles)
   if (!permission.allowed || !permission.stage) return { error: 'Anda tidak berwenang memproses tahap ini.' }
 
   let nomorSpb = row.nomor_spb
@@ -339,7 +362,9 @@ export async function reviewKomiteAction(formData: FormData) {
     : action === 'tolak' ? 'ditolak'
       : permission.stage === 'bendahara' ? 'menunggu_ketua'
         : permission.stage === 'ketua' ? 'menunggu_kepala' : 'disetujui'
-  const actorRole = permission.bypass ? 'super_admin' : KOMITE_STAGE_ROLE[permission.stage]
+  const actorRole = permission.bypass
+    ? 'super_admin'
+    : permission.stage === 'ketua' && row.ketua_delegate_id === user.id ? 'anggota_komite' : KOMITE_STAGE_ROLE[permission.stage]
   const reviewId = crypto.randomUUID()
   try {
     const statements = [
@@ -348,10 +373,14 @@ export async function reviewKomiteAction(formData: FormData) {
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .bind(reviewId,id,row.current_version,permission.stage,action,catatan || null,user.id,actor?.name || user.name,actorRole,actor?.signature_url || null,permission.bypass ? 1 : 0,nomorSpb || null,penerima || null),
       db.prepare(`UPDATE komite_pengajuan SET status=?,nomor_spb=?,penerima_pembayaran=?,nominal=?,tahun_anggaran=?,kode_rkas_program=?,
+        ketua_delegate_id=CASE WHEN ?='bendahara' AND ?='setujui' THEN NULL ELSE ketua_delegate_id END,
+        ketua_delegated_by=CASE WHEN ?='bendahara' AND ?='setujui' THEN NULL ELSE ketua_delegated_by END,
+        ketua_delegated_at=CASE WHEN ?='bendahara' AND ?='setujui' THEN NULL ELSE ketua_delegated_at END,
         approved_at=CASE WHEN ?='disetujui' THEN datetime('now') ELSE approved_at END,
         rejected_at=CASE WHEN ?='ditolak' THEN datetime('now') ELSE rejected_at END,
         updated_at=datetime('now') WHERE id=? AND status=?`)
-        .bind(nextStatus,nomorSpb || null,penerima || null,nominal,tahunAnggaran,kodeRkasProgram,nextStatus,nextStatus,id,row.status),
+        .bind(nextStatus,nomorSpb || null,penerima || null,nominal,tahunAnggaran,kodeRkasProgram,
+          permission.stage,action,permission.stage,action,permission.stage,action,nextStatus,nextStatus,id,row.status),
     ]
     if (detailRows) statements.push(...detailStatements(db, id, detailRows))
     await db.batch(statements)
@@ -371,6 +400,49 @@ export async function reviewKomiteAction(formData: FormData) {
   else if (nextStatus === 'disetujui') await notify({ title: 'Pengajuan disetujui', body: `"${row.judul}" disetujui. SPB telah tersedia.`, url: PAGE_PATH }, { userId: row.pengaju_id })
   revalidatePath(PAGE_PATH)
   return { success: nextStatus === 'disetujui' ? 'Pengajuan disetujui dan SPB telah terbit.' : 'Review berhasil disimpan.' }
+}
+
+export async function delegateKetuaReviewAction(formData: FormData) {
+  const { db, user, roles } = await requireContext()
+  if (!roles.includes('ketua_komite')) return { error: 'Hanya Ketua Komite yang dapat mendelegasikan review.' }
+  const id = cleanText(formData.get('id'), 80)
+  const memberId = cleanText(formData.get('member_id'), 80)
+  if (!id || !memberId) return { error: 'Pilih Anggota Komite penerima delegasi.' }
+  if (memberId === user.id) return { error: 'Ketua Komite harus memilih anggota lain sebagai penerima delegasi.' }
+
+  const [row, member] = await Promise.all([
+    db.prepare(`SELECT * FROM komite_pengajuan WHERE id=?`).bind(id).first<any>(),
+    db.prepare(`SELECT u.id,COALESCE(u.nama_lengkap,u.name,u.email) AS name
+      FROM "user" u
+      WHERE u.id=? AND (u.role='anggota_komite' OR EXISTS (
+        SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role='anggota_komite'
+      ))`).bind(memberId).first<any>(),
+  ])
+  if (!row || row.status !== 'menunggu_ketua') return { error: 'Pengajuan tidak sedang berada pada tahap Ketua Komite.' }
+  if (!member) return { error: 'Anggota Komite yang dipilih tidak valid.' }
+
+  const delegated = await db.prepare(`UPDATE komite_pengajuan
+    SET ketua_delegate_id=?,ketua_delegated_by=?,ketua_delegated_at=datetime('now'),updated_at=datetime('now')
+    WHERE id=? AND status='menunggu_ketua'`)
+    .bind(member.id,user.id,id).run()
+  if (!delegated.meta.changes) return { error: 'Tahap Ketua sudah diproses pengguna lain. Muat ulang halaman.' }
+  await logActivity({
+    db,
+    module: 'komite_pengajuan',
+    action: 'delegate_ketua_review',
+    summary: `Mendelegasikan review Ketua untuk ${row.judul} kepada ${member.name}`,
+    entityType: 'komite_pengajuan',
+    entityId: id,
+    entityLabel: row.judul,
+    metadata: { delegateId: member.id, delegateName: member.name, delegatedBy: user.id },
+  })
+  await notify({
+    title: 'Delegasi review Komite',
+    body: `Ketua Komite mendelegasikan review "${row.judul}" kepada Anda.`,
+    url: PAGE_PATH,
+  }, { userId: member.id })
+  revalidatePath(PAGE_PATH)
+  return { success: `Review berhasil didelegasikan kepada ${member.name}.` }
 }
 
 export async function saveKomiteRealisasiAction(formData: FormData) {

@@ -41,10 +41,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const roles = await getUserRoles(db,user.id)
   if (!(await canViewKomitePengajuan(db,user.id,row,roles))) return new Response('Forbidden',{ status:403 })
 
-  const [reviewRows, detailRows] = await Promise.all([
+  const [reviewRows, detailRows, delegatedChairman] = await Promise.all([
     db.prepare(`SELECT * FROM komite_pengajuan_reviews
       WHERE pengajuan_id=? AND version_number=? AND action='setujui' ORDER BY created_at`).bind(id,row.current_version).all<any>(),
     db.prepare(`SELECT * FROM komite_pengajuan_rincian WHERE pengajuan_id=? ORDER BY urutan`).bind(id).all<any>(),
+    row.ketua_delegated_by
+      ? db.prepare(`SELECT COALESCE(nama_lengkap,name,email) AS name,signature_url FROM "user" WHERE id=?`).bind(row.ketua_delegated_by).first<any>()
+      : Promise.resolve(null),
   ])
   const latest = new Map<string,any>()
   for (const review of reviewRows.results || []) latest.set(review.stage,review)
@@ -60,12 +63,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const origin = new URL(request.url).origin
   const signer = (stage: string, label: string, title: string) => {
     const review = latest.get(stage)
-    const signature = absolute(review.actor_signature_url,origin)
+    const useChairmanIdentity = stage === 'ketua' && review.actor_role === 'anggota_komite' && delegatedChairman
+    const signerName = useChairmanIdentity ? delegatedChairman.name : review.actor_name
+    const signerSignature = useChairmanIdentity ? delegatedChairman.signature_url : review.actor_signature_url
+    const signature = absolute(signerSignature,origin)
     return `<div class="sign">
       <div class="sign-label">${esc(label)}</div>
       <div class="sign-title">${esc(title)}</div>
       <div class="signature">${signature ? `<img src="${esc(signature)}" alt="">` : ''}</div>
-      <strong>${esc(review.actor_name)}</strong>
+      <strong>${esc(signerName)}</strong>
       <small>${esc(tanggal(review.created_at))}${review.is_super_admin_bypass ? ' - Bypass Super Admin' : ''}</small>
     </div>`
   }
