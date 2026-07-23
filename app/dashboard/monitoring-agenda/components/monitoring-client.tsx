@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import {
   Search, Loader2, Eye, Edit3, CheckCircle2, Clock, XCircle,
   AlertTriangle, Calendar, BarChart3, Printer,
-  ChevronLeft, ChevronRight, Send, ShieldCheck,
+  ChevronLeft, ChevronRight, ShieldCheck,
 } from 'lucide-react'
 import {
   getMonitoringHarian, getMonitoringHarianSlots, getRekapKehadiranGuru,
@@ -37,7 +37,6 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label:
   HADIR:       { bg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle2, label: 'Hadir', dot: 'bg-emerald-500' },
   BELUM_MENGISI: { bg: 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700', text: 'text-slate-600 dark:text-slate-300', icon: Clock, label: 'Belum Mengisi', dot: 'bg-slate-400' },
   TELAT:       { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', icon: Clock, label: 'Telat', dot: 'bg-amber-500' },
-  TUGAS:       { bg: 'bg-violet-50 border-violet-200', text: 'text-violet-700', icon: Send, label: 'Tugas', dot: 'bg-violet-500' },
   ALFA:        { bg: 'bg-red-50 border-red-200', text: 'text-red-700', icon: XCircle, label: 'Alfa', dot: 'bg-red-500' },
   SAKIT:       { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', icon: AlertTriangle, label: 'Sakit', dot: 'bg-blue-500' },
   IZIN:        { bg: 'bg-sky-50 border-sky-200', text: 'text-sky-700', icon: AlertTriangle, label: 'Izin', dot: 'bg-sky-500' },
@@ -450,10 +449,10 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                     <TableCell className="text-xs text-slate-500 dark:text-slate-400">{item.jam_label}<br /><span className="text-[10px]">{item.slot_mulai}-{item.slot_selesai}</span></TableCell>
                     <TableCell>
                       <StatusBadge status={item.status} />
-                      {item.status === 'TUGAS' && item.pelaksana_nama && (
+                      {item.alasan_ketidakhadiran && item.pelaksana_nama && (
                         <p className="text-[10px] text-violet-500 mt-0.5">Pelaksana: {item.pelaksana_nama}</p>
                       )}
-                      {item.status === 'TUGAS' && item.alasan_ketidakhadiran && (
+                      {item.alasan_ketidakhadiran && (
                         <p className={`text-[10px] mt-0.5 ${ALASAN_STYLE[item.alasan_ketidakhadiran as 'SAKIT' | 'IZIN']?.text || 'text-slate-500'}`}>
                           Alasan: {ALASAN_STYLE[item.alasan_ketidakhadiran as 'SAKIT' | 'IZIN']?.label || item.alasan_ketidakhadiran}
                           {item.deskripsi_ketidakhadiran ? ` - ${item.deskripsi_ketidakhadiran}` : ''}
@@ -505,10 +504,10 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                 <div className="min-w-0 text-xs text-slate-600 dark:text-slate-300">
                   <p className="truncate font-medium">{item.kelas_label}</p>
                   <p className="text-[11px] text-slate-400">{item.jam_label} &middot; {item.slot_mulai}-{item.slot_selesai}</p>
-                  {item.status === 'TUGAS' && item.pelaksana_nama && (
+                  {item.alasan_ketidakhadiran && item.pelaksana_nama && (
                     <p className="mt-0.5 truncate text-[11px] text-violet-500">Pelaksana: {item.pelaksana_nama}</p>
                   )}
-                  {item.status === 'TUGAS' && item.alasan_ketidakhadiran && (
+                  {item.alasan_ketidakhadiran && (
                     <p className={`mt-0.5 text-[11px] ${ALASAN_STYLE[item.alasan_ketidakhadiran as 'SAKIT' | 'IZIN']?.text || 'text-slate-500'}`}>
                       Alasan: {ALASAN_STYLE[item.alasan_ketidakhadiran as 'SAKIT' | 'IZIN']?.label || item.alasan_ketidakhadiran}
                       {item.deskripsi_ketidakhadiran ? ` - ${item.deskripsi_ketidakhadiran}` : ''}
@@ -731,9 +730,6 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
                 <TableHead className="text-xs text-center">Total Blok</TableHead>
                 <TableHead className="text-xs text-center">Tepat</TableHead>
                 <TableHead className="text-xs text-center">Telat</TableHead>
-                <TableHead className="text-xs text-center">Tugas</TableHead>
-                <TableHead className="text-xs text-center">Tugas Sakit</TableHead>
-                <TableHead className="text-xs text-center">Tugas Izin</TableHead>
                 <TableHead className="text-xs text-center">Alfa</TableHead>
                 <TableHead className="text-xs text-center">Sakit</TableHead>
                 <TableHead className="text-xs text-center">Izin</TableHead>
@@ -752,9 +748,6 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
                     <TableCell className="text-xs text-center text-slate-600 dark:text-slate-400">{item.total_blok}</TableCell>
                     <TableCell className="text-xs text-center text-emerald-600 font-medium">{item.tepat_waktu}</TableCell>
                     <TableCell className="text-xs text-center text-amber-600 font-medium">{item.telat}</TableCell>
-                    <TableCell className="text-xs text-center text-violet-600 font-medium">{item.tugas || 0}</TableCell>
-                    <TableCell className="text-xs text-center text-blue-600 font-medium">{item.tugas_sakit || 0}</TableCell>
-                    <TableCell className="text-xs text-center text-sky-600 font-medium">{item.tugas_izin || 0}</TableCell>
                     <TableCell className="text-xs text-center text-red-600 font-medium">{item.alfa}</TableCell>
                     <TableCell className="text-xs text-center text-blue-600 font-medium">{item.sakit}</TableCell>
                     <TableCell className="text-xs text-center text-sky-600 font-medium">{item.izin}</TableCell>
@@ -890,6 +883,7 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
                   <th style={{ border: '1px solid #000', padding: '4px 6px' }}>Jam</th>
                   <th style={{ border: '1px solid #000', padding: '4px 6px' }}>Materi</th>
                   <th style={{ border: '1px solid #000', padding: '4px 6px' }}>Status</th>
+                  <th style={{ border: '1px solid #000', padding: '4px 6px' }}>Keterangan</th>
                 </tr>
               </thead>
               <tbody>
@@ -909,6 +903,7 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
                       <td style={{ border: '1px solid #000', padding: '4px 6px' }} className={statusClass}>
                         {STATUS_STYLE[item.status]?.label || item.status}
                       </td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{item.keterangan || '-'}</td>
                     </tr>
                   )
                 })}

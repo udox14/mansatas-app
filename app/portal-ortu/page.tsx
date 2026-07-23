@@ -444,6 +444,7 @@ export default async function PortalOrtuPage() {
       SELECT id, type, title, message, level, is_read, created_at
       FROM parent_notifications
       WHERE siswa_id = ?
+        AND NOT (type = 'absensi' AND COALESCE(source_ref, '') LIKE '%:IZIN')
       ORDER BY created_at DESC
       LIMIT 12
     `).bind(siswaId).all<any>(),

@@ -146,7 +146,7 @@ function TabKirimTugas({
   const [pesan, setPesan] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null)
 
   // Available blocks (not already delegated or agenda-filled)
-  const availableBlocks = blocks.filter(b => !b.sudah_didelegasi)
+  const availableBlocks = blocks.filter(b => !b.sudah_didelegasi && !b.sudah_isi_agenda)
 
   function toggleBlock(penugasanId: string) {
     setSelected(prev => {

@@ -38,6 +38,8 @@ type JadwalBlock = {
   exception_segments: TeachingSlotExceptionSegment[]
   is_fully_excepted: boolean
   sudah_isi: boolean
+  sudah_didelegasi: boolean
+  alasan_ketidakhadiran?: 'SAKIT' | 'IZIN'
   agenda_id?: string
   status?: string
 }
@@ -142,18 +144,25 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       pm.guru_id,
       u.nama_lengkap as guru_nama,
       ag.id as agenda_id,
-      ag.status as agenda_status
+      ag.status as agenda_status,
+      dtk.id as delegasi_kelas_id,
+      dt.alasan_ketidakhadiran
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
     JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
     JOIN kelas k ON pm.kelas_id = k.id
     JOIN "user" u ON pm.guru_id = u.id
     LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
+    LEFT JOIN delegasi_tugas_kelas dtk ON dtk.penugasan_mengajar_id = jm.penugasan_id
+      AND dtk.delegasi_id IN (
+        SELECT id FROM delegasi_tugas WHERE dari_user_id = pm.guru_id AND tanggal = ?
+      )
+    LEFT JOIN delegasi_tugas dt ON dt.id = dtk.delegasi_id
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ? 
       AND (pm.guru_id = ? OR jm.id IN (SELECT jadwal_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?))
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke ASC
-  `).bind(tanggal, ta.id, hari, guruId, guruId, tanggal).all<any>()
+  `).bind(tanggal, tanggal, ta.id, hari, guruId, guruId, tanggal).all<any>()
 
   const rows = result.results || []
   if (rows.length === 0) return { error: null, blocks: [], slots, tanggal, hari }
@@ -199,6 +208,8 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       exception_segments: slotState.exceptionSegments,
       is_fully_excepted: slotState.activeJamKe.length === 0,
       sudah_isi: !!first.agenda_id,
+      sudah_didelegasi: !!first.delegasi_kelas_id,
+      alasan_ketidakhadiran: first.alasan_ketidakhadiran || undefined,
       agenda_id: first.agenda_id ?? undefined,
       status: first.agenda_status ?? undefined,
     })
@@ -278,6 +289,17 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
     'SELECT id FROM agenda_guru WHERE penugasan_id = ? AND tanggal = ?'
   ).bind(penugasanId, tanggal).first<any>()
   if (existing) return { error: 'Agenda untuk jadwal ini sudah diisi hari ini.' }
+
+  const delegated = await db.prepare(`
+    SELECT dtk.id
+    FROM delegasi_tugas_kelas dtk
+    JOIN delegasi_tugas dt ON dt.id = dtk.delegasi_id
+    WHERE dtk.penugasan_mengajar_id = ? AND dt.tanggal = ?
+    LIMIT 1
+  `).bind(penugasanId, tanggal).first<any>()
+  if (delegated) {
+    return { error: 'Jadwal ini sudah didelegasikan sebagai SAKIT/IZIN dan tidak dapat diisi sebagai agenda mengajar.' }
+  }
 
   // Validasi: hanya bisa input di jam pelajarannya (dari mulai sampai selesai blok)
   const { hours: curH_, minutes: curM_, hhmm: currentTime } = currentTimeWIB()

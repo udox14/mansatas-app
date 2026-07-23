@@ -36,6 +36,8 @@ type JadwalBlock = {
   }>
   is_fully_excepted: boolean
   sudah_isi: boolean
+  sudah_didelegasi: boolean
+  alasan_ketidakhadiran?: 'SAKIT' | 'IZIN'
   agenda_id?: string
   status?: string
 }
@@ -210,23 +212,9 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
     }
   }
 
-  const handleCameraCapture = useCallback(async (file: File) => {
-    setPesan(null)
-    setShowCamera(false)
-    try {
-      const compressed = await compressAgendaImage(file)
-      setFotoFile(compressed)
-      setFotoPreview(URL.createObjectURL(compressed))
-    } catch {
-      setPesan({ tipe: 'error', teks: 'Foto gagal diproses. Silakan ambil ulang foto.' })
-      setFotoFile(null)
-      setFotoPreview(null)
-    }
-  }, [])
-
-  const handleSubmit = async (block: JadwalBlock) => {
+  const handleSubmit = async (block: JadwalBlock, capturedFoto: File | null = fotoFile) => {
     if (!materi.trim()) { setPesan({ tipe: 'error', teks: 'Materi wajib diisi.' }); return }
-    if (!fotoFile && !isActingAs) { setPesan({ tipe: 'error', teks: 'Foto wajib diambil.' }); return }
+    if (!capturedFoto && !isActingAs) { setPesan({ tipe: 'error', teks: 'Foto wajib diambil.' }); return }
 
     setIsSubmitting(true)
     setPesan(null)
@@ -239,7 +227,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
     fd.append('slot_mulai', block.slot_mulai)
     fd.append('slot_selesai', block.slot_selesai)
     fd.append('materi', materi.trim())
-    if (fotoFile) fd.append('foto', fotoFile)
+    if (capturedFoto) fd.append('foto', capturedFoto)
 
     try {
       const result = await withTimeout(
@@ -260,6 +248,24 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
     } catch (error: any) {
       setPesan({ tipe: 'error', teks: error?.message || 'Agenda gagal dikirim. Silakan coba lagi.' })
     } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleCameraCapture = async (file: File, block: JadwalBlock) => {
+    setPesan(null)
+    setShowCamera(false)
+    setIsSubmitting(true)
+
+    try {
+      const compressed = await compressAgendaImage(file)
+      setFotoFile(compressed)
+      setFotoPreview(URL.createObjectURL(compressed))
+      await handleSubmit(block, compressed)
+    } catch {
+      setPesan({ tipe: 'error', teks: 'Foto gagal diproses. Silakan ambil ulang foto.' })
+      setFotoFile(null)
+      setFotoPreview(null)
       setIsSubmitting(false)
     }
   }
@@ -326,8 +332,16 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
       </div>
 
       {pesan && (
-        <div className={`rounded-lg border px-4 py-3 text-sm ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
-          {pesan.teks}
+        <div className={`rounded-lg border px-4 py-3 ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
+          <div className="flex items-center gap-3">
+            {pesan.tipe === 'sukses'
+              ? <CheckCircle2 className="h-7 w-7 shrink-0" />
+              : <AlertTriangle className="h-5 w-5 shrink-0" />}
+            <div>
+              {pesan.tipe === 'sukses' && <p className="font-bold">Agenda berhasil dikirim</p>}
+              <p className="text-sm">{pesan.teks}</p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -372,6 +386,10 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">
                   <Ban className="h-3.5 w-3.5" /> Tidak wajib
                 </span>
+              ) : block.sudah_didelegasi ? (
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">
+                  <Send className="h-3.5 w-3.5" /> {block.alasan_ketidakhadiran === 'SAKIT' ? 'Sakit' : 'Izin'} — tugas terkirim
+                </span>
               ) : block.sudah_isi ? (
                 <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${style.bg} ${style.text}`}>
                   <StatusIcon className="h-3.5 w-3.5" />
@@ -396,7 +414,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
               )}
             </div>
 
-            {isExpanded && !block.sudah_isi && (
+            {isExpanded && !block.sudah_isi && !block.sudah_didelegasi && (
               <div className="border-t bg-slate-50 dark:bg-slate-800/50 px-4 py-4 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -440,9 +458,12 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">
                     Foto Kegiatan {!isActingAs && <span className="text-red-500">*</span>}
                   </Label>
+                  <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                    Setelah foto diambil, agenda langsung dikirim otomatis.
+                  </p>
 
                   {showCamera ? (
-                    <CameraCapture onCapture={handleCameraCapture} onClose={() => setShowCamera(false)} />
+                    <CameraCapture onCapture={(file) => handleCameraCapture(file, block)} onClose={() => setShowCamera(false)} />
                   ) : fotoPreview ? (
                     <div className="mt-1 relative">
                       <img src={fotoPreview} alt="Preview" className="w-full max-h-64 object-cover rounded-lg border" />
@@ -461,13 +482,23 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                     <button
                       type="button"
                       onClick={() => setShowCamera(true)}
-                      className="mt-1 w-full flex flex-col items-center justify-center gap-2 py-8 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors"
+                      disabled={isSubmitting || !materi.trim()}
+                      className="mt-1 w-full flex flex-col items-center justify-center gap-2 py-8 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-300 disabled:hover:bg-white dark:disabled:hover:bg-slate-900"
                     >
                       <Camera className="h-8 w-8 text-slate-400" />
-                      <span className="text-sm text-slate-500 dark:text-slate-400">Ketuk untuk membuka kamera</span>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">
+                        {materi.trim() ? 'Ketuk untuk mengambil foto dan mengirim' : 'Isi materi terlebih dahulu'}
+                      </span>
                     </button>
                   )}
                 </div>
+
+                {isSubmitting && (
+                  <div className="flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Memproses foto dan mengirim agenda otomatis...
+                  </div>
+                )}
 
                 {isActingAs && (
                   <div className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
@@ -475,17 +506,24 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   </div>
                 )}
 
-                <Button
-                  onClick={() => handleSubmit(block)}
-                  disabled={isSubmitting || !materi.trim() || (!fotoFile && !isActingAs)}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                >
-                  {isSubmitting ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Mengirim...</>
-                  ) : (
-                    <><Send className="h-4 w-4 mr-2" /> Kirim Agenda</>
-                  )}
-                </Button>
+                {!isSubmitting && !isActingAs && fotoFile && pesan?.tipe === 'error' && (
+                  <Button
+                    onClick={() => handleSubmit(block)}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" /> Coba Kirim Lagi
+                  </Button>
+                )}
+
+                {isActingAs && !isSubmitting && (
+                  <Button
+                    onClick={() => handleSubmit(block)}
+                    disabled={!materi.trim()}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <Send className="h-4 w-4 mr-2" /> Kirim Agenda
+                  </Button>
+                )}
               </div>
             )}
           </div>

@@ -244,14 +244,13 @@ export async function sendFcmNotification(notification: FcmNotif, target: FcmTar
 }
 
 // ============================================================
-// Notif absensi ke orang tua (Alfa/Sakit/Izin)
+// Notif absensi ke orang tua (Alfa/Sakit)
 // Dipanggil setelah simpan absensi (sebelah enqueue WhatsApp).
 // Menulis parent_notifications (in-app) + kirim FCM ke token siswa.
 // ============================================================
 const STATUS_LABEL: Record<string, string> = {
   ALFA: 'ALFA (tanpa keterangan)',
   SAKIT: 'SAKIT',
-  IZIN: 'IZIN',
 }
 
 export async function notifyParentsAttendance(
@@ -265,7 +264,7 @@ export async function notifyParentsAttendance(
       FROM absensi_siswa ab
       JOIN siswa s ON s.id = ab.siswa_id
       WHERE ab.penugasan_id = ? AND ab.tanggal = ?
-        AND ab.status IN ('ALFA','SAKIT','IZIN')
+        AND ab.status IN ('ALFA','SAKIT')
         AND s.status = 'aktif'
       ORDER BY s.nama_lengkap
     `
