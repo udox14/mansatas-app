@@ -11,7 +11,6 @@ import {
   getKbmExceptionsForDate,
   getKbmExceptionsForRange,
   getKalenderDateStatus,
-  hasActiveTeachingSlots,
   splitTeachingSlotsByExceptions,
 } from '@/lib/kalender-pendidikan'
 import { currentTimeWIB, nowWIBISO, todayWIB } from '@/lib/time'
@@ -185,12 +184,12 @@ export async function getMonitoringHarian(
     const slotMulai = slots.find(s => s.id === jamMulai)
     const slotSelesai = slots.find(s => s.id === jamSelesai)
 
-    // Tentukan status: agenda > delegasi (TUGAS) > BELUM_MENGISI/ALFA
+    // Tentukan status: agenda > alasan penugasan > BELUM_MENGISI/ALFA
     let status: string
     if (first.agenda_id) {
       status = first.status
     } else if (first.delegasi_kelas_id) {
-      status = 'TUGAS'
+      status = first.alasan_ketidakhadiran === 'SAKIT' ? 'SAKIT' : 'IZIN'
     } else {
       status = isTeachingBlockEnded(tanggal, slotSelesai) ? 'ALFA' : 'BELUM_MENGISI'
     }
@@ -294,6 +293,225 @@ export async function getFilterOptions() {
 // 3. REKAP KEHADIRAN GURU (rentang tanggal)
 //    Hitung total: TEPAT_WAKTU, TELAT, ALFA, SAKIT, IZIN per guru
 // ============================================================
+type CanonicalTeacherSession = {
+  penugasan_id: string
+  tanggal: string
+  guru_id: string
+  guru_nama: string
+  nama_mapel: string
+  tingkat: number
+  nomor_kelas: number
+  kelompok: string
+  jam_ke_mulai: number
+  jam_ke_selesai: number
+  materi: string | null
+  status: 'TEPAT_WAKTU' | 'TELAT' | 'ALFA' | 'SAKIT' | 'IZIN'
+  waktu_input: string | null
+  catatan_admin: string | null
+  keterangan: string | null
+  sumber: 'AGENDA' | 'OVERRIDE' | 'PENUGASAN' | 'OTOMATIS'
+}
+
+// Sumber kebenaran bersama untuk REKAP dan CETAK.
+// Prioritasnya sama dengan HARIAN: agenda/override > penugasan > ALFA.
+async function getCanonicalTeacherSessions(
+  db: D1Database,
+  ta: { id: string; jam_pelajaran: string | null },
+  tanggalMulai: string,
+  tanggalSelesai: string,
+  guruId?: string
+): Promise<CanonicalTeacherSession[]> {
+  const effectiveDates = await getEffectiveDatesInRange(db, tanggalMulai, tanggalSelesai)
+  if (effectiveDates.length === 0) return []
+
+  let scheduleSql = `
+    SELECT pm.id as penugasan_id, pm.guru_id, u.nama_lengkap as guru_nama,
+      mp.nama_mapel, k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok,
+      k.kbm_nonaktif_mulai, jm.hari, jm.jam_ke
+    FROM jadwal_mengajar jm
+    JOIN penugasan_mengajar pm ON pm.id = jm.penugasan_id
+    JOIN "user" u ON u.id = pm.guru_id
+    JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
+    JOIN kelas k ON k.id = pm.kelas_id
+    WHERE jm.tahun_ajaran_id = ?
+  `
+  const scheduleParams: unknown[] = [ta.id]
+  if (guruId) {
+    scheduleSql += ' AND pm.guru_id = ?'
+    scheduleParams.push(guruId)
+  }
+  scheduleSql += ' ORDER BY pm.id, jm.hari, jm.jam_ke'
+  const scheduleRows = (await db.prepare(scheduleSql).bind(...scheduleParams).all<any>()).results || []
+
+  type ScheduleBlock = {
+    penugasan_id: string; guru_id: string; guru_nama: string; nama_mapel: string
+    kelas_id: string; tingkat: number; nomor_kelas: number; kelompok: string
+    kbm_nonaktif_mulai: string | null; hari: number; jamList: number[]
+  }
+  const scheduleMap = new Map<string, ScheduleBlock>()
+  for (const row of scheduleRows) {
+    const key = `${row.penugasan_id}:${row.hari}`
+    if (!scheduleMap.has(key)) {
+      scheduleMap.set(key, {
+        penugasan_id: row.penugasan_id,
+        guru_id: row.guru_id,
+        guru_nama: row.guru_nama,
+        nama_mapel: row.nama_mapel,
+        kelas_id: row.kelas_id,
+        tingkat: Number(row.tingkat),
+        nomor_kelas: Number(row.nomor_kelas),
+        kelompok: row.kelompok || '',
+        kbm_nonaktif_mulai: row.kbm_nonaktif_mulai || null,
+        hari: Number(row.hari),
+        jamList: [],
+      })
+    }
+    scheduleMap.get(key)!.jamList.push(Number(row.jam_ke))
+  }
+  if (scheduleMap.size === 0) return []
+
+  const agendaParams: unknown[] = [ta.id, tanggalMulai, tanggalSelesai]
+  let agendaSql = `
+    SELECT ag.* FROM agenda_guru ag
+    JOIN penugasan_mengajar pm ON pm.id = ag.penugasan_id
+    WHERE pm.tahun_ajaran_id = ? AND ag.guru_id = pm.guru_id
+      AND ag.tanggal BETWEEN ? AND ?
+  `
+  if (guruId) {
+    agendaSql += ' AND ag.guru_id = ?'
+    agendaParams.push(guruId)
+  }
+  const agendaRows = (await db.prepare(agendaSql).bind(...agendaParams).all<any>()).results || []
+  const agendaMap = new Map<string, any>(agendaRows.map(row => [`${row.penugasan_id}:${row.tanggal}`, row]))
+
+  const delegationParams: unknown[] = [ta.id, tanggalMulai, tanggalSelesai]
+  let delegationSql = `
+    SELECT dt.tanggal, dt.dari_user_id as guru_id, dt.alasan_ketidakhadiran,
+      dt.deskripsi_ketidakhadiran, dtk.penugasan_mengajar_id as penugasan_id
+    FROM delegasi_tugas dt
+    JOIN delegasi_tugas_kelas dtk ON dtk.delegasi_id = dt.id
+    JOIN penugasan_mengajar pm ON pm.id = dtk.penugasan_mengajar_id
+    WHERE pm.tahun_ajaran_id = ? AND dt.dari_user_id = pm.guru_id
+      AND dt.tanggal BETWEEN ? AND ?
+  `
+  if (guruId) {
+    delegationSql += ' AND dt.dari_user_id = ?'
+    delegationParams.push(guruId)
+  }
+  delegationSql += ' ORDER BY dt.created_at DESC'
+  const delegationRows = (await db.prepare(delegationSql).bind(...delegationParams).all<any>()).results || []
+  const delegationMap = new Map<string, any>()
+  for (const row of delegationRows) {
+    const key = `${row.penugasan_id}:${row.tanggal}`
+    if (!delegationMap.has(key)) delegationMap.set(key, row)
+  }
+
+  const exceptionsByDate = new Map<string, Awaited<ReturnType<typeof getKbmExceptionsForRange>>>()
+  for (const exception of await getKbmExceptionsForRange(db, tanggalMulai, tanggalSelesai)) {
+    if (!exceptionsByDate.has(exception.tanggal)) exceptionsByDate.set(exception.tanggal, [])
+    exceptionsByDate.get(exception.tanggal)!.push(exception)
+  }
+
+  const polaList = parsePolaJam(ta.jam_pelajaran || '[]')
+  const sessions: CanonicalTeacherSession[] = []
+  for (const tanggal of effectiveDates) {
+    const hari = getHariFromDate(tanggal)
+    const slots = getSlotsForHari(polaList, hari)
+    for (const schedule of scheduleMap.values()) {
+      if (schedule.hari !== hari) continue
+      if (schedule.kbm_nonaktif_mulai && schedule.kbm_nonaktif_mulai <= tanggal) continue
+
+      const slotState = splitTeachingSlotsByExceptions(
+        exceptionsByDate.get(tanggal) || [],
+        { id: schedule.kelas_id, tingkat: schedule.tingkat },
+        schedule.jamList
+      )
+      if (slotState.activeJamKe.length === 0) continue
+
+      const jamKeMulai = slotState.activeJamKe[0]
+      const jamKeSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1]
+      const key = `${schedule.penugasan_id}:${tanggal}`
+      const agenda = agendaMap.get(key)
+      const delegation = delegationMap.get(key)
+      const slotSelesai = slots.find(slot => slot.id === jamKeSelesai)
+
+      // Sesi hari ini yang belum selesai tidak boleh langsung dianggap ALFA.
+      if (!agenda && !delegation && !isTeachingBlockEnded(tanggal, slotSelesai)) continue
+
+      const agendaStatus = EDITABLE_AGENDA_STATUSES.has(agenda?.status)
+        ? agenda.status as CanonicalTeacherSession['status']
+        : null
+      const delegationStatus = delegation?.alasan_ketidakhadiran === 'SAKIT' || delegation?.alasan_ketidakhadiran === 'IZIN'
+        ? delegation.alasan_ketidakhadiran as 'SAKIT' | 'IZIN'
+        : null
+
+      sessions.push({
+        penugasan_id: schedule.penugasan_id,
+        tanggal,
+        guru_id: schedule.guru_id,
+        guru_nama: schedule.guru_nama,
+        nama_mapel: schedule.nama_mapel,
+        tingkat: schedule.tingkat,
+        nomor_kelas: schedule.nomor_kelas,
+        kelompok: schedule.kelompok,
+        jam_ke_mulai: jamKeMulai,
+        jam_ke_selesai: jamKeSelesai,
+        materi: agenda?.materi || null,
+        status: agendaStatus || delegationStatus || 'ALFA',
+        waktu_input: agenda?.waktu_input || null,
+        catatan_admin: agenda?.catatan_admin || null,
+        keterangan: agenda?.catatan_admin || delegation?.deskripsi_ketidakhadiran || null,
+        sumber: agenda
+          ? (agenda.diubah_oleh && !agenda.waktu_input ? 'OVERRIDE' : 'AGENDA')
+          : delegation ? 'PENUGASAN' : 'OTOMATIS',
+      })
+    }
+  }
+
+  return sessions.sort((a, b) =>
+    a.tanggal.localeCompare(b.tanggal) ||
+    a.guru_nama.localeCompare(b.guru_nama) ||
+    a.jam_ke_mulai - b.jam_ke_mulai
+  )
+}
+
+async function buildRekapKehadiranGuru(
+  db: D1Database,
+  ta: { id: string; jam_pelajaran: string | null },
+  tanggalMulai: string,
+  tanggalSelesai: string,
+  sortBy: 'nama' | 'patuh' | 'alfa'
+) {
+  const sessions = await getCanonicalTeacherSessions(db, ta, tanggalMulai, tanggalSelesai)
+  const rows = new Map<string, any>()
+  for (const session of sessions) {
+    if (!rows.has(session.guru_id)) {
+      rows.set(session.guru_id, {
+        guru_id: session.guru_id, guru_nama: session.guru_nama,
+        total_blok: 0, tepat_waktu: 0, telat: 0, alfa: 0, sakit: 0, izin: 0,
+      })
+    }
+    const row = rows.get(session.guru_id)!
+    row.total_blok++
+    if (session.status === 'TEPAT_WAKTU') row.tepat_waktu++
+    else if (session.status === 'TELAT') row.telat++
+    else if (session.status === 'SAKIT') row.sakit++
+    else if (session.status === 'IZIN') row.izin++
+    else row.alfa++
+  }
+
+  const data = Array.from(rows.values()).map(row => ({
+    ...row,
+    kepatuhan: row.total_blok > 0
+      ? Math.min(100, Math.max(0, Math.round(((row.total_blok - row.alfa) / row.total_blok) * 100)))
+      : 0,
+  }))
+  if (sortBy === 'patuh') data.sort((a, b) => b.kepatuhan - a.kepatuhan)
+  else if (sortBy === 'alfa') data.sort((a, b) => b.alfa - a.alfa)
+  else data.sort((a, b) => a.guru_nama.localeCompare(b.guru_nama))
+  return { error: null, data }
+}
+
 export async function getRekapKehadiranGuru(
   tanggalMulai: string,
   tanggalSelesai: string,
@@ -303,6 +521,9 @@ export async function getRekapKehadiranGuru(
   const ta = await db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
   if (!ta) return { error: 'Tahun ajaran aktif belum diatur', data: [] }
 
+  return buildRekapKehadiranGuru(db, ta, tanggalMulai, tanggalSelesai, sortBy)
+
+  /* Implementasi agregat lama dinonaktifkan; dipertahankan sementara untuk jejak migrasi.
   // Hitung total jadwal per guru dalam rentang tanggal
   // Kita perlu hitung berapa blok mengajar per guru per hari kerja dalam range
   // Simplified approach: count distinct (penugasan_id) per hari dari jadwal
@@ -446,6 +667,7 @@ export async function getRekapKehadiranGuru(
   else data.sort((a, b) => a.guru_nama.localeCompare(b.guru_nama))
 
   return { error: null, data }
+  */
 }
 
 // ============================================================
@@ -633,6 +855,14 @@ export async function getDataCetakLaporan(
 ) {
   const db = await getDB()
 
+  const ta = await db.prepare(
+    'SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1'
+  ).first<{ id: string; jam_pelajaran: string | null }>()
+  if (!ta) return []
+
+  return getCanonicalTeacherSessions(db, ta, tanggalMulai, tanggalSelesai, guruId)
+
+  /* Implementasi cetak lama hanya membaca agenda_guru dan tidak mencakup ALFA/penugasan.
   let sql = `
     SELECT ag.*,
       u.nama_lengkap as guru_nama,
@@ -656,6 +886,7 @@ export async function getDataCetakLaporan(
 
   const result = await db.prepare(sql).bind(...params).all<any>()
   return result.results || []
+  */
 }
 
 // ============================================================

@@ -28,14 +28,14 @@ const ROLE_LABEL: Record<string, string> = {
   wali_kelas: 'Wali Kelas',
 }
 
-const KELAS_BINAAN_VIEWS: KelasBinaanView[] = ['home', 'keputusan', 'siswa', 'rekap', 'perhatian', 'agenda']
+const KELAS_BINAAN_VIEWS: KelasBinaanView[] = ['home', 'keputusan', 'siswa', 'rekap', 'perhatian', 'agenda', 'catatan']
 
 export default async function KelasBinaanPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kelas?: string; risiko?: string; view?: string; edit?: string }>
+  searchParams: Promise<{ kelas?: string; risiko?: string; view?: string; edit?: string; siswa?: string }>
 }) {
-  const { kelas: kelasId, risiko, view, edit } = await searchParams
+  const { kelas: kelasId, risiko, view, edit, siswa } = await searchParams
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
@@ -129,6 +129,7 @@ export default async function KelasBinaanPage({
         riskFilter={risiko || 'all'}
         view={activeView}
         quickEdit={edit === '1'}
+        noteStudentId={siswa || null}
         showWelcome={false}
         showTopCards={false}
         showFeatureShortcuts={false}

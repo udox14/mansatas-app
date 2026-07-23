@@ -7,6 +7,7 @@ import { DetailSiswaClient } from './components/detail-client'
 import { getSanksiList } from '../../kedisiplinan/actions'
 import { getUserRoles } from '@/lib/features'
 import { ensureRiwayatKelasSnapshotColumns } from '@/lib/riwayat-kelas'
+import { getStudentNotes } from '@/lib/student-notes'
 
 export const metadata = { title: 'Buku Induk Siswa - MANSATAS' }
 export const dynamic = 'force-dynamic'
@@ -193,7 +194,7 @@ export default async function DetailSiswaPage({
 
   const rawRna = rekapNilai || {}
   const parseStr = (val: any) => { try { return val ? JSON.parse(val) : {} } catch { return {} } }
-  const allowedTabs = new Set(['biodata', 'akademik_nilai', 'disiplin', 'izin', 'absensi', 'keuangan'])
+  const allowedTabs = new Set(['biodata', 'akademik_nilai', 'disiplin', 'izin', 'absensi', 'catatan', 'keuangan'])
   const initialTab = tab && allowedTabs.has(tab) ? tab : 'biodata'
   const backHref = returnTo && returnTo.startsWith('/dashboard/') ? returnTo : '/dashboard/siswa'
   const backLabel = backHref.startsWith('/dashboard/kelas-binaan') ? 'Kembali ke Kelas Binaan' : 'Kembali ke Data Siswa'
@@ -256,6 +257,7 @@ export default async function DetailSiswaPage({
     },
     pelapor: { nama_lengkap: row.pelapor_nama },
   }))
+  const studentNotes = await getStudentNotes(db, user.id, id, userRoles)
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-12">
@@ -279,6 +281,7 @@ export default async function DetailSiswaPage({
         currentUser={{ ...user, roles: userRoles }}
         sanksiList={sanksiList}
         initialTab={initialTab}
+        studentNotes={studentNotes}
       />
     </div>
   )

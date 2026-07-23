@@ -13,6 +13,9 @@ import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import { QuickEditSiswa } from '@/app/dashboard/kelas-binaan/components/quick-edit-siswa'
+import { KelasBinaanCatatanSiswaView } from '@/app/dashboard/kelas-binaan/components/catatan-siswa-view'
+import { getStudentNotes, getUnreadStudentNoteCountForWali } from '@/lib/student-notes'
+import { studentNoteCollator, type StudentNoteStudent } from '@/lib/student-note-shared'
 import {
   Warning as AlertTriangle,
   ArrowRight,
@@ -44,9 +47,10 @@ type Props = {
   showFeatureShortcuts?: boolean
   dashboardVisibility?: Record<string, boolean>
   quickEdit?: boolean
+  noteStudentId?: string | null
 }
 
-export type KelasBinaanView = 'home' | 'keputusan' | 'siswa' | 'rekap' | 'perhatian' | 'agenda'
+export type KelasBinaanView = 'home' | 'keputusan' | 'siswa' | 'rekap' | 'perhatian' | 'agenda' | 'catatan'
 
 function badgeClass(status: string) {
   if (status === 'LIBUR') return 'bg-slate-100 text-slate-600 border-slate-200'
@@ -126,6 +130,7 @@ export async function KelasBinaanDashboard({
   showTopCards = true,
   dashboardVisibility,
   quickEdit = false,
+  noteStudentId = null,
 }: Props) {
   const show = (id: string) => dashboardVisibility?.[id] !== false
   const db = await getDB()
@@ -349,6 +354,19 @@ export async function KelasBinaanDashboard({
     }
   }) || []
 
+  const noteStudents: StudentNoteStudent[] = studentRows.map(row => ({
+    id: row.siswa_id,
+    nama_lengkap: row.nama_lengkap,
+    nisn: row.nisn || null,
+    foto_url: row.foto_url || null,
+    kelas_id: kelas.id,
+  })).sort((a, b) => studentNoteCollator.compare(a.nama_lengkap, b.nama_lengkap))
+  const selectedNoteStudent = noteStudents.find(student => student.id === noteStudentId) || noteStudents[0] || null
+  const [studentNotes, unreadStudentNotes] = await Promise.all([
+    selectedNoteStudent ? getStudentNotes(db, userId, selectedNoteStudent.id) : Promise.resolve([]),
+    getUnreadStudentNoteCountForWali(db, userId, kelas.id).catch(() => 0),
+  ])
+
   const filteredStudentRows = studentRows.filter(row => {
     if (riskFilter === 'all') return true
     if (riskFilter === 'high') return row.monthly.alfa >= 2 || row.totalPoin >= 25 || row.komunikasi.summonStatus === 'terkirim' || row.tempatTinggal === 'KELUAR DARI PESANTREN'
@@ -437,6 +455,7 @@ export async function KelasBinaanDashboard({
     { view: 'rekap', title: 'Rekap Absensi', desc: 'Ringkasan dan tren 7 hari', count: tidakMasukHariIni.length, icon: CalendarCheck, tone: 'text-blue-600 bg-blue-50 border-blue-100' },
     { view: 'perhatian', title: 'Perlu Perhatian', desc: 'Alfa, bolos, belum lengkap, poin', count: perluPerhatian.length, icon: ShieldAlert, tone: 'text-amber-600 bg-amber-50 border-amber-100' },
     { view: 'agenda', title: 'Agenda & Izin', desc: 'Materi terbaru dan izin pelajaran', count: agendaTerbaru.length + izinPembelajaranHariIni.length, icon: BookOpen, tone: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+    { view: 'catatan', title: 'Catatan Siswa', desc: 'Riwayat catatan dari guru pengajar', count: unreadStudentNotes, icon: NotebookPen, tone: 'text-cyan-600 bg-cyan-50 border-cyan-100' },
   ]
 
   return (
@@ -515,6 +534,16 @@ export async function KelasBinaanDashboard({
         isEffective={isTodayEffective}
         holidayReason={todayHolidayReason}
       />
+      )}
+
+      {view === 'catatan' && (
+        <KelasBinaanCatatanSiswaView
+          kelasId={kelas.id}
+          students={noteStudents}
+          selectedStudent={selectedNoteStudent}
+          notes={studentNotes}
+          markAsRead={kelas.wali_kelas_id === userId}
+        />
       )}
 
       {view === 'rekap' && (

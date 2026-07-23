@@ -5,11 +5,16 @@ import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
-import { nowWIBISO } from '@/lib/time'
+import { nowWIBISO, todayWIB } from '@/lib/time'
 import { notify } from '@/lib/notify'
 import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
 import { notifyParentsAttendance } from '@/lib/fcm'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
+import {
+  getKalenderDateStatus,
+  getKbmExceptionsForDate,
+  splitTeachingSlotsByExceptions,
+} from '@/lib/kalender-pendidikan'
 
 // ============================================================
 // TYPES
@@ -200,6 +205,11 @@ export async function getJadwalUntukDelegasi(tanggal: string): Promise<{
   const hari = getHariFromDate(tanggal)
   if (hari === 7) return { error: null, blocks: [], slots: [], tanggal, hari }
 
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) {
+    return { error: null, blocks: [], slots: [], tanggal, hari }
+  }
+
   const ta = await db.prepare(
     'SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1'
   ).first<any>()
@@ -214,7 +224,7 @@ export async function getJadwalUntukDelegasi(tanggal: string): Promise<{
     SELECT
       jm.penugasan_id, jm.jam_ke,
       mp.nama_mapel,
-      k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok,
+      k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok, k.kbm_nonaktif_mulai,
       ag.id as agenda_id,
       dtk.id as delegasi_kelas_id
     FROM jadwal_mengajar jm
@@ -238,11 +248,19 @@ export async function getJadwalUntukDelegasi(tanggal: string): Promise<{
   }
 
   const blocks: JadwalBlock[] = []
+  const kbmExceptions = await getKbmExceptionsForDate(db, tanggal)
   for (const [pid, pRows] of grouped) {
     const jamList = pRows.map((r: any) => r.jam_ke).sort((a: number, b: number) => a - b)
     const first = pRows[0]
-    const jamMulai = jamList[0]
-    const jamSelesai = jamList[jamList.length - 1]
+    if (first.kbm_nonaktif_mulai && first.kbm_nonaktif_mulai <= tanggal) continue
+    const slotState = splitTeachingSlotsByExceptions(
+      kbmExceptions,
+      { id: first.kelas_id, tingkat: Number(first.tingkat) },
+      jamList
+    )
+    if (slotState.activeJamKe.length === 0) continue
+    const jamMulai = slotState.activeJamKe[0]
+    const jamSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1]
     const slotMulai = slots.find(s => s.id === jamMulai)
     const slotSelesai = slots.find(s => s.id === jamSelesai)
 
@@ -299,6 +317,10 @@ export async function kirimDelegasiTugas(
     return { error: 'Data tidak lengkap. Pilih minimal satu kelas.' }
   }
 
+  if (tanggal !== todayWIB()) {
+    return { error: 'Delegasi tugas hanya dapat dikirim untuk jadwal hari ini.' }
+  }
+
   if (!['SAKIT', 'IZIN'].includes(alasanKetidakhadiran)) {
     return { error: 'Pilih alasan ketidakhadiran: SAKIT atau IZIN.' }
   }
@@ -310,6 +332,22 @@ export async function kirimDelegasiTugas(
 
   for (const item of items) {
     if (!item.tugas.trim()) return { error: 'Tugas untuk setiap kelas wajib diisi.' }
+  }
+
+  const validSchedule = await getJadwalUntukDelegasi(tanggal)
+  if (validSchedule.error) return { error: validSchedule.error }
+  const validBlocks = new Map(validSchedule.blocks.map(block => [block.penugasan_id, block]))
+  for (const item of items) {
+    const block = validBlocks.get(item.penugasan_mengajar_id)
+    if (!block || block.kelas_id !== item.kelas_id) {
+      return { error: 'Ada kelas yang bukan jadwal KBM aktif hari ini. Silakan muat ulang halaman.' }
+    }
+    if (block.sudah_isi_agenda) {
+      return { error: 'Agenda untuk salah satu kelas sudah diisi dan tidak dapat didelegasikan.' }
+    }
+    if (block.sudah_didelegasi) {
+      return { error: 'Salah satu kelas sudah didelegasikan hari ini.' }
+    }
   }
 
   const db = await getDB()

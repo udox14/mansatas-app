@@ -10,6 +10,7 @@ import { getUserAllowedFeatures, getUserRoles, getPrimaryRole } from '@/lib/feat
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { DEFAULT_SIDEBAR_GROUPS, parseSidebarGroups, resolveSidebarGroups, type SidebarGroupConfig } from '@/config/menu'
+import { getUnreadStudentNoteCountForWali } from '@/lib/student-notes'
 
 const SIDEBAR_TEMPLATE_KEY = 'default'
 
@@ -112,6 +113,14 @@ export default async function DashboardLayout({
         featureBadges['komite-pengajuan'] = Number(count?.total || 0)
       }
     } catch {}
+  }
+
+  if (allowedFeatures.includes('kelas-binaan') && userRoles.includes('wali_kelas')) {
+    try {
+      featureBadges['kelas-binaan'] = await getUnreadStudentNoteCountForWali(db, user.id)
+    } catch {
+      // Migration catatan siswa mungkin belum diterapkan saat rolling deployment.
+    }
   }
   
   const navEnabled = navLinks.length > 0;

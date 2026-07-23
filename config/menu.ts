@@ -188,6 +188,14 @@ export const MENU_ITEMS: MenuItem[] = [
     desc: 'Mencatat agenda mengajar harian guru, materi pelajaran, dan absensi piket sesuai jadwal'
   },
   {
+    id: 'catatan-siswa',
+    title: 'Catatan Siswa',
+    href: '/dashboard/catatan-siswa',
+    icon: NotebookPen,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_bk', 'guru_ppl'],
+    desc: 'Mencatat dan membaca riwayat catatan internal siswa sesuai kelas yang terhubung'
+  },
+  {
     id: 'agenda-kelas',
     title: 'Agenda Kelas',
     href: '/dashboard/agenda-kelas',
@@ -562,7 +570,7 @@ export const MENU_ITEMS: MenuItem[] = [
 
 export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'data-master', label: 'Data Master', items: ['siswa', 'guru', 'kelas', 'plotting', 'ekstrakurikuler-master', 'pmb'] },
-  { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'agenda-kelas', 'ckh-generator', 'rppm-generator', 'kehadiran', 'nilai-harian', 'penugasan', 'ekstrakurikuler'] },
+  { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'catatan-siswa', 'agenda-kelas', 'ckh-generator', 'rppm-generator', 'kehadiran', 'nilai-harian', 'penugasan', 'ekstrakurikuler'] },
   { id: 'monitoring-akademik', label: 'Monitoring Akademik', items: ['akademik', 'kalender-pendidikan', 'analitik'] },
   { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'monitoring-penugasan', 'monitoring-kedisiplinan', 'rekap-absensi', 'akademik-nilai'] },
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },

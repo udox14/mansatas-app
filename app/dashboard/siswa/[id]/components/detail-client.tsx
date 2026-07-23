@@ -12,7 +12,7 @@ import {
   User, GraduationCap, ShieldAlert, DoorOpen, LineChart, 
   MapPin, Phone, Users, CheckCircle2, History, AlertTriangle, 
   Image as ImageIcon, ChevronDown, ChevronUp, BookOpen, Pencil,
-  LogOut, RotateCcw, CalendarSearch, ShieldCheck, Wallet, Receipt, Landmark
+  LogOut, RotateCcw, CalendarSearch, ShieldCheck, Wallet, Receipt, Landmark, NotebookPen
 } from 'lucide-react'
 import { EditSiswaModal } from '../../components/edit-modal'
 import { TandaiKeluarModal, BatalkanKeluarModal } from './tandai-keluar-modal'
@@ -21,6 +21,8 @@ import { formatNamaKelas } from '@/lib/utils'
 import { formatTimeWIB } from '@/lib/time'
 import type { SanksiConfig } from '../../../kedisiplinan/actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
+import { StudentNoteTimeline } from '@/components/student-notes/student-note-timeline'
+import type { StudentNote } from '@/lib/student-note-shared'
 
 const MIGRATION_CUTOFF_DATE = '2026-05-01'
 
@@ -58,7 +60,7 @@ function formatDisciplineDate(tanggal: unknown) {
 }
 
 export function DetailSiswaClient({
-  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, keteranganWaliKelas, keuangan, kelasList, currentUser, sanksiList, initialTab = 'biodata'
+  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, keteranganWaliKelas, keuangan, kelasList, currentUser, sanksiList, initialTab = 'biodata', studentNotes = []
 }: {
   siswa: any, riwayatKelas: any[], pelanggaran: any[], izinKeluar: any[], izinKelas: any[], keteranganWaliKelas: any[]
   keuangan?: { dspt: any | null; sppSaldoAwal: any | null; transaksi: any[] }
@@ -66,6 +68,7 @@ export function DetailSiswaClient({
   currentUser: any
   sanksiList?: SanksiConfig[]
   initialTab?: string
+  studentNotes?: StudentNote[]
 }) {
   const router = useRouter()
   const [showKeluarModal, setShowKeluarModal] = useState(false)
@@ -330,17 +333,18 @@ export function DetailSiswaClient({
       {/* TABS SUPER LENGKAP */}
       <Tabs defaultValue={initialTab} className="w-full">
         <div className="pb-2">
-          {/* TAB DIPERSEDIKIT MENJADI 4 */}
-          <TabsList className="bg-surface border border-surface p-1 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 w-full h-auto rounded-lg gap-1">
-            <TabsTrigger value="biodata" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><User className="h-4 w-4"/> Biodata Lengkap</TabsTrigger>
-            <TabsTrigger value="akademik_nilai" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-indigo-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><GraduationCap className="h-4 w-4"/> Akademik & Nilai</TabsTrigger>
-            <TabsTrigger value="disiplin" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs font-medium gap-1.5 relative">
+          {/* Navigasi detail responsif; label boleh membungkus pada layar sempit. */}
+          <TabsList className="bg-surface border border-surface p-1 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 w-full h-auto rounded-lg gap-1">
+            <TabsTrigger value="biodata" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><User className="h-4 w-4"/> Biodata Lengkap</TabsTrigger>
+            <TabsTrigger value="akademik_nilai" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-indigo-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><GraduationCap className="h-4 w-4"/> Akademik & Nilai</TabsTrigger>
+            <TabsTrigger value="disiplin" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs font-medium gap-1.5 relative">
               <ShieldAlert className="h-4 w-4"/> Tata Tertib
               {totalPoin > 0 && <span className="absolute top-1 right-2 h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>}
             </TabsTrigger>
-            <TabsTrigger value="izin" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-orange-500 data-[state=active]:text-white text-xs font-medium gap-1.5"><DoorOpen className="h-4 w-4"/> Perizinan</TabsTrigger>
-            <TabsTrigger value="absensi" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-cyan-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><CalendarSearch className="h-4 w-4"/> Rekap Absensi</TabsTrigger>
-            <TabsTrigger value="keuangan" className="w-full py-2 px-2 rounded-md data-[state=active]:bg-emerald-700 data-[state=active]:text-white text-xs font-medium gap-1.5"><Wallet className="h-4 w-4"/> Keuangan</TabsTrigger>
+            <TabsTrigger value="izin" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-orange-500 data-[state=active]:text-white text-xs font-medium gap-1.5"><DoorOpen className="h-4 w-4"/> Perizinan</TabsTrigger>
+            <TabsTrigger value="absensi" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-cyan-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><CalendarSearch className="h-4 w-4"/> Rekap Absensi</TabsTrigger>
+            <TabsTrigger value="catatan" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-teal-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><NotebookPen className="h-4 w-4"/> Catatan Siswa</TabsTrigger>
+            <TabsTrigger value="keuangan" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-emerald-700 data-[state=active]:text-white text-xs font-medium gap-1.5"><Wallet className="h-4 w-4"/> Keuangan</TabsTrigger>
           </TabsList>
         </div>
 
@@ -604,6 +608,14 @@ export function DetailSiswaClient({
         {/* ======================= TAB 5: REKAP ABSENSI ======================= */}
         <TabsContent value="absensi" className="mt-4 animate-in fade-in">
           <RekapAbsensiTab siswaId={siswa.id} siswa={siswa} />
+        </TabsContent>
+
+        <TabsContent value="catatan" className="mt-4 animate-in fade-in">
+          <StudentNoteTimeline
+            notes={studentNotes}
+            siswa={{ id: siswa.id, nama_lengkap: siswa.nama_lengkap, nisn: siswa.nisn, foto_url: siswa.foto_url }}
+            readOnlyLabel="Riwayat internal siswa. Catatan baru ditambahkan oleh guru melalui modul Catatan Siswa."
+          />
         </TabsContent>
 
         {/* ======================= TAB 6: KEUANGAN ======================= */}
