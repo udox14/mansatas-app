@@ -5,6 +5,7 @@ import { getDB } from '@/utils/db'
 import { checkFeatureAccess } from '@/lib/features'
 import {
   getAccessibleStudentNoteClasses,
+  getCurrentStudentNoteAssignmentId,
   getMyStudentNotes,
   getStudentNoteAssignments,
   getStudentNoteContext,
@@ -45,9 +46,14 @@ export default async function CatatanSiswaPage({
     )
   }
 
-  const selectedAssignment = assignments.find(item => item.id === query.penugasan) || (!query.kelas ? assignments[0] : null) || null
+  const autoAssignmentId = !query.penugasan && !query.kelas
+    ? await getCurrentStudentNoteAssignmentId(db, user.id, assignments)
+    : null
+  const selectedAssignment = assignments.find(item => item.id === query.penugasan)
+    || assignments.find(item => item.id === autoAssignmentId)
+    || null
   const accessibleClassIds = new Set(classes.map(item => item.id))
-  const selectedClassId = selectedAssignment?.kelas_id || (query.kelas && accessibleClassIds.has(query.kelas) ? query.kelas : classes[0]?.id) || null
+  const selectedClassId = selectedAssignment?.kelas_id || (query.kelas && accessibleClassIds.has(query.kelas) ? query.kelas : null)
   const students = selectedClassId ? await getStudentNoteStudents(db, selectedClassId) : []
   const selectedStudent = students.find(item => item.id === query.siswa) || students[0] || null
   const notes = selectedStudent ? await getStudentNotes(db, user.id, selectedStudent.id, context.roles) : []
