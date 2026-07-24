@@ -1,5 +1,8 @@
 import { getUserRoles } from '@/lib/features'
 import { formatNamaKelas } from '@/lib/utils'
+import { currentTimeWIB, nowWIB, todayWIB } from '@/lib/time'
+import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
+import type { PolaJam } from '@/app/dashboard/settings/types'
 import {
   studentNoteCollator,
   type StudentNote,
@@ -50,6 +53,53 @@ export async function getStudentNoteAssignments(db: D1Database, userId: string):
     studentNoteCollator.compare(a.kelas_label, b.kelas_label) ||
     studentNoteCollator.compare(a.mapel_nama, b.mapel_nama)
   )
+}
+
+export async function getCurrentStudentNoteAssignmentId(
+  db: D1Database,
+  userId: string,
+  assignments: StudentNoteAssignment[],
+): Promise<string | null> {
+  if (assignments.length === 0) return null
+  const now = nowWIB()
+  const rawDay = now.getUTCDay()
+  const hari = rawDay === 0 ? 7 : rawDay
+  if (hari === 7) return null
+
+  const calendarStatus = await getKalenderDateStatus(db, todayWIB())
+  if (!calendarStatus.isEffective) return null
+
+  const ta = await db.prepare(`
+    SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1
+  `).first<{ id: string; jam_pelajaran: string | null }>()
+  if (!ta) return null
+
+  let patterns: PolaJam[] = []
+  try { patterns = JSON.parse(ta.jam_pelajaran || '[]') } catch { return null }
+  const slots = patterns.find(pattern => pattern.hari.includes(hari))?.slots || []
+  const currentTime = currentTimeWIB().hhmm
+  const activeSlotIds = slots
+    .filter(slot => currentTime >= slot.mulai && currentTime < slot.selesai)
+    .map(slot => slot.id)
+  if (activeSlotIds.length === 0) return null
+
+  const assignmentIds = new Set(assignments.map(item => item.id))
+  const slotPlaceholders = activeSlotIds.map(() => '?').join(',')
+  const rows = await db.prepare(`
+    SELECT DISTINCT jm.penugasan_id, jm.jam_ke
+    FROM jadwal_mengajar jm
+    JOIN penugasan_mengajar pm ON pm.id = jm.penugasan_id
+    JOIN kelas k ON k.id = pm.kelas_id
+    WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
+      AND jm.jam_ke IN (${slotPlaceholders})
+      AND (pm.guru_id = ? OR jm.id IN (
+        SELECT jadwal_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
+      ))
+      AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
+    ORDER BY jm.jam_ke ASC
+  `).bind(ta.id, hari, ...activeSlotIds, userId, userId, todayWIB()).all<{ penugasan_id: string; jam_ke: number }>()
+
+  return (rows.results || []).find(row => assignmentIds.has(row.penugasan_id))?.penugasan_id || null
 }
 
 export async function getAccessibleStudentNoteClasses(

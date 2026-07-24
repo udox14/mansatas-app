@@ -134,8 +134,12 @@ export function CatatanSiswaClient(props: Props) {
             ) : (
               <div className="rounded-xl border border-dashed border-slate-200 bg-surface px-5 py-14 text-center dark:border-slate-700">
                 <Users className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
-                <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Pilih siswa untuk melihat catatan</p>
-                <p className="mt-1 text-xs text-slate-400">Gunakan filter kelas dan daftar siswa di atas.</p>
+                <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">
+                  {props.selectedClassId ? 'Pilih siswa untuk melihat catatan' : 'Belum ada jadwal mengajar aktif saat ini'}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {props.selectedClassId ? 'Gunakan filter kelas dan daftar siswa di atas.' : 'Pilih kelas atau penugasan secara manual untuk melanjutkan.'}
+                </p>
               </div>
             )}
           </main>

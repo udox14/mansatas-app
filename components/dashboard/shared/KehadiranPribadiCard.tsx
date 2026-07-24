@@ -144,6 +144,24 @@ export async function KehadiranPribadiCard({ userId }: Props) {
           AND tanggal IN (${effectiveDates.map(() => '?').join(',')})
       `).bind(userId, rangeStart, today, ...effectiveDates).all<any>()
 
+      const delegasiRes = await db.prepare(`
+        SELECT dt.tanggal, dtk.penugasan_mengajar_id, dt.alasan_ketidakhadiran
+        FROM delegasi_tugas dt
+        JOIN delegasi_tugas_kelas dtk ON dt.id = dtk.delegasi_id
+        WHERE dt.dari_user_id = ?
+          AND dt.tanggal BETWEEN ? AND ?
+          AND dt.tanggal IN (${effectiveDates.map(() => '?').join(',')})
+      `).bind(userId, rangeStart, today, ...effectiveDates).all<any>()
+
+      const delegatedKeys = new Map<string, string>()
+      for (const row of delegasiRes.results || []) {
+        delegatedKeys.set(`${row.tanggal}:${row.penugasan_mengajar_id}`, row.alasan_ketidakhadiran)
+      }
+
+      const recordedAgendaKeys = new Set(
+        (agendaRes.results || []).map((r: any) => `${r.tanggal}:${r.penugasan_id}`)
+      )
+
       const counts = { hadir: 0, sakit: 0, izin: 0, alfa: 0, telat: 0 }
       for (const row of agendaRes.results || []) {
         if (!requiredAgendaKeys.has(`${row.tanggal}:${row.penugasan_id}`)) continue
@@ -156,6 +174,17 @@ export async function KehadiranPribadiCard({ userId }: Props) {
         else if (row.status === 'ALFA') counts.alfa++
       }
 
+      // Hitung juga penugasan yang sudah dikirim via fitur delegasi tapi belum diisi piket
+      for (const key of requiredAgendaKeys) {
+        if (!recordedAgendaKeys.has(key) && delegatedKeys.has(key)) {
+          const alasan = delegatedKeys.get(key)
+          if (alasan === 'SAKIT') counts.sakit++
+          else if (alasan === 'IZIN') counts.izin++
+          
+          recordedAgendaKeys.add(key)
+        }
+      }
+
       const totalBlok = requiredAgendaKeys.size
       const tercatat = counts.hadir + counts.sakit + counts.izin + counts.alfa
 
@@ -166,10 +195,6 @@ export async function KehadiranPribadiCard({ userId }: Props) {
       
       const { hours, minutes } = currentTimeWIB()
       const currentMinutes = hours * 60 + minutes
-
-      const recordedAgendaKeys = new Set(
-        (agendaRes.results || []).map((r: any) => `${r.tanggal}:${r.penugasan_id}`)
-      )
 
       for (const key of requiredAgendaKeys) {
         if (!recordedAgendaKeys.has(key)) {
