@@ -58,6 +58,17 @@ export function MobileRuntime() {
         const { PushNotifications } = await import('@capacitor/push-notifications')
         const perm = await PushNotifications.requestPermissions()
         if (perm.receive === 'granted') {
+          if (Capacitor.getPlatform() === 'android') {
+            await PushNotifications.createChannel({
+              id: 'default',
+              name: 'Notifikasi Utama',
+              description: 'Notifikasi penting dari MANSATAS App',
+              importance: 5,
+              visibility: 1,
+              sound: 'default',
+              vibration: true,
+            }).catch(() => {})
+          }
           const regListener = await PushNotifications.addListener('registration', (token) => {
             fetch('/api/fcm/register', {
               method: 'POST',
@@ -68,6 +79,16 @@ export function MobileRuntime() {
           const errListener = await PushNotifications.addListener('registrationError', (err) => {
             console.error('FCM registration error:', err)
           })
+          const recListener = await PushNotifications.addListener(
+            'pushNotificationReceived',
+            (notification) => {
+              const title = notification.title || 'Notifikasi'
+              const body = notification.body || ''
+              if (typeof window !== 'undefined') {
+                alert(`🔔 ${title}\n\n${body}`)
+              }
+            }
+          )
           const tapListener = await PushNotifications.addListener(
             'pushNotificationActionPerformed',
             (action) => {
@@ -78,7 +99,7 @@ export function MobileRuntime() {
               }
             }
           )
-          pushListeners.push(regListener, errListener, tapListener)
+          pushListeners.push(regListener, errListener, recListener, tapListener)
           await PushNotifications.register()
         }
       } catch (e) {

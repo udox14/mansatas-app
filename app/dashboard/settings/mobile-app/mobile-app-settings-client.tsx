@@ -342,6 +342,38 @@ export function MobileAppSettingsClient() {
               return `Permission push: ${permission.receive}. Token didaftarkan ke server.`
             })} />
             <ActionButton icon={Bell} label="Test Kirim FCM" busy={busy === 'fcm-test'} onClick={() => runTest('fcm-test', async () => {
+              const { Capacitor } = await import('@capacitor/core')
+              if (Capacitor.isNativePlatform()) {
+                const { PushNotifications } = await import('@capacitor/push-notifications')
+                const perm = await PushNotifications.requestPermissions()
+                if (perm.receive === 'granted') {
+                  if (Capacitor.getPlatform() === 'android') {
+                    await PushNotifications.createChannel({
+                      id: 'default',
+                      name: 'Notifikasi Utama',
+                      description: 'Notifikasi penting dari MANSATAS App',
+                      importance: 5,
+                      visibility: 1,
+                      sound: 'default',
+                      vibration: true,
+                    }).catch(() => {})
+                  }
+                  await new Promise<void>((resolve) => {
+                    const reg = PushNotifications.addListener('registration', token => {
+                      fetch('/api/fcm/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token: token.value, platform: Capacitor.getPlatform() }),
+                      }).catch(() => {}).finally(() => resolve())
+                    })
+                    PushNotifications.register().catch(() => resolve())
+                    setTimeout(() => {
+                      reg.then(l => l.remove()).catch(() => {})
+                      resolve()
+                    }, 3000)
+                  })
+                }
+              }
               const res = await sendTestFcmToSelf()
               if (res.error) throw new Error(res.error)
               return res.success || 'Terkirim.'

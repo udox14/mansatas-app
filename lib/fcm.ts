@@ -203,6 +203,18 @@ export async function sendFcmNotification(notification: FcmNotif, target: FcmTar
           body: notification.body,
           ...(notification.image ? { image: notification.image } : {}),
         },
+        android: {
+          priority: 'high',
+          notification: {
+            channel_id: 'default',
+            sound: 'default',
+            default_sound: true,
+            default_vibrate_timings: true,
+            notification_priority: 'PRIORITY_HIGH',
+            visibility: 'PUBLIC',
+            ...(notification.image ? { image: notification.image } : {}),
+          },
+        },
         data,
         webpush: notification.url ? { fcm_options: { link: notification.url } } : undefined,
       }
