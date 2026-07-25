@@ -23,6 +23,9 @@ import {
   Vibrate,
   Wifi,
   XCircle,
+  Zap,
+  Play,
+  FolderOpen,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -171,6 +174,51 @@ export function MobileAppSettingsClient() {
 
   return (
     <div className="space-y-4">
+      {/* ── 1-Click APK Builder & Provisioner Card ────────────────────────────────────── */}
+      <Card className="rounded-lg border-emerald-500/30 bg-gradient-to-r from-emerald-950/20 via-slate-900 to-slate-950 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center justify-between text-base text-emerald-400">
+            <span className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-emerald-400 animate-pulse" />
+              MANSATAS APK Provisioner & GUI Launcher
+            </span>
+            <span className="text-xs font-normal text-slate-300 bg-emerald-950/80 border border-emerald-700/50 rounded-full px-3 py-1 shadow-sm">
+              Windows GUI Ready
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-xs">
+          <p className="text-slate-300 leading-relaxed">
+            Kami telah membuatkan <strong>GUI Application (1-Click APK Builder)</strong> khusus Windows agar Bos bisa melakukan build APK, membuka folder hasil APK, dan sync Capacitor tinggal klik-klik saja tanpa perlu membuka terminal!
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border border-emerald-500/30 bg-slate-900/80 p-3.5 space-y-2">
+              <p className="font-semibold text-emerald-300 flex items-center gap-1.5 text-xs">
+                <Play className="h-3.5 w-3.5 fill-current text-emerald-400" />
+                Cara Menjalankan GUI Builder:
+              </p>
+              <ol className="list-decimal list-inside space-y-1.5 text-slate-300 text-[11px] leading-relaxed">
+                <li>Buka folder project MANSATAS App di Windows.</li>
+                <li>Double click file <code className="bg-slate-950 text-emerald-300 px-1.5 py-0.5 rounded border border-slate-800 font-mono">MANSATAS-APK-Builder.bat</code>.</li>
+                <li>Jendela GUI interaktif warna dark-mode akan langsung terbuka!</li>
+              </ol>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-900/80 p-3.5 space-y-2">
+              <p className="font-semibold text-slate-200 flex items-center gap-1.5 text-xs">
+                <FolderOpen className="h-3.5 w-3.5 text-sky-400" />
+                Tombol Fitur di GUI Builder:
+              </p>
+              <ul className="list-disc list-inside space-y-1.5 text-slate-300 text-[11px] leading-relaxed">
+                <li><strong className="text-emerald-400">🚀 BUILD RELEASE APK</strong> (Kompilasi APK otomatis)</li>
+                <li><strong className="text-blue-400">📁 BUKA FOLDER APK</strong> (Buka langsung file `.apk`)</li>
+                <li><strong className="text-amber-400">🔄 SYNC ASSETS</strong> (Menyelaraskan asset UI ke native)</li>
+                <li><strong className="text-purple-400">📱 ANDROID STUDIO</strong> (Buka Android Studio)</li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="rounded-lg shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">

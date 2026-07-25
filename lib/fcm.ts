@@ -192,8 +192,25 @@ export async function sendFcmNotification(notification: FcmNotif, target: FcmTar
     const endpoint = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`
     const db = await getDB()
 
+    let imageUrl = notification.image
+    if (imageUrl) {
+      if (imageUrl.startsWith('/')) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.mansatas.com'
+        imageUrl = `${appUrl}${imageUrl}`
+      }
+      // Pastikan HTTPS untuk keandalan Android OS download gambar
+      if (imageUrl.startsWith('http://')) {
+        imageUrl = imageUrl.replace('http://', 'https://')
+      }
+    }
+
     const data: Record<string, string> = { ...(notification.data || {}) }
     if (notification.url) data.url = notification.url
+    if (imageUrl) {
+      data.image = imageUrl
+      data.picture = imageUrl
+      data.big_picture = imageUrl
+    }
 
     const send = async (token: string) => {
       const message: any = {
@@ -201,22 +218,29 @@ export async function sendFcmNotification(notification: FcmNotif, target: FcmTar
         notification: {
           title: notification.title,
           body: notification.body,
-          ...(notification.image ? { image: notification.image } : {}),
+          ...(imageUrl ? { image: imageUrl } : {}),
         },
         android: {
           priority: 'high',
           notification: {
             channel_id: 'default',
+            icon: 'ic_stat_ic_notification',
+            color: '#0d4f4a',
             sound: 'default',
             default_sound: true,
             default_vibrate_timings: true,
             notification_priority: 'PRIORITY_HIGH',
             visibility: 'PUBLIC',
-            ...(notification.image ? { image: notification.image } : {}),
+            ...(imageUrl ? { image: imageUrl } : {}),
           },
         },
         data,
-        webpush: notification.url ? { fcm_options: { link: notification.url } } : undefined,
+        webpush: notification.url
+          ? {
+              fcm_options: { link: notification.url },
+              ...(imageUrl ? { headers: { image: imageUrl } } : {}),
+            }
+          : undefined,
       }
       try {
         const res = await fetch(endpoint, {

@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { OfflineBanner } from './offline-banner'
 
 export type MobileBackMode = 'history' | 'confirm-exit' | 'exit'
 
@@ -37,6 +38,55 @@ export function writeMobileRuntimeSettings(settings: MobileRuntimeSettings) {
 }
 
 export function MobileRuntime() {
+  const [isOffline, setIsOffline] = useState(false)
+  const [hasSwUpdate, setHasSwUpdate] = useState(false)
+
+  // ── Network status detection ──────────────────────────────────────────────
+  useEffect(() => {
+    let networkListener: { remove: () => Promise<void> } | null = null
+
+    async function initNetwork() {
+      try {
+        const { Network } = await import('@capacitor/network')
+        const status = await Network.getStatus()
+        setIsOffline(!status.connected)
+
+        networkListener = await Network.addListener('networkStatusChange', (s) => {
+          setIsOffline(!s.connected)
+        })
+      } catch {
+        // Fallback untuk browser baku
+        setIsOffline(!navigator.onLine)
+      }
+    }
+
+    const handleOnline = () => setIsOffline(false)
+    const handleOffline = () => setIsOffline(true)
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    initNetwork()
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+      networkListener?.remove().catch(() => {})
+    }
+  }, [])
+
+  // ── Service Worker Update detection ───────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+
+    const handleSwUpdate = () => setHasSwUpdate(true)
+    window.addEventListener('mansatas-sw-update-available', handleSwUpdate)
+
+    return () => {
+      window.removeEventListener('mansatas-sw-update-available', handleSwUpdate)
+    }
+  }, [])
+
+  // ── Native runtime listeners (Capacitor App, FCM, BackButton, Links) ──────
   useEffect(() => {
     let backListener: { remove: () => Promise<void> } | null = null
     let linkHandler: ((event: MouseEvent) => void) | null = null
@@ -82,11 +132,7 @@ export function MobileRuntime() {
           const recListener = await PushNotifications.addListener(
             'pushNotificationReceived',
             (notification) => {
-              const title = notification.title || 'Notifikasi'
-              const body = notification.body || ''
-              if (typeof window !== 'undefined') {
-                alert(`🔔 ${title}\n\n${body}`)
-              }
+              console.log('[FCM] Push received in foreground:', notification)
             }
           )
           const tapListener = await PushNotifications.addListener(
@@ -163,5 +209,7 @@ export function MobileRuntime() {
     }
   }, [])
 
-  return null
+  return <OfflineBanner isOffline={isOffline} hasSwUpdate={hasSwUpdate} />
 }
+
+

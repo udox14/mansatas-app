@@ -13,6 +13,7 @@
     "cap:sync": "cap sync android",
     "android:open": "cap open android",
     "android:build:release": "node scripts/android-release-build.js",
+    "android:build:bundle": "node scripts/android-bundle-build.js",
     "db:init": "wrangler d1 execute mansatas-db --file=schema.sql",
     "db:init:remote": "wrangler d1 execute mansatas-db --remote --file=schema.sql"
   },

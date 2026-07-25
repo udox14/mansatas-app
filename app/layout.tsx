@@ -76,6 +76,17 @@ export default function RootLayout({
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').then(function(registration) {
                     registration.update().catch(function() {});
+                    registration.onupdatefound = function() {
+                      var installingWorker = registration.installing;
+                      if (installingWorker == null) return;
+                      installingWorker.onstatechange = function() {
+                        if (installingWorker.state === 'installed') {
+                          if (navigator.serviceWorker.controller) {
+                            window.dispatchEvent(new Event('mansatas-sw-update-available'));
+                          }
+                        }
+                      };
+                    };
                   }).catch(function() {});
                 });
               }
