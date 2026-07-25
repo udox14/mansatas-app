@@ -1,7 +1,9 @@
+// Lokasi: components/native/mobile-runtime.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
 import { OfflineBanner } from './offline-banner'
+import { downloadAndOpenNativeFile } from '@/lib/pdf/download'
 
 export type MobileBackMode = 'history' | 'confirm-exit' | 'exit'
 
@@ -86,12 +88,13 @@ export function MobileRuntime() {
     }
   }, [])
 
-  // ── Native runtime listeners (Capacitor App, FCM, BackButton, Links) ──────
+  // ── Native runtime listeners (Capacitor App, FCM, BackButton, Links, PDF, Window.open) ──────
   useEffect(() => {
     let backListener: { remove: () => Promise<void> } | null = null
     let linkHandler: ((event: MouseEvent) => void) | null = null
     const pushListeners: { remove: () => Promise<void> }[] = []
     let cancelled = false
+    let originalWindowOpen: typeof window.open | null = null
 
     async function boot() {
       const [{ Capacitor }, { App }, { Browser }, { Haptics, ImpactStyle }] = await Promise.all([
@@ -102,6 +105,33 @@ export function MobileRuntime() {
       ])
 
       if (cancelled || !Capacitor.isNativePlatform()) return
+
+      // ── Override window.open untuk membuka PDF & Halaman Cetak di Android ──
+      originalWindowOpen = window.open
+      window.open = (url?: string | URL, target?: string, features?: string) => {
+        if (url && typeof url === 'string') {
+          const fullUrl = url.startsWith('/') ? `${window.location.origin}${url}` : url
+          const isPdfOrFile = fullUrl.match(/\.pdf$/i) ||
+            fullUrl.includes('/api/pdf/') ||
+            fullUrl.includes('/files/') ||
+            fullUrl.includes('download') ||
+            fullUrl.includes('/spb')
+
+          if (isPdfOrFile) {
+            downloadAndOpenNativeFile(fullUrl).catch(console.error)
+            return null
+          }
+
+          if (target === '_blank' || fullUrl.includes('print')) {
+            Browser.open({ url: fullUrl }).catch(() => {
+              window.location.href = fullUrl
+            })
+            return null
+          }
+        }
+
+        return originalWindowOpen ? originalWindowOpen.call(window, url, target, features) : null
+      }
 
       // ── FCM: minta izin, register, kirim token ke server ──
       try {
@@ -154,6 +184,7 @@ export function MobileRuntime() {
 
       const getSettings = () => readMobileRuntimeSettings()
 
+      // ── Android Back Button ──
       backListener = await App.addListener('backButton', async ({ canGoBack }) => {
         const settings = getSettings()
         if (settings.haptics) {
@@ -178,6 +209,7 @@ export function MobileRuntime() {
         App.exitApp()
       })
 
+      // ── Interceptor Klik Link (PDF, Lampiran, Cetak, Link Eksternal) ──
       linkHandler = (event: MouseEvent) => {
         const settings = getSettings()
         if (!settings.externalLinksInApp) return
@@ -187,16 +219,44 @@ export function MobileRuntime() {
         if (!anchor) return
 
         const href = anchor.href
-        if (!href || href.startsWith(window.location.origin)) return
-        if (!href.startsWith('http://') && !href.startsWith('https://')) return
+        if (!href) return
 
-        event.preventDefault()
-        Browser.open({ url: href }).catch(() => {
-          window.location.href = href
-        })
+        const isPdfFile = href.match(/\.pdf$/i) ||
+          href.includes('/api/pdf/') ||
+          href.includes('/files/') ||
+          href.includes('download') ||
+          href.includes('/spb') ||
+          anchor.hasAttribute('download')
+
+        const isPrintRoute = href.includes('/print') || href.includes('print-ckh') || anchor.target === '_blank'
+
+        // 1. Jika link berupa PDF / Lampiran File -> Download & Buka Native Viewer / Share Sheet
+        if (isPdfFile) {
+          event.preventDefault()
+          downloadAndOpenNativeFile(href).catch(console.error)
+          return
+        }
+
+        // 2. Jika link berupa Halaman Cetak / target="_blank" -> Buka via Native Browser Custom Tab (Mendukung Print)
+        if (isPrintRoute) {
+          event.preventDefault()
+          const fullUrl = href.startsWith('/') ? `${window.location.origin}${href}` : href
+          Browser.open({ url: fullUrl }).catch(() => {
+            window.location.href = fullUrl
+          })
+          return
+        }
+
+        // 3. Jika link eksternal di luar origin -> Buka via Native Browser
+        if (!href.startsWith(window.location.origin) && (href.startsWith('http://') || href.startsWith('https://'))) {
+          event.preventDefault()
+          Browser.open({ url: href }).catch(() => {
+            window.location.href = href
+          })
+        }
       }
 
-      document.addEventListener('click', linkHandler)
+      document.addEventListener('click', linkHandler, true)
     }
 
     boot().catch(() => {})
@@ -205,11 +265,10 @@ export function MobileRuntime() {
       cancelled = true
       backListener?.remove().catch(() => {})
       pushListeners.forEach((l) => l.remove().catch(() => {}))
-      if (linkHandler) document.removeEventListener('click', linkHandler)
+      if (linkHandler) document.removeEventListener('click', linkHandler, true)
+      if (originalWindowOpen) window.open = originalWindowOpen
     }
   }, [])
 
   return <OfflineBanner isOffline={isOffline} hasSwUpdate={hasSwUpdate} />
 }
-
-
