@@ -323,17 +323,39 @@ export function DashboardSPAShell({
           </div>
         )}
 
-        <div className="flex flex-row items-center justify-between gap-2 sm:gap-3 px-1">
+        <div className="flex flex-row items-center justify-between gap-2 sm:gap-3 md:gap-4 px-1">
           {/* Label Jam/Status (Kiri) */}
-          <div className="relative inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full shadow-sm border border-slate-200/50 dark:border-slate-700/50 text-slate-700 dark:text-slate-200 font-bold text-[11px] sm:text-sm tracking-wide h-[38px] sm:h-[52px]">
+          <div className="shrink-0 relative inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-5 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full shadow-sm border border-slate-200/50 dark:border-slate-700/50 text-slate-700 dark:text-slate-200 font-bold text-[11px] sm:text-sm tracking-wide h-[38px] sm:h-[52px]">
             <Clock weight="duotone" className="h-3.5 w-3.5 sm:h-5 sm:w-5 text-emerald-600 dark:text-emerald-400" />
             <span className="font-semibold uppercase tracking-wider leading-none whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px] sm:max-w-none">
               {time || 'Menghitung...'}
             </span>
           </div>
 
+          {/* Desktop Search Bar (Tengah - Hanya tampil di Menu tab & Layar Desktop md+) */}
+          {activeTab === 'menu' && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              className="hidden md:flex flex-1 max-w-xl mx-2"
+            >
+              <div className="relative w-full">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-slate-400 dark:text-slate-500">
+                  <MagnifyingGlass className="h-5 w-5" />
+                </span>
+                <input
+                  type="text"
+                  placeholder="Cari fitur sekolah..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full h-[52px] pl-11 pr-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-slate-200/60 dark:border-slate-700/60 rounded-full text-xs placeholder-slate-400 text-slate-800 dark:text-slate-100 focus:border-emerald-600 dark:focus:border-emerald-500 focus:ring-1 focus:ring-emerald-600 dark:focus:ring-emerald-500 outline-none transition-all shadow-sm"
+                />
+              </div>
+            </motion.div>
+          )}
+
           {/* Tabs Navigation (Kanan) */}
-          <div className="relative inline-flex p-1 sm:p-1.5 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full shadow-sm z-0 border border-slate-200/50 dark:border-slate-700/50">
+          <div className="shrink-0 relative inline-flex p-1 sm:p-1.5 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full shadow-sm z-0 border border-slate-200/50 dark:border-slate-700/50">
             <button
               onClick={() => handleSetTab('dashboard')}
               className={`relative flex items-center gap-1.5 sm:gap-2.5 px-4 sm:px-8 py-1.5 sm:py-2.5 rounded-full text-[11px] sm:text-sm font-bold tracking-wide transition-all duration-300 z-10 ${
@@ -373,12 +395,12 @@ export function DashboardSPAShell({
           </div>
         </div>
 
-        {/* Sticky Search Bar (Only shown in Menu Tab) */}
+        {/* Mobile Search Bar (Hanya tampil di Menu Tab pada Layar HP < md) */}
         {activeTab === 'menu' && (
           <motion.div 
             initial={{ opacity: 0, y: -10 }} 
             animate={{ opacity: 1, y: 0 }} 
-            className="max-w-2xl mx-auto mt-3 px-1"
+            className="md:hidden max-w-2xl mx-auto mt-3 px-1"
           >
             <div className="relative">
               <span className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-slate-400 dark:text-slate-500">
