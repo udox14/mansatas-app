@@ -18,7 +18,8 @@ import {
   Wallet,
   Gear,
   DotsThree,
-  Clock
+  Clock,
+  Folder
 } from '@phosphor-icons/react'
 import { MENU_ITEMS, DEFAULT_SIDEBAR_GROUPS, resolveSidebarGroups, SIDEBAR_ROOT_ITEM_IDS, type SidebarGroupConfig } from '@/config/menu'
 import { getIconComponent } from '@/lib/icons'
@@ -33,45 +34,109 @@ interface DashboardSPAShellProps {
   polaJam?: any[]
 }
 
-const GROUP_META: Record<string, { title: string; desc: string }> = {
-  'utama': { title: 'Utama', desc: 'Dasbor ringkasan' },
-  'data-master': { title: 'Data Master', desc: 'Siswa, pegawai, kelas, dan plotting' },
-  'tugas-harian-guru': { title: 'Tugas Harian Guru', desc: 'Agenda, absensi, nilai, dan penugasan' },
-  'monitoring-akademik': { title: 'Monitoring Akademik', desc: 'Kurikulum, kalender, analitik' },
-  'monitoring-rekap': { title: 'Monitoring & Rekap', desc: 'Pantauan harian dan rekap kerja' },
-  'program-khusus': { title: 'Program Khusus', desc: 'Tahfidz Qur\'an dan keagamaan' },
-  'kesiswaan-bk': { title: 'Kesiswaan & BK', desc: 'Izin, kedisiplinan, bimbingan konseling' },
-  'administrasi-hr': { title: 'Administrasi & HR', desc: 'Surat, rapat, sarpras, buku tamu' },
-  'keuangan': { title: 'Komite', desc: 'Daftar ulang, SPP, DSPT, kas, laporan' },
-  'sistem': { title: 'Sistem', desc: 'Pengaturan, broadcast, log sistem' },
+const PREDEFINED_GROUP_META: Record<string, { title: string; desc: string; icon: any; color: { text: string; borderHover: string } }> = {
+  'utama': { title: 'Utama', desc: 'Dasbor ringkasan', icon: House, color: { text: 'text-emerald-500 dark:text-emerald-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-300', borderHover: 'hover:border-emerald-200 dark:hover:border-emerald-800/50' } },
+  'data-master': { title: 'Data Master', desc: 'Siswa, pegawai, kelas, dan plotting', icon: Database, color: { text: 'text-blue-500 dark:text-blue-400 group-hover:text-blue-600 dark:group-hover:text-blue-300', borderHover: 'hover:border-blue-200 dark:hover:border-blue-800/50' } },
+  'tugas-harian-guru': { title: 'Tugas Harian Guru', desc: 'Agenda, absensi, nilai, dan penugasan', icon: Briefcase, color: { text: 'text-orange-500 dark:text-orange-400 group-hover:text-orange-600 dark:group-hover:text-orange-300', borderHover: 'hover:border-orange-200 dark:hover:border-orange-800/50' } },
+  'monitoring-akademik': { title: 'Monitoring Akademik', desc: 'Kurikulum, kalender, analitik', icon: ChartLineUp, color: { text: 'text-purple-500 dark:text-purple-400 group-hover:text-purple-600 dark:group-hover:text-purple-300', borderHover: 'hover:border-purple-200 dark:hover:border-purple-800/50' } },
+  'monitoring-rekap': { title: 'Monitoring & Rekap', desc: 'Pantauan harian dan rekap kerja', icon: ClipboardText, color: { text: 'text-indigo-500 dark:text-indigo-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-300', borderHover: 'hover:border-indigo-200 dark:hover:border-indigo-800/50' } },
+  'program-khusus': { title: 'Program Khusus', desc: 'Tahfidz Qur\'an dan keagamaan', icon: Star, color: { text: 'text-rose-500 dark:text-rose-400 group-hover:text-rose-600 dark:group-hover:text-rose-300', borderHover: 'hover:border-rose-200 dark:hover:border-rose-800/50' } },
+  'kesiswaan-bk': { title: 'Kesiswaan & BK', desc: 'Izin, kedisiplinan, bimbingan konseling', icon: UserCircle, color: { text: 'text-pink-500 dark:text-pink-400 group-hover:text-pink-600 dark:group-hover:text-pink-300', borderHover: 'hover:border-pink-200 dark:hover:border-pink-800/50' } },
+  'administrasi-hr': { title: 'Administrasi & HR', desc: 'Surat, rapat, sarpras, buku tamu', icon: Files, color: { text: 'text-cyan-500 dark:text-cyan-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-300', borderHover: 'hover:border-cyan-200 dark:hover:border-cyan-800/50' } },
+  'keuangan': { title: 'Komite', desc: 'Daftar ulang, SPP, DSPT, kas, laporan', icon: Wallet, color: { text: 'text-amber-500 dark:text-amber-400 group-hover:text-amber-600 dark:group-hover:text-amber-300', borderHover: 'hover:border-amber-200 dark:hover:border-amber-800/50' } },
+  'sistem': { title: 'Sistem', desc: 'Pengaturan, broadcast, log sistem', icon: Gear, color: { text: 'text-slate-500 dark:text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300', borderHover: 'hover:border-slate-300 dark:hover:border-slate-600' } },
 }
 
-const GROUP_COLORS: Record<string, { text: string; borderHover: string }> = {
-  'utama': { text: 'text-emerald-500 dark:text-emerald-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-300', borderHover: 'hover:border-emerald-200 dark:hover:border-emerald-800/50' },
-  'data-master': { text: 'text-blue-500 dark:text-blue-400 group-hover:text-blue-600 dark:group-hover:text-blue-300', borderHover: 'hover:border-blue-200 dark:hover:border-blue-800/50' },
-  'tugas-harian-guru': { text: 'text-orange-500 dark:text-orange-400 group-hover:text-orange-600 dark:group-hover:text-orange-300', borderHover: 'hover:border-orange-200 dark:hover:border-orange-800/50' },
-  'monitoring-akademik': { text: 'text-purple-500 dark:text-purple-400 group-hover:text-purple-600 dark:group-hover:text-purple-300', borderHover: 'hover:border-purple-200 dark:hover:border-purple-800/50' },
-  'monitoring-rekap': { text: 'text-indigo-500 dark:text-indigo-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-300', borderHover: 'hover:border-indigo-200 dark:hover:border-indigo-800/50' },
-  'program-khusus': { text: 'text-rose-500 dark:text-rose-400 group-hover:text-rose-600 dark:group-hover:text-rose-300', borderHover: 'hover:border-rose-200 dark:hover:border-rose-800/50' },
-  'kesiswaan-bk': { text: 'text-pink-500 dark:text-pink-400 group-hover:text-pink-600 dark:group-hover:text-pink-300', borderHover: 'hover:border-pink-200 dark:hover:border-pink-800/50' },
-  'administrasi-hr': { text: 'text-cyan-500 dark:text-cyan-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-300', borderHover: 'hover:border-cyan-200 dark:hover:border-cyan-800/50' },
-  'keuangan': { text: 'text-amber-500 dark:text-amber-400 group-hover:text-amber-600 dark:group-hover:text-amber-300', borderHover: 'hover:border-amber-200 dark:hover:border-amber-800/50' },
-  'sistem': { text: 'text-slate-500 dark:text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300', borderHover: 'hover:border-slate-300 dark:hover:border-slate-600' },
-  'lainnya': { text: 'text-gray-500 dark:text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300', borderHover: 'hover:border-gray-200 dark:hover:border-gray-800/50' },
-}
+const COLOR_PALETTE = [
+  { text: 'text-cyan-500 dark:text-cyan-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-300', borderHover: 'hover:border-cyan-200 dark:hover:border-cyan-800/50' },
+  { text: 'text-blue-500 dark:text-blue-400 group-hover:text-blue-600 dark:group-hover:text-blue-300', borderHover: 'hover:border-blue-200 dark:hover:border-blue-800/50' },
+  { text: 'text-purple-500 dark:text-purple-400 group-hover:text-purple-600 dark:group-hover:text-purple-300', borderHover: 'hover:border-purple-200 dark:hover:border-purple-800/50' },
+  { text: 'text-rose-500 dark:text-rose-400 group-hover:text-rose-600 dark:group-hover:text-rose-300', borderHover: 'hover:border-rose-200 dark:hover:border-rose-800/50' },
+  { text: 'text-amber-500 dark:text-amber-400 group-hover:text-amber-600 dark:group-hover:text-amber-300', borderHover: 'hover:border-amber-200 dark:hover:border-amber-800/50' },
+  { text: 'text-emerald-500 dark:text-emerald-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-300', borderHover: 'hover:border-emerald-200 dark:hover:border-emerald-800/50' },
+  { text: 'text-indigo-500 dark:text-indigo-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-300', borderHover: 'hover:border-indigo-200 dark:hover:border-indigo-800/50' },
+  { text: 'text-orange-500 dark:text-orange-400 group-hover:text-orange-600 dark:group-hover:text-orange-300', borderHover: 'hover:border-orange-200 dark:hover:border-orange-800/50' },
+  { text: 'text-pink-500 dark:text-pink-400 group-hover:text-pink-600 dark:group-hover:text-pink-300', borderHover: 'hover:border-pink-200 dark:hover:border-pink-800/50' },
+]
 
-const GROUP_ICONS: Record<string, any> = {
-  'utama': House,
-  'data-master': Database,
-  'tugas-harian-guru': Briefcase,
-  'monitoring-akademik': ChartLineUp,
-  'monitoring-rekap': ClipboardText,
-  'program-khusus': Star,
-  'kesiswaan-bk': UserCircle,
-  'administrasi-hr': Files,
-  'keuangan': Wallet,
-  'sistem': Gear,
-  'lainnya': DotsThree,
+function getGroupIconAndStyle(group: { id: string; label?: string; items?: any[] }) {
+  if (PREDEFINED_GROUP_META[group.id]) {
+    const meta = PREDEFINED_GROUP_META[group.id]
+    return {
+      title: group.label || meta.title,
+      desc: meta.desc,
+      icon: meta.icon,
+      color: meta.color
+    }
+  }
+
+  for (const baseKey of Object.keys(PREDEFINED_GROUP_META)) {
+    if (group.id.startsWith(baseKey)) {
+      const meta = PREDEFINED_GROUP_META[baseKey]
+      return {
+        title: group.label || meta.title,
+        desc: meta.desc,
+        icon: meta.icon,
+        color: meta.color
+      }
+    }
+  }
+
+  const label = (group.label || '').toLowerCase()
+  const id = group.id.toLowerCase()
+
+  let icon: any = Folder
+  let colorIndex = 0
+
+  if (label.includes('administrasi') || id.includes('administrasi')) {
+    icon = Files
+    colorIndex = 1
+  } else if (label.includes('guru') || label.includes('pengajar') || id.includes('guru')) {
+    icon = Briefcase
+    colorIndex = 5
+  } else if (label.includes('siswa') || label.includes('kesiswaan') || label.includes('alumni') || id.includes('siswa')) {
+    icon = UserCircle
+    colorIndex = 8
+  } else if (label.includes('akademik') || label.includes('kurikulum') || label.includes('nilai') || id.includes('akademik')) {
+    icon = ChartLineUp
+    colorIndex = 4
+  } else if (label.includes('rekap') || label.includes('monitoring') || label.includes('pantau') || id.includes('monitoring')) {
+    icon = ClipboardText
+    colorIndex = 3
+  } else if (label.includes('keuangan') || label.includes('komite') || label.includes('spp') || label.includes('kas') || id.includes('keuangan')) {
+    icon = Wallet
+    colorIndex = 6
+  } else if (label.includes('khusus') || label.includes('tahfidz') || label.includes('agama') || id.includes('khusus')) {
+    icon = Star
+    colorIndex = 7
+  } else if (label.includes('sistem') || label.includes('pengaturan') || label.includes('setting') || id.includes('sistem')) {
+    icon = Gear
+    colorIndex = 2
+  } else if (group.items && group.items.length > 0) {
+    const firstItem = group.items[0]
+    if (firstItem && firstItem.icon) {
+      const itemIcon: any = getIconComponent(firstItem.icon)
+      if (itemIcon) icon = itemIcon
+    }
+  }
+
+  if (colorIndex === 0 && (id || label)) {
+    let hash = 0
+    const str = id + label
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    colorIndex = Math.abs(hash) % COLOR_PALETTE.length
+  }
+
+  const selectedColor = COLOR_PALETTE[colorIndex] || COLOR_PALETTE[0]
+
+  return {
+    title: group.label || 'Folder Menu',
+    desc: `${group.items?.length || 0} fitur sekolah`,
+    icon: icon,
+    color: selectedColor
+  }
 }
 
 // Framer Motion Animation Configs
@@ -390,7 +455,7 @@ export function DashboardSPAShell({
                       const title = featureLabels[item.id] || item.title
                       // Find which group this belongs to for color styling
                       const parentGroup = groupedMenus.find(g => g.items.some(i => i.id === item.id))
-                      const itemColor = GROUP_COLORS[parentGroup?.id || 'lainnya'] || GROUP_COLORS['lainnya']
+                      const itemColor = parentGroup ? getGroupIconAndStyle(parentGroup).color : COLOR_PALETTE[0]
                       
                       return (
                         <motion.div variants={itemVariants} key={item.id}>
@@ -417,63 +482,68 @@ export function DashboardSPAShell({
                 )
               ) : activeGroupData ? (
                 // Drill-down: Items in Active Group
-                <motion.div
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-4"
-                >
-                  <div className="flex items-center gap-3 px-1 mb-2">
-                    <button 
-                      onClick={() => window.history.back()} 
-                      className="p-2 bg-white dark:bg-slate-800 rounded-full border border-slate-100 dark:border-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                (() => {
+                  const activeGroupMeta = getGroupIconAndStyle(activeGroupData)
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="space-y-4"
                     >
-                      <CaretLeft className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-                    </button>
-                    <div>
-                      <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                        {activeGroupData.label || GROUP_META[activeGroupData.id]?.title}
-                      </h3>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                        {GROUP_META[activeGroupData.id]?.desc || 'Akses cepat fitur'}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <motion.div
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="show"
-                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
-                  >
-                    {activeGroupData.items.map(item => {
-                      const Icon = getIconComponent(item.icon)
-                      const title = featureLabels[item.id] || item.title
-                      const itemColor = GROUP_COLORS[activeGroupData.id] || GROUP_COLORS['lainnya']
+                      <div className="flex items-center gap-3 px-1 mb-2">
+                        <button 
+                          onClick={() => window.history.back()} 
+                          className="p-2 bg-white dark:bg-slate-800 rounded-full border border-slate-100 dark:border-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                        >
+                          <CaretLeft className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                        </button>
+                        <div>
+                          <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                            {activeGroupData.label || activeGroupMeta.title}
+                          </h3>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                            {activeGroupMeta.desc}
+                          </p>
+                        </div>
+                      </div>
                       
-                      return (
-                        <motion.div variants={itemVariants} key={item.id}>
-                          <Link
-                            href={item.href}
-                            className={`group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl sm:rounded-2xl shadow-sm hover:shadow-md transition-all text-left active:scale-[0.99] ${itemColor.borderHover}`}
-                          >
-                            <div className="shrink-0 flex items-center justify-center h-8 w-8 sm:h-10 sm:w-10">
-                              {Icon && <Icon weight="duotone" className={`h-6 w-6 sm:h-8 sm:w-8 transition-colors ${itemColor.text}`} />}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5 truncate">
-                                {title}
-                              </h4>
-                              <p className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">
-                                {item.desc || 'Akses halaman fitur ini'}
-                              </p>
-                            </div>
-                          </Link>
-                        </motion.div>
-                      )
-                    })}
-                  </motion.div>
-                </motion.div>
+                      <motion.div
+                        variants={containerVariants}
+                        initial="hidden"
+                        animate="show"
+                        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
+                      >
+                        {activeGroupData.items.map(item => {
+                          const Icon = getIconComponent(item.icon)
+                          const title = featureLabels[item.id] || item.title
+                          const itemColor = activeGroupMeta.color
+                          
+                          return (
+                            <motion.div variants={itemVariants} key={item.id}>
+                              <Link
+                                href={item.href}
+                                className={`group flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-xl sm:rounded-2xl shadow-sm hover:shadow-md transition-all text-left active:scale-[0.99] ${itemColor.borderHover}`}
+                              >
+                                <div className="shrink-0 flex items-center justify-center h-8 w-8 sm:h-10 sm:w-10">
+                                  {Icon && <Icon weight="duotone" className={`h-6 w-6 sm:h-8 sm:w-8 transition-colors ${itemColor.text}`} />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5 truncate">
+                                    {title}
+                                  </h4>
+                                  <p className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">
+                                    {item.desc || 'Akses halaman fitur ini'}
+                                  </p>
+                                </div>
+                              </Link>
+                            </motion.div>
+                          )
+                        })}
+                      </motion.div>
+                    </motion.div>
+                  )
+                })()
               ) : (
                 // Group List (Default Menu View)
                 <motion.div
@@ -483,10 +553,11 @@ export function DashboardSPAShell({
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
                 >
                   {groupedMenus.map(group => {
-                    const groupTitle = group.label || GROUP_META[group.id]?.title || 'Grup Fitur'
-                    const groupDesc = GROUP_META[group.id]?.desc || 'Akses cepat fitur'
-                    const groupColor = GROUP_COLORS[group.id] || GROUP_COLORS['lainnya']
-                    const GroupIcon = GROUP_ICONS[group.id] || DotsThree
+                    const groupMeta = getGroupIconAndStyle(group)
+                    const groupTitle = group.label || groupMeta.title
+                    const groupDesc = groupMeta.desc
+                    const groupColor = groupMeta.color
+                    const GroupIcon = groupMeta.icon
 
                     return (
                       <motion.div variants={itemVariants} key={group.id}>
