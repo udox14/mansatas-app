@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { getDB } from '@/utils/db'
 import { formatTimeWIB, todayWIB } from '@/lib/time'
+import { formatNamaKelas } from '@/lib/utils'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
@@ -133,7 +134,7 @@ export async function ResepsionisDashboard({ userId, nama, namaDepan, avatarUrl,
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-slate-800 dark:text-slate-100 truncate">{r.nama_lengkap}</p>
                   <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
-                    {r.keterangan || '-'} · Kls {r.tingkat}{r.kelompok ?? ''}-{r.nomor_kelas}
+                    {r.keterangan || '-'} · Kls {formatNamaKelas(r.tingkat, r.nomor_kelas, r.kelompok)}
                   </p>
                 </div>
                 <div className="text-right shrink-0">

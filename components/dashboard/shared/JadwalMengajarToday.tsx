@@ -4,6 +4,7 @@ import { getDB } from '@/utils/db'
 import { todayWIB } from '@/lib/time'
 import { ClipboardText as ClipboardPen, BookOpen, CheckCircle as CheckCircle2, WarningCircle as AlertCircle, UserCheck, Calendar as CalendarDays, Prohibit as Ban } from '@phosphor-icons/react/dist/ssr'
 import { getKbmExceptionsForDate, getKalenderDateStatus, splitTeachingSlotsByExceptions } from '@/lib/kalender-pendidikan'
+import { formatNamaKelas } from '@/lib/utils'
 
 export type JadwalMengajarTodayProps = {
   userId: string
@@ -154,7 +155,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-col gap-0.5 mb-1">
-                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100">Kelas {j.tingkat}{j.kelompok ?? ''}-{j.nomor_kelas}</span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100">Kelas {formatNamaKelas(j.tingkat, j.nomor_kelas, j.kelompok)}</span>
                     <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{j.nama_mapel}</span>
                   </div>
                   {j.exception_segments.map((segment: any) => (

@@ -201,8 +201,8 @@ export function DashboardSPAShell({
           let found = false
           for (const slot of todayPola.slots) {
             if (currentTime >= slot.mulai && currentTime <= slot.selesai) {
-              const isNumber = !isNaN(Number(slot.nama))
-              label = isNumber ? `Jam ke-${slot.nama}` : slot.nama
+              const numMatch = String(slot.nama || '').match(/\d+/)
+              label = numMatch ? `Jam ke-${numMatch[0]}` : slot.nama
               found = true
               break
             }

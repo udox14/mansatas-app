@@ -18,6 +18,8 @@ type Props = {
   dashboardVisibility?: Record<string, boolean>
 }
 
+import { formatNamaKelas } from '@/lib/utils'
+
 export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket, dashboardVisibility }: Props) {
   const show = (id: string) => dashboardVisibility?.[id] !== false
   const db = await getDB()
@@ -149,7 +151,7 @@ export async function GuruBKDashboard({ userId, nama, namaDepan, avatarUrl, role
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-slate-800 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                      Kls {s.tingkat}{s.kelompok ?? ''}-{s.nomor_kelas} · {s.jumlah_kasus}× kasus
+                      Kls {formatNamaKelas(s.tingkat, s.nomor_kelas, s.kelompok)} · {s.jumlah_kasus}× kasus
                     </p>
                   </div>
                   <span className="text-[11px] font-bold text-rose-500 shrink-0">+{s.total_poin}</span>
