@@ -20,7 +20,7 @@ import {
   DotsThree,
   Clock
 } from '@phosphor-icons/react'
-import { MENU_ITEMS, DEFAULT_SIDEBAR_GROUPS } from '@/config/menu'
+import { MENU_ITEMS, DEFAULT_SIDEBAR_GROUPS, resolveSidebarGroups, SIDEBAR_ROOT_ITEM_IDS, type SidebarGroupConfig } from '@/config/menu'
 import { getIconComponent } from '@/lib/icons'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -28,6 +28,7 @@ interface DashboardSPAShellProps {
   children: React.ReactNode
   allowedFeatures: string[]
   featureLabels?: Record<string, string>
+  sidebarGroups?: SidebarGroupConfig[]
   heroNode?: React.ReactNode
   polaJam?: any[]
 }
@@ -35,13 +36,13 @@ interface DashboardSPAShellProps {
 const GROUP_META: Record<string, { title: string; desc: string }> = {
   'utama': { title: 'Utama', desc: 'Dasbor ringkasan' },
   'data-master': { title: 'Data Master', desc: 'Siswa, pegawai, kelas, dan plotting' },
-  'tugas-harian-guru': { title: 'Operasional Harian', desc: 'Agenda, absensi, nilai, dan penugasan' },
+  'tugas-harian-guru': { title: 'Tugas Harian Guru', desc: 'Agenda, absensi, nilai, dan penugasan' },
   'monitoring-akademik': { title: 'Monitoring Akademik', desc: 'Kurikulum, kalender, analitik' },
-  'monitoring-rekap': { title: 'Monitoring & Laporan', desc: 'Pantauan harian dan rekap kerja' },
+  'monitoring-rekap': { title: 'Monitoring & Rekap', desc: 'Pantauan harian dan rekap kerja' },
   'program-khusus': { title: 'Program Khusus', desc: 'Tahfidz Qur\'an dan keagamaan' },
   'kesiswaan-bk': { title: 'Kesiswaan & BK', desc: 'Izin, kedisiplinan, bimbingan konseling' },
-  'administrasi-hr': { title: 'Administrasi', desc: 'Surat, rapat, sarpras, buku tamu' },
-  'keuangan': { title: 'Keuangan', desc: 'Daftar ulang, SPP, DSPT, kas, laporan' },
+  'administrasi-hr': { title: 'Administrasi & HR', desc: 'Surat, rapat, sarpras, buku tamu' },
+  'keuangan': { title: 'Komite', desc: 'Daftar ulang, SPP, DSPT, kas, laporan' },
   'sistem': { title: 'Sistem', desc: 'Pengaturan, broadcast, log sistem' },
 }
 
@@ -96,6 +97,7 @@ export function DashboardSPAShell({
   children,
   allowedFeatures = [],
   featureLabels = {},
+  sidebarGroups,
   heroNode,
   polaJam = [],
 }: DashboardSPAShellProps) {
@@ -216,12 +218,18 @@ export function DashboardSPAShell({
     return title.toLowerCase().includes(normalizedQuery)
   })
 
-  // Group filtered menus
-  const configuredMenuIds = new Set(DEFAULT_SIDEBAR_GROUPS.flatMap(g => g.items))
+  // Group filtered menus using sidebar groups configuration (or resolved defaults)
+  const effectiveSidebarGroups = sidebarGroups && sidebarGroups.length > 0
+    ? sidebarGroups
+    : resolveSidebarGroups(DEFAULT_SIDEBAR_GROUPS, null, allowedFeatures)
+
+  const rootIds = new Set<string>(SIDEBAR_ROOT_ITEM_IDS)
+  const configuredMenuIds = new Set(effectiveSidebarGroups.flatMap(g => g.items))
   const unconfiguredMenus = allowedMenus.filter(item => !configuredMenuIds.has(item.id))
 
-  const groupedMenus = DEFAULT_SIDEBAR_GROUPS.map(group => {
+  const groupedMenus = effectiveSidebarGroups.map(group => {
     const items = group.items
+      .filter(id => !rootIds.has(id))
       .map(id => allowedMenus.find(item => item.id === id))
       .filter((item): item is NonNullable<typeof item> => item !== undefined)
     return { ...group, items }
@@ -424,10 +432,10 @@ export function DashboardSPAShell({
                     </button>
                     <div>
                       <h3 className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                        {GROUP_META[activeGroupData.id]?.title || activeGroupData.label}
+                        {activeGroupData.label || GROUP_META[activeGroupData.id]?.title}
                       </h3>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                        {GROUP_META[activeGroupData.id]?.desc}
+                        {GROUP_META[activeGroupData.id]?.desc || 'Akses cepat fitur'}
                       </p>
                     </div>
                   </div>
@@ -475,7 +483,8 @@ export function DashboardSPAShell({
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
                 >
                   {groupedMenus.map(group => {
-                    const meta = GROUP_META[group.id] || { title: group.label, desc: 'Akses cepat fitur' }
+                    const groupTitle = group.label || GROUP_META[group.id]?.title || 'Grup Fitur'
+                    const groupDesc = GROUP_META[group.id]?.desc || 'Akses cepat fitur'
                     const groupColor = GROUP_COLORS[group.id] || GROUP_COLORS['lainnya']
                     const GroupIcon = GROUP_ICONS[group.id] || DotsThree
 
@@ -487,8 +496,8 @@ export function DashboardSPAShell({
                         >
                           <GroupIcon weight="duotone" className={`shrink-0 h-6 w-6 sm:h-8 sm:w-8 transition-colors ${groupColor.text}`} />
                           <div>
-                            <h4 className="text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5">{meta.title}</h4>
-                            <p className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1">{meta.desc}</p>
+                            <h4 className="text-[11px] sm:text-xs font-bold text-slate-800 dark:text-slate-100 mb-0.5">{groupTitle}</h4>
+                            <p className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 line-clamp-1">{groupDesc}</p>
                           </div>
                         </button>
                       </motion.div>

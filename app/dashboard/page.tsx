@@ -19,6 +19,7 @@ import { WelcomeStrip } from '@/components/dashboard/shared/WelcomeStrip'
 import { DASHBOARD_VISIBILITY_KEY, dashboardKeyForRole, parseVisibility } from '@/lib/dashboard-visibility'
 import { DASHBOARD_WIDGETS_CONFIG_KEY, parseWidgetsConfig, getWidgetMeta } from '@/lib/dashboard-widgets-meta'
 import { WIDGET_COMPONENTS } from '@/lib/dashboard-widgets'
+import { DEFAULT_SIDEBAR_GROUPS, parseSidebarGroups, resolveSidebarGroups, type SidebarGroupConfig } from '@/config/menu'
 
 export const metadata = { title: 'Dashboard - MANSATAS App' }
 export const dynamic  = 'force-dynamic'
@@ -56,6 +57,8 @@ const ROLE_LABEL: Record<string, string> = {
   pengurus_koperasi:  'Pengurus Koperasi',
 }
 
+const SIDEBAR_TEMPLATE_KEY = 'default'
+
 export default async function DashboardPage() {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
@@ -72,11 +75,26 @@ export default async function DashboardPage() {
     getUserAllowedFeatures(db, user.id),
   ])
 
+  const userRole    = freshUser?.role || (user as any).role || 'guru'
+
+  let sidebarGroups = DEFAULT_SIDEBAR_GROUPS
+  try {
+    const roleConfig = await db.prepare(`
+      SELECT rsc.groups_json AS role_sidebar_override, stc.groups_json AS sidebar_template
+      FROM master_roles mr
+      LEFT JOIN role_sidebar_configs rsc ON rsc.role = mr.value
+      LEFT JOIN sidebar_template_config stc ON stc.id = ?
+      WHERE mr.value = ?
+    `).bind(SIDEBAR_TEMPLATE_KEY, userRole).first<any>()
+
+    const templateGroups = parseSidebarGroups(roleConfig?.sidebar_template, DEFAULT_SIDEBAR_GROUPS)
+    sidebarGroups = resolveSidebarGroups(templateGroups, roleConfig?.role_sidebar_override, allowedFeatures)
+  } catch (e) {}
+
   const wib       = nowWIB()
   const hour      = wib.getUTCHours()
   const sapaan    = hour < 11 ? 'Selamat pagi' : hour < 15 ? 'Selamat siang' : hour < 18 ? 'Selamat sore' : 'Selamat malam'
 
-  const userRole    = freshUser?.role || (user as any).role || 'guru'
   const namaLengkap = freshUser?.nama_lengkap || (user as any).nama_lengkap || user.name || 'Pengguna'
   const namaDepan   = namaLengkap.split(' ')[0]
   const avatarUrl   = freshUser?.avatar_url ?? null
@@ -202,6 +220,7 @@ export default async function DashboardPage() {
       <DashboardSPAShell
         allowedFeatures={allowedFeatures}
         featureLabels={featureLabels}
+        sidebarGroups={sidebarGroups}
         heroNode={<WelcomeStrip {...commonProps} />}
         polaJam={polaJam}
       >

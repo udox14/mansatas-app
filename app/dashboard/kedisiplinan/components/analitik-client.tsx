@@ -244,7 +244,7 @@ export function AnalitikKedisiplinanClient({
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
+                      <p className="text-sm font-bold text-slate-800 dark:text-slate-100 break-words leading-tight">{s.nama_lengkap}</p>
                       <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full border', badgeStyle)}>
                         {sanksi?.nama || 'Baik'}
                       </span>

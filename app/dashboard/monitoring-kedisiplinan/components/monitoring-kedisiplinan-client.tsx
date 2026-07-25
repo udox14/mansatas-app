@@ -1,17 +1,20 @@
 // Lokasi: app/dashboard/kedisiplinan/components/kedisiplinan-client.tsx
 'use client'
 
+// Lokasi: app/dashboard/kedisiplinan/components/kedisiplinan-client.tsx
+'use client'
+
 import { useState, useMemo } from 'react'
 import Script from 'next/script'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog'
 import {
   Search, PlusCircle, Trash2, Pencil, Image as ImageIcon, AlertTriangle,
   ShieldCheck, BookOpen, FileSpreadsheet, Download, Loader2, ChevronLeft,
-  ChevronRight, User, X, ExternalLink
+  ChevronRight, User, X, ExternalLink, SlidersHorizontal, RotateCcw
 } from 'lucide-react'
 import { FormModal } from '../../kedisiplinan/components/form-modal'
 import { MasterModal } from '../../kedisiplinan/components/master-modal'
@@ -278,6 +281,7 @@ export function MonitoringKedisiplinanClient({
   const [page, setPage] = useState(1)
 
   // Modal states
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [isFormModalOpen, setIsFormModalOpen] = useState(false)
   const [editKasusData, setEditKasusData] = useState<any>(null)
   const [detailGroup, setDetailGroup] = useState<{ siswa: any; kasus: any[]; totalPoin: number; siswaId: string } | null>(null)
@@ -287,6 +291,20 @@ export function MonitoringKedisiplinanClient({
   const [isMasterModalOpen, setIsMasterModalOpen] = useState(false)
   const [editMasterData, setEditMasterData] = useState<any>(null)
   const [isImportingKamus, setIsImportingKamus] = useState(false)
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (filterTingkat !== 'ALL') count++
+    if (filterLevel !== 'ALL') count++
+    if (filterKategori !== 'ALL') count++
+    if (filterPelanggaran !== 'ALL') count++
+    if (tglMulai) count++
+    if (tglSelesai) count++
+    if (minKasus) count++
+    if (minPoin) count++
+    if (sortMode !== 'latest') count++
+    return count
+  }, [filterTingkat, filterLevel, filterKategori, filterPelanggaran, tglMulai, tglSelesai, minKasus, minPoin, sortMode])
 
   // ── Group kasus per siswa ─────────────────────────────────
   const kategoriOptions = useMemo(() => {
@@ -454,6 +472,8 @@ export function MonitoringKedisiplinanClient({
     reader.readAsBinaryString(file)
   }
 
+
+
   const filteredMaster = masterList.filter(m =>
     m.nama_pelanggaran.toLowerCase().includes(searchMaster.toLowerCase())
   )
@@ -468,121 +488,106 @@ export function MonitoringKedisiplinanClient({
       <Script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" strategy="lazyOnload" />
       <div className="space-y-3">
         <Tabs defaultValue="riwayat" className="space-y-3">
-          <TabsList className={cn("bg-surface border border-surface rounded-lg w-full grid p-0.5 gap-0.5 h-auto", canManageMaster ? 'grid-cols-2' : 'grid-cols-1')}>
-            <TabsTrigger value="riwayat" className="py-2 rounded-md data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
-              Riwayat Pelanggaran
-            </TabsTrigger>
-            {canManageMaster && (
-              <TabsTrigger value="kamus" className="py-2 rounded-md data-[state=active]:bg-slate-800 data-[state=active]:text-white text-xs sm:text-sm font-medium">
+          {canManageMaster && (
+            <TabsList className="bg-surface border border-surface rounded-lg w-full grid grid-cols-2 p-0.5 gap-0.5 h-auto">
+              <TabsTrigger value="riwayat" className="py-1.5 rounded-md text-xs font-medium">
+                Riwayat Pelanggaran
+              </TabsTrigger>
+              <TabsTrigger value="kamus" className="py-1.5 rounded-md text-xs font-medium">
                 Kamus &amp; Poin
               </TabsTrigger>
-            )}
-          </TabsList>
+            </TabsList>
+          )}
 
           {/* ── TAB RIWAYAT ── */}
           <TabsContent value="riwayat" className="space-y-3 m-0">
             {/* TOOLBAR */}
-            <div className="bg-surface border border-surface rounded-lg p-3 space-y-3">
-              <div className="flex gap-2">
-                <div className="relative flex-1 min-w-0">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+            <div className="bg-surface border border-surface rounded-xl p-3 space-y-2">
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                {/* Search Box */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500" />
                   <Input
-                    placeholder="Cari siswa, kelas, jenis, atau kategori..."
+                    placeholder="Cari nama siswa, kelas, jenis, atau kategori..."
                     value={search}
                     onChange={e => { setSearch(e.target.value); resetPage() }}
-                    className="pl-8 h-8 text-sm rounded-md"
+                    className="pl-9 pr-8 h-9 text-xs sm:text-sm rounded-lg"
                   />
+                  {search && (
+                    <button
+                      onClick={() => { setSearch(''); resetPage() }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
+
+                {/* Filter Trigger Button */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsFilterModalOpen(true)}
+                  className={cn(
+                    "h-9 px-3 text-xs font-semibold rounded-lg border flex items-center gap-1.5 shrink-0 transition-colors",
+                    activeFilterCount > 0
+                      ? "border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-300 font-bold"
+                      : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+                  )}
+                >
+                  <SlidersHorizontal className="h-4 w-4 text-rose-500" />
+                  <span>Filter</span>
+                  {activeFilterCount > 0 && (
+                    <span className="ml-0.5 px-1.5 py-0.5 bg-rose-600 text-white rounded-full text-[10px] font-bold leading-none">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </Button>
+
+                {/* Quick Reset if filter applied */}
+                {activeFilterCount > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetFilters}
+                    className="h-9 px-2 text-xs text-slate-500 hover:text-rose-600 shrink-0"
+                    title="Reset semua filter"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reset
+                  </Button>
+                )}
+
+                {/* + Lapor Button */}
                 {canInput && (
                   <Button
                     onClick={() => { setEditKasusData(null); setIsFormModalOpen(true) }}
                     size="sm"
-                    className="h-8 px-3 text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-md shrink-0"
+                    className="h-9 px-3 text-xs bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg shrink-0 shadow-sm"
                   >
-                    <PlusCircle className="h-3.5 w-3.5 mr-1" /> Lapor
+                    <PlusCircle className="h-4 w-4 mr-1.5" /> Lapor Pelanggaran
                   </Button>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
-                <Select value={sortMode} onValueChange={v => { setSortMode(v as SortMode); resetPage() }}>
-                  <SelectTrigger className="h-8 text-xs rounded"><SelectValue placeholder="Urutkan" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="latest">Terbaru</SelectItem>
-                    <SelectItem value="oldest">Terlama</SelectItem>
-                    <SelectItem value="case_desc">Terbanyak Kasus</SelectItem>
-                    <SelectItem value="case_asc">Tersedikit Kasus</SelectItem>
-                    <SelectItem value="point_desc">Terbanyak Poin</SelectItem>
-                    <SelectItem value="point_asc">Tersedikit Poin</SelectItem>
-                    <SelectItem value="lifetime_desc">Poin Seumur Terbesar</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={filterTingkat} onValueChange={v => { setFilterTingkat(v); resetPage() }}>
-                  <SelectTrigger className="h-8 text-xs rounded"><SelectValue placeholder="Tingkat" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">Semua Kelas</SelectItem>
-                    {tingkatOptions.map(tingkat => (
-                      <SelectItem key={tingkat} value={tingkat}>Kelas {tingkat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={filterLevel} onValueChange={v => { setFilterLevel(v); resetPage() }}>
-                  <SelectTrigger className="h-8 text-xs rounded"><SelectValue placeholder="Sanksi" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">Semua Level</SelectItem>
-                    <SelectItem value="baik">Belum Ada Sanksi</SelectItem>
-                    {sanksiList.map(s => (
-                      <SelectItem key={s.id} value={s.id}>{s.nama}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={filterKategori} onValueChange={v => { setFilterKategori(v); resetPage() }}>
-                  <SelectTrigger className="h-8 text-xs rounded"><SelectValue placeholder="Kategori" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">Semua Kategori</SelectItem>
-                    {kategoriOptions.map(kategori => (
-                      <SelectItem key={String(kategori)} value={String(kategori)}>{String(kategori)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={filterPelanggaran} onValueChange={v => { setFilterPelanggaran(v); resetPage() }}>
-                  <SelectTrigger className="h-8 text-xs rounded"><SelectValue placeholder="Jenis" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">Semua Jenis</SelectItem>
-                    {pelanggaranOptions.map(m => (
-                      <SelectItem key={m.id} value={m.id}>{m.nama_pelanggaran}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); resetPage() }}>
-                  <SelectTrigger className="h-8 text-xs rounded"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10 / hal</SelectItem>
-                    <SelectItem value="20">20 / hal</SelectItem>
-                    <SelectItem value="50">50 / hal</SelectItem>
-                    <SelectItem value="100">100 / hal</SelectItem>
-                  </SelectContent>
-                </Select>
+              {/* Status summary line */}
+              <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 px-1 pt-0.5">
+                <span>
+                  Menampilkan <strong className="text-slate-700 dark:text-slate-200 font-semibold">{filteredGrouped.length}</strong> siswa (<strong className="text-slate-700 dark:text-slate-200 font-semibold">{filteredKasus.length}</strong> catatan)
+                </span>
+                {activeFilterCount > 0 && (
+                  <span className="text-rose-600 dark:text-rose-400 font-medium">
+                    {activeFilterCount} filter aktif
+                  </span>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-                <Input type="date" value={tglMulai} onChange={e => { setTglMulai(e.target.value); resetPage() }} className="h-8 text-xs rounded" />
-                <Input type="date" value={tglSelesai} onChange={e => { setTglSelesai(e.target.value); resetPage() }} className="h-8 text-xs rounded" />
-                <Input type="number" min="0" value={minKasus} onChange={e => { setMinKasus(e.target.value); resetPage() }} placeholder="Min kasus" className="h-8 text-xs rounded" />
-                <Input type="number" min="0" value={minPoin} onChange={e => { setMinPoin(e.target.value); resetPage() }} placeholder="Min poin" className="h-8 text-xs rounded" />
-                <Button type="button" variant="outline" onClick={resetFilters} className="h-8 text-xs rounded">
-                  Reset Filter
-                </Button>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Menampilkan {filteredGrouped.length} siswa dari {filteredKasus.length} catatan yang cocok.
-              </p>
             </div>
 
             {/* LIST */}
             {filteredGrouped.length === 0 ? (
               <div className="bg-surface py-12 rounded-xl border border-surface text-center">
                 <ShieldCheck className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
-                <p className="text-sm text-slate-400 dark:text-slate-500">Belum ada catatan pelanggaran.</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500">Belum ada catatan pelanggaran yang cocok.</p>
               </div>
             ) : (
               <>
@@ -606,19 +611,19 @@ export function MonitoringKedisiplinanClient({
                         className="w-full bg-surface border border-surface rounded-xl px-4 py-3 flex items-center gap-3 hover:border-rose-200 dark:hover:border-rose-800 hover:bg-rose-50/20 dark:hover:bg-rose-900/10 transition-all text-left group"
                       >
                         {/* Avatar */}
-                        <AvatarSiswa fotoUrl={group.siswa.foto_url} nama={group.siswa.nama_lengkap || '?'} size="md" className="bg-gradient-to-br from-rose-400 to-pink-500 text-white font-black" />
+                        <AvatarSiswa fotoUrl={group.siswa.foto_url} nama={group.siswa.nama_lengkap || '?'} size="md" className="bg-gradient-to-br from-rose-400 to-pink-500 text-white font-black shrink-0" />
 
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate group-hover:text-rose-700 dark:group-hover:text-rose-400 transition-colors">
+                            <p className="text-sm font-bold text-slate-800 dark:text-slate-100 break-words leading-snug group-hover:text-rose-700 dark:group-hover:text-rose-400 transition-colors">
                               {group.siswa.nama_lengkap}
                             </p>
-                            <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full border', badgeStyle)}>
+                            <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full border shrink-0', badgeStyle)}>
                               {sanksi?.nama || 'Baik'}
                             </span>
                           </div>
-                          <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
                             Kelas {kelas} · <span className="font-semibold">{group.kasus.length} kasus</span>
                           </p>
                           {latestKasus && (
@@ -727,12 +732,12 @@ export function MonitoringKedisiplinanClient({
                       <DialogHeader><DialogTitle className="text-base font-semibold">Import Kamus Pelanggaran</DialogTitle></DialogHeader>
                       <div className="space-y-3 py-3">
                         <div className="flex justify-between items-center bg-surface-2 p-2.5 rounded-lg border border-surface">
-                          <span className="text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300">Download format:</span>
+                          <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Download format:</span>
                           <Button size="sm" variant="outline" onClick={handleDownloadTemplateKamus} className="h-7 text-xs gap-1">
                             <Download className="h-3 w-3" />Template
                           </Button>
                         </div>
-                        <div className="bg-surface-3 p-3 rounded-lg text-xs font-mono text-slate-600 dark:text-slate-400 dark:text-slate-300 space-y-0.5">
+                        <div className="bg-surface-3 p-3 rounded-lg text-xs font-mono text-slate-600 dark:text-slate-300 space-y-0.5">
                           <p className="font-bold mb-1">Kolom:</p>
                           <p>1. NAMA_PELANGGARAN</p>
                           <p>2. KATEGORI (Ringan/Sedang/Berat)</p>
@@ -740,7 +745,7 @@ export function MonitoringKedisiplinanClient({
                         </div>
                         <Input type="file" accept=".xlsx,.xls" onChange={handleFileUploadKamus} disabled={isImportingKamus} className="h-9 text-xs rounded-lg cursor-pointer" />
                         {isImportingKamus && (
-                          <div className="flex items-center text-xs font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 bg-surface-3 p-2.5 rounded-lg animate-pulse">
+                          <div className="flex items-center text-xs font-medium text-slate-600 dark:text-slate-300 bg-surface-3 p-2.5 rounded-lg animate-pulse">
                             <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Mengimport...
                           </div>
                         )}
@@ -761,9 +766,9 @@ export function MonitoringKedisiplinanClient({
                         <span className={cn("text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded border", kategoriColor(m.kategori))}>
                           {m.kategori}
                         </span>
-                        <span className="text-base font-black text-slate-800 dark:text-slate-200 dark:text-slate-100">+{m.poin}</span>
+                        <span className="text-base font-black text-slate-800 dark:text-slate-100">+{m.poin}</span>
                       </div>
-                      <p className="text-xs font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200 leading-snug">{m.nama_pelanggaran}</p>
+                      <p className="text-xs font-medium text-slate-700 dark:text-slate-200 leading-snug">{m.nama_pelanggaran}</p>
                     </div>
                     <div className="flex justify-end gap-1 mt-2.5 pt-2 border-t border-surface-2 opacity-30 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => { setEditMasterData(m); setIsMasterModalOpen(true) }} className="p-1.5 rounded text-blue-600 hover:bg-blue-50">
@@ -779,6 +784,190 @@ export function MonitoringKedisiplinanClient({
             </TabsContent>
           )}
         </Tabs>
+
+        {/* Modal: Filter & Pengurutan */}
+        <Dialog open={isFilterModalOpen} onOpenChange={setIsFilterModalOpen}>
+          <DialogContent className="sm:max-w-lg rounded-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+            <DialogHeader className="px-5 pt-5 pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+                  <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    Filter &amp; Pengurutan Data
+                  </DialogTitle>
+                </div>
+                <button
+                  onClick={() => setIsFilterModalOpen(false)}
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Sesuaikan kriteria pengurutan, tingkat kelas, level sanksi, dan rentang tanggal.
+              </p>
+            </DialogHeader>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              {/* 1. Pengurutan Data */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                  Urutkan Berdasarkan
+                </label>
+                <Select value={sortMode} onValueChange={v => { setSortMode(v as SortMode); resetPage() }}>
+                  <SelectTrigger className="h-9 text-xs rounded-lg bg-white dark:bg-slate-800">
+                    <SelectValue placeholder="Pilih urutan..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="latest">Terbaru (Tanggal Kasus)</SelectItem>
+                    <SelectItem value="oldest">Terlama (Tanggal Kasus)</SelectItem>
+                    <SelectItem value="case_desc">Terbanyak Kasus</SelectItem>
+                    <SelectItem value="case_asc">Tersedikit Kasus</SelectItem>
+                    <SelectItem value="point_desc">Terbanyak Poin (TA ini)</SelectItem>
+                    <SelectItem value="point_asc">Tersedikit Poin (TA ini)</SelectItem>
+                    <SelectItem value="lifetime_desc">Poin Seumur Terbesar</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* 2. Filter Kelas & Sanksi */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                    Tingkat Kelas
+                  </label>
+                  <Select value={filterTingkat} onValueChange={v => { setFilterTingkat(v); resetPage() }}>
+                    <SelectTrigger className="h-9 text-xs rounded-lg bg-white dark:bg-slate-800">
+                      <SelectValue placeholder="Semua Kelas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Semua Kelas</SelectItem>
+                      {tingkatOptions.map(tingkat => (
+                        <SelectItem key={tingkat} value={tingkat}>Kelas {tingkat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                    Level Sanksi
+                  </label>
+                  <Select value={filterLevel} onValueChange={v => { setFilterLevel(v); resetPage() }}>
+                    <SelectTrigger className="h-9 text-xs rounded-lg bg-white dark:bg-slate-800">
+                      <SelectValue placeholder="Semua Level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Semua Level Sanksi</SelectItem>
+                      <SelectItem value="baik">Belum Ada Sanksi (Aman)</SelectItem>
+                      {sanksiList.map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.nama}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* 3. Filter Kategori & Jenis Pelanggaran */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                    Kategori Pelanggaran
+                  </label>
+                  <Select value={filterKategori} onValueChange={v => { setFilterKategori(v); resetPage() }}>
+                    <SelectTrigger className="h-9 text-xs rounded-lg bg-white dark:bg-slate-800">
+                      <SelectValue placeholder="Semua Kategori" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Semua Kategori</SelectItem>
+                      {kategoriOptions.map(kategori => (
+                        <SelectItem key={String(kategori)} value={String(kategori)}>{String(kategori)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                    Jenis Pelanggaran
+                  </label>
+                  <Select value={filterPelanggaran} onValueChange={v => { setFilterPelanggaran(v); resetPage() }}>
+                    <SelectTrigger className="h-9 text-xs rounded-lg bg-white dark:bg-slate-800">
+                      <SelectValue placeholder="Semua Jenis" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Semua Jenis Pelanggaran</SelectItem>
+                      {pelanggaranOptions.map(m => (
+                        <SelectItem key={m.id} value={m.id}>{m.nama_pelanggaran}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* 4. Rentang Tanggal Pelanggaran */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                  Rentang Tanggal Pelanggaran
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">Dari Tanggal:</span>
+                    <Input type="date" value={tglMulai} onChange={e => { setTglMulai(e.target.value); resetPage() }} className="h-9 text-xs rounded-lg bg-white dark:bg-slate-800" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">Sampai Tanggal:</span>
+                    <Input type="date" value={tglSelesai} onChange={e => { setTglSelesai(e.target.value); resetPage() }} className="h-9 text-xs rounded-lg bg-white dark:bg-slate-800" />
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. Batas Minimal Kasus & Poin */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                    Minimal Jumlah Kasus
+                  </label>
+                  <Input type="number" min="0" value={minKasus} onChange={e => { setMinKasus(e.target.value); resetPage() }} placeholder="Contoh: 2" className="h-9 text-xs rounded-lg bg-white dark:bg-slate-800" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                    Minimal Total Poin
+                  </label>
+                  <Input type="number" min="0" value={minPoin} onChange={e => { setMinPoin(e.target.value); resetPage() }} placeholder="Contoh: 15" className="h-9 text-xs rounded-lg bg-white dark:bg-slate-800" />
+                </div>
+              </div>
+
+              {/* 6. Jumlah Tampilan Per Halaman */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                  Tampilan Per Halaman
+                </label>
+                <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); resetPage() }}>
+                  <SelectTrigger className="h-9 text-xs rounded-lg bg-white dark:bg-slate-800">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 siswa per halaman</SelectItem>
+                    <SelectItem value="20">20 siswa per halaman</SelectItem>
+                    <SelectItem value="50">50 siswa per halaman</SelectItem>
+                    <SelectItem value="100">100 siswa per halaman</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="px-5 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/50">
+              <Button type="button" variant="outline" onClick={resetFilters} className="h-9 text-xs rounded-lg">
+                Reset Filter
+              </Button>
+              <Button type="button" onClick={() => setIsFilterModalOpen(false)} className="h-9 px-5 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg">
+                Terapkan Filter
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Modal: Form lapor/edit */}
         <FormModal

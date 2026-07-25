@@ -213,7 +213,7 @@ export function FormModal({ isOpen, onClose, editData, masterList }: {
                       onClick={() => { setSelectedSiswaId(s.id); setSearchSiswaQuery(s.nama_lengkap); setShowSiswaDropdown(false) }}
                       className="px-3 py-2 hover:bg-rose-50 cursor-pointer border-b border-slate-50 flex items-center gap-2.5">
                       <AvatarSiswa fotoUrl={s.foto_url} nama={s.nama_lengkap} size="sm" />
-                      <span className="text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 flex-1 min-w-0 truncate">{s.nama_lengkap}</span>
+                      <span className="text-xs font-medium text-slate-800 dark:text-slate-100 flex-1 min-w-0 break-words leading-snug">{s.nama_lengkap}</span>
                       <span className="text-[10px] font-bold bg-surface-3 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-400 dark:text-slate-500 shrink-0 ml-2">{s.kelas}</span>
                     </div>
                   ))}
