@@ -191,7 +191,7 @@ export function Sidebar({
       .filter(({ groupItems }) => groupItems.length > 0)
 
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full overflow-hidden">
 
         {/* ── LOGO — h-12 sejajar header ── */}
         <div className={cn(
@@ -218,8 +218,71 @@ export function Sidebar({
           )}
         </div>
 
-        {/* ── NAV ── */}
-        <nav className={cn('flex-1 overflow-y-auto py-3 sm:py-4 sidebar-scrollbar relative', collapsed ? 'px-2.5' : 'px-3')}>
+        {/* ── PINNED TOP HEADER: Cari Menu & Dashboard (Root Menus) ── */}
+        <div className={cn(
+          'shrink-0 border-b transition-colors py-2.5',
+          theme.border,
+          collapsed ? 'px-2.5' : 'px-3'
+        )}>
+          {!collapsed && (
+            <div className="mb-2">
+              <div className={cn(
+                'flex items-center gap-2 rounded-xl border px-3 py-2 transition-colors',
+                theme.id === 'white' ? 'bg-slate-50 focus-within:bg-slate-100 dark:bg-black/15 dark:focus-within:bg-black/25' : 'bg-black/15 focus-within:bg-black/25',
+                theme.border
+              )}>
+                <Search className={cn('h-4 w-4 shrink-0', theme.textMuted)} />
+                <input
+                  value={menuSearch}
+                  onChange={(event) => setMenuSearch(event.target.value)}
+                  placeholder="Cari menu..."
+                  className={cn("min-w-0 flex-1 bg-transparent outline-none", mobile ? "text-[12px]" : "text-[13px]", theme.id === 'white' ? 'text-slate-900 placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35' : 'text-white placeholder:text-white/35')}
+                  aria-label="Cari menu sidebar"
+                />
+                {menuSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setMenuSearch('')}
+                    className={cn('rounded-md p-1 transition-colors', theme.textMuted, theme.id === 'white' ? 'hover:bg-slate-200 dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white' : 'hover:bg-white/10 hover:text-white')}
+                    aria-label="Hapus pencarian menu"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {rootMenus.length > 0 && (
+            <div>
+              {rootMenus.map(item => {
+                const isActive = activeHref === item.href
+                const Icon = getIconComponent(item.icon)
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    title={collapsed ? (featureLabels[item.id] || item.title) : undefined}
+                    className={cn(
+                      'group flex items-center rounded-xl transition-all duration-300',
+                      mobile ? 'text-[11.5px]' : 'text-[13px]',
+                      collapsed ? 'mx-auto h-11 w-11 justify-center p-2.5' : (mobile ? 'gap-2 px-2.5 py-1.5' : 'gap-2.5 px-3 py-2.5'),
+                      isActive
+                        ? cn(theme.activeBg, theme.activeText, 'font-semibold shadow-sm ring-1', theme.id === 'white' ? 'ring-slate-200 dark:ring-white/5' : 'ring-white/5')
+                        : cn(theme.text, theme.hoverBg, theme.hoverText, !collapsed && 'hover:translate-x-0.5')
+                    )}
+                  >
+                    <Icon className={cn('shrink-0 transition-all duration-300', mobile ? 'h-3.5 w-3.5' : 'h-4 w-4', isActive ? 'opacity-100 scale-105 drop-shadow-sm' : 'opacity-70 group-hover:opacity-100')} />
+                    {!collapsed && <><span className="min-w-0 flex-1 truncate leading-snug">{featureLabels[item.id] || item.title}</span>{featureBadges[item.id] > 0 && <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">{featureBadges[item.id]}</span>}</>}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── NAV (Scrollable Menu Groups Only) ── */}
+        <nav className={cn('flex-1 overflow-y-auto py-3 sidebar-scrollbar', collapsed ? 'px-2.5' : 'px-3')}>
           <style>{`
             .sidebar-scrollbar {
                 scrollbar-width: thin;
@@ -230,72 +293,6 @@ export function Sidebar({
             .sidebar-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.15); border-radius: 10px; }
             .sidebar-scrollbar::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.25); }
           `}</style>
-
-          {/* ── STICKY TOP: Cari Menu & Dashboard (Root Menus) ── */}
-          <div className={cn(
-            'sticky top-0 z-20 pt-1 pb-2.5 mb-3 border-b transition-colors shadow-sm',
-            theme.sidebarBg,
-            theme.sidebarDarkBg,
-            theme.border,
-            '-mt-3 sm:-mt-4',
-            collapsed ? '-mx-2.5 px-2.5' : '-mx-3 px-3'
-          )}>
-            {!collapsed && (
-              <div className="mb-2">
-                <div className={cn(
-                  'flex items-center gap-2 rounded-xl border px-3 py-2 transition-colors',
-                  theme.id === 'white' ? 'bg-slate-50 focus-within:bg-slate-100 dark:bg-black/15 dark:focus-within:bg-black/25' : 'bg-black/15 focus-within:bg-black/25',
-                  theme.border
-                )}>
-                  <Search className={cn('h-4 w-4 shrink-0', theme.textMuted)} />
-                  <input
-                    value={menuSearch}
-                    onChange={(event) => setMenuSearch(event.target.value)}
-                    placeholder="Cari menu..."
-                    className={cn("min-w-0 flex-1 bg-transparent outline-none", mobile ? "text-[12px]" : "text-[13px]", theme.id === 'white' ? 'text-slate-900 placeholder:text-slate-400 dark:text-white dark:placeholder:text-white/35' : 'text-white placeholder:text-white/35')}
-                    aria-label="Cari menu sidebar"
-                  />
-                  {menuSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setMenuSearch('')}
-                      className={cn('rounded-md p-1 transition-colors', theme.textMuted, theme.id === 'white' ? 'hover:bg-slate-200 dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white' : 'hover:bg-white/10 hover:text-white')}
-                      aria-label="Hapus pencarian menu"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {rootMenus.length > 0 && (
-              <div>
-                {rootMenus.map(item => {
-                  const isActive = activeHref === item.href
-                  const Icon = getIconComponent(item.icon)
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      title={collapsed ? (featureLabels[item.id] || item.title) : undefined}
-                      className={cn(
-                        'group flex items-center rounded-xl transition-all duration-300',
-                        mobile ? 'text-[11.5px]' : 'text-[13px]',
-                        collapsed ? 'mx-auto h-11 w-11 justify-center p-2.5' : (mobile ? 'gap-2 px-2.5 py-1.5' : 'gap-2.5 px-3 py-2.5'),
-                        isActive
-                          ? cn(theme.activeBg, theme.activeText, 'font-semibold shadow-sm ring-1', theme.id === 'white' ? 'ring-slate-200 dark:ring-white/5' : 'ring-white/5')
-                          : cn(theme.text, theme.hoverBg, theme.hoverText, !collapsed && 'hover:translate-x-0.5')
-                      )}
-                    >
-                      <Icon className={cn('shrink-0 transition-all duration-300', mobile ? 'h-3.5 w-3.5' : 'h-4 w-4', isActive ? 'opacity-100 scale-105 drop-shadow-sm' : 'opacity-70 group-hover:opacity-100')} />
-                      {!collapsed && <><span className="min-w-0 flex-1 truncate leading-snug">{featureLabels[item.id] || item.title}</span>{featureBadges[item.id] > 0 && <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[9px] font-bold text-white">{featureBadges[item.id]}</span>}</>}
-                    </Link>
-                  )
-                })}
-              </div>
-            )}
-          </div>
 
           {visibleGroups.length === 0 && rootMenus.length === 0 && !collapsed && (
             <div className={cn('rounded-xl border border-dashed px-3 py-4 text-center text-[12px]', theme.border, theme.textMuted)}>
