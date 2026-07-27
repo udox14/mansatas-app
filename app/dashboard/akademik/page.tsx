@@ -3,7 +3,7 @@ import { Suspense } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB, parseJsonCol } from '@/utils/db'
 import { redirect } from 'next/navigation'
-import { checkFeatureAccess, getPrimaryRole } from '@/lib/features'
+import { checkFeatureAccess, getPrimaryRole, getUserRoles } from '@/lib/features'
 import { AkademikClient } from './akademik-client'
 import { BookOpen } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
@@ -26,7 +26,11 @@ function normalizePolaJam(raw: string | null): any[] {
   } catch { return [] }
 }
 
-async function AkademikDataFetcher({ userRole, userId }: { userRole: string; userId: string }) {
+async function AkademikDataFetcher({ userRole, userId, canManageAkademik }: {
+  userRole: string
+  userId: string
+  canManageAkademik: boolean
+}) {
   const db = await getDB()
 
   const [taAktif, mapelResult, guruResult] = await Promise.all([
@@ -77,6 +81,7 @@ async function AkademikDataFetcher({ userRole, userId }: { userRole: string; use
       polaDaftar={polaDaftar}
       userRole={userRole}
       userId={userId}
+      canManageAkademik={canManageAkademik}
     />
   )
 }
@@ -89,13 +94,17 @@ export default async function AkademikPage() {
   const allowed = await checkFeatureAccess(db, user.id, 'akademik')
   if (!allowed) redirect('/dashboard')
 
-  const userRole = await getPrimaryRole(db, user.id)
+  const [userRole, userRoles] = await Promise.all([
+    getPrimaryRole(db, user.id),
+    getUserRoles(db, user.id),
+  ])
+  const canManageAkademik = userRoles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader title="Pusat Akademik" description="Kelola mata pelajaran, penugasan mengajar, dan jadwal." />
       <Suspense fallback={<PageLoading text="Memuat pusat akademik..." />}>
-        <AkademikDataFetcher userRole={userRole} userId={user.id} />
+        <AkademikDataFetcher userRole={userRole} userId={user.id} canManageAkademik={canManageAkademik} />
       </Suspense>
     </div>
   )

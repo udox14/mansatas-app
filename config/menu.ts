@@ -87,7 +87,7 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Siswa',
     href: '/dashboard/siswa',
     icon: Users,
-    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'guru_bk', 'wali_kelas', 'operator', 'bendahara_komite'],
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'guru_bk', 'guru_piket', 'wali_kelas', 'resepsionis', 'guru_ppl', 'guru_tahfidz', 'satpam', 'pramubakti', 'operator', 'bendahara_komite', 'pembina_ekstrakurikuler', 'ketua_komite', 'anggota_komite'],
     desc: 'Mengelola biodata, mutasi, dan pencarian profil lengkap seluruh siswa aktif maupun alumni'
   },
   {
@@ -95,7 +95,7 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Kelas',
     href: '/dashboard/kelas',
     icon: Library,
-    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad'],
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'guru_bk', 'guru_piket', 'wali_kelas', 'guru_ppl', 'guru_tahfidz'],
     desc: 'Mengatur struktur kelas, wali kelas, serta kapasitas rombongan belajar di setiap tingkat'
   },
   {

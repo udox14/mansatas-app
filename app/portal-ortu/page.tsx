@@ -55,6 +55,10 @@ type TodayIzinRow = {
   alasan: string
   keterangan: string | null
 }
+type GuruTidakHadir = {
+  status: 'SAKIT' | 'IZIN'
+  keterangan: string | null
+}
 const DAY_LABEL: Record<number, string> = {
   1: 'Senin',
   2: 'Selasa',
@@ -608,7 +612,7 @@ export default async function PortalOrtuPage() {
 
   const agendaRows = profil.kelas_id
     ? await db.prepare(`
-        SELECT ag.penugasan_id, ag.tanggal, ag.materi, ag.foto_url, ag.status
+        SELECT ag.penugasan_id, ag.tanggal, ag.materi, ag.foto_url, ag.status, ag.catatan_admin
         FROM agenda_guru ag
         JOIN penugasan_mengajar pm ON pm.id = ag.penugasan_id
         WHERE pm.kelas_id = ? AND ag.tanggal BETWEEN ? AND ?
@@ -617,6 +621,44 @@ export default async function PortalOrtuPage() {
   const agendaMap = new Map<string, any>()
   for (const agenda of agendaRows.results || []) {
     agendaMap.set(`${agenda.penugasan_id}__${agenda.tanggal}`, agenda)
+  }
+
+  // Samakan sumber status dengan Monitoring Agenda: agenda/override admin
+  // mengalahkan penugasan. Keterangan hanya dibuka untuk status IZIN.
+  const guruTidakHadirMap = new Map<string, GuruTidakHadir>()
+  for (const agenda of agendaRows.results || []) {
+    if (agenda.status === 'SAKIT' || agenda.status === 'IZIN') {
+      guruTidakHadirMap.set(`${agenda.penugasan_id}__${agenda.tanggal}`, {
+        status: agenda.status,
+        keterangan: agenda.status === 'IZIN' ? agenda.catatan_admin || null : null,
+      })
+    }
+  }
+
+  const delegasiRows = profil.kelas_id
+    ? await db.prepare(`
+        SELECT dtk.penugasan_mengajar_id AS penugasan_id, dt.tanggal,
+          dt.alasan_ketidakhadiran, dt.deskripsi_ketidakhadiran
+        FROM delegasi_tugas dt
+        JOIN delegasi_tugas_kelas dtk ON dtk.delegasi_id = dt.id
+        JOIN penugasan_mengajar pm ON pm.id = dtk.penugasan_mengajar_id
+        WHERE pm.kelas_id = ?
+          AND dt.dari_user_id = pm.guru_id
+          AND dt.tanggal BETWEEN ? AND ?
+        ORDER BY dt.created_at DESC
+      `).bind(profil.kelas_id, weekStart, weekEnd).all<any>()
+    : { results: [] as any[] }
+  for (const delegasi of delegasiRows.results || []) {
+    const key = `${delegasi.penugasan_id}__${delegasi.tanggal}`
+    if (agendaMap.has(key)) continue
+    if (delegasi.alasan_ketidakhadiran === 'SAKIT' || delegasi.alasan_ketidakhadiran === 'IZIN') {
+      guruTidakHadirMap.set(key, {
+        status: delegasi.alasan_ketidakhadiran,
+        keterangan: delegasi.alasan_ketidakhadiran === 'IZIN'
+          ? delegasi.deskripsi_ketidakhadiran || null
+          : null,
+      })
+    }
   }
 
   const jadwalByDay = new Map<number, any[]>()
@@ -673,6 +715,7 @@ export default async function PortalOrtuPage() {
         guru: row.guru_nama || '-',
         absensiRows: [absensi],
         agenda: agendaMap.get(`${row.penugasan_id}__${agendaDate}`) || null,
+        guruTidakHadir: guruTidakHadirMap.get(`${row.penugasan_id}__${agendaDate}`) || null,
         agendaDate,
         isToday: hari === todayDay,
       })

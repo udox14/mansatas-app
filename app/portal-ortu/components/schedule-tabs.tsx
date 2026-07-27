@@ -26,6 +26,10 @@ type Row = {
     foto_url?: string | null
     status?: string | null
   } | null
+  guruTidakHadir?: {
+    status: 'SAKIT' | 'IZIN'
+    keterangan?: string | null
+  } | null
   isToday?: boolean
   absensi?: {
     status: string
@@ -105,6 +109,10 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
           let statusClass = 'border-[#D8D4CC] bg-[#F2F0EC] text-[#6B6B63]'
           let cardClass = 'border-[#D8D4CC] bg-white hover:border-[#BDB7AE] hover:bg-[#FEFDFB]'
           let StatusIcon = Clock
+          const guruIzin = item.guruTidakHadir?.status === 'IZIN'
+          const guruStatusClass = guruIzin
+            ? 'border-[#B8C9CD] bg-[#F1F7F7] text-[#3F6F72]'
+            : 'border-[#E5CFA7] bg-[#FFF7E8] text-[#8A5B16]'
 
           if (item.isToday && item.absensi) {
             switch (item.absensi.status) {
@@ -165,6 +173,12 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
                           {getStatusLabel(item.absensi.status)}
                         </span>
                       )}
+                      {item.guruTidakHadir && (
+                        <span className={`inline-flex max-w-full shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-semibold ${guruStatusClass}`}>
+                          <Warning className="h-3.5 w-3.5 shrink-0" />
+                          Guru {guruIzin ? 'izin' : 'sakit'}
+                        </span>
+                      )}
                       {item.agenda?.foto_url && (
                         <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-[#F2F0EC] px-2.5 py-1 text-xs font-semibold text-[#6B6B63]">
                           <Camera className="h-3.5 w-3.5" /> Foto kegiatan
@@ -173,6 +187,11 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
                     </div>
                     {item.isToday && item.absensi?.catatan && (
                       <p className="mt-3 border-l-2 border-[#D8D4CC] pl-3 text-xs leading-5 text-[#6B6B63]">{item.absensi.catatan}</p>
+                    )}
+                    {guruIzin && item.guruTidakHadir?.keterangan && (
+                      <p className="mt-3 border-l-2 border-[#487A7C] pl-3 text-xs leading-5 text-[#3F6F72]">
+                        Keterangan izin guru: {item.guruTidakHadir.keterangan}
+                      </p>
                     )}
                   </div>
                 </button>
@@ -188,6 +207,17 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
                   </div>
                 </DialogHeader>
                 <div className="space-y-4 p-5">
+                  {item.guruTidakHadir && (
+                    <div className={`flex items-start gap-3 rounded-xl border p-4 ${guruStatusClass}`}>
+                      <Warning className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold">Guru sedang {guruIzin ? 'izin' : 'sakit'}</p>
+                        {guruIzin && item.guruTidakHadir.keterangan && (
+                          <p className="mt-1 text-sm leading-6">Keterangan izin: {item.guruTidakHadir.keterangan}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {item.agenda?.foto_url ? (
                     <img src={item.agenda.foto_url} alt={`Kegiatan ${item.mapel}`} className="max-h-[62dvh] w-full rounded-xl bg-[#F2F0EC] object-contain" />
                   ) : (

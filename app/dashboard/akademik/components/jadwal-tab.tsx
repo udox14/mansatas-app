@@ -52,12 +52,13 @@ function getSlotsForHari(polaDaftar: PolaJam[], hari: number): SlotJam[] {
 
 // ── Cell Jadwal ────────────────────────────────────────────────────────
 function JadwalCell({
-  row, mode, onHapus, isDeleting,
+  row, mode, onHapus, isDeleting, canManage,
 }: {
   row: JadwalByKelasRow | JadwalByGuruRow
   mode: 'kelas' | 'guru'
   onHapus: (id: string) => void
   isDeleting: boolean
+  canManage: boolean
 }) {
   const [hover, setHover] = useState(false)
   const byKelas = row as JadwalByKelasRow
@@ -77,7 +78,7 @@ function JadwalCell({
           ? byKelas.guru_nama.split(',')[0]
           : formatNamaKelas(byGuru.tingkat, byGuru.nomor_kelas, byGuru.kelas_kelompok)}
       </p>
-      {hover && (
+      {canManage && hover && (
         <button
           onClick={() => onHapus(row.id)}
           disabled={isDeleting}
@@ -95,13 +96,14 @@ function JadwalCell({
 // Tiap cell header hari punya jam-nya sendiri sesuai polanya
 // Waktu jam ditampilkan di dalam cell (bukan kolom kiri) karena tiap hari beda pola
 function JadwalGrid({
-  jadwal, polaDaftar, mode, onHapusSlot, deletingId,
+  jadwal, polaDaftar, mode, onHapusSlot, deletingId, canManage,
 }: {
   jadwal: (JadwalByKelasRow | JadwalByGuruRow)[]
   polaDaftar: PolaJam[]
   mode: 'kelas' | 'guru'
   onHapusSlot: (id: string) => void
   deletingId: string | null
+  canManage: boolean
 }) {
   const hariAktif = Array.from(new Set(jadwal.map(j => j.hari))).sort()
   if (hariAktif.length === 0) return null
@@ -176,6 +178,7 @@ function JadwalGrid({
                                 mode={mode}
                                 onHapus={onHapusSlot}
                                 isDeleting={deletingId === cell.id}
+                                canManage={canManage}
                               />
                             ))}
                           </div>
@@ -311,6 +314,7 @@ export function JadwalTab({
   polaDaftar,
   userRole = 'guru',
   userId,
+  canManageSchedule: canManageScheduleProp,
 }: {
   taAktif: { id: string; nama: string; semester: number } | null
   kelasList: KelasItem[]
@@ -318,11 +322,13 @@ export function JadwalTab({
   polaDaftar: PolaJam[]
   userRole?: string
   userId?: string
+  canManageSchedule?: boolean
 }) {
   const isSuperAdmin = userRole === 'super_admin'
   const isGuru = userRole === 'guru'
   const isWaliKelas = userRole === 'wali_kelas'
-  const isTeacher = isGuru || isWaliKelas
+  const canManageSchedule = canManageScheduleProp ?? !(isGuru || isWaliKelas)
+  const isTeacher = !canManageSchedule
 
   const [viewMode, setViewMode]       = useState<'kelas' | 'guru'>(isWaliKelas ? 'kelas' : 'guru')
   const [selectedKelas, setSelectedKelas] = useState('')
@@ -427,7 +433,6 @@ export function JadwalTab({
     <div className="space-y-3">
 
       {/* TOOLBAR */}
-      {!isTeacher && (
       <div className="bg-surface border border-surface rounded-xl overflow-hidden">
 
         {/* Baris 1: toggle + aksi kanan */}
@@ -512,7 +517,7 @@ export function JadwalTab({
           )}
 
           {/* Reset jadwal kelas — hanya muncul kalau ada data */}
-          {loaded && activeJadwal.length > 0 && viewMode === 'kelas' && selectedKelas && (
+          {canManageSchedule && loaded && activeJadwal.length > 0 && viewMode === 'kelas' && selectedKelas && (
             <button onClick={handleHapusJadwalKelas}
               className="h-8 w-8 flex items-center justify-center rounded-lg text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition-colors shrink-0"
               title="Reset Jadwal Kelas"
@@ -522,7 +527,6 @@ export function JadwalTab({
           )}
         </div>
       </div>
-      )}
 
       {isTeacher && loaded && (
         <div className="bg-surface border border-surface rounded-xl p-3 flex justify-between items-center">
@@ -533,8 +537,8 @@ export function JadwalTab({
             <div>
               <p className="text-xs text-slate-500 font-medium">Menampilkan Jadwal</p>
               <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                {isGuru 
-                  ? guruList.find(g => g.id === userId)?.nama_lengkap || 'Saya'
+                {viewMode === 'guru'
+                  ? guruList.find(g => g.id === selectedGuru)?.nama_lengkap || 'Guru'
                   : (() => {
                       const k = kelasList.find(c => c.id === selectedKelas)
                       return k ? `Kelas ${formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok)}` : 'Kelas Binaan'
@@ -544,7 +548,7 @@ export function JadwalTab({
             </div>
           </div>
           <button
-            onClick={() => loadJadwal(isGuru ? userId! : selectedKelas, isGuru ? 'guru' : 'kelas')}
+            onClick={() => loadJadwal(viewMode === 'kelas' ? selectedKelas : selectedGuru, viewMode)}
             className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 dark:text-slate-500 hover:bg-surface-2 hover:text-slate-600 dark:hover:text-slate-400 transition-colors shrink-0"
             title="Refresh"
           >
@@ -648,6 +652,7 @@ export function JadwalTab({
               mode={viewMode}
               onHapusSlot={handleHapusSlot}
               deletingId={deletingId}
+              canManage={canManageSchedule}
             />
           </div>
         )}

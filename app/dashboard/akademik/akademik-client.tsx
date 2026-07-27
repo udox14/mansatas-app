@@ -41,7 +41,7 @@ const getAvatarColor = (name: string) => {
 
 export function AkademikClient({
   mapelData, penugasanData, taAktif, daftarJurusan = [],
-  kelasList = [], guruList = [], polaDaftar = [], userRole = 'guru', userId
+  kelasList = [], guruList = [], polaDaftar = [], userRole = 'guru', userId, canManageAkademik = false
 }: {
   mapelData: MapelType[]
   penugasanData: PenugasanType[]
@@ -52,6 +52,7 @@ export function AkademikClient({
   polaDaftar?: PolaJam[]
   userRole?: string
   userId?: string
+  canManageAkademik?: boolean
 }) {
   const [isMapelPending, setIsMapelPending] = useState(false)
   const [searchMapel, setSearchMapel] = useState('')
@@ -434,7 +435,7 @@ export function AkademikClient({
         )}
 
         <Tabs defaultValue="jadwal" className="space-y-3">
-          {userRole !== 'guru' && userRole !== 'wali_kelas' && (
+          {canManageAkademik && (
             <TabsList className="bg-surface border border-surface p-0.5 grid grid-cols-3 h-auto rounded-lg">
               <TabsTrigger value="jadwal" className="py-2 rounded-md data-[state=active]:bg-blue-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
                 Jadwal Mengajar
@@ -457,9 +458,10 @@ export function AkademikClient({
               polaDaftar={polaDaftar}
               userRole={userRole}
               userId={userId}
+              canManageSchedule={canManageAkademik}
             />
           </TabsContent>
-          {userRole !== 'guru' && userRole !== 'wali_kelas' && (
+          {canManageAkademik && (
             <>
               <TabsContent value="penugasan" className="space-y-3 m-0">
             {/* TA Banner */}

@@ -5,71 +5,58 @@ import { getDB } from '@/utils/db'
 import { redirect } from 'next/navigation'
 import { getUserRoles, checkFeatureAccess } from '@/lib/features'
 import { SiswaClient } from './components/siswa-client'
-import { Users } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
 
 export const metadata = { title: 'Data Siswa - MANSATAS App' }
 export const dynamic = 'force-dynamic'
 
-async function SiswaDataFetcher({ userId, userRoles, isFullListAccess, allowedKelasIds }: {
-  userId: string, userRoles: string[], isFullListAccess: boolean, allowedKelasIds: Set<string>
+async function SiswaDataFetcher({ userId, userRoles }: {
+  userId: string
+  userRoles: string[]
 }) {
   const db = await getDB()
 
-  // Ambil kelas — kolom minimal saja
-  const kelasResult = await db.prepare(
-    'SELECT id, tingkat, nomor_kelas, kelompok, wali_kelas_id FROM kelas ORDER BY tingkat ASC, CAST(nomor_kelas AS INTEGER) ASC, kelompok ASC'
-  ).all<any>()
-  const kelasData = kelasResult.results || []
-
-  let siswaQuery: string
-  let siswaParams: any[] = []
-
-  if (isFullListAccess) {
-    // FIX: Tidak filter status di sini — filter dilakukan di client
-    // Tapi batasi kolom yang diambil (tidak perlu semua field biodata)
-    siswaQuery = `
+  const [kelasResult, siswaResult] = await Promise.all([
+    db.prepare(
+      'SELECT id, tingkat, nomor_kelas, kelompok, wali_kelas_id FROM kelas ORDER BY tingkat ASC, CAST(nomor_kelas AS INTEGER) ASC, kelompok ASC'
+    ).all<any>(),
+    // Direktori siswa dapat dibaca oleh setiap pengguna yang memiliki akses modul.
+    // Halaman detail tetap memeriksa kewenangan role secara terpisah.
+    db.prepare(`
       SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin, s.status, s.foto_url,
         s.tempat_tinggal, s.kelas_id, s.tahun_masuk,
-        k.id as k_id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
-      FROM siswa s LEFT JOIN kelas k ON s.kelas_id = k.id
+        k.id AS k_id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
+      FROM siswa s
+      LEFT JOIN kelas k ON s.kelas_id = k.id
       WHERE s.status != 'dihapus'
       ORDER BY s.nama_lengkap ASC
-    `
-  } else if (allowedKelasIds.size > 0) {
-    const placeholders = Array.from(allowedKelasIds).map(() => '?').join(',')
-    siswaQuery = `
-      SELECT s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin, s.status, s.foto_url,
-        s.tempat_tinggal, s.kelas_id, s.tahun_masuk,
-        k.id as k_id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
-      FROM siswa s LEFT JOIN kelas k ON s.kelas_id = k.id
-      WHERE s.kelas_id IN (${placeholders}) AND s.status != 'dihapus'
-      ORDER BY s.nama_lengkap ASC
-    `
-    siswaParams = Array.from(allowedKelasIds)
-  } else {
-    return <SiswaClient initialData={[]} kelasList={[]} currentUser={{ id: userId, roles: userRoles }} />
-  }
-
-  const siswaResult = await db.prepare(siswaQuery).bind(...siswaParams).all<any>()
+    `).all<any>(),
+  ])
 
   const formattedSiswaData = (siswaResult.results || []).map((s: any) => ({
-    id: s.id, nisn: s.nisn, nama_lengkap: s.nama_lengkap,
-    jenis_kelamin: s.jenis_kelamin, status: s.status, foto_url: s.foto_url,
-    tempat_tinggal: s.tempat_tinggal, kelas_id: s.kelas_id, tahun_masuk: s.tahun_masuk,
+    id: s.id,
+    nisn: s.nisn,
+    nama_lengkap: s.nama_lengkap,
+    jenis_kelamin: s.jenis_kelamin,
+    status: s.status,
+    foto_url: s.foto_url,
+    tempat_tinggal: s.tempat_tinggal,
+    kelas_id: s.kelas_id,
+    tahun_masuk: s.tahun_masuk,
     kelas: s.k_id ? {
-      id: s.k_id, tingkat: s.tingkat, nomor_kelas: s.nomor_kelas,
-      kelompok: s.kelompok, wali_kelas_id: s.wali_kelas_id
-    } : null
+      id: s.k_id,
+      tingkat: s.tingkat,
+      nomor_kelas: s.nomor_kelas,
+      kelompok: s.kelompok,
+      wali_kelas_id: s.wali_kelas_id,
+    } : null,
   }))
-
-  const dropdownKelasData = isFullListAccess ? kelasData : kelasData.filter((k: any) => allowedKelasIds.has(k.id))
 
   return (
     <SiswaClient
       initialData={formattedSiswaData}
-      kelasList={dropdownKelasData}
+      kelasList={kelasResult.results || []}
       currentUser={{ id: userId, roles: userRoles }}
     />
   )
@@ -84,36 +71,15 @@ export default async function SiswaPage() {
   if (!allowed) redirect('/dashboard')
 
   const userRoles = await getUserRoles(db, user.id)
-  
-  const isAdminOrTu = userRoles.some(r => ['super_admin', 'admin_tu'].includes(r))
-  const isKepsekWakamad = userRoles.some(r => ['kepsek', 'wakamad'].includes(r))
-  const isResepsionis = userRoles.includes('resepsionis')
-  const isGuruPiket = userRoles.includes('guru_piket')
-  const isGuruPPL = userRoles.includes('guru_ppl')
-  
-  const isFullListAccess = isAdminOrTu || isKepsekWakamad || isResepsionis || isGuruPiket || isGuruPPL
-
-  let allowedKelasIds = new Set<string>()
-
-  if (!isFullListAccess) {
-    const [penugasan, wali, waliBk] = await Promise.all([
-      db.prepare('SELECT DISTINCT kelas_id FROM penugasan_mengajar WHERE guru_id = ? AND tahun_ajaran_id = (SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1)').bind(user.id).all<{ kelas_id: string }>(),
-      db.prepare('SELECT id FROM kelas WHERE wali_kelas_id = ?').bind(user.id).all<{ id: string }>(),
-      db.prepare('SELECT DISTINCT kelas_id FROM kelas_binaan_bk WHERE guru_bk_id = ? AND tahun_ajaran_id = (SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1)').bind(user.id).all<{ kelas_id: string }>()
-    ])
-    penugasan.results?.forEach((p) => allowedKelasIds.add(p.kelas_id))
-    wali.results?.forEach((w) => allowedKelasIds.add(w.id))
-    waliBk.results?.forEach((b) => allowedKelasIds.add(b.kelas_id))
-  }
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
       <PageHeader
         title="Data Siswa"
-        description={isFullListAccess ? 'Area manajemen atau pemantauan direktori siswa.' : 'Daftar siswa di kelas yang terhubung dengan Anda.'}
+        description="Direktori seluruh siswa. Akses buku induk mengikuti kewenangan masing-masing role."
       />
       <Suspense fallback={<PageLoading text="Menyiapkan data siswa..." />}>
-        <SiswaDataFetcher userId={user.id} userRoles={userRoles} isFullListAccess={isFullListAccess} allowedKelasIds={allowedKelasIds} />
+        <SiswaDataFetcher userId={user.id} userRoles={userRoles} />
       </Suspense>
     </div>
   )
