@@ -4,6 +4,8 @@
 import { getDB, dbInsert, dbUpdate, dbDelete, parseJsonCol } from '@/utils/db'
 import { requireUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
+import { getUserRoles } from '@/lib/features'
+import { findDefaultTeacherCode } from '@/lib/academic-teacher-code-defaults'
 import {
   applyAcademicDataset,
   buildAcademicDatasetFromAscXml,
@@ -13,6 +15,221 @@ import {
   resolveGuruAlias as resolveSharedGuruAlias,
   type AcademicWizardStepKey,
 } from '@/lib/academic-import'
+
+type TeacherCodeSetting = {
+  guruId: string
+  nama: string
+  kode: string
+  mapels: string[]
+  source: 'saved' | 'reference' | 'unmatched'
+  referenceName: string | null
+  referenceCode: string | null
+}
+
+async function ensureTeacherCodeSchema(db: D1Database) {
+  await db.prepare(`
+    CREATE TABLE IF NOT EXISTS kode_guru_tahun_ajaran (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      tahun_ajaran_id TEXT NOT NULL REFERENCES tahun_ajaran(id) ON DELETE CASCADE,
+      guru_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+      kode TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(tahun_ajaran_id, guru_id)
+    )
+  `).run()
+  await db.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_kode_guru_ta_kode
+    ON kode_guru_tahun_ajaran(tahun_ajaran_id, kode)
+  `).run()
+}
+
+async function requireAcademicManager(db: D1Database) {
+  const user = await requireUser()
+  const roles = await getUserRoles(db, user!.id)
+  const allowed = roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
+  if (!allowed) throw new Error('Anda tidak memiliki akses untuk mengatur kode guru atau mengekspor jadwal.')
+  return user!
+}
+
+async function buildTeacherCodeSettings(db: D1Database, tahunAjaranId: string): Promise<TeacherCodeSetting[]> {
+  await ensureTeacherCodeSchema(db)
+
+  const [assignmentResult, savedResult] = await Promise.all([
+    db.prepare(`
+      SELECT DISTINCT
+        u.id AS guru_id,
+        u.nama_lengkap AS guru_nama,
+        mp.nama_mapel
+      FROM penugasan_mengajar pm
+      JOIN "user" u ON u.id = pm.guru_id
+      JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
+      WHERE pm.tahun_ajaran_id = ?
+        AND u.nama_lengkap IS NOT NULL
+      ORDER BY u.nama_lengkap ASC, mp.nama_mapel ASC
+    `).bind(tahunAjaranId).all<any>(),
+    db.prepare(`
+      SELECT guru_id, kode
+      FROM kode_guru_tahun_ajaran
+      WHERE tahun_ajaran_id = ?
+    `).bind(tahunAjaranId).all<any>(),
+  ])
+
+  const savedCodes = new Map(
+    (savedResult.results || []).map((row: any) => [String(row.guru_id), String(row.kode ?? '')]),
+  )
+  const teachers = new Map<string, { nama: string; mapels: Set<string> }>()
+
+  for (const row of assignmentResult.results || []) {
+    const guruId = String(row.guru_id)
+    if (!teachers.has(guruId)) {
+      teachers.set(guruId, { nama: String(row.guru_nama), mapels: new Set<string>() })
+    }
+    teachers.get(guruId)!.mapels.add(String(row.nama_mapel))
+  }
+
+  return Array.from(teachers.entries())
+    .map(([guruId, teacher]) => {
+      const reference = findDefaultTeacherCode(teacher.nama)
+      if (savedCodes.has(guruId)) {
+        return {
+          guruId,
+          nama: teacher.nama,
+          kode: savedCodes.get(guruId) || '',
+          mapels: Array.from(teacher.mapels).sort((a, b) => a.localeCompare(b, 'id')),
+          source: 'saved' as const,
+          referenceName: reference?.name || null,
+          referenceCode: reference?.code || null,
+        }
+      }
+
+      return {
+        guruId,
+        nama: teacher.nama,
+        kode: reference?.code || '',
+        mapels: Array.from(teacher.mapels).sort((a, b) => a.localeCompare(b, 'id')),
+        source: reference ? 'reference' as const : 'unmatched' as const,
+        referenceName: reference?.name || null,
+        referenceCode: reference?.code || null,
+      }
+    })
+    .sort((a, b) => a.nama.localeCompare(b.nama, 'id'))
+}
+
+export async function getGuruKodeSettings(tahunAjaranId: string) {
+  const db = await getDB()
+  try {
+    await requireAcademicManager(db)
+    const teachers = await buildTeacherCodeSettings(db, tahunAjaranId)
+    return { teachers, error: null }
+  } catch (error) {
+    return { teachers: [] as TeacherCodeSetting[], error: error instanceof Error ? error.message : 'Gagal memuat kode guru.' }
+  }
+}
+
+export async function saveGuruKodeSettings(
+  tahunAjaranId: string,
+  assignments: Array<{ guruId: string; kode: string }>,
+) {
+  const db = await getDB()
+  try {
+    await requireAcademicManager(db)
+    await ensureTeacherCodeSchema(db)
+
+    const teacherIds = new Set(
+      (await db.prepare(`
+        SELECT DISTINCT guru_id
+        FROM penugasan_mengajar
+        WHERE tahun_ajaran_id = ?
+      `).bind(tahunAjaranId).all<any>()).results?.map((row: any) => String(row.guru_id)) || [],
+    )
+
+    const cleaned = assignments.map(item => ({
+      guruId: String(item.guruId || '').trim(),
+      kode: String(item.kode ?? '').trim(),
+    }))
+    if (cleaned.some(item => !teacherIds.has(item.guruId))) {
+      return { error: 'Daftar guru berubah. Muat ulang pengaturan sebelum menyimpan.', success: null }
+    }
+    if (cleaned.some(item => item.kode.length > 12)) {
+      return { error: 'Kode guru maksimal 12 karakter.', success: null }
+    }
+
+    if (cleaned.length > 0) {
+      await db.batch(cleaned.map(item => db.prepare(`
+        INSERT INTO kode_guru_tahun_ajaran (
+          id, tahun_ajaran_id, guru_id, kode, created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+        ON CONFLICT(tahun_ajaran_id, guru_id)
+        DO UPDATE SET kode = excluded.kode, updated_at = datetime('now')
+      `).bind(crypto.randomUUID().replace(/-/g, ''), tahunAjaranId, item.guruId, item.kode)))
+    }
+
+    revalidatePath('/dashboard/akademik')
+    return { success: `${cleaned.length} kode guru berhasil disimpan untuk tahun ajaran ini.`, error: null }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Gagal menyimpan kode guru.', success: null }
+  }
+}
+
+export async function getJadwalExportData(tahunAjaranId: string) {
+  const db = await getDB()
+  try {
+    await requireAcademicManager(db)
+
+    const [ta, classesResult, scheduleResult, teachers] = await Promise.all([
+      db.prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE id = ? LIMIT 1')
+        .bind(tahunAjaranId).first<any>(),
+      db.prepare(`
+        SELECT id, tingkat, nomor_kelas, kelompok
+        FROM kelas
+        WHERE CAST(tingkat AS INTEGER) BETWEEN 10 AND 12
+        ORDER BY CAST(tingkat AS INTEGER) ASC, CAST(nomor_kelas AS INTEGER) ASC, nomor_kelas ASC
+      `).all<any>(),
+      db.prepare(`
+        SELECT
+          jm.hari,
+          jm.jam_ke,
+          pm.kelas_id,
+          pm.guru_id
+        FROM jadwal_mengajar jm
+        JOIN penugasan_mengajar pm ON pm.id = jm.penugasan_id
+        WHERE jm.tahun_ajaran_id = ?
+        ORDER BY jm.hari ASC, jm.jam_ke ASC
+      `).bind(tahunAjaranId).all<any>(),
+      buildTeacherCodeSettings(db, tahunAjaranId),
+    ])
+
+    if (!ta) return { error: 'Tahun ajaran tidak ditemukan.', data: null }
+
+    const codeByTeacher = new Map(teachers.map(teacher => [teacher.guruId, teacher.kode]))
+    const schedules = (scheduleResult.results || []).map((row: any) => ({
+      hari: Number(row.hari),
+      jamKe: Number(row.jam_ke),
+      kelasId: String(row.kelas_id),
+      guruId: String(row.guru_id),
+      kodeGuru: codeByTeacher.get(String(row.guru_id)) || '',
+    }))
+
+    return {
+      error: null,
+      data: {
+        tahunAjaran: { id: String(ta.id), nama: String(ta.nama), semester: Number(ta.semester) },
+        classes: (classesResult.results || []).map((row: any) => ({
+          id: String(row.id),
+          tingkat: Number(row.tingkat),
+          nomorKelas: String(row.nomor_kelas),
+          kelompok: String(row.kelompok || ''),
+        })),
+        schedules,
+        teachers,
+      },
+    }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Gagal menyiapkan data ekspor.', data: null }
+  }
+}
 
 // ============================================================
 // 1. MAPEL ACTIONS

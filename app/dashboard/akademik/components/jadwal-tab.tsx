@@ -1,17 +1,21 @@
 // Lokasi: app/dashboard/akademik/components/jadwal-tab.tsx
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Calendar, Upload, Loader2, AlertCircle, CheckCircle2, RefreshCw,
-  BookOpen, User, Clock, Trash2, X, FileText, Info
+  BookOpen, User, Clock, Trash2, X, FileText, Info, Download,
+  Settings2, Save, Search, RotateCcw
 } from 'lucide-react'
 import {
   importJadwalASC, getJadwalByKelas, getJadwalByGuru,
-  hapusSlotJadwal, resetJadwalKelas
+  hapusSlotJadwal, resetJadwalKelas, getGuruKodeSettings,
+  saveGuruKodeSettings, getJadwalExportData
 } from '../actions'
 import { cn, formatNamaKelas } from '@/lib/utils'
 
@@ -20,6 +24,15 @@ type SlotJam = { id: number; nama: string; mulai: string; selesai: string }
 type PolaJam = { id: string; nama: string; hari: number[]; slots: SlotJam[] }
 type KelasItem = { id: string; tingkat: number; nomor_kelas: string; kelompok: string; wali_kelas_id?: string | null }
 type GuruItem = { id: string; nama_lengkap: string }
+type TeacherCodeSetting = {
+  guruId: string
+  nama: string
+  kode: string
+  mapels: string[]
+  source: 'saved' | 'reference' | 'unmatched'
+  referenceName: string | null
+  referenceCode: string | null
+}
 
 type JadwalByKelasRow = {
   id: string; hari: number; jam_ke: number
@@ -43,6 +56,200 @@ const HARI_COLORS = [
   'bg-rose-50 dark:bg-rose-950/40 border-rose-100 text-rose-700 dark:text-rose-400',
   'bg-amber-50 dark:bg-amber-950/40 border-amber-100 text-amber-700 dark:text-amber-400',
 ]
+
+function dataSafeFilename(value: string) {
+  return value
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+function styleWorksheetRange(XLSX: any, worksheet: any, rangeRef: string, style: any) {
+  const range = XLSX.utils.decode_range(rangeRef)
+  for (let row = range.s.r; row <= range.e.r; row++) {
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const address = XLSX.utils.encode_cell({ r: row, c: col })
+      if (!worksheet[address]) worksheet[address] = { t: 's', v: '' }
+      worksheet[address].s = { ...(worksheet[address].s || {}), ...style }
+    }
+  }
+}
+
+function buildScheduleWorkbook(
+  XLSX: any,
+  data: NonNullable<Awaited<ReturnType<typeof getJadwalExportData>>['data']>,
+  polaDaftar: PolaJam[],
+) {
+  const classColumns = [...data.classes].sort((left, right) =>
+    left.tingkat - right.tingkat
+      || Number(left.nomorKelas) - Number(right.nomorKelas)
+      || left.nomorKelas.localeCompare(right.nomorKelas, 'id', { numeric: true }),
+  )
+  const configuredHoursByDay = new Map<number, number[]>()
+  for (let day = 1; day <= 6; day++) {
+    const hours = polaDaftar
+      .find(pattern => pattern.hari.includes(day))
+      ?.slots.map(slot => Number(slot.id)).filter(hour => Number.isInteger(hour) && hour > 0) || []
+    configuredHoursByDay.set(day, hours)
+  }
+
+  const scheduleMax = Math.max(0, ...data.schedules.map(row => row.jamKe))
+  const configuredMax = Math.max(0, ...Array.from(configuredHoursByDay.values()).flat())
+  const globalMax = Math.max(scheduleMax, configuredMax)
+  if (globalMax === 0) throw new Error('Jam pelajaran dan jadwal masih kosong.')
+
+  const codeIndex = new Map<string, string[]>()
+  for (const row of data.schedules) {
+    const key = `${row.hari}|${row.jamKe}|${row.kelasId}`
+    if (!codeIndex.has(key)) codeIndex.set(key, [])
+    if (row.kodeGuru && !codeIndex.get(key)!.includes(row.kodeGuru)) codeIndex.get(key)!.push(row.kodeGuru)
+  }
+
+  const scheduleRows: Array<Array<string | number>> = [
+    [`JADWAL PELAJARAN ${data.tahunAjaran.nama} - SEMESTER ${data.tahunAjaran.semester}`],
+    ['Kode guru ditampilkan pada setiap sel jadwal. Lihat sheet "Kode Guru" untuk rinciannya.'],
+    [],
+    ['Hari', 'Jam ke', ...classColumns.map(item => `${item.tingkat}-${item.nomorKelas}`)],
+  ]
+  const scheduleMerges: any[] = []
+  const scheduleDataStartRow = scheduleRows.length
+
+  for (let day = 1; day <= 6; day++) {
+    const dayConfiguredMax = Math.max(0, ...(configuredHoursByDay.get(day) || []))
+    const dayScheduleMax = Math.max(
+      0,
+      ...data.schedules.filter(row => row.hari === day).map(row => row.jamKe),
+    )
+    const dayMax = Math.max(dayConfiguredMax, dayScheduleMax) || globalMax
+    const startRow = scheduleRows.length
+    for (let hour = 1; hour <= dayMax; hour++) {
+      scheduleRows.push([
+        hour === 1 ? HARI_LABELS[day] : '',
+        hour,
+        ...classColumns.map(item => (codeIndex.get(`${day}|${hour}|${item.id}`) || []).join('/')),
+      ])
+    }
+    scheduleMerges.push({ s: { r: startRow, c: 0 }, e: { r: scheduleRows.length - 1, c: 0 } })
+  }
+
+  const scheduleSheet = XLSX.utils.aoa_to_sheet(scheduleRows)
+  const lastScheduleColumn = Math.max(1, classColumns.length + 1)
+  scheduleSheet['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: lastScheduleColumn } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: lastScheduleColumn } },
+    ...scheduleMerges,
+  ]
+  scheduleSheet['!cols'] = [
+    { wch: 12 },
+    { wch: 8 },
+    ...classColumns.map(() => ({ wch: 9 })),
+  ]
+  scheduleSheet['!rows'] = scheduleRows.map((_, index) => ({
+    hpt: index === 0 ? 25 : index === 1 ? 20 : index === 2 ? 8 : 22,
+  }))
+  scheduleSheet['!autofilter'] = {
+    ref: XLSX.utils.encode_range({ r: 3, c: 0 }, { r: scheduleRows.length - 1, c: lastScheduleColumn }),
+  }
+
+  const border = {
+    top: { style: 'thin', color: { rgb: 'B8C2CC' } },
+    bottom: { style: 'thin', color: { rgb: 'B8C2CC' } },
+    left: { style: 'thin', color: { rgb: 'B8C2CC' } },
+    right: { style: 'thin', color: { rgb: 'B8C2CC' } },
+  }
+  styleWorksheetRange(
+    XLSX,
+    scheduleSheet,
+    `A1:${XLSX.utils.encode_col(lastScheduleColumn)}1`,
+    { font: { bold: true, sz: 14, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1F4E78' } }, alignment: { horizontal: 'center', vertical: 'center' } },
+  )
+  styleWorksheetRange(
+    XLSX,
+    scheduleSheet,
+    `A4:${XLSX.utils.encode_col(lastScheduleColumn)}4`,
+    { font: { bold: true }, fill: { fgColor: { rgb: 'D9EAF7' } }, alignment: { horizontal: 'center', vertical: 'center' }, border },
+  )
+  styleWorksheetRange(
+    XLSX,
+    scheduleSheet,
+    `A${scheduleDataStartRow + 1}:${XLSX.utils.encode_col(lastScheduleColumn)}${scheduleRows.length}`,
+    { alignment: { horizontal: 'center', vertical: 'center', wrapText: true }, border },
+  )
+  for (const merge of scheduleMerges) {
+    const address = XLSX.utils.encode_cell(merge.s)
+    scheduleSheet[address].s = {
+      ...(scheduleSheet[address].s || {}),
+      font: { bold: true },
+      fill: { fgColor: { rgb: 'E2F0D9' } },
+      alignment: { horizontal: 'center', vertical: 'center', textRotation: 90 },
+      border,
+    }
+  }
+
+  const sortedTeachers = [...data.teachers].sort((left, right) => {
+    const leftNumber = Number(left.kode)
+    const rightNumber = Number(right.kode)
+    if (left.kode && right.kode && Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) return leftNumber - rightNumber
+    if (left.kode !== right.kode) return left.kode ? -1 : 1
+    return left.nama.localeCompare(right.nama, 'id')
+  })
+  const teacherRows: string[][] = [
+    [`DAFTAR KODE GURU ${data.tahunAjaran.nama} - SEMESTER ${data.tahunAjaran.semester}`],
+    [],
+    ['Kode', 'Nama Guru', 'Mata Pelajaran'],
+  ]
+  const teacherMerges: any[] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
+  ]
+  for (const teacher of sortedTeachers) {
+    const subjects = teacher.mapels.length > 0 ? teacher.mapels : ['']
+    const startRow = teacherRows.length
+    subjects.forEach((subject, index) => {
+      teacherRows.push([index === 0 ? teacher.kode : '', index === 0 ? teacher.nama : '', subject])
+    })
+    if (subjects.length > 1) {
+      teacherMerges.push(
+        { s: { r: startRow, c: 0 }, e: { r: teacherRows.length - 1, c: 0 } },
+        { s: { r: startRow, c: 1 }, e: { r: teacherRows.length - 1, c: 1 } },
+      )
+    }
+  }
+
+  const teacherSheet = XLSX.utils.aoa_to_sheet(teacherRows)
+  teacherSheet['!merges'] = teacherMerges
+  teacherSheet['!cols'] = [{ wch: 10 }, { wch: 38 }, { wch: 34 }]
+  teacherSheet['!rows'] = teacherRows.map((_, index) => ({ hpt: index === 0 ? 25 : index === 1 ? 8 : 22 }))
+  teacherSheet['!autofilter'] = { ref: `A3:C${teacherRows.length}` }
+  styleWorksheetRange(
+    XLSX,
+    teacherSheet,
+    'A1:C1',
+    { font: { bold: true, sz: 14, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1F4E78' } }, alignment: { horizontal: 'center', vertical: 'center' } },
+  )
+  styleWorksheetRange(
+    XLSX,
+    teacherSheet,
+    'A3:C3',
+    { font: { bold: true }, fill: { fgColor: { rgb: 'D9EAF7' } }, alignment: { horizontal: 'center', vertical: 'center' }, border },
+  )
+  styleWorksheetRange(
+    XLSX,
+    teacherSheet,
+    `A4:C${teacherRows.length}`,
+    { alignment: { vertical: 'center', wrapText: true }, border },
+  )
+
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, scheduleSheet, 'Jadwal')
+  XLSX.utils.book_append_sheet(workbook, teacherSheet, 'Kode Guru')
+  workbook.Props = {
+    Title: `Jadwal ${data.tahunAjaran.nama} Semester ${data.tahunAjaran.semester}`,
+    Subject: 'Jadwal pelajaran berdasarkan kode guru',
+    Author: 'MANSATAS App',
+  }
+  return workbook
+}
 
 // Helper: cari slots untuk hari tertentu dari daftar pola
 function getSlotsForHari(polaDaftar: PolaJam[], hari: number): SlotJam[] {
@@ -341,6 +548,130 @@ export function JadwalTab({
   const [deletingId,  setDeletingId]  = useState<string | null>(null)
   const [loaded,      setLoaded]      = useState(false)
   const [hasImported, setHasImported] = useState(false)
+  const [codeDialogOpen, setCodeDialogOpen] = useState(false)
+  const [codeRows, setCodeRows] = useState<TeacherCodeSetting[]>([])
+  const [draftCodes, setDraftCodes] = useState<Record<string, string>>({})
+  const [codeSearch, setCodeSearch] = useState('')
+  const [isLoadingCodes, setIsLoadingCodes] = useState(false)
+  const [isSavingCodes, setIsSavingCodes] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+
+  const loadTeacherCodes = async () => {
+    if (!taAktif) return
+    setIsLoadingCodes(true)
+    try {
+      const result = await getGuruKodeSettings(taAktif.id)
+      if (result.error) {
+        alert(result.error)
+        return
+      }
+      setCodeRows(result.teachers)
+      setDraftCodes(Object.fromEntries(result.teachers.map(teacher => [teacher.guruId, teacher.kode])))
+    } finally {
+      setIsLoadingCodes(false)
+    }
+  }
+
+  const handleCodeDialogChange = (open: boolean) => {
+    setCodeDialogOpen(open)
+    if (open) {
+      setCodeSearch('')
+      void loadTeacherCodes()
+    }
+  }
+
+  const handleSaveTeacherCodes = async () => {
+    if (!taAktif) return
+    setIsSavingCodes(true)
+    try {
+      const result = await saveGuruKodeSettings(
+        taAktif.id,
+        codeRows.map(teacher => ({
+          guruId: teacher.guruId,
+          kode: draftCodes[teacher.guruId] ?? '',
+        })),
+      )
+      if (result.error) {
+        alert(result.error)
+        return
+      }
+      alert(result.success)
+      await loadTeacherCodes()
+    } finally {
+      setIsSavingCodes(false)
+    }
+  }
+
+  const handleRestoreReferenceCodes = () => {
+    setDraftCodes(current => Object.fromEntries(codeRows.map(teacher => [
+      teacher.guruId,
+      teacher.referenceCode ?? current[teacher.guruId] ?? '',
+    ])))
+  }
+
+  const handleExportExcel = async () => {
+    if (!taAktif) return
+    const XLSX = (window as any).XLSX
+    if (!XLSX) {
+      alert('Library Excel belum siap. Tunggu beberapa detik lalu coba lagi.')
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      const result = await getJadwalExportData(taAktif.id)
+      if (result.error || !result.data) {
+        alert(result.error || 'Data ekspor tidak tersedia.')
+        return
+      }
+
+      const missing = result.data.teachers.filter(teacher => !teacher.kode.trim())
+      if (missing.length > 0) {
+        alert(
+          `${missing.length} guru belum memiliki kode: ${missing.slice(0, 5).map(teacher => teacher.nama).join(', ')}`
+          + (missing.length > 5 ? ', dan lainnya.' : '.')
+          + '\n\nLengkapi melalui tombol Kode Guru sebelum mengekspor.',
+        )
+        setCodeDialogOpen(true)
+        setCodeRows(result.data.teachers)
+        setDraftCodes(Object.fromEntries(result.data.teachers.map(teacher => [teacher.guruId, teacher.kode])))
+        return
+      }
+
+      const teachersByCode = new Map<string, string[]>()
+      for (const teacher of result.data.teachers) {
+        if (!teachersByCode.has(teacher.kode)) teachersByCode.set(teacher.kode, [])
+        teachersByCode.get(teacher.kode)!.push(teacher.nama)
+      }
+      const duplicateCodes = Array.from(teachersByCode.entries()).filter(([, names]) => names.length > 1)
+      if (
+        duplicateCodes.length > 0
+        && !confirm(
+          `Ada ${duplicateCodes.length} kode yang dipakai lebih dari satu guru:\n`
+          + duplicateCodes.slice(0, 5).map(([code, names]) => `${code}: ${names.join(', ')}`).join('\n')
+          + '\n\nTetap ekspor?',
+        )
+      ) return
+
+      const workbook = buildScheduleWorkbook(XLSX, result.data, polaDaftar)
+      const safeYear = dataSafeFilename(`${result.data.tahunAjaran.nama}-S${result.data.tahunAjaran.semester}`)
+      XLSX.writeFile(workbook, `Jadwal-Kode-Guru-${safeYear}.xlsx`, { compression: true })
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Gagal membuat file Excel.')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const filteredCodeRows = useMemo(() => {
+    const query = codeSearch.toLowerCase().trim()
+    if (!query) return codeRows
+    return codeRows.filter(teacher =>
+      teacher.nama.toLowerCase().includes(query)
+      || (draftCodes[teacher.guruId] || '').toLowerCase().includes(query)
+      || teacher.mapels.some(mapel => mapel.toLowerCase().includes(query)),
+    )
+  }, [codeRows, codeSearch, draftCodes])
 
   const loadJadwal = useCallback(async (id: string, mode: 'kelas' | 'guru') => {
     if (!taAktif || !id) return
@@ -429,8 +760,164 @@ export function JadwalTab({
     ? `${polaDaftar.length} pola · ${polaDaftar.map(p => p.nama).join(', ')}`
     : null
 
+  const missingCodeCount = codeRows.filter(teacher => !(draftCodes[teacher.guruId] || '').trim()).length
+  const duplicateCodeSet = new Set(
+    Object.entries(
+      codeRows.reduce<Record<string, number>>((acc, teacher) => {
+        const code = (draftCodes[teacher.guruId] || '').trim()
+        if (code) acc[code] = (acc[code] || 0) + 1
+        return acc
+      }, {}),
+    ).filter(([, count]) => count > 1).map(([code]) => code),
+  )
+
   return (
     <div className="space-y-3">
+      <Dialog open={codeDialogOpen} onOpenChange={handleCodeDialogChange}>
+        <DialogContent className="max-w-5xl rounded-xl p-0 overflow-hidden">
+          <DialogHeader className="px-5 py-4 border-b border-surface-2 bg-surface-2">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Settings2 className="h-4 w-4 text-blue-600" />
+              Kode Guru Tahun Ajaran {taAktif?.nama} - Semester {taAktif?.semester}
+            </DialogTitle>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Kode disimpan khusus untuk tahun ajaran ini. Nilai awal dicocokkan dengan daftar Excel referensi.
+            </p>
+          </DialogHeader>
+
+          <div className="p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <Input
+                  value={codeSearch}
+                  onChange={event => setCodeSearch(event.target.value)}
+                  placeholder="Cari kode, guru, atau mata pelajaran..."
+                  className="h-9 pl-8 text-xs"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleRestoreReferenceCodes}
+                disabled={isLoadingCodes || codeRows.length === 0}
+                className="h-9 text-xs"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                Pulihkan Referensi
+              </Button>
+            </div>
+
+            {!isLoadingCodes && codeRows.length > 0 && (
+              <div className="flex flex-wrap gap-2 text-[11px]">
+                <span className="rounded-md border border-surface bg-surface-2 px-2 py-1">
+                  {codeRows.length} guru
+                </span>
+                <span className={cn(
+                  'rounded-md border px-2 py-1',
+                  missingCodeCount > 0
+                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                )}>
+                  {missingCodeCount > 0 ? `${missingCodeCount} belum berkode` : 'Semua guru berkode'}
+                </span>
+                {duplicateCodeSet.size > 0 && (
+                  <span className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-rose-700">
+                    {duplicateCodeSet.size} kode duplikat
+                  </span>
+                )}
+              </div>
+            )}
+
+            <div className="rounded-lg border border-surface overflow-hidden">
+              <div className="grid grid-cols-[90px_minmax(180px,1fr)_minmax(220px,1.2fr)_110px] gap-0 bg-surface-2 border-b border-surface-2 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                <span>Kode</span>
+                <span>Nama Guru</span>
+                <span>Mata Pelajaran</span>
+                <span>Status</span>
+              </div>
+              <ScrollArea className="h-[52vh]">
+                {isLoadingCodes ? (
+                  <div className="h-48 flex items-center justify-center gap-2 text-sm text-slate-400">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Memuat kode guru...
+                  </div>
+                ) : filteredCodeRows.length === 0 ? (
+                  <div className="h-40 flex items-center justify-center text-sm text-slate-400">
+                    {codeRows.length === 0 ? 'Belum ada guru dengan beban mengajar.' : 'Guru tidak ditemukan.'}
+                  </div>
+                ) : (
+                  <div className="divide-y divide-surface-2">
+                    {filteredCodeRows.map(teacher => {
+                      const code = draftCodes[teacher.guruId] || ''
+                      const isDuplicate = Boolean(code.trim()) && duplicateCodeSet.has(code.trim())
+                      return (
+                        <div
+                          key={teacher.guruId}
+                          className="grid grid-cols-[90px_minmax(180px,1fr)_minmax(220px,1.2fr)_110px] gap-0 items-center px-3 py-2.5 text-xs hover:bg-surface-2/40"
+                        >
+                          <Input
+                            value={code}
+                            onChange={event => setDraftCodes(current => ({
+                              ...current,
+                              [teacher.guruId]: event.target.value,
+                            }))}
+                            maxLength={12}
+                            className={cn(
+                              'h-8 w-20 text-center font-semibold',
+                              !code.trim() && 'border-amber-300 bg-amber-50',
+                              isDuplicate && 'border-rose-300 bg-rose-50',
+                            )}
+                            aria-label={`Kode guru ${teacher.nama}`}
+                          />
+                          <div className="pr-3 min-w-0">
+                            <p className="font-medium text-slate-800 dark:text-slate-200 truncate">{teacher.nama}</p>
+                            {teacher.referenceName && teacher.referenceName !== teacher.nama && (
+                              <p className="text-[10px] text-slate-400 truncate" title={teacher.referenceName}>
+                                Cocok: {teacher.referenceName}
+                              </p>
+                            )}
+                          </div>
+                          <div className="pr-3 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                            {teacher.mapels.join(' • ')}
+                          </div>
+                          <div>
+                            {!code.trim() ? (
+                              <span className="text-[10px] rounded bg-amber-100 text-amber-700 px-1.5 py-1">Belum diisi</span>
+                            ) : isDuplicate ? (
+                              <span className="text-[10px] rounded bg-rose-100 text-rose-700 px-1.5 py-1">Duplikat</span>
+                            ) : teacher.source === 'reference' ? (
+                              <span className="text-[10px] rounded bg-blue-100 text-blue-700 px-1.5 py-1">Referensi</span>
+                            ) : (
+                              <span className="text-[10px] rounded bg-emerald-100 text-emerald-700 px-1.5 py-1">Tersimpan</span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-2">
+              <p className="text-[11px] text-slate-400 sm:self-center">
+                Ekspor diblokir bila masih ada guru tanpa kode. Kode duplikat akan dikonfirmasi sebelum file dibuat.
+              </p>
+              <Button
+                onClick={handleSaveTeacherCodes}
+                disabled={isSavingCodes || isLoadingCodes || codeRows.length === 0}
+                className="h-9 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {isSavingCodes
+                  ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  : <Save className="h-3.5 w-3.5 mr-1.5" />}
+                Simpan Kode Guru
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* TOOLBAR */}
       <div className="bg-surface border border-surface rounded-xl overflow-hidden">
@@ -463,6 +950,35 @@ export function JadwalTab({
 
           {/* Spacer */}
           <div className="flex-1" />
+
+          {canManageSchedule && taAktif && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleCodeDialogChange(true)}
+                className="h-8 px-2.5 text-xs border-surface"
+                title="Atur kode guru per tahun ajaran"
+              >
+                <Settings2 className="h-3.5 w-3.5 sm:mr-1.5" />
+                <span className="hidden sm:inline">Kode Guru</span>
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleExportExcel}
+                disabled={isExporting}
+                className="h-8 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                title="Export seluruh jadwal ke Excel"
+              >
+                {isExporting
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin sm:mr-1.5" />
+                  : <Download className="h-3.5 w-3.5 sm:mr-1.5" />}
+                <span className="hidden sm:inline">Export Excel</span>
+              </Button>
+            </>
+          )}
 
           {/* Refresh */}
           {loaded && (viewMode === 'kelas' ? selectedKelas : selectedGuru) && (
