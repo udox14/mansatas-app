@@ -12,7 +12,6 @@ import {
   FileText,
   Fingerprint,
   Info,
-  MapPin,
   MonitorSmartphone,
   MousePointerClick,
   RotateCcw,
@@ -66,7 +65,6 @@ const CAPABILITY_GROUPS = [
       ['Push Notifications', 'Permission dan token native; FCM masih perlu konfigurasi Firebase.'],
       ['Haptics', 'Getaran ringan untuk aksi penting.'],
       ['Share', 'Share sheet Android.'],
-      ['Geolocation', 'Akses lokasi perangkat.'],
       ['Device', 'Info perangkat, OS, model, dan platform.'],
       ['Network', 'Status koneksi perangkat.'],
       ['Preferences', 'Storage key-value lokal native.'],
@@ -229,10 +227,13 @@ export function MobileAppSettingsClient() {
         <CardContent className="grid gap-4 lg:grid-cols-[260px_1fr]">
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg border border-slate-200 bg-white p-3 text-center dark:border-slate-800 dark:bg-slate-950">
+              {/* Blob/data preview dipilih lokal sehingga tidak dapat memakai next/image. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={iconPreview} alt="App icon" className="mx-auto h-20 w-20 rounded-2xl object-cover shadow-sm" />
               <p className="mt-2 text-xs font-semibold">Icon APK</p>
             </div>
             <div className="rounded-lg border border-slate-200 bg-[#0d4f4a] p-3 text-center text-white dark:border-slate-800">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={splashPreview} alt="Splash screen" className="mx-auto mt-3 h-16 w-16 object-contain" />
               <p className="mt-4 text-xs font-semibold">Splash</p>
             </div>
@@ -323,7 +324,7 @@ export function MobileAppSettingsClient() {
               {log.text}
             </div>
             <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-              Alur test: buka via APK Android → "Izin & Daftar Token" (simpan token FCM) → "Test Kirim FCM" (kirim ke perangkat ini). Perlu google-services.json + secret FCM sudah diset. Di browser/PWA token FCM tidak muncul (pakai VAPID).
+              Alur test: buka via APK Android → &quot;Izin &amp; Daftar Token&quot; (simpan token FCM) → &quot;Test Kirim FCM&quot; (kirim ke perangkat ini). Perlu google-services.json + secret FCM sudah diset. Di browser/PWA token FCM tidak muncul (pakai VAPID).
             </div>
           </CardContent>
         </Card>
@@ -425,12 +426,6 @@ export function MobileAppSettingsClient() {
               const res = await sendTestFcmToSelf()
               if (res.error) throw new Error(res.error)
               return res.success || 'Terkirim.'
-            })} />
-            <ActionButton icon={MapPin} label="Test Lokasi" busy={busy === 'geo'} onClick={() => runTest('geo', async () => {
-              const { Geolocation } = await import('@capacitor/geolocation')
-              const permission = await Geolocation.requestPermissions()
-              const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 10000 })
-              return `Lokasi: ${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)} (${permission.location})`
             })} />
             <ActionButton icon={Vibrate} label="Test Getar" busy={busy === 'haptics'} onClick={() => runTest('haptics', async () => {
               const { Haptics, ImpactStyle } = await import('@capacitor/haptics')

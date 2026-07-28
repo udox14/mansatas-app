@@ -206,6 +206,11 @@ export default function ParentLoginClient({
             <Link href="/login" className="block text-center text-[11px] font-bold text-slate-500 transition-colors hover:text-teal-700">
               Login Pegawai / Guru
             </Link>
+            <div className="flex items-center justify-center gap-3 text-[10px] text-slate-400">
+              <Link href="/privacy" className="hover:text-teal-700">Kebijakan Privasi</Link>
+              <span aria-hidden="true">•</span>
+              <Link href="/data-deletion" className="hover:text-teal-700">Penghapusan Data</Link>
+            </div>
           </form>
         </section>
       </main>

@@ -99,7 +99,7 @@ async function AnalitikFetcher({ taAktifId, isAdmin }: { taAktifId: string; isAd
 export default async function MonitoringKedisiplinanPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ tab?: string }> | { tab?: string }
+  searchParams?: Promise<{ tab?: string }>
 }) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined
   const user = await getCurrentUser()

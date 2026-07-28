@@ -244,17 +244,25 @@ export async function simpanNilaiSiswa(
 
   if (data.length === 0) return { error: 'Tidak ada data nilai.' }
 
-  const stmts = data.map(d =>
+  // Sebagian database lama dibuat oleh migration_mts_to_man.sql, yang belum
+  // memiliki UNIQUE(header_id, siswa_id). Gunakan replace eksplisit agar proses
+  // simpan tetap bekerja sebelum migration perbaikan indeks diterapkan.
+  const stmts = data.flatMap(d => [
+    db.prepare(`
+      DELETE FROM nilai_harian_detail
+      WHERE header_id = ? AND siswa_id = ?
+    `).bind(headerId, d.siswa_id),
     db.prepare(`
       INSERT INTO nilai_harian_detail (id, header_id, siswa_id, nilai, catatan)
       VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?)
-      ON CONFLICT(header_id, siswa_id) DO UPDATE SET nilai = excluded.nilai, catatan = excluded.catatan
-    `).bind(headerId, d.siswa_id, d.nilai, d.catatan || null)
-  )
+    `).bind(headerId, d.siswa_id, d.nilai, d.catatan || null),
+  ])
 
   try {
-    for (let i = 0; i < stmts.length; i += 100) {
-      await db.batch(stmts.slice(i, i + 100))
+    // Dua statement per siswa harus selalu berada dalam batch yang sama.
+    const studentsPerBatch = 50
+    for (let i = 0; i < data.length; i += studentsPerBatch) {
+      await db.batch(stmts.slice(i * 2, (i + studentsPerBatch) * 2))
     }
     await dbUpdate(db, 'nilai_harian_header', { updated_at: new Date().toISOString() }, { id: headerId })
   } catch (e: any) {

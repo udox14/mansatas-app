@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDB } from '@/utils/db'
 import { processWhatsAppOutbox } from '@/lib/whatsapp'
 
-export const runtime = 'edge'
-
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('Authorization')
   const cronSecret = process.env.CRON_SECRET

@@ -99,6 +99,11 @@ export default function LoginClient() {
             <Link href="/" className="inline-flex text-[11px] font-semibold text-slate-500 transition-colors hover:text-emerald-700">
               Kembali
             </Link>
+            <div className="flex items-center justify-center gap-3 text-[10px] text-slate-400">
+              <Link href="/privacy" className="hover:text-emerald-700">Kebijakan Privasi</Link>
+              <span aria-hidden="true">•</span>
+              <Link href="/data-deletion" className="hover:text-emerald-700">Penghapusan Data</Link>
+            </div>
           </div>
         </div>
       </div>

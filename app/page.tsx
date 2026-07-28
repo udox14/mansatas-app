@@ -255,7 +255,11 @@ export default async function LandingPage() {
 
       {/* Screen Footer */}
       <footer className="relative z-30 shrink-0 py-2.5 sm:py-3 border-t border-slate-100 text-center text-[10px] font-bold text-slate-400">
-        &copy; {new Date().getFullYear()} MAN 1 Tasikmalaya. Semua Hak Cipta Dilindungi.
+        <span>&copy; {new Date().getFullYear()} MAN 1 Tasikmalaya.</span>
+        <span className="mx-2" aria-hidden="true">•</span>
+        <Link href="/privacy" className="transition-colors hover:text-teal-700">Kebijakan Privasi</Link>
+        <span className="mx-2" aria-hidden="true">•</span>
+        <Link href="/data-deletion" className="transition-colors hover:text-teal-700">Penghapusan Data</Link>
       </footer>
 
     </div>

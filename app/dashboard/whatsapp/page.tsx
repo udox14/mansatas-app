@@ -10,7 +10,7 @@ import { SettingsModal } from './components/settings-modal'
 export const dynamic = 'force-dynamic'
 
 type PageProps = {
-  searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
 function one(value: string | string[] | undefined, fallback = '') {
@@ -39,7 +39,9 @@ export default async function WhatsAppPage({ searchParams }: PageProps) {
   await ensureWhatsAppTables(db)
   const config = await getWhatsAppConfig()
 
-  const params = await Promise.resolve(searchParams || {})
+  const params: Record<string, string | string[] | undefined> = searchParams
+    ? await searchParams
+    : {}
   const targetScope = parseScope(one(params.target_scope, 'all'))
   const kelasId = one(params.kelas_id)
   const tingkatRaw = one(params.tingkat)

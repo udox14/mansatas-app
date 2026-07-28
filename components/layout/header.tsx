@@ -13,6 +13,7 @@ import {
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { getRoleLabel } from '@/config/menu'
+import { unregisterNativePushToken } from '@/components/native/mobile-runtime'
 
 interface HeaderProps {
   userRoles: string[]
@@ -26,9 +27,12 @@ function LiveDate() {
   const [now, setNow] = useState<Date | null>(null)
 
   useEffect(() => {
-    setNow(new Date())
+    const initialTimer = window.setTimeout(() => setNow(new Date()), 0)
     const timer = setInterval(() => setNow(new Date()), 60_000)
-    return () => clearInterval(timer)
+    return () => {
+      window.clearTimeout(initialTimer)
+      clearInterval(timer)
+    }
   }, [])
 
   if (!now) return <span className="text-[13px] text-slate-400">—</span>
@@ -60,6 +64,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 export function Header({ userRoles, primaryRole, userName, userEmail, avatarUrl }: HeaderProps) {
   const handleLogout = async () => {
+    await unregisterNativePushToken()
     await fetch('/api/auth/sign-out', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

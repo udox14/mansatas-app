@@ -1,0 +1,7 @@
+
+ ⛅️ wrangler 4.79.0 (update available 4.114.0)
+──────────────────────────────────────────────
+Successfully created tail, expires at 2026-07-28T21:48:17Z
+Connected to mansatas-app, waiting for logs...
+GET https://mansatas-app.drudox.workers.dev/privacy - Ok @ 28/7/2026, 22.52.08
+  (error) ⨯ ChunkLoadError: Failed to load chunk server/chunks/ssr/[root-of-the-server]__0dx-p2_._.js from runtime for chunk server/app/privacy/page.js

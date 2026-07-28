@@ -23,7 +23,7 @@ async function Fetcher({ tanggal }: { tanggal: string }) {
 export default async function MonitoringPenugasanPage({
   searchParams
 }: {
-  searchParams: { tanggal?: string }
+  searchParams: Promise<{ tanggal?: string }>
 }) {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
@@ -32,7 +32,8 @@ export default async function MonitoringPenugasanPage({
   const allowed = await checkFeatureAccess(db, user.id, 'monitoring-penugasan')
   if (!allowed) redirect('/dashboard')
 
-  const tanggal = searchParams.tanggal || todayWIB()
+  const { tanggal: requestedTanggal } = await searchParams
+  const tanggal = requestedTanggal || todayWIB()
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">

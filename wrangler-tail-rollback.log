@@ -1,0 +1,13 @@
+
+ ⛅️ wrangler 4.79.0 (update available 4.114.0)
+──────────────────────────────────────────────
+Successfully created tail, expires at 2026-07-28T21:48:17Z
+Connected to mansatas-app, waiting for logs...
+GET https://mansatas-app.drudox.workers.dev/ - Ok @ 28/7/2026, 22.53.43
+  (error) ⨯ ChunkLoadError: Failed to load chunk server/chunks/ssr/[root-of-the-server]__0wxlfr~._.js from runtime for chunk server/app/page.js
+"* * * * *" @ 28/7/2026, 22.53.47 - Ok
+  (log) Cron trigger fired: * * * * * at 2026-07-28T15:53:47.000Z
+  (log) Cron reminder result (raw): error code: 1042
+
+  (log) Cron WhatsApp result (raw): error code: 1042
+

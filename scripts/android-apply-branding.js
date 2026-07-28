@@ -52,6 +52,25 @@ function Save-ScaledPng([System.Drawing.Image]$source, [string]$path, [int]$widt
   $bmp.Dispose()
 }
 
+function Save-RoundPng([System.Drawing.Image]$source, [string]$path, [int]$size, [double]$scale) {
+  $bmp = New-Object System.Drawing.Bitmap($size, $size)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+  $g.Clear([System.Drawing.Color]::Transparent)
+  $diameter = [Math]::Floor($size * $scale)
+  $offset = [Math]::Floor(($size - $diameter) / 2)
+  $clip = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $clip.AddEllipse($offset, $offset, $diameter, $diameter)
+  $g.SetClip($clip)
+  $g.DrawImage($source, $offset, $offset, $diameter, $diameter)
+  $clip.Dispose()
+  $g.Dispose()
+  $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+  $bmp.Dispose()
+}
+
 $resDir = '${psString(resDir)}'
 $iconSource = [System.Drawing.Image]::FromFile('${psString(icon)}')
 $splashSource = [System.Drawing.Image]::FromFile('${psString(splash)}')
@@ -69,13 +88,13 @@ $iconSizes = @{
 foreach ($entry in $iconSizes.GetEnumerator()) {
   $dir = Join-Path $resDir $entry.Key
   New-Item -ItemType Directory -Force $dir | Out-Null
-  foreach ($name in @('ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png')) {
-    Save-ScaledPng $iconSource (Join-Path $dir $name) $entry.Value $entry.Value $transparent 1
-  }
+  Save-ScaledPng $iconSource (Join-Path $dir 'ic_launcher.png') $entry.Value $entry.Value $transparent 0.72
+  Save-RoundPng $iconSource (Join-Path $dir 'ic_launcher_round.png') $entry.Value 0.84
+  Save-ScaledPng $iconSource (Join-Path $dir 'ic_launcher_foreground.png') $entry.Value $entry.Value $transparent 0.66
 }
 
 $splashSizes = @{
-  'drawable' = @(320, 320)
+  'drawable-nodpi' = @(320, 320)
   'drawable-port-mdpi' = @(320, 480)
   'drawable-port-hdpi' = @(480, 720)
   'drawable-port-xhdpi' = @(640, 960)
@@ -86,6 +105,11 @@ $splashSizes = @{
   'drawable-land-xhdpi' = @(960, 640)
   'drawable-land-xxhdpi' = @(1440, 960)
   'drawable-land-xxxhdpi' = @(1920, 1280)
+}
+
+$legacySplash = Join-Path $resDir 'drawable\\splash.png'
+if (Test-Path -LiteralPath $legacySplash) {
+  Remove-Item -LiteralPath $legacySplash -Force
 }
 
 foreach ($entry in $splashSizes.GetEnumerator()) {

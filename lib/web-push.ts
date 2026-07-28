@@ -89,8 +89,8 @@ export async function sendPushNotification(
           return { success: true, endpoint: row.endpoint };
         } else {
           const status = response.status;
-          // Jika 410 Gone atau 404 Not Found, berarti subscription expired
-          if (status === 410 || status === 404) {
+          // 401/403 juga dapat terjadi pada subscription lama setelah rotasi VAPID.
+          if ([401, 403, 404, 410].includes(status)) {
              await db.prepare('DELETE FROM web_push_subscriptions WHERE endpoint = ?')
               .bind(row.endpoint)
               .run();

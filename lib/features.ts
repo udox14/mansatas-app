@@ -104,6 +104,12 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
   // Remove revokes
   for (const f of overrides.revokes) allowed.delete(f)
 
+  // Super admin tidak boleh terkunci dari modul sistem akibat seed role_features
+  // yang tertinggal atau override lama. MENU_ITEMS menjadi sumber daftar lengkap.
+  if (roles.includes('super_admin')) {
+    for (const item of MENU_ITEMS) allowed.add(item.id)
+  }
+
   // Dokumentasi bersifat universal untuk semua user internal.
   if (roles.length === 0 || roles.some(role => role !== 'orang_tua')) {
     allowed.add('documentation')

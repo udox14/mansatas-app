@@ -539,7 +539,7 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Mobile App',
     href: '/dashboard/settings/mobile-app',
     icon: Smartphone,
-    roles: ['super_admin'],
+    roles: ['super_admin', 'admin_tu'],
     desc: 'Mengonfigurasi fitur native APK seperti kamera, gesture back button, dan info verifikasi'
   },
   {
