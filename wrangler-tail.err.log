@@ -1,0 +1,8 @@
+FatalError: Tail disconnected, exiting.
+    at createFatalError (C:\DATA\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:806:12)
+    at Timeout._onTimeout (C:\DATA\mansatas-app\node_modules\wrangler\wrangler-dist\cli.js:284955:21)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  telemetryMessage: 'Tail disconnected, exiting.',
+  code: 1
+}

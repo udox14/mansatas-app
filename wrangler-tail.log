@@ -630,3 +630,153 @@ GET https://app.mansatas.com/favicon.ico - Ok @ 28/7/2026, 23.26.58
   (log) Cron WhatsApp result (raw): error code: 1042
 
 GET https://app.mansatas.com/favicon.ico - Ok @ 28/7/2026, 23.27.57
+"* * * * *" @ 28/7/2026, 23.28.47 - Ok
+  (log) Cron trigger fired: * * * * * at 2026-07-28T16:28:47.000Z
+  (log) Cron reminder result (raw): error code: 1042
+
+  (log) Cron WhatsApp result (raw): error code: 1042
+
+"* * * * *" @ 28/7/2026, 23.29.47 - Ok
+  (log) Cron trigger fired: * * * * * at 2026-07-28T16:29:47.000Z
+  (log) Cron reminder result (raw): error code: 1042
+
+  (log) Cron WhatsApp result (raw): error code: 1042
+
+"* * * * *" @ 28/7/2026, 23.30.47 - Ok
+  (log) Cron trigger fired: * * * * * at 2026-07-28T16:30:47.000Z
+  (log) Cron reminder result (raw): error code: 1042
+
+  (log) Cron WhatsApp result (raw): error code: 1042
+
+"* * * * *" @ 28/7/2026, 23.31.47 - Ok
+  (log) Cron trigger fired: * * * * * at 2026-07-28T16:31:47.000Z
+  (log) Cron reminder result (raw): error code: 1042
+
+  (log) Cron WhatsApp result (raw): error code: 1042
+
+"* * * * *" @ 28/7/2026, 23.32.47 - Ok
+  (log) Cron trigger fired: * * * * * at 2026-07-28T16:32:47.000Z
+  (log) Cron reminder result (raw): error code: 1042
+
+  (log) Cron WhatsApp result (raw): error code: 1042
+
+"* * * * *" @ 28/7/2026, 23.33.47 - Ok
+  (log) Cron trigger fired: * * * * * at 2026-07-28T16:33:47.000Z
+  (log) Cron reminder result (raw): error code: 1042
+
+  (log) Cron WhatsApp result (raw): error code: 1042
+
+GET https://app.mansatas.com/dashboard?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.51
+GET https://app.mansatas.com/dashboard/settings/fitur - Ok @ 28/7/2026, 23.33.52
+GET https://app.mansatas.com/dashboard/catatan-siswa?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/settings/profile?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/ekstrakurikuler?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/penugasan?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/nilai-harian?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/kelas-binaan?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/kehadiran?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/agenda?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/kelas?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/guru?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/siswa?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/settings/profile?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/ekstrakurikuler?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/catatan-siswa?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/penugasan?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/nilai-harian?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/kelas-binaan?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/kehadiran?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/agenda?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/kelas?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.54
+GET https://app.mansatas.com/dashboard/guru?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.55
+GET https://app.mansatas.com/dashboard/siswa?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.55
+GET https://app.mansatas.com/dashboard?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.55
+GET https://app.mansatas.com/dashboard/settings/fitur - Ok @ 28/7/2026, 23.33.55
+GET https://app.mansatas.com/dashboard/settings/fitur - Ok @ 28/7/2026, 23.33.56
+GET https://app.mansatas.com/dashboard/penugasan?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.56
+GET https://app.mansatas.com/dashboard/catatan-siswa?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.56
+GET https://app.mansatas.com/dashboard/ekstrakurikuler?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.56
+GET https://app.mansatas.com/dashboard/settings/profile?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.56
+GET https://app.mansatas.com/dashboard/nilai-harian?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/kelas-binaan?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/agenda?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/kehadiran?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/kelas?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/guru?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/siswa?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/settings/profile?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/catatan-siswa?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/ekstrakurikuler?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/penugasan?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/nilai-harian?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/kelas-binaan?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/kehadiran?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/agenda?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/kelas?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/guru?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/siswa?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/akademik?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/kalender-pendidikan?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/plotting?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/analitik?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/akademik/nilai?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/kelola-ppl?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/plotting?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/analitik?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/akademik?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/kelola-ppl?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/akademik/nilai?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/kalender-pendidikan?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.57
+GET https://app.mansatas.com/dashboard/monitoring-kedisiplinan?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/sp?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/ekstrakurikuler/master?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/monitoring-kedisiplinan?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/kedisiplinan?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/keterangan-absensi?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/pmb?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/ekstrakurikuler/master?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/kedisiplinan?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/settings/notifications?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/settings/jadwal-notif?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/log-aktivitas?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/settings?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/settings/fitur?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/settings/notifications?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/settings/jadwal-notif?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/log-aktivitas?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/settings?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/keterangan-absensi?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/pengumuman-ortu?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/kotak-saran-ortu?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/pengumuman-ortu?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/settings/mobile-app?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/whatsapp?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/kotak-saran-ortu?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/settings/mobile-app?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/portal-ortu?_rsc=1wnh6 - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/whatsapp?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/portal-ortu?_rsc=lb3yh - Ok @ 28/7/2026, 23.33.58
+GET https://app.mansatas.com/dashboard/settings/mobile-app?_rsc=1pyqe - Ok @ 28/7/2026, 23.33.59
+GET https://app.mansatas.com/ - Ok @ 28/7/2026, 23.34.10
+GET https://app.mansatas.com/dashboard?_rsc=1r34m - Ok @ 28/7/2026, 23.34.10
+GET https://app.mansatas.com/data-deletion?_rsc=1r34m - Ok @ 28/7/2026, 23.34.10
+GET https://app.mansatas.com/dashboard?_rsc=zx18g - Ok @ 28/7/2026, 23.34.10
+GET https://app.mansatas.com/privacy?_rsc=1r34m - Ok @ 28/7/2026, 23.34.10
+GET https://app.mansatas.com/data-deletion?_rsc=1pn8p - Ok @ 28/7/2026, 23.34.11
+GET https://app.mansatas.com/data-deletion?_rsc=jpd9f - Ok @ 28/7/2026, 23.34.11
+GET https://app.mansatas.com/data-deletion?_rsc=nn07o - Ok @ 28/7/2026, 23.34.11
+GET https://app.mansatas.com/data-deletion?_rsc=1ib50 - Ok @ 28/7/2026, 23.34.11
+GET https://app.mansatas.com/privacy?_rsc=1v2tv - Ok @ 28/7/2026, 23.34.11
+GET https://app.mansatas.com/privacy?_rsc=1148h - Ok @ 28/7/2026, 23.34.11
+GET https://app.mansatas.com/privacy?_rsc=1pn8p - Ok @ 28/7/2026, 23.34.11
+GET https://app.mansatas.com/ - Ok @ 28/7/2026, 23.34.16
+GET https://app.mansatas.com/ - Ok @ 28/7/2026, 23.34.46
+"* * * * *" @ 28/7/2026, 23.34.47 - Ok
+  (log) Cron trigger fired: * * * * * at 2026-07-28T16:34:47.000Z
+  (log) Cron reminder result (raw): error code: 1042
+
+  (log) Cron WhatsApp result (raw): error code: 1042
+

@@ -52,6 +52,46 @@ function defaultTahunAnggaran() {
   return `${year}/${year + 1}`
 }
 
+const BULAN_ROMAWI = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
+
+export async function generateNextNomorSpb(db: D1Database, dateInput?: Date | string): Promise<string> {
+  const d = dateInput ? new Date(dateInput) : new Date()
+  const year = d.getFullYear()
+  const monthIndex = d.getMonth() + 1
+  const monthRomawi = BULAN_ROMAWI[monthIndex] || String(monthIndex)
+
+  const existing = await db.prepare(
+    `SELECT nomor_spb FROM komite_pengajuan WHERE nomor_spb IS NOT NULL AND nomor_spb <> ''`
+  ).all<{ nomor_spb: string }>()
+
+  let maxNum = 0
+  const rows = existing.results || []
+  for (const row of rows) {
+    const raw = String(row.nomor_spb || '')
+    const match = raw.match(/SPB\s*\/\s*(\d+)/i) || raw.match(/(\d+)/)
+    if (match && match[1]) {
+      const num = parseInt(match[1], 10)
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num
+      }
+    }
+  }
+
+  let nextSeq = Math.max(maxNum + 1, rows.length + 1, 3)
+  while (true) {
+    const seqPadded = String(nextSeq).padStart(3, '0')
+    const candidate = `SPB / ${seqPadded} / KOMITE / ${monthRomawi} / ${year}`
+    const duplicate = await db.prepare(
+      `SELECT id FROM komite_pengajuan WHERE nomor_spb = ? COLLATE NOCASE LIMIT 1`
+    ).bind(candidate).first()
+
+    if (!duplicate) {
+      return candidate
+    }
+    nextSeq++
+  }
+}
+
 function formFiles(formData: FormData) {
   return formData.getAll('files').filter((entry): entry is File => entry instanceof File && entry.size > 0)
 }
@@ -345,6 +385,9 @@ export async function reviewKomiteAction(formData: FormData) {
   let nominal = Number(row.nominal || 0)
   if (permission.stage === 'bendahara' && action === 'setujui') {
     nomorSpb = cleanText(formData.get('nomor_spb'), 100)
+    if (!nomorSpb) {
+      nomorSpb = await generateNextNomorSpb(db)
+    }
     penerima = cleanText(formData.get('penerima_pembayaran'), 180)
     tahunAnggaran = cleanText(formData.get('tahun_anggaran'), 30) || defaultTahunAnggaran()
     kodeRkasProgram = cleanText(formData.get('kode_rkas_program'), 220) || '-'

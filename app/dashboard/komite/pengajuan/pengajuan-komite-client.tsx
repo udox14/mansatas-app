@@ -32,6 +32,7 @@ type Props = {
   canCreate: boolean
   isSuper: boolean
   reviewCount: number
+  nextNomorSpb?: string
 }
 
 const MAX_TOTAL = 5 * 1024 * 1024
@@ -219,7 +220,7 @@ export function PengajuanKomiteClient(props: Props) {
       </Tabs>}
 
       <DraftDialog open={formOpen} item={editing} pending={pending} message={message} onClose={() => setFormOpen(false)} onSubmit={formData => run(() => saveKomiteDraftAction(formData), () => setFormOpen(false))} />
-      <ReviewDialog value={review} pending={pending} onClose={() => setReview(null)} onSubmit={formData => run(() => reviewKomiteAction(formData), () => { setReview(null); setDetailId(''); setActiveTab(detailOriginTab) })} />
+      <ReviewDialog value={review} nextNomorSpb={props.nextNomorSpb} pending={pending} onClose={() => setReview(null)} onSubmit={formData => run(() => reviewKomiteAction(formData), () => { setReview(null); setDetailId(''); setActiveTab(detailOriginTab) })} />
       <DelegationDialog item={delegation} members={props.committeeMembers} pending={pending} onClose={() => setDelegation(null)} onSubmit={formData => run(() => delegateKetuaReviewAction(formData), () => setDelegation(null))} />
       <RealisasiDialog item={realisasi} pending={pending} onClose={() => setRealisasi(null)} onSubmit={formData => run(() => saveKomiteRealisasiAction(formData), () => setRealisasi(null))} />
     </>
@@ -431,7 +432,7 @@ function DraftDialog({ open, item, pending, message, onClose, onSubmit }: { open
   </form></DialogContent></Dialog>
 }
 
-function ReviewDialog({ value, pending, onClose, onSubmit }: { value: { item: Item; action: string } | null; pending: boolean; onClose: () => void; onSubmit: (data: FormData) => void }) {
+function ReviewDialog({ value, nextNomorSpb, pending, onClose, onSubmit }: { value: { item: Item; action: string } | null; nextNomorSpb?: string; pending: boolean; onClose: () => void; onSubmit: (data: FormData) => void }) {
   const isTreasurerApprove = value?.action === 'setujui' && value.item.status === 'menunggu_bendahara'
   const [rows, setRows] = useState<RincianRow[]>(rowsFromItem(value?.item))
   useEffect(() => {
@@ -441,7 +442,24 @@ function ReviewDialog({ value, pending, onClose, onSubmit }: { value: { item: It
     <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800"><p className="text-sm font-semibold">{value.item.judul}</p><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{money(detailTotal(rows) || value.item.nominal)}</p></div>
     {isTreasurerApprove && <>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5"><Label htmlFor="nomor_spb">Nomor SPB</Label><Input id="nomor_spb" name="nomor_spb" defaultValue={value.item.nomor_spb || ''} maxLength={100} required /></div>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="nomor_spb">Nomor SPB</Label>
+            {nextNomorSpb && (
+              <button
+                type="button"
+                className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                onClick={() => {
+                  const el = document.getElementById('nomor_spb') as HTMLInputElement
+                  if (el) el.value = nextNomorSpb
+                }}
+              >
+                Otomatiskan
+              </button>
+            )}
+          </div>
+          <Input id="nomor_spb" name="nomor_spb" defaultValue={value.item.nomor_spb || nextNomorSpb || ''} maxLength={100} required />
+        </div>
         <div className="space-y-1.5"><Label htmlFor="penerima_pembayaran">Penerima pembayaran utama</Label><Input id="penerima_pembayaran" name="penerima_pembayaran" defaultValue={value.item.penerima_pembayaran || ''} maxLength={180} required /></div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
