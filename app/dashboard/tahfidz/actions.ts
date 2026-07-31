@@ -25,8 +25,6 @@ export async function getKelasTahfidz() {
 // MENDAPATKAN DAFTAR SISWA (BERDASARKAN KELAS ATAU SEARCH)
 // ===========================================
 export async function getSiswaTahfidz(kelasId?: string, search?: string) {
-  if (!kelasId && !search) return []
-
   const db = await getDB()
   
   let q = `
@@ -38,12 +36,14 @@ export async function getSiswaTahfidz(kelasId?: string, search?: string) {
   
   const params: any[] = []
   
-  if (kelasId) {
+  if (kelasId && kelasId !== 'semua') {
     q += ` AND s.kelas_id = ?`
     params.push(kelasId)
-  } else if (search && search.length > 2) {
+  }
+
+  if (search && search.trim() !== '') {
     q += ` AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)`
-    params.push(`%${search}%`, `%${search}%`)
+    params.push(`%${search.trim()}%`, `%${search.trim()}%`)
   }
   
   q += ` ORDER BY k.tingkat ASC, CAST(k.nomor_kelas AS INTEGER) ASC, k.nomor_kelas ASC, s.nama_lengkap ASC LIMIT 50`
@@ -192,7 +192,7 @@ export async function simpanNilaiJuz(siswaId: string, juz: number, nilai: number
 export async function simpanHafalanJuzPenuh(
   siswaId: string,
   juz: number,
-  surahList: { nomor: number; jumlahAyat: number }[]
+  surahList: { nomor: number; startAyat?: number; endAyat?: number; jumlahAyat: number }[]
 ) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
@@ -200,8 +200,9 @@ export async function simpanHafalanJuzPenuh(
   const db = await getDB()
 
   for (const surah of surahList) {
-    const allAyat = Array.from({ length: surah.jumlahAyat }, (_, i) => i + 1)
-    const ayatToSave = JSON.stringify(allAyat)
+    const start = surah.startAyat || 1
+    const end = surah.endAyat || (start + surah.jumlahAyat - 1)
+    const newAyatsInRange = Array.from({ length: end - start + 1 }, (_, i) => start + i)
 
     const curr = await db.prepare(`SELECT ayat_hafal FROM tahfidz_progress WHERE siswa_id = ? AND surah_nomor = ?`)
       .bind(siswaId, surah.nomor).first<{ ayat_hafal: string }>()
@@ -212,7 +213,10 @@ export async function simpanHafalanJuzPenuh(
     }
 
     const currentSet = new Set(currentAyat)
-    const newAyat = allAyat.filter(a => !currentSet.has(a))
+    const newAyat = newAyatsInRange.filter(a => !currentSet.has(a))
+
+    const mergedAyat = Array.from(new Set([...currentAyat, ...newAyatsInRange])).sort((a, b) => a - b)
+    const ayatToSave = JSON.stringify(mergedAyat)
 
     await db.prepare(`
       INSERT INTO tahfidz_progress (id, siswa_id, surah_nomor, juz, ayat_hafal, updated_by, updated_at)

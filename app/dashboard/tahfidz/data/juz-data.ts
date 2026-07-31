@@ -1,52 +1,81 @@
 // app/dashboard/tahfidz/data/juz-data.ts
-import { SURAH_LIST, Surah } from '@/app/dashboard/tahfidz/data/quran-data'
+import { SURAH_LIST } from '@/app/dashboard/tahfidz/data/quran-data'
+
+export type JuzSurah = {
+  nomor: number
+  nama: string
+  namaLatin: string
+  startAyat: number
+  endAyat: number
+  jumlahAyat: number // Total ayat dalam juz ini (endAyat - startAyat + 1)
+}
 
 export type JuzData = {
-  juz: number;
-  surahList: Surah[];
+  juz: number
+  surahList: JuzSurah[]
 }
 
 export const JUZ_SCOPE = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30]
 
-const getSurahRange = (startNomor: number, endNomor: number) => {
-  return SURAH_LIST.filter(s => s.nomor >= startNomor && s.nomor <= endNomor)
+const s = (nomor: number, startAyat: number, endAyat: number): JuzSurah => {
+  const surah = SURAH_LIST.find(item => item.nomor === nomor)
+  if (!surah) throw new Error(`Surah ${nomor} tidak ditemukan`)
+  return {
+    nomor: surah.nomor,
+    nama: surah.nama,
+    namaLatin: surah.namaLatin,
+    startAyat,
+    endAyat,
+    jumlahAyat: endAyat - startAyat + 1
+  }
+}
+
+const fullSurahs = (startNomor: number, endNomor: number): JuzSurah[] => {
+  return SURAH_LIST.filter(item => item.nomor >= startNomor && item.nomor <= endNomor).map(surah => ({
+    nomor: surah.nomor,
+    nama: surah.nama,
+    namaLatin: surah.namaLatin,
+    startAyat: 1,
+    endAyat: surah.jumlahAyat,
+    jumlahAyat: surah.jumlahAyat
+  }))
 }
 
 export const JUZ_DATA: JuzData[] = [
-  { juz: 1,  surahList: getSurahRange(1, 2) },    // Al-Fatihah - Al-Baqarah
-  { juz: 2,  surahList: getSurahRange(3, 3) },    // Ali Imran
-  { juz: 3,  surahList: getSurahRange(4, 4) },    // An-Nisa
-  { juz: 4,  surahList: getSurahRange(5, 5) },    // Al-Ma'idah
-  { juz: 5,  surahList: getSurahRange(6, 6) },    // Al-An'am
-  { juz: 6,  surahList: getSurahRange(7, 7) },    // Al-A'raf
-  { juz: 7,  surahList: getSurahRange(8, 9) },    // Al-Anfal - At-Tawbah
-  { juz: 8,  surahList: getSurahRange(10, 11) },  // Yunus - Hud
-  { juz: 9,  surahList: getSurahRange(12, 13) },  // Yusuf - Ar-Ra'd
-  { juz: 10, surahList: getSurahRange(14, 15) },  // Ibrahim - Al-Hijr
-  { juz: 11, surahList: getSurahRange(16, 17) },  // An-Nahl - Al-Isra
-  { juz: 12, surahList: getSurahRange(18, 19) },  // Al-Kahf - Maryam
-  { juz: 13, surahList: getSurahRange(20, 21) },  // Ta-Ha - Al-Anbiya
-  { juz: 14, surahList: getSurahRange(22, 23) },  // Al-Hajj - Al-Mu'minun
-  { juz: 15, surahList: getSurahRange(24, 25) },  // An-Nur - Al-Furqan
-  { juz: 16, surahList: getSurahRange(26, 27) },  // Asy-Syu'ara - An-Naml
-  { juz: 17, surahList: getSurahRange(28, 29) },  // Al-Qasas - Al-Ankabut
-  { juz: 18, surahList: getSurahRange(30, 31) },  // Ar-Rum - Luqman
-  { juz: 19, surahList: getSurahRange(32, 33) },  // As-Sajdah - Al-Ahzab
-  { juz: 20, surahList: getSurahRange(34, 35) },  // Saba - Fatir
-  { juz: 21, surahList: getSurahRange(36, 37) },  // Ya-Sin - As-Saffat
-  { juz: 22, surahList: getSurahRange(38, 39) },  // Sad - Az-Zumar
-  { juz: 23, surahList: getSurahRange(40, 41) },  // Ghafir - Fussilat
-  { juz: 24, surahList: getSurahRange(42, 43) },  // Asy-Syura - Az-Zukhruf
-  { juz: 25, surahList: getSurahRange(44, 45) },  // Ad-Dukhan - Al-Jasiyah
-  { juz: 26, surahList: getSurahRange(46, 50) },  // Al-Ahqaf - Qaf
-  { juz: 27, surahList: getSurahRange(51, 57) },  // Az-Zariyat - Al-Hadid
-  { juz: 28, surahList: getSurahRange(58, 66) },  // Al-Mujadalah - At-Tahrim
-  { juz: 29, surahList: getSurahRange(67, 77) },  // Al-Mulk - Al-Mursalat
-  { juz: 30, surahList: getSurahRange(78, 114) }, // An-Naba - An-Nas
+  { juz: 1,  surahList: [s(1, 1, 7), s(2, 1, 141)] },
+  { juz: 2,  surahList: [s(2, 142, 252)] },
+  { juz: 3,  surahList: [s(2, 253, 286), s(3, 1, 92)] },
+  { juz: 4,  surahList: [s(3, 93, 200), s(4, 1, 23)] },
+  { juz: 5,  surahList: [s(4, 24, 147)] },
+  { juz: 6,  surahList: [s(4, 148, 176), s(5, 1, 81)] },
+  { juz: 7,  surahList: [s(5, 82, 120), s(6, 1, 110)] },
+  { juz: 8,  surahList: [s(6, 111, 165), s(7, 1, 87)] },
+  { juz: 9,  surahList: [s(7, 88, 206), s(8, 1, 40)] },
+  { juz: 10, surahList: [s(8, 41, 75), s(9, 1, 92)] },
+  { juz: 11, surahList: [s(9, 93, 129), s(10, 1, 109), s(11, 1, 5)] },
+  { juz: 12, surahList: [s(11, 6, 123), s(12, 1, 52)] },
+  { juz: 13, surahList: [s(12, 53, 111), s(13, 1, 43), s(14, 1, 52)] },
+  { juz: 14, surahList: [s(15, 1, 99), s(16, 1, 128)] },
+  { juz: 15, surahList: [s(17, 1, 111), s(18, 1, 74)] },
+  { juz: 16, surahList: [s(18, 75, 110), s(19, 1, 98), s(20, 1, 135)] },
+  { juz: 17, surahList: [s(21, 1, 112), s(22, 1, 78)] },
+  { juz: 18, surahList: [s(23, 1, 118), s(24, 1, 64), s(25, 1, 20)] },
+  { juz: 19, surahList: [s(25, 21, 77), s(26, 1, 227), s(27, 1, 55)] },
+  { juz: 20, surahList: [s(27, 56, 93), s(28, 1, 88), s(29, 1, 45)] },
+  { juz: 21, surahList: [s(29, 46, 69), s(30, 1, 60), s(31, 1, 34), s(32, 1, 30), s(33, 1, 30)] },
+  { juz: 22, surahList: [s(33, 31, 73), s(34, 1, 54), s(35, 1, 45), s(36, 1, 27)] },
+  { juz: 23, surahList: [s(36, 28, 83), s(37, 1, 182), s(38, 1, 88), s(39, 1, 31)] },
+  { juz: 24, surahList: [s(39, 32, 75), s(40, 1, 85), s(41, 1, 46)] },
+  { juz: 25, surahList: [s(41, 47, 54), s(42, 1, 53), s(43, 1, 89), s(44, 1, 59), s(45, 1, 37)] },
+  { juz: 26, surahList: [s(46, 1, 35), s(47, 1, 38), s(48, 1, 29), s(49, 1, 18), s(50, 1, 45), s(51, 1, 30)] },
+  { juz: 27, surahList: [s(51, 31, 60), s(52, 1, 49), s(53, 1, 62), s(54, 1, 55), s(55, 1, 78), s(56, 1, 96), s(57, 1, 29)] },
+  { juz: 28, surahList: fullSurahs(58, 66) },
+  { juz: 29, surahList: fullSurahs(67, 77) },
+  { juz: 30, surahList: fullSurahs(78, 114) },
 ]
 
 export const getTotalAyatInJuz = (juz: number) => {
-  const juzData = JUZ_DATA.find(j => j.juz === juz);
-  if (!juzData) return 0;
-  return juzData.surahList.reduce((total, surah) => total + surah.jumlahAyat, 0);
+  const juzData = JUZ_DATA.find(j => j.juz === juz)
+  if (!juzData) return 0
+  return juzData.surahList.reduce((total, surah) => total + surah.jumlahAyat, 0)
 }

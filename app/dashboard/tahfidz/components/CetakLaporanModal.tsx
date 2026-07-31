@@ -102,7 +102,13 @@ function generateLaporanSiswa(
 
   // Rekap hafalan — grouped by juz, only surahs with hafalan
   const juzHafalan = JUZ_DATA
-    .map(jd => ({ juz: jd.juz, surahs: jd.surahList.filter(s => (progress[s.nomor]?.length || 0) > 0) }))
+    .map(jd => ({
+      juz: jd.juz,
+      surahs: jd.surahList.filter(s => {
+        const prog = progress[s.nomor] || []
+        return prog.some(a => a >= s.startAyat && a <= s.endAyat)
+      })
+    }))
     .filter(j => j.surahs.length > 0)
 
   const totalAyat = Object.values(progress).reduce((s, a) => s + a.length, 0)
@@ -111,17 +117,22 @@ function generateLaporanSiswa(
   let no = 1
   let rekapRows = ''
   for (const jd of juzHafalan) {
-    const totalJuz = jd.surahs.reduce((s, sr) => s + (progress[sr.nomor]?.length || 0), 0)
+    const totalJuz = jd.surahs.reduce((sum, sr) => {
+      const prog = progress[sr.nomor] || []
+      return sum + prog.filter(a => a >= sr.startAyat && a <= sr.endAyat).length
+    }, 0)
     rekapRows += `<tr class="juz-row">
       <td colspan="3" style="padding-left:8pt">Juz ${jd.juz}</td>
       <td class="c">${totalJuz} ayat</td>
       <td class="c">—</td>
     </tr>`
     for (const s of jd.surahs) {
-      const hafal = progress[s.nomor]?.length || 0
+      const prog = progress[s.nomor] || []
+      const hafal = prog.filter(a => a >= s.startAyat && a <= s.endAyat).length
+      const rangeSuffix = s.startAyat > 1 || s.endAyat < (s.startAyat + s.jumlahAyat - 1) ? ` (${s.startAyat}-${s.endAyat})` : ''
       rekapRows += `<tr>
         <td class="c">${no++}</td>
-        <td>${s.namaLatin}</td>
+        <td>${s.namaLatin}${rangeSuffix}</td>
         <td class="c" style="font-size:11pt">${s.nama}</td>
         <td class="c">${hafal} / ${s.jumlahAyat}</td>
         <td class="c">${hafal === s.jumlahAyat ? '✓' : ''}</td>
@@ -215,7 +226,10 @@ function generateLaporanRingkasan(
 ): string {
   const { siswaList, kelas } = data
 
-  const sorted = [...siswaList].sort((a, b) =>
+  // Filter ONLY students with memorization records (totalAyat > 0) per user request 4
+  const siswaDenganHafalan = siswaList.filter(s => s.totalAyat > 0)
+
+  const sorted = [...siswaDenganHafalan].sort((a, b) =>
     opts.urutan === 'hafalan'
       ? b.totalAyat - a.totalAyat
       : a.nama_lengkap.localeCompare(b.nama_lengkap, 'id')
@@ -223,7 +237,10 @@ function generateLaporanRingkasan(
 
   const getJuzList = (progress: Record<number, number[]>) =>
     JUZ_DATA
-      .filter(jd => jd.surahList.some(s => (progress[s.nomor]?.length || 0) > 0))
+      .filter(jd => jd.surahList.some(s => {
+        const prog = progress[s.nomor] || []
+        return prog.some(a => a >= s.startAyat && a <= s.endAyat)
+      }))
       .map(j => `Juz ${j.juz}`)
       .join(', ') || '-'
 
@@ -231,7 +248,7 @@ function generateLaporanRingkasan(
 
   let rows = ''
   if (sorted.length === 0) {
-    rows = `<tr><td colspan="${isSemua ? 6 : 5}" class="c" style="padding:12pt;color:#666">Tidak ada data siswa</td></tr>`
+    rows = `<tr><td colspan="${isSemua ? 6 : 5}" class="c" style="padding:12pt;color:#666">Tidak ada siswa yang memiliki record hafalan</td></tr>`
   } else {
     sorted.forEach((s, i) => {
       rows += `<tr>
@@ -266,7 +283,7 @@ function generateLaporanRingkasan(
     <hr class="thin">
     <div style="margin:0 0 8pt">
       <div class="info-row"><span class="info-label">Tanggal Cetak</span><span class="info-sep">:</span><span>${getTanggalHariIni()}</span></div>
-      <div class="info-row"><span class="info-label">Jumlah Siswa</span><span class="info-sep">:</span><span>${siswaList.length} Siswa</span></div>
+      <div class="info-row"><span class="info-label">Jumlah Siswa</span><span class="info-sep">:</span><span>${siswaDenganHafalan.length} Siswa</span></div>
       <div class="info-row"><span class="info-label">Urutan</span><span class="info-sep">:</span><span>${opts.urutan === 'hafalan' ? 'Berdasarkan Jumlah Hafalan Terbanyak' : 'Berdasarkan Nama (A–Z)'}</span></div>
     </div>
     <table>

@@ -2,18 +2,21 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Check, Undo2 } from 'lucide-react'
+import { Check, Undo2, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface AyatGridProps {
   surahNama: string
+  startAyat?: number
+  endAyat?: number
   jumlahAyat: number
   progressAwal: number[] // array of ayat yang SEBELUMNYA SUDAH hafal (hijau persisten)
   onSave: (selectedAyat: number[]) => void
   isSaving: boolean
 }
 
-export function AyatGrid({ surahNama, jumlahAyat, progressAwal, onSave, isSaving }: AyatGridProps) {
+export function AyatGrid({ surahNama, startAyat = 1, endAyat, jumlahAyat, progressAwal, onSave, isSaving }: AyatGridProps) {
+  const actualEndAyat = endAyat || (startAyat + jumlahAyat - 1)
   const [selected, setSelected] = useState<Set<number>>(new Set(progressAwal))
   const [lastAdded, setLastAdded] = useState<number | null>(null)
   const [autoFill, setAutoFill] = useState(true)
@@ -35,7 +38,9 @@ export function AyatGrid({ surahNama, jumlahAyat, progressAwal, onSave, isSaving
         const start = Math.min(ayat, lastAdded)
         const end = Math.max(ayat, lastAdded)
         for (let i = start; i <= end; i++) {
-          newSet.add(i)
+          if (i >= startAyat && i <= actualEndAyat) {
+            newSet.add(i)
+          }
         }
       } else {
         newSet.add(ayat)
@@ -46,12 +51,21 @@ export function AyatGrid({ surahNama, jumlahAyat, progressAwal, onSave, isSaving
   }
 
   const markAll = () => {
-    const all = new Set<number>()
-    for (let i = 1; i <= jumlahAyat; i++) {
-      all.add(i)
+    const newSet = new Set(selected)
+    for (let i = startAyat; i <= actualEndAyat; i++) {
+      newSet.add(i)
     }
-    setSelected(all)
-    setLastAdded(jumlahAyat)
+    setSelected(newSet)
+    setLastAdded(actualEndAyat)
+  }
+
+  const clearAll = () => {
+    const newSet = new Set(selected)
+    for (let i = startAyat; i <= actualEndAyat; i++) {
+      newSet.delete(i)
+    }
+    setSelected(newSet)
+    setLastAdded(null)
   }
 
   const resetChanges = () => {
@@ -59,18 +73,28 @@ export function AyatGrid({ surahNama, jumlahAyat, progressAwal, onSave, isSaving
     setLastAdded(null)
   }
 
+  // Calculate count in range
+  const countInRange = Array.from(selected).filter(a => a >= startAyat && a <= actualEndAyat).length
+  const progressAwalInRange = progressAwal.filter(a => a >= startAyat && a <= actualEndAyat)
+
   // Calculate if there are unsaved changes
   const hasChanges = Array.from(selected).sort().join(',') !== [...progressAwal].sort().join(',')
   // Also, compute how many are strictly "NEW" for this session
-  const numNew = Array.from(selected).filter(a => !progressAwal.includes(a)).length
+  const numNew = Array.from(selected).filter(a => !progressAwal.includes(a) && a >= startAyat && a <= actualEndAyat).length
+
+  // Build array of ayat numbers to display
+  const ayatNumbers: number[] = []
+  for (let i = startAyat; i <= actualEndAyat; i++) {
+    ayatNumbers.push(i)
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h3 className="font-semibold text-lg">{surahNama}</h3>
+          <h3 className="font-semibold text-lg">{surahNama} {startAyat > 1 || actualEndAyat < (startAyat + jumlahAyat - 1) ? `(Ayat ${startAyat} - ${actualEndAyat})` : ''}</h3>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {selected.size} / {jumlahAyat} Ayat Dihafal
+            {countInRange} / {ayatNumbers.length} Ayat Dihafal (Juz Ini)
             {numNew > 0 && <span className="text-emerald-600 ml-2 font-medium">(+{numNew} Setoran Baru)</span>}
           </p>
         </div>
@@ -85,31 +109,39 @@ export function AyatGrid({ surahNama, jumlahAyat, progressAwal, onSave, isSaving
             />
             Isi Rentang Cepat
           </label>
-          <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={markAll}>
-            <Check className="h-4 w-4 mr-2" />
-            Hafal Semua
-          </Button>
-          {hasChanges && (
-            <Button variant="outline" size="sm" onClick={resetChanges} disabled={isSaving}>
-              <Undo2 className="h-4 w-4" />
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={markAll}>
+              <Check className="h-4 w-4 mr-1.5" />
+              Hafal Semua
             </Button>
-          )}
-          <Button 
-            size="sm" 
-            onClick={() => onSave(Array.from(selected))}
-            disabled={!hasChanges || isSaving}
-            className={cn(hasChanges && "bg-emerald-600 hover:bg-emerald-700")}
-          >
-            {isSaving ? 'Menyimpan...' : 'Simpan'}
-          </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={clearAll}
+              className="text-rose-600 border-rose-200 hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-950/50"
+            >
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              Kosongkan
+            </Button>
+            {hasChanges && (
+              <Button variant="outline" size="sm" onClick={resetChanges} disabled={isSaving} title="Reset Perubahan Belum Disimpan">
+                <Undo2 className="h-4 w-4" />
+              </Button>
+            )}
+            <Button 
+              size="sm" 
+              onClick={() => onSave(Array.from(selected))}
+              disabled={!hasChanges || isSaving}
+              className={cn(hasChanges && "bg-emerald-600 hover:bg-emerald-700")}
+            >
+              {isSaving ? 'Menyimpan...' : 'Simpan'}
+            </Button>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2">
-        {Array.from({ length: jumlahAyat }).map((_, i) => {
-          const num = i + 1
+        {ayatNumbers.map((num) => {
           const isSaved = progressAwal.includes(num)
           const isSelected = selected.has(num)
           const isNewlySelected = isSelected && !isSaved

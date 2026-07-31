@@ -132,7 +132,12 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
     const juzObj = JUZ_DATA.find(j => j.juz === selectedJuz)
     if (!juzObj) return
     setIsSaving(true)
-    const surahList = juzObj.surahList.map(s => ({ nomor: s.nomor, jumlahAyat: s.jumlahAyat }))
+    const surahList = juzObj.surahList.map(s => ({
+      nomor: s.nomor,
+      startAyat: s.startAyat,
+      endAyat: s.endAyat,
+      jumlahAyat: s.jumlahAyat
+    }))
     const res = await simpanHafalanJuzPenuh(selectedSiswa.id, selectedJuz, surahList)
     if (res.error) {
       toast({ title: 'Gagal', description: res.error, variant: 'destructive' })
@@ -140,7 +145,9 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
       toast({ title: 'Berhasil', description: res.success || 'Tersimpan' })
       const newProgress = { ...progress }
       juzObj.surahList.forEach(s => {
-        newProgress[s.nomor] = Array.from({ length: s.jumlahAyat }, (_, i) => i + 1)
+        const currAyat = newProgress[s.nomor] || []
+        const newRange = Array.from({ length: s.jumlahAyat }, (_, i) => s.startAyat + i)
+        newProgress[s.nomor] = Array.from(new Set([...currAyat, ...newRange])).sort((a, b) => a - b)
       })
       setProgress(newProgress)
       const riw = await getRiwayatSetoran(selectedSiswa.id)
@@ -159,7 +166,8 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
     jData.surahList.forEach(s => {
       total += s.jumlahAyat
       if (progress[s.nomor]) {
-        hafal += progress[s.nomor].length
+        const count = progress[s.nomor].filter(a => a >= s.startAyat && a <= s.endAyat).length
+        hafal += count
       }
     })
     
@@ -208,6 +216,7 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
               <SelectValue placeholder="Pilih Kelas..." />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="semua">Semua Kelas</SelectItem>
               {kelasList.map(k => (
                 <SelectItem key={k.id} value={k.id}>{k.label}</SelectItem>
               ))}
@@ -372,8 +381,9 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mb-6">
                   {JUZ_DATA.find(j => j.juz === selectedJuz)?.surahList.map(s => {
-                    const progLen = progress[s.nomor]?.length || 0
-                    const isDone = progLen === s.jumlahAyat
+                    const progAyat = progress[s.nomor] || []
+                    const hafalInJuz = progAyat.filter(a => a >= s.startAyat && a <= s.endAyat).length
+                    const isDone = hafalInJuz === s.jumlahAyat
                     return (
                       <button
                         key={s.nomor}
@@ -387,7 +397,7 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
                       >
                         <div className="font-semibold text-sm truncate">{s.nama}</div>
                         <div className="text-xs text-slate-500 dark:text-slate-400 flex justify-between items-center mt-1">
-                          <span>{progLen}/{s.jumlahAyat}</span>
+                          <span>{hafalInJuz}/{s.jumlahAyat}</span>
                           {isDone && <Check className="h-3 w-3 text-emerald-500" />}
                         </div>
                       </button>
@@ -404,6 +414,8 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
                       return (
                         <AyatGrid 
                           surahNama={surahObj.nama}
+                          startAyat={surahObj.startAyat}
+                          endAyat={surahObj.endAyat}
                           jumlahAyat={surahObj.jumlahAyat}
                           progressAwal={progress[selectedSurah] || []}
                           onSave={(ayatList) => handleSaveSetoran(selectedSurah, ayatList)}
