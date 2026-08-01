@@ -8,6 +8,7 @@ import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
 import { getDocumentationArticles } from '@/lib/documentation'
 import { getFinalAttendanceForStudent } from '@/lib/wali-kelas-attendance'
 import { getParentAttendanceByAcademicYear } from './actions'
+import { ensureSchemaOnce } from '@/lib/schema-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -271,8 +272,35 @@ export default async function PortalOrtuPage() {
 
   const siswaId = session.user.siswa_id
   const db = await getDB()
-  await ensureParentCommunicationTables(db)
-  await ensurePaymentSubmissionTable(db)
+  await ensureSchemaOnce('parent-communication', () => ensureParentCommunicationTables(db))
+  await ensureSchemaOnce('fin-payment-submissions', () => ensurePaymentSubmissionTable(db))
+  await ensureSchemaOnce('parent-announcements', async () => {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS parent_announcements (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        target_scope TEXT NOT NULL DEFAULT 'all',
+        kelas_id TEXT REFERENCES kelas(id) ON DELETE SET NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        publish_at TEXT NOT NULL DEFAULT (datetime('now')),
+        expires_at TEXT,
+        created_by TEXT REFERENCES "user"(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `).run()
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS parent_announcement_targets (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        announcement_id TEXT NOT NULL REFERENCES parent_announcements(id) ON DELETE CASCADE,
+        target_type TEXT NOT NULL,
+        kelas_id TEXT REFERENCES kelas(id) ON DELETE CASCADE,
+        tingkat INTEGER,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `).run()
+  })
   await ensureParentSuggestionTable(db)
   await seedParentCommunication(db, siswaId)
 
@@ -289,32 +317,6 @@ export default async function PortalOrtuPage() {
   const todayDay = todayDayMap === 0 ? 7 : todayDayMap
   const weekStart = shiftDate(todayRaw, 1 - todayDay)
   const weekEnd = shiftDate(weekStart, 5)
-
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS parent_announcements (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      title TEXT NOT NULL,
-      body TEXT NOT NULL,
-      target_scope TEXT NOT NULL DEFAULT 'all',
-      kelas_id TEXT REFERENCES kelas(id) ON DELETE SET NULL,
-      is_active INTEGER NOT NULL DEFAULT 1,
-      publish_at TEXT NOT NULL DEFAULT (datetime('now')),
-      expires_at TEXT,
-      created_by TEXT REFERENCES "user"(id) ON DELETE SET NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `).run()
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS parent_announcement_targets (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      announcement_id TEXT NOT NULL REFERENCES parent_announcements(id) ON DELETE CASCADE,
-      target_type TEXT NOT NULL,
-      kelas_id TEXT REFERENCES kelas(id) ON DELETE CASCADE,
-      tingkat INTEGER,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `).run()
 
   const [
     pengumumanRows,

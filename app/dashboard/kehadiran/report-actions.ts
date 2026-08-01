@@ -4,6 +4,7 @@ import { getEffectiveUser } from '@/lib/act-as'
 import { formatNamaKelas } from '@/lib/utils'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
+import { ensureSchemaOnce } from '@/lib/schema-guard'
 
 export type TeacherAttendanceStatus = 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'
 
@@ -182,7 +183,7 @@ export async function getTeacherAttendanceReport(input: {
 
   const assignmentIds = scopedAssignments.map(item => item.id)
   const assignmentPlaceholders = assignmentIds.map(() => '?').join(',')
-  await db.prepare(`
+  await ensureSchemaOnce('absensi-sesi-siswa', () => db.prepare(`
     CREATE TABLE IF NOT EXISTS absensi_sesi_siswa (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       penugasan_id TEXT NOT NULL REFERENCES penugasan_mengajar(id) ON DELETE CASCADE,
@@ -198,7 +199,7 @@ export async function getTeacherAttendanceReport(input: {
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(penugasan_id, siswa_id, tanggal)
     )
-  `).run()
+  `).run())
   const [sessionRes, attendanceRes, snapshotRes, scheduleRes] = await Promise.all([
     db.prepare(`
       SELECT asg.penugasan_id, asg.tanggal, asg.submitted_at, COALESCE(u.nama_lengkap, '-') AS submitted_by

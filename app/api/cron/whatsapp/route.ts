@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDB } from '@/utils/db'
 import { processWhatsAppOutbox } from '@/lib/whatsapp'
+import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('Authorization')
@@ -11,6 +12,16 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = await getDB()
+
+    const enabled = await getSystemSettingBoolean(SYSTEM_SETTING_KEYS.cronWhatsappEnabled, true)
+    if (!enabled) {
+      return NextResponse.json({
+        success: true,
+        disabled: true,
+        message: 'Pemrosesan outbox WhatsApp dinonaktifkan di pengaturan.',
+      })
+    }
+
     const result = await processWhatsAppOutbox(db, 25)
     return NextResponse.json({ success: true, ...result })
   } catch (error: any) {

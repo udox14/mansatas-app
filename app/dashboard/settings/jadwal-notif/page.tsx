@@ -5,7 +5,7 @@ import { getDB } from '@/utils/db'
 import { PageHeader } from '@/components/layout/page-header'
 import { ALL_ROLES } from '@/config/menu'
 import { getAllUsersForCheckbox } from '@/app/dashboard/rapat/actions'
-import { getJadwalNotifikasi } from './actions'
+import { getJadwalNotifikasi, getCronReminderEnabled } from './actions'
 import { JadwalNotifClient } from './components/JadwalNotifClient'
 
 export const dynamic = 'force-dynamic'
@@ -18,9 +18,10 @@ export default async function JadwalNotifPage() {
   const allowed = await checkFeatureAccess(db, user.id, 'settings-notifications')
   if (!allowed) redirect('/dashboard')
 
-  const [jadwals, allUsers] = await Promise.all([
+  const [jadwals, allUsers, cronReminderEnabled] = await Promise.all([
     getJadwalNotifikasi(),
     getAllUsersForCheckbox(),
+    getCronReminderEnabled(),
   ])
 
   return (
@@ -33,6 +34,7 @@ export default async function JadwalNotifPage() {
         jadwals={jadwals}
         roles={[...ALL_ROLES]}
         allUsers={allUsers}
+        cronReminderEnabled={cronReminderEnabled}
       />
     </div>
   )

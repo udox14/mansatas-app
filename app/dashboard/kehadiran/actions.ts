@@ -11,6 +11,8 @@ import { currentTimeWIB, todayWIB, nowWIB } from '@/lib/time'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
 import { notifyParentsAttendance } from '@/lib/fcm'
+import { ensureSchemaOnce } from '@/lib/schema-guard'
+import { clearMemCache } from '@/utils/mem-cache'
 import {
   getKbmExceptionsForDate,
   getKalenderDateStatus,
@@ -179,7 +181,7 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
   const guruId = guruIdOverride === effectiveGuruId ? guruIdOverride : effectiveGuruId
 
   const db = await getDB()
-  await ensureAbsensiSessionTable(db)
+  await ensureSchemaOnce('absensi-session', () => ensureAbsensiSessionTable(db))
 
   // Gunakan dateOverride jika tersedia (admin memilih tanggal)
   // Jika tidak ada explicit override, baca dari cookie act-as-date
@@ -407,6 +409,7 @@ export async function simpanAbsensi(
   jamKeMulai: number, jamKeSelesai: number, jumlahJam: number,
   dataAbsen: Array<{ siswa_id: string; status: string; catatan: string }>
 ): Promise<{ error?: string; success?: string }> {
+  clearMemCache()
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -416,7 +419,7 @@ export async function simpanAbsensi(
   const guruId = effective?.effectiveUserId || user.id
 
   const db = await getDB()
-  await ensureAbsensiSessionTable(db)
+  await ensureSchemaOnce('absensi-session', () => ensureAbsensiSessionTable(db))
   const calendarStatus = await getKalenderDateStatus(db, tanggal)
   if (!calendarStatus.isEffective) {
     return { error: `Tanggal ini tidak efektif pembelajaran${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}. Absensi tidak perlu disimpan.` }

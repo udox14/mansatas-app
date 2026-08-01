@@ -46,16 +46,18 @@ export async function GET(
       })
     }
 
-    // Stream body langsung dari R2
-    const body = await object.arrayBuffer()
+    // Stream body langsung dari R2 — tanpa buffering seluruh file di worker
+    // memory (object.arrayBuffer() memakan CPU + memory untuk file besar).
+    const headers = new Headers({
+      'Content-Type': contentType,
+      'Cache-Control': cacheControl,
+      'ETag': object.etag,
+    })
+    if (object.size > 0) headers.set('Content-Length', String(object.size))
 
-    return new Response(body, {
+    return new Response(object.body as ReadableStream, {
       status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'Cache-Control': cacheControl,
-        'ETag': object.etag,
-      },
+      headers,
     })
   } catch (e: any) {
     console.error('R2 media proxy error:', e?.message || e)

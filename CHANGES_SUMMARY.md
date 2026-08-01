@@ -203,4 +203,39 @@ Dari base MTs, semua fitur berikut tetap ada dan jalan di MANSATAS App:
 
 ---
 
+## ⚡ Session 8 — Optimasi CPU Workers (hemat quota CPU ms)
+
+### Masalah
+Akun Cloudflare menembus limit **30M CPU ms/bulan**; penyumbang terbesar dari app ini.
+
+### Yang diubah (26 file + 3 file baru)
+
+1. **Guard schema (baru: `lib/schema-guard.ts`)** — DDL `CREATE TABLE/INDEX IF NOT EXISTS` dulu dieksekusi **di setiap request/aksi** (paling parah: `activity-log` 11 statement per `logActivity`, `kalender-pendidikan` 7 statement di semua hot path, `system-settings` tiap baca, `whatsapp` tiap menit). Sekarang dijalankan ~sekali per deployment (sentinel KV + flag in-memory), dengan fallback aman. Semua guard utama sudah dipasang.
+
+2. **Cron dirampingkan** — `wrangler.toml`: `* * * * *` → `*/5 * * * *` (43.200 → 8.640 invokasi/bulan).
+   - ⚠️ **PENTING**: `jadwal_notifikasi` kini harus diset pada **menit kelipatan 5** (HH:00, HH:05, …).
+
+3. **`getFinalAttendanceForClass` dioptimasi** (`lib/wali-kelas-attendance.ts`) — hoisting: blok mengajar efektif per tanggal (hanya fungsi tanggal) dulu dihitung ulang per-siswa-per-hari; sekarang dihitung sekali per tanggal. Hasilnya **di-cache in-memory 60 detik** per kelas+rentang.
+
+4. **Caching dashboard (baru: `utils/mem-cache.ts`)** — cache in-memory TTL 60 detik untuk: `getSystemSetting` (+ invalidasi di `setSystemSetting`), `KehadiranPribadiCard`, `getSchoolAttendanceEstimateForDate`, `getMasterPelanggaranCached`, `getDaftarMapelCached`. Cache di-clear saat aksi tulis absensi (simpan absensi, koreksi wali kelas, delegasi) supaya penulis langsung melihat data baru.
+
+5. **PDF di-cache di R2 (baru: `lib/pdf-cache.ts`)** — 5 route (CKH, nilai-harian, ekskul-kehadiran, absensi-guru, SPB komite) sekarang di-cache di R2 keyed oleh hash SHA-256 HTML. Data sama → tidak launch browser lagi. Data berubah → hash berubah → render ulang. Hanya PDF < 2 MB yang di-cache.
+
+6. **Streaming R2** — `app/api/media/[...path]` & `app/api/komite/pengajuan/[id]/files/[fileId]` kini pakai `object.body` (stream) bukan `object.arrayBuffer()` (hemat memory/CPU untuk file besar).
+
+7. **PMB ZIP** — `app/api/pmb/download-berkas` kini filter per `tahun_ajaran` (UI kirim `2026-2027`, DB simpan `2026/2027`); fallback ke semua data bila tidak cocok.
+
+8. **Toggle aktif/nonaktif per modul (baru: `components/shared/CronToggle.tsx`)** — kontrol pengiriman otomatis tanpa perlu edit kode/deploy:
+   - **Jadwal Notifikasi** (`/dashboard/settings/jadwal-notif`): toggle "Pengiriman Notifikasi Terjadwal" → simpan `system_settings.cron_reminder_jadwal_enabled`. Saat nonaktif, `/api/cron/reminder-jadwal` langsung skip.
+   - **WhatsApp** (`/dashboard/whatsapp`): toggle "Pemrosesan Outbox Otomatis (Cron)" → simpan `system_settings.cron_whatsapp_enabled`. Saat nonaktif, `/api/cron/whatsapp` langsung skip; tombol manual "Proses Outbox" tetap berfungsi.
+   - Default `1` (aktif) — perilaku lama tetap bila setting belum ada.
+
+### Catatan deploy
+- **Belum di-build/deploy** — jalankan `npm run deploy` (atau `npm run build:worker` lalu `wrangler deploy`) setelah perubahan ini.
+- Schema guard memakai KV `NEXT_INC_CACHE_KV`; TTL sentinel 90 hari sebagai jaring pengaman.
+- Jika di masa depan ada guard yang menambah tabel/index baru, naikkan `SCHEMA_VERSION` di `lib/schema-guard.ts`.
+- PDF cache di R2 tumbuh seiring laporan baru; bisa dibersihkan dari prefix `pdf-cache/` bila perlu.
+
+---
+
 **Selamat deploy, bos! 🚀**

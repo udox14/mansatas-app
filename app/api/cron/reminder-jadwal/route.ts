@@ -3,10 +3,12 @@ import { getDB } from '@/utils/db'
 import { notify } from '@/lib/notify'
 import { nowWIB } from '@/lib/time'
 import { getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
+import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
 /**
- * Master Cron Dispatcher — dipanggil setiap menit oleh Cloudflare Cron Trigger.
+ * Master Cron Dispatcher — dipanggil setiap 5 menit oleh Cloudflare Cron Trigger.
  * Cek tabel jadwal_notifikasi, lalu kirim yang jamnya sesuai jam sekarang (WIB).
+ * Bila pengiriman otomatis dinonaktifkan di pengaturan, langsung skip.
  * 
  * GET /api/cron/reminder-jadwal
  * Auth: Bearer {CRON_SECRET}
@@ -21,6 +23,16 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = await getDB()
+
+    const enabled = await getSystemSettingBoolean(SYSTEM_SETTING_KEYS.cronReminderEnabled, true)
+    if (!enabled) {
+      return NextResponse.json({
+        success: true,
+        disabled: true,
+        message: 'Pengiriman notifikasi terjadwal dinonaktifkan di pengaturan.',
+      })
+    }
+
     const now = nowWIB()
 
     // Jam & menit sekarang WIB

@@ -50,10 +50,31 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url)
   const tahun = url.searchParams.get('tahun') || 'PMB'
+  // UI mengirim '2026-2027'; DB menyimpan '2026/2027'.
+  const tahunFilter = tahun.replace(/-/g, '/')
+  const isYearPair = /^\d{4}\/\d{4}$/.test(tahunFilter)
 
-  const { results: rows } = await db.prepare(
-    'SELECT no_pendaftaran, nama_lengkap, foto_url, scan_kk_url, scan_akta_url, scan_ktp_ortu_url, scan_kelakuan_baik_url, scan_rapor_url, scan_sertifikat_prestasi_url FROM pmb_pendaftar ORDER BY no_pendaftaran'
-  ).all<any>()
+  const baseCols =
+    'no_pendaftaran, nama_lengkap, foto_url, scan_kk_url, scan_akta_url, scan_ktp_ortu_url, scan_kelakuan_baik_url, scan_rapor_url, scan_sertifikat_prestasi_url'
+
+  // Filter per tahun ajaran untuk membatasi jumlah berkas per request.
+  // Bila tidak ada pendaftar yang cocok, fallback ke semua (perilaku lama)
+  // supaya fitur tidak berhenti bekerja.
+  let rows: any[]
+  if (isYearPair) {
+    rows = (await db.prepare(
+      `SELECT ${baseCols} FROM pmb_pendaftar WHERE tahun_ajaran = ? ORDER BY no_pendaftaran`
+    ).bind(tahunFilter).all<any>()).results
+    if (!rows?.length) {
+      rows = (await db.prepare(
+        `SELECT ${baseCols} FROM pmb_pendaftar ORDER BY no_pendaftaran`
+      ).all<any>()).results
+    }
+  } else {
+    rows = (await db.prepare(
+      `SELECT ${baseCols} FROM pmb_pendaftar ORDER BY no_pendaftaran`
+    ).all<any>()).results
+  }
 
   if (!rows?.length) return new Response('Tidak ada data pendaftar', { status: 404 })
 

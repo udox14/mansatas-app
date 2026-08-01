@@ -1,5 +1,6 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getSystemSetting } from './system-settings'
+import { ensureSchemaOnce } from '@/lib/schema-guard'
 
 export const WA_FEATURE_ID = 'whatsapp'
 export const WA_ALFA_PURPOSE = 'attendance_alfa'
@@ -324,7 +325,7 @@ export async function previewWhatsAppRecipients(
   scope: WaTargetScope,
   options: { kelasId?: string | null; tingkat?: number | null; siswaIds?: string[] } = {}
 ): Promise<WaCampaignPreview> {
-  await ensureWhatsAppTables(db)
+  await ensureSchemaOnce('whatsapp', () => ensureWhatsAppTables(db))
   const { where, params } = buildTargetWhere(scope, options)
   const rows = await db.prepare(`
     SELECT s.id AS siswa_id, s.nama_lengkap, s.nomor_whatsapp, k.tingkat, k.nomor_kelas, k.kelompok
@@ -366,7 +367,7 @@ export async function enqueueAttendanceAlfaNotifications(
   db: D1Database,
   options: { penugasanId: string; tanggal: string; createdBy?: string | null }
 ) {
-  await ensureWhatsAppTables(db)
+  await ensureSchemaOnce('whatsapp', () => ensureWhatsAppTables(db))
   const alfaRows = await db.prepare(`
     SELECT ab.siswa_id, s.nama_lengkap, s.nomor_whatsapp, k.tingkat, k.nomor_kelas, k.kelompok
     FROM absensi_siswa ab
@@ -439,7 +440,7 @@ export async function createWhatsAppCampaign(db: D1Database, input: {
   siswaIds?: string[]
   createdBy: string
 }) {
-  await ensureWhatsAppTables(db)
+  await ensureSchemaOnce('whatsapp', () => ensureWhatsAppTables(db))
   const preview = await previewWhatsAppRecipients(db, input.targetScope, {
     kelasId: input.kelasId,
     tingkat: input.tingkat,
@@ -564,7 +565,7 @@ async function releaseDailyLock(db: D1Database, row: WaOutboxRow) {
 }
 
 export async function processWhatsAppOutbox(db: D1Database, limit = 25) {
-  await ensureWhatsAppTables(db)
+  await ensureSchemaOnce('whatsapp', () => ensureWhatsAppTables(db))
   const rows = await db.prepare(`
     SELECT *
     FROM wa_outbox
@@ -654,7 +655,7 @@ export async function processWhatsAppOutbox(db: D1Database, limit = 25) {
 }
 
 export async function updateWhatsAppMessageStatus(db: D1Database, providerMessageId: string, status: string, errorMessage?: string | null) {
-  await ensureWhatsAppTables(db)
+  await ensureSchemaOnce('whatsapp', () => ensureWhatsAppTables(db))
   const allowed = ['sent', 'delivered', 'read', 'failed']
   const nextStatus = allowed.includes(status) ? status : 'sent'
   await db.prepare(`

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
+import { clearMemCache } from '@/utils/mem-cache'
 
 type WaliStatus = 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'
 
@@ -39,6 +40,7 @@ export async function simpanKeputusanAbsensiWaliBatch(
   tanggal: string,
   data: KeputusanAbsensiInput[]
 ): Promise<{ error?: string; success?: string }> {
+  clearMemCache()
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 

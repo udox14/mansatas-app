@@ -3,6 +3,7 @@
 import { getDB, dbInsert, dbUpdate } from '@/utils/db'
 import { getCurrentUser } from '@/utils/auth/server'
 import { checkFeatureAccess } from '@/lib/features'
+import { getSystemSettingBoolean, setSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { revalidatePath } from 'next/cache'
 
 async function assertAdmin() {
@@ -12,6 +13,26 @@ async function assertAdmin() {
   const allowed = await checkFeatureAccess(db, user.id, 'settings-notifications')
   if (!allowed) return { error: 'Tidak ada akses.', user: null, db: null }
   return { error: null, user, db }
+}
+
+// ============================================================
+// GET — Status aktif/nonaktif pengiriman otomatis
+// ============================================================
+export async function getCronReminderEnabled() {
+  const { error, db } = await assertAdmin()
+  if (error || !db) return true
+  return getSystemSettingBoolean(SYSTEM_SETTING_KEYS.cronReminderEnabled, true)
+}
+
+// ============================================================
+// TOGGLE — Aktif/nonaktif pengiriman otomatis (global)
+// ============================================================
+export async function setCronReminderEnabled(enabled: boolean) {
+  const { error } = await assertAdmin()
+  if (error) return { error }
+  await setSystemSetting(SYSTEM_SETTING_KEYS.cronReminderEnabled, enabled ? '1' : '0')
+  revalidatePath('/dashboard/settings/jadwal-notif')
+  return { success: enabled ? 'Pengiriman otomatis diaktifkan.' : 'Pengiriman otomatis dinonaktifkan.' }
 }
 
 // ============================================================

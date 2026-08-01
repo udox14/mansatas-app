@@ -1,4 +1,6 @@
 import { getDB } from '@/utils/db'
+import { ensureSchemaOnce } from '@/lib/schema-guard'
+import { getMemCache, setMemCache, deleteMemCache } from '@/utils/mem-cache'
 
 export const SYSTEM_SETTING_KEYS = {
   agendaTimeRestriction: 'agenda_time_restriction_enabled',
@@ -18,6 +20,9 @@ export const SYSTEM_SETTING_KEYS = {
   parentLoginBlockEnabled: 'parent_login_block_enabled',
   parentLoginBlockTingkat: 'parent_login_block_tingkat',
   parentLoginBlockMessage: 'parent_login_block_message',
+  // Toggle aktif/nonaktif pemrosesan cron per modul (disimpan sebagai '1'/'0')
+  cronReminderEnabled: 'cron_reminder_jadwal_enabled',
+  cronWhatsappEnabled: 'cron_whatsapp_enabled',
 } as const
 
 // Tingkat kelas yang bisa dibatasi loginnya (MA: 10, 11, 12)
@@ -58,12 +63,18 @@ async function ensureSystemSettingsTable(db: D1Database) {
 }
 
 export async function getSystemSetting(key: string, fallback = ''): Promise<string> {
+  const cacheKey = `sys-setting:${key}`
+  const cached = getMemCache<string>(cacheKey)
+  if (cached !== undefined) return cached
+
   const db = await getDB()
-  await ensureSystemSettingsTable(db)
+  await ensureSchemaOnce('system-settings', () => ensureSystemSettingsTable(db))
   const row = await db.prepare(
     'SELECT value FROM system_settings WHERE key = ?'
   ).bind(key).first<{ value: string }>()
-  return row?.value ?? fallback
+  const value = row?.value ?? fallback
+  setMemCache(cacheKey, value, 60_000)
+  return value
 }
 
 export async function getSystemSettingBoolean(key: string, fallback = false): Promise<boolean> {
@@ -79,7 +90,7 @@ export async function getSystemSettingNumber(key: string, fallback: number): Pro
 
 export async function setSystemSetting(key: string, value: string): Promise<void> {
   const db = await getDB()
-  await ensureSystemSettingsTable(db)
+  await ensureSchemaOnce('system-settings', () => ensureSystemSettingsTable(db))
   await db.prepare(`
     INSERT INTO system_settings (key, value, updated_at)
     VALUES (?, ?, CURRENT_TIMESTAMP)
@@ -87,4 +98,5 @@ export async function setSystemSetting(key: string, value: string): Promise<void
       value = excluded.value,
       updated_at = CURRENT_TIMESTAMP
   `).bind(key, value).run()
+  deleteMemCache(`sys-setting:${key}`)
 }

@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { checkFeatureAccess } from '@/lib/features'
-import { getSystemSetting, setSystemSetting } from '@/lib/system-settings'
+import { getSystemSetting, setSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { WA_FEATURE_ID, createWhatsAppCampaign, ensureWhatsAppTables, processWhatsAppOutbox, type WaTargetScope } from '@/lib/whatsapp'
 
 async function guard() {
@@ -70,6 +70,14 @@ export async function processWhatsappOutboxAction() {
   if (error) return
   await processWhatsAppOutbox(db, 25)
   revalidatePath('/dashboard/whatsapp')
+}
+
+export async function setWhatsappCronEnabled(enabled: boolean) {
+  const { error } = await guard()
+  if (error) return { error }
+  await setSystemSetting(SYSTEM_SETTING_KEYS.cronWhatsappEnabled, enabled ? '1' : '0')
+  revalidatePath('/dashboard/whatsapp')
+  return { success: enabled ? 'Pemrosesan otomatis diaktifkan.' : 'Pemrosesan otomatis dinonaktifkan.' }
 }
 
 export async function saveWhatsappSettingsAction(prevState: any, formData: FormData) {

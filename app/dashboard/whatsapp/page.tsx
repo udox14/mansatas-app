@@ -4,8 +4,10 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
 import { checkFeatureAccess } from '@/lib/features'
 import { WA_FEATURE_ID, ensureWhatsAppTables, previewWhatsAppRecipients, getWhatsAppConfig, type WaTargetScope } from '@/lib/whatsapp'
-import { createWhatsappCampaignAction, processWhatsappOutboxAction } from './actions'
+import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { createWhatsappCampaignAction, processWhatsappOutboxAction, setWhatsappCronEnabled } from './actions'
 import { SettingsModal } from './components/settings-modal'
+import { CronToggle } from '@/components/shared/CronToggle'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +40,7 @@ export default async function WhatsAppPage({ searchParams }: PageProps) {
   if (!allowed) redirect('/dashboard')
   await ensureWhatsAppTables(db)
   const config = await getWhatsAppConfig()
+  const cronWhatsappEnabled = await getSystemSettingBoolean(SYSTEM_SETTING_KEYS.cronWhatsappEnabled, true)
 
   const params: Record<string, string | string[] | undefined> = searchParams
     ? await searchParams
@@ -111,6 +114,13 @@ export default async function WhatsAppPage({ searchParams }: PageProps) {
           </form>
         </div>
       </div>
+
+      <CronToggle
+        enabled={cronWhatsappEnabled}
+        onToggle={setWhatsappCronEnabled}
+        title="Pemrosesan Outbox Otomatis (Cron)"
+        description="Saat nonaktif, antrian WhatsApp (notifikasi ALFA terjadwal & broadcast) tidak diproses otomatis oleh cron. Tombol 'Proses Outbox' manual tetap berfungsi."
+      />
 
       <div className="grid gap-3 sm:grid-cols-4">
         {[

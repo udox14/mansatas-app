@@ -1,3 +1,5 @@
+import { ensureSchemaOnce } from '@/lib/schema-guard'
+
 export type KalenderKategori =
   | 'TANGGAL_MERAH'
   | 'LIBUR_SEMESTER'
@@ -45,7 +47,6 @@ export type KbmExceptionClassTarget = {
   id: string
   tingkat: number
 }
-
 export const KALENDER_CATEGORY_LABELS: Record<KalenderKategori, string> = {
   TANGGAL_MERAH: 'Tanggal Merah',
   LIBUR_SEMESTER: 'Libur Semester',
@@ -147,7 +148,7 @@ export function enumerateDateStrings(startDate: string, endDate: string) {
 }
 
 export async function getKalenderEventsForRange(db: D1Database, startDate: string, endDate: string) {
-  await ensureKalenderPendidikanTables(db)
+  await ensureSchemaOnce('kalender-pendidikan', () => ensureKalenderPendidikanTables(db))
   const result = await db.prepare(`
     SELECT id, start_date, end_date, title, category, is_effective, source, external_id, description
     FROM kalender_pendidikan_events
@@ -159,7 +160,7 @@ export async function getKalenderEventsForRange(db: D1Database, startDate: strin
 }
 
 export async function getKbmExceptionsForRange(db: D1Database, startDate: string, endDate: string) {
-  await ensureKalenderPendidikanTables(db)
+  await ensureSchemaOnce('kalender-pendidikan', () => ensureKalenderPendidikanTables(db))
   const result = await db.prepare(`
     SELECT id, tanggal, judul, kategori, jam_ke_mulai, jam_ke_selesai, target_type, target_value, description
     FROM kbm_exceptions

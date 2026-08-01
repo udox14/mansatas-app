@@ -5,6 +5,7 @@ import puppeteer from '@cloudflare/puppeteer'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getCurrentUser } from '@/utils/auth/server'
 import { buildCkhHtml, type CkhPdfData } from '@/lib/pdf/ckh-template'
+import { renderPdfWithCache } from '@/lib/pdf-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,41 +51,47 @@ export async function POST(request: Request) {
 
   const [w, h] = paperCss.split(' ')
 
-  const { env } = await getCloudflareContext({ async: true })
-  const browser = await puppeteer.launch(env.BROWSER as Parameters<typeof puppeteer.launch>[0])
-  try {
-    const page = await browser.newPage()
-    await page.setContent(html, { waitUntil: 'networkidle0' })
-    await page.evaluate(() => (document as any).fonts.ready) // pastikan @font-face termuat sebelum render
-    await page.evaluate(async () => {
-      const images = Array.from(document.images)
-      await Promise.all(images.map(image => {
-        if (image.complete) return image.decode().catch(() => undefined)
-        return new Promise<void>(resolve => {
-          image.addEventListener('load', () => resolve(), { once: true })
-          image.addEventListener('error', () => resolve(), { once: true })
+  const pdf = await renderPdfWithCache({
+    route: 'ckh',
+    html,
+    render: async () => {
+      const { env } = await getCloudflareContext({ async: true })
+      const browser = await puppeteer.launch(env.BROWSER as Parameters<typeof puppeteer.launch>[0])
+      try {
+        const page = await browser.newPage()
+        await page.setContent(html, { waitUntil: 'networkidle0' })
+        await page.evaluate(() => (document as any).fonts.ready) // pastikan @font-face termuat sebelum render
+        await page.evaluate(async () => {
+          const images = Array.from(document.images)
+          await Promise.all(images.map(image => {
+            if (image.complete) return image.decode().catch(() => undefined)
+            return new Promise<void>(resolve => {
+              image.addEventListener('load', () => resolve(), { once: true })
+              image.addEventListener('error', () => resolve(), { once: true })
+            })
+          }))
         })
-      }))
-    })
-    const pdf = await page.pdf({
-      width: w,
-      height: h,
-      printBackground: true,
-      margin: {
-        top: `${m.top}mm`,
-        right: `${m.right}mm`,
-        bottom: `${m.bottom}mm`,
-        left: `${m.left}mm`,
-      },
-    })
-    return new Response(pdf as BodyInit, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="CKH_${body.year}_${String(body.month).padStart(2, '0')}.pdf"`,
-        'Cache-Control': 'no-store',
-      },
-    })
-  } finally {
-    await browser.close()
-  }
+        return await page.pdf({
+          width: w,
+          height: h,
+          printBackground: true,
+          margin: {
+            top: `${m.top}mm`,
+            right: `${m.right}mm`,
+            bottom: `${m.bottom}mm`,
+            left: `${m.left}mm`,
+          },
+        })
+      } finally {
+        await browser.close()
+      }
+    },
+  })
+  return new Response(pdf as BodyInit, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="CKH_${body.year}_${String(body.month).padStart(2, '0')}.pdf"`,
+      'Cache-Control': 'no-store',
+    },
+  })
 }

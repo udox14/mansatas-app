@@ -26,12 +26,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const object = await env.R2.get(row.r2_key)
   if (!object) return new Response('Not Found', { status: 404 })
   const filename = String(row.original_filename || 'dokumen.pdf').replace(/["\r\n]/g,'_')
-  return new Response(await object.arrayBuffer(), {
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="${filename}"`,
-      'Cache-Control': 'private, no-store',
-      'X-Content-Type-Options': 'nosniff',
-    },
+  const headers = new Headers({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `inline; filename="${filename}"`,
+    'Cache-Control': 'private, no-store',
+    'X-Content-Type-Options': 'nosniff',
   })
+  if (object.size > 0) headers.set('Content-Length', String(object.size))
+  return new Response(object.body as ReadableStream, { headers })
 }

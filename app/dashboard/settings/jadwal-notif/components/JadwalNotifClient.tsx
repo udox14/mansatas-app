@@ -15,8 +15,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { cn } from '@/lib/utils'
 import {
   simpanJadwalNotifikasi, toggleJadwalNotifikasi,
-  hapusJadwalNotifikasi, testKirimJadwal,
+  hapusJadwalNotifikasi, testKirimJadwal, setCronReminderEnabled,
 } from '../actions'
+import { CronToggle } from '@/components/shared/CronToggle'
 
 // ============================================================
 // Types
@@ -395,8 +396,8 @@ function KartuJadwal({ jadwal, roles, allUsers, onEdit, onRefresh }: {
 // MAIN CLIENT COMPONENT
 // ============================================================
 
-export function JadwalNotifClient({ jadwals: initialJadwals, roles, allUsers }: {
-  jadwals: Jadwal[]; roles: RoleOption[]; allUsers: UserItem[];
+export function JadwalNotifClient({ jadwals: initialJadwals, roles, allUsers, cronReminderEnabled: initialEnabled }: {
+  jadwals: Jadwal[]; roles: RoleOption[]; allUsers: UserItem[]; cronReminderEnabled: boolean;
 }) {
   const [jadwals, setJadwals] = useState<Jadwal[]>(initialJadwals)
   const [editTarget, setEditTarget] = useState<Jadwal | null>(null)
@@ -418,10 +419,18 @@ export function JadwalNotifClient({ jadwals: initialJadwals, roles, allUsers }: 
 
   return (
     <div className="space-y-4">
+      {/* Toggle global pengiriman otomatis */}
+      <CronToggle
+        enabled={initialEnabled}
+        onToggle={setCronReminderEnabled}
+        title="Pengiriman Notifikasi Terjadwal"
+        description="Saat nonaktif, tidak ada notifikasi terjadwal yang dikirim — cron langsung dilewati (hemat CPU). Jadwal yang tersimpan tetap dipertahankan."
+      />
+
       {/* Header + Tambah */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          {jadwals.length} jadwal terdaftar · cron berjalan setiap menit
+          {jadwals.length} jadwal terdaftar · cron berjalan setiap 5 menit
         </p>
         <Button size="sm" onClick={() => { setEditTarget(null); setShowForm(true) }}
           className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1.5 rounded-lg">
@@ -433,7 +442,7 @@ export function JadwalNotifClient({ jadwals: initialJadwals, roles, allUsers }: 
       <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-700 flex items-start gap-2">
         <Bell className="h-3.5 w-3.5 shrink-0 mt-0.5" />
         <div>
-          <strong>Cara kerja:</strong> Sistem memeriksa jadwal ini setiap menit. Notifikasi dikirim otomatis saat jam WIB sesuai dengan jadwal yang aktif pada hari tersebut.
+          <strong>Cara kerja:</strong> Sistem memeriksa jadwal ini setiap 5 menit (menit kelipatan 5: 00, 05, 10, …). Notifikasi dikirim otomatis saat jam WIB sesuai dengan jadwal yang aktif pada hari tersebut.
           Gunakan tombol <strong>Test Kirim</strong> untuk menguji pengiriman langsung tanpa menunggu jadwal.
         </div>
       </div>

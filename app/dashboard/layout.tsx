@@ -11,6 +11,7 @@ import { PushNotificationBanner } from '@/components/shared/PushNotificationBann
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { DEFAULT_SIDEBAR_GROUPS, parseSidebarGroups, resolveSidebarGroups, type SidebarGroupConfig } from '@/config/menu'
 import { getUnreadStudentNoteCountForWali } from '@/lib/student-notes'
+import { ensureSchemaOnce } from '@/lib/schema-guard'
 
 const SIDEBAR_TEMPLATE_KEY = 'default'
 
@@ -52,34 +53,36 @@ export default async function DashboardLayout({
   let featureLabels: Record<string, string> = {}
   const featureBadges: Record<string, number> = {}
   try {
-    await Promise.all([
-      db.prepare(`
-        CREATE TABLE IF NOT EXISTS role_sidebar_configs (
-          role TEXT PRIMARY KEY,
-          groups_json TEXT NOT NULL DEFAULT '[]',
-          updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (role) REFERENCES master_roles(value) ON DELETE CASCADE
-        )
-      `).run(),
-      db.prepare(`
-        CREATE TABLE IF NOT EXISTS sidebar_template_config (
-          id TEXT PRIMARY KEY DEFAULT '${SIDEBAR_TEMPLATE_KEY}',
-          groups_json TEXT NOT NULL DEFAULT '[]',
-          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-      `).run(),
-      db.prepare(`
-        CREATE TABLE IF NOT EXISTS feature_display_settings (
-          feature_id TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
-          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-      `).run(),
-    ])
-    await db.prepare(`
-      INSERT OR IGNORE INTO sidebar_template_config (id, groups_json, updated_at)
-      VALUES (?, ?, CURRENT_TIMESTAMP)
-    `).bind(SIDEBAR_TEMPLATE_KEY, JSON.stringify(DEFAULT_SIDEBAR_GROUPS)).run()
+    await ensureSchemaOnce('dashboard-sidebar-config', async () => {
+      await Promise.all([
+        db.prepare(`
+          CREATE TABLE IF NOT EXISTS role_sidebar_configs (
+            role TEXT PRIMARY KEY,
+            groups_json TEXT NOT NULL DEFAULT '[]',
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (role) REFERENCES master_roles(value) ON DELETE CASCADE
+          )
+        `).run(),
+        db.prepare(`
+          CREATE TABLE IF NOT EXISTS sidebar_template_config (
+            id TEXT PRIMARY KEY DEFAULT '${SIDEBAR_TEMPLATE_KEY}',
+            groups_json TEXT NOT NULL DEFAULT '[]',
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+          )
+        `).run(),
+        db.prepare(`
+          CREATE TABLE IF NOT EXISTS feature_display_settings (
+            feature_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+          )
+        `).run(),
+      ])
+      await db.prepare(`
+        INSERT OR IGNORE INTO sidebar_template_config (id, groups_json, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+      `).bind(SIDEBAR_TEMPLATE_KEY, JSON.stringify(DEFAULT_SIDEBAR_GROUPS)).run()
+    })
     const roleConfig = await db.prepare(`
       SELECT mr.mobile_nav_links, rsc.groups_json AS role_sidebar_override, stc.groups_json AS sidebar_template
       FROM master_roles mr

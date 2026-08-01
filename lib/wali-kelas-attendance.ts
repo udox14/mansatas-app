@@ -2,10 +2,11 @@ import { formatNamaKelas } from '@/lib/utils'
 import {
   getEffectiveDatesInRange,
   getKbmExceptionsForRange,
-  hasActiveTeachingSlots,
   splitTeachingSlotsByExceptions,
 } from '@/lib/kalender-pendidikan'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { ensureSchemaOnce } from '@/lib/schema-guard'
+import { getMemCache, setMemCache } from '@/utils/mem-cache'
 
 export type FinalAttendanceStatus =
   | 'HADIR'
@@ -63,6 +64,19 @@ type ClassRow = {
   wali_kelas_id?: string | null
   wali_kelas_nama?: string | null
   kbm_nonaktif_mulai?: string | null
+}
+
+export type FinalAttendanceClassData = {
+  kelas: ClassRow & { label: string }
+  dates: string[]
+  siswa: StudentRow[]
+  statusByStudent: Map<string, FinalAttendanceDetail[]>
+}
+
+export type SchoolAttendanceEstimate = {
+  total_siswa: number
+  tidak_masuk: number
+  hadir_estimasi: number
 }
 
 function hariNum(date: Date) {
@@ -246,8 +260,12 @@ export async function getFinalAttendanceForClass(
   startDate: string,
   endDate: string,
   options?: { tahunAjaranId?: string; siswaId?: string }
-) {
-  await db.prepare(`
+): Promise<FinalAttendanceClassData | null> {
+  const cacheKey = `final-att:${kelasId}:${startDate}:${endDate}:${options?.tahunAjaranId ?? ''}:${options?.siswaId ?? ''}`
+  const cached = getMemCache<FinalAttendanceClassData>(cacheKey)
+  if (cached) return cached
+
+  await ensureSchemaOnce('absensi-sesi-guru', () => db.prepare(`
     CREATE TABLE IF NOT EXISTS absensi_sesi_guru (
       id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       penugasan_id TEXT NOT NULL REFERENCES penugasan_mengajar(id) ON DELETE CASCADE,
@@ -258,7 +276,7 @@ export async function getFinalAttendanceForClass(
       updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(penugasan_id, tanggal)
     )
-  `).run()
+  `).run())
 
   const [kelas, siswaRes, ta] = await Promise.all([
     db.prepare(`
@@ -365,25 +383,31 @@ export async function getFinalAttendanceForClass(
     penMap.get(row.penugasan_id)!.add(Number(row.jam_ke))
   }
 
-  const activeBlockCountForDate = (tanggal: string) => {
-    const hari = hariNum(new Date(tanggal + 'T00:00:00'))
-    return Array.from(jadwalByHari.get(hari)?.values() || []).filter(jamSet => {
-      const jamList = Array.from(jamSet).sort((a, b) => a - b)
-      return hasActiveTeachingSlots(
-        exceptionsByDate.get(tanggal) || [],
-        { id: kelas.id, tingkat: kelas.tingkat },
-        jamList
-      )
-    }).length
+  // Hoisting: blok mengajar efektif per tanggal hanya fungsi dari TANGGAL
+  // (jadwal + pengecualian KBM), bukan dari siswa. Dulu dihitung ulang per
+  // siswa per hari (O(siswa×tanggal) kali splitTeachingSlotsByExceptions +
+  // sort). Sekarang dihitung sekali per tanggal dan dipakai bersama.
+  type ClassDayBlocks = {
+    totalBlok: number
+    blocks: Array<{
+      penugasan_id: string
+      jam_ke: number[]
+      jam_ke_mulai: number
+      jam_ke_selesai: number
+      block_start: number | null
+      block_end: number | null
+    }>
   }
-  const activeBlocksForDate = (tanggal: string) => {
+  const blocksByDate = new Map<string, ClassDayBlocks>()
+  for (const tanggal of dates) {
     const hari = hariNum(new Date(tanggal + 'T00:00:00'))
     const slots = getSlotsHari(ta?.jam_pelajaran, hari)
-    return Array.from(jadwalByHari.get(hari)?.entries() || [])
+    const exceptions = exceptionsByDate.get(tanggal) || []
+    const rawBlocks = Array.from(jadwalByHari.get(hari)?.entries() || [])
       .map(([penugasanId, jamSet]) => {
         const jamList = Array.from(jamSet).sort((a, b) => a - b)
         const slotState = splitTeachingSlotsByExceptions(
-          exceptionsByDate.get(tanggal) || [],
+          exceptions,
           { id: kelas.id, tingkat: kelas.tingkat },
           jamList
         )
@@ -398,12 +422,12 @@ export async function getFinalAttendanceForClass(
           jam_ke_selesai: jamKeSelesai,
           block_start: parseTimeMinutes(startSlot?.mulai),
           block_end: parseTimeMinutes(endSlot?.selesai),
-          is_exception: slotState.activeJamKe.length === 0,
         }
       })
-      .filter(block => !block.is_exception)
+      .filter(block => block.jam_ke.length > 0)
+    blocksByDate.set(tanggal, { totalBlok: rawBlocks.length, blocks: rawBlocks })
   }
-  const classDates = dates.filter(tanggal => activeBlockCountForDate(tanggal) > 0)
+  const classDates = dates.filter(tanggal => (blocksByDate.get(tanggal)!.totalBlok) > 0)
 
   const guruMap = new Map<string, Array<{
     status: string
@@ -454,12 +478,13 @@ export async function getFinalAttendanceForClass(
   for (const siswa of siswaList) {
     const perDay: FinalAttendanceDetail[] = []
     for (const tanggal of classDates) {
-      const totalBlok = activeBlockCountForDate(tanggal)
+      const dayBlocks = blocksByDate.get(tanggal)!
+      const totalBlok = dayBlocks.totalBlok
       const baseGuruRecords = guruMap.get(`${siswa.id}__${tanggal}`) || []
       const waliRecord = waliMap.get(`${siswa.id}__${tanggal}`)
       const izinKelasRows = izinKelasMap.get(`${siswa.id}__${tanggal}`) || []
       const izinKeluarRows = izinKeluarMap.get(siswa.id) || []
-      const activeBlocks = activeBlocksForDate(tanggal)
+      const activeBlocks = dayBlocks.blocks
       const izinBlocks = activeBlocks.flatMap(block => {
         const izinKelasForBlock = izinKelasRows.filter(row => {
           const jam = parseIzinJamPelajaran(row.jam_pelajaran)
@@ -529,7 +554,7 @@ export async function getFinalAttendanceForClass(
     statusByStudent.set(siswa.id, perDay)
   }
 
-  return {
+  const result: FinalAttendanceClassData = {
     kelas: {
       ...kelas,
       label: formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok),
@@ -538,6 +563,8 @@ export async function getFinalAttendanceForClass(
     siswa: siswaList,
     statusByStudent,
   }
+  setMemCache(cacheKey, result, 60_000)
+  return result
 }
 
 export async function getFinalAttendanceForStudent(
@@ -573,7 +600,11 @@ export async function getFinalAttendanceForStudent(
   }
 }
 
-export async function getSchoolAttendanceEstimateForDate(db: D1Database, tanggal: string) {
+export async function getSchoolAttendanceEstimateForDate(db: D1Database, tanggal: string): Promise<SchoolAttendanceEstimate> {
+  const cacheKey = `school-estimate:${tanggal}`
+  const cached = getMemCache<SchoolAttendanceEstimate>(cacheKey)
+  if (cached) return cached
+
   const hari = hariNum(new Date(`${tanggal}T00:00:00`))
   const [ta, totalRow, izinRes, exceptions] = await Promise.all([
     db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>(),
@@ -647,9 +678,11 @@ export async function getSchoolAttendanceEstimateForDate(db: D1Database, tanggal
 
   const izinTidakMasuk = Array.from(allIzinStudents).filter(id => !schoolPresentStudents.has(id)).length
   const totalSiswa = Number(totalRow?.total || 0)
-  return {
+  const estimate: SchoolAttendanceEstimate = {
     total_siswa: totalSiswa,
     tidak_masuk: izinTidakMasuk,
     hadir_estimasi: Math.max(0, totalSiswa - izinTidakMasuk),
   }
+  setMemCache(cacheKey, estimate, 60_000)
+  return estimate
 }

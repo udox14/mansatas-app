@@ -6,6 +6,7 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getDB } from './db'
 import { todayWIB } from '@/lib/time'
+import { getMemCache, setMemCache } from '@/utils/mem-cache'
 
 // ============================================================
 // TAHUN AJARAN AKTIF
@@ -22,22 +23,32 @@ export async function getTahunAjaranAktifCached() {
 // MASTER PELANGGARAN
 // ============================================================
 export async function getMasterPelanggaranCached() {
+  const cacheKey = 'master-pelanggaran'
+  const cached = getMemCache<any[]>(cacheKey)
+  if (cached) return cached
   const db = await getDB()
   const result = await db
     .prepare('SELECT id, kategori, nama_pelanggaran, poin FROM master_pelanggaran ORDER BY poin ASC')
     .all<any>()
-  return result.results ?? []
+  const rows = result.results ?? []
+  setMemCache(cacheKey, rows, 60_000)
+  return rows
 }
 
 // ============================================================
 // DAFTAR MAPEL
 // ============================================================
 export async function getDaftarMapelCached() {
+  const cacheKey = 'daftar-mapel'
+  const cached = getMemCache<any[]>(cacheKey)
+  if (cached) return cached
   const db = await getDB()
   const result = await db
     .prepare('SELECT id, nama_mapel, kode_mapel, kelompok, tingkat, kategori FROM mata_pelajaran ORDER BY nama_mapel ASC')
     .all<any>()
-  return result.results ?? []
+  const rows = result.results ?? []
+  setMemCache(cacheKey, rows, 60_000)
+  return rows
 }
 
 // ============================================================

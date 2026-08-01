@@ -2,6 +2,7 @@
 import { getDB } from '@/utils/db'
 import { todayWIB, currentTimeWIB } from '@/lib/time'
 import { getEffectiveDatesInRange, getKbmExceptionsForRange, hariNumFromDateString, hasActiveTeachingSlots } from '@/lib/kalender-pendidikan'
+import { getMemCache, setMemCache } from '@/utils/mem-cache'
 import { BookOpen, Clock } from '@phosphor-icons/react/dist/ssr'
 
 type Props = { userId: string }
@@ -58,19 +59,30 @@ function BaseCard({ title, subtitle, hadir, sakit, izin, alfa, total, telat, ico
   )
 }
 
-export async function KehadiranPribadiCard({ userId }: Props) {
-  const db = await getDB()
+type KehadiranPribadiData = {
+  isGuru: boolean
+  dataGuru: {
+    hadir: number
+    sakit: number
+    izin: number
+    alfa: number
+    total: number
+    telat: number
+  } | null
+}
+
+// Komputasi performa kehadiran guru (month-to-date) hanya bergantung pada
+// userId + bulan berjalan → di-cache in-memory 60 detik agar tidak mengulang
+// query + loop berat di setiap load dashboard. Read-only (data tampilan).
+async function getKehadiranPribadiData(db: D1Database, userId: string): Promise<KehadiranPribadiData> {
   const today = todayWIB()
   const yearMonth = today.substring(0, 7)
   const monthStart = `${yearMonth}-01`
   const rangeStart = monthStart > ATTENDANCE_CUTOFF_START ? monthStart : ATTENDANCE_CUTOFF_START
+  const cacheKey = `kehadiran-pribadi:${userId}:${yearMonth}`
 
-  const monthLabel = new Date(yearMonth + '-01').toLocaleDateString('id-ID', {
-    month: 'long', year: 'numeric',
-  })
-  const cutoffLabel = new Date(ATTENDANCE_CUTOFF_START + 'T00:00:00').toLocaleDateString('id-ID', {
-    day: 'numeric', month: 'long', year: 'numeric',
-  })
+  const cached = getMemCache<KehadiranPribadiData>(cacheKey)
+  if (cached) return cached
 
   // Cek role user
   const user = await db.prepare(`
@@ -85,7 +97,7 @@ export async function KehadiranPribadiCard({ userId }: Props) {
 
   // Data Agenda Mengajar (Khusus Guru), dihitung month-to-date.
   // Denominator memakai jadwal efektif, bukan hanya agenda yang sudah tersimpan.
-  let dataGuru: any = null
+  let dataGuru: KehadiranPribadiData['dataGuru'] = null
   if (isGuru) {
     const ta = await db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string, jam_pelajaran: string }>()
     const effectiveDates = ta ? await getEffectiveDatesInRange(db, rangeStart, today) : []
@@ -236,6 +248,26 @@ export async function KehadiranPribadiCard({ userId }: Props) {
       dataGuru = { hadir: 0, sakit: 0, izin: 0, alfa: 0, total: 0, telat: 0 }
     }
   }
+
+  const result: KehadiranPribadiData = { isGuru, dataGuru }
+  setMemCache(cacheKey, result, 60_000)
+  return result
+}
+
+export async function KehadiranPribadiCard({ userId }: Props) {
+  const db = await getDB()
+  const today = todayWIB()
+  const yearMonth = today.substring(0, 7)
+  const monthStart = `${yearMonth}-01`
+
+  const { isGuru, dataGuru } = await getKehadiranPribadiData(db, userId)
+
+  const monthLabel = new Date(yearMonth + '-01').toLocaleDateString('id-ID', {
+    month: 'long', year: 'numeric',
+  })
+  const cutoffLabel = new Date(ATTENDANCE_CUTOFF_START + 'T00:00:00').toLocaleDateString('id-ID', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  })
 
   if (!isGuru) return null
 

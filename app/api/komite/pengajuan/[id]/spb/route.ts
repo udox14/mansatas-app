@@ -5,6 +5,7 @@ import { getDB } from '@/utils/db'
 import { getUserRoles } from '@/lib/features'
 import { canViewKomitePengajuan, ensureKomitePengajuanSchema } from '@/lib/komite-pengajuan'
 import { terbilang } from '@/lib/terbilang'
+import { renderPdfWithCache } from '@/lib/pdf-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -197,14 +198,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     <div class="footer">Halaman bukti tanda terima ini merupakan bagian dari SPB ${esc(row.nomor_spb)}.</div>
   </section>
   </body></html>`
-  const { env } = await getCloudflareContext({ async:true })
-  const browser = await puppeteer.launch(env.BROWSER as Parameters<typeof puppeteer.launch>[0])
-  try {
-    const page = await browser.newPage()
-    await page.setContent(html,{ waitUntil:'networkidle0' })
-    await page.evaluate(async () => { await (document as any).fonts.ready; await Promise.all(Array.from(document.images).map(image => image.decode().catch(() => undefined))) })
-    const pdf = await page.pdf({ format:'A4',printBackground:true,preferCSSPageSize:true })
-    const safeNumber = String(row.nomor_spb).replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,80)
-    return new Response(pdf as BodyInit,{ headers:{ 'Content-Type':'application/pdf','Content-Disposition':`inline; filename="SPB_${safeNumber}.pdf"`,'Cache-Control':'private, no-store' } })
-  } finally { await browser.close() }
+  const pdf = await renderPdfWithCache({
+    route: 'komite-spb',
+    html,
+    render: async () => {
+      const { env } = await getCloudflareContext({ async:true })
+      const browser = await puppeteer.launch(env.BROWSER as Parameters<typeof puppeteer.launch>[0])
+      try {
+        const page = await browser.newPage()
+        await page.setContent(html,{ waitUntil:'networkidle0' })
+        await page.evaluate(async () => { await (document as any).fonts.ready; await Promise.all(Array.from(document.images).map(image => image.decode().catch(() => undefined))) })
+        return await page.pdf({ format:'A4',printBackground:true,preferCSSPageSize:true })
+      } finally { await browser.close() }
+    },
+  })
+  const safeNumber = String(row.nomor_spb).replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,80)
+  return new Response(pdf as BodyInit,{ headers:{ 'Content-Type':'application/pdf','Content-Disposition':`inline; filename="SPB_${safeNumber}.pdf"`,'Cache-Control':'private, no-store' } })
 }

@@ -6,6 +6,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getRekapNilai } from '@/app/dashboard/nilai-harian/actions'
 import { buildNilaiHarianHtml } from '@/lib/pdf/nilai-harian-template'
+import { renderPdfWithCache } from '@/lib/pdf-cache'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,27 +37,33 @@ export async function GET(request: Request) {
     baseUrl: url.origin,
   })
 
-  const { env } = await getCloudflareContext({ async: true })
-  const browser = await puppeteer.launch(env.BROWSER as Parameters<typeof puppeteer.launch>[0])
-  try {
-    const page = await browser.newPage()
-    await page.setContent(html, { waitUntil: 'networkidle0' })
-    await page.evaluate(() => (document as any).fonts.ready) // pastikan @font-face termuat sebelum render
-    const pdf = await page.pdf({
-      width: '215mm',
-      height: '330mm',
-      printBackground: true,
-      margin: { top: '0', right: '0', bottom: '0', left: '0' },
-    })
-    const filename = `Rekap_${safeFile(mapelNama)}_${safeFile(kelasLabel)}.pdf`
-    return new Response(pdf as BodyInit, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${filename}"`,
-        'Cache-Control': 'no-store',
-      },
-    })
-  } finally {
-    await browser.close()
-  }
+  const pdf = await renderPdfWithCache({
+    route: 'nilai-harian',
+    html,
+    render: async () => {
+      const { env } = await getCloudflareContext({ async: true })
+      const browser = await puppeteer.launch(env.BROWSER as Parameters<typeof puppeteer.launch>[0])
+      try {
+        const page = await browser.newPage()
+        await page.setContent(html, { waitUntil: 'networkidle0' })
+        await page.evaluate(() => (document as any).fonts.ready) // pastikan @font-face termuat sebelum render
+        return await page.pdf({
+          width: '215mm',
+          height: '330mm',
+          printBackground: true,
+          margin: { top: '0', right: '0', bottom: '0', left: '0' },
+        })
+      } finally {
+        await browser.close()
+      }
+    },
+  })
+  const filename = `Rekap_${safeFile(mapelNama)}_${safeFile(kelasLabel)}.pdf`
+  return new Response(pdf as BodyInit, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'Cache-Control': 'no-store',
+    },
+  })
 }

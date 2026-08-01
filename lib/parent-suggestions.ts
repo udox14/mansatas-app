@@ -1,3 +1,5 @@
+import { ensureSchemaOnce } from '@/lib/schema-guard'
+
 export const PARENT_SUGGESTION_CATEGORIES = [
   'Akademik',
   'Kesiswaan',
@@ -13,6 +15,10 @@ export type ParentSuggestionCategory = typeof PARENT_SUGGESTION_CATEGORIES[numbe
 export type ParentSuggestionStatus = typeof PARENT_SUGGESTION_STATUSES[number]
 
 export async function ensureParentSuggestionTable(db: D1Database) {
+  return ensureSchemaOnce('parent-suggestions', () => ensureParentSuggestionTableInner(db))
+}
+
+async function ensureParentSuggestionTableInner(db: D1Database) {
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS parent_suggestions (
       id TEXT PRIMARY KEY,

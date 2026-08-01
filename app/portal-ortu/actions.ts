@@ -9,6 +9,7 @@ import { uploadPaymentProof } from '@/utils/r2'
 import { ensureParentSuggestionTable, normalizeParentSuggestionCategory } from '@/lib/parent-suggestions'
 import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
 import { getFinalAttendanceForStudent } from '@/lib/wali-kelas-attendance'
+import { ensureSchemaOnce } from '@/lib/schema-guard'
 
 type SummonResponse = 'hadir' | 'reschedule'
 const SEMESTER_NILAI_COLUMNS = ['nilai_smt1', 'nilai_smt2', 'nilai_smt3', 'nilai_smt4', 'nilai_smt5', 'nilai_smt6'] as const
@@ -309,7 +310,7 @@ export async function getParentSemesterGrades(semester: number) {
 export async function respondParentSummons(payload: { summonId: string; response: SummonResponse; note?: string }) {
   const session = await requireParentSession()
   const db = await getDB()
-  await ensureParentCommunicationTables(db)
+  await ensureSchemaOnce('parent-communication', () => ensureParentCommunicationTables(db))
 
   const row = await db.prepare(`
     SELECT id, siswa_id
@@ -343,7 +344,7 @@ export async function respondParentSummons(payload: { summonId: string; response
 export async function markParentNotificationRead(notificationId: string) {
   const session = await requireParentSession()
   const db = await getDB()
-  await ensureParentCommunicationTables(db)
+  await ensureSchemaOnce('parent-communication', () => ensureParentCommunicationTables(db))
 
   await db.prepare(`
     UPDATE parent_notifications

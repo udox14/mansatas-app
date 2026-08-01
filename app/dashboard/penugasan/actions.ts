@@ -9,6 +9,8 @@ import { nowWIBISO, todayWIB } from '@/lib/time'
 import { notify } from '@/lib/notify'
 import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
 import { notifyParentsAttendance } from '@/lib/fcm'
+import { ensureSchemaOnce } from '@/lib/schema-guard'
+import { clearMemCache } from '@/utils/mem-cache'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import {
   getKalenderDateStatus,
@@ -732,6 +734,7 @@ export async function simpanAbsensiDelegasi(
   jamKeSelesai: number,
   dataAbsen: Array<{ siswa_id: string; status: string; catatan: string }>
 ): Promise<{ error?: string; success?: string }> {
+  clearMemCache()
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -753,7 +756,7 @@ export async function simpanAbsensiDelegasi(
   }
 
   // Sparse: only save non-HADIR
-  await ensureAbsensiSessionTable(db)
+  await ensureSchemaOnce('absensi-sesi-guru-index', () => ensureAbsensiSessionTable(db))
   const toSave = dataAbsen.filter(d => d.status !== 'HADIR')
   const jumlahJam = jamKeSelesai - jamKeMulai + 1
   const delStmt = db.prepare(

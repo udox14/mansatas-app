@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { getDB, serializeValue } from '@/utils/db'
 import { getSession } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
+import { ensureSchemaOnce } from '@/lib/schema-guard'
 
 export type ActivitySeverity = 'info' | 'warning' | 'danger'
 
@@ -141,7 +142,7 @@ export function createActivityDiff(before: Record<string, unknown> | null | unde
 export async function logActivity(input: ActivityLogInput) {
   try {
     const db = input.db ?? await getDB()
-    await ensureActivityLogTables(db)
+    await ensureSchemaOnce('activity-log', () => ensureActivityLogTables(db))
 
     const hdrs = await headers().catch(() => null)
     let actor: { id: string; name?: string | null; email?: string | null; role?: string | null } | null = null
