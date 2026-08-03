@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { openPdfFromUrl } from '@/lib/pdf/download'
+import { buildCkhDocx, type CkhDocxSignatureImage } from '@/lib/docx/ckh-template'
 import {
   AlertTriangle, CalendarDays, Check, ChevronLeft, ChevronRight, FileText, Loader2, Plus, Printer,
   RotateCw, Save, Settings2, Trash2, X,
@@ -175,6 +176,36 @@ function signatureImageStyle(settings: SignatureSettings): CSSProperties {
 
 function MissingProfilePrint() {
   return <span style={{ fontStyle: 'italic' }}>Silakan isi dulu di Profil</span>
+}
+
+async function loadCkhSignatureImage(url: string | null | undefined): Promise<CkhDocxSignatureImage | null> {
+  if (!url) return null
+
+  try {
+    const response = await fetch(url, { credentials: 'include' })
+    if (!response.ok) return null
+    const blob = await response.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    try {
+      const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        const image = new Image()
+        image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight })
+        image.onerror = () => reject(new Error('Tanda tangan tidak dapat dibaca.'))
+        image.src = objectUrl
+      })
+      const contentType = blob.type || response.headers.get('content-type') || 'image/png'
+      return {
+        data: new Uint8Array(await blob.arrayBuffer()),
+        contentType,
+        widthPx: dimensions.width,
+        heightPx: dimensions.height,
+      }
+    } finally {
+      URL.revokeObjectURL(objectUrl)
+    }
+  } catch {
+    return null
+  }
 }
 
 function MissingProfileInline() {
@@ -379,6 +410,7 @@ function PrintDialog({
   const [paper, setPaper] = useState<keyof typeof PAPER>('f4')
   const [margins, setMargins] = useState({ top: 15, right: 12, bottom: 15, left: 12 })
   const [printing, setPrinting] = useState(false)
+  const [downloadingWord, setDownloadingWord] = useState(false)
   const [printError, setPrintError] = useState<string | null>(null)
   const signer = shouldUseKepalaTu(user, userRoles) ? kepalaTu : kepsek
   const profileMissing = !user.nip || !user.jabatan_cetak || !signer?.nip
@@ -399,6 +431,41 @@ function PrintDialog({
     }
   }
 
+  const handleWordDownload = async () => {
+    setDownloadingWord(true)
+    setPrintError(null)
+    try {
+      const signatureImage = signatureSettings.signature_enabled
+        ? await loadCkhSignatureImage(user.signature_url)
+        : null
+      const blob = await buildCkhDocx({
+        rows,
+        user,
+        kepsek,
+        kepalaTu,
+        userRoles,
+        signatureSettings,
+        signatureImage,
+        year,
+        month,
+        paper,
+        margins,
+      })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `CKH_${year}_${String(month).padStart(2, '0')}.docx`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (e) {
+      setPrintError(e instanceof Error ? e.message : 'Gagal membuat file Word.')
+    } finally {
+      setDownloadingWord(false)
+    }
+  }
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -409,7 +476,7 @@ function PrintDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-base">Pengaturan Cetak CKH</DialogTitle>
+          <DialogTitle className="text-base">Pengaturan Cetak / Download CKH</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           {profileMissing && (
@@ -445,10 +512,16 @@ function PrintDialog({
           {printError && (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{printError}</div>
           )}
-          <Button onClick={handlePrint} disabled={printing} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
-            {printing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-            {printing ? 'Membuat PDF…' : 'Cetak / Simpan PDF'}
-          </Button>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button onClick={handlePrint} disabled={printing || downloadingWord} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+              {printing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+              {printing ? 'Membuat PDF…' : 'Cetak / Simpan PDF'}
+            </Button>
+            <Button onClick={handleWordDownload} disabled={printing || downloadingWord || rows.length === 0} variant="outline" className="w-full gap-2 border-slate-300 text-slate-700 hover:bg-slate-50">
+              {downloadingWord ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+              {downloadingWord ? 'Menyiapkan Word…' : 'Download Word (.docx)'}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
