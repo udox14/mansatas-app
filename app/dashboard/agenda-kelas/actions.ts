@@ -955,3 +955,558 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
 
   return { error: null, pages }
 }
+
+export type AgendaKelasCetakExportMeta = {
+  jobCount: number
+  pageCount: number
+  skippedKelasIds: string[]
+}
+
+export type AgendaKelasCetakExportResult = {
+  error: string | null
+  pages: AgendaKelasPageData[]
+  meta: AgendaKelasCetakExportMeta
+}
+
+type BulkKelasRow = {
+  id: string
+  tingkat: number | string
+  nomor_kelas: string
+  kelompok: string
+  kbm_nonaktif_mulai: string | null
+  wali_kelas_nama: string | null
+  wali_kelas_nip: string | null
+  wali_kelas_signature_url: string | null
+  km_nama: string | null
+}
+
+type BulkSiswaRow = { id: string; nama_lengkap: string; kelas_id: string }
+
+type BulkScheduleRow = {
+  kelas_id: string
+  hari: number | string
+  penugasan_id: string
+  jam_ke: number | string
+  guru_id: string
+  guru_nama: string | null
+  nama_mapel: string | null
+}
+
+type BulkAgendaRow = {
+  penugasan_id: string
+  tanggal: string
+  materi: string | null
+  agenda_status: string | null
+}
+
+type BulkDelegationRow = {
+  penugasan_mengajar_id: string
+  tanggal: string
+  delegasi_kelas_id: string
+  delegasi_alasan: string | null
+  tugas: string | null
+}
+
+type BulkWaliAttendanceRow = {
+  kelas_id: string
+  siswa_id: string
+  tanggal: string
+  status: string
+  keterangan: string | null
+}
+
+type BulkTeacherAttendanceRow = {
+  kelas_id: string
+  siswa_id: string
+  tanggal: string
+  status: string
+  catatan: string | null
+}
+
+type BulkClassPermissionRow = {
+  kelas_id: string
+  siswa_id: string
+  tanggal: string
+  alasan: string | null
+  keterangan: string | null
+}
+
+type BulkExitPermissionRow = {
+  kelas_id: string
+  siswa_id: string
+  waktu_keluar: string
+  waktu_kembali: string | null
+  keterangan: string | null
+}
+
+function chunkAgendaKelasIds(ids: string[], size = 60) {
+  const chunks: string[][] = []
+  for (let index = 0; index < ids.length; index += size) chunks.push(ids.slice(index, index + size))
+  return chunks
+}
+
+function agendaKelasKey(kelasId: string, tanggal: string) {
+  return `${kelasId}:${tanggal}`
+}
+
+function agendaKelasScheduleKey(kelasId: string, hari: number) {
+  return `${kelasId}:${hari}`
+}
+
+function pushAgendaKelasMap<T>(map: Map<string, T[]>, key: string, value: T) {
+  const current = map.get(key)
+  if (current) current.push(value)
+  else map.set(key, [value])
+}
+
+function agendaKelasBaseRows(): AgendaKelasRow[] {
+  return Array.from({ length: 10 }).map((_, index) => ({
+    jam_ke: index + 1,
+    jam_label: String(index + 1),
+    mapel_nama: '',
+    pokok_bahasan: '',
+    tugas: '',
+    guru_nama: '',
+    paraf: '',
+    guru_status: '',
+  }))
+}
+
+function buildAgendaKelasAttendanceRows(
+  kelasId: string,
+  tanggal: string,
+  students: BulkSiswaRow[],
+  waliByDate: Map<string, BulkWaliAttendanceRow[]>,
+  teacherByDate: Map<string, BulkTeacherAttendanceRow[]>,
+  permissionByDate: Map<string, BulkClassPermissionRow[]>,
+  exitByClass: Map<string, BulkExitPermissionRow[]>,
+): AgendaKelasAbsensiRow[] {
+  const key = agendaKelasKey(kelasId, tanggal)
+  const waliMap = new Map<string, { status: string; keterangan: string }>()
+  for (const row of waliByDate.get(key) || []) {
+    waliMap.set(row.siswa_id, { status: row.status, keterangan: row.keterangan || '' })
+  }
+
+  const statusMap = new Map<string, string[]>()
+  const noteMap = new Map<string, string[]>()
+  const pushStatus = (siswaId: string, status: string, note?: string) => {
+    if (!statusMap.has(siswaId)) statusMap.set(siswaId, [])
+    statusMap.get(siswaId)!.push(status)
+    if (note) {
+      if (!noteMap.has(siswaId)) noteMap.set(siswaId, [])
+      noteMap.get(siswaId)!.push(note)
+    }
+  }
+
+  for (const row of teacherByDate.get(key) || []) pushStatus(row.siswa_id, row.status, row.catatan || '')
+  for (const row of permissionByDate.get(key) || []) {
+    pushStatus(row.siswa_id, 'IZIN', [row.alasan, row.keterangan].filter(Boolean).join(': '))
+  }
+  for (const row of exitByClass.get(kelasId) || []) {
+    const keluar = String(row.waktu_keluar || '').slice(0, 10)
+    const kembali = row.waktu_kembali ? String(row.waktu_kembali).slice(0, 10) : null
+    if (keluar <= tanggal && (!kembali || kembali >= tanggal)) {
+      pushStatus(row.siswa_id, 'IZIN', row.keterangan || 'Keluar komplek')
+    }
+  }
+
+  const rows: AgendaKelasAbsensiRow[] = []
+  for (const siswa of students) {
+    const wali = waliMap.get(siswa.id)
+    const status = wali
+      ? choosePrintableStatus([wali.status])
+      : choosePrintableStatus(statusMap.get(siswa.id) || [])
+    if (!status) continue
+
+    const notes = wali?.keterangan
+      ? [wali.keterangan]
+      : Array.from(new Set(noteMap.get(siswa.id) || [])).filter(Boolean)
+
+    rows.push({
+      no: rows.length + 1,
+      nama: abbreviateStudentName(siswa.nama_lengkap),
+      status,
+      sakit: status === 'SAKIT',
+      izin: status === 'IZIN',
+      alfa: status === 'ALFA',
+      ket: notes.slice(0, 2).join('; '),
+    })
+  }
+  return rows
+}
+
+function buildAgendaKelasExportPage(input: {
+  job: { kelasId: string; tanggal: string }
+  kelas: BulkKelasRow
+  kepala: { nama: string; nip: string | null; signature_url: string | null } | null
+  jamPelajaran: string | null
+  eventsByDate: Map<string, KalenderEvent[]>
+  exceptionsByDate: Map<string, KbmException[]>
+  schedulesByClassDay: Map<string, BulkScheduleRow[]>
+  agendasByDate: Map<string, BulkAgendaRow[]>
+  delegationsByDate: Map<string, BulkDelegationRow[]>
+  studentsByClass: Map<string, BulkSiswaRow[]>
+  waliByDate: Map<string, BulkWaliAttendanceRow[]>
+  teacherByDate: Map<string, BulkTeacherAttendanceRow[]>
+  permissionByDate: Map<string, BulkClassPermissionRow[]>
+  exitByClass: Map<string, BulkExitPermissionRow[]>
+}): AgendaKelasPageData {
+  const { job, kelas, kepala } = input
+  const { kelasId, tanggal } = job
+  const hari = hariNum(tanggal)
+  const hariNama = HARI[hari] || ''
+  const dayEvents = input.eventsByDate.get(tanggal) || []
+  const manual = dayEvents.find(event => event.source === 'manual')
+  const official = dayEvents.find(event => event.source === 'official')
+  const decidingEvent = manual || official || dayEvents[0] || null
+  const isSunday = hari === 7
+
+  let isEffective = true
+  let reason: string | null = null
+  let category: string | null = null
+  if (decidingEvent) {
+    isEffective = Number(decidingEvent.is_effective) === 1
+    reason = decidingEvent.title
+    category = decidingEvent.category
+  } else if (isSunday) {
+    isEffective = false
+    reason = 'Minggu'
+    category = 'MINGGU'
+  }
+
+  const baseRows = agendaKelasBaseRows()
+  const baseData: AgendaKelasPageData = {
+    kelas: {
+      id: kelas.id,
+      label: formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok),
+      wali_kelas_nama: kelas.wali_kelas_nama || '..................................................',
+      wali_kelas_nip: kelas.wali_kelas_nip || null,
+      wali_kelas_signature_url: kelas.wali_kelas_signature_url || null,
+      km_nama: kelas.km_nama || '..................................................',
+    },
+    kepala: {
+      nama: kepala?.nama || 'Kepala Madrasah Belum Diatur',
+      nip: kepala?.nip || null,
+      signature_url: kepala?.signature_url || null,
+    },
+    tanggal,
+    hariNama,
+    agendaRows: baseRows,
+    absensiRows: [],
+    rekap: { terisi: 0, tugas: 0, kosong: 0 },
+    calendarStatus: { isEffective, reason, category },
+    hasActiveBlocks: false,
+  }
+
+  if (!isEffective || isSunday || (kelas.kbm_nonaktif_mulai && kelas.kbm_nonaktif_mulai <= tanggal)) {
+    return baseData
+  }
+
+  const slots = getSlots(input.jamPelajaran, hari)
+  const dayExceptions = input.exceptionsByDate.get(tanggal) || []
+  const agendaByAssignment = new Map<string, BulkAgendaRow>()
+  for (const row of input.agendasByDate.get(tanggal) || []) {
+    if (!agendaByAssignment.has(row.penugasan_id)) agendaByAssignment.set(row.penugasan_id, row)
+  }
+  const delegationByAssignment = new Map<string, BulkDelegationRow>()
+  for (const row of input.delegationsByDate.get(tanggal) || []) {
+    if (!delegationByAssignment.has(row.penugasan_mengajar_id)) delegationByAssignment.set(row.penugasan_mengajar_id, row)
+  }
+
+  const grouped = new Map<string, BulkScheduleRow[]>()
+  for (const row of input.schedulesByClassDay.get(agendaKelasScheduleKey(kelasId, hari)) || []) {
+    if (!grouped.has(row.penugasan_id)) grouped.set(row.penugasan_id, [])
+    grouped.get(row.penugasan_id)!.push(row)
+  }
+
+  const occupied = new Set<number>()
+  for (const rows of grouped.values()) {
+    const jamList = rows.map(row => Number(row.jam_ke)).sort((a, b) => a - b)
+    const first = rows[0]
+    const agenda = agendaByAssignment.get(first.penugasan_id)
+    const delegation = delegationByAssignment.get(first.penugasan_id)
+    const slotState = splitTeachingSlotsByExceptions(
+      dayExceptions,
+      { id: kelas.id, tingkat: Number(kelas.tingkat) },
+      jamList,
+    )
+
+    for (const segment of slotState.exceptionSegments) {
+      for (let jam = segment.jam_ke_mulai; jam <= segment.jam_ke_selesai; jam++) {
+        if (jam < 1 || jam > 10) continue
+        baseRows[jam - 1] = {
+          ...baseRows[jam - 1],
+          mapel_nama: 'NON-KBM',
+          pokok_bahasan: segment.judul,
+          guru_status: 'TIDAK WAJIB',
+        }
+      }
+    }
+    if (slotState.activeJamKe.length === 0) continue
+
+    const slotSelesai = slots.find(s => s.id === slotState.activeJamKe[slotState.activeJamKe.length - 1])
+    const guruStatus = resolveGuruStatus({
+      agendaStatus: agenda?.agenda_status,
+      hasDelegasi: !!delegation?.delegasi_kelas_id,
+      delegasiAlasan: delegation?.delegasi_alasan,
+      ended: isTeachingBlockEnded(tanggal, slotSelesai),
+    })
+
+    for (const jam of slotState.activeJamKe) {
+      if (jam < 1 || jam > 10) continue
+      occupied.add(jam)
+      baseRows[jam - 1] = {
+        jam_ke: jam,
+        jam_label: String(jam),
+        mapel_nama: first.nama_mapel || '',
+        pokok_bahasan: agenda?.materi || '',
+        tugas: delegation?.tugas || '',
+        guru_nama: first.guru_nama || '',
+        paraf: '',
+        guru_status: guruStatus,
+      }
+    }
+  }
+
+  const activeRows = baseRows.filter(row => row.guru_status !== 'TIDAK WAJIB')
+  const terisi = activeRows.filter(row => row.pokok_bahasan.trim()).length
+  const tugas = activeRows.filter(row => row.tugas.trim()).length
+  const activeJam = occupied.size
+  const hasActiveBlocks = activeJam > 0 && slots.length > 0
+  const students = input.studentsByClass.get(kelasId) || []
+  const absensiRows = hasActiveBlocks
+    ? buildAgendaKelasAttendanceRows(
+      kelasId,
+      tanggal,
+      students,
+      input.waliByDate,
+      input.teacherByDate,
+      input.permissionByDate,
+      input.exitByClass,
+    )
+    : []
+
+  return {
+    ...baseData,
+    agendaRows: baseRows,
+    absensiRows,
+    rekap: { terisi, tugas, kosong: Math.max(0, activeJam - terisi - tugas) },
+    hasActiveBlocks,
+  }
+}
+
+export async function getAgendaKelasCetakExportData(
+  kelasIds: string[],
+  months: string[],
+): Promise<AgendaKelasCetakExportResult> {
+  const emptyMeta = { jobCount: 0, pageCount: 0, skippedKelasIds: [] }
+  const jobListRes = await getAgendaKelasCetakJobs(kelasIds, months)
+  if (jobListRes.error) return { error: jobListRes.error, pages: [], meta: emptyMeta }
+  if (jobListRes.jobs.length === 0) {
+    return {
+      error: null,
+      pages: [],
+      meta: {
+        jobCount: 0,
+        pageCount: 0,
+        skippedKelasIds: Array.from(new Set(kelasIds.filter(Boolean))),
+      },
+    }
+  }
+
+  const access = await ensureAccess()
+  if (access.error || !access.db) return { error: access.error, pages: [], meta: emptyMeta }
+  const db = access.db
+  const jobs = jobListRes.jobs
+  const uniqueKelasIds = Array.from(new Set(jobs.map(job => job.kelasId)))
+  const dates = jobs.map(job => job.tanggal).sort()
+  const minDate = dates[0]
+  const maxDate = dates[dates.length - 1]
+  const idChunks = chunkAgendaKelasIds(uniqueKelasIds)
+
+  const [ta, kepala, events, exceptions] = await Promise.all([
+    db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>(),
+    db.prepare(`
+      SELECT COALESCE(u.nama_lengkap, u.name) as nama, u.nip, u.signature_url
+      FROM "user" u
+      LEFT JOIN user_roles ur ON ur.user_id = u.id
+      WHERE u.role = 'kepsek' OR ur.role = 'kepsek'
+      ORDER BY u.nama_lengkap ASC
+      LIMIT 1
+    `).first<{ nama: string; nip: string | null; signature_url: string | null }>(),
+    getKalenderEventsForRange(db, minDate, maxDate),
+    getKbmExceptionsForRange(db, minDate, maxDate),
+  ])
+  if (!ta?.id) return { error: 'Tahun ajaran aktif belum diatur.', pages: [], meta: emptyMeta }
+
+  const kelasRows: BulkKelasRow[] = []
+  const siswaRows: BulkSiswaRow[] = []
+  const schedules: BulkScheduleRow[] = []
+  const agendas: BulkAgendaRow[] = []
+  const delegations: BulkDelegationRow[] = []
+  const waliAttendance: BulkWaliAttendanceRow[] = []
+  const teacherAttendance: BulkTeacherAttendanceRow[] = []
+  const permissions: BulkClassPermissionRow[] = []
+  const exits: BulkExitPermissionRow[] = []
+
+  for (const ids of idChunks) {
+    const placeholders = ids.map(() => '?').join(',')
+    const [kelasRes, siswaRes, scheduleRes, agendaRes, delegationRes, waliRes, teacherRes, permissionRes, exitRes] = await Promise.all([
+      db.prepare(`
+        SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.kbm_nonaktif_mulai,
+          wali.nama_lengkap as wali_kelas_nama,
+          wali.nip as wali_kelas_nip,
+          wali.signature_url as wali_kelas_signature_url,
+          km.nama_lengkap as km_nama
+        FROM kelas k
+        LEFT JOIN "user" wali ON k.wali_kelas_id = wali.id
+        LEFT JOIN siswa km ON k.km_siswa_id = km.id AND km.kelas_id = k.id AND km.status = 'aktif'
+        WHERE k.id IN (${placeholders})
+      `).bind(...ids).all<BulkKelasRow>(),
+      db.prepare(`
+        SELECT id, nama_lengkap, kelas_id
+        FROM siswa
+        WHERE kelas_id IN (${placeholders}) AND status = 'aktif'
+        ORDER BY nama_lengkap ASC
+      `).bind(...ids).all<BulkSiswaRow>(),
+      db.prepare(`
+        SELECT pm.kelas_id, jm.hari, jm.penugasan_id, jm.jam_ke,
+          pm.guru_id, guru.nama_lengkap as guru_nama, mp.nama_mapel
+        FROM jadwal_mengajar jm
+        JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
+        JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
+        JOIN "user" guru ON pm.guru_id = guru.id
+        WHERE pm.kelas_id IN (${placeholders}) AND jm.tahun_ajaran_id = ?
+        ORDER BY pm.kelas_id ASC, jm.hari ASC, jm.jam_ke ASC
+      `).bind(...ids, ta.id).all<BulkScheduleRow>(),
+      db.prepare(`
+        SELECT ag.penugasan_id, ag.tanggal, ag.materi, ag.status as agenda_status
+        FROM agenda_guru ag
+        JOIN penugasan_mengajar pm ON ag.penugasan_id = pm.id
+        WHERE pm.kelas_id IN (${placeholders}) AND ag.tanggal BETWEEN ? AND ?
+        ORDER BY ag.tanggal ASC
+      `).bind(...ids, minDate, maxDate).all<BulkAgendaRow>(),
+      db.prepare(`
+        SELECT dtk.penugasan_mengajar_id,
+          dt.tanggal,
+          dtk.id as delegasi_kelas_id,
+          dt.alasan_ketidakhadiran as delegasi_alasan,
+          dtk.tugas
+        FROM delegasi_tugas_kelas dtk
+        JOIN delegasi_tugas dt ON dtk.delegasi_id = dt.id
+        JOIN penugasan_mengajar pm ON dtk.penugasan_mengajar_id = pm.id
+        WHERE pm.kelas_id IN (${placeholders})
+          AND dt.tanggal BETWEEN ? AND ?
+          AND dt.dari_user_id = pm.guru_id
+        ORDER BY dt.tanggal ASC
+      `).bind(...ids, minDate, maxDate).all<BulkDelegationRow>(),
+      db.prepare(`
+        SELECT s.kelas_id, kawk.siswa_id, kawk.tanggal, kawk.status, kawk.keterangan
+        FROM keterangan_absensi_wali_kelas kawk
+        JOIN siswa s ON kawk.siswa_id = s.id
+        WHERE s.kelas_id IN (${placeholders}) AND kawk.tanggal BETWEEN ? AND ?
+      `).bind(...ids, minDate, maxDate).all<BulkWaliAttendanceRow>(),
+      db.prepare(`
+        SELECT pm.kelas_id, ab.siswa_id, ab.tanggal, ab.status, ab.catatan
+        FROM absensi_siswa ab
+        JOIN penugasan_mengajar pm ON ab.penugasan_id = pm.id
+        WHERE pm.kelas_id IN (${placeholders})
+          AND ab.tanggal BETWEEN ? AND ?
+          AND ab.status IN ('SAKIT','IZIN','ALFA')
+        ORDER BY ab.tanggal ASC, ab.jam_ke_mulai ASC
+      `).bind(...ids, minDate, maxDate).all<BulkTeacherAttendanceRow>(),
+      db.prepare(`
+        SELECT s.kelas_id, itk.siswa_id, itk.tanggal, itk.alasan, itk.keterangan
+        FROM izin_tidak_masuk_kelas itk
+        JOIN siswa s ON itk.siswa_id = s.id
+        WHERE s.kelas_id IN (${placeholders}) AND itk.tanggal BETWEEN ? AND ?
+      `).bind(...ids, minDate, maxDate).all<BulkClassPermissionRow>(),
+      db.prepare(`
+        SELECT s.kelas_id, ik.siswa_id, ik.waktu_keluar, ik.waktu_kembali, ik.keterangan
+        FROM izin_keluar_komplek ik
+        JOIN siswa s ON ik.siswa_id = s.id
+        WHERE s.kelas_id IN (${placeholders})
+          AND substr(ik.waktu_keluar, 1, 10) <= ?
+          AND (ik.waktu_kembali IS NULL OR substr(ik.waktu_kembali, 1, 10) >= ?)
+      `).bind(...ids, maxDate, minDate).all<BulkExitPermissionRow>(),
+    ])
+
+    kelasRows.push(...(kelasRes.results || []))
+    siswaRows.push(...(siswaRes.results || []))
+    schedules.push(...(scheduleRes.results || []))
+    agendas.push(...(agendaRes.results || []))
+    delegations.push(...(delegationRes.results || []))
+    waliAttendance.push(...(waliRes.results || []))
+    teacherAttendance.push(...(teacherRes.results || []))
+    permissions.push(...(permissionRes.results || []))
+    exits.push(...(exitRes.results || []))
+  }
+
+  const kelasMap = new Map(kelasRows.map(row => [row.id, row]))
+  for (const id of uniqueKelasIds) {
+    if (!kelasMap.has(id)) return {
+      error: `Kelas ${id} tidak ditemukan.`,
+      pages: [],
+      meta: { jobCount: jobs.length, pageCount: 0, skippedKelasIds: [id] },
+    }
+  }
+
+  const eventsByDate = new Map<string, KalenderEvent[]>()
+  for (const event of events) {
+    for (const tanggal of enumerateDateStrings(event.start_date, event.end_date)) {
+      if (tanggal < minDate || tanggal > maxDate) continue
+      pushAgendaKelasMap(eventsByDate, tanggal, event)
+    }
+  }
+  const exceptionsByDate = new Map<string, KbmException[]>()
+  for (const exception of exceptions) pushAgendaKelasMap(exceptionsByDate, exception.tanggal, exception)
+
+  const schedulesByClassDay = new Map<string, BulkScheduleRow[]>()
+  for (const row of schedules) pushAgendaKelasMap(schedulesByClassDay, agendaKelasScheduleKey(row.kelas_id, Number(row.hari)), row)
+  const agendasByDate = new Map<string, BulkAgendaRow[]>()
+  for (const row of agendas) pushAgendaKelasMap(agendasByDate, row.tanggal, row)
+  const delegationsByDate = new Map<string, BulkDelegationRow[]>()
+  for (const row of delegations) pushAgendaKelasMap(delegationsByDate, row.tanggal, row)
+  const waliByDate = new Map<string, BulkWaliAttendanceRow[]>()
+  for (const row of waliAttendance) pushAgendaKelasMap(waliByDate, agendaKelasKey(row.kelas_id, row.tanggal), row)
+  const teacherByDate = new Map<string, BulkTeacherAttendanceRow[]>()
+  for (const row of teacherAttendance) pushAgendaKelasMap(teacherByDate, agendaKelasKey(row.kelas_id, row.tanggal), row)
+  const permissionByDate = new Map<string, BulkClassPermissionRow[]>()
+  for (const row of permissions) pushAgendaKelasMap(permissionByDate, agendaKelasKey(row.kelas_id, row.tanggal), row)
+  const exitByClass = new Map<string, BulkExitPermissionRow[]>()
+  for (const row of exits) pushAgendaKelasMap(exitByClass, row.kelas_id, row)
+  const studentsByClass = new Map<string, BulkSiswaRow[]>()
+  for (const row of siswaRows) pushAgendaKelasMap(studentsByClass, row.kelas_id, row)
+
+  const pages: AgendaKelasPageData[] = []
+  for (const job of jobs) {
+    const page = buildAgendaKelasExportPage({
+      job,
+      kelas: kelasMap.get(job.kelasId)!,
+      kepala,
+      jamPelajaran: ta.jam_pelajaran,
+      eventsByDate,
+      exceptionsByDate,
+      schedulesByClassDay,
+      agendasByDate,
+      delegationsByDate,
+      studentsByClass,
+      waliByDate,
+      teacherByDate,
+      permissionByDate,
+      exitByClass,
+    })
+    if (page.hasActiveBlocks) pages.push(page)
+  }
+
+  const pageKelasIds = new Set(pages.map(page => page.kelas.id))
+  return {
+    error: null,
+    pages,
+    meta: {
+      jobCount: jobs.length,
+      pageCount: pages.length,
+      skippedKelasIds: uniqueKelasIds.filter(id => !pageKelasIds.has(id)),
+    },
+  }
+}

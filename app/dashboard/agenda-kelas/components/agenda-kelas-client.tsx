@@ -7,9 +7,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import type { AgendaKelasOption, AgendaKelasPageData, AgendaKelasSignaturePlacement, AgendaKelasSignatureSettings } from '../actions'
-import { getAdjacentAgendaKelasDate, getAgendaKelasCetakBulanan, getAgendaKelasHari, getAgendaKelasCetakJobs, getAgendaKelasCetakBatch, saveAgendaKelasSignatureSettings } from '../actions'
+import type { AgendaKelasCetakExportMeta, AgendaKelasOption, AgendaKelasPageData, AgendaKelasSignaturePlacement, AgendaKelasSignatureSettings } from '../actions'
+import { getAdjacentAgendaKelasDate, getAgendaKelasHari, getAgendaKelasCetakJobs, getAgendaKelasCetakBatch, getAgendaKelasCetakExportData, saveAgendaKelasSignatureSettings } from '../actions'
 import { AgendaKelasTemplate } from './agenda-kelas-template'
+import { createZip } from '@/lib/zip'
+import { downloadBlobFile } from '@/lib/pdf/download'
+import { loadAgendaKelasExportAssets, type AgendaKelasExportAssets } from '@/lib/agenda-kelas-export-assets'
+import { agendaKelasDocxFilename, buildAgendaKelasDocxBytes } from '@/lib/agenda-kelas-docx'
+import { agendaKelasXlsxFilename, buildAgendaKelasXlsxBlob } from '@/lib/agenda-kelas-xlsx'
 
 type Props = {
   daftarKelas: AgendaKelasOption[]
@@ -36,6 +41,32 @@ function currentMonth() {
   const now = new Date()
   const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
   return local.toISOString().slice(0, 7)
+}
+
+function formatExportBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
+/**
+ * The print document is opened in a new about:blank window. Relative asset
+ * URLs such as /api/media/... would otherwise resolve against about:blank and
+ * the signature/logo would be missing from the printed page.
+ */
+function getAbsolutePrintHtml(element: HTMLElement) {
+  const clone = element.cloneNode(true) as HTMLElement
+  for (const image of clone.querySelectorAll<HTMLImageElement>('img[src]')) {
+    const src = image.getAttribute('src')
+    if (!src) continue
+    try {
+      image.setAttribute('src', new URL(src, window.location.href).toString())
+    } catch {
+      // Leave malformed/unsupported values unchanged; the print fallback can
+      // still render the rest of the document.
+    }
+  }
+  return clone.innerHTML
 }
 
 export function AgendaKelasClient({ daftarKelas, today, initialSignatureSettings }: Props) {
@@ -446,7 +477,10 @@ function CetakAgendaKelasModal({
   const [progress, setProgress] = useState(0)
   const [progressText, setProgressText] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [exportInfo, setExportInfo] = useState<string | null>(null)
   const printRef = useRef<HTMLDivElement>(null)
+  const exportCacheRef = useRef<{ key: string; pages: AgendaKelasPageData[]; meta: AgendaKelasCetakExportMeta } | null>(null)
+  const exportAssetsCacheRef = useRef<{ key: string; assets: AgendaKelasExportAssets } | null>(null)
 
   const selectedLabel = useMemo(() => {
     if (pages.length) return `${pages.length} halaman siap cetak`
@@ -461,23 +495,143 @@ function CetakAgendaKelasModal({
     setError(null)
     setProgress(0)
     setProgressText('')
+    setExportInfo(null)
+    exportCacheRef.current = null
+    exportAssetsCacheRef.current = null
     if (initialKelasId) setSelectedKelasIds([initialKelasId])
+  }
+
+  const resetExportCache = () => {
+    exportCacheRef.current = null
+    exportAssetsCacheRef.current = null
+    setExportInfo(null)
   }
 
   const toggleKelas = (kelasId: string) => {
     setSelectedKelasIds(prev => prev.includes(kelasId) ? prev.filter(id => id !== kelasId) : [...prev, kelasId])
     setPages([])
+    resetExportCache()
   }
 
   const addMonth = () => {
     if (!monthInput) return
     setSelectedMonths(prev => prev.includes(monthInput) ? prev : [...prev, monthInput].sort())
     setPages([])
+    resetExportCache()
   }
 
   const removeMonth = (month: string) => {
     setSelectedMonths(prev => prev.filter(item => item !== month))
     setPages([])
+    resetExportCache()
+  }
+
+  const exportSelectionKey = () => `${[...selectedKelasIds].sort().join(',')}|${[...selectedMonths].sort().join(',')}`
+
+  const skippedKelasSummary = (ids: string[]) => {
+    if (!ids.length) return ''
+    const labels = ids.map(id => daftarKelas.find(kelas => kelas.id === id)?.label || id)
+    const visible = labels.slice(0, 3).join(', ')
+    const remainder = labels.length > 3 ? ` +${labels.length - 3} lainnya` : ''
+    return ` ${ids.length} kelas tanpa halaman aktif: ${visible}${remainder}.`
+  }
+
+  const prepareExportData = async () => {
+    const key = exportSelectionKey()
+    if (exportCacheRef.current?.key === key) return exportCacheRef.current
+
+    setProgress(5)
+    setProgressText('Mengambil data Agenda Kelas secara bulk...')
+    const result = await getAgendaKelasCetakExportData(selectedKelasIds, selectedMonths)
+    if (result.error) throw new Error(result.error)
+    if (result.pages.length === 0) {
+      const skipped = skippedKelasSummary(result.meta.skippedKelasIds)
+      setExportInfo(`Tidak ada halaman agenda dengan jam aktif pada pilihan ini.${skipped}`)
+      throw new Error('Tidak ada halaman agenda dengan jam aktif pada pilihan ini.')
+    }
+    const cached = { key, pages: result.pages, meta: result.meta }
+    exportCacheRef.current = cached
+    setProgress(35)
+    setProgressText(`${result.pages.length} halaman siap diproses.`)
+    return cached
+  }
+
+  const prepareExportAssets = async (pages: AgendaKelasPageData[]) => {
+    const key = `${exportSelectionKey()}|${JSON.stringify(signatureSettings)}`
+    if (exportAssetsCacheRef.current?.key === key) return exportAssetsCacheRef.current.assets
+    setProgress(45)
+    setProgressText('Mengambil logo dan tanda tangan...')
+    const assets = await loadAgendaKelasExportAssets(pages, signatureSettings)
+    exportAssetsCacheRef.current = { key, assets }
+    return assets
+  }
+
+  const handleDownloadWord = async () => {
+    if (!selectedKelasIds.length || !selectedMonths.length) return
+    setLoading(true)
+    setError(null)
+    setExportInfo(null)
+    try {
+      const prepared = await prepareExportData()
+      const assets = await prepareExportAssets(prepared.pages)
+      const byClass = new Map<string, AgendaKelasPageData[]>()
+      for (const page of prepared.pages) {
+        const current = byClass.get(page.kelas.id)
+        if (current) current.push(page)
+        else byClass.set(page.kelas.id, [page])
+      }
+
+      const entries: Array<{ name: string; bytes: Uint8Array }> = []
+      let processed = 0
+      for (const classPages of byClass.values()) {
+        setProgressText(`Menyusun Word ${classPages[0].kelas.label}...`)
+        entries.push({
+          name: agendaKelasDocxFilename(classPages[0]),
+          bytes: await buildAgendaKelasDocxBytes(classPages, signatureSettings, assets),
+        })
+        processed += classPages.length
+        setProgress(45 + Math.round((processed / prepared.pages.length) * 45))
+      }
+
+      const file = entries.length === 1
+        ? new Blob([entries[0].bytes.buffer as ArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+        : new Blob([createZip(entries).buffer as ArrayBuffer], { type: 'application/zip' })
+      const filename = entries.length === 1
+        ? entries[0].name
+        : `Agenda_Kelas_${selectedMonths.join('_')}.zip`
+      await downloadBlobFile(file, filename)
+      const skipped = skippedKelasSummary(prepared.meta.skippedKelasIds)
+      setProgress(100)
+      setProgressText('Word selesai dibuat.')
+      setExportInfo(`${entries.length} file Word, ${prepared.pages.length} halaman, ${formatExportBytes(file.size)}.${skipped}`)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Gagal membuat file Word.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDownloadExcel = async () => {
+    if (!selectedKelasIds.length || !selectedMonths.length) return
+    setLoading(true)
+    setError(null)
+    setExportInfo(null)
+    try {
+      const prepared = await prepareExportData()
+      const assets = await prepareExportAssets(prepared.pages)
+      setProgress(55)
+      setProgressText('Menyusun workbook Excel per kelas...')
+      const file = await buildAgendaKelasXlsxBlob(prepared.pages, signatureSettings, assets)
+      await downloadBlobFile(file, agendaKelasXlsxFilename(prepared.pages))
+      const skipped = skippedKelasSummary(prepared.meta.skippedKelasIds)
+      setProgress(100)
+      setProgressText('Excel selesai dibuat.')
+      setExportInfo(`1 workbook, ${prepared.pages.length} halaman, ${new Set(prepared.pages.map(page => page.kelas.id)).size} sheet, ${formatExportBytes(file.size)}.${skipped}`)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Gagal membuat file Excel.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const loadPrintData = async (shouldPrintAfterLoad = false) => {
@@ -538,7 +692,7 @@ function CetakAgendaKelasModal({
 html, body { margin: 0; padding: 0; background: #fff; }
 * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 </style>
-</head><body>${el.innerHTML}</body></html>`)
+</head><body>${getAbsolutePrintHtml(el)}</body></html>`)
             w.document.close()
             const imgs = Array.from(w.document.images)
             const ready = imgs.length === 0
@@ -569,7 +723,7 @@ html, body { margin: 0; padding: 0; background: #fff; }
 html, body { margin: 0; padding: 0; background: #fff; }
 * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 </style>
-</head><body>${el.innerHTML}</body></html>`)
+</head><body>${getAbsolutePrintHtml(el)}</body></html>`)
     w.document.close()
     // Wait for images to load before printing
     const imgs = Array.from(w.document.images)
@@ -651,6 +805,7 @@ html, body { margin: 0; padding: 0; background: #fff; }
                 </div>
 
                 {error && <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">{error}</div>}
+                {exportInfo && <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-700">{exportInfo}</div>}
 
                 <div className="mt-3 space-y-1.5">
                   <Button type="button" onClick={() => loadPrintData(false)} disabled={loading || selectedKelasIds.length === 0 || selectedMonths.length === 0} className="h-9 w-full gap-2 text-xs">
@@ -659,8 +814,21 @@ html, body { margin: 0; padding: 0; background: #fff; }
                   </Button>
                   <Button type="button" onClick={handlePrintClick} disabled={loading || selectedKelasIds.length === 0 || selectedMonths.length === 0} variant="outline" className="h-9 w-full gap-2 text-xs">
                     <Printer className="h-3.5 w-3.5" />
-                    Cetak Sekarang
+                    Cetak Browser (lama)
                   </Button>
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    <Button type="button" onClick={handleDownloadWord} disabled={loading || selectedKelasIds.length === 0 || selectedMonths.length === 0} variant="outline" className="h-9 gap-1.5 text-xs">
+                      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5 text-blue-600" />}
+                      Word
+                    </Button>
+                    <Button type="button" onClick={handleDownloadExcel} disabled={loading || selectedKelasIds.length === 0 || selectedMonths.length === 0} variant="outline" className="h-9 gap-1.5 text-xs">
+                      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5 text-emerald-600" />}
+                      Excel
+                    </Button>
+                  </div>
+                  <p className="pt-1 text-[10px] leading-4 text-slate-400">
+                    Word: satu file per kelas. Excel: satu sheet per kelas. Cetak browser lama dipertahankan untuk perbandingan.
+                  </p>
                 </div>
               </div>
 

@@ -151,3 +151,34 @@ export async function downloadAndOpenNativeFile(url: string, filename?: string):
   const fullUrl = url.startsWith('/') ? `${window.location.origin}${url}` : url
   await openPdfFromUrl(fullUrl, filename)
 }
+
+export async function downloadBlobFile(blob: Blob, filename: string, mimeType?: string): Promise<void> {
+  const resolvedMimeType = mimeType || blob.type || 'application/octet-stream'
+  const { Capacitor, registerPlugin } = await import('@capacitor/core')
+
+  if (Capacitor.isNativePlatform()) {
+    const base64 = await blobToBase64(blob)
+    try {
+      const FileSaver = registerPlugin<NativeFileSaverPlugin>('FileSaver')
+      await FileSaver.saveAndOpen({ data: base64, filename, mimeType: resolvedMimeType })
+      return
+    } catch (nativeError) {
+      console.warn('[FileSaver] Gagal menyimpan file, memakai share cache:', nativeError)
+      const { Filesystem, Directory } = await import('@capacitor/filesystem')
+      const written = await Filesystem.writeFile({ path: filename, data: base64, directory: Directory.Cache })
+      const { Share } = await import('@capacitor/share')
+      await Share.share({ title: filename, url: written.uri, dialogTitle: 'Buka, simpan, atau bagikan dokumen' })
+      return
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = objectUrl
+  anchor.download = filename
+  anchor.rel = 'noopener'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+}
