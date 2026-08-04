@@ -49,6 +49,12 @@ function formatExportBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 }
 
+function blobPartFromBytes(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength)
+  copy.set(bytes)
+  return copy.buffer
+}
+
 /**
  * The print document is opened in a new about:blank window. Relative asset
  * URLs such as /api/media/... would otherwise resolve against about:blank and
@@ -398,7 +404,7 @@ function SignatureSettingsModal({
                             left: `${placement.x_mm}mm`,
                             top: `${placement.y_mm}mm`,
                             width: `${placement.width_mm}mm`,
-                            maxHeight: '30mm',
+                            height: 'auto',
                             objectFit: 'contain',
                             zIndex: 10,
                             pointerEvents: 'none',
@@ -594,8 +600,8 @@ function CetakAgendaKelasModal({
       }
 
       const file = entries.length === 1
-        ? new Blob([entries[0].bytes.buffer as ArrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
-        : new Blob([createZip(entries).buffer as ArrayBuffer], { type: 'application/zip' })
+        ? new Blob([blobPartFromBytes(entries[0].bytes)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+        : new Blob([blobPartFromBytes(createZip(entries))], { type: 'application/zip' })
       const filename = entries.length === 1
         ? entries[0].name
         : `Agenda_Kelas_${selectedMonths.join('_')}.zip`

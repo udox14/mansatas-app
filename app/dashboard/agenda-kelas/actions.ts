@@ -158,6 +158,10 @@ function resolveGuruStatus(opts: {
   return ended ? 'ALFA' : ''
 }
 
+function isPrintableAgendaKelasPage(page: AgendaKelasPageData) {
+  return page.calendarStatus.isEffective && page.hariNama !== 'Minggu' && page.hasActiveBlocks
+}
+
 function clampSignaturePlacement(
   value: Partial<AgendaKelasSignaturePlacement> | null | undefined,
   fallback: AgendaKelasSignaturePlacement
@@ -950,7 +954,7 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
 
   for (const r of results) {
     if (r.error) return { error: r.error, pages: [] }
-    if (r.data?.hasActiveBlocks) pages.push(r.data)
+    if (r.data && isPrintableAgendaKelasPage(r.data)) pages.push(r.data)
   }
 
   return { error: null, pages }
@@ -1496,7 +1500,7 @@ export async function getAgendaKelasCetakExportData(
       permissionByDate,
       exitByClass,
     })
-    if (page.hasActiveBlocks) pages.push(page)
+    if (isPrintableAgendaKelasPage(page)) pages.push(page)
   }
 
   const pageKelasIds = new Set(pages.map(page => page.kelas.id))

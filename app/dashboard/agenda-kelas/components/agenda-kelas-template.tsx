@@ -23,7 +23,6 @@ function signatureImageStyle(settings: AgendaKelasSignaturePlacement): React.CSS
     top: `${settings.y_mm}mm`,
     width: `${settings.width_mm}mm`,
     height: 'auto',
-    maxHeight: '30mm',
     objectFit: 'contain',
     zIndex: 10,
     pointerEvents: 'none',
@@ -159,8 +158,6 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                 <tbody>
                   {Array.from({ length: 10 }).map((_, index) => {
                     const row = absensiList[index]
-                    {/* 3. Singkat "Keterangan dari Wali Kelas" jadi "Ket. Wali Kelas" */}
-                    const displayKet = (row?.ket || '').replace(/Keterangan dari wali kelas/gi, 'Ket. Wali Kelas')
                     return (
                       <tr key={index} style={{ height: '8.1mm' }}>
                         <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{index + 1}</td>
@@ -168,7 +165,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                         <td style={tdCenter}>{row?.sakit ? <Check active={true} /> : ''}</td>
                         <td style={tdCenter}>{row?.izin ? <Check active={true} /> : ''}</td>
                         <td style={tdCenter}>{row?.alfa ? <Check active={true} /> : ''}</td>
-                        <td style={tdSmall}>{displayKet}</td>
+                        <td style={tdSmall}></td>
                       </tr>
                     )
                   })}
@@ -198,8 +195,6 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                 <tbody>
                   {Array.from({ length: 10 }).map((_, index) => {
                     const row = absensiList[index + 10]
-                    {/* 3. Singkat "Keterangan dari Wali Kelas" jadi "Ket. Wali Kelas" */}
-                    const displayKet = (row?.ket || '').replace(/Keterangan dari wali kelas/gi, 'Ket. Wali Kelas')
                     return (
                       <tr key={index} style={{ height: '8.1mm' }}>
                         <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{index + 11}</td>
@@ -207,7 +202,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                         <td style={tdCenter}>{row?.sakit ? <Check active={true} /> : ''}</td>
                         <td style={tdCenter}>{row?.izin ? <Check active={true} /> : ''}</td>
                         <td style={tdCenter}>{row?.alfa ? <Check active={true} /> : ''}</td>
-                        <td style={tdSmall}>{displayKet}</td>
+                        <td style={tdSmall}></td>
                       </tr>
                     )
                   })}

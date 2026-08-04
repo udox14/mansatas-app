@@ -195,26 +195,39 @@ function imageMeta(asset: AgendaKelasImageAsset) {
   return { extension: asset.extension, contentType: asset.contentType }
 }
 
-function imageInlineXml(asset: AgendaKelasImageAsset, relId: string, widthMm: number, drawingId: number) {
-  const safeWidth = Math.max(1, widthMm)
+function bytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength)
+  copy.set(bytes)
+  return copy.buffer
+}
+
+function imageDimensions(asset: AgendaKelasImageAsset, requestedWidthMm: number) {
+  const widthMm = Math.max(1, Number.isFinite(Number(requestedWidthMm)) ? Number(requestedWidthMm) : 38)
   const aspect = asset.widthPx > 0 && asset.heightPx > 0 ? asset.heightPx / asset.widthPx : 0.28
-  const heightMm = Math.min(30, Math.max(1, safeWidth * aspect))
-  const cx = mmToEmu(safeWidth)
-  const cy = mmToEmu(heightMm)
+  const naturalHeightMm = Math.max(1, widthMm * aspect)
+  return { widthMm, heightMm: naturalHeightMm }
+}
+
+function imageInlineXml(asset: AgendaKelasImageAsset, relId: string, widthMm: number, drawingId: number) {
+  const dimensions = imageDimensions(asset, widthMm)
+  const cx = mmToEmu(dimensions.widthMm)
+  const cy = mmToEmu(dimensions.heightMm)
   const id = String(drawingId)
   return `<w:r><w:rPr><w:noProof/></w:rPr><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="${id}" name="Agenda Kelas ${id}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="Agenda Kelas ${id}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}" cstate="print"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`
 }
 
-function imageAnchorXml(asset: AgendaKelasImageAsset, relId: string, widthMm: number, xMm: number, yMm: number, drawingId: number) {
-  const safeWidth = Math.max(1, widthMm)
-  const aspect = asset.widthPx > 0 && asset.heightPx > 0 ? asset.heightPx / asset.widthPx : 0.28
-  const heightMm = Math.min(30, Math.max(1, safeWidth * aspect))
-  const cx = mmToEmu(safeWidth)
-  const cy = mmToEmu(heightMm)
-  const id = String(drawingId)
-  const x = mmToEmu(Math.max(-20, xMm))
-  const y = mmToEmu(Math.max(-20, yMm))
-  return `<w:r><w:rPr><w:noProof/></w:rPr><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="251658240" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="column"><wp:posOffset>${x}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>${y}</wp:posOffset></wp:positionV><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${id}" name="Agenda Kelas ${id}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="Agenda Kelas ${id}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}" cstate="print"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r>`
+function signatureParagraph(asset: AgendaKelasImageAsset | null, relId: string | undefined, widthMm: number, xMm: number, yMm: number, drawingId: number) {
+  if (!asset || !relId) return ''
+  return paragraph(
+    imageInlineXml(asset, relId, widthMm, drawingId),
+    {
+      before: mmToTwips(Math.max(0, Number(yMm) || 0)),
+      after: 0,
+      line: 1,
+      lineRule: 'exact',
+      indentLeft: mmToTwips(Math.max(0, Number(xMm) || 0)),
+    },
+  )
 }
 
 function sectionTitle(text: string, width: number) {
@@ -262,14 +275,13 @@ function attendanceTable(rows: AgendaKelasPageData['absensiRows'], offset: numbe
   )), 9)
   const body = Array.from({ length: 10 }).map((_, index) => {
     const row = rows[index + offset]
-    const ket = String(row?.ket || '').replace(/Keterangan dari wali kelas/gi, 'Ket. Wali Kelas')
     const values = [
       textRuns(offset + index + 1, { size: 8, bold: true }),
       textRuns(wrapTwoLines(row?.nama, 22), { size: 7.8 }),
       textRuns(row?.sakit ? '✓' : '', { size: 9, bold: true }),
       textRuns(row?.izin ? '✓' : '', { size: 9, bold: true }),
       textRuns(row?.alfa ? '✓' : '', { size: 9, bold: true }),
-      textRuns(wrapTwoLines(ket, 13), { size: 7.2 }),
+      textRuns('', { size: 7.2 }),
     ]
     return rowXml(values.map((value, column) => cellXml(
       paragraph(value, { align: column === 0 || (column >= 2 && column <= 4) ? 'center' : 'left', line: 170, lineRule: 'exact' }),
@@ -307,12 +319,22 @@ function footerTable(
   })
   const kepalaImage = signatureSettings.kepala.enabled ? assets.kepalaSignature : null
   const waliImage = signatureSettings.wali.enabled ? assets.waliSignatures.get(page.kelas.id) || null : null
-  const kepalaSignature = kepalaImage && relIds.kepala
-    ? imageAnchorXml(kepalaImage, relIds.kepala, signatureSettings.kepala.width_mm, signatureSettings.kepala.x_mm, signatureSettings.kepala.y_mm, drawingId.value++)
-    : ''
-  const waliSignature = waliImage && relIds.wali
-    ? imageAnchorXml(waliImage, relIds.wali, signatureSettings.wali.width_mm, signatureSettings.wali.x_mm, signatureSettings.wali.y_mm, drawingId.value++)
-    : ''
+  const kepalaSignature = signatureParagraph(
+    kepalaImage,
+    relIds.kepala,
+    signatureSettings.kepala.width_mm,
+    signatureSettings.kepala.x_mm,
+    signatureSettings.kepala.y_mm,
+    drawingId.value++,
+  )
+  const waliSignature = signatureParagraph(
+    waliImage,
+    relIds.wali,
+    signatureSettings.wali.width_mm,
+    signatureSettings.wali.x_mm,
+    signatureSettings.wali.y_mm,
+    drawingId.value++,
+  )
   const name = (value: string | null | undefined, fallback: string) => value
     ? textRuns(value, { size: 8.5, bold: true, underline: true })
     : textRuns(fallback, { size: 8.5 })
@@ -493,7 +515,7 @@ export async function buildAgendaKelasDocxBlob(
   assets: AgendaKelasExportAssets,
 ) {
   const bytes = await buildAgendaKelasDocxBytes(pages, signatureSettings, assets)
-  return new Blob([bytes], { type: DOCX_MIME })
+  return new Blob([bytesToArrayBuffer(bytes)], { type: DOCX_MIME })
 }
 
 export function agendaKelasDocxFilename(page: AgendaKelasPageData) {

@@ -19,14 +19,15 @@ export type AgendaKelasExportAssets = {
 
 function assetTypeFromUrl(url: string, contentType: string | null) {
   const normalized = String(contentType || '').split(';')[0].trim().toLowerCase()
-  if (normalized === 'image/png') return { contentType: 'image/png' as const, extension: 'png' as const }
-  if (normalized === 'image/jpeg' || normalized === 'image/jpg') return { contentType: 'image/jpeg' as const, extension: 'jpeg' as const }
-  if (normalized === 'image/gif') return { contentType: 'image/gif' as const, extension: 'gif' as const }
+  if (normalized === 'image/png') return { contentType: 'image/png' as const, extension: 'png' as const, convertToPng: false }
+  if (normalized === 'image/jpeg' || normalized === 'image/jpg') return { contentType: 'image/jpeg' as const, extension: 'jpeg' as const, convertToPng: false }
+  if (normalized === 'image/gif') return { contentType: 'image/gif' as const, extension: 'gif' as const, convertToPng: false }
 
   const clean = url.split('?')[0].toLowerCase()
-  if (clean.endsWith('.jpg') || clean.endsWith('.jpeg')) return { contentType: 'image/jpeg' as const, extension: 'jpeg' as const }
-  if (clean.endsWith('.gif')) return { contentType: 'image/gif' as const, extension: 'gif' as const }
-  return { contentType: 'image/png' as const, extension: 'png' as const }
+  if (clean.endsWith('.png')) return { contentType: 'image/png' as const, extension: 'png' as const, convertToPng: false }
+  if (clean.endsWith('.jpg') || clean.endsWith('.jpeg')) return { contentType: 'image/jpeg' as const, extension: 'jpeg' as const, convertToPng: false }
+  if (clean.endsWith('.gif')) return { contentType: 'image/gif' as const, extension: 'gif' as const, convertToPng: false }
+  return { contentType: 'image/png' as const, extension: 'png' as const, convertToPng: true }
 }
 
 async function loadAgendaKelasImage(url: string, label: string): Promise<AgendaKelasImageAsset> {
@@ -38,11 +39,11 @@ async function loadAgendaKelasImage(url: string, label: string): Promise<AgendaK
   if (!response.ok) throw new Error(`${label} tidak dapat diambil (${response.status}).`)
 
   const type = assetTypeFromUrl(resolvedUrl, response.headers.get('content-type'))
-  const data = new Uint8Array(await response.arrayBuffer())
+  const sourceBlob = await response.blob()
+  const data = new Uint8Array(await sourceBlob.arrayBuffer())
   if (data.length === 0) throw new Error(`${label} kosong.`)
 
-  const blob = new Blob([data], { type: type.contentType })
-  const objectUrl = URL.createObjectURL(blob)
+  const objectUrl = URL.createObjectURL(sourceBlob)
   try {
     const image = new Image()
     image.decoding = 'async'
@@ -54,10 +55,27 @@ async function loadAgendaKelasImage(url: string, label: string): Promise<AgendaK
     if (typeof image.decode === 'function') await image.decode()
     else await loaded
     if (!image.naturalWidth || !image.naturalHeight) throw new Error(`${label} tidak memiliki ukuran gambar yang valid.`)
+
+    let outputData = data
+    let outputType = type
+    if (type.convertToPng) {
+      const canvas = document.createElement('canvas')
+      canvas.width = image.naturalWidth
+      canvas.height = image.naturalHeight
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error(`${label} tidak dapat dikonversi ke PNG.`)
+      context.drawImage(image, 0, 0)
+      const converted = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error(`${label} tidak dapat dikonversi ke PNG.`)), 'image/png')
+      })
+      outputData = new Uint8Array(await converted.arrayBuffer())
+      outputType = { contentType: 'image/png', extension: 'png', convertToPng: false }
+    }
+
     return {
-      data,
-      contentType: type.contentType,
-      extension: type.extension,
+      data: outputData,
+      contentType: outputType.contentType,
+      extension: outputType.extension,
       widthPx: image.naturalWidth,
       heightPx: image.naturalHeight,
     }

@@ -211,9 +211,12 @@ function imageMeta(contentType: string): ImageMeta | null {
 }
 
 function imageDrawingXml(image: CkhDocxSignatureImage, relId: string, drawingId: number, settings: CkhDocxSignatureSettings) {
-  const widthMm = Math.max(1, cleanNumber(Number(settings.signature_width_mm), 38))
+  const requestedWidthMm = Math.max(1, cleanNumber(Number(settings.signature_width_mm), 38))
   const aspect = image.widthPx > 0 && image.heightPx > 0 ? image.heightPx / image.widthPx : 0.28
-  const heightMm = Math.min(40, Math.max(1, widthMm * aspect))
+  const naturalHeightMm = Math.max(1, requestedWidthMm * aspect)
+  const scale = naturalHeightMm > 40 ? 40 / naturalHeightMm : 1
+  const widthMm = requestedWidthMm * scale
+  const heightMm = naturalHeightMm * scale
   const cx = mmToEmu(widthMm)
   const cy = mmToEmu(heightMm)
   const id = String(drawingId)

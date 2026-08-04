@@ -77,6 +77,19 @@ function excelWidthFromMm(value: number) {
   return Math.round((value / 2.25) * 100) / 100
 }
 
+function imageDimensions(asset: AgendaKelasImageAsset, requestedWidthMm: number) {
+  const widthMm = Math.max(1, Number.isFinite(Number(requestedWidthMm)) ? Number(requestedWidthMm) : 38)
+  const aspect = asset.widthPx > 0 && asset.heightPx > 0 ? asset.heightPx / asset.widthPx : 0.28
+  const naturalHeightMm = Math.max(1, widthMm * aspect)
+  return { widthMm, heightMm: naturalHeightMm }
+}
+
+function bytesToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength)
+  copy.set(bytes)
+  return copy.buffer
+}
+
 function formatDate(date: string) {
   return new Intl.DateTimeFormat('id-ID', {
     day: '2-digit',
@@ -218,7 +231,7 @@ function addPage(sheet: SheetBuilder, page: AgendaKelasPageData, index: number, 
         attendance?.sakit ? '✓' : '',
         attendance?.izin ? '✓' : '',
         attendance?.alfa ? '✓' : '',
-        wrapText(String(attendance?.ket || '').replace(/Keterangan dari wali kelas/gi, 'Ket. Wali Kelas'), 13),
+        '',
       ]
       for (let col = 0; col < 6; col++) sheet.set(excelRow, baseCol + col, values[col], col === 0 || (col >= 2 && col <= 4) ? 4 : col === 5 ? 6 : 5)
     }
@@ -321,9 +334,8 @@ function worksheetXml(sheet: SheetBuilder, drawingRelId: string, widths: number[
 
 function drawingXml(sheet: SheetBuilder, drawingId: number) {
   const anchors = sheet.drawings.map((drawing, index) => {
-    const aspect = drawing.asset.widthPx > 0 && drawing.asset.heightPx > 0 ? drawing.asset.heightPx / drawing.asset.widthPx : 0.28
-    const heightMm = Math.min(30, Math.max(1, drawing.widthMm * aspect))
-    return `<xdr:oneCellAnchor><xdr:from><xdr:col>${drawing.col}</xdr:col><xdr:colOff>${mmToEmu(drawing.xMm)}</xdr:colOff><xdr:row>${drawing.row}</xdr:row><xdr:rowOff>${mmToEmu(drawing.yMm)}</xdr:rowOff></xdr:from><xdr:ext cx="${mmToEmu(drawing.widthMm)}" cy="${mmToEmu(heightMm)}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${index + 1}" name="${xmlEscape(drawing.name)}"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rIdImage${index + 1}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`
+    const dimensions = imageDimensions(drawing.asset, drawing.widthMm)
+    return `<xdr:oneCellAnchor><xdr:from><xdr:col>${drawing.col}</xdr:col><xdr:colOff>${mmToEmu(drawing.xMm)}</xdr:colOff><xdr:row>${drawing.row}</xdr:row><xdr:rowOff>${mmToEmu(drawing.yMm)}</xdr:rowOff></xdr:from><xdr:ext cx="${mmToEmu(dimensions.widthMm)}" cy="${mmToEmu(dimensions.heightMm)}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${index + 1}" name="${xmlEscape(drawing.name)}"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rIdImage${index + 1}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`
   }).join('')
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${anchors}</xdr:wsDr>`
 }
@@ -442,7 +454,7 @@ export async function buildAgendaKelasXlsxBlob(
   assets: AgendaKelasExportAssets,
 ) {
   const bytes = await buildAgendaKelasXlsxBytes(pages, signatureSettings, assets)
-  return new Blob([bytes], { type: XLSX_MIME })
+  return new Blob([bytesToArrayBuffer(bytes)], { type: XLSX_MIME })
 }
 
 export function agendaKelasXlsxFilename(pages: AgendaKelasPageData[]) {
