@@ -10,10 +10,8 @@ import { cn } from '@/lib/utils'
 import type { AgendaKelasCetakExportMeta, AgendaKelasOption, AgendaKelasPageData, AgendaKelasSignaturePlacement, AgendaKelasSignatureSettings } from '../actions'
 import { getAdjacentAgendaKelasDate, getAgendaKelasHari, getAgendaKelasCetakJobs, getAgendaKelasCetakBatch, getAgendaKelasCetakExportData, saveAgendaKelasSignatureSettings } from '../actions'
 import { AgendaKelasTemplate } from './agenda-kelas-template'
-import { createZip } from '@/lib/zip'
 import { downloadBlobFile } from '@/lib/pdf/download'
 import { loadAgendaKelasExportAssets, type AgendaKelasExportAssets } from '@/lib/agenda-kelas-export-assets'
-import { agendaKelasDocxFilename, buildAgendaKelasDocxBytes } from '@/lib/agenda-kelas-docx'
 import { agendaKelasXlsxFilename, buildAgendaKelasXlsxBlob } from '@/lib/agenda-kelas-xlsx'
 
 type Props = {
@@ -47,12 +45,6 @@ function formatExportBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-}
-
-function blobPartFromBytes(bytes: Uint8Array): ArrayBuffer {
-  const copy = new Uint8Array(bytes.byteLength)
-  copy.set(bytes)
-  return copy.buffer
 }
 
 /**
@@ -572,51 +564,6 @@ function CetakAgendaKelasModal({
     return assets
   }
 
-  const handleDownloadWord = async () => {
-    if (!selectedKelasIds.length || !selectedMonths.length) return
-    setLoading(true)
-    setError(null)
-    setExportInfo(null)
-    try {
-      const prepared = await prepareExportData()
-      const assets = await prepareExportAssets(prepared.pages)
-      const byClass = new Map<string, AgendaKelasPageData[]>()
-      for (const page of prepared.pages) {
-        const current = byClass.get(page.kelas.id)
-        if (current) current.push(page)
-        else byClass.set(page.kelas.id, [page])
-      }
-
-      const entries: Array<{ name: string; bytes: Uint8Array }> = []
-      let processed = 0
-      for (const classPages of byClass.values()) {
-        setProgressText(`Menyusun Word ${classPages[0].kelas.label}...`)
-        entries.push({
-          name: agendaKelasDocxFilename(classPages[0]),
-          bytes: await buildAgendaKelasDocxBytes(classPages, signatureSettings, assets),
-        })
-        processed += classPages.length
-        setProgress(45 + Math.round((processed / prepared.pages.length) * 45))
-      }
-
-      const file = entries.length === 1
-        ? new Blob([blobPartFromBytes(entries[0].bytes)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
-        : new Blob([blobPartFromBytes(createZip(entries))], { type: 'application/zip' })
-      const filename = entries.length === 1
-        ? entries[0].name
-        : `Agenda_Kelas_${selectedMonths.join('_')}.zip`
-      await downloadBlobFile(file, filename)
-      const skipped = skippedKelasSummary(prepared.meta.skippedKelasIds)
-      setProgress(100)
-      setProgressText('Word selesai dibuat.')
-      setExportInfo(`${entries.length} file Word, ${prepared.pages.length} halaman, ${formatExportBytes(file.size)}.${skipped}`)
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Gagal membuat file Word.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleDownloadExcel = async () => {
     if (!selectedKelasIds.length || !selectedMonths.length) return
     setLoading(true)
@@ -822,18 +769,12 @@ html, body { margin: 0; padding: 0; background: #fff; }
                     <Printer className="h-3.5 w-3.5" />
                     Cetak Browser (lama)
                   </Button>
-                  <div className="grid grid-cols-2 gap-1.5 pt-1">
-                    <Button type="button" onClick={handleDownloadWord} disabled={loading || selectedKelasIds.length === 0 || selectedMonths.length === 0} variant="outline" className="h-9 gap-1.5 text-xs">
-                      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5 text-blue-600" />}
-                      Word
-                    </Button>
-                    <Button type="button" onClick={handleDownloadExcel} disabled={loading || selectedKelasIds.length === 0 || selectedMonths.length === 0} variant="outline" className="h-9 gap-1.5 text-xs">
-                      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5 text-emerald-600" />}
-                      Excel
-                    </Button>
-                  </div>
+                  <Button type="button" onClick={handleDownloadExcel} disabled={loading || selectedKelasIds.length === 0 || selectedMonths.length === 0} variant="outline" className="h-9 w-full gap-1.5 text-xs">
+                    {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5 text-emerald-600" />}
+                    Download Excel
+                  </Button>
                   <p className="pt-1 text-[10px] leading-4 text-slate-400">
-                    Word: satu file per kelas. Excel: satu sheet per kelas. Cetak browser lama dipertahankan untuk perbandingan.
+                    Excel: satu sheet per kelas. Cetak browser lama dipertahankan untuk perbandingan.
                   </p>
                 </div>
               </div>
