@@ -8,12 +8,18 @@ import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
 import { checkFeatureAccess } from '@/lib/features'
 import { ensureJabatanStrukturalSchema } from './actions'
+import { syncPembinaRoles } from '@/app/dashboard/ekstrakurikuler/master/actions'
+import { syncAllWaliKelasRoles } from '@/app/dashboard/kelas/actions'
+import { syncGuruPiketRoles } from '@/app/dashboard/jadwal-piket/actions'
 
 export const metadata = { title: 'Data Guru & Pegawai - MANSATAS App' }
 
 async function GuruDataFetcher() {
   const db = await getDB()
   await ensureJabatanStrukturalSchema(db)
+  await syncPembinaRoles(db)
+  await syncAllWaliKelasRoles(db)
+  await syncGuruPiketRoles(db)
 
   const [usersResult, userRolesResult, masterRolesResult, masterJabatanResult] = await Promise.all([
     db.prepare(`

@@ -48,10 +48,75 @@ async function assertAdmin(): Promise<{ db: D1Database; userId: string } | { err
 }
 
 // ============================================================
+// HELPER: SYNC PEMBINA ROLES
+// ============================================================
+export async function syncPembinaRoles(db: D1Database) {
+  try {
+    // 1. Memastikan master_roles memiliki role pembina_ekstrakurikuler
+    await db.prepare(`
+      INSERT OR IGNORE INTO master_roles (value, label, is_custom)
+      VALUES ('pembina_ekstrakurikuler', 'Pembina Ekstrakurikuler', 0)
+    `).run()
+
+    // 2. Ambil daftar semua ID pengguna yang saat ini menjadi pembina ekskul
+    const pembinasRes = await db.prepare(`
+      SELECT DISTINCT pembina_id FROM ekstrakurikuler_pembina WHERE pembina_id IS NOT NULL AND pembina_id != ''
+    `).all<{ pembina_id: string }>()
+
+    const activePembinaIds = new Set((pembinasRes.results || []).map(r => r.pembina_id))
+
+    // 3. Pastikan setiap pembina aktif memiliki role 'pembina_ekstrakurikuler' di user_roles
+    for (const pid of activePembinaIds) {
+      const rolesRes = await db.prepare(`
+        SELECT role FROM user_roles WHERE user_id = ?
+      `).bind(pid).all<{ role: string }>()
+
+      const existingRoles = (rolesRes.results || []).map(r => r.role)
+
+      if (existingRoles.length === 0) {
+        // Jika user_roles masih kosong, sertakan role utama dari tabel user
+        const u = await db.prepare(`SELECT role FROM "user" WHERE id = ?`).bind(pid).first<{ role: string }>()
+        const primaryRole = u?.role || 'guru'
+
+        await db.batch([
+          db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(pid, primaryRole),
+          db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(pid, 'pembina_ekstrakurikuler'),
+        ])
+      } else if (!existingRoles.includes('pembina_ekstrakurikuler')) {
+        await db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(pid, 'pembina_ekstrakurikuler').run()
+      }
+    }
+
+    // 4. Hapus role 'pembina_ekstrakurikuler' dari user_roles untuk pengguna yang tidak lagi membina ekskul apa pun
+    const oldPembinaRolesRes = await db.prepare(`
+      SELECT user_id FROM user_roles WHERE role = 'pembina_ekstrakurikuler'
+    `).all<{ user_id: string }>()
+
+    for (const row of oldPembinaRolesRes.results || []) {
+      if (!activePembinaIds.has(row.user_id)) {
+        await db.prepare(`DELETE FROM user_roles WHERE user_id = ? AND role = 'pembina_ekstrakurikuler'`).bind(row.user_id).run()
+
+        // Jika primary role di tabel "user" adalah 'pembina_ekstrakurikuler', ubah ke role tersisa atau 'guru'
+        const u = await db.prepare(`SELECT role FROM "user" WHERE id = ?`).bind(row.user_id).first<{ role: string }>()
+        if (u?.role === 'pembina_ekstrakurikuler') {
+          const remRolesRes = await db.prepare(`SELECT role FROM user_roles WHERE user_id = ?`).bind(row.user_id).all<{ role: string }>()
+          const remRoles = (remRolesRes.results || []).map(r => r.role)
+          const newPrimary = remRoles[0] || 'guru'
+          await db.prepare(`UPDATE "user" SET role = ?, updatedAt = datetime('now') WHERE id = ?`).bind(newPrimary, row.user_id).run()
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error syncing pembina roles:', err)
+  }
+}
+
+// ============================================================
 // 1. LIST EKSKUL (master table)
 // ============================================================
 export async function getEkskulList(): Promise<EkskulMaster[]> {
   const db = await getDB()
+  await syncPembinaRoles(db)
   const { results } = await db.prepare(`
     SELECT
       e.id, e.nama, e.deskripsi, e.mode_nilai, e.status,
@@ -72,7 +137,7 @@ export async function getEkskulList(): Promise<EkskulMaster[]> {
 // ============================================================
 export async function getGuruList(): Promise<GuruOption[]> {
   const db = await getDB()
-  const ROLES = ['guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_ppl', 'guru_tahfidz', 'wakamad', 'kepsek']
+  const ROLES = ['guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'guru_ppl', 'guru_tahfidz', 'wakamad', 'kepsek', 'pembina_ekstrakurikuler', 'admin_tu', 'super_admin', 'operator', 'bendahara_komite']
   const ph = ROLES.map(() => '?').join(',')
   const { results } = await db.prepare(`
     SELECT DISTINCT u.id, u.nama_lengkap, u.role
@@ -137,7 +202,10 @@ export async function hapusEkskul(id: string): Promise<{ error?: string; success
   const res = await dbDelete(db, 'ekstrakurikuler', { id })
   if (res.error) return { error: res.error }
 
+  await syncPembinaRoles(db)
+
   revalidatePath('/dashboard/ekstrakurikuler/master')
+  revalidatePath('/dashboard/guru')
   return { success: 'Ekstrakurikuler beserta seluruh datanya berhasil dihapus.' }
 }
 
@@ -161,11 +229,13 @@ export async function setPembina(ekskulId: string, pembinaIds: string[]): Promis
 
   try {
     await db.batch(stmts)
+    await syncPembinaRoles(db)
   } catch (e: any) {
     return { error: e.message }
   }
 
   revalidatePath('/dashboard/ekstrakurikuler/master')
+  revalidatePath('/dashboard/guru')
   return { success: 'Pembina berhasil diperbarui.' }
 }
 

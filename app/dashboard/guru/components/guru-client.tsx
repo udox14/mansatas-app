@@ -84,6 +84,7 @@ const DEFAULT_ROLES: MasterRoleType[] = [
   { value: 'wali_kelas', label: 'Wali Kelas', is_custom: 0 },
   { value: 'resepsionis', label: 'Resepsionis', is_custom: 0 },
   { value: 'guru_ppl', label: 'Guru PPL', is_custom: 0 },
+  { value: 'pembina_ekstrakurikuler', label: 'Pembina Ekstrakurikuler', is_custom: 0 },
 ]
 
 const ROLE_COLORS: Record<string, string> = {
@@ -97,6 +98,7 @@ const ROLE_COLORS: Record<string, string> = {
   wali_kelas: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   resepsionis: 'bg-pink-100 text-pink-700 border-pink-200',
   guru_ppl: 'bg-lime-100 text-lime-700 border-lime-200',
+  pembina_ekstrakurikuler: 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800',
 }
 
 const initialState: any = { error: null, success: null }

@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Combobox } from '@/components/ui/combobox'
 import {
   Search, Loader2, Eye, Edit3, CheckCircle2, Clock, XCircle,
   AlertTriangle, Calendar, BarChart3, Printer,
@@ -299,24 +300,28 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
           {filterMode === 'guru' && (
             <div className="col-span-2 min-w-0 sm:flex-1 sm:min-w-[200px]">
               <Label className="text-xs text-slate-500 dark:text-slate-400">Guru</Label>
-              <Select value={filterId} onValueChange={setFilterId}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Pilih guru..." /></SelectTrigger>
-                <SelectContent>
-                  {filterOptions.guru.map(g => <SelectItem key={g.id} value={g.id}>{g.nama}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={filterOptions.guru.map(g => ({ value: g.id, label: g.nama || g.label || '' }))}
+                value={filterId}
+                onValueChange={setFilterId}
+                placeholder="Pilih guru..."
+                searchPlaceholder="Cari nama guru..."
+                emptyText="Guru tidak ditemukan"
+              />
             </div>
           )}
 
           {filterMode === 'kelas' && (
             <div className="col-span-2 min-w-0 sm:flex-1 sm:min-w-[200px]">
               <Label className="text-xs text-slate-500 dark:text-slate-400">Kelas</Label>
-              <Select value={filterId} onValueChange={setFilterId}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Pilih kelas..." /></SelectTrigger>
-                <SelectContent>
-                  {filterOptions.kelas.map(k => <SelectItem key={k.id} value={k.id}>{k.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={filterOptions.kelas.map(k => ({ value: k.id, label: k.label || k.nama || '' }))}
+                value={filterId}
+                onValueChange={setFilterId}
+                placeholder="Pilih kelas..."
+                searchPlaceholder="Cari kelas..."
+                emptyText="Kelas tidak ditemukan"
+              />
             </div>
           )}
 
@@ -835,13 +840,17 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
           </div>
           <div className="flex-1 min-w-[200px]">
             <Label className="text-xs text-slate-500 dark:text-slate-400">Guru (opsional)</Label>
-            <Select value={guruId} onValueChange={setGuruId}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Semua guru" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all_guru">Semua Guru</SelectItem>
-                {filterOptions.guru.map(g => <SelectItem key={g.id} value={g.id}>{g.nama}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={[
+                { value: 'all_guru', label: 'Semua Guru' },
+                ...filterOptions.guru.map(g => ({ value: g.id, label: g.nama || g.label || '' }))
+              ]}
+              value={guruId || 'all_guru'}
+              onValueChange={setGuruId}
+              placeholder="Semua Guru"
+              searchPlaceholder="Cari nama guru..."
+              emptyText="Guru tidak ditemukan"
+            />
           </div>
           <Button onClick={handleLoad} disabled={isLoading} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-1.5" />}

@@ -45,12 +45,68 @@ async function tableExists(db: D1Database, tableName: string) {
   return Boolean(row)
 }
 
+export async function syncGuruPiketRoles(db: D1Database) {
+  try {
+    await db.prepare(`
+      INSERT OR IGNORE INTO master_roles (value, label, is_custom)
+      VALUES ('guru_piket', 'Guru Piket', 0)
+    `).run()
+
+    const piketRes = await db.prepare(`
+      SELECT DISTINCT user_id FROM jadwal_guru_piket WHERE user_id IS NOT NULL AND user_id != ''
+    `).all<{ user_id: string }>()
+
+    const activePiketUserIds = new Set((piketRes.results || []).map(r => r.user_id))
+
+    for (const uid of activePiketUserIds) {
+      const rolesRes = await db.prepare(`
+        SELECT role FROM user_roles WHERE user_id = ?
+      `).bind(uid).all<{ role: string }>()
+
+      const existingRoles = (rolesRes.results || []).map(r => r.role)
+
+      if (existingRoles.length === 0) {
+        const u = await db.prepare(`SELECT role FROM "user" WHERE id = ?`).bind(uid).first<{ role: string }>()
+        const primaryRole = u?.role || 'guru'
+
+        await db.batch([
+          db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(uid, primaryRole),
+          db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(uid, 'guru_piket'),
+        ])
+      } else if (!existingRoles.includes('guru_piket')) {
+        await db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(uid, 'guru_piket').run()
+      }
+    }
+
+    const oldPiketRolesRes = await db.prepare(`
+      SELECT user_id FROM user_roles WHERE role = 'guru_piket'
+    `).all<{ user_id: string }>()
+
+    for (const row of oldPiketRolesRes.results || []) {
+      if (!activePiketUserIds.has(row.user_id)) {
+        await db.prepare(`DELETE FROM user_roles WHERE user_id = ? AND role = 'guru_piket'`).bind(row.user_id).run()
+
+        const u = await db.prepare(`SELECT role FROM "user" WHERE id = ?`).bind(row.user_id).first<{ role: string }>()
+        if (u?.role === 'guru_piket') {
+          const remRolesRes = await db.prepare(`SELECT role FROM user_roles WHERE user_id = ?`).bind(row.user_id).all<{ role: string }>()
+          const remRoles = (remRolesRes.results || []).map(r => r.role)
+          const newPrimary = remRoles[0] || 'guru'
+          await db.prepare(`UPDATE "user" SET role = ?, updatedAt = datetime('now') WHERE id = ?`).bind(newPrimary, row.user_id).run()
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error syncing guru piket roles:', err)
+  }
+}
+
 export async function getJadwalPiketData(): Promise<{
   shifts: ShiftPiket[]
   jadwal: JadwalPiket[]
 }> {
   const db = await getDB()
   await ensureDefaultShiftPiket(db)
+  await syncGuruPiketRoles(db)
   
   const shiftsRes = await db.prepare('SELECT * FROM pengaturan_shift_piket ORDER BY id ASC').all<ShiftPiket>()
   
@@ -108,6 +164,8 @@ export async function tambahJadwalPiket(user_id: string, hari: number, shift_id:
 
   if (res.error) return { error: res.error }
 
+  await syncGuruPiketRoles(db)
+
   await logActivity({
     db,
     module: 'jadwal-piket',
@@ -120,6 +178,7 @@ export async function tambahJadwalPiket(user_id: string, hari: number, shift_id:
   })
 
   revalidatePath('/dashboard/jadwal-piket')
+  revalidatePath('/dashboard/guru')
   revalidatePath('/dashboard/penugasan')
   return { success: 'Jadwal ditambahkan.' }
 }
@@ -156,6 +215,8 @@ export async function hapusJadwalPiket(id: string): Promise<{ error?: string, su
     const res = await dbDelete(db, 'jadwal_guru_piket', { id })
     if (res.error) return { error: res.error }
 
+    await syncGuruPiketRoles(db)
+
     await logActivity({
       db,
       module: 'jadwal-piket',
@@ -169,6 +230,7 @@ export async function hapusJadwalPiket(id: string): Promise<{ error?: string, su
     })
 
     revalidatePath('/dashboard/jadwal-piket')
+    revalidatePath('/dashboard/guru')
     revalidatePath('/dashboard/penugasan')
     revalidatePath('/dashboard/kelola-ppl')
     revalidatePath('/dashboard/agenda')

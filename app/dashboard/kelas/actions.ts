@@ -8,43 +8,64 @@ import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
 // ============================================================
 // HELPER: Sinkronisasi role 'wali_kelas' di tabel user_roles
-// Dipanggil setiap kali wali_kelas_id kelas berubah.
-// - guruIdBaru  : ID guru yang BARU ditugaskan (atau null jika dikosongkan)
-// - guruIdLama  : ID guru yang SEBELUMNYA ditugaskan (atau null jika tidak ada)
 // ============================================================
-async function syncWaliKelasRole(
-  db: D1Database,
-  guruIdBaru: string | null,
-  guruIdLama: string | null
-) {
-  const stmts: D1PreparedStatement[] = []
+export async function syncAllWaliKelasRoles(db: D1Database) {
+  try {
+    await db.prepare(`
+      INSERT OR IGNORE INTO master_roles (value, label, is_custom)
+      VALUES ('wali_kelas', 'Wali Kelas', 0)
+    `).run()
 
-  // ── 1. Tambahkan role ke guru BARU ──────────────────────────
-  if (guruIdBaru) {
-    stmts.push(
-      db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)')
-        .bind(guruIdBaru, 'wali_kelas')
-    )
-  }
+    const walisRes = await db.prepare(`
+      SELECT DISTINCT wali_kelas_id FROM kelas WHERE wali_kelas_id IS NOT NULL AND wali_kelas_id != ''
+    `).all<{ wali_kelas_id: string }>()
 
-  // ── 2. Cabut role dari guru LAMA (jika beda & tidak menjadi
-  //       wali kelas di kelas lain) ────────────────────────────
-  if (guruIdLama && guruIdLama !== guruIdBaru) {
-    const masihWali = await db
-      .prepare('SELECT 1 FROM kelas WHERE wali_kelas_id = ? LIMIT 1')
-      .bind(guruIdLama)
-      .first<{ 1: number }>()
-    if (!masihWali) {
-      stmts.push(
-        db.prepare('DELETE FROM user_roles WHERE user_id = ? AND role = ?')
-          .bind(guruIdLama, 'wali_kelas')
-      )
+    const activeWaliIds = new Set((walisRes.results || []).map(r => r.wali_kelas_id))
+
+    for (const wid of activeWaliIds) {
+      const rolesRes = await db.prepare(`
+        SELECT role FROM user_roles WHERE user_id = ?
+      `).bind(wid).all<{ role: string }>()
+
+      const existingRoles = (rolesRes.results || []).map(r => r.role)
+
+      if (existingRoles.length === 0) {
+        const u = await db.prepare(`SELECT role FROM "user" WHERE id = ?`).bind(wid).first<{ role: string }>()
+        const primaryRole = u?.role || 'guru'
+
+        await db.batch([
+          db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(wid, primaryRole),
+          db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(wid, 'wali_kelas'),
+        ])
+      } else if (!existingRoles.includes('wali_kelas')) {
+        await db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(wid, 'wali_kelas').run()
+      }
     }
-  }
 
-  if (stmts.length > 0) {
-    await db.batch(stmts)
+    const oldWaliRolesRes = await db.prepare(`
+      SELECT user_id FROM user_roles WHERE role = 'wali_kelas'
+    `).all<{ user_id: string }>()
+
+    for (const row of oldWaliRolesRes.results || []) {
+      if (!activeWaliIds.has(row.user_id)) {
+        await db.prepare(`DELETE FROM user_roles WHERE user_id = ? AND role = 'wali_kelas'`).bind(row.user_id).run()
+
+        const u = await db.prepare(`SELECT role FROM "user" WHERE id = ?`).bind(row.user_id).first<{ role: string }>()
+        if (u?.role === 'wali_kelas') {
+          const remRolesRes = await db.prepare(`SELECT role FROM user_roles WHERE user_id = ?`).bind(row.user_id).all<{ role: string }>()
+          const remRoles = (remRolesRes.results || []).map(r => r.role)
+          const newPrimary = remRoles[0] || 'guru'
+          await db.prepare(`UPDATE "user" SET role = ?, updatedAt = datetime('now') WHERE id = ?`).bind(newPrimary, row.user_id).run()
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error syncing wali kelas roles:', err)
   }
+}
+
+async function syncWaliKelasRole(db: D1Database, _guruIdBaru?: string | null, _guruIdLama?: string | null) {
+  await syncAllWaliKelasRoles(db)
 }
 
 // ============================================================
@@ -65,7 +86,7 @@ export async function tambahKelas(prevState: any, formData: FormData) {
   if (result.error) return { error: result.error, success: null }
 
   // Sync role wali_kelas otomatis
-  await syncWaliKelasRole(db, wali_kelas_id, null)
+  await syncAllWaliKelasRoles(db)
 
   await logActivity({
     db,
@@ -79,6 +100,7 @@ export async function tambahKelas(prevState: any, formData: FormData) {
   })
 
   revalidatePath('/dashboard/kelas')
+  revalidatePath('/dashboard/guru')
   return { error: null, success: 'Kelas berhasil ditambahkan!' }
 }
 
@@ -88,6 +110,7 @@ export async function editKelas(id: string, payload: any) {
   if (!before) return { error: 'Kelas tidak ditemukan.', success: null }
   const result = await dbUpdate(db, 'kelas', payload, { id })
   if (result.error) return { error: result.error, success: null }
+  await syncAllWaliKelasRoles(db)
   const after = { ...before, ...payload }
   await logActivity({
     db,
@@ -102,6 +125,7 @@ export async function editKelas(id: string, payload: any) {
     diff: createActivityDiff(before, after),
   })
   revalidatePath('/dashboard/kelas')
+  revalidatePath('/dashboard/guru')
   return { error: null, success: 'Kelas berhasil diperbarui!' }
 }
 
@@ -110,6 +134,7 @@ export async function hapusKelas(id: string) {
   const before = await db.prepare('SELECT * FROM kelas WHERE id = ?').bind(id).first<any>()
   const result = await dbDelete(db, 'kelas', { id })
   if (result.error) return { error: result.error, success: null }
+  await syncAllWaliKelasRoles(db)
   await logActivity({
     db,
     module: 'kelas',
@@ -122,6 +147,7 @@ export async function hapusKelas(id: string) {
     before,
   })
   revalidatePath('/dashboard/kelas')
+  revalidatePath('/dashboard/guru')
   return { error: null, success: 'Kelas berhasil dihapus!' }
 }
 
@@ -136,7 +162,6 @@ export async function importKelasMassal(dataExcel: any[]) {
   })
 
   const toInsert: any[] = []
-  const waliKelasIds = new Set<string>() // Kumpulkan semua guru yang jadi wali kelas
   for (const row of dataExcel) {
     const tingkat = parseInt(row.TINGKAT)
     const kelompok = String(row.KELOMPOK || 'UMUM').trim()
@@ -147,7 +172,6 @@ export async function importKelasMassal(dataExcel: any[]) {
 
     const wali_kelas_id = namaGuru && mapGuru.has(namaGuru) ? mapGuru.get(namaGuru) : null
     toInsert.push({ tingkat, kelompok, nomor_kelas, kapasitas, wali_kelas_id })
-    if (wali_kelas_id) waliKelasIds.add(wali_kelas_id)
   }
 
   if (toInsert.length > 0) {
@@ -155,13 +179,8 @@ export async function importKelasMassal(dataExcel: any[]) {
     if (error) return { error, success: null }
   }
 
-  // Sync role wali_kelas untuk semua guru yang diimport sebagai wali kelas
-  if (waliKelasIds.size > 0) {
-    const roleStmts = [...waliKelasIds].map(guruId =>
-      db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(guruId, 'wali_kelas')
-    )
-    await db.batch(roleStmts)
-  }
+  // Sync role wali_kelas untuk semua guru
+  await syncAllWaliKelasRoles(db)
 
   await logActivity({
     db,
@@ -177,6 +196,7 @@ export async function importKelasMassal(dataExcel: any[]) {
   })
 
   revalidatePath('/dashboard/kelas')
+  revalidatePath('/dashboard/guru')
   return { error: null, success: `Berhasil mengimport ${toInsert.length} kelas.` }
 }
 
@@ -187,9 +207,7 @@ export async function editKelasForm(prevState: any, formData: FormData) {
   const db = await getDB()
   const id = formData.get('id') as string
 
-  // Ambil wali kelas lama sebelum diupdate
   const existing = await db.prepare('SELECT * FROM kelas WHERE id = ?').bind(id).first<any>()
-  const guruIdLama = existing?.wali_kelas_id ?? null
 
   const wali_raw = formData.get('wali_kelas_id') as string
   const guruIdBaru = wali_raw === 'none' ? null : wali_raw
@@ -216,7 +234,7 @@ export async function editKelasForm(prevState: any, formData: FormData) {
   if (result.error) return { error: result.error, success: null }
 
   // Sync role wali_kelas otomatis
-  await syncWaliKelasRole(db, guruIdBaru, guruIdLama)
+  await syncAllWaliKelasRoles(db)
 
   const after = { ...existing, ...payload }
   await logActivity({
@@ -233,6 +251,7 @@ export async function editKelasForm(prevState: any, formData: FormData) {
   })
 
   revalidatePath('/dashboard/kelas')
+  revalidatePath('/dashboard/guru')
   revalidatePath('/dashboard/agenda-kelas')
   revalidatePath(`/dashboard/kelas/${id}`)
   return { error: null, success: 'Data Rombongan Belajar berhasil diperbarui!' }
@@ -242,15 +261,13 @@ export async function setWaliKelas(kelasId: string, guruId: string | null) {
   const db = await getDB()
   const guruIdBaru = guruId === 'none' ? null : guruId
 
-  // Ambil wali kelas lama
   const existing = await db.prepare('SELECT * FROM kelas WHERE id = ?').bind(kelasId).first<any>()
-  const guruIdLama = existing?.wali_kelas_id ?? null
 
   const result = await dbUpdate(db, 'kelas', { wali_kelas_id: guruIdBaru }, { id: kelasId })
   if (result.error) return { error: result.error, success: null }
 
   // Sync role wali_kelas otomatis
-  await syncWaliKelasRole(db, guruIdBaru, guruIdLama)
+  await syncAllWaliKelasRoles(db)
 
   const after = { ...existing, wali_kelas_id: guruIdBaru }
   await logActivity({
@@ -267,6 +284,7 @@ export async function setWaliKelas(kelasId: string, guruId: string | null) {
   })
 
   revalidatePath('/dashboard/kelas')
+  revalidatePath('/dashboard/guru')
   return { error: null, success: 'Wali kelas berhasil ditugaskan!' }
 }
 
