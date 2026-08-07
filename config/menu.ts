@@ -377,7 +377,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/tka',
     icon: FileCheck,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk'],
-    desc: 'Mengelola pilihan mata pelajaran Tes Kemampuan Akademik (TKA) dan unggah berkas PDF nilai'
+    desc: 'Pendataan pilihan mata pelajaran Tes Kemampuan Akademik (TKA) dan rekapitulasi pemilihan siswa'
   },
   {
     id: 'penerimaan-pt',

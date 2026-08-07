@@ -13,6 +13,7 @@ interface DataPaginationProps {
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number | 'semua') => void
   entityLabel?: string
+  pageSizeOptions?: readonly number[]
 }
 
 export function DataPagination({
@@ -22,6 +23,7 @@ export function DataPagination({
   onPageChange,
   onPageSizeChange,
   entityLabel = 'data',
+  pageSizeOptions = PAGE_SIZE_OPTIONS,
 }: DataPaginationProps) {
   const isSemua = pageSize === 'semua'
   const totalPages = isSemua ? 1 : Math.max(1, Math.ceil(total / (pageSize as number)))
@@ -50,7 +52,7 @@ export function DataPagination({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {PAGE_SIZE_OPTIONS.map(n => (
+              {pageSizeOptions.map(n => (
                 <SelectItem key={n} value={String(n)}>{n}</SelectItem>
               ))}
               <SelectItem value="semua">Semua</SelectItem>

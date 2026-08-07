@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/layout/page-header'
 export const metadata = { title: 'Tes Kemampuan Akademik - MANSATAS App' }
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES = ['super_admin', 'kepsek', 'wakamad', 'guru_bk', 'guru']
+const ALLOWED_ROLES = ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk']
 
 export default async function TkaPage() {
   const user = await getCurrentUser()
@@ -18,21 +18,19 @@ export default async function TkaPage() {
   const role = (user as any).role ?? ''
   if (!ALLOWED_ROLES.includes(role)) redirect('/dashboard')
 
-  const { tahunAjaranAktif, kelasList, hasHasil } = await getInitialDataTka(role, user.id)
+  const { tahunAjaranAktif, kelasList } = await getInitialDataTka()
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
         title="Tes Kemampuan Akademik"
-        description="Penentuan mapel pilihan TKA, upload hasil PDF, dan analitik nilai siswa kelas 12."
+        description="Pendataan mapel pilihan TKA dan rekapitulasi pemilihan siswa kelas 12."
         icon={ClipboardList}
         iconColor="text-sky-500"
       />
       <TkaClient
         tahunAjaranAktif={tahunAjaranAktif ?? null}
         kelasList={kelasList}
-        hasHasil={hasHasil}
-        userRole={role}
       />
     </div>
   )

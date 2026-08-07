@@ -12,30 +12,31 @@ import {
   batchSaveMapelPilihan,
 } from '../actions'
 import type { KelasItem, TkaMapelRow } from '../actions'
-import { MAPEL_PILIHAN_OPTIONS } from '../constants'
+import { MAPEL_PILIHAN_OPTIONS_SORTED } from '../constants'
+import { naturalSort } from '@/lib/natural-sort'
 import { cn } from '@/lib/utils'
 
 interface Props {
   tahunAjaranId: string
   kelasList: KelasItem[]
-  userRole: string
 }
 
 type LocalRow = TkaMapelRow & { _dirty?: boolean }
 
 const NONE_VALUE = '__none__'
 
-// Urutkan kelas: nomor_kelas numerik ASC, lalu kelompok ASC
+const kelasLabel = (k: KelasItem) => `${k.tingkat}-${k.nomor_kelas} ${k.kelompok}`
+
+// Urutkan kelas secara natural (tingkat, nomor_kelas, kelompok)
 function sortKelasList(list: KelasItem[]): KelasItem[] {
-  return [...list].sort((a, b) => {
-    const na = parseInt(a.nomor_kelas, 10)
-    const nb = parseInt(b.nomor_kelas, 10)
-    if (na !== nb) return na - nb
-    return a.kelompok.localeCompare(b.kelompok)
-  })
+  return naturalSort(list, k => `${k.tingkat}|${k.nomor_kelas}|${k.kelompok}`)
 }
 
-export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
+function sortRows(rows: LocalRow[]): LocalRow[] {
+  return naturalSort(rows, r => r.nama_lengkap)
+}
+
+export function TabMapelPilihan({ tahunAjaranId, kelasList }: Props) {
   const [selectedKelasId, setSelectedKelasId] = useState('')
   const [searchQuery, setSearchQuery]         = useState('')
   const [rows, setRows]                       = useState<LocalRow[]>([])
@@ -61,7 +62,7 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
     setLoading(true)
     try {
       const data = await getSiswaByKelasForTka(kelasId, tahunAjaranId)
-      setRows(data.map(r => ({ ...r, _dirty: false })))
+      setRows(sortRows(data.map(r => ({ ...r, _dirty: false }))))
     } catch (e: any) {
       showToast('error', `Gagal memuat siswa: ${e.message}`)
     } finally {
@@ -79,7 +80,7 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
     setLoading(true)
     try {
       const data = await searchSiswaKelas12ForTka(q, tahunAjaranId)
-      setRows(data.map(r => ({ ...r, _dirty: false })))
+      setRows(sortRows(data.map(r => ({ ...r, _dirty: false }))))
     } catch (e: any) {
       showToast('error', `Gagal mencari siswa: ${e.message}`)
     } finally {
@@ -125,8 +126,6 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList, userRole }: Props) {
       setSaving(false)
     }
   }
-
-  const kelasLabel = (k: KelasItem) => `${k.tingkat}-${k.nomor_kelas} ${k.kelompok}`
 
   return (
     <div className="space-y-4">
@@ -358,7 +357,7 @@ function MapelSelect({
         <SelectItem value={NONE_VALUE}>
           <span className="text-slate-400 italic">— Belum ditentukan —</span>
         </SelectItem>
-        {MAPEL_PILIHAN_OPTIONS
+        {MAPEL_PILIHAN_OPTIONS_SORTED
           .filter(m => m !== excludeValue)
           .map(m => (
             <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>

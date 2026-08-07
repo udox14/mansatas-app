@@ -57,3 +57,10 @@ export function clearMemCache(): void {
 export function deleteMemCache(key: string): void {
   store.delete(key)
 }
+
+/** Hapus semua entri yang key-nya diawali prefix (mis. invalidasi per modul). */
+export function clearMemCachePrefix(prefix: string): void {
+  for (const key of store.keys()) {
+    if (key.startsWith(prefix)) store.delete(key)
+  }
+}
