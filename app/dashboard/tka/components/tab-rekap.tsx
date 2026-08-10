@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 import {
   Loader2, RefreshCw, Users, BookMarked, Hash, Printer, Search, X, Table2, BarChart3,
@@ -13,12 +13,15 @@ import {
 import {
   getRekapMapelPilihan,
   getSiswaRekapTka,
+  getRekapRencanaPascaLulus,
 } from '../actions'
-import type { KelasItem, TkaRekapItem, TkaSiswaRekapRow, RekapFilter } from '../actions'
+import type { KelasItem, TkaRekapItem, TkaSiswaRekapRow, RekapFilter, RencanaRekapItem } from '../actions'
 import { MAPEL_PILIHAN_OPTIONS_SORTED } from '../constants'
 import { naturalSort } from '@/lib/natural-sort'
 import { cn } from '@/lib/utils'
 import { CetakRekapModal, type CetakMode } from './cetak-rekap-modal'
+import { KAMPUS_LIST, PRODI_BY_KAMPUS, RENCANA_LABEL, RENCANA_OPTIONS } from '@/lib/pendidikan-lanjutan'
+import type { RencanaKategori } from '@/lib/pendidikan-lanjutan'
 
 interface Props {
   tahunAjaranId: string
@@ -26,7 +29,7 @@ interface Props {
   kelasList: KelasItem[]
 }
 
-type View = 'jumlah' | 'kelas' | 'mapel'
+type View = 'jumlah' | 'kelas' | 'mapel' | 'rencana'
 
 const PAGE_SIZE_OPTIONS = [50, 100] as const
 
@@ -38,6 +41,7 @@ const VIEW_BUTTONS: { key: View; label: string; icon: React.ReactNode }[] = [
   { key: 'jumlah', label: 'Jumlah per Mapel', icon: <BarChart3 className="h-3.5 w-3.5" /> },
   { key: 'kelas', label: 'Per Kelas', icon: <Users className="h-3.5 w-3.5" /> },
   { key: 'mapel', label: 'Per Mapel', icon: <Table2 className="h-3.5 w-3.5" /> },
+  { key: 'rencana', label: 'Rencana Lulusan', icon: <BookMarked className="h-3.5 w-3.5" /> },
 ]
 
 export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) {
@@ -47,8 +51,12 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
   const [mapelFilter, setMapelFilter] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [rencanaFilter, setRencanaFilter] = useState('')
+  const [kampusFilter, setKampusFilter] = useState('')
+  const [prodiFilter, setProdiFilter] = useState('')
 
   const [jumlah, setJumlah] = useState<{ pilihan1: TkaRekapItem[]; pilihan2: TkaRekapItem[] } | null>(null)
+  const [rencanaJumlah, setRencanaJumlah] = useState<RencanaRekapItem[]>([])
   const [rows, setRows] = useState<TkaSiswaRekapRow[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -71,8 +79,8 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    getRekapMapelPilihan(tahunAjaranId)
-      .then(data => { if (!cancelled) setJumlah(data) })
+    Promise.all([getRekapMapelPilihan(tahunAjaranId), getRekapRencanaPascaLulus(tahunAjaranId)])
+      .then(([data, rencana]) => { if (!cancelled) { setJumlah(data); setRencanaJumlah(rencana) } })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [tahunAjaranId])
@@ -90,6 +98,11 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
       filter.pilihan = pilihan
       if (mapelFilter) filter.mapel = mapelFilter
     }
+    if (view === 'rencana') {
+      if (rencanaFilter) filter.rencana = rencanaFilter as RencanaKategori
+      if (kampusFilter) filter.kampus_id = kampusFilter
+      if (prodiFilter) filter.prodi = prodiFilter
+    }
     if (search) filter.search = search
     getSiswaRekapTka(tahunAjaranId, filter)
       .then(data => {
@@ -100,7 +113,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, pilihan, kelasFilter, mapelFilter, search, tahunAjaranId])
+  }, [view, pilihan, kelasFilter, mapelFilter, rencanaFilter, kampusFilter, prodiFilter, search, tahunAjaranId])
 
   const applySearch = () => {
     setSearch(searchInput.trim())
@@ -111,6 +124,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
     setMapelFilter('')
     setSearchInput('')
     setSearch('')
+    setRencanaFilter(''); setKampusFilter(''); setProdiFilter('')
   }
 
   const openPrint = (mode: CetakMode) => {
@@ -177,7 +191,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={openPrint.bind(null, view)}>
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => openPrint(view === 'rencana' ? 'kelas' : view)}>
             <Printer className="h-3.5 w-3.5 text-violet-500" />
             Cetak
           </Button>
@@ -199,6 +213,11 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
                   filter.pilihan = pilihan
                   if (mapelFilter) filter.mapel = mapelFilter
                 }
+                if (view === 'rencana') {
+                  if (rencanaFilter) filter.rencana = rencanaFilter as RencanaKategori
+                  if (kampusFilter) filter.kampus_id = kampusFilter
+                  if (prodiFilter) filter.prodi = prodiFilter
+                }
                 if (search) filter.search = search
                 getSiswaRekapTka(tahunAjaranId, filter)
                   .then(setRows)
@@ -215,17 +234,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
       {view !== 'jumlah' && (
         <div className="flex flex-col sm:flex-row gap-2">
           {view === 'kelas' && (
-            <Select value={kelasFilter} onValueChange={v => { setKelasFilter(v); }} >
-              <SelectTrigger className="sm:w-52 h-8 text-xs bg-white dark:bg-slate-900">
-                <SelectValue placeholder="Semua Kelas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Semua Kelas</SelectItem>
-                {sortedKelas.map(k => (
-                  <SelectItem key={k.id} value={k.id}>{kelasLabel(k)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox value={kelasFilter} onValueChange={setKelasFilter} options={sortedKelas.map(k => ({ value: k.id, label: kelasLabel(k) }))} placeholder="Semua Kelas" searchPlaceholder="Cari kelas..." className="sm:w-52" clearable />
           )}
 
           {view === 'mapel' && (
@@ -246,19 +255,15 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
                   </button>
                 ))}
               </div>
-              <Select value={mapelFilter} onValueChange={setMapelFilter}>
-                <SelectTrigger className="sm:w-56 h-8 text-xs bg-white dark:bg-slate-900">
-                  <SelectValue placeholder="Semua Mapel" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Semua Mapel</SelectItem>
-                  {MAPEL_PILIHAN_OPTIONS_SORTED.map(m => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox value={mapelFilter} onValueChange={setMapelFilter} options={MAPEL_PILIHAN_OPTIONS_SORTED.map(m => ({ value: m, label: m }))} placeholder="Semua Mapel" searchPlaceholder="Cari mapel..." className="sm:w-56" clearable />
             </>
           )}
+
+          {view === 'rencana' && <>
+            <Combobox value={rencanaFilter} onValueChange={setRencanaFilter} options={RENCANA_OPTIONS} placeholder="Semua Rencana" searchPlaceholder="Cari rencana..." className="sm:w-56" clearable />
+            <Combobox value={kampusFilter} onValueChange={value => { setKampusFilter(value); setProdiFilter('') }} options={KAMPUS_LIST.map(k => ({ value: k.id, label: k.nama, keywords: `${k.singkatan} ${k.kota}`, description: k.kota }))} placeholder="Semua Perguruan Tinggi" searchPlaceholder="Cari perguruan tinggi..." className="sm:w-64" maxResults={60} clearable />
+            <Combobox value={prodiFilter} onValueChange={setProdiFilter} options={(kampusFilter ? PRODI_BY_KAMPUS[kampusFilter] ?? [] : []).map(p => ({ value: p.nama, label: `${p.nama} (${p.jenjang})` }))} placeholder={kampusFilter ? 'Semua Prodi' : 'Pilih kampus dahulu'} searchPlaceholder="Cari prodi..." className="sm:w-56" disabled={!kampusFilter} clearable />
+          </>}
 
           <div className="relative flex-1 sm:max-w-xs">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
@@ -279,7 +284,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
             )}
           </div>
 
-          {(kelasFilter || mapelFilter || search) && (
+          {(kelasFilter || mapelFilter || rencanaFilter || kampusFilter || prodiFilter || search) && (
             <Button variant="ghost" size="sm" className="h-8 text-xs text-slate-500" onClick={resetFilters}>
               Reset
             </Button>
@@ -302,6 +307,11 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
           </span>
         )}
       </div>
+
+      {view === 'rencana' && <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">{RENCANA_OPTIONS.map(option => {
+        const count = rencanaJumlah.find(item => item.kategori === option.value)?.jumlah ?? 0
+        return <button key={option.value} onClick={() => setRencanaFilter(rencanaFilter === option.value ? '' : option.value)} className={cn('rounded-lg border p-2 text-left', rencanaFilter === option.value ? 'border-violet-400 bg-violet-50 dark:bg-violet-950/30' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900')}><p className="text-[10px] text-slate-500">{option.label}</p><p className="text-lg font-bold text-slate-800 dark:text-slate-200">{count}</p></button>
+      })}</div>}
 
       {/* Loading */}
       {loading && (
@@ -373,6 +383,9 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
                       <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Kelas</th>
                       <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Mapel Pilihan 1</th>
                       <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Mapel Pilihan 2</th>
+                      <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Rencana</th>
+                      <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Pilihan Pendidikan 1</th>
+                      <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Pilihan Pendidikan 2</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -385,6 +398,9 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
                         <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{rowKelasLabel(r)}</td>
                         <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">{r.mapel_pilihan1 || '-'}</td>
                         <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">{r.mapel_pilihan2 || '-'}</td>
+                        <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">{RENCANA_LABEL[r.rencana_kategori ?? 'KULIAH']}</td>
+                        <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">{r.pilihan1_kampus_nama || '-'}{r.pilihan1_prodi ? ` · ${r.pilihan1_prodi}` : ''}</td>
+                        <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">{r.pilihan2_kampus_nama || '-'}{r.pilihan2_prodi ? ` · ${r.pilihan2_prodi}` : ''}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -531,6 +547,23 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
             )}
           </div>
         )
+      )}
+
+      {!loading && view === 'rencana' && (
+        rows.length === 0 ? <EmptyState text="Belum ada data rencana setelah lulus" /> : <div className="space-y-3">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+            <div className="overflow-x-auto"><table className="w-full min-w-[1180px] text-sm"><thead><tr className="border-b bg-slate-50 dark:bg-slate-800/50">
+              {['#', 'NISN', 'Nama Siswa', 'Kelas', 'Rencana', 'Pilihan Pendidikan 1', 'Pilihan Pendidikan 2', 'Catatan'].map(label => <th key={label} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">{label}</th>)}
+            </tr></thead><tbody>{paginatedRows.map((row, index) => <tr key={row.siswa_id} className="border-b border-slate-100 align-top dark:border-slate-800">
+              <td className="px-3 py-2 text-xs text-slate-400">{pageStart + index + 1}</td><td className="px-3 py-2 font-mono text-xs text-slate-500">{row.nisn}</td><td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">{row.nama_lengkap}</td><td className="px-3 py-2 text-xs text-slate-500">{rowKelasLabel(row)}</td>
+              <td className="px-3 py-2 text-xs">{RENCANA_LABEL[row.rencana_kategori ?? 'KULIAH']}</td>
+              <td className="px-3 py-2 text-xs"><p className="font-medium">{row.pilihan1_kampus_nama || '-'}</p><p className="text-slate-500">{row.pilihan1_prodi || ''}</p></td>
+              <td className="px-3 py-2 text-xs"><p className="font-medium">{row.pilihan2_kampus_nama || '-'}</p><p className="text-slate-500">{row.pilihan2_prodi || ''}</p></td>
+              <td className="max-w-[220px] px-3 py-2 text-xs text-slate-500">{row.rencana_catatan || '-'}</td>
+            </tr>)}</tbody></table></div>
+            <DataPagination total={sortedRows.length} page={pg.page} pageSize={pg.pageSize} onPageChange={pg.setPage} onPageSizeChange={pg.setPageSize} entityLabel="siswa" pageSizeOptions={PAGE_SIZE_OPTIONS} />
+          </div>
+        </div>
       )}
 
       {/* Modal detail siswa per mapel */}

@@ -24,7 +24,7 @@ export default async function TkaPage() {
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
         title="Tes Kemampuan Akademik"
-        description="Pendataan mapel pilihan TKA dan rekapitulasi pemilihan siswa kelas 12."
+        description="Pendataan mapel TKA, rencana setelah lulus, dan pilihan pendidikan siswa kelas 12."
         icon={ClipboardList}
         iconColor="text-sky-500"
       />

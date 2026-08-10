@@ -10,6 +10,7 @@ import { getRekapMapelPilihan, getSiswaRekapTka } from '../actions'
 import type { TkaSiswaRekapRow, TkaRekapItem } from '../actions'
 import { MAPEL_PILIHAN_OPTIONS_SORTED } from '../constants'
 import { naturalSort } from '@/lib/natural-sort'
+import { RENCANA_LABEL } from '@/lib/pendidikan-lanjutan'
 import {
   TkaRekapJumlahTemplate,
   TkaRekapKelasTemplate,
@@ -148,6 +149,10 @@ export function CetakRekapModal({
             kelas: key,
             mapel_pilihan1: r.mapel_pilihan1 || '-',
             mapel_pilihan2: r.mapel_pilihan2 || '-',
+            rencana: RENCANA_LABEL[r.rencana_kategori ?? 'KULIAH'],
+            pilihan_pendidikan1: [r.pilihan1_kampus_nama, r.pilihan1_prodi].filter(Boolean).join(' · ') || '-',
+            pilihan_pendidikan2: [r.pilihan2_kampus_nama, r.pilihan2_prodi].filter(Boolean).join(' · ') || '-',
+            catatan_rencana: r.rencana_catatan || '-',
           })),
           jumlah_l: rows.filter(r => r.jenis_kelamin === 'L').length,
           jumlah_p: rows.filter(r => r.jenis_kelamin === 'P').length,

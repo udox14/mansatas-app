@@ -652,7 +652,7 @@ const FEATURE_DOCS: Record<string, { summary: string; sections: string[] }> = {
     summary: 'Pendataan mapel pilihan TKA dan rekapitulasi pemilihan siswa kelas 12.',
     sections: [
       '## Fungsi yang tersedia',
-      '- Mengelola pilihan mapel TKA siswa per kelas.',
+      '- Mengelola pilihan mapel TKA, rencana setelah lulus, serta dua pilihan perguruan tinggi dan program studi siswa.',
       '- Melihat rekapitulasi pemilihan dan mencetak laporan.',
       '## Tab dan tombol',
       '- Tab Mapel Pilihan untuk pendataan pilihan siswa.',
@@ -668,7 +668,7 @@ const FEATURE_DOCS: Record<string, { summary: string; sections: string[] }> = {
     summary: 'Mengelola data penerimaan perguruan tinggi, jalur masuk, status siswa, kampus, dan program studi.',
     sections: [
       '## Fungsi yang tersedia',
-      '- Mencatat siswa yang mendaftar atau diterima di perguruan tinggi.',
+      '- Mencatat rencana setelah lulus serta siswa yang mendaftar atau diterima di perguruan tinggi.',
       '- Mengelola kampus, program studi, jalur, dan status penerimaan.',
       '- Membaca rekap penerimaan PT.',
       '## Tombol dan aksi',

@@ -17,6 +17,8 @@ export type PenerimaanRow = {
   catatan: string | null
   created_at: string
   updated_at: string
+  jenis_data: 'HASIL' | 'PILIHAN_TKA'
+  pilihan_ke: 1 | 2 | null
   // joined
   nama_lengkap?: string
   nisn?: string

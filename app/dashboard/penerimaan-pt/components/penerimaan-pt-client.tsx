@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Combobox } from '@/components/ui/combobox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -29,17 +30,25 @@ import {
   updatePenerimaan,
   hapusPenerimaan,
 } from '../actions'
+import { getRencanaPendidikanSiswa, saveRencanaPendidikanSiswa } from '../rencana-actions'
 import type { JalurPT, StatusPenerimaan, PenerimaanRow } from '../types'
 import { JALUR_LIST, STATUS_LIST } from '../types'
-import kampusData from '@/data/kampus.json'
 import { cn } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
+import {
+  KAMPUS_LIST, PRODI_BY_KAMPUS, RENCANA_OPTIONS,
+} from '@/lib/pendidikan-lanjutan'
+import type { RencanaKategori } from '@/lib/pendidikan-lanjutan'
 
 // ── Types ──────────────────────────────────────────────────────────────
 type Kampus = { id: string; nama: string; singkatan: string; kota: string; provinsi: string; jenis: string }
 type SiswaRow = { id: string; nama_lengkap: string; nisn: string; foto_url: string | null; tingkat: number; nomor_kelas: string; kelas_kelompok: string; jumlah_diterima: number }
 
-const KAMPUS_LIST = kampusData as Kampus[]
+const KAMPUS_COMBO_OPTIONS = KAMPUS_LIST.map(k => ({
+  value: k.id, label: k.nama,
+  keywords: `${k.singkatan} ${k.kota} ${k.provinsi} ${k.npsn ?? ''}`,
+  description: [k.singkatan, k.kota, k.jenis].filter(Boolean).join(' · '),
+}))
 
 // ── Helpers dengan dynamic jalur ──────────────────────────────────────
 function getJalurColor(jalur: string, jalurList: typeof JALUR_LIST) {
@@ -174,6 +183,62 @@ function KampusAutocomplete({
 }
 
 // ── Form Tambah/Edit Penerimaan (menggunakan dynamicJalurList) ─────────
+function RencanaPendidikanEditor({ siswaId, taId }: { siswaId: string; taId: string }) {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [kategori, setKategori] = useState<RencanaKategori>('KULIAH')
+  const [catatan, setCatatan] = useState('')
+  const [kampus1, setKampus1] = useState('')
+  const [kampus2, setKampus2] = useState('')
+  const [prodi1, setProdi1] = useState('')
+  const [prodi2, setProdi2] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    getRencanaPendidikanSiswa(siswaId, taId).then(data => {
+      if (cancelled) return
+      setKategori(data.kategori); setCatatan(data.catatan ?? '')
+      setKampus1(data.pilihan1_kampus_id ?? ''); setProdi1(data.pilihan1_prodi ?? '')
+      setKampus2(data.pilihan2_kampus_id ?? ''); setProdi2(data.pilihan2_prodi ?? '')
+    }).finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [siswaId, taId])
+
+  const changeKategori = (value: RencanaKategori) => {
+    if (value !== 'KULIAH' && (kampus1 || kampus2) && !window.confirm('Pilihan perguruan tinggi akan dihapus. Lanjutkan?')) return
+    setKategori(value)
+    if (value !== 'KULIAH') { setKampus1(''); setKampus2(''); setProdi1(''); setProdi2('') }
+  }
+  const save = async () => {
+    setSaving(true)
+    try {
+      const result = await saveRencanaPendidikanSiswa({
+        siswa_id: siswaId, tahun_ajaran_id: taId, kategori, catatan,
+        pilihan1_kampus_id: kampus1 || null, pilihan1_prodi: prodi1 || null,
+        pilihan2_kampus_id: kampus2 || null, pilihan2_prodi: prodi2 || null,
+      })
+      if (result.error) alert(result.error)
+      else alert('Rencana setelah lulus berhasil disimpan.')
+    } finally { setSaving(false) }
+  }
+
+  if (loading) return <div className="flex justify-center rounded-xl border border-surface p-5"><Loader2 className="h-5 w-5 animate-spin text-indigo-500" /></div>
+  return <div className="space-y-3 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3 dark:border-indigo-900 dark:bg-indigo-950/20">
+    <div className="flex items-center justify-between gap-2"><div><p className="text-xs font-bold text-indigo-700 dark:text-indigo-300">Rencana Setelah Lulus / Pilihan TKA</p><p className="text-[10px] text-slate-500">Data ini tersinkron dengan modul TKA.</p></div><Button type="button" size="sm" onClick={save} disabled={saving} className="h-8 bg-indigo-600 text-xs text-white hover:bg-indigo-700">{saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1 h-3.5 w-3.5" />} Simpan Rencana</Button></div>
+    <Combobox value={kategori} onValueChange={value => changeKategori(value as RencanaKategori)} options={RENCANA_OPTIONS} searchPlaceholder="Cari rencana..." />
+    {kategori !== 'KULIAH' ? <Input value={catatan} onChange={e => setCatatan(e.target.value)} placeholder={kategori === 'LAINNYA' ? 'Catatan wajib...' : 'Catatan opsional...'} className="h-9 text-xs" /> : <div className="grid gap-3 sm:grid-cols-2">
+      <PlanChoice label="Pilihan 1" kampusId={kampus1} prodi={prodi1} onKampus={id => { setKampus1(id); setProdi1('') }} onProdi={setProdi1} />
+      <PlanChoice label="Pilihan 2" kampusId={kampus2} prodi={prodi2} onKampus={id => { setKampus2(id); setProdi2('') }} onProdi={setProdi2} />
+    </div>}
+  </div>
+}
+
+function PlanChoice({ label, kampusId, prodi, onKampus, onProdi }: { label: string; kampusId: string; prodi: string; onKampus: (value: string) => void; onProdi: (value: string) => void }) {
+  const list = kampusId ? PRODI_BY_KAMPUS[kampusId] ?? [] : []
+  return <div className="space-y-1.5"><p className="text-[10px] font-bold uppercase text-slate-500">{label}</p><Combobox value={kampusId} onValueChange={onKampus} options={KAMPUS_COMBO_OPTIONS} placeholder="Pilih perguruan tinggi..." searchPlaceholder="Cari kampus..." maxResults={60} clearable /><Combobox value={prodi} onValueChange={onProdi} options={list.map(item => ({ value: item.nama, label: `${item.nama} (${item.jenjang})`, keywords: item.kode }))} placeholder={!kampusId ? 'Pilih kampus dahulu' : list.length ? 'Pilih program studi...' : 'Prodi tidak tersedia / tidak diperlukan'} searchPlaceholder="Cari program studi..." disabled={!kampusId || !list.length} maxResults={80} clearable /></div>
+}
+
 function FormPenerimaan({
   siswa, taId, jalurDefault, editData, onSaved, onClose,
   dynamicJalurList,
@@ -197,6 +262,7 @@ function FormPenerimaan({
 
   const handleSave = async () => {
     if (!kampus) { alert('Pilih kampus terlebih dahulu.'); return }
+    if ((PRODI_BY_KAMPUS[kampus.id] ?? []).length > 0 && !prodi) { alert('Pilih program studi terlebih dahulu.'); return }
     setIsSaving(true)
     try {
       if (editData) {
@@ -244,14 +310,29 @@ function FormPenerimaan({
 
       <div className="space-y-1.5">
         <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Perguruan Tinggi <span className="text-rose-500">*</span></label>
-        <KampusAutocomplete value={kampus} onChange={setKampus} />
+        <Combobox
+          value={kampus?.id ?? ''}
+          onValueChange={id => { setKampus(KAMPUS_LIST.find(item => item.id === id) ?? null); setProdi('') }}
+          options={KAMPUS_COMBO_OPTIONS}
+          placeholder="Pilih perguruan tinggi / institusi..."
+          searchPlaceholder="Cari nama, singkatan, kota..."
+          maxResults={60}
+          clearable
+        />
       </div>
 
       <div className="space-y-1.5">
         <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Program Studi <span className="text-slate-400 font-normal">(opsional)</span></label>
-        <Input value={prodi} onChange={e => setProdi(e.target.value)}
-          placeholder="Contoh: Teknik Informatika, Pendidikan Matematika..."
-          className="h-9 text-sm rounded-xl bg-surface-2 border-surface" />
+        <Combobox
+          value={prodi}
+          onValueChange={setProdi}
+          options={(kampus ? PRODI_BY_KAMPUS[kampus.id] ?? [] : []).map(item => ({ value: item.nama, label: `${item.nama} (${item.jenjang})`, keywords: item.kode }))}
+          placeholder={!kampus ? 'Pilih kampus dahulu' : (PRODI_BY_KAMPUS[kampus.id] ?? []).length ? 'Pilih program studi...' : 'Prodi tidak tersedia / tidak diperlukan'}
+          searchPlaceholder="Cari program studi..."
+          disabled={!kampus || (PRODI_BY_KAMPUS[kampus.id] ?? []).length === 0}
+          maxResults={80}
+          clearable
+        />
       </div>
 
       <div className="space-y-1.5">
@@ -307,6 +388,9 @@ function ModalInputPenerimaan({ siswa, taId, jalurDefault, editData, onSaved, on
         </DialogHeader>
         <ScrollArea className="max-h-[80vh]">
           <div className="px-5 py-5">
+            <div className="mb-5">
+              <RencanaPendidikanEditor siswaId={siswa.id} taId={taId} />
+            </div>
             <FormPenerimaan
               siswa={siswa}
               taId={taId}

@@ -24,7 +24,7 @@ export default async function PenerimaanPTPage() {
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
         title="Penerimaan Perguruan Tinggi"
-        description="Data siswa kelas 12 yang diterima di perguruan tinggi per jalur seleksi."
+        description="Rencana pendidikan dan data siswa kelas 12 yang diterima di perguruan tinggi."
         icon={GraduationCap}
         iconColor="text-indigo-500"
       />

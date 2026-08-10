@@ -17,6 +17,10 @@ export type TkaSiswaPrintRow = {
   kelas: string
   mapel_pilihan1: string
   mapel_pilihan2: string
+  rencana: string
+  pilihan_pendidikan1: string
+  pilihan_pendidikan2: string
+  catatan_rencana: string
 }
 
 export type TkaSiswaMapelPrintRow = {
@@ -236,8 +240,12 @@ export const TkaRekapKelasTemplate = React.forwardRef<HTMLDivElement, KelasProps
             <col />
             <col style={{ width: '30pt' }} />
             <col style={{ width: '70pt' }} />
-            <col style={{ width: '115pt' }} />
-            <col style={{ width: '115pt' }} />
+            <col style={{ width: '68pt' }} />
+            <col style={{ width: '68pt' }} />
+            <col style={{ width: '55pt' }} />
+            <col style={{ width: '98pt' }} />
+            <col style={{ width: '98pt' }} />
+            <col style={{ width: '62pt' }} />
           </colgroup>
           <thead>
             <tr>
@@ -248,6 +256,10 @@ export const TkaRekapKelasTemplate = React.forwardRef<HTMLDivElement, KelasProps
               <th style={thStyle}>Kelas</th>
               <th style={thStyle}>Mapel Pilihan 1</th>
               <th style={thStyle}>Mapel Pilihan 2</th>
+              <th style={thStyle}>Rencana</th>
+              <th style={thStyle}>Pilihan Pendidikan 1</th>
+              <th style={thStyle}>Pilihan Pendidikan 2</th>
+              <th style={thStyle}>Catatan</th>
             </tr>
           </thead>
           <tbody>
@@ -260,6 +272,10 @@ export const TkaRekapKelasTemplate = React.forwardRef<HTMLDivElement, KelasProps
                 <td style={{ ...tdStyle, textAlign: 'center' }}>{s.kelas}</td>
                 <td style={{ ...tdStyle, paddingLeft: '5pt' }}>{s.mapel_pilihan1}</td>
                 <td style={{ ...tdStyle, paddingLeft: '5pt' }}>{s.mapel_pilihan2}</td>
+                <td style={{ ...tdStyle, paddingLeft: '5pt', fontSize: '7pt' }}>{s.rencana}</td>
+                <td style={{ ...tdStyle, paddingLeft: '5pt', fontSize: '7pt', whiteSpace: 'normal' }}>{s.pilihan_pendidikan1}</td>
+                <td style={{ ...tdStyle, paddingLeft: '5pt', fontSize: '7pt', whiteSpace: 'normal' }}>{s.pilihan_pendidikan2}</td>
+                <td style={{ ...tdStyle, paddingLeft: '5pt', fontSize: '7pt', whiteSpace: 'normal' }}>{s.catatan_rencana}</td>
               </tr>
             ))}
           </tbody>

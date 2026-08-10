@@ -1,368 +1,170 @@
-// Lokasi: app/dashboard/tka/components/tab-mapel-pilihan.tsx
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { AlertCircle, CheckCircle2, Loader2, Save, Search, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, Save, Loader2, CheckCircle2, AlertCircle, Users, X } from 'lucide-react'
-import {
-  getSiswaByKelasForTka,
-  searchSiswaKelas12ForTka,
-  batchSaveMapelPilihan,
-} from '../actions'
-import type { KelasItem, TkaMapelRow } from '../actions'
-import { MAPEL_PILIHAN_OPTIONS_SORTED } from '../constants'
-import { naturalSort } from '@/lib/natural-sort'
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
+import { naturalSort } from '@/lib/natural-sort'
+import {
+  KAMPUS_LIST, PRODI_BY_KAMPUS, RENCANA_OPTIONS,
+  getProdiByValue, getProdiValueByName, prodiValue,
+} from '@/lib/pendidikan-lanjutan'
+import type { RencanaKategori } from '@/lib/pendidikan-lanjutan'
+import { MAPEL_PILIHAN_OPTIONS_SORTED } from '../constants'
+import { batchSaveMapelPilihan, getSiswaByKelasForTka, searchSiswaKelas12ForTka } from '../actions'
+import type { KelasItem, TkaMapelRow } from '../actions'
 
-interface Props {
-  tahunAjaranId: string
-  kelasList: KelasItem[]
-}
-
+interface Props { tahunAjaranId: string; kelasList: KelasItem[] }
 type LocalRow = TkaMapelRow & { _dirty?: boolean }
 
-const NONE_VALUE = '__none__'
-
 const kelasLabel = (k: KelasItem) => `${k.tingkat}-${k.nomor_kelas} ${k.kelompok}`
-
-// Urutkan kelas secara natural (tingkat, nomor_kelas, kelompok)
-function sortKelasList(list: KelasItem[]): KelasItem[] {
-  return naturalSort(list, k => `${k.tingkat}|${k.nomor_kelas}|${k.kelompok}`)
-}
-
-function sortRows(rows: LocalRow[]): LocalRow[] {
-  return naturalSort(rows, r => r.nama_lengkap)
-}
+const KAMPUS_OPTIONS: ComboboxOption[] = KAMPUS_LIST.map(kampus => ({
+  value: kampus.id,
+  label: kampus.nama,
+  keywords: `${kampus.singkatan} ${kampus.kota} ${kampus.provinsi} ${kampus.npsn ?? ''}`,
+  description: [kampus.singkatan, kampus.kota, kampus.jenis].filter(Boolean).join(' · '),
+}))
 
 export function TabMapelPilihan({ tahunAjaranId, kelasList }: Props) {
   const [selectedKelasId, setSelectedKelasId] = useState('')
-  const [searchQuery, setSearchQuery]         = useState('')
-  const [rows, setRows]                       = useState<LocalRow[]>([])
-  const [loading, setLoading]                 = useState(false)
-  const [saving, setSaving]                   = useState(false)
-  const [mode, setMode]                       = useState<'idle' | 'kelas' | 'search'>('idle')
-  const [toast, setToast]                     = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
-  const searchRef = useRef<HTMLInputElement>(null)
-
-  const sortedKelas = sortKelasList(kelasList)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [rows, setRows] = useState<LocalRow[]>([])
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [mode, setMode] = useState<'idle' | 'kelas' | 'search'>('idle')
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
+  const sortedKelas = useMemo(() => naturalSort(kelasList, k => `${k.tingkat}|${k.nomor_kelas}|${k.kelompok}`), [kelasList])
 
   const showToast = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg })
     setTimeout(() => setToast(null), 3500)
   }
+  const setLoadedRows = (data: TkaMapelRow[]) => setRows(naturalSort(data.map(row => ({ ...row, _dirty: false })), row => row.nama_lengkap))
 
   const handleKelasChange = useCallback(async (kelasId: string) => {
-    setSelectedKelasId(kelasId)
-    setSearchQuery('')
-    setMode('kelas')
-    setRows([])
+    setSelectedKelasId(kelasId); setSearchQuery(''); setRows([]); setMode(kelasId ? 'kelas' : 'idle')
     if (!kelasId) return
     setLoading(true)
-    try {
-      const data = await getSiswaByKelasForTka(kelasId, tahunAjaranId)
-      setRows(sortRows(data.map(r => ({ ...r, _dirty: false }))))
-    } catch (e: any) {
-      showToast('error', `Gagal memuat siswa: ${e.message}`)
-    } finally {
-      setLoading(false)
-    }
+    try { setLoadedRows(await getSiswaByKelasForTka(kelasId, tahunAjaranId)) }
+    catch (error: any) { showToast('error', `Gagal memuat siswa: ${error.message}`) }
+    finally { setLoading(false) }
   }, [tahunAjaranId])
 
-  const handleSearch = useCallback(async (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter') return
-    const q = searchQuery.trim()
-    if (!q) return
-    setSelectedKelasId('')
-    setMode('search')
-    setRows([])
-    setLoading(true)
-    try {
-      const data = await searchSiswaKelas12ForTka(q, tahunAjaranId)
-      setRows(sortRows(data.map(r => ({ ...r, _dirty: false }))))
-    } catch (e: any) {
-      showToast('error', `Gagal mencari siswa: ${e.message}`)
-    } finally {
-      setLoading(false)
-    }
-  }, [searchQuery, tahunAjaranId])
-
-  const handleClearSearch = () => {
-    setSearchQuery('')
-    setRows([])
-    setMode('idle')
+  const handleSearch = async (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || !searchQuery.trim()) return
+    setSelectedKelasId(''); setRows([]); setMode('search'); setLoading(true)
+    try { setLoadedRows(await searchSiswaKelas12ForTka(searchQuery.trim(), tahunAjaranId)) }
+    catch (error: any) { showToast('error', `Gagal mencari siswa: ${error.message}`) }
+    finally { setLoading(false) }
   }
 
-  const updateRow = (siswaId: string, field: 'mapel_pilihan1' | 'mapel_pilihan2', value: string) => {
-    setRows(prev => prev.map(r =>
-      r.siswa_id === siswaId
-        ? { ...r, [field]: value === NONE_VALUE ? null : value, _dirty: true }
-        : r
-    ))
+  const patchRow = (siswaId: string, patch: Partial<LocalRow>) => setRows(current => current.map(row =>
+    row.siswa_id === siswaId ? { ...row, ...patch, _dirty: true } : row
+  ))
+  const setRencana = (row: LocalRow, kategori: RencanaKategori) => {
+    if (kategori !== 'KULIAH' && (row.pilihan1_kampus_id || row.pilihan2_kampus_id)
+      && !window.confirm('Pilihan perguruan tinggi akan dihapus. Lanjutkan?')) return
+    patchRow(row.siswa_id, {
+      rencana_kategori: kategori,
+      ...(kategori !== 'KULIAH' ? {
+        pilihan1_kampus_id: null, pilihan1_kampus_nama: null, pilihan1_prodi: null,
+        pilihan2_kampus_id: null, pilihan2_kampus_nama: null, pilihan2_prodi: null,
+      } : {}),
+    })
+  }
+  const setKampus = (row: LocalRow, slot: 1 | 2, kampusId: string) => {
+    const kampus = KAMPUS_LIST.find(item => item.id === kampusId)
+    patchRow(row.siswa_id, slot === 1 ? {
+      rencana_kategori: 'KULIAH', rencana_catatan: null,
+      pilihan1_kampus_id: kampusId || null, pilihan1_kampus_nama: kampus?.nama ?? null, pilihan1_prodi: null,
+    } : {
+      rencana_kategori: 'KULIAH', rencana_catatan: null,
+      pilihan2_kampus_id: kampusId || null, pilihan2_kampus_nama: kampus?.nama ?? null, pilihan2_prodi: null,
+    })
   }
 
-  const dirtyRows = rows.filter(r => r._dirty)
-
+  const dirtyRows = rows.filter(row => row._dirty)
   const handleSave = async () => {
     if (!dirtyRows.length) return
     setSaving(true)
     try {
-      const result = await batchSaveMapelPilihan(
-        dirtyRows.map(r => ({
-          siswa_id:       r.siswa_id,
-          mapel_pilihan1: r.mapel_pilihan1 ?? null,
-          mapel_pilihan2: r.mapel_pilihan2 ?? null,
-        })),
-        tahunAjaranId
-      )
-      if (result.success) {
-        setRows(prev => prev.map(r => ({ ...r, _dirty: false })))
-        showToast('success', `${result.saved} data berhasil disimpan`)
-      } else {
-        showToast('error', result.error ?? 'Gagal menyimpan')
-      }
-    } finally {
-      setSaving(false)
-    }
+      const result = await batchSaveMapelPilihan(dirtyRows.map(row => ({
+        siswa_id: row.siswa_id,
+        mapel_pilihan1: row.mapel_pilihan1,
+        mapel_pilihan2: row.mapel_pilihan2,
+        rencana_kategori: row.rencana_kategori ?? 'KULIAH',
+        rencana_catatan: row.rencana_catatan,
+        pilihan1_kampus_id: row.pilihan1_kampus_id,
+        pilihan1_prodi: row.pilihan1_prodi,
+        pilihan2_kampus_id: row.pilihan2_kampus_id,
+        pilihan2_prodi: row.pilihan2_prodi,
+      })), tahunAjaranId)
+      if (!result.success) throw new Error(result.error || 'Gagal menyimpan')
+      setRows(current => current.map(row => ({ ...row, _dirty: false })))
+      showToast('success', `${result.saved} data berhasil disimpan`)
+    } catch (error: any) { showToast('error', error.message || 'Gagal menyimpan') }
+    finally { setSaving(false) }
   }
 
-  return (
-    <div className="space-y-4">
+  return <div className="space-y-4">
+    {toast && <div className={cn('flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm', toast.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400')}>
+      {toast.type === 'success' ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />} {toast.msg}
+    </div>}
 
-      {/* Toast */}
-      {toast && (
-        <div className={cn(
-          'flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm border',
-          toast.type === 'success'
-            ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-400'
-            : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/30 dark:border-red-800 dark:text-red-400'
-        )}>
-          {toast.type === 'success'
-            ? <CheckCircle2 className="h-4 w-4 shrink-0" />
-            : <AlertCircle className="h-4 w-4 shrink-0" />}
-          <span>{toast.msg}</span>
-        </div>
-      )}
-
-      {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-2">
-        {/* Dropdown kelas — sorted by nomor_kelas numerik */}
-        <Select value={selectedKelasId} onValueChange={handleKelasChange}>
-          <SelectTrigger className="sm:w-56 text-sm bg-white dark:bg-slate-900">
-            <SelectValue placeholder="Pilih Kelas 12..." />
-          </SelectTrigger>
-          <SelectContent>
-            {sortedKelas.map(k => (
-              <SelectItem key={k.id} value={k.id}>{kelasLabel(k)}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Search */}
-        <div className="relative flex-1 sm:max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-          <Input
-            ref={searchRef}
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            onKeyDown={handleSearch}
-            placeholder="Cari nama / NISN, Enter..."
-            className="pl-8 pr-8 text-sm bg-white dark:bg-slate-900"
-          />
-          {searchQuery && (
-            <button onClick={handleClearSearch}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 dark:hover:text-slate-300">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-
-        {/* Tombol simpan — warna sky eksplisit agar tidak ikut --primary hitam */}
-        <Button
-          onClick={handleSave}
-          disabled={dirtyRows.length === 0 || saving}
-          size="sm"
-          className="sm:ml-auto bg-sky-500 hover:bg-sky-600 text-white disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-700 dark:disabled:text-slate-500"
-        >
-          {saving
-            ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-            : <Save className="h-3.5 w-3.5 mr-1.5" />}
-          Simpan{dirtyRows.length > 0 ? ` (${dirtyRows.length})` : ''}
-        </Button>
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <Combobox value={selectedKelasId} onValueChange={handleKelasChange} options={sortedKelas.map(k => ({ value: k.id, label: kelasLabel(k) }))} placeholder="Pilih Kelas 12..." searchPlaceholder="Cari kelas..." className="sm:w-56" clearable />
+      <div className="relative flex-1 sm:max-w-xs">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+        <Input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={handleSearch} placeholder="Cari nama / NISN, Enter..." className="pl-8 pr-8" />
+        {searchQuery && <button onClick={() => { setSearchQuery(''); setRows([]); setMode('idle') }} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"><X className="h-3.5 w-3.5" /></button>}
       </div>
-
-      {/* Dirty hint */}
-      {dirtyRows.length > 0 && (
-        <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
-          {dirtyRows.length} perubahan belum disimpan — klik <strong>Simpan</strong>.
-        </div>
-      )}
-
-      {/* Loading */}
-      {loading && (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && rows.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-xl">
-          <Users className="h-10 w-10 text-slate-300 mb-3" />
-          {mode === 'idle' && (
-            <><p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Pilih kelas atau cari nama siswa</p></>
-          )}
-          {mode === 'kelas' && (
-            <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Tidak ada siswa aktif di kelas ini</p>
-          )}
-          {mode === 'search' && (
-            <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Siswa tidak ditemukan</p>
-          )}
-        </div>
-      )}
-
-      {/* ── DESKTOP: tabel (md ke atas) ── */}
-      {!loading && rows.length > 0 && (
-        <>
-          <div className="hidden md:block rounded-xl border border-slate-200 dark:border-slate-800 dark:border-slate-700 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 dark:border-slate-700">
-                    <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5 w-10">#</th>
-                    <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Nama Siswa</th>
-                    <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5 w-[200px]">Mapel Pilihan 1</th>
-                    <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5 w-[200px]">Mapel Pilihan 2</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, idx) => (
-                    <tr key={row.siswa_id}
-                      className={cn(
-                        'border-b border-slate-100 dark:border-slate-800 transition-colors',
-                        row._dirty
-                          ? 'bg-amber-50/60 dark:bg-amber-950/10'
-                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/30'
-                      )}>
-                      <td className="px-4 py-2 text-xs text-slate-400">{idx + 1}</td>
-                      <td className="px-4 py-2">
-                        <div className="flex items-center gap-2">
-                          {row._dirty && <div className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />}
-                          <div>
-                            <p className="font-medium text-slate-800 dark:text-slate-200 text-sm leading-tight">{row.nama_lengkap}</p>
-                            <p className="text-[10px] text-slate-400 font-mono">{row.nisn}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-2">
-                        <MapelSelect
-                          value={row.mapel_pilihan1 ?? NONE_VALUE}
-                          onChange={val => updateRow(row.siswa_id, 'mapel_pilihan1', val)}
-                          placeholder="Pilih Mapel 1..."
-                          excludeValue={row.mapel_pilihan2 ?? undefined}
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <MapelSelect
-                          value={row.mapel_pilihan2 ?? NONE_VALUE}
-                          onChange={val => updateRow(row.siswa_id, 'mapel_pilihan2', val)}
-                          placeholder="Pilih Mapel 2..."
-                          excludeValue={row.mapel_pilihan1 ?? undefined}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-200 dark:border-slate-800 dark:border-slate-700 flex items-center justify-between text-xs text-slate-400">
-              <span>{rows.length} siswa</span>
-              {dirtyRows.length > 0 && <span className="text-amber-500">{dirtyRows.length} belum disimpan</span>}
-            </div>
-          </div>
-
-          {/* ── MOBILE: card list (di bawah md) ── */}
-          <div className="md:hidden space-y-2">
-            {rows.map((row, idx) => (
-              <div key={row.siswa_id}
-                className={cn(
-                  'rounded-xl border p-3 transition-colors',
-                  row._dirty
-                    ? 'border-amber-200 bg-amber-50/60 dark:bg-amber-950/10 dark:border-amber-800'
-                    : 'border-slate-200 dark:border-slate-800 dark:border-slate-700 bg-white dark:bg-slate-900'
-                )}>
-                {/* Header card */}
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs text-slate-400 w-5 shrink-0">{idx + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      {row._dirty && <div className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />}
-                      <p className="font-medium text-slate-800 dark:text-slate-200 text-sm truncate">{row.nama_lengkap}</p>
-                    </div>
-                    <p className="text-[10px] text-slate-400 font-mono">{row.nisn}</p>
-                  </div>
-                </div>
-
-                {/* Dropdown mapel — full width di mobile */}
-                <div className="space-y-2">
-                  <div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide mb-1">Mapel Pilihan 1</p>
-                    <MapelSelect
-                      value={row.mapel_pilihan1 ?? NONE_VALUE}
-                      onChange={val => updateRow(row.siswa_id, 'mapel_pilihan1', val)}
-                      placeholder="Pilih Mapel 1..."
-                      excludeValue={row.mapel_pilihan2 ?? undefined}
-                    />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide mb-1">Mapel Pilihan 2</p>
-                    <MapelSelect
-                      value={row.mapel_pilihan2 ?? NONE_VALUE}
-                      onChange={val => updateRow(row.siswa_id, 'mapel_pilihan2', val)}
-                      placeholder="Pilih Mapel 2..."
-                      excludeValue={row.mapel_pilihan1 ?? undefined}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            <div className="text-xs text-slate-400 text-center py-1">
-              {rows.length} siswa{dirtyRows.length > 0 ? ` · ${dirtyRows.length} belum disimpan` : ''}
-            </div>
-          </div>
-        </>
-      )}
+      <Button onClick={handleSave} disabled={!dirtyRows.length || saving} size="sm" className="sm:ml-auto bg-sky-500 text-white hover:bg-sky-600">
+        {saving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />} Simpan{dirtyRows.length ? ` (${dirtyRows.length})` : ''}
+      </Button>
     </div>
-  )
+
+    {dirtyRows.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400">{dirtyRows.length} perubahan belum disimpan.</div>}
+    {loading && <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-slate-400" /></div>}
+    {!loading && !rows.length && <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-20 text-center dark:border-slate-800"><Users className="mb-3 h-10 w-10 text-slate-300" /><p className="text-sm font-medium text-slate-500">{mode === 'idle' ? 'Pilih kelas atau cari nama siswa' : 'Siswa tidak ditemukan'}</p></div>}
+
+    {!loading && rows.length > 0 && <>
+      <div className="hidden overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 md:block">
+        <div className="overflow-x-auto"><table className="w-full min-w-[1450px] text-sm"><thead><tr className="border-b bg-slate-50 dark:bg-slate-800/50">
+          {['#', 'Nama Siswa', 'Mapel Pilihan 1', 'Mapel Pilihan 2', 'Rencana Setelah Lulus', 'Pilihan Pendidikan 1', 'Pilihan Pendidikan 2'].map(label => <th key={label} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500">{label}</th>)}
+        </tr></thead><tbody>{rows.map((row, index) => <tr key={row.siswa_id} className={cn('border-b border-slate-100 align-top dark:border-slate-800', row._dirty && 'bg-amber-50/60 dark:bg-amber-950/10')}>
+          <td className="px-3 py-3 text-xs text-slate-400">{index + 1}</td>
+          <td className="min-w-[180px] px-3 py-3"><p className="font-medium text-slate-800 dark:text-slate-200">{row.nama_lengkap}</p><p className="font-mono text-[10px] text-slate-400">{row.nisn}</p></td>
+          <td className="w-[190px] px-3 py-3"><MapelBox value={row.mapel_pilihan1} exclude={row.mapel_pilihan2} onChange={value => patchRow(row.siswa_id, { mapel_pilihan1: value })} /></td>
+          <td className="w-[190px] px-3 py-3"><MapelBox value={row.mapel_pilihan2} exclude={row.mapel_pilihan1} onChange={value => patchRow(row.siswa_id, { mapel_pilihan2: value })} /></td>
+          <td className="w-[220px] px-3 py-3"><RencanaBox row={row} onChange={value => setRencana(row, value)} onNote={value => patchRow(row.siswa_id, { rencana_catatan: value })} /></td>
+          <td className="w-[280px] px-3 py-3">{(row.rencana_kategori ?? 'KULIAH') === 'KULIAH' && <PendidikanBox row={row} slot={1} onKampus={id => setKampus(row, 1, id)} onProdi={value => patchRow(row.siswa_id, { pilihan1_prodi: value })} />}</td>
+          <td className="w-[280px] px-3 py-3">{(row.rencana_kategori ?? 'KULIAH') === 'KULIAH' && <PendidikanBox row={row} slot={2} onKampus={id => setKampus(row, 2, id)} onProdi={value => patchRow(row.siswa_id, { pilihan2_prodi: value })} />}</td>
+        </tr>)}</tbody></table></div>
+      </div>
+      <div className="space-y-2 md:hidden">{rows.map((row, index) => <div key={row.siswa_id} className={cn('space-y-3 rounded-xl border p-3', row._dirty ? 'border-amber-200 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/10' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900')}>
+        <div><p className="text-sm font-medium text-slate-800 dark:text-slate-200">{index + 1}. {row.nama_lengkap}</p><p className="font-mono text-[10px] text-slate-400">{row.nisn}</p></div>
+        <Labeled label="Mapel Pilihan 1"><MapelBox value={row.mapel_pilihan1} exclude={row.mapel_pilihan2} onChange={value => patchRow(row.siswa_id, { mapel_pilihan1: value })} /></Labeled>
+        <Labeled label="Mapel Pilihan 2"><MapelBox value={row.mapel_pilihan2} exclude={row.mapel_pilihan1} onChange={value => patchRow(row.siswa_id, { mapel_pilihan2: value })} /></Labeled>
+        <Labeled label="Rencana Setelah Lulus"><RencanaBox row={row} onChange={value => setRencana(row, value)} onNote={value => patchRow(row.siswa_id, { rencana_catatan: value })} /></Labeled>
+        {(row.rencana_kategori ?? 'KULIAH') === 'KULIAH' && <><Labeled label="Pilihan Pendidikan 1"><PendidikanBox row={row} slot={1} onKampus={id => setKampus(row, 1, id)} onProdi={value => patchRow(row.siswa_id, { pilihan1_prodi: value })} /></Labeled><Labeled label="Pilihan Pendidikan 2"><PendidikanBox row={row} slot={2} onKampus={id => setKampus(row, 2, id)} onProdi={value => patchRow(row.siswa_id, { pilihan2_prodi: value })} /></Labeled></>}
+      </div>)}</div>
+    </>}
+  </div>
 }
 
-// ── MapelSelect ───────────────────────────────────────────────────────
-
-function MapelSelect({
-  value, onChange, placeholder, excludeValue,
-}: {
-  value: string
-  onChange: (val: string) => void
-  placeholder: string
-  excludeValue?: string
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-8 text-xs w-full bg-white dark:bg-slate-900">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={NONE_VALUE}>
-          <span className="text-slate-400 italic">— Belum ditentukan —</span>
-        </SelectItem>
-        {MAPEL_PILIHAN_OPTIONS_SORTED
-          .filter(m => m !== excludeValue)
-          .map(m => (
-            <SelectItem key={m} value={m} className="text-xs">{m}</SelectItem>
-          ))}
-      </SelectContent>
-    </Select>
-  )
+function Labeled({ label, children }: { label: string; children: React.ReactNode }) { return <div><p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>{children}</div> }
+function MapelBox({ value, exclude, onChange }: { value: string | null; exclude: string | null; onChange: (value: string | null) => void }) {
+  return <Combobox value={value ?? ''} onValueChange={value => onChange(value || null)} options={MAPEL_PILIHAN_OPTIONS_SORTED.filter(item => item !== exclude).map(item => ({ value: item, label: item }))} placeholder="Belum ditentukan" searchPlaceholder="Cari mapel..." clearable />
+}
+function RencanaBox({ row, onChange, onNote }: { row: LocalRow; onChange: (value: RencanaKategori) => void; onNote: (value: string) => void }) {
+  const kategori = row.rencana_kategori ?? 'KULIAH'
+  return <div className="space-y-1.5"><Combobox value={kategori} onValueChange={value => onChange(value as RencanaKategori)} options={RENCANA_OPTIONS} searchPlaceholder="Cari rencana..." />{kategori !== 'KULIAH' && <Input value={row.rencana_catatan ?? ''} onChange={event => onNote(event.target.value)} placeholder={kategori === 'LAINNYA' ? 'Catatan wajib...' : 'Catatan opsional...'} className="h-9 text-xs" />}</div>
+}
+function PendidikanBox({ row, slot, onKampus, onProdi }: { row: LocalRow; slot: 1 | 2; onKampus: (value: string) => void; onProdi: (value: string | null) => void }) {
+  const kampusId = slot === 1 ? row.pilihan1_kampus_id : row.pilihan2_kampus_id
+  const prodiName = slot === 1 ? row.pilihan1_prodi : row.pilihan2_prodi
+  const prodi = kampusId ? PRODI_BY_KAMPUS[kampusId] ?? [] : []
+  return <div className="space-y-1.5"><Combobox value={kampusId ?? ''} onValueChange={onKampus} options={KAMPUS_OPTIONS} placeholder="Pilih perguruan tinggi..." searchPlaceholder="Cari nama, singkatan, kota..." clearable maxResults={60} /><Combobox value={kampusId ? getProdiValueByName(kampusId, prodiName) : ''} onValueChange={value => onProdi(value && kampusId ? getProdiByValue(kampusId, value)?.nama ?? null : null)} options={prodi.map(item => ({ value: prodiValue(item), label: `${item.nama} (${item.jenjang})`, keywords: item.kode }))} placeholder={!kampusId ? 'Pilih kampus dahulu' : prodi.length ? 'Pilih program studi...' : 'Prodi tidak tersedia / tidak diperlukan'} searchPlaceholder="Cari program studi..." disabled={!kampusId || !prodi.length} clearable maxResults={80} /></div>
 }

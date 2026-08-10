@@ -27,6 +27,7 @@ export async function getSiswaKelas12(tahun_ajaran_id: string) {
     LEFT JOIN penerimaan_pt p ON p.siswa_id = s.id
       AND p.tahun_ajaran_id = ?
       AND p.status = 'DITERIMA'
+      AND p.jenis_data = 'HASIL'
     WHERE k.tingkat = 12
       AND s.status = 'aktif'
     GROUP BY s.id
@@ -52,7 +53,7 @@ export async function getSiswaKelas12Paginated(params: {
       COUNT(CASE WHEN p.status = 'DITERIMA' AND p.jalur = ? THEN 1 END) as jumlah_diterima
     FROM siswa s
     LEFT JOIN kelas k ON s.kelas_id = k.id
-    LEFT JOIN penerimaan_pt p ON p.siswa_id = s.id AND p.tahun_ajaran_id = ?
+    LEFT JOIN penerimaan_pt p ON p.siswa_id = s.id AND p.tahun_ajaran_id = ? AND p.jenis_data = 'HASIL'
     WHERE k.tingkat = 12 AND s.status = 'aktif'
   `
   const binds: any[] = [params.jalur || '', params.tahun_ajaran_id]
@@ -121,7 +122,7 @@ export async function getPenerimaanByJalur(jalur: JalurPT, tahun_ajaran_id: stri
     FROM penerimaan_pt p
     JOIN siswa s ON p.siswa_id = s.id
     LEFT JOIN kelas k ON s.kelas_id = k.id
-    WHERE p.jalur = ? AND p.tahun_ajaran_id = ?
+    WHERE p.jalur = ? AND p.tahun_ajaran_id = ? AND p.jenis_data = 'HASIL'
     ORDER BY s.nama_lengkap ASC
   `).bind(jalur, tahun_ajaran_id).all<PenerimaanRow>()
   return res.results || []
@@ -132,7 +133,7 @@ export async function getPenerimaanSiswa(siswa_id: string, tahun_ajaran_id: stri
   const db = await getDB()
   const res = await db.prepare(`
     SELECT * FROM penerimaan_pt
-    WHERE siswa_id = ? AND tahun_ajaran_id = ?
+    WHERE siswa_id = ? AND tahun_ajaran_id = ? AND jenis_data = 'HASIL'
     ORDER BY jalur ASC, created_at ASC
   `).bind(siswa_id, tahun_ajaran_id).all<PenerimaanRow>()
   return res.results || []
@@ -149,7 +150,7 @@ export async function getPenerimaanByKampus(kampus_id: string, tahun_ajaran_id: 
     FROM penerimaan_pt p
     JOIN siswa s ON p.siswa_id = s.id
     LEFT JOIN kelas k ON s.kelas_id = k.id
-    WHERE p.kampus_id = ? AND p.tahun_ajaran_id = ?
+    WHERE p.kampus_id = ? AND p.tahun_ajaran_id = ? AND p.jenis_data = 'HASIL'
     ORDER BY p.jalur ASC, s.nama_lengkap ASC
   `).bind(kampus_id, tahun_ajaran_id).all<PenerimaanRow>()
   return res.results || []
@@ -166,7 +167,7 @@ export async function getSemuaPenerimaan(tahun_ajaran_id: string) {
     FROM penerimaan_pt p
     JOIN siswa s ON p.siswa_id = s.id
     LEFT JOIN kelas k ON s.kelas_id = k.id
-    WHERE p.tahun_ajaran_id = ?
+    WHERE p.tahun_ajaran_id = ? AND p.jenis_data = 'HASIL'
     ORDER BY p.jalur ASC, s.nama_lengkap ASC
   `).bind(tahun_ajaran_id).all<PenerimaanRow>()
   return res.results || []
@@ -182,21 +183,21 @@ export async function getAnalitikPenerimaan(tahun_ajaran_id: string) {
 
   const perJalur = await db.prepare(`
     SELECT jalur, status, COUNT(*) as total
-    FROM penerimaan_pt WHERE tahun_ajaran_id = ?
+    FROM penerimaan_pt WHERE tahun_ajaran_id = ? AND jenis_data = 'HASIL'
     GROUP BY jalur, status ORDER BY jalur ASC
   `).bind(tahun_ajaran_id).all<{ jalur: string; status: string; total: number }>()
 
   const topKampus = await db.prepare(`
     SELECT kampus_id, kampus_nama, COUNT(*) as total
     FROM penerimaan_pt
-    WHERE tahun_ajaran_id = ? AND status = 'DITERIMA'
+    WHERE tahun_ajaran_id = ? AND status = 'DITERIMA' AND jenis_data = 'HASIL'
     GROUP BY kampus_id, kampus_nama
     ORDER BY total DESC
     LIMIT 15
   `).bind(tahun_ajaran_id).all<{ kampus_id: string; kampus_nama: string; total: number }>()
 
   const sudahData = await db
-    .prepare(`SELECT COUNT(DISTINCT siswa_id) as total FROM penerimaan_pt WHERE tahun_ajaran_id = ?`)
+    .prepare(`SELECT COUNT(DISTINCT siswa_id) as total FROM penerimaan_pt WHERE tahun_ajaran_id = ? AND jenis_data = 'HASIL'`)
     .bind(tahun_ajaran_id)
     .first<{ total: number }>()
 
@@ -222,6 +223,7 @@ export async function tambahPenerimaan(payload: {
   const db = await getDB()
   const result = await dbInsert(db, 'penerimaan_pt', {
     ...payload,
+    jenis_data: 'HASIL',
     program_studi: payload.program_studi || null,
     catatan: payload.catatan || null,
   })
@@ -301,6 +303,7 @@ export async function importPenerimaanFromData(
       .prepare(`
         SELECT id FROM penerimaan_pt
         WHERE siswa_id = ? AND tahun_ajaran_id = ? AND jalur = ? AND kampus_id = ?
+          AND jenis_data = 'HASIL'
       `)
       .bind(siswa.id, tahun_ajaran_id, item.jalur, item.kampus_id)
       .first<{ id: string }>()
@@ -312,6 +315,7 @@ export async function importPenerimaanFromData(
         program_studi: item.program_studi || null,
         status: item.status,
         catatan: null,
+        jenis_data: 'HASIL',
         updated_at: new Date().toISOString(),
       }, { id: existing.id })
       results.success++
