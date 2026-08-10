@@ -19,6 +19,8 @@ interface ComboboxProps {
   searchPlaceholder?: string
   emptyText?: string
   className?: string
+  triggerClassName?: string
+  contentClassName?: string
   disabled?: boolean
   clearable?: boolean
   maxResults?: number
@@ -33,6 +35,8 @@ export function Combobox({
   searchPlaceholder = 'Cari...',
   emptyText = 'Tidak ditemukan',
   className,
+  triggerClassName,
+  contentClassName,
   disabled = false,
   clearable = false,
   maxResults = 100,
@@ -91,7 +95,8 @@ export function Combobox({
         onClick={() => { setHighlightedIndex(0); setIsOpen((prev) => !prev) }}
         className={cn(
           'flex h-9 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-950 dark:ring-offset-slate-950 dark:placeholder:text-slate-400 dark:focus:ring-slate-300 text-slate-900 dark:text-slate-100 text-left',
-          !selectedOption && 'text-slate-500 dark:text-slate-400'
+          !selectedOption && 'text-slate-500 dark:text-slate-400',
+          triggerClassName
         )}
       >
         <span className="truncate">{loading ? 'Memuat...' : selectedOption ? selectedOption.label : placeholder}</span>
@@ -111,7 +116,7 @@ export function Combobox({
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full z-50 mt-1 max-h-60 w-full min-w-[200px] overflow-hidden rounded-md border border-slate-200 bg-white p-1 text-slate-950 shadow-md dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50 animate-in fade-in-0 zoom-in-95">
+        <div className={cn('absolute left-0 top-full z-50 mt-1 max-h-60 w-full min-w-[200px] overflow-hidden rounded-md border border-slate-200 bg-white p-1 text-slate-950 shadow-md dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50 animate-in fade-in-0 zoom-in-95', contentClassName)}>
           <div className="flex items-center border-b border-slate-100 dark:border-slate-800 px-2 pb-1.5 pt-1">
             <Search className="mr-2 h-3.5 w-3.5 shrink-0 opacity-50" />
             <input
