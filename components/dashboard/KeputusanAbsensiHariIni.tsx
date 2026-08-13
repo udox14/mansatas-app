@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   CheckCircle2,
   ClipboardCheck,
+  History,
   Loader2,
   MessageSquare,
   ShieldAlert,
@@ -12,25 +13,20 @@ import {
   XCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { simpanKeputusanAbsensiWaliBatch } from '@/app/dashboard/kelas-binaan/attendance-actions'
+import {
+  getKeputusanAbsensiHistory,
+  simpanKeputusanAbsensiWaliBatch,
+  type KeputusanAbsensiHistoryRow,
+} from '@/app/dashboard/kelas-binaan/attendance-actions'
+import {
+  attendanceSourceLabel,
+  attendanceStatusLabel,
+  type FinalAttendanceSource,
+  type FinalAttendanceStatus,
+} from '@/lib/attendance-status'
 
-type FinalStatus =
-  | 'HADIR'
-  | 'SAKIT'
-  | 'IZIN'
-  | 'ALFA'
-  | 'PARSIAL'
-  | 'PERLU_KONFIRMASI_WALI'
-  | 'BELUM_ADA_INPUT'
-  | 'BELUM_ADA_DATA'
-
-type SourceStatus =
-  | 'guru'
-  | 'wali_kelas'
-  | 'koreksi_wali_kelas'
-  | 'perlu_konfirmasi_wali'
-  | 'belum_ada_input'
-  | 'belum_ada_data'
+type FinalStatus = FinalAttendanceStatus
+type SourceStatus = FinalAttendanceSource
 
 type WaliStatus = 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'
 
@@ -39,10 +35,15 @@ export type KeputusanAbsensiRow = {
   nama_lengkap: string
   nisn: string
   total_blok: number
+  submitted_blok: number
+  pending_blok: number
   guru_status: FinalStatus
+  guru_status_reason: string
   wali_status: WaliStatus | null
   status_akhir: FinalStatus
   sumber_status: SourceStatus
+  status_reason: string
+  requires_wali_decision: boolean
   keterangan_wali_kelas: string | null
   detail_guru: Array<{
     status: string
@@ -67,27 +68,6 @@ const STATUS_OPTIONS: Array<{ status: WaliStatus; label: string; icon: any; clas
   { status: 'IZIN', label: 'Izin', icon: ShieldAlert, className: 'border-blue-200 text-blue-700 hover:bg-blue-50' },
   { status: 'ALFA', label: 'Alfa', icon: XCircle, className: 'border-rose-200 text-rose-700 hover:bg-rose-50' },
 ]
-
-function statusLabel(status: string | null | undefined) {
-  if (status === 'HADIR') return 'Hadir'
-  if (status === 'SAKIT') return 'Sakit'
-  if (status === 'IZIN') return 'Izin'
-  if (status === 'ALFA') return 'Alfa'
-  if (status === 'PARSIAL') return 'Bolos'
-  if (status === 'PERLU_KONFIRMASI_WALI') return 'Perlu Keputusan Wali'
-  if (status === 'BELUM_ADA_INPUT') return 'Belum Ada Input'
-  return 'Belum Lengkap'
-}
-
-function sourceLabel(source: string) {
-  if (source === 'perizinan_sekolah') return 'Perizinan Sekolah'
-  if (source === 'wali_kelas') return 'Wali Kelas'
-  if (source === 'koreksi_wali_kelas') return 'Koreksi Wali'
-  if (source === 'guru') return 'Guru'
-  if (source === 'perlu_konfirmasi_wali') return 'Perlu Keputusan Wali'
-  if (source === 'belum_ada_input') return 'Belum Ada Input'
-  return 'Belum Lengkap'
-}
 
 function badgeClass(status: string) {
   if (status === 'HADIR') return 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -121,6 +101,8 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
     draft_keterangan: row.keterangan_wali_kelas || '',
   })))
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [historyByStudent, setHistoryByStudent] = useState<Record<string, KeputusanAbsensiHistoryRow[]>>({})
+  const [historyLoading, setHistoryLoading] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -145,6 +127,19 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
     setItems(prev => prev.map(item => item.siswa_id === siswaId ? { ...item, draft_keterangan: value } : item))
     setHasChanges(true)
     setMessage(null)
+  }
+
+  const toggleExpanded = async (siswaId: string) => {
+    if (expanded === siswaId) {
+      setExpanded(null)
+      return
+    }
+    setExpanded(siswaId)
+    if (historyByStudent[siswaId]) return
+    setHistoryLoading(siswaId)
+    const result = await getKeputusanAbsensiHistory(siswaId, tanggal)
+    setHistoryByStudent(prev => ({ ...prev, [siswaId]: result.history || [] }))
+    setHistoryLoading(null)
   }
 
   const save = () => {
@@ -224,11 +219,13 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
                           {row.nama_lengkap}
                         </p>
                         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(finalStatus)}`}>
-                          {statusLabel(finalStatus)}
+                          {attendanceStatusLabel(finalStatus)}
                         </span>
-                        <span className="text-[10px] text-slate-400">{sourceLabel(row.sumber_status)}</span>
+                        <span className="text-[10px] text-slate-400">{attendanceSourceLabel(row.sumber_status)}</span>
                       </div>
                       <p className="mt-0.5 text-[11px] text-slate-400">{row.nisn}</p>
+                      <p className="mt-1 text-[11px] text-slate-500">{row.status_reason}</p>
+                      <p className="mt-0.5 text-[10px] text-slate-400">{row.submitted_blok}/{row.total_blok} blok disubmit</p>
 
                       <div className="mt-2 space-y-1">
                         {row.detail_guru.length === 0 ? (
@@ -238,7 +235,7 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
                             <div key={`${row.siswa_id}-${detail.nama_mapel}-${detailIndex}`} className="rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-2 text-[11px] text-slate-600 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
                               <span className="font-semibold">{detail.nama_mapel}</span>
                               <span className="text-slate-400"> Jam ke-{detail.jam_ke_mulai === detail.jam_ke_selesai ? detail.jam_ke_mulai : `${detail.jam_ke_mulai}-${detail.jam_ke_selesai}`}</span>
-                              <span className={`ml-2 rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${badgeClass(detail.status)}`}>{statusLabel(detail.status)}</span>
+                              <span className={`ml-2 rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${badgeClass(detail.status)}`}>{attendanceStatusLabel(detail.status)}</span>
                               {detail.catatan ? <span className="ml-1 text-slate-500">Catatan: {detail.catatan}</span> : null}
                             </div>
                           ))
@@ -277,22 +274,39 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
                         )}
                         <button
                           type="button"
-                          onClick={() => setExpanded(isExpanded ? null : row.siswa_id)}
+                          onClick={() => toggleExpanded(row.siswa_id)}
                           className="col-span-2 inline-flex items-center justify-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 sm:col-span-auto"
                         >
                           <MessageSquare className="h-3 w-3" />
-                          Catatan
+                          Catatan & Riwayat
                         </button>
                       </div>
 
                       {(isExpanded || row.draft_keterangan) && (
-                        <input
-                          type="text"
-                          value={row.draft_keterangan}
-                          onChange={event => setKeterangan(row.siswa_id, event.target.value)}
-                          placeholder="Catatan keputusan wali kelas..."
-                          className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-purple-300 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
-                        />
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            value={row.draft_keterangan}
+                            onChange={event => setKeterangan(row.siswa_id, event.target.value)}
+                            placeholder="Catatan keputusan wali kelas..."
+                            className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-purple-300 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+                          />
+                          {isExpanded && (
+                            <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-[10px] text-slate-500 dark:border-slate-800 dark:bg-slate-900/60">
+                              <p className="mb-1 flex items-center gap-1 font-semibold text-slate-600 dark:text-slate-300"><History className="h-3 w-3" /> Riwayat keputusan</p>
+                              {historyLoading === row.siswa_id ? <p>Memuat riwayat...</p> : (historyByStudent[row.siswa_id] || []).length === 0 ? <p>Belum ada perubahan yang tercatat.</p> : (
+                                <div className="space-y-1.5">
+                                  {(historyByStudent[row.siswa_id] || []).slice(0, 5).map(item => (
+                                    <div key={item.id} className="border-t border-slate-200 pt-1 first:border-0 first:pt-0">
+                                      <p>{item.actor_name || 'Pengguna'} · {new Date(item.created_at).toLocaleString('id-ID')}</p>
+                                      <p>{item.before.status ? attendanceStatusLabel(item.before.status) : 'Ikuti Guru'} → {item.after.status ? attendanceStatusLabel(item.after.status) : 'Ikuti Guru'}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>

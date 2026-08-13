@@ -46,6 +46,7 @@ import { PARENT_SUGGESTION_CATEGORIES } from '@/lib/parent-suggestions'
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
 import { MarkdownViewer } from '@/components/documentation/markdown-viewer'
 import { currentTimeWIB, formatDateTimeWIB, formatDateWIB } from '@/lib/time'
+import { attendanceSourceLabel, attendanceStatusLabel } from '@/lib/attendance-status'
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
@@ -911,7 +912,16 @@ export function PortalOrtuClient({ data }: { data: any }) {
                     {recentAttendanceRows.map((row: any, index: number) => {
                       const meta = statusMeta[row.status_akhir] || statusMeta.BELUM_ADA_DATA
                       const note = row.keterangan_wali_kelas || row.detail_guru?.find((detail: any) => detail.catatan)?.catatan
-                      return <div key={`${row.tanggal}-${index}`} className="flex items-start gap-3 p-4"><span className={`mt-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.className}`}>{meta.label}</span><div className="min-w-0 flex-1"><p className="text-sm font-bold text-slate-800">{formatDateWIB(row.tanggal)}</p>{note && <p className="mt-1 text-xs leading-5 text-slate-500">{note}</p>}</div></div>
+                      return <div key={`${row.tanggal}-${index}`} className="flex items-start gap-3 p-4">
+                        <span className={`mt-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.className}`}>{attendanceStatusLabel(row.status_akhir)}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-slate-800">{formatDateWIB(row.tanggal)}</p>
+                          <p className="mt-0.5 text-[10px] font-semibold text-slate-400">Status final harian · {attendanceSourceLabel(row.sumber_status)} · {row.submitted_blok || 0}/{row.total_blok || 0} blok disubmit</p>
+                          {row.status_reason && <p className="mt-1 text-xs leading-5 text-slate-600">{row.status_reason}</p>}
+                          {row.detail_guru?.length > 0 && <p className="mt-1 text-[10px] leading-4 text-slate-400">Status per jam: {row.detail_guru.map((detail: any) => `${detail.nama_mapel || 'Pelajaran'} ${detail.status}`).join(' · ')}</p>}
+                          {note && <p className="mt-1 text-xs leading-5 text-slate-500">{note}</p>}
+                        </div>
+                      </div>
                     })}
                   </div>
                 )}

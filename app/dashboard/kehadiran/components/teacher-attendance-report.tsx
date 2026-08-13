@@ -108,6 +108,7 @@ export function TeacherAttendanceReportPanel() {
         ['Guru', report.guru?.nama_lengkap || '-'],
         ['Periode', `${formatDate(report.start_date)} s.d. ${formatDate(report.end_date)}`],
         ['Lingkup', scope ? `${scope.mapel_nama} - ${scope.kelas_label}` : 'Semua sesi mengajar'],
+        ['Catatan', 'Berbasis input guru per sesi; bukan status final harian siswa.'],
         [],
         ['No', 'Mata Pelajaran', 'Kelas', 'Nama Siswa', 'NISN', 'Total Sesi', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Kehadiran (%)'],
         ...report.rows.map((row, index) => [
@@ -120,8 +121,8 @@ export function TeacherAttendanceReportPanel() {
         { wch: 6 }, { wch: 24 }, { wch: 14 }, { wch: 34 }, { wch: 18 },
         { wch: 12 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 9 }, { wch: 16 },
       ]
-      summarySheet['!autofilter'] = { ref: `A6:K${Math.max(6, summaryData.length)}` }
-      for (let rowNumber = 7; rowNumber <= summaryData.length; rowNumber++) {
+      summarySheet['!autofilter'] = { ref: `A7:K${Math.max(7, summaryData.length)}` }
+      for (let rowNumber = 8; rowNumber <= summaryData.length; rowNumber++) {
         const cell = summarySheet[`E${rowNumber}`]
         if (cell) { cell.t = 's'; cell.z = '@' }
       }
@@ -176,6 +177,7 @@ export function TeacherAttendanceReportPanel() {
           <CalendarRange className="mt-0.5 h-4 w-4 text-blue-600" />
           <div>
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Rekap sesi mengajar saya</p>
+            <p className="text-[11px] text-slate-500">Laporan ini menampilkan input guru per sesi, bukan status final harian siswa.</p>
             <p className="text-xs text-slate-500">Bersumber langsung dari absensi yang disimpan pada setiap sesi guru, bukan dari keputusan harian wali kelas.</p>
           </div>
         </div>

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   ArrowLeft, ChevronDown, ChevronRight, Clock,
-  Loader2, Printer, Search, User, Users,
+  FileSpreadsheet, Loader2, Printer, Search, User, Users,
 } from 'lucide-react'
 import {
   getAbsensiHeatmap,
@@ -23,6 +23,8 @@ import {
   getSiswaByKelas,
 } from '../actions'
 import { todayWIB, nowWIB, formatTimeWIB } from '@/lib/time'
+import { attendanceSourceLabel, attendanceStatusCode, attendanceStatusLabel } from '@/lib/attendance-status'
+import { downloadAttendanceWorkbook } from '@/lib/attendance-xlsx'
 
 type FilterOpt = {
   angkatan: number[]
@@ -32,6 +34,15 @@ type FilterOpt = {
 
 type Mode = 'hari' | 'rentang'
 type TabValue = 'kelas' | 'siswa' | 'jam' | 'cetak'
+type PrintPaper = 'A4' | 'F4'
+type PrintOrientation = 'portrait' | 'landscape'
+
+function printDimensions(paper: PrintPaper, orientation: PrintOrientation) {
+  const base = paper === 'A4' ? { width: 210, height: 297 } : { width: 215, height: 330 }
+  return orientation === 'portrait'
+    ? { width: base.width, height: base.height }
+    : { width: base.height, height: base.width }
+}
 
 interface Props {
   filterOptions: FilterOpt
@@ -44,8 +55,8 @@ const ST: Record<string, { label: string; cls: string; dot: string; short: strin
   ALFA: { label: 'Alfa', short: 'A', dot: 'bg-red-500', cls: 'bg-red-50 text-red-700 border-red-200' },
   BOLOS: { label: 'Bolos sebagian jam', short: 'B', dot: 'bg-yellow-500', cls: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
   PARSIAL: { label: 'Bolos sebagian jam', short: 'B', dot: 'bg-yellow-500', cls: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
-  'PERLU KONFIRMASI WALI': { label: 'Perlu keputusan wali kelas', short: 'W', dot: 'bg-purple-500', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
-  PERLU_KONFIRMASI_WALI: { label: 'Perlu keputusan wali kelas', short: 'W', dot: 'bg-purple-500', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
+  'PERLU KONFIRMASI WALI': { label: 'Perlu keputusan wali kelas', short: 'K', dot: 'bg-purple-500', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
+  PERLU_KONFIRMASI_WALI: { label: 'Perlu keputusan wali kelas', short: 'K', dot: 'bg-purple-500', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
   'BELUM ADA INPUT': { label: 'Belum ada input', short: 'BI', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
   BELUM_ADA_INPUT: { label: 'Belum ada input', short: 'BI', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
   BELUM_ADA_DATA: { label: 'Belum lengkap', short: 'BL', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
@@ -123,7 +134,8 @@ function shiftDateISO(isoDate: string, offsetDays: number) {
 }
 
 function statusStyle(status: string) {
-  return ST[status] || ST.BELUM_ADA_DATA
+  const style = ST[status] || ST.BELUM_ADA_DATA
+  return { ...style, label: attendanceStatusLabel(status), short: attendanceStatusCode(status) }
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -723,6 +735,8 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
   const [siswaList, setSiswaList] = useState<any[]>([])
   const [siswaId, setSiswaId] = useState('')
   const [printData, setPrintData] = useState<any>(null)
+  const [paper, setPaper] = useState<PrintPaper>('F4')
+  const [orientation, setOrientation] = useState<PrintOrientation>('landscape')
   const [loading, setLoading] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
   const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
@@ -812,10 +826,12 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
       : `Rekap Absensi ${printKind}`
     w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
 <style>
-@page { size: A4 portrait; margin: 0; }
+@page { size: ${printDimensions(paper, orientation).width}mm ${printDimensions(paper, orientation).height}mm; margin: 0; }
 html, body { margin: 0; padding: 0; background: #fff; }
 * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 .page-break { break-before: page; page-break-before: always; }
+thead { display: table-header-group; }
+tr { break-inside: avoid; page-break-inside: avoid; }
 </style>
 </head><body>${el.innerHTML}</body></html>`)
     w.document.close()
@@ -827,7 +843,23 @@ html, body { margin: 0; padding: 0; background: #fff; }
       w.focus()
       w.print()
     })
-  }, [monitoringMode, printKind])
+  }, [monitoringMode, orientation, paper, printKind])
+
+  const handleExcel = async () => {
+    if (!printData || printData.error) return
+    const period = printKind === 'monitoring'
+      ? (monitoringMode === 'bulanan' ? `${tahun}-${pad2(Number(bulan))}` : `${tahunAjaranStart}-${semester}`)
+      : printKind === 'kelas' && mode === 'hari' ? tanggal : `${tglMulai}_${tglSelesai}`
+    await downloadAttendanceWorkbook({
+      kind: printKind,
+      mode,
+      data: printData,
+      filename: `rekap-absensi-${printKind}-${period}`,
+      periodLabel: printKind === 'monitoring'
+        ? (monitoringMode === 'bulanan' ? `${MONTH_OPTIONS[Number(bulan) - 1]} ${tahun}` : semesterRange(Number(tahunAjaranStart), semester).label)
+        : printKind === 'kelas' && mode === 'hari' ? fmtTglFull(tanggal) : `${fmtTgl(tglMulai)} s/d ${fmtTgl(tglSelesai)}`,
+    })
+  }
 
   return (
     <div className="space-y-3">
@@ -835,7 +867,12 @@ html, body { margin: 0; padding: 0; background: #fff; }
         <div className="mb-3 flex flex-wrap items-end gap-3">
           <div>
             <Label className="text-xs text-slate-500">Jenis Cetak</Label>
-            <Select value={printKind} onValueChange={(v) => { setPrintKind(v as any); setPrintData(null) }}>
+            <Select value={printKind} onValueChange={(v) => {
+              const kind = v as 'monitoring' | 'kelas' | 'siswa'
+              setPrintKind(kind)
+              setOrientation(kind === 'siswa' ? 'portrait' : 'landscape')
+              setPrintData(null)
+            }}>
               <SelectTrigger className="mt-1 h-9 w-[160px] text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="monitoring">Monitoring Siswa</SelectItem>
@@ -930,6 +967,20 @@ html, body { margin: 0; padding: 0; background: #fff; }
               <div><Label className="text-xs text-slate-500">Sampai</Label><Input type="date" value={tglSelesai} onChange={e => setTglSelesai(e.target.value)} className="mt-1 h-9 w-[155px] text-sm" /></div>
             </>
           )}
+          <div>
+            <Label className="text-xs text-slate-500">Kertas</Label>
+            <Select value={paper} onValueChange={(v) => setPaper(v as PrintPaper)}>
+              <SelectTrigger className="mt-1 h-9 w-[105px] text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="A4">A4</SelectItem><SelectItem value="F4">F4</SelectItem></SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs text-slate-500">Orientasi</Label>
+            <Select value={orientation} onValueChange={(v) => setOrientation(v as PrintOrientation)}>
+              <SelectTrigger className="mt-1 h-9 w-[135px] text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="portrait">Portrait</SelectItem><SelectItem value="landscape">Landscape</SelectItem></SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => load(false)} disabled={loading || (printKind === 'siswa' && !siswaId)} size="sm" className="bg-indigo-600 text-white hover:bg-indigo-700">
@@ -937,6 +988,9 @@ html, body { margin: 0; padding: 0; background: #fff; }
           </Button>
           <Button onClick={() => printData ? handlePrint() : load(true)} disabled={loading || (printKind === 'siswa' && !siswaId)} size="sm" variant="outline">
             <Printer className="mr-1 h-4 w-4" />{isMobile ? 'Simpan PDF' : 'Cetak'}
+          </Button>
+          <Button onClick={handleExcel} disabled={loading || !printData || Boolean(printData?.error)} size="sm" variant="outline">
+            <FileSpreadsheet className="mr-1 h-4 w-4" />Download Excel
           </Button>
         </div>
       </div>
@@ -951,11 +1005,11 @@ html, body { margin: 0; padding: 0; background: #fff; }
         <div className="rounded-lg border bg-white p-4 dark:bg-slate-900">
           <div ref={printRef} className="space-y-6 text-black">
             {printKind === 'monitoring' ? (
-              <PrintMonitoringSiswa data={printData} />
+              <PrintMonitoringSiswa data={printData} paper={paper} orientation={orientation} />
             ) : printKind === 'kelas' ? (
-              <PrintKelas data={printData} mode={mode} tanggal={tanggal} tglMulai={tglMulai} tglSelesai={tglSelesai} />
+              <PrintKelas data={printData} mode={mode} tanggal={tanggal} tglMulai={tglMulai} tglSelesai={tglSelesai} paper={paper} orientation={orientation} />
             ) : (
-              <PrintSiswa data={printData} tglMulai={tglMulai} tglSelesai={tglSelesai} />
+              <PrintSiswa data={printData} tglMulai={tglMulai} tglSelesai={tglSelesai} paper={paper} orientation={orientation} />
             )}
           </div>
         </div>
@@ -967,21 +1021,62 @@ html, body { margin: 0; padding: 0; background: #fff; }
 const PRINT_FONT = '"Book Antiqua", "Palatino Linotype", Palatino, "Times New Roman", serif'
 const PRINT_BORDER = '0.6pt solid #000'
 
-function PrintMonitoringSiswa({ data }: { data: any }) {
+const ATTENDANCE_CODES = ['H', 'S', 'I', 'A', 'B', 'K', 'BI', 'BL'] as const
+
+function compactStatusTotals(totals: Record<string, number> | undefined) {
+  return ATTENDANCE_CODES.map(code => `${code}:${totals?.[code] || 0}`).join(' ')
+}
+
+function printablePageStyle(paper: PrintPaper, orientation: PrintOrientation) {
+  const dimensions = printDimensions(paper, orientation)
+  return {
+    width: `${dimensions.width}mm`,
+    minHeight: `${dimensions.height}mm`,
+    padding: '8mm 7mm 10mm 7mm',
+    boxSizing: 'border-box' as const,
+    backgroundColor: '#fff',
+    color: '#000',
+  }
+}
+
+function PrintMonitoringSiswa({ data, paper, orientation }: { data: any; paper: PrintPaper; orientation: PrintOrientation }) {
   if (data?.error) {
     return <div style={{ color: '#b91c1c', fontSize: 12 }}>{data.error}</div>
   }
   const sections = data.sections || []
+  const maxDates = orientation === 'landscape'
+    ? (paper === 'F4' ? 28 : 24)
+    : (paper === 'F4' ? 16 : 14)
+  const pages = sections.flatMap((section: any) => {
+    if (section.mode !== 'bulanan' || (section.dates || []).length <= maxDates) return [section]
+    const dates = section.dates || []
+    const result: any[] = []
+    for (let start = 0; start < dates.length; start += maxDates) {
+      const pageDates = dates.slice(start, start + maxDates)
+      const dateSet = new Set(pageDates)
+      result.push({
+        ...section,
+        labelPeriode: `${section.labelPeriode} (${start + 1}-${Math.min(start + maxDates, dates.length)})`,
+        dates: pageDates,
+        rows: (section.rows || []).map((row: any) => {
+          const cells = (row.cells || []).filter((cell: any) => dateSet.has(cell.tanggal))
+          const totals = Object.fromEntries(ATTENDANCE_CODES.map(code => [code, cells.filter((cell: any) => cell.mark === code).length]))
+          return { ...row, cells, totals }
+        }),
+      })
+    }
+    return result
+  })
   return (
     <>
-      {sections.map((section: any, idx: number) => (
-        <MonitoringPrintPage key={section.kelas?.id || idx} section={section} pageBreak={idx > 0} />
+      {pages.map((section: any, idx: number) => (
+        <MonitoringPrintPage key={`${section.kelas?.id || 'kelas'}-${idx}`} section={section} pageBreak={idx > 0} paper={paper} orientation={orientation} />
       ))}
     </>
   )
 }
 
-function MonitoringPrintPage({ section, pageBreak }: { section: any; pageBreak: boolean }) {
+function MonitoringPrintPage({ section, pageBreak, paper, orientation }: { section: any; pageBreak: boolean; paper: PrintPaper; orientation: PrintOrientation }) {
   const mode = section.mode as 'bulanan' | 'semester'
   const rows = section.rows || []
   const dates = section.dates || []
@@ -997,12 +1092,7 @@ function MonitoringPrintPage({ section, pageBreak }: { section: any; pageBreak: 
     <div
       className={pageBreak ? 'page-break' : ''}
       style={{
-        width: '210mm',
-        minHeight: '297mm',
-        padding: '8mm 7mm 10mm 7mm',
-        boxSizing: 'border-box',
-        backgroundColor: '#fff',
-        color: '#000',
+        ...printablePageStyle(paper, orientation),
         fontFamily: PRINT_FONT,
         fontSize: '8pt',
         pageBreakBefore: pageBreak ? 'always' : 'auto',
@@ -1025,9 +1115,7 @@ function MonitoringPrintPage({ section, pageBreak }: { section: any; pageBreak: 
             <col />
             <col style={{ width: '18pt' }} />
             {dates.map((tanggal: string) => <col key={tanggal} style={{ width: dateColWidth }} />)}
-            <col style={{ width: '18pt' }} />
-            <col style={{ width: '18pt' }} />
-            <col style={{ width: '18pt' }} />
+            {ATTENDANCE_CODES.map(code => <col key={code} style={{ width: code.length === 1 ? '17pt' : '20pt' }} />)}
           </colgroup>
           <thead>
             <tr>
@@ -1036,15 +1124,13 @@ function MonitoringPrintPage({ section, pageBreak }: { section: any; pageBreak: 
               <th rowSpan={2} style={{ ...printTh, letterSpacing: '2pt' }}>Nama</th>
               <th rowSpan={2} style={printTh}>JK</th>
               <th colSpan={dates.length || 1} style={printTh}>Tanggal</th>
-              <th colSpan={3} style={printTh}>Jumlah</th>
+              <th colSpan={ATTENDANCE_CODES.length} style={printTh}>Jumlah</th>
             </tr>
             <tr>
               {dates.length > 0
                 ? dates.map((tanggal: string) => <th key={tanggal} style={{ ...printTh, fontSize: '7pt', padding: '1pt 0' }}>{Number(tanggal.slice(8, 10))}</th>)
                 : <th style={printTh}>-</th>}
-              <th style={printTh}>S</th>
-              <th style={printTh}>I</th>
-              <th style={printTh}>A</th>
+              {ATTENDANCE_CODES.map(code => <th key={code} style={printTh}>{code}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -1056,9 +1142,7 @@ function MonitoringPrintPage({ section, pageBreak }: { section: any; pageBreak: 
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.jenis_kelamin}</td>
                 {(row.cells || []).map((cell: any) => <td key={cell.tanggal} style={{ ...printTd, textAlign: 'center' }}>{cell.mark}</td>)}
                 {dates.length === 0 && <td style={printTd} />}
-                <td style={{ ...printTd, textAlign: 'center' }}>{row.totals?.S || 0}</td>
-                <td style={{ ...printTd, textAlign: 'center' }}>{row.totals?.I || 0}</td>
-                <td style={{ ...printTd, textAlign: 'center' }}>{row.totals?.A || 0}</td>
+                {ATTENDANCE_CODES.map(code => <td key={code} style={{ ...printTd, textAlign: 'center' }}>{row.totals?.[code] || 0}</td>)}
               </tr>
             ))}
           </tbody>
@@ -1070,25 +1154,17 @@ function MonitoringPrintPage({ section, pageBreak }: { section: any; pageBreak: 
             <col style={{ width: '42pt' }} />
             <col />
             <col style={{ width: '18pt' }} />
-            {months.flatMap((month: any) => ['S', 'I', 'A'].map(key => <col key={`${month.month}-${key}`} style={{ width: '15pt' }} />))}
-            <col style={{ width: '16pt' }} />
-            <col style={{ width: '16pt' }} />
-            <col style={{ width: '16pt' }} />
+            {months.map((month: any) => <col key={month.month} style={{ width: '72pt' }} />)}
+            <col style={{ width: '78pt' }} />
           </colgroup>
           <thead>
             <tr>
-              <th rowSpan={2} style={printTh}>Urut</th>
-              <th rowSpan={2} style={printTh}>NIS</th>
-              <th rowSpan={2} style={{ ...printTh, letterSpacing: '2pt' }}>Nama</th>
-              <th rowSpan={2} style={printTh}>JK</th>
-              {months.map((month: any) => <th key={month.month} colSpan={3} style={{ ...printTh, fontSize: '7pt', fontWeight: 400 }}>{month.label}</th>)}
-              <th colSpan={3} style={printTh}>Jumlah</th>
-            </tr>
-            <tr>
-              {months.flatMap((month: any) => ['S', 'I', 'A'].map(key => <th key={`${month.month}-${key}`} style={printTh}>{key}</th>))}
-              <th style={printTh}>S</th>
-              <th style={printTh}>I</th>
-              <th style={printTh}>A</th>
+              <th style={printTh}>Urut</th>
+              <th style={printTh}>NIS</th>
+              <th style={{ ...printTh, letterSpacing: '2pt' }}>Nama</th>
+              <th style={printTh}>JK</th>
+              {months.map((month: any) => <th key={month.month} style={{ ...printTh, fontSize: '7pt' }}>{month.label}</th>)}
+              <th style={printTh}>Total Semester</th>
             </tr>
           </thead>
           <tbody>
@@ -1098,19 +1174,17 @@ function MonitoringPrintPage({ section, pageBreak }: { section: any; pageBreak: 
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.nis}</td>
                 <td style={{ ...printTd, fontSize: '8.5pt', paddingLeft: '4pt' }}>{row.nama_lengkap}</td>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.jenis_kelamin}</td>
-                {(row.monthTotals || []).flatMap((item: any) => [
-                  <td key={`${item.month}-S`} style={{ ...printTd, textAlign: 'center' }}>{item.S || 0}</td>,
-                  <td key={`${item.month}-I`} style={{ ...printTd, textAlign: 'center' }}>{item.I || 0}</td>,
-                  <td key={`${item.month}-A`} style={{ ...printTd, textAlign: 'center' }}>{item.A || 0}</td>,
-                ])}
-                <td style={{ ...printTd, textAlign: 'center' }}>{row.semesterTotal?.S || 0}</td>
-                <td style={{ ...printTd, textAlign: 'center' }}>{row.semesterTotal?.I || 0}</td>
-                <td style={{ ...printTd, textAlign: 'center' }}>{row.semesterTotal?.A || 0}</td>
+                {(row.monthTotals || []).map((item: any) => <td key={item.month} style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal', fontSize: '6.5pt' }}>{compactStatusTotals(item)}</td>)}
+                <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal', fontSize: '6.5pt' }}>{compactStatusTotals(row.semesterTotal)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
+      <div style={{ marginTop: '5pt', fontSize: '7pt' }}>
+        Legenda: H Hadir; S Sakit; I Izin; A Alfa; B Bolos sebagian jam; K Perlu keputusan wali; BI Belum ada input; BL Belum lengkap.
+      </div>
 
       <div style={{ marginTop: '8pt', display: 'flex', justifyContent: 'space-between', fontSize: '8pt' }}>
         <span>Dicetak pada: {formatTimeWIB(new Date().toISOString())}</span>
@@ -1156,21 +1230,38 @@ function PrintHeader({ title, subtitle }: { title: string; subtitle: string }) {
   )
 }
 
-function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai }: any) {
+function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai, paper, orientation }: any) {
   const sections = data.sections || []
+  const maxSlots = orientation === 'landscape' ? 6 : 3
+  const pages = mode !== 'hari' ? sections : sections.flatMap((section: any) => {
+    const slots = section.slots || []
+    if (slots.length <= maxSlots) return [section]
+    const result: any[] = []
+    for (let start = 0; start < slots.length; start += maxSlots) {
+      const pageSlots = slots.slice(start, start + maxSlots)
+      const slotIds = new Set(pageSlots.map((slot: any) => slot.id))
+      result.push({
+        ...section,
+        slots: pageSlots,
+        slotPart: `Jam ${pageSlots[0]?.id}-${pageSlots[pageSlots.length - 1]?.id}`,
+        rows: (section.rows || []).map((row: any) => ({ ...row, cells: (row.cells || []).filter((cell: any) => slotIds.has(cell.jam_ke)) })),
+      })
+    }
+    return result
+  })
   return (
     <>
-      {sections.map((section: any, idx: number) => (
-        <div key={section.kelas?.id || idx} className={idx > 0 ? 'page-break' : ''}>
+      {pages.map((section: any, idx: number) => (
+        <div key={`${section.kelas?.id || 'kelas'}-${idx}`} className={idx > 0 ? 'page-break' : ''} style={printablePageStyle(paper, orientation)}>
           <PrintHeader
             title="Rekap Absensi Siswa Per Kelas"
-            subtitle={`Kelas ${section.kelas?.label || '-'} | ${mode === 'hari' ? fmtTglFull(tanggal) : `${fmtTgl(tglMulai)} s/d ${fmtTgl(tglSelesai)}`}`}
+            subtitle={`Kelas ${section.kelas?.label || '-'} | ${mode === 'hari' ? fmtTglFull(tanggal) : `${fmtTgl(tglMulai)} s/d ${fmtTgl(tglSelesai)}`}${section.slotPart ? ` | ${section.slotPart}` : ''}`}
           />
           {mode === 'hari' ? (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
               <thead>
                 <tr>
-                  {['No', 'Nama Siswa', 'NISN', ...(section.slots || []).map((s: any) => `Jam ${s.id}`), 'Status Harian', 'Keterangan'].map(h => (
+                  {['No', 'Nama Siswa', 'NISN', ...(section.slots || []).map((s: any) => `Jam ${s.id}`), 'Status Final', 'Sumber', 'Blok', 'Alasan', 'Keterangan'].map(h => (
                     <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>
                   ))}
                 </tr>
@@ -1182,7 +1273,10 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai }: any) {
                     <td style={{ border: '1px solid #000', padding: 4 }}>{row.nama_lengkap}</td>
                     <td style={{ border: '1px solid #000', padding: 4 }}>{row.nisn || '-'}</td>
                     {row.cells.map((cell: any) => <td key={cell.jam_ke} style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{statusStyle(cell.status).label}</td>)}
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{statusStyle(row.status_harian).label}</td>
+                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{attendanceStatusLabel(row.status_harian)}</td>
+                    <td style={{ border: '1px solid #000', padding: 4 }}>{attendanceSourceLabel(row.sumber_status)}</td>
+                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.submitted_blok || 0}/{row.total_blok || 0}</td>
+                    <td style={{ border: '1px solid #000', padding: 4 }}>{row.status_reason || '-'}</td>
                     <td style={{ border: '1px solid #000', padding: 4 }}>{row.keterangan || '-'}</td>
                   </tr>
                 ))}
@@ -1218,6 +1312,7 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai }: any) {
               </tbody>
             </table>
           )}
+          <p style={{ marginTop: 6, fontSize: 9 }}>Legenda: H Hadir; S Sakit; I Izin; A Alfa; B Bolos sebagian jam; K Perlu keputusan wali; BI Belum ada input; BL Belum lengkap.</p>
           <p style={{ marginTop: 12, textAlign: 'right', fontSize: 10 }}>Dicetak pada {formatTimeWIB(new Date().toISOString())}</p>
         </div>
       ))}
@@ -1225,12 +1320,12 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai }: any) {
   )
 }
 
-function PrintSiswa({ data, tglMulai, tglSelesai }: any) {
+function PrintSiswa({ data, tglMulai, tglSelesai, paper, orientation }: any) {
   const rekap = data.rekap || {}
   const siswa = rekap.siswa || {}
   const summary = rekap.summary || {}
   return (
-    <div>
+    <div style={printablePageStyle(paper, orientation)}>
       <PrintHeader title="Rekap Absensi Siswa" subtitle={`${siswa.nama || '-'} | Kelas ${siswa.kelas || '-'} | ${fmtTgl(tglMulai)} s/d ${fmtTgl(tglSelesai)}`} />
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12, fontSize: 11 }}>
         <tbody>
@@ -1255,7 +1350,7 @@ function PrintSiswa({ data, tglMulai, tglSelesai }: any) {
       </table>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
         <thead>
-          <tr>{['No', 'Tanggal', 'Hari', 'Status Harian', 'Blok Hadir', 'Detail dan Keterangan'].map(h => <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>)}</tr>
+          <tr>{['No', 'Tanggal', 'Hari', 'Status Final', 'Sumber', 'Blok Disubmit', 'Alasan', 'Detail dan Keterangan'].map(h => <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>)}</tr>
         </thead>
         <tbody>
           {(rekap.days || []).map((day: any, i: number) => (
@@ -1263,13 +1358,16 @@ function PrintSiswa({ data, tglMulai, tglSelesai }: any) {
               <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{i + 1}</td>
               <td style={{ border: '1px solid #000', padding: 4 }}>{fmtTgl(day.tanggal)}</td>
               <td style={{ border: '1px solid #000', padding: 4 }}>{day.hariNama}</td>
-              <td style={{ border: '1px solid #000', padding: 4 }}>{statusStyle(day.statusHari).label}</td>
-              <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day.blokHadir}/{day.totalBlok}</td>
+              <td style={{ border: '1px solid #000', padding: 4 }}>{attendanceStatusLabel(day.statusHari)}</td>
+              <td style={{ border: '1px solid #000', padding: 4 }}>{attendanceSourceLabel(day.sumberStatus)}</td>
+              <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day.submittedBlok || 0}/{day.totalBlok || 0}</td>
+              <td style={{ border: '1px solid #000', padding: 4 }}>{day.statusReason || '-'}</td>
               <td style={{ border: '1px solid #000', padding: 4 }}>{day.keterangan || day.detail?.map((d: any) => `${d.nama_mapel} jam ${d.jam_ke_mulai}-${d.jam_ke_selesai}: ${statusStyle(d.status).label}`).join(' | ') || '-'}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      <p style={{ marginTop: 6, fontSize: 9 }}>Legenda: H Hadir; S Sakit; I Izin; A Alfa; B Bolos sebagian jam; K Perlu keputusan wali; BI Belum ada input; BL Belum lengkap.</p>
       <p style={{ marginTop: 12, textAlign: 'right', fontSize: 10 }}>Dicetak pada {formatTimeWIB(new Date().toISOString())}</p>
     </div>
   )

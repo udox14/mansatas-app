@@ -17,6 +17,7 @@ import { KelasBinaanCatatanSiswaView } from '@/app/dashboard/kelas-binaan/compon
 import { getStudentNotes, getUnreadStudentNoteCountForWali } from '@/lib/student-notes'
 import { studentNoteCollator, type StudentNoteStudent } from '@/lib/student-note-shared'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
+import { attendanceSourceLabel as sharedSourceLabel, attendanceStatusLabel as sharedAttendanceStatusLabel } from '@/lib/attendance-status'
 import {
   Warning as AlertTriangle,
   ArrowRight,
@@ -66,23 +67,13 @@ function badgeClass(status: string) {
 
 function attendanceStatusLabel(status: string | null | undefined) {
   if (status === 'LIBUR') return 'Libur'
-  if (!status || status === 'BELUM_ADA_DATA') return 'Belum Lengkap'
-  if (status === 'BELUM_ADA_INPUT') return 'Belum Ada Input'
-  if (status === 'PARSIAL') return 'Bolos'
-  if (status === 'PERLU_KONFIRMASI_WALI') return 'Perlu Keputusan Wali'
-  return status
+  return sharedAttendanceStatusLabel(status)
 }
 
 function sourceLabel(source: string) {
   if (source === 'kalender') return 'Kalender Pendidikan'
   if (source === 'perizinan') return 'Perizinan'
-  if (source === 'perizinan_sekolah') return 'Perizinan Sekolah'
-  if (source === 'wali_kelas') return 'Wali Kelas'
-  if (source === 'koreksi_wali_kelas') return 'Koreksi Wali'
-  if (source === 'guru') return 'Guru'
-  if (source === 'perlu_konfirmasi_wali') return 'Perlu Keputusan Wali'
-  if (source === 'belum_ada_input') return 'Belum Ada Input'
-  return 'Belum Lengkap'
+  return sharedSourceLabel(source)
 }
 
 function summonStatusLabel(status: string | null) {

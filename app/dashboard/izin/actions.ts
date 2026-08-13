@@ -7,6 +7,7 @@ import { getUserRoles } from '@/lib/features'
 import { revalidatePath } from 'next/cache'
 import { nowWIBISO, todayWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
+import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 
 const INPUT_IZIN_ROLES = ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam']
 const DELETE_IZIN_ROLES = ['super_admin', 'admin_tu']
@@ -16,6 +17,7 @@ function hasAnyRole(roles: string[], allowedRoles: string[]) {
 }
 
 function revalidateIzinViews() {
+  invalidateAttendanceCache()
   revalidatePath('/dashboard/izin')
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/keterangan-absensi')

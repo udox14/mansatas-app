@@ -7,25 +7,15 @@ import {
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { getMemCache, setMemCache } from '@/utils/mem-cache'
+import {
+  deriveDailyTeacherStatus,
+  resolveFinalAttendanceStatus,
+  type FinalAttendanceSource,
+  type FinalAttendanceStatus,
+  type SubmittedBlockStatus,
+} from '@/lib/attendance-status'
 
-export type FinalAttendanceStatus =
-  | 'HADIR'
-  | 'SAKIT'
-  | 'IZIN'
-  | 'ALFA'
-  | 'PARSIAL'
-  | 'PERLU_KONFIRMASI_WALI'
-  | 'BELUM_ADA_INPUT'
-  | 'BELUM_ADA_DATA'
-
-export type FinalAttendanceSource =
-  | 'guru'
-  | 'wali_kelas'
-  | 'koreksi_wali_kelas'
-  | 'perizinan_sekolah'
-  | 'perlu_konfirmasi_wali'
-  | 'belum_ada_input'
-  | 'belum_ada_data'
+export type { FinalAttendanceSource, FinalAttendanceStatus } from '@/lib/attendance-status'
 
 export type FinalAttendanceDetail = {
   siswa_id: string
@@ -33,11 +23,23 @@ export type FinalAttendanceDetail = {
   nisn: string
   tanggal: string
   total_blok: number
+  submitted_blok: number
+  pending_blok: number
   guru_status: FinalAttendanceStatus
+  guru_status_reason: string
   wali_status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' | null
   status_akhir: FinalAttendanceStatus
   sumber_status: FinalAttendanceSource
+  status_reason: string
+  requires_wali_decision: boolean
   keterangan_wali_kelas: string | null
+  block_statuses: Array<{
+    penugasan_id: string
+    status: SubmittedBlockStatus | 'BELUM_ADA_INPUT'
+    submitted: boolean
+    jam_ke_mulai: number
+    jam_ke_selesai: number
+  }>
   detail_guru: Array<{
     status: string
     nama_mapel: string
@@ -100,76 +102,6 @@ function enumerateDates(startDate: string, endDate: string) {
   }
 
   return dates
-}
-
-function deriveGuruStatus(
-  totalBlok: number,
-  submittedBlok: number,
-  records: Array<{ status: string }>,
-  skipIncompleteForDailyStatus: boolean
-): FinalAttendanceStatus {
-  if (totalBlok <= 0) {
-    return records.length > 0 ? 'PERLU_KONFIRMASI_WALI' : 'BELUM_ADA_DATA'
-  }
-
-  if (submittedBlok < totalBlok && !skipIncompleteForDailyStatus) {
-    return 'BELUM_ADA_DATA'
-  }
-
-  const effectiveBlok = skipIncompleteForDailyStatus ? Math.min(totalBlok, submittedBlok) : totalBlok
-  if (effectiveBlok <= 0) return skipIncompleteForDailyStatus ? 'BELUM_ADA_INPUT' : 'BELUM_ADA_DATA'
-
-  const uniqueStatuses = Array.from(new Set(records.map(record => record.status)))
-
-  if (records.length === 0) {
-    return 'HADIR'
-  }
-
-  if (records.length < effectiveBlok) {
-    if (!uniqueStatuses.includes('ALFA')) return 'HADIR'
-    return uniqueStatuses.length === 1 ? 'PARSIAL' : 'PERLU_KONFIRMASI_WALI'
-  }
-
-  if (uniqueStatuses.length === 1) {
-    const [status] = uniqueStatuses
-    if (status === 'SAKIT' || status === 'IZIN' || status === 'ALFA') {
-      return status
-    }
-  }
-
-  return 'PERLU_KONFIRMASI_WALI'
-}
-
-function deriveGuruStatusWithSession(
-  totalBlok: number,
-  records: Array<{ status: string }>,
-  submittedBlok: number,
-  skipIncompleteForDailyStatus: boolean
-): FinalAttendanceStatus {
-  if (totalBlok <= 0) return records.length > 0 ? 'PERLU_KONFIRMASI_WALI' : 'BELUM_ADA_DATA'
-  return deriveGuruStatus(totalBlok, submittedBlok, records, skipIncompleteForDailyStatus)
-}
-
-function buildFinalStatus(guruStatus: FinalAttendanceStatus, waliStatus: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' | null) {
-  if (!waliStatus) {
-    return {
-      status_akhir: guruStatus,
-      sumber_status: guruStatus === 'BELUM_ADA_INPUT'
-        ? 'belum_ada_input' as const
-        : guruStatus === 'BELUM_ADA_DATA'
-          ? 'belum_ada_data' as const
-          : guruStatus === 'PERLU_KONFIRMASI_WALI'
-          ? 'perlu_konfirmasi_wali' as const
-          : 'guru' as const,
-    }
-  }
-
-  return {
-    status_akhir: waliStatus,
-    sumber_status: guruStatus === 'HADIR' || guruStatus === 'BELUM_ADA_DATA' || guruStatus === 'BELUM_ADA_INPUT'
-      ? 'wali_kelas' as const
-      : 'koreksi_wali_kelas' as const,
-  }
 }
 
 function parseIzinJamPelajaran(raw: unknown): number[] {
@@ -261,7 +193,7 @@ export async function getFinalAttendanceForClass(
   endDate: string,
   options?: { tahunAjaranId?: string; siswaId?: string }
 ): Promise<FinalAttendanceClassData | null> {
-  const cacheKey = `final-att:${kelasId}:${startDate}:${endDate}:${options?.tahunAjaranId ?? ''}:${options?.siswaId ?? ''}`
+  const cacheKey = `final-att:v2:${kelasId}:${startDate}:${endDate}:${options?.tahunAjaranId ?? ''}:${options?.siswaId ?? ''}`
   const cached = getMemCache<FinalAttendanceClassData>(cacheKey)
   if (cached) return cached
 
@@ -326,7 +258,7 @@ export async function getFinalAttendanceForClass(
         `).bind(kelasId, ta.id).all<{ hari: number; jam_ke: number; penugasan_id: string }>()
       : Promise.resolve({ results: [] as Array<{ hari: number; jam_ke: number; penugasan_id: string }> }),
     db.prepare(`
-      SELECT ab.tanggal, ab.siswa_id, ab.status, ab.catatan, ab.jam_ke_mulai, ab.jam_ke_selesai,
+      SELECT ab.tanggal, ab.siswa_id, ab.penugasan_id, ab.status, ab.catatan, ab.jam_ke_mulai, ab.jam_ke_selesai,
         mp.nama_mapel
       FROM absensi_siswa ab
       JOIN penugasan_mengajar pm ON ab.penugasan_id = pm.id
@@ -430,6 +362,7 @@ export async function getFinalAttendanceForClass(
   const classDates = dates.filter(tanggal => (blocksByDate.get(tanggal)!.totalBlok) > 0)
 
   const guruMap = new Map<string, Array<{
+    penugasan_id: string
     status: string
     nama_mapel: string
     jam_ke_mulai: number
@@ -440,6 +373,7 @@ export async function getFinalAttendanceForClass(
     const key = `${row.siswa_id}__${row.tanggal}`
     if (!guruMap.has(key)) guruMap.set(key, [])
     guruMap.get(key)!.push({
+      penugasan_id: row.penugasan_id,
       status: row.status,
       nama_mapel: row.nama_mapel,
       jam_ke_mulai: row.jam_ke_mulai,
@@ -485,7 +419,9 @@ export async function getFinalAttendanceForClass(
       const izinKelasRows = izinKelasMap.get(`${siswa.id}__${tanggal}`) || []
       const izinKeluarRows = izinKeluarMap.get(siswa.id) || []
       const activeBlocks = dayBlocks.blocks
-      const izinBlocks = activeBlocks.flatMap(block => {
+      const submittedPenugasanIds = sesiMap.get(tanggal) || new Set<string>()
+      const detailByPenugasan = new Map<string, FinalAttendanceDetail['detail_guru'][number]>()
+      const blockStatuses: FinalAttendanceDetail['block_statuses'] = activeBlocks.map(block => {
         const izinKelasForBlock = izinKelasRows.filter(row => {
           const jam = parseIzinJamPelajaran(row.jam_pelajaran)
           return jam.length === 0 || jam.some(j => j >= block.jam_ke_mulai && j <= block.jam_ke_selesai)
@@ -501,30 +437,56 @@ export async function getFinalAttendanceForClass(
             row.keterangan ? `: ${row.keterangan}` : '',
           ].filter(Boolean).join(' ')),
         ]
-        if (notes.length === 0) return []
-        return [{
-          status: 'IZIN',
+        const permissionDetail = notes.length > 0 ? {
+          status: 'IZIN' as const,
           nama_mapel: 'Perizinan',
           jam_ke_mulai: block.jam_ke_mulai,
           jam_ke_selesai: block.jam_ke_selesai,
           catatan: notes.join('; '),
-        }]
+        } : null
+        const rawRecord = baseGuruRecords.find(record =>
+          record.penugasan_id === block.penugasan_id &&
+          record.jam_ke_mulai <= block.jam_ke_selesai &&
+          record.jam_ke_selesai >= block.jam_ke_mulai
+        )
+
+        const effectiveDetail = permissionDetail || (rawRecord ? {
+          status: rawRecord.status,
+          nama_mapel: rawRecord.nama_mapel,
+          jam_ke_mulai: rawRecord.jam_ke_mulai,
+          jam_ke_selesai: rawRecord.jam_ke_selesai,
+          catatan: rawRecord.catatan,
+        } : null)
+        if (effectiveDetail) detailByPenugasan.set(block.penugasan_id, effectiveDetail)
+
+        const submitted = Boolean(permissionDetail || rawRecord || submittedPenugasanIds.has(block.penugasan_id))
+        const status = permissionDetail
+          ? 'IZIN'
+          : rawRecord && ['HADIR', 'SAKIT', 'IZIN', 'ALFA'].includes(rawRecord.status)
+            ? rawRecord.status as SubmittedBlockStatus
+            : submitted
+              ? 'HADIR'
+              : 'BELUM_ADA_INPUT'
+
+        return {
+          penugasan_id: block.penugasan_id,
+          status,
+          submitted,
+          jam_ke_mulai: block.jam_ke_mulai,
+          jam_ke_selesai: block.jam_ke_selesai,
+        }
       })
-      const guruRecords = [
-        ...baseGuruRecords.filter(record => !izinBlocks.some(izin =>
-          record.jam_ke_mulai <= izin.jam_ke_selesai && record.jam_ke_selesai >= izin.jam_ke_mulai
-        )),
-        ...izinBlocks,
-      ].sort((a, b) => a.jam_ke_mulai - b.jam_ke_mulai)
-      const submittedPenugasanCount = sesiMap.get(tanggal)?.size || 0
-      const effectiveSubmittedCount = Math.max(submittedPenugasanCount, guruRecords.length)
-      if (totalBlok <= 0 && guruRecords.length === 0 && !waliRecord) continue
-      const guruStatus = deriveGuruStatusWithSession(
-        totalBlok,
-        guruRecords,
-        effectiveSubmittedCount,
-        skipIncompleteForDailyStatus
-      )
+      const guruRecords = Array.from(detailByPenugasan.values())
+        .sort((a, b) => a.jam_ke_mulai - b.jam_ke_mulai)
+      const submittedStatuses = blockStatuses
+        .filter(block => block.submitted)
+        .map(block => block.status as SubmittedBlockStatus)
+      const guruState = deriveDailyTeacherStatus({
+        totalBlocks: totalBlok,
+        submittedStatuses,
+        skipIncomplete: skipIncompleteForDailyStatus,
+      })
+      const guruStatus = guruState.status
       const activeJam = Array.from(new Set(activeBlocks.flatMap(block => block.jam_ke)))
       const izinSekolahRows = izinKelasRows.filter(row => Number(row.hitung_sebagai_hadir) === 1)
       const izinSekolahSehariPenuh = activeJam.length > 0 && activeJam.every(jamKe =>
@@ -533,9 +495,16 @@ export async function getFinalAttendanceForClass(
           return jamIzin.length === 0 || jamIzin.includes(jamKe)
         })
       )
-      const finalState: { status_akhir: FinalAttendanceStatus; sumber_status: FinalAttendanceSource } = izinSekolahSehariPenuh
-        ? { status_akhir: 'HADIR', sumber_status: 'perizinan_sekolah' }
-        : buildFinalStatus(guruStatus, waliRecord?.status ?? null)
+      const resolvedFinal = resolveFinalAttendanceStatus({
+        teacherStatus: guruStatus,
+        waliStatus: waliRecord?.status ?? null,
+        fullDaySchoolPermission: izinSekolahSehariPenuh,
+      })
+      const statusReason = izinSekolahSehariPenuh
+        ? 'Izin kepentingan sekolah mencakup seluruh blok KBM dan dihitung hadir.'
+        : waliRecord?.status
+          ? `Status ditetapkan wali kelas menjadi ${waliRecord.status}.`
+          : guruState.reason
 
       perDay.push({
         siswa_id: siswa.id,
@@ -543,11 +512,17 @@ export async function getFinalAttendanceForClass(
         nisn: siswa.nisn,
         tanggal,
         total_blok: totalBlok,
+        submitted_blok: guruState.submittedBlocks,
+        pending_blok: guruState.pendingBlocks,
         guru_status: guruStatus,
+        guru_status_reason: guruState.reason,
         wali_status: waliRecord?.status ?? null,
-        status_akhir: finalState.status_akhir,
-        sumber_status: finalState.sumber_status,
+        status_akhir: resolvedFinal.status,
+        sumber_status: resolvedFinal.source,
+        status_reason: statusReason,
+        requires_wali_decision: !izinSekolahSehariPenuh && !waliRecord && guruState.requiresWaliDecision,
         keterangan_wali_kelas: waliRecord?.keterangan ?? null,
+        block_statuses: blockStatuses,
         detail_guru: guruRecords,
       })
     }

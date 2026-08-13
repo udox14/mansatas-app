@@ -10,7 +10,7 @@ import { notify } from '@/lib/notify'
 import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
 import { notifyParentsAttendance } from '@/lib/fcm'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
-import { clearMemCache } from '@/utils/mem-cache'
+import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import {
   getKalenderDateStatus,
@@ -734,7 +734,6 @@ export async function simpanAbsensiDelegasi(
   jamKeSelesai: number,
   dataAbsen: Array<{ siswa_id: string; status: string; catatan: string }>
 ): Promise<{ error?: string; success?: string }> {
-  clearMemCache()
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -803,6 +802,8 @@ export async function simpanAbsensiDelegasi(
       updated_at: nowWIBISO(),
     }, { id: dtk.delegasi_id })
   }
+
+  invalidateAttendanceCache()
 
   if (toSave.some(d => d.status === 'ALFA')) {
     try {

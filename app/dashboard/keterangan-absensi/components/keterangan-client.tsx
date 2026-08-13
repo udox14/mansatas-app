@@ -11,6 +11,7 @@ import {
   loadSiswaKeterangan, simpanKeteranganBatch,
   type SiswaKeterangan, type KelasWaliKelas,
 } from '../actions'
+import { attendanceSourceLabel, attendanceStatusLabel } from '@/lib/attendance-status'
 
 interface Props {
   kelasList: KelasWaliKelas[]
@@ -22,28 +23,6 @@ const STATUS_UI = {
   SAKIT: { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', icon: Thermometer, label: 'Sakit' },
   IZIN:  { bg: 'bg-blue-50',  border: 'border-blue-300',  text: 'text-blue-700',  icon: ShieldAlert,  label: 'Izin'  },
   ALFA:  { bg: 'bg-red-50',   border: 'border-red-300',   text: 'text-red-700',   icon: XCircle,      label: 'Alfa'  },
-}
-
-function statusLabel(status: string | null | undefined) {
-  if (status === 'HADIR') return 'Hadir'
-  if (status === 'SAKIT') return 'Sakit'
-  if (status === 'IZIN') return 'Izin'
-  if (status === 'ALFA') return 'Alfa'
-  if (status === 'PARSIAL') return 'Bolos'
-  if (status === 'PERLU_KONFIRMASI_WALI') return 'Perlu Keputusan Wali'
-  if (status === 'BELUM_ADA_INPUT') return 'Belum Ada Input'
-  return 'Belum Lengkap'
-}
-
-function sourceLabel(source: string | null | undefined) {
-  if (source === 'perizinan') return 'Perizinan'
-  if (source === 'perizinan_sekolah') return 'Perizinan Sekolah'
-  if (source === 'wali_kelas') return 'Wali Kelas'
-  if (source === 'koreksi_wali_kelas') return 'Koreksi Wali'
-  if (source === 'guru') return 'Guru'
-  if (source === 'perlu_konfirmasi_wali') return 'Perlu Keputusan Wali'
-  if (source === 'belum_ada_input') return 'Belum Ada Input'
-  return 'Belum Lengkap'
 }
 
 function statusBadgeClass(status: string | null | undefined) {
@@ -246,10 +225,12 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                           <span className="text-[10px] text-slate-400">{s.nisn}</span>
                           <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${statusBadgeClass(s.status || s.status_akhir)}`}>
-                            {statusLabel(s.status || s.status_akhir)}
+                            {attendanceStatusLabel(s.status || s.status_akhir)}
                           </span>
-                          <span className="text-[10px] text-slate-400">{sourceLabel(s.sumber_status)}</span>
+                          <span className="text-[10px] text-slate-400">{attendanceSourceLabel(s.sumber_status)}</span>
                         </div>
+                        <p className="mt-1 text-[10px] text-slate-500">{s.status_reason}</p>
+                        <p className="text-[10px] text-slate-400">{s.submitted_blok}/{s.total_blok} blok disubmit</p>
                       </div>
                     </div>
 
@@ -338,7 +319,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
                           <div key={`${s.siswa_id}-${detail.nama_mapel}-${detailIndex}`} className="rounded-md border border-slate-100 bg-white/70 px-2 py-1.5 text-[11px] text-slate-600 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300">
                             <span className="font-semibold">{detail.nama_mapel}</span>
                             <span className="text-slate-400"> Jam {detail.jam_ke_mulai === detail.jam_ke_selesai ? detail.jam_ke_mulai : `${detail.jam_ke_mulai}-${detail.jam_ke_selesai}`}</span>
-                            <span className={`ml-1.5 rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${statusBadgeClass(detail.status)}`}>{statusLabel(detail.status)}</span>
+                            <span className={`ml-1.5 rounded-full border px-1.5 py-0.5 text-[10px] font-bold ${statusBadgeClass(detail.status)}`}>{attendanceStatusLabel(detail.status)}</span>
                             {detail.catatan ? <span className="ml-1 text-slate-500">Catatan: {detail.catatan}</span> : null}
                           </div>
                         ))}

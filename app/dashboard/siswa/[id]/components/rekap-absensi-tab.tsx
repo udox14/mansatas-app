@@ -7,10 +7,14 @@ import { Button } from '@/components/ui/button'
 import { nowWIB, todayWIB } from '@/lib/time'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { getKeputusanAbsensiHistory, type KeputusanAbsensiHistoryRow } from '@/app/dashboard/kelas-binaan/attendance-actions'
+import { attendanceSourceLabel, attendanceStatusLabel } from '@/lib/attendance-status'
+import { downloadAttendanceWorkbook } from '@/lib/attendance-xlsx'
 import { 
   CalendarSearch, RefreshCw, CheckCircle2, AlertTriangle, 
   Clock, XCircle, MinusCircle, ChevronDown, ChevronRight,
-  Loader2, BarChart3, Printer, SlidersHorizontal
+  FileSpreadsheet, Loader2, BarChart3, History, Printer, SlidersHorizontal
 } from 'lucide-react'
 
 // ============================================================
@@ -26,6 +30,9 @@ type AbsensiDay = {
   statusGuru?: string
   statusWaliKelas?: string | null
   sumberStatus?: string
+  submittedBlok?: number
+  pendingBlok?: number
+  statusReason?: string
   keteranganWaliKelas?: string | null
   detail: {
     status: string
@@ -60,10 +67,10 @@ function StatusBadge({ status }: { status: string }) {
     'BELUM_ADA_INPUT': { cls: 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800', icon: <AlertTriangle className="h-3 w-3" />, label: 'Belum Ada Input' },
     'BELUM_ADA_DATA': { cls: 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800', icon: <AlertTriangle className="h-3 w-3" />, label: 'Belum Lengkap' },
   }
-  const cfg = map[status] ?? { cls: 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800', icon: null, label: status }
+  const cfg = map[status] ?? { cls: 'bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800', icon: null, label: attendanceStatusLabel(status) }
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${cfg.cls}`}>
-      {cfg.icon}{cfg.label}
+      {cfg.icon}{attendanceStatusLabel(status)}
     </span>
   )
 }
@@ -81,12 +88,23 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
   const [result, setResult] = useState<RekapResult | null>(null)
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set())
   const [waliKelas, setWaliKelas] = useState<string | null>(null)
+  const [history, setHistory] = useState<KeputusanAbsensiHistoryRow[] | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   // ── State dialog cetak ──
   const [showPrintDialog, setShowPrintDialog] = useState(false)
   type StatusKey = 'HADIR' | 'BOLOS' | 'SAKIT' | 'IZIN' | 'ALFA' | 'PERLU KONFIRMASI WALI' | 'BELUM ADA INPUT' | 'BELUM_ADA_DATA'
   const ALL_STATUS: StatusKey[] = ['HADIR', 'BOLOS', 'SAKIT', 'IZIN', 'ALFA', 'PERLU KONFIRMASI WALI', 'BELUM ADA INPUT', 'BELUM_ADA_DATA']
   const [printFilter, setPrintFilter] = useState<Set<StatusKey>>(new Set(ALL_STATUS))
+  const [printPaper, setPrintPaper] = useState<'A4' | 'F4'>('F4')
+  const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('portrait')
+
+  const loadHistory = async () => {
+    setHistoryLoading(true)
+    const response = await getKeputusanAbsensiHistory(siswaId)
+    setHistory(response.history || [])
+    setHistoryLoading(false)
+  }
 
   const togglePrintFilter = (s: StatusKey) => setPrintFilter(prev => {
     const next = new Set(prev)
@@ -161,8 +179,10 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
         <td style="${TD}width:24px;text-align:center">${new Date(day.tanggal + 'T00:00:00').getDate()}</td>
         <td style="${TD}width:44px">${day.hariNama}</td>
         <td style="${TD}width:70px">${fmtTglShort(day.tanggal)}</td>
-        <td style="${TD}width:40px;text-align:center">${day.blokHadir}/${day.totalBlok}</td>
-        <td style="${TD}width:70px">${statusLabel[day.statusHari] || day.statusHari}</td>
+        <td style="${TD}width:45px;text-align:center">${day.submittedBlok || 0}/${day.totalBlok}</td>
+        <td style="${TD}width:70px">${attendanceStatusLabel(day.statusHari)}</td>
+        <td style="${TD}width:70px">${attendanceSourceLabel(day.sumberStatus)}</td>
+        <td style="${TD}font-size:8.5px">${day.statusReason || '-'}</td>
         <td style="${TD}font-size:8.5px;line-height:1.5">${detailStr}</td>
       </tr>`
     }).join('')
@@ -170,15 +190,17 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
     // Dapatkan origin untuk URL absolut gambar kopsurat
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
 
+    const base = printPaper === 'A4' ? { width: 210, height: 297 } : { width: 215, height: 330 }
+    const page = printOrientation === 'portrait' ? base : { width: base.height, height: base.width }
     const html = `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8">
 <title>Rekap Absensi \u2014 ${namaMeta}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #000; background: #fff; }
-  @page { size: 215mm 330mm; margin: 0; }
+  @page { size: ${page.width}mm ${page.height}mm; margin: 0; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 
-  .page { width: 215mm; min-height: 330mm; padding: 0 12mm 12mm 12mm; }
+  .page { width: ${page.width}mm; min-height: ${page.height}mm; padding: 0 12mm 12mm 12mm; }
 
   /* KOP */
   .kop-img { width: 100%; display: block; margin-bottom: 8pt; }
@@ -265,8 +287,10 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
         <th style="width:24px">Tgl</th>
         <th style="width:44px">Hari</th>
         <th style="width:70px">Tanggal</th>
-        <th style="width:40px">Blok</th>
+        <th style="width:45px">Blok Disubmit</th>
         <th style="width:70px">Status</th>
+        <th style="width:70px">Sumber</th>
+        <th>Alasan</th>
         <th>Detail Ketidakhadiran</th>
       </tr>
     </thead>
@@ -371,16 +395,30 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
                 }
               </Button>
               {loaded && !result?.error && (result?.days?.length ?? 0) > 0 && (
-                <Button
-                  onClick={() => {
-                    setPrintFilter(new Set(ALL_STATUS))
-                    setShowPrintDialog(true)
-                  }}
-                  variant="outline"
-                  className="h-10 flex-1 xl:flex-none px-4 text-sm font-bold gap-2 border-cyan-300 text-cyan-700 hover:bg-cyan-50"
-                >
-                  <Printer className="h-4 w-4" /> Cetak Laporan
-                </Button>
+                <>
+                  <Button
+                    onClick={() => {
+                      setPrintFilter(new Set(ALL_STATUS))
+                      setShowPrintDialog(true)
+                    }}
+                    variant="outline"
+                    className="h-10 flex-1 xl:flex-none px-4 text-sm font-bold gap-2 border-cyan-300 text-cyan-700 hover:bg-cyan-50"
+                  >
+                    <Printer className="h-4 w-4" /> Cetak Laporan
+                  </Button>
+                  <Button
+                    onClick={() => downloadAttendanceWorkbook({
+                      kind: 'siswa',
+                      data: { rekap: result, waliKelas },
+                      filename: `rekap-absensi-${result?.siswa?.nama || 'siswa'}-${tglMulai}-${tglSelesai}`,
+                      periodLabel: `${tglMulai} s.d. ${tglSelesai}`,
+                    })}
+                    variant="outline"
+                    className="h-10 flex-1 xl:flex-none px-4 text-sm font-bold gap-2"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" /> Excel
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -415,6 +453,25 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
         {/* ─── HASIL ─── */}
         {loaded && !result?.error && (
           <>
+            <div className="rounded-xl border border-surface bg-surface p-3">
+              <Button variant="outline" size="sm" onClick={loadHistory} disabled={historyLoading} className="gap-2">
+                {historyLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <History className="h-4 w-4" />}
+                Riwayat Keputusan Wali
+              </Button>
+              {history && (
+                <div className="mt-3 space-y-2 text-xs">
+                  {history.length === 0 ? <p className="text-slate-500">Belum ada riwayat keputusan wali.</p> : history.map(item => (
+                    <div key={item.id} className="rounded-lg border border-surface bg-slate-50 p-2 dark:bg-slate-800">
+                      <p className="font-semibold">{item.tanggal || '-'} · {item.actor_name || 'Pengguna'} · {new Date(item.created_at).toLocaleString('id-ID')}</p>
+                      <p className="text-slate-600 dark:text-slate-300">
+                        {item.before.status ? attendanceStatusLabel(item.before.status) : 'Ikuti Guru'} → {item.after.status ? attendanceStatusLabel(item.after.status) : 'Ikuti Guru'}
+                      </p>
+                      {(item.before.keterangan || item.after.keterangan) && <p className="text-slate-500">Catatan: {item.before.keterangan || '-'} → {item.after.keterangan || '-'}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             {/* Summary Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-7 gap-2">
               {statCards.map(s => (
@@ -464,8 +521,9 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
                               })}
                             </p>
                             <p className="text-[10px] text-slate-400 mt-0.5">
-                              {day.blokHadir}/{day.totalBlok} blok hadir
+                              {day.submittedBlok || 0}/{day.totalBlok} blok disubmit · {day.blokHadir} blok hadir
                             </p>
+                            {day.statusReason && <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400">{day.statusReason}</p>}
                             <div className="flex flex-wrap gap-1 mt-1">
                               {day.sumberStatus && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
@@ -549,6 +607,23 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
             <p className="text-xs text-slate-500 dark:text-slate-400 pb-1">
               Centang status kehadiran yang ingin diikutkan dalam laporan cetak.
             </p>
+
+            <div className="grid grid-cols-2 gap-2 pb-2">
+              <div>
+                <p className="mb-1 text-[10px] font-bold uppercase text-slate-400">Kertas</p>
+                <Select value={printPaper} onValueChange={value => setPrintPaper(value as 'A4' | 'F4')}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="A4">A4</SelectItem><SelectItem value="F4">F4</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div>
+                <p className="mb-1 text-[10px] font-bold uppercase text-slate-400">Orientasi</p>
+                <Select value={printOrientation} onValueChange={value => setPrintOrientation(value as 'portrait' | 'landscape')}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="portrait">Portrait</SelectItem><SelectItem value="landscape">Landscape</SelectItem></SelectContent>
+                </Select>
+              </div>
+            </div>
 
             {([
               { key: 'HADIR'         as StatusKey, label: 'Hadir',         desc: 'Hadir semua jam pelajaran',   cls: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' },

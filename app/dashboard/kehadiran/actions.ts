@@ -12,7 +12,7 @@ import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-setti
 import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
 import { notifyParentsAttendance } from '@/lib/fcm'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
-import { clearMemCache } from '@/utils/mem-cache'
+import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import {
   getKbmExceptionsForDate,
   getKalenderDateStatus,
@@ -409,7 +409,6 @@ export async function simpanAbsensi(
   jamKeMulai: number, jamKeSelesai: number, jumlahJam: number,
   dataAbsen: Array<{ siswa_id: string; status: string; catatan: string }>
 ): Promise<{ error?: string; success?: string }> {
-  clearMemCache()
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -497,6 +496,7 @@ export async function simpanAbsensi(
 
   if (toSave.length === 0) {
     try { await db.batch([delStmt, delSnapshotStmt, ...snapshotStmts, upsertSesiStmt]) } catch (e: any) { return { error: e.message } }
+    invalidateAttendanceCache()
     revalidatePath('/dashboard/kehadiran')
     revalidatePath('/dashboard/rekap-absensi')
     return { success: 'Absensi disimpan! Semua siswa HADIR.' }
@@ -512,6 +512,7 @@ export async function simpanAbsensi(
     const all = [delStmt, delSnapshotStmt, ...insStmts, ...snapshotStmts, upsertSesiStmt]
     for (let i = 0; i < all.length; i += 100) await db.batch(all.slice(i, i + 100))
   } catch (e: any) { return { error: e.message } }
+  invalidateAttendanceCache()
 
   try {
     await enqueueAttendanceAlfaNotifications(db, {

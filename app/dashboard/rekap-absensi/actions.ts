@@ -17,6 +17,7 @@ import {
   getKbmExceptionsForDate,
   getKalenderDateStatus,
 } from '@/lib/kalender-pendidikan'
+import { attendanceStatusCode } from '@/lib/attendance-status'
 
 const HARI = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 const MAX_RANGE_DAYS = 31
@@ -468,6 +469,10 @@ async function buildClassDailyMatrix(db: D1Database, kelasId: string, tanggal: s
       nisn: siswa.nisn,
       status_harian: statusHarian,
       sumber_status: finalDay?.sumber_status || 'belum_ada_data',
+      submitted_blok: finalDay?.submitted_blok || 0,
+      pending_blok: finalDay?.pending_blok || 0,
+      total_blok: finalDay?.total_blok || 0,
+      status_reason: finalDay?.status_reason || 'Belum ada data status harian.',
       keterangan: finalDay ? noteFrom(finalDay, izinItems) : '',
       cells,
     }
@@ -521,7 +526,10 @@ export async function getAbsensiSiswaKelasRentang(kelasId: string, tglMulai: str
         hariNama: HARI[hariNum(new Date(day.tanggal + 'T00:00:00'))],
         statusHari: displayStatus(applyIzinStatus(day, izinItems)),
         totalBlok: day.total_blok,
+        submittedBlok: day.submitted_blok,
+        pendingBlok: day.pending_blok,
         sumberStatus: day.sumber_status,
+        statusReason: day.status_reason,
         keterangan: noteFrom(day, izinItems),
         detail: day.detail_guru,
       }
@@ -602,22 +610,22 @@ export async function getAbsensiPerSiswa(siswaId: string, tglMulai: string, tglS
     .map(day => {
       const izinItems = izinMap.get(`${day.siswa_id}__${day.tanggal}`) || []
       const statusHari = displayStatus(applyIzinStatus(day, izinItems))
-      const blokTidakHadir = day.guru_status === 'HADIR' || day.guru_status === 'BELUM_ADA_DATA' || day.guru_status === 'BELUM_ADA_INPUT'
-        ? 0
-        : day.guru_status === 'PARSIAL'
-          ? day.detail_guru.length
-          : day.total_blok
+      const blokHadir = day.block_statuses.filter(block => block.submitted && block.status === 'HADIR').length
+      const blokTidakHadir = day.block_statuses.filter(block => block.submitted && block.status !== 'HADIR').length
 
       return {
         tanggal: day.tanggal,
         hariNama: HARI[hariNum(new Date(day.tanggal + 'T00:00:00'))],
         totalBlok: day.total_blok,
-        blokHadir: Math.max(0, day.total_blok - blokTidakHadir),
+        submittedBlok: day.submitted_blok,
+        pendingBlok: day.pending_blok,
+        blokHadir,
         blokTidakHadir,
         statusHari,
         statusGuru: day.guru_status,
         statusWaliKelas: day.wali_status,
         sumberStatus: day.sumber_status,
+        statusReason: day.status_reason,
         keteranganWaliKelas: day.keterangan_wali_kelas,
         keterangan: noteFrom(day, izinItems),
         detail: day.detail_guru,
@@ -675,11 +683,16 @@ export async function getCetakRekapSiswa(siswaId: string, tglMulai: string, tglS
 
 type MonitoringPrintMode = 'bulanan' | 'semester'
 
-function monitoringPrintMark(status: string | null | undefined): '' | 'S' | 'I' | 'A' {
-  if (status === 'SAKIT') return 'S'
-  if (status === 'IZIN') return 'I'
-  if (status === 'ALFA' || status === 'PARSIAL' || status === 'BOLOS') return 'A'
-  return ''
+const MONITORING_CODES = ['H', 'S', 'I', 'A', 'B', 'K', 'BI', 'BL'] as const
+type MonitoringCode = typeof MONITORING_CODES[number]
+
+function emptyMonitoringTotals(): Record<MonitoringCode, number> {
+  return { H: 0, S: 0, I: 0, A: 0, B: 0, K: 0, BI: 0, BL: 0 }
+}
+
+function monitoringPrintMark(status: string | null | undefined): MonitoringCode {
+  const code = attendanceStatusCode(status)
+  return MONITORING_CODES.includes(code as MonitoringCode) ? code as MonitoringCode : 'BL'
 }
 
 function monthLabel(month: number) {
@@ -727,29 +740,27 @@ export async function getCetakMonitoringSiswa(params: {
 
     const rows = classData.siswa.map((siswa, idx) => {
       const dayMap = new Map((classData.statusByStudent.get(siswa.id) || []).map(day => [day.tanggal, day]))
-      const totals = { S: 0, I: 0, A: 0 }
+      const totals = emptyMonitoringTotals()
       const cells = dates.map(tanggal => {
         const mark = monitoringPrintMark(dayMap.get(tanggal)?.status_akhir)
-        if (mark) totals[mark] += 1
+        totals[mark] += 1
         return { tanggal, mark }
       })
 
       const monthTotals = months.map(({ month, label }) => {
-        const total = { S: 0, I: 0, A: 0 }
+        const total = emptyMonitoringTotals()
         for (const tanggal of dates) {
           if (Number(tanggal.slice(5, 7)) !== month) continue
           const mark = monitoringPrintMark(dayMap.get(tanggal)?.status_akhir)
-          if (mark) total[mark] += 1
+          total[mark] += 1
         }
         return { month, label, ...total }
       })
 
       const semesterTotal = monthTotals.reduce((acc, item) => {
-        acc.S += item.S
-        acc.I += item.I
-        acc.A += item.A
+        for (const code of MONITORING_CODES) acc[code] += item[code]
         return acc
-      }, { S: 0, I: 0, A: 0 })
+      }, emptyMonitoringTotals())
 
       return {
         siswa_id: siswa.id,

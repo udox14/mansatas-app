@@ -20,8 +20,13 @@ export type SiswaKeterangan = {
   keterangan: string
   keterangan_id: string | null
   guru_status: string
+  guru_status_reason: string
   status_akhir: string
   sumber_status: string
+  status_reason: string
+  submitted_blok: number
+  pending_blok: number
+  total_blok: number
   detail_guru: Array<{
     status: string
     nama_mapel: string
@@ -121,8 +126,13 @@ export async function loadSiswaKeterangan(kelasId: string, tanggal: string): Pro
         keterangan: detail?.keterangan_wali_kelas || '',
         keterangan_id: ketIdMap.get(s.id) || null,
         guru_status: detail?.guru_status || 'BELUM_ADA_DATA',
+        guru_status_reason: detail?.guru_status_reason || 'Belum ada data status guru.',
         status_akhir: detail?.status_akhir || 'BELUM_ADA_DATA',
         sumber_status: detail?.sumber_status || 'belum_ada_data',
+        status_reason: detail?.status_reason || 'Belum ada data status harian.',
+        submitted_blok: detail?.submitted_blok || 0,
+        pending_blok: detail?.pending_blok || 0,
+        total_blok: detail?.total_blok || 0,
         detail_guru: detail?.detail_guru || [],
       }
     }),

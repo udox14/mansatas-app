@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db'
-import { clearMemCache } from '@/utils/mem-cache'
+import { invalidateAttendanceCache } from '@/lib/attendance-cache'
+import { ensureActivityLogTables, logActivity } from '@/lib/activity-log'
 
 type WaliStatus = 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'
 
@@ -40,7 +41,6 @@ export async function simpanKeputusanAbsensiWaliBatch(
   tanggal: string,
   data: KeputusanAbsensiInput[]
 ): Promise<{ error?: string; success?: string }> {
-  clearMemCache()
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -56,19 +56,30 @@ export async function simpanKeputusanAbsensiWaliBatch(
   if (siswaIds.length === 0) return { error: 'Tidak ada data siswa untuk disimpan.' }
 
   const placeholders = siswaIds.map(() => '?').join(',')
-  const siswaRes = await db.prepare(`
-    SELECT id
+  const [siswaRes, existingRes] = await Promise.all([db.prepare(`
+    SELECT id, nama_lengkap
     FROM siswa
     WHERE kelas_id = ? AND status = 'aktif' AND id IN (${placeholders})
-  `).bind(kelasId, ...siswaIds).all<{ id: string }>()
+  `).bind(kelasId, ...siswaIds).all<{ id: string; nama_lengkap: string }>(), db.prepare(`
+    SELECT siswa_id, status, keterangan
+    FROM keterangan_absensi_wali_kelas
+    WHERE tanggal = ? AND siswa_id IN (${placeholders})
+  `).bind(tanggal, ...siswaIds).all<{ siswa_id: string; status: WaliStatus; keterangan: string | null }>()])
 
   const allowedSiswaIds = new Set((siswaRes.results || []).map(row => row.id))
   if (allowedSiswaIds.size !== new Set(siswaIds).size) {
     return { error: 'Ada siswa yang tidak termasuk kelas ini.' }
   }
 
-  const toDelete = data.filter(item => item.status === null)
-  const toUpsert = data.filter((item): item is KeputusanAbsensiInput & { status: WaliStatus } => item.status !== null)
+  const existingMap = new Map((existingRes.results || []).map(item => [item.siswa_id, item]))
+  const changedData = data.filter(item => {
+    const before = existingMap.get(item.siswa_id)
+    return (before?.status || null) !== item.status || (before?.keterangan || '') !== (item.keterangan.trim() || '')
+  })
+  if (changedData.length === 0) return { success: 'Tidak ada perubahan keputusan absensi.' }
+
+  const toDelete = changedData.filter(item => item.status === null)
+  const toUpsert = changedData.filter((item): item is KeputusanAbsensiInput & { status: WaliStatus } => item.status !== null)
 
   try {
     const stmts: D1PreparedStatement[] = []
@@ -97,6 +108,31 @@ export async function simpanKeputusanAbsensiWaliBatch(
     for (let i = 0; i < stmts.length; i += 100) {
       await db.batch(stmts.slice(i, i + 100))
     }
+    invalidateAttendanceCache()
+
+    const siswaNameMap = new Map((siswaRes.results || []).map(item => [item.id, item.nama_lengkap]))
+    await logActivity({
+      db,
+      module: 'absensi',
+      action: 'set_daily_attendance_decision',
+      summary: `Memperbarui ${changedData.length} keputusan absensi harian kelas`,
+      entityType: 'daily_attendance_decision_batch',
+      entityId: `${kelasId}:${tanggal}`,
+      entityLabel: `Keputusan absensi ${tanggal}`,
+      before: changedData.map(item => ({ siswa_id: item.siswa_id, ...existingMap.get(item.siswa_id) })),
+      after: changedData.map(item => ({ siswa_id: item.siswa_id, status: item.status, keterangan: item.keterangan.trim() || null })),
+      metadata: { kelas_id: kelasId, tanggal },
+      targets: changedData.map(item => ({
+        type: 'siswa',
+        id: item.siswa_id,
+        label: siswaNameMap.get(item.siswa_id) || item.siswa_id,
+        metadata: {
+          tanggal,
+          before: existingMap.get(item.siswa_id) || { status: null, keterangan: null },
+          after: { status: item.status, keterangan: item.keterangan.trim() || null },
+        },
+      })),
+    })
 
     revalidateAttendanceViews()
 
@@ -108,6 +144,57 @@ export async function simpanKeputusanAbsensiWaliBatch(
   } catch (e: any) {
     return { error: e.message }
   }
+}
+
+export type KeputusanAbsensiHistoryRow = {
+  id: string
+  created_at: string
+  actor_name: string | null
+  tanggal: string
+  before: { status: WaliStatus | null; keterangan: string | null }
+  after: { status: WaliStatus | null; keterangan: string | null }
+}
+
+export async function getKeputusanAbsensiHistory(siswaId: string, tanggal?: string) {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized', history: [] as KeputusanAbsensiHistoryRow[] }
+  const db = await getDB()
+  await ensureActivityLogTables(db)
+  const roles = await getUserRoles(db, user.id)
+  const siswa = await db.prepare('SELECT kelas_id FROM siswa WHERE id = ? LIMIT 1')
+    .bind(siswaId).first<{ kelas_id: string }>()
+  if (!siswa?.kelas_id || !(await canAccessKelas(db, user.id, siswa.kelas_id, roles))) {
+    return { error: 'Akses ditolak', history: [] as KeputusanAbsensiHistoryRow[] }
+  }
+
+  const rows = await db.prepare(`
+    SELECT al.id, al.created_at, al.actor_name, alt.metadata_json
+    FROM activity_log_targets alt
+    JOIN activity_logs al ON al.id = alt.log_id
+    WHERE alt.target_type = 'siswa' AND alt.target_id = ?
+      AND al.module = 'absensi' AND al.action = 'set_daily_attendance_decision'
+    ORDER BY al.created_at DESC
+    LIMIT 100
+  `).bind(siswaId).all<{ id: string; created_at: string; actor_name: string | null; metadata_json: string | null }>()
+
+  const history = (rows.results || []).flatMap(row => {
+    try {
+      const metadata = JSON.parse(row.metadata_json || '{}')
+      if (tanggal && metadata.tanggal !== tanggal) return []
+      return [{
+        id: row.id,
+        created_at: row.created_at,
+        actor_name: row.actor_name,
+        tanggal: metadata.tanggal || '',
+        before: metadata.before || { status: null, keterangan: null },
+        after: metadata.after || { status: null, keterangan: null },
+      } satisfies KeputusanAbsensiHistoryRow]
+    } catch {
+      return []
+    }
+  })
+
+  return { error: null, history }
 }
 
 export async function simpanKeputusanAbsensiWali(

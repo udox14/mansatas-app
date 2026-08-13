@@ -122,6 +122,7 @@ export function buildTeacherAttendanceHtml(data: {
     <b>Guru</b><span>${esc(report.guru?.nama_lengkap || '-')}</span>
     <b>Periode</b><span>${esc(formatDate(report.start_date))} s.d. ${esc(formatDate(report.end_date))}</span>
     <b>Lingkup</b><span>${esc(scopeLabel)}</span>
+    <b>Catatan</b><span>Berbasis input guru per sesi; bukan status final harian siswa.</span>
     <b>Jumlah sesi</b><span>${report.summary.total_sesi}</span>
   </div>
   <div class="summary">

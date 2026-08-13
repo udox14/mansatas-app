@@ -16,7 +16,11 @@ import {
   splitTeachingSlotsByExceptions,
 } from '@/lib/kalender-pendidikan'
 import type { KalenderEvent, KbmException } from '@/lib/kalender-pendidikan'
-import type { FinalAttendanceStatus } from '@/lib/wali-kelas-attendance'
+import {
+  getFinalAttendanceForClass,
+  type FinalAttendanceClassData,
+  type FinalAttendanceStatus,
+} from '@/lib/wali-kelas-attendance'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 
 const HARI = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
@@ -251,75 +255,13 @@ function choosePrintableStatus(statuses: string[]): PrintableAttendanceStatus | 
 }
 
 async function getNonHadirRowsForAgenda(db: D1Database, kelasId: string, tanggal: string): Promise<AgendaKelasAbsensiRow[]> {
-  const [siswaRes, waliRes, absensiRes, izinRes, izinKeluarRes] = await Promise.all([
-    db.prepare(`
-      SELECT id, nama_lengkap
-      FROM siswa
-      WHERE kelas_id = ? AND status = 'aktif'
-      ORDER BY nama_lengkap ASC
-    `).bind(kelasId).all<{ id: string; nama_lengkap: string }>(),
-    db.prepare(`
-      SELECT kawk.siswa_id, kawk.status, kawk.keterangan
-      FROM keterangan_absensi_wali_kelas kawk
-      JOIN siswa s ON kawk.siswa_id = s.id
-      WHERE s.kelas_id = ? AND kawk.tanggal = ?
-    `).bind(kelasId, tanggal).all<any>(),
-    db.prepare(`
-      SELECT ab.siswa_id, ab.status, ab.catatan
-      FROM absensi_siswa ab
-      JOIN penugasan_mengajar pm ON ab.penugasan_id = pm.id
-      WHERE pm.kelas_id = ? AND ab.tanggal = ? AND ab.status IN ('SAKIT','IZIN','ALFA')
-      ORDER BY ab.jam_ke_mulai ASC
-    `).bind(kelasId, tanggal).all<any>(),
-    db.prepare(`
-      SELECT itk.siswa_id, itk.alasan, itk.keterangan
-      FROM izin_tidak_masuk_kelas itk
-      JOIN siswa s ON itk.siswa_id = s.id
-      WHERE s.kelas_id = ? AND itk.tanggal = ?
-    `).bind(kelasId, tanggal).all<any>(),
-    db.prepare(`
-      SELECT ik.siswa_id, ik.keterangan
-      FROM izin_keluar_komplek ik
-      JOIN siswa s ON ik.siswa_id = s.id
-      WHERE s.kelas_id = ?
-        AND substr(ik.waktu_keluar, 1, 10) <= ?
-        AND (ik.waktu_kembali IS NULL OR substr(ik.waktu_kembali, 1, 10) >= ?)
-    `).bind(kelasId, tanggal, tanggal).all<any>(),
-  ])
-
-  const waliMap = new Map<string, { status: string; keterangan: string }>()
-  for (const row of waliRes.results || []) {
-    waliMap.set(row.siswa_id, { status: row.status, keterangan: row.keterangan || '' })
-  }
-
-  const statusMap = new Map<string, string[]>()
-  const noteMap = new Map<string, string[]>()
-  const pushStatus = (siswaId: string, status: string, note?: string) => {
-    if (!statusMap.has(siswaId)) statusMap.set(siswaId, [])
-    statusMap.get(siswaId)!.push(status)
-    if (note) {
-      if (!noteMap.has(siswaId)) noteMap.set(siswaId, [])
-      noteMap.get(siswaId)!.push(note)
-    }
-  }
-
-  for (const row of absensiRes.results || []) pushStatus(row.siswa_id, row.status, row.catatan || '')
-  for (const row of izinRes.results || []) pushStatus(row.siswa_id, 'IZIN', [row.alasan, row.keterangan].filter(Boolean).join(': '))
-  for (const row of izinKeluarRes.results || []) pushStatus(row.siswa_id, 'IZIN', row.keterangan || 'Keluar komplek')
-
+  const finalData = await getFinalAttendanceForClass(db, kelasId, tanggal, tanggal)
+  if (!finalData) return []
   const rows: AgendaKelasAbsensiRow[] = []
-  for (const siswa of siswaRes.results || []) {
-    const wali = waliMap.get(siswa.id)
-    const status = wali
-      ? choosePrintableStatus([wali.status])
-      : choosePrintableStatus(statusMap.get(siswa.id) || [])
-
-    if (!status) continue
-
-    const notes = wali?.keterangan
-      ? [wali.keterangan]
-      : Array.from(new Set(noteMap.get(siswa.id) || [])).filter(Boolean)
-
+  for (const siswa of finalData.siswa) {
+    const day = finalData.statusByStudent.get(siswa.id)?.find(item => item.tanggal === tanggal)
+    const status = choosePrintableStatus(day ? [day.status_akhir] : [])
+    if (!day || !status) continue
     rows.push({
       no: rows.length + 1,
       nama: abbreviateStudentName(siswa.nama_lengkap),
@@ -327,10 +269,9 @@ async function getNonHadirRowsForAgenda(db: D1Database, kelasId: string, tanggal
       sakit: status === 'SAKIT',
       izin: status === 'IZIN',
       alfa: status === 'ALFA',
-      ket: notes.slice(0, 2).join('; '),
+      ket: day.keterangan_wali_kelas || day.detail_guru.map(detail => detail.catatan).filter(Boolean).slice(0, 2).join('; '),
     })
   }
-
   return rows
 }
 
@@ -693,6 +634,13 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
     exceptionsByDate.get(exc.tanggal)!.push(exc)
   }
 
+  const finalAttendanceByClass = new Map<string, FinalAttendanceClassData | null>(
+    await Promise.all(uniqueKelasIds.map(async kelasId => [
+      kelasId,
+      await getFinalAttendanceForClass(db, kelasId, minDate, maxDate),
+    ] as const))
+  )
+
   // 6. Process all jobs in parallel
   const pages: AgendaKelasPageData[] = []
   
@@ -858,83 +806,9 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
     const activeJam = occupied.size
     const hasActiveBlocks = activeJam > 0 && slots.length > 0
     
-    let statusRows: AgendaKelasAbsensiRow[] = []
-    if (hasActiveBlocks) {
-      // Build attendance rows using pre-fetched student list
-      const students = siswaByKelas.get(kelasId) || []
-      const [waliRes, absensiRes, izinRes, izinKeluarRes] = await Promise.all([
-        db.prepare(`
-          SELECT kawk.siswa_id, kawk.status, kawk.keterangan
-          FROM keterangan_absensi_wali_kelas kawk
-          JOIN siswa s ON kawk.siswa_id = s.id
-          WHERE s.kelas_id = ? AND kawk.tanggal = ?
-        `).bind(kelasId, tanggal).all<any>(),
-        db.prepare(`
-          SELECT ab.siswa_id, ab.status, ab.catatan
-          FROM absensi_siswa ab
-          JOIN penugasan_mengajar pm ON ab.penugasan_id = pm.id
-          WHERE pm.kelas_id = ? AND ab.tanggal = ? AND ab.status IN ('SAKIT','IZIN','ALFA')
-          ORDER BY ab.jam_ke_mulai ASC
-        `).bind(kelasId, tanggal).all<any>(),
-        db.prepare(`
-          SELECT itk.siswa_id, itk.alasan, itk.keterangan
-          FROM izin_tidak_masuk_kelas itk
-          JOIN siswa s ON itk.siswa_id = s.id
-          WHERE s.kelas_id = ? AND itk.tanggal = ?
-        `).bind(kelasId, tanggal).all<any>(),
-        db.prepare(`
-          SELECT ik.siswa_id, ik.keterangan
-          FROM izin_keluar_komplek ik
-          JOIN siswa s ON ik.siswa_id = s.id
-          WHERE s.kelas_id = ?
-            AND substr(ik.waktu_keluar, 1, 10) <= ?
-            AND (ik.waktu_kembali IS NULL OR substr(ik.waktu_kembali, 1, 10) >= ?)
-        `).bind(kelasId, tanggal, tanggal).all<any>(),
-      ])
-
-      const waliMap = new Map<string, { status: string; keterangan: string }>()
-      for (const row of waliRes.results || []) {
-        waliMap.set(row.siswa_id, { status: row.status, keterangan: row.keterangan || '' })
-      }
-
-      const statusMap = new Map<string, string[]>()
-      const noteMap = new Map<string, string[]>()
-      const pushStatus = (siswaId: string, status: string, note?: string) => {
-        if (!statusMap.has(siswaId)) statusMap.set(siswaId, [])
-        statusMap.get(siswaId)!.push(status)
-        if (note) {
-          if (!noteMap.has(siswaId)) noteMap.set(siswaId, [])
-          noteMap.get(siswaId)!.push(note)
-        }
-      }
-
-      for (const row of absensiRes.results || []) pushStatus(row.siswa_id, row.status, row.catatan || '')
-      for (const row of izinRes.results || []) pushStatus(row.siswa_id, 'IZIN', [row.alasan, row.keterangan].filter(Boolean).join(': '))
-      for (const row of izinKeluarRes.results || []) pushStatus(row.siswa_id, 'IZIN', row.keterangan || 'Keluar komplek')
-
-      for (const siswa of students) {
-        const wali = waliMap.get(siswa.id)
-        const status = wali
-          ? choosePrintableStatus([wali.status])
-          : choosePrintableStatus(statusMap.get(siswa.id) || [])
-
-        if (!status) continue
-
-        const notes = wali?.keterangan
-          ? [wali.keterangan]
-          : Array.from(new Set(noteMap.get(siswa.id) || [])).filter(Boolean)
-
-        statusRows.push({
-          no: statusRows.length + 1,
-          nama: abbreviateStudentName(siswa.nama_lengkap),
-          status,
-          sakit: status === 'SAKIT',
-          izin: status === 'IZIN',
-          alfa: status === 'ALFA',
-          ket: notes.slice(0, 2).join('; '),
-        })
-      }
-    }
+    const statusRows = hasActiveBlocks
+      ? buildAgendaKelasAttendanceRows(tanggal, finalAttendanceByClass.get(kelasId) || null)
+      : []
 
     return {
       error: null,
@@ -1077,55 +951,15 @@ function agendaKelasBaseRows(): AgendaKelasRow[] {
 }
 
 function buildAgendaKelasAttendanceRows(
-  kelasId: string,
   tanggal: string,
-  students: BulkSiswaRow[],
-  waliByDate: Map<string, BulkWaliAttendanceRow[]>,
-  teacherByDate: Map<string, BulkTeacherAttendanceRow[]>,
-  permissionByDate: Map<string, BulkClassPermissionRow[]>,
-  exitByClass: Map<string, BulkExitPermissionRow[]>,
+  finalData: FinalAttendanceClassData | null,
 ): AgendaKelasAbsensiRow[] {
-  const key = agendaKelasKey(kelasId, tanggal)
-  const waliMap = new Map<string, { status: string; keterangan: string }>()
-  for (const row of waliByDate.get(key) || []) {
-    waliMap.set(row.siswa_id, { status: row.status, keterangan: row.keterangan || '' })
-  }
-
-  const statusMap = new Map<string, string[]>()
-  const noteMap = new Map<string, string[]>()
-  const pushStatus = (siswaId: string, status: string, note?: string) => {
-    if (!statusMap.has(siswaId)) statusMap.set(siswaId, [])
-    statusMap.get(siswaId)!.push(status)
-    if (note) {
-      if (!noteMap.has(siswaId)) noteMap.set(siswaId, [])
-      noteMap.get(siswaId)!.push(note)
-    }
-  }
-
-  for (const row of teacherByDate.get(key) || []) pushStatus(row.siswa_id, row.status, row.catatan || '')
-  for (const row of permissionByDate.get(key) || []) {
-    pushStatus(row.siswa_id, 'IZIN', [row.alasan, row.keterangan].filter(Boolean).join(': '))
-  }
-  for (const row of exitByClass.get(kelasId) || []) {
-    const keluar = String(row.waktu_keluar || '').slice(0, 10)
-    const kembali = row.waktu_kembali ? String(row.waktu_kembali).slice(0, 10) : null
-    if (keluar <= tanggal && (!kembali || kembali >= tanggal)) {
-      pushStatus(row.siswa_id, 'IZIN', row.keterangan || 'Keluar komplek')
-    }
-  }
-
+  if (!finalData) return []
   const rows: AgendaKelasAbsensiRow[] = []
-  for (const siswa of students) {
-    const wali = waliMap.get(siswa.id)
-    const status = wali
-      ? choosePrintableStatus([wali.status])
-      : choosePrintableStatus(statusMap.get(siswa.id) || [])
-    if (!status) continue
-
-    const notes = wali?.keterangan
-      ? [wali.keterangan]
-      : Array.from(new Set(noteMap.get(siswa.id) || [])).filter(Boolean)
-
+  for (const siswa of finalData.siswa) {
+    const day = finalData.statusByStudent.get(siswa.id)?.find(item => item.tanggal === tanggal)
+    const status = choosePrintableStatus(day ? [day.status_akhir] : [])
+    if (!day || !status) continue
     rows.push({
       no: rows.length + 1,
       nama: abbreviateStudentName(siswa.nama_lengkap),
@@ -1133,7 +967,7 @@ function buildAgendaKelasAttendanceRows(
       sakit: status === 'SAKIT',
       izin: status === 'IZIN',
       alfa: status === 'ALFA',
-      ket: notes.slice(0, 2).join('; '),
+      ket: day.keterangan_wali_kelas || day.detail_guru.map(detail => detail.catatan).filter(Boolean).slice(0, 2).join('; '),
     })
   }
   return rows
@@ -1149,11 +983,7 @@ function buildAgendaKelasExportPage(input: {
   schedulesByClassDay: Map<string, BulkScheduleRow[]>
   agendasByDate: Map<string, BulkAgendaRow[]>
   delegationsByDate: Map<string, BulkDelegationRow[]>
-  studentsByClass: Map<string, BulkSiswaRow[]>
-  waliByDate: Map<string, BulkWaliAttendanceRow[]>
-  teacherByDate: Map<string, BulkTeacherAttendanceRow[]>
-  permissionByDate: Map<string, BulkClassPermissionRow[]>
-  exitByClass: Map<string, BulkExitPermissionRow[]>
+  finalAttendance: FinalAttendanceClassData | null
 }): AgendaKelasPageData {
   const { job, kelas, kepala } = input
   const { kelasId, tanggal } = job
@@ -1277,16 +1107,10 @@ function buildAgendaKelasExportPage(input: {
   const tugas = activeRows.filter(row => row.tugas.trim()).length
   const activeJam = occupied.size
   const hasActiveBlocks = activeJam > 0 && slots.length > 0
-  const students = input.studentsByClass.get(kelasId) || []
   const absensiRows = hasActiveBlocks
     ? buildAgendaKelasAttendanceRows(
-      kelasId,
       tanggal,
-      students,
-      input.waliByDate,
-      input.teacherByDate,
-      input.permissionByDate,
-      input.exitByClass,
+      input.finalAttendance,
     )
     : []
 
@@ -1344,18 +1168,13 @@ export async function getAgendaKelasCetakExportData(
   if (!ta?.id) return { error: 'Tahun ajaran aktif belum diatur.', pages: [], meta: emptyMeta }
 
   const kelasRows: BulkKelasRow[] = []
-  const siswaRows: BulkSiswaRow[] = []
   const schedules: BulkScheduleRow[] = []
   const agendas: BulkAgendaRow[] = []
   const delegations: BulkDelegationRow[] = []
-  const waliAttendance: BulkWaliAttendanceRow[] = []
-  const teacherAttendance: BulkTeacherAttendanceRow[] = []
-  const permissions: BulkClassPermissionRow[] = []
-  const exits: BulkExitPermissionRow[] = []
 
   for (const ids of idChunks) {
     const placeholders = ids.map(() => '?').join(',')
-    const [kelasRes, siswaRes, scheduleRes, agendaRes, delegationRes, waliRes, teacherRes, permissionRes, exitRes] = await Promise.all([
+    const [kelasRes, scheduleRes, agendaRes, delegationRes] = await Promise.all([
       db.prepare(`
         SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.kbm_nonaktif_mulai,
           wali.nama_lengkap as wali_kelas_nama,
@@ -1367,12 +1186,6 @@ export async function getAgendaKelasCetakExportData(
         LEFT JOIN siswa km ON k.km_siswa_id = km.id AND km.kelas_id = k.id AND km.status = 'aktif'
         WHERE k.id IN (${placeholders})
       `).bind(...ids).all<BulkKelasRow>(),
-      db.prepare(`
-        SELECT id, nama_lengkap, kelas_id
-        FROM siswa
-        WHERE kelas_id IN (${placeholders}) AND status = 'aktif'
-        ORDER BY nama_lengkap ASC
-      `).bind(...ids).all<BulkSiswaRow>(),
       db.prepare(`
         SELECT pm.kelas_id, jm.hari, jm.penugasan_id, jm.jam_ke,
           pm.guru_id, guru.nama_lengkap as guru_nama, mp.nama_mapel
@@ -1404,46 +1217,12 @@ export async function getAgendaKelasCetakExportData(
           AND dt.dari_user_id = pm.guru_id
         ORDER BY dt.tanggal ASC
       `).bind(...ids, minDate, maxDate).all<BulkDelegationRow>(),
-      db.prepare(`
-        SELECT s.kelas_id, kawk.siswa_id, kawk.tanggal, kawk.status, kawk.keterangan
-        FROM keterangan_absensi_wali_kelas kawk
-        JOIN siswa s ON kawk.siswa_id = s.id
-        WHERE s.kelas_id IN (${placeholders}) AND kawk.tanggal BETWEEN ? AND ?
-      `).bind(...ids, minDate, maxDate).all<BulkWaliAttendanceRow>(),
-      db.prepare(`
-        SELECT pm.kelas_id, ab.siswa_id, ab.tanggal, ab.status, ab.catatan
-        FROM absensi_siswa ab
-        JOIN penugasan_mengajar pm ON ab.penugasan_id = pm.id
-        WHERE pm.kelas_id IN (${placeholders})
-          AND ab.tanggal BETWEEN ? AND ?
-          AND ab.status IN ('SAKIT','IZIN','ALFA')
-        ORDER BY ab.tanggal ASC, ab.jam_ke_mulai ASC
-      `).bind(...ids, minDate, maxDate).all<BulkTeacherAttendanceRow>(),
-      db.prepare(`
-        SELECT s.kelas_id, itk.siswa_id, itk.tanggal, itk.alasan, itk.keterangan
-        FROM izin_tidak_masuk_kelas itk
-        JOIN siswa s ON itk.siswa_id = s.id
-        WHERE s.kelas_id IN (${placeholders}) AND itk.tanggal BETWEEN ? AND ?
-      `).bind(...ids, minDate, maxDate).all<BulkClassPermissionRow>(),
-      db.prepare(`
-        SELECT s.kelas_id, ik.siswa_id, ik.waktu_keluar, ik.waktu_kembali, ik.keterangan
-        FROM izin_keluar_komplek ik
-        JOIN siswa s ON ik.siswa_id = s.id
-        WHERE s.kelas_id IN (${placeholders})
-          AND substr(ik.waktu_keluar, 1, 10) <= ?
-          AND (ik.waktu_kembali IS NULL OR substr(ik.waktu_kembali, 1, 10) >= ?)
-      `).bind(...ids, maxDate, minDate).all<BulkExitPermissionRow>(),
     ])
 
     kelasRows.push(...(kelasRes.results || []))
-    siswaRows.push(...(siswaRes.results || []))
     schedules.push(...(scheduleRes.results || []))
     agendas.push(...(agendaRes.results || []))
     delegations.push(...(delegationRes.results || []))
-    waliAttendance.push(...(waliRes.results || []))
-    teacherAttendance.push(...(teacherRes.results || []))
-    permissions.push(...(permissionRes.results || []))
-    exits.push(...(exitRes.results || []))
   }
 
   const kelasMap = new Map(kelasRows.map(row => [row.id, row]))
@@ -1471,16 +1250,12 @@ export async function getAgendaKelasCetakExportData(
   for (const row of agendas) pushAgendaKelasMap(agendasByDate, row.tanggal, row)
   const delegationsByDate = new Map<string, BulkDelegationRow[]>()
   for (const row of delegations) pushAgendaKelasMap(delegationsByDate, row.tanggal, row)
-  const waliByDate = new Map<string, BulkWaliAttendanceRow[]>()
-  for (const row of waliAttendance) pushAgendaKelasMap(waliByDate, agendaKelasKey(row.kelas_id, row.tanggal), row)
-  const teacherByDate = new Map<string, BulkTeacherAttendanceRow[]>()
-  for (const row of teacherAttendance) pushAgendaKelasMap(teacherByDate, agendaKelasKey(row.kelas_id, row.tanggal), row)
-  const permissionByDate = new Map<string, BulkClassPermissionRow[]>()
-  for (const row of permissions) pushAgendaKelasMap(permissionByDate, agendaKelasKey(row.kelas_id, row.tanggal), row)
-  const exitByClass = new Map<string, BulkExitPermissionRow[]>()
-  for (const row of exits) pushAgendaKelasMap(exitByClass, row.kelas_id, row)
-  const studentsByClass = new Map<string, BulkSiswaRow[]>()
-  for (const row of siswaRows) pushAgendaKelasMap(studentsByClass, row.kelas_id, row)
+  const finalAttendanceByClass = new Map<string, FinalAttendanceClassData | null>(
+    await Promise.all(uniqueKelasIds.map(async kelasId => [
+      kelasId,
+      await getFinalAttendanceForClass(db, kelasId, minDate, maxDate),
+    ] as const))
+  )
 
   const pages: AgendaKelasPageData[] = []
   for (const job of jobs) {
@@ -1494,11 +1269,7 @@ export async function getAgendaKelasCetakExportData(
       schedulesByClassDay,
       agendasByDate,
       delegationsByDate,
-      studentsByClass,
-      waliByDate,
-      teacherByDate,
-      permissionByDate,
-      exitByClass,
+      finalAttendance: finalAttendanceByClass.get(job.kelasId) || null,
     })
     if (isPrintableAgendaKelasPage(page)) pages.push(page)
   }
