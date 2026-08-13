@@ -294,7 +294,7 @@ function cellXml(ref: string, cell: Cell) {
   return `<c r="${ref}" s="${cell.style}" t="inlineStr"><is><t xml:space="preserve">${xmlEscape(cell.value ?? '')}</t></is></c>`
 }
 
-function worksheetXml(sheet: SheetBuilder, drawingRelId: string, hasDrawing: boolean) {
+function worksheetXml(sheet: SheetBuilder, drawingRelId: string, hasDrawing: boolean, paperSize: 'F4' | 'A4' = 'F4') {
   const rows = new Map<number, string[]>()
   for (const [ref, cell] of sheet.cells) {
     const match = ref.match(/^(\D+)(\d+)$/)
@@ -320,7 +320,8 @@ function worksheetXml(sheet: SheetBuilder, drawingRelId: string, hasDrawing: boo
   const breaks = Array.from({ length: breakCount }).map((_, index) => `<brk id="${(index + 1) * PAGE_ROWS}" max="16383" man="1"/>`).join('')
   const drawing = hasDrawing ? `<drawing r:id="${drawingRelId}"/>` : ''
   const rowBreaks = breakCount ? `<rowBreaks count="${breakCount}" manualBreakCount="${breakCount}">${breaks}</rowBreaks>` : ''
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${XML_NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><dimension ref="A1:${cellRef(sheet.maxRow, sheet.maxCol)}"/><sheetViews><sheetView workbookViewId="0" rightToLeft="0"/></sheetViews><sheetFormatPr defaultColWidth="${TEMPLATE_DEFAULT_COLUMN_WIDTH}" defaultRowHeight="${TEMPLATE_DEFAULT_ROW_HEIGHT}"/><cols>${cols}</cols><sheetData>${rowXmls}</sheetData><mergeCells count="${sheet.merges.length}">${merges}</mergeCells><pageMargins left="0.69" right="0.27559055118110237" top="0.255" bottom="0.22500000000000001" header="0.31496062992125984" footer="0.31496062992125984"/><pageSetup orientation="landscape" paperSize="14" scale="90"/>${rowBreaks}${drawing}</worksheet>`
+  const isA4 = paperSize === 'A4'
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${XML_NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><dimension ref="A1:${cellRef(sheet.maxRow, sheet.maxCol)}"/><sheetViews><sheetView workbookViewId="0" rightToLeft="0"/></sheetViews><sheetFormatPr defaultColWidth="${TEMPLATE_DEFAULT_COLUMN_WIDTH}" defaultRowHeight="${TEMPLATE_DEFAULT_ROW_HEIGHT}"/><cols>${cols}</cols><sheetData>${rowXmls}</sheetData><mergeCells count="${sheet.merges.length}">${merges}</mergeCells><pageMargins left="0.69" right="0.27559055118110237" top="0.255" bottom="0.22500000000000001" header="0.31496062992125984" footer="0.31496062992125984"/><pageSetup orientation="landscape" paperSize="${isA4 ? 9 : 14}" scale="${isA4 ? 81 : 90}"/>${rowBreaks}${drawing}</worksheet>`
 }
 
 function drawingXml(sheet: SheetBuilder, drawingId: number) {
@@ -391,6 +392,7 @@ export async function buildAgendaKelasXlsxBytes(
   pages: AgendaKelasPageData[],
   signatureSettings: AgendaKelasSignatureSettings,
   assets: AgendaKelasExportAssets,
+  options: { paperSize?: 'F4' | 'A4' } = {},
 ) {
   if (!pages.length) throw new Error('Tidak ada halaman Agenda Kelas untuk diekspor.')
   const byClass = new Map<string, AgendaKelasPageData[]>()
@@ -418,7 +420,7 @@ export async function buildAgendaKelasXlsxBytes(
     if (sheet.builder.drawings.length) drawingEntries.push({ index: drawingId, sheet: sheet.builder })
     entries.push({
       name: `xl/worksheets/sheet${index + 1}.xml`,
-      bytes: encoder.encode(worksheetXml(sheet.builder, 'rId2', sheet.builder.drawings.length > 0)),
+      bytes: encoder.encode(worksheetXml(sheet.builder, 'rId2', sheet.builder.drawings.length > 0, options.paperSize)),
     })
     if (sheet.builder.drawings.length) {
       entries.push({ name: `xl/worksheets/_rels/sheet${index + 1}.xml.rels`, bytes: encoder.encode(worksheetRelationships(drawingId)) })
@@ -450,8 +452,9 @@ export async function buildAgendaKelasXlsxBlob(
   pages: AgendaKelasPageData[],
   signatureSettings: AgendaKelasSignatureSettings,
   assets: AgendaKelasExportAssets,
+  options: { paperSize?: 'F4' | 'A4' } = {},
 ) {
-  const bytes = await buildAgendaKelasXlsxBytes(pages, signatureSettings, assets)
+  const bytes = await buildAgendaKelasXlsxBytes(pages, signatureSettings, assets, options)
   return new Blob([bytesToArrayBuffer(bytes)], { type: XLSX_MIME })
 }
 

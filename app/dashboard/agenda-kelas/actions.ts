@@ -50,6 +50,10 @@ export type AgendaKelasOption = {
   kelompok: string
   label: string
   jumlah_siswa: number
+  wali_kelas_nama: string
+  wali_kelas_nip: string | null
+  wali_kelas_signature_url: string | null
+  km_nama: string
 }
 
 export type AgendaKelasRow = {
@@ -290,10 +294,16 @@ export async function getAgendaKelasOptions() {
 
   const rows = await access.db.prepare(`
     SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok,
-      COUNT(CASE WHEN s.status = 'aktif' THEN 1 END) as jumlah_siswa
+      COUNT(CASE WHEN s.status = 'aktif' THEN 1 END) as jumlah_siswa,
+      wali.nama_lengkap AS wali_kelas_nama,
+      wali.nip AS wali_kelas_nip,
+      wali.signature_url AS wali_kelas_signature_url,
+      km.nama_lengkap AS km_nama
     FROM kelas k
     LEFT JOIN siswa s ON s.kelas_id = k.id
-    GROUP BY k.id, k.tingkat, k.nomor_kelas, k.kelompok
+    LEFT JOIN "user" wali ON k.wali_kelas_id = wali.id
+    LEFT JOIN siswa km ON k.km_siswa_id = km.id AND km.kelas_id = k.id AND km.status = 'aktif'
+    GROUP BY k.id, k.tingkat, k.nomor_kelas, k.kelompok, wali.nama_lengkap, wali.nip, wali.signature_url, km.nama_lengkap
     ORDER BY CAST(k.tingkat AS INTEGER) ASC, CAST(k.nomor_kelas AS INTEGER) ASC, k.kelompok ASC
   `).all<any>()
 
@@ -306,6 +316,10 @@ export async function getAgendaKelasOptions() {
       kelompok: row.kelompok,
       label: formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok),
       jumlah_siswa: Number(row.jumlah_siswa || 0),
+      wali_kelas_nama: row.wali_kelas_nama || 'Belum diatur',
+      wali_kelas_nip: row.wali_kelas_nip || null,
+      wali_kelas_signature_url: row.wali_kelas_signature_url || null,
+      km_nama: row.km_nama || 'Belum diatur',
     })),
   }
 }

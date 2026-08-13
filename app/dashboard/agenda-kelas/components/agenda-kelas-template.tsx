@@ -14,6 +14,7 @@ type Props = {
   data: AgendaKelasPageData
   signatureSettings: AgendaKelasSignatureSettings
   pageBreak?: boolean
+  paperSize?: 'F4' | 'A4'
 }
 
 function signatureImageStyle(settings: AgendaKelasSignaturePlacement): React.CSSProperties {
@@ -43,13 +44,23 @@ function Check({ active }: { active: boolean }) {
 }
 
 export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
-  ({ data, signatureSettings, pageBreak = false }, ref) => {
+  ({ data, signatureSettings, pageBreak = false, paperSize = 'F4' }, ref) => {
     const absensiList = data.absensiRows.slice(0, 20)
+    const compactForA4 = paperSize === 'A4'
 
     return (
       <div
         ref={ref}
         style={{
+          width: compactForA4 ? '297mm' : '330mm',
+          height: compactForA4 ? '210mm' : '215mm',
+          overflow: 'hidden',
+          backgroundColor: '#fff',
+          ...(pageBreak ? { pageBreakBefore: 'always' as const } : {}),
+        }}
+      >
+        <div
+          style={{
           width: '330mm',
           height: '215mm',
           padding: '10mm',
@@ -60,7 +71,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           fontSize: '8.5pt',
           overflow: 'hidden',
           position: 'relative',
-          ...(pageBreak ? { pageBreakBefore: 'always' as const } : {}),
+          ...(compactForA4 ? { transform: 'scale(0.9)', transformOrigin: 'top left' } : {}),
         }}
       >
         {/* 1. KOP / HEADER - CENTERED FLEX GROUP SO LOGO SITS ADJACENT TO TEXT */}
@@ -360,6 +371,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
           </div>
         </div>
 
+        </div>
       </div>
     )
   }

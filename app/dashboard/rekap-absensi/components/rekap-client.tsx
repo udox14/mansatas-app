@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   ArrowLeft, ChevronDown, ChevronRight, Clock,
-  FileSpreadsheet, Loader2, Printer, Search, User, Users,
+  FileSpreadsheet, Loader2, Printer, Search, User, UserRoundX, Users,
 } from 'lucide-react'
 import {
   getAbsensiHeatmap,
@@ -20,6 +20,7 @@ import {
   getCetakMonitoringSiswa,
   getCetakRekapKelas,
   getCetakRekapSiswa,
+  getSiswaTidakHadir,
   getSiswaByKelas,
 } from '../actions'
 import { todayWIB, nowWIB, formatTimeWIB } from '@/lib/time'
@@ -33,9 +34,24 @@ type FilterOpt = {
 }
 
 type Mode = 'hari' | 'rentang'
-type TabValue = 'kelas' | 'siswa' | 'jam' | 'cetak'
+type TabValue = 'kelas' | 'siswa' | 'tidak-hadir' | 'jam' | 'cetak'
+type AbsencePeriod = 'hari' | 'minggu' | 'bulan' | 'rentang'
+type AbsenceStatus = 'SEMUA' | 'SAKIT' | 'IZIN' | 'ALFA'
 type PrintPaper = 'A4' | 'F4'
 type PrintOrientation = 'portrait' | 'landscape'
+type PrintStatusCode = 'H' | 'S' | 'I' | 'A' | 'B' | 'K' | 'BI' | 'BL'
+
+const PRINT_STATUS_OPTIONS: Array<{ code: PrintStatusCode; label: string }> = [
+  { code: 'H', label: 'Hadir' },
+  { code: 'S', label: 'Sakit' },
+  { code: 'I', label: 'Izin' },
+  { code: 'A', label: 'Alfa' },
+  { code: 'B', label: 'Bolos sebagian jam' },
+  { code: 'K', label: 'Perlu keputusan wali' },
+  { code: 'BI', label: 'Belum ada input' },
+  { code: 'BL', label: 'Belum lengkap' },
+]
+const ALL_PRINT_STATUS_CODES = PRINT_STATUS_OPTIONS.map(item => item.code)
 
 function printDimensions(paper: PrintPaper, orientation: PrintOrientation) {
   const base = paper === 'A4' ? { width: 210, height: 297 } : { width: 215, height: 330 }
@@ -138,6 +154,27 @@ function statusStyle(status: string) {
   return { ...style, label: attendanceStatusLabel(status), short: attendanceStatusCode(status) }
 }
 
+function isSelectedPrintStatus(status: string | null | undefined, selectedCodes: PrintStatusCode[]) {
+  return selectedCodes.includes(attendanceStatusCode(status) as PrintStatusCode)
+}
+
+function selectedStatusLegend(selectedCodes: PrintStatusCode[]) {
+  return PRINT_STATUS_OPTIONS
+    .filter(item => selectedCodes.includes(item.code))
+    .map(item => `${item.code} ${item.label}`)
+    .join('; ')
+}
+
+function weekRange(anchor: string) {
+  const [year, month, day] = anchor.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  const dayOfWeek = date.getUTCDay() || 7
+  const start = new Date(date)
+  start.setUTCDate(date.getUTCDate() - dayOfWeek + 1)
+  const toISO = (value: Date) => value.toISOString().slice(0, 10)
+  return { start: toISO(start), end: toISO(new Date(start.getTime() + 6 * 86400000)) }
+}
+
 function StatusBadge({ status }: { status: string }) {
   const s = statusStyle(status)
   return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${s.cls}`}>{s.label}</span>
@@ -154,7 +191,7 @@ function StatusDot({ status }: { status: string }) {
 
 function ModeSwitch({ mode, setMode }: { mode: Mode; setMode: (mode: Mode) => void }) {
   return (
-    <div className="inline-flex rounded-lg border bg-white p-0.5 dark:bg-slate-900">
+    <div className="flex w-full rounded-lg border bg-white p-0.5 sm:inline-flex sm:w-auto dark:bg-slate-900">
       {([
         ['hari', 'Per Hari'],
         ['rentang', 'Rentang Tanggal'],
@@ -163,7 +200,7 @@ function ModeSwitch({ mode, setMode }: { mode: Mode; setMode: (mode: Mode) => vo
           key={value}
           type="button"
           onClick={() => setMode(value)}
-          className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors sm:flex-none ${
             mode === value ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
           }`}
         >
@@ -176,10 +213,10 @@ function ModeSwitch({ mode, setMode }: { mode: Mode; setMode: (mode: Mode) => vo
 
 function AngkatanSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: number[] }) {
   return (
-    <div>
+    <div className="w-full sm:w-auto">
       <Label className="text-xs text-slate-500">Tingkat</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="mt-1 h-9 w-[150px] text-sm"><SelectValue placeholder="Pilih tingkat" /></SelectTrigger>
+        <SelectTrigger className="mt-1 h-9 w-full sm:w-[150px] text-sm"><SelectValue placeholder="Pilih tingkat" /></SelectTrigger>
         <SelectContent>
           {options.map(tingkat => <SelectItem key={tingkat} value={String(tingkat)}>Kelas {tingkat}</SelectItem>)}
         </SelectContent>
@@ -190,10 +227,10 @@ function AngkatanSelect({ value, onChange, options }: { value: string; onChange:
 
 function KelasSelect({ value, onChange, kelas }: { value: string; onChange: (v: string) => void; kelas: FilterOpt['kelas'] }) {
   return (
-    <div>
+    <div className="w-full sm:w-auto">
       <Label className="text-xs text-slate-500">Kelas</Label>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="mt-1 h-9 min-w-[180px] text-sm"><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
+        <SelectTrigger className="mt-1 h-9 w-full sm:min-w-[180px] text-sm"><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
         <SelectContent>
           {kelas.map(k => <SelectItem key={k.id} value={k.id}>{k.label}</SelectItem>)}
         </SelectContent>
@@ -238,18 +275,221 @@ export function RekapAbsensiClient({ filterOptions }: Props) {
 
   return (
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)} className="space-y-3">
-      <TabsList className="grid w-full grid-cols-4 max-w-xl">
-        <TabsTrigger value="kelas" className="text-xs sm:text-sm"><Users className="mr-1 hidden h-3.5 w-3.5 sm:inline" />Per Kelas</TabsTrigger>
-        <TabsTrigger value="siswa" className="text-xs sm:text-sm"><User className="mr-1 hidden h-3.5 w-3.5 sm:inline" />Per Siswa</TabsTrigger>
-        <TabsTrigger value="jam" className="text-xs sm:text-sm"><Clock className="mr-1 hidden h-3.5 w-3.5 sm:inline" />Per Jam</TabsTrigger>
-        <TabsTrigger value="cetak" className="text-xs sm:text-sm"><Printer className="mr-1 hidden h-3.5 w-3.5 sm:inline" />Cetak</TabsTrigger>
+      <TabsList className="flex h-auto w-full max-w-3xl justify-start gap-0.5 overflow-x-auto p-1 sm:grid sm:grid-cols-5 sm:gap-0">
+        <TabsTrigger value="kelas" className="min-w-max px-3 text-xs sm:min-w-0 sm:px-2 sm:text-sm"><Users className="mr-1 hidden h-3.5 w-3.5 sm:inline" />Per Kelas</TabsTrigger>
+        <TabsTrigger value="siswa" className="min-w-max px-3 text-xs sm:min-w-0 sm:px-2 sm:text-sm"><User className="mr-1 hidden h-3.5 w-3.5 sm:inline" />Per Siswa</TabsTrigger>
+        <TabsTrigger value="tidak-hadir" className="min-w-max px-3 text-xs sm:min-w-0 sm:px-2 sm:text-sm"><UserRoundX className="mr-1 hidden h-3.5 w-3.5 sm:inline" />Tidak Hadir</TabsTrigger>
+        <TabsTrigger value="jam" className="min-w-max px-3 text-xs sm:min-w-0 sm:px-2 sm:text-sm"><Clock className="mr-1 hidden h-3.5 w-3.5 sm:inline" />Per Jam</TabsTrigger>
+        <TabsTrigger value="cetak" className="min-w-max px-3 text-xs sm:min-w-0 sm:px-2 sm:text-sm"><Printer className="mr-1 hidden h-3.5 w-3.5 sm:inline" />Cetak</TabsTrigger>
       </TabsList>
 
       <TabsContent value="kelas"><TabKelas filterOptions={filterOptions} initialTingkat={initialTingkat} onOpenKelas={goToSiswaFromKelas} /></TabsContent>
       <TabsContent value="siswa"><TabSiswa filterOptions={filterOptions} initialJump={jumpToSiswa} onBack={() => setActiveTab('kelas')} /></TabsContent>
+      <TabsContent value="tidak-hadir"><TabTidakHadir filterOptions={filterOptions} initialTingkat={initialTingkat} /></TabsContent>
       <TabsContent value="jam"><TabJam filterOptions={filterOptions} initialTingkat={initialTingkat} /></TabsContent>
       <TabsContent value="cetak"><TabCetak filterOptions={filterOptions} initialTingkat={initialTingkat} /></TabsContent>
     </Tabs>
+  )
+}
+
+function TabTidakHadir({ filterOptions, initialTingkat }: { filterOptions: FilterOpt; initialTingkat: string }) {
+  const [period, setPeriod] = useState<AbsencePeriod>('hari')
+  const [status, setStatus] = useState<AbsenceStatus>('SEMUA')
+  const [tingkat, setTingkat] = useState(initialTingkat)
+  const [kelasId, setKelasId] = useState('all')
+  const [tanggal, setTanggal] = useState(today())
+  const [bulan, setBulan] = useState(today().slice(0, 7))
+  const [tglMulai, setTglMulai] = useState(monthStart())
+  const [tglSelesai, setTglSelesai] = useState(today())
+  const [result, setResult] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+
+  const kelasByTingkat = useMemo(
+    () => filterOptions.kelas.filter(kelas => kelas.tingkat === Number(tingkat)),
+    [filterOptions.kelas, tingkat],
+  )
+  const activeRange = useMemo(() => {
+    if (period === 'hari') return { start: tanggal, end: tanggal }
+    if (period === 'minggu') return weekRange(tanggal)
+    if (period === 'bulan') {
+      const [year, month] = bulan.split('-').map(Number)
+      return monthRange(year, month)
+    }
+    return { start: tglMulai, end: tglSelesai }
+  }, [bulan, period, tanggal, tglMulai, tglSelesai])
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      setResult(await getSiswaTidakHadir({
+        tglMulai: activeRange.start,
+        tglSelesai: activeRange.end,
+        status,
+        tingkat: Number(tingkat),
+        kelasId: kelasId === 'all' ? undefined : kelasId,
+      }))
+    } catch (error) {
+      console.error('Gagal memuat daftar siswa tidak hadir:', error)
+      setResult({ error: 'Gagal memuat daftar siswa tidak hadir. Silakan coba lagi.', data: [] })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const statusFilters: Array<{ value: AbsenceStatus; label: string; active: string }> = [
+    { value: 'SEMUA', label: 'Semua', active: 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900' },
+    { value: 'SAKIT', label: 'Sakit', active: 'bg-amber-500 text-white' },
+    { value: 'IZIN', label: 'Izin', active: 'bg-blue-600 text-white' },
+    { value: 'ALFA', label: 'Alfa', active: 'bg-red-600 text-white' },
+  ]
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border bg-white p-4 dark:bg-slate-900">
+        <div className="flex flex-col gap-3">
+          <div>
+            <Label className="text-xs text-slate-500">Status ketidakhadiran</Label>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {statusFilters.map(filter => (
+                <button
+                  key={filter.value}
+                  type="button"
+                  onClick={() => { setStatus(filter.value); setResult(null) }}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    status === filter.value ? filter.active : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end max-sm:[&_input]:w-full max-sm:[&_[role=combobox]]:w-full">
+            <div>
+              <Label className="text-xs text-slate-500">Periode</Label>
+              <Select value={period} onValueChange={(value) => { setPeriod(value as AbsencePeriod); setResult(null) }}>
+                <SelectTrigger className="mt-1 h-9 w-[145px] text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hari">Per Hari</SelectItem>
+                  <SelectItem value="minggu">Per Minggu</SelectItem>
+                  <SelectItem value="bulan">Per Bulan</SelectItem>
+                  <SelectItem value="rentang">Rentang Tanggal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <AngkatanSelect value={tingkat} onChange={(value) => { setTingkat(value); setKelasId('all'); setResult(null) }} options={filterOptions.angkatan} />
+            <div>
+              <Label className="text-xs text-slate-500">Kelas</Label>
+              <Select value={kelasId} onValueChange={(value) => { setKelasId(value); setResult(null) }}>
+                <SelectTrigger className="mt-1 h-9 min-w-[170px] text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua kelas</SelectItem>
+                  {kelasByTingkat.map(kelas => <SelectItem key={kelas.id} value={kelas.id}>{kelas.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {period === 'hari' && (
+              <div><Label className="text-xs text-slate-500">Tanggal</Label><Input type="date" value={tanggal} onChange={event => { setTanggal(event.target.value); setResult(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+            )}
+            {period === 'minggu' && (
+              <div>
+                <Label className="text-xs text-slate-500">Pilih tanggal dalam minggu</Label>
+                <Input type="date" value={tanggal} onChange={event => { setTanggal(event.target.value); setResult(null) }} className="mt-1 h-9 w-[185px] text-sm" />
+              </div>
+            )}
+            {period === 'bulan' && (
+              <div><Label className="text-xs text-slate-500">Bulan</Label><Input type="month" value={bulan} onChange={event => { setBulan(event.target.value); setResult(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+            )}
+            {period === 'rentang' && (
+              <>
+                <div><Label className="text-xs text-slate-500">Dari</Label><Input type="date" value={tglMulai} onChange={event => { setTglMulai(event.target.value); setResult(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+                <div><Label className="text-xs text-slate-500">Sampai</Label><Input type="date" value={tglSelesai} onChange={event => { setTglSelesai(event.target.value); setResult(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+              </>
+            )}
+            <Button onClick={load} disabled={loading || !tingkat} size="sm" className="w-full bg-indigo-600 text-white hover:bg-indigo-700 sm:ml-auto sm:w-auto">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Search className="mr-1 h-4 w-4" />Tampilkan</>}
+            </Button>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-slate-500">
+          Menampilkan Sakit, Izin, dan Alfa pada {fmtTgl(activeRange.start)}{activeRange.start !== activeRange.end ? ` s/d ${fmtTgl(activeRange.end)}` : ''}. Rentang maksimal 31 hari.
+        </p>
+      </div>
+
+      {result?.error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{result.error}</div>}
+
+      {result && !result.error && (
+        <>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              ['Total kejadian', result.summary?.total || 0, 'border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'],
+              ['Sakit', result.summary?.sakit || 0, 'border-amber-200 bg-amber-50 text-amber-800'],
+              ['Izin', result.summary?.izin || 0, 'border-blue-200 bg-blue-50 text-blue-800'],
+              ['Alfa', result.summary?.alfa || 0, 'border-red-200 bg-red-50 text-red-800'],
+            ].map(([label, value, classes]) => (
+              <div key={label as string} className={`rounded-lg border px-3 py-2.5 ${classes}`}>
+                <p className="text-[11px] font-medium">{label}</p>
+                <p className="mt-0.5 text-xl font-bold leading-none">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {(result.data || []).length > 0 ? (
+            <>
+              <div className="space-y-2 md:hidden">
+                {result.data.map((row: any) => (
+                  <div key={`${row.siswa_id}-${row.tanggal}`} className="rounded-lg border bg-white p-3 dark:bg-slate-900">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
+                        <p className="text-xs text-slate-500">{row.kelas_label} · {row.nisn || 'NISN -'}</p>
+                      </div>
+                      <StatusBadge status={row.status} />
+                    </div>
+                    <p className="mt-2 text-xs font-medium text-slate-700 dark:text-slate-200">{row.hariNama}, {fmtTgl(row.tanggal)}</p>
+                    {row.keterangan && <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{row.keterangan}</p>}
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto rounded-lg border bg-white dark:bg-slate-900 md:block">
+                <table className="min-w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-500 dark:bg-slate-800">
+                    <tr>
+                      {['No', 'Tanggal', 'Nama Siswa', 'Kelas', 'NISN', 'Status', 'Keterangan'].map(header => <th key={header} className="whitespace-nowrap px-3 py-2.5">{header}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {result.data.map((row: any, index: number) => (
+                      <tr key={`${row.siswa_id}-${row.tanggal}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <td className="px-3 py-2.5 text-slate-400">{index + 1}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5"><p className="font-semibold text-slate-700 dark:text-slate-200">{fmtTgl(row.tanggal)}</p><p className="text-[10px] text-slate-500">{row.hariNama}</p></td>
+                        <td className="min-w-[220px] px-3 py-2.5 font-semibold text-slate-800 dark:text-slate-100">{row.nama_lengkap}</td>
+                        <td className="whitespace-nowrap px-3 py-2.5">{row.kelas_label}</td>
+                        <td className="px-3 py-2.5 text-slate-500">{row.nisn || '-'}</td>
+                        <td className="px-3 py-2.5"><StatusBadge status={row.status} /></td>
+                        <td className="min-w-[240px] px-3 py-2.5 text-slate-600 dark:text-slate-300">{row.keterangan || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-lg border border-dashed bg-slate-50 p-10 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50">
+              Tidak ada siswa dengan status yang dipilih pada periode ini.
+            </div>
+          )}
+        </>
+      )}
+
+      {!result && !loading && (
+        <div className="rounded-lg border border-dashed bg-slate-50 p-10 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50">
+          Atur periode dan status, lalu klik Tampilkan.
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -293,11 +533,11 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
   return (
     <div className="space-y-3">
       <div className="rounded-lg border bg-white p-4 dark:bg-slate-900">
-        <div className="mb-3 flex flex-wrap items-end gap-3">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end max-sm:[&_input]:w-full max-sm:[&_[role=combobox]]:w-full">
           <ModeSwitch mode={mode} setMode={(m) => { setMode(m); setData([]); setInfo('') }} />
           <AngkatanSelect value={tingkat} onChange={(v) => { setTingkat(v); setData([]) }} options={filterOptions.angkatan} />
           {mode === 'hari' ? (
-            <div className="flex items-end gap-2">
+            <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-end gap-2 sm:flex">
               <Button variant="outline" size="sm" onClick={() => setTanggal(prev => shiftDateISO(prev, -1))} className="h-9 w-9 p-0"><ChevronRight className="h-4 w-4 rotate-180" /></Button>
               <div><Label className="text-xs text-slate-500">Tanggal</Label><Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="mt-1 h-9 w-[155px] text-sm" /></div>
               <Button variant="outline" size="sm" onClick={() => setTanggal(prev => shiftDateISO(prev, 1))} className="h-9 w-9 p-0"><ChevronRight className="h-4 w-4" /></Button>
@@ -308,7 +548,7 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
               <div><Label className="text-xs text-slate-500">Sampai</Label><Input type="date" value={tglSelesai} onChange={e => setTglSelesai(e.target.value)} className="mt-1 h-9 w-[155px] text-sm" /></div>
             </>
           )}
-          <Button onClick={load} disabled={loading || !tingkat} size="sm" className="ml-auto bg-indigo-600 text-white hover:bg-indigo-700">
+          <Button onClick={load} disabled={loading || !tingkat} size="sm" className="w-full bg-indigo-600 text-white hover:bg-indigo-700 sm:ml-auto sm:w-auto">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Search className="mr-1 h-4 w-4" />Tampilkan</>}
           </Button>
         </div>
@@ -476,7 +716,7 @@ function TabSiswa({ filterOptions, initialJump, onBack }: {
       )}
 
       <div className="rounded-lg border bg-white p-4 dark:bg-slate-900">
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end max-sm:[&_input]:w-full max-sm:[&_[role=combobox]]:w-full">
           <ModeSwitch mode={mode} setMode={(m) => { setMode(m); setResult(null) }} />
           <KelasSelect value={kelasId} onChange={(v) => { setKelasId(v); setResult(null) }} kelas={kelasList} />
           {mode === 'hari' ? (
@@ -487,7 +727,7 @@ function TabSiswa({ filterOptions, initialJump, onBack }: {
               <div><Label className="text-xs text-slate-500">Sampai</Label><Input type="date" value={tglSelesai} onChange={e => setTglSelesai(e.target.value)} className="mt-1 h-9 w-[155px] text-sm" /></div>
             </>
           )}
-          <Button onClick={load} disabled={loading || !kelasId} size="sm" className="ml-auto bg-indigo-600 text-white hover:bg-indigo-700">
+          <Button onClick={load} disabled={loading || !kelasId} size="sm" className="w-full bg-indigo-600 text-white hover:bg-indigo-700 sm:ml-auto sm:w-auto">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Search className="mr-1 h-4 w-4" />Tampilkan</>}
           </Button>
         </div>
@@ -635,10 +875,10 @@ function TabJam({ filterOptions, initialTingkat }: { filterOptions: FilterOpt; i
   return (
     <div className="space-y-3">
       <div className="rounded-lg border bg-white p-4 dark:bg-slate-900">
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end max-sm:[&_input]:w-full max-sm:[&_[role=combobox]]:w-full">
           <AngkatanSelect value={tingkat} onChange={(v) => { setTingkat(v); setResult(null) }} options={filterOptions.angkatan} />
           <div><Label className="text-xs text-slate-500">Tanggal</Label><Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="mt-1 h-9 w-[155px] text-sm" /></div>
-          <Button onClick={load} disabled={loading || !tingkat} size="sm" className="ml-auto bg-indigo-600 text-white hover:bg-indigo-700">
+          <Button onClick={load} disabled={loading || !tingkat} size="sm" className="w-full bg-indigo-600 text-white hover:bg-indigo-700 sm:ml-auto sm:w-auto">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Search className="mr-1 h-4 w-4" />Tampilkan Heatmap</>}
           </Button>
         </div>
@@ -719,8 +959,12 @@ function TabJam({ filterOptions, initialTingkat }: { filterOptions: FilterOpt; i
 }
 
 function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt; initialTingkat: string }) {
-  const [printKind, setPrintKind] = useState<'monitoring' | 'kelas' | 'siswa'>('monitoring')
+  const [printKind, setPrintKind] = useState<'monitoring' | 'kelas' | 'siswa' | 'tidak-hadir'>('monitoring')
   const [mode, setMode] = useState<Mode>('hari')
+  const [absencePeriod, setAbsencePeriod] = useState<AbsencePeriod>('hari')
+  const [absenceMonth, setAbsenceMonth] = useState(today().slice(0, 7))
+  const [printStatusCodes, setPrintStatusCodes] = useState<PrintStatusCode[]>(ALL_PRINT_STATUS_CODES)
+  const [showPrintStatusOptions, setShowPrintStatusOptions] = useState(false)
   const [monitoringMode, setMonitoringMode] = useState<'bulanan' | 'semester'>('bulanan')
   const [tingkat, setTingkat] = useState(initialTingkat)
   const [kelasId, setKelasId] = useState('all')
@@ -742,6 +986,30 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
   const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
 
   const kelasByTingkat = useMemo(() => filterOptions.kelas.filter(k => k.tingkat === Number(tingkat)), [filterOptions.kelas, tingkat])
+  const absenceRange = useMemo(() => {
+    if (absencePeriod === 'hari') return { start: tanggal, end: tanggal }
+    if (absencePeriod === 'minggu') return weekRange(tanggal)
+    if (absencePeriod === 'bulan') {
+      const [year, month] = absenceMonth.split('-').map(Number)
+      return monthRange(year, month)
+    }
+    return { start: tglMulai, end: tglSelesai }
+  }, [absenceMonth, absencePeriod, tanggal, tglMulai, tglSelesai])
+  const printableStatusOptions = printKind === 'tidak-hadir'
+    ? PRINT_STATUS_OPTIONS.filter(option => ['S', 'I', 'A'].includes(option.code))
+    : PRINT_STATUS_OPTIONS
+  const printStatusSummary = useMemo(() => {
+    const selected = printableStatusOptions.filter(option => printStatusCodes.includes(option.code))
+    if (selected.length === printableStatusOptions.length) return 'Semua status'
+    return selected.map(option => option.label).join(', ')
+  }, [printStatusCodes, printableStatusOptions])
+  const togglePrintStatus = (code: PrintStatusCode) => {
+    setPrintStatusCodes(current => {
+      if (current.includes(code)) return current.length === 1 ? current : current.filter(item => item !== code)
+      return [...current, code]
+    })
+    setPrintData(null)
+  }
 
   const loadSiswa = async (id: string) => {
     setSiswaKelasId(id)
@@ -797,6 +1065,14 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
           tingkat: Number(tingkat),
           kelasId: kelasId !== 'all' ? kelasId : undefined,
         })
+      } else if (printKind === 'tidak-hadir') {
+        nextPrintData = await getSiswaTidakHadir({
+          tglMulai: absenceRange.start,
+          tglSelesai: absenceRange.end,
+          status: 'SEMUA',
+          tingkat: Number(tingkat),
+          kelasId: kelasId !== 'all' ? kelasId : undefined,
+        })
       } else if (siswaId) {
         nextPrintData = await getCetakRekapSiswa(siswaId, tglMulai, tglSelesai)
       }
@@ -823,7 +1099,7 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
     }
     const title = printKind === 'monitoring'
       ? `Rekap Absensi ${monitoringMode}`
-      : `Rekap Absensi ${printKind}`
+      : printKind === 'tidak-hadir' ? 'Daftar Siswa Tidak Hadir' : `Rekap Absensi ${printKind}`
     w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
 <style>
 @page { size: ${printDimensions(paper, orientation).width}mm ${printDimensions(paper, orientation).height}mm; margin: 0; }
@@ -849,14 +1125,17 @@ tr { break-inside: avoid; page-break-inside: avoid; }
     if (!printData || printData.error) return
     const period = printKind === 'monitoring'
       ? (monitoringMode === 'bulanan' ? `${tahun}-${pad2(Number(bulan))}` : `${tahunAjaranStart}-${semester}`)
+      : printKind === 'tidak-hadir' ? `${absenceRange.start}_${absenceRange.end}`
       : printKind === 'kelas' && mode === 'hari' ? tanggal : `${tglMulai}_${tglSelesai}`
     await downloadAttendanceWorkbook({
       kind: printKind,
       mode,
       data: printData,
+      selectedStatusCodes: printStatusCodes,
       filename: `rekap-absensi-${printKind}-${period}`,
       periodLabel: printKind === 'monitoring'
         ? (monitoringMode === 'bulanan' ? `${MONTH_OPTIONS[Number(bulan) - 1]} ${tahun}` : semesterRange(Number(tahunAjaranStart), semester).label)
+        : printKind === 'tidak-hadir' ? `${fmtTgl(absenceRange.start)}${absenceRange.start !== absenceRange.end ? ` s/d ${fmtTgl(absenceRange.end)}` : ''}`
         : printKind === 'kelas' && mode === 'hari' ? fmtTglFull(tanggal) : `${fmtTgl(tglMulai)} s/d ${fmtTgl(tglSelesai)}`,
     })
   }
@@ -864,13 +1143,19 @@ tr { break-inside: avoid; page-break-inside: avoid; }
   return (
     <div className="space-y-3">
       <div className="rounded-lg border bg-white p-4 dark:bg-slate-900">
-        <div className="mb-3 flex flex-wrap items-end gap-3">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end max-sm:[&_input]:w-full max-sm:[&_[role=combobox]]:w-full">
           <div>
             <Label className="text-xs text-slate-500">Jenis Cetak</Label>
             <Select value={printKind} onValueChange={(v) => {
-              const kind = v as 'monitoring' | 'kelas' | 'siswa'
+              const kind = v as 'monitoring' | 'kelas' | 'siswa' | 'tidak-hadir'
               setPrintKind(kind)
               setOrientation(kind === 'siswa' ? 'portrait' : 'landscape')
+              if (kind === 'tidak-hadir') {
+                setPrintStatusCodes(current => {
+                  const absentCodes = current.filter(code => ['S', 'I', 'A'].includes(code))
+                  return absentCodes.length ? absentCodes : ['S', 'I', 'A']
+                })
+              }
               setPrintData(null)
             }}>
               <SelectTrigger className="mt-1 h-9 w-[160px] text-sm"><SelectValue /></SelectTrigger>
@@ -878,11 +1163,12 @@ tr { break-inside: avoid; page-break-inside: avoid; }
                 <SelectItem value="monitoring">Monitoring Siswa</SelectItem>
                 <SelectItem value="kelas">Per Kelas</SelectItem>
                 <SelectItem value="siswa">Per Siswa</SelectItem>
+                <SelectItem value="tidak-hadir">Daftar Tidak Hadir</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {printKind === 'kelas' && <ModeSwitch mode={mode} setMode={(m) => { setMode(m); setPrintData(null) }} />}
-          {printKind === 'kelas' || printKind === 'monitoring' ? (
+          {printKind === 'kelas' || printKind === 'monitoring' || printKind === 'tidak-hadir' ? (
             <>
               <AngkatanSelect value={tingkat} onChange={(v) => { setTingkat(v); setKelasId('all'); setPrintData(null) }} options={filterOptions.angkatan} />
               <div>
@@ -959,6 +1245,36 @@ tr { break-inside: avoid; page-break-inside: avoid; }
                 </div>
               </>
             )
+          ) : printKind === 'tidak-hadir' ? (
+            <>
+              <div>
+                <Label className="text-xs text-slate-500">Periode</Label>
+                <Select value={absencePeriod} onValueChange={(value) => { setAbsencePeriod(value as AbsencePeriod); setPrintData(null) }}>
+                  <SelectTrigger className="mt-1 h-9 w-[145px] text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hari">Per Hari</SelectItem>
+                    <SelectItem value="minggu">Per Minggu</SelectItem>
+                    <SelectItem value="bulan">Per Bulan</SelectItem>
+                    <SelectItem value="rentang">Rentang Tanggal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {absencePeriod === 'hari' && (
+                <div><Label className="text-xs text-slate-500">Tanggal</Label><Input type="date" value={tanggal} onChange={e => { setTanggal(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+              )}
+              {absencePeriod === 'minggu' && (
+                <div><Label className="text-xs text-slate-500">Tanggal dalam minggu</Label><Input type="date" value={tanggal} onChange={e => { setTanggal(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[180px] text-sm" /></div>
+              )}
+              {absencePeriod === 'bulan' && (
+                <div><Label className="text-xs text-slate-500">Bulan</Label><Input type="month" value={absenceMonth} onChange={e => { setAbsenceMonth(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+              )}
+              {absencePeriod === 'rentang' && (
+                <>
+                  <div><Label className="text-xs text-slate-500">Dari</Label><Input type="date" value={tglMulai} onChange={e => { setTglMulai(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+                  <div><Label className="text-xs text-slate-500">Sampai</Label><Input type="date" value={tglSelesai} onChange={e => { setTglSelesai(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+                </>
+              )}
+            </>
           ) : printKind === 'kelas' && mode === 'hari' ? (
             <div><Label className="text-xs text-slate-500">Tanggal</Label><Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="mt-1 h-9 w-[155px] text-sm" /></div>
           ) : (
@@ -982,14 +1298,46 @@ tr { break-inside: avoid; page-break-inside: avoid; }
             </Select>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => load(false)} disabled={loading || (printKind === 'siswa' && !siswaId)} size="sm" className="bg-indigo-600 text-white hover:bg-indigo-700">
+        <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/50">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <Label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Status cetak</Label>
+              <p className="text-[11px] text-slate-500">{printStatusSummary}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPrintStatusOptions(current => !current)}
+              className="text-xs font-semibold text-indigo-600 hover:underline"
+            >
+              {showPrintStatusOptions ? 'Tutup' : 'Atur'}
+            </button>
+          </div>
+          <div className={`mt-3 ${showPrintStatusOptions ? '' : 'hidden'}`}>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-[11px] text-slate-500">Status yang tidak dipilih tetap memiliki kolom, tetapi nilainya kosong.</p>
+              <button type="button" onClick={() => { setPrintStatusCodes(printableStatusOptions.map(option => option.code)); setPrintData(null) }} className="shrink-0 text-xs font-semibold text-indigo-600 hover:underline">Semua</button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            {printableStatusOptions.map(option => {
+              const selected = printStatusCodes.includes(option.code)
+              return (
+                <label key={option.code} className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${selected ? 'border-indigo-300 bg-indigo-50 text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200' : 'border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900'}`}>
+                  <input type="checkbox" checked={selected} onChange={() => togglePrintStatus(option.code)} className="h-3.5 w-3.5 accent-indigo-600" />
+                  {option.code} · {option.label}
+                </label>
+              )
+            })}
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <Button onClick={() => load(false)} disabled={loading || (printKind === 'siswa' && !siswaId)} size="sm" className="w-full bg-indigo-600 text-white hover:bg-indigo-700 sm:w-auto">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Search className="mr-1 h-4 w-4" />Muat Data</>}
           </Button>
-          <Button onClick={() => printData ? handlePrint() : load(true)} disabled={loading || (printKind === 'siswa' && !siswaId)} size="sm" variant="outline">
+          <Button onClick={() => printData ? handlePrint() : load(true)} disabled={loading || (printKind === 'siswa' && !siswaId)} size="sm" variant="outline" className="w-full sm:w-auto">
             <Printer className="mr-1 h-4 w-4" />{isMobile ? 'Simpan PDF' : 'Cetak'}
           </Button>
-          <Button onClick={handleExcel} disabled={loading || !printData || Boolean(printData?.error)} size="sm" variant="outline">
+          <Button onClick={handleExcel} disabled={loading || !printData || Boolean(printData?.error)} size="sm" variant="outline" className="col-span-2 w-full sm:col-auto sm:w-auto">
             <FileSpreadsheet className="mr-1 h-4 w-4" />Download Excel
           </Button>
         </div>
@@ -1005,11 +1353,13 @@ tr { break-inside: avoid; page-break-inside: avoid; }
         <div className="rounded-lg border bg-white p-4 dark:bg-slate-900">
           <div ref={printRef} className="space-y-6 text-black">
             {printKind === 'monitoring' ? (
-              <PrintMonitoringSiswa data={printData} paper={paper} orientation={orientation} />
+              <PrintMonitoringSiswa data={printData} paper={paper} orientation={orientation} selectedStatusCodes={printStatusCodes} />
             ) : printKind === 'kelas' ? (
-              <PrintKelas data={printData} mode={mode} tanggal={tanggal} tglMulai={tglMulai} tglSelesai={tglSelesai} paper={paper} orientation={orientation} />
+              <PrintKelas data={printData} mode={mode} tanggal={tanggal} tglMulai={tglMulai} tglSelesai={tglSelesai} paper={paper} orientation={orientation} selectedStatusCodes={printStatusCodes} />
+            ) : printKind === 'tidak-hadir' ? (
+              <PrintTidakHadir data={printData} tglMulai={absenceRange.start} tglSelesai={absenceRange.end} paper={paper} orientation={orientation} selectedStatusCodes={printStatusCodes} />
             ) : (
-              <PrintSiswa data={printData} tglMulai={tglMulai} tglSelesai={tglSelesai} paper={paper} orientation={orientation} />
+              <PrintSiswa data={printData} tglMulai={tglMulai} tglSelesai={tglSelesai} paper={paper} orientation={orientation} selectedStatusCodes={printStatusCodes} />
             )}
           </div>
         </div>
@@ -1023,8 +1373,11 @@ const PRINT_BORDER = '0.6pt solid #000'
 
 const ATTENDANCE_CODES = ['H', 'S', 'I', 'A', 'B', 'K', 'BI', 'BL'] as const
 
-function compactStatusTotals(totals: Record<string, number> | undefined) {
-  return ATTENDANCE_CODES.map(code => `${code}:${totals?.[code] || 0}`).join(' ')
+function compactStatusTotals(totals: Record<string, number> | undefined, selectedStatusCodes: PrintStatusCode[]) {
+  return ATTENDANCE_CODES
+    .filter(code => selectedStatusCodes.includes(code))
+    .map(code => `${code}:${totals?.[code] || 0}`)
+    .join(' ')
 }
 
 function printablePageStyle(paper: PrintPaper, orientation: PrintOrientation) {
@@ -1039,7 +1392,12 @@ function printablePageStyle(paper: PrintPaper, orientation: PrintOrientation) {
   }
 }
 
-function PrintMonitoringSiswa({ data, paper, orientation }: { data: any; paper: PrintPaper; orientation: PrintOrientation }) {
+function PrintMonitoringSiswa({ data, paper, orientation, selectedStatusCodes }: {
+  data: any
+  paper: PrintPaper
+  orientation: PrintOrientation
+  selectedStatusCodes: PrintStatusCode[]
+}) {
   if (data?.error) {
     return <div style={{ color: '#b91c1c', fontSize: 12 }}>{data.error}</div>
   }
@@ -1070,13 +1428,19 @@ function PrintMonitoringSiswa({ data, paper, orientation }: { data: any; paper: 
   return (
     <>
       {pages.map((section: any, idx: number) => (
-        <MonitoringPrintPage key={`${section.kelas?.id || 'kelas'}-${idx}`} section={section} pageBreak={idx > 0} paper={paper} orientation={orientation} />
+        <MonitoringPrintPage key={`${section.kelas?.id || 'kelas'}-${idx}`} section={section} pageBreak={idx > 0} paper={paper} orientation={orientation} selectedStatusCodes={selectedStatusCodes} />
       ))}
     </>
   )
 }
 
-function MonitoringPrintPage({ section, pageBreak, paper, orientation }: { section: any; pageBreak: boolean; paper: PrintPaper; orientation: PrintOrientation }) {
+function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedStatusCodes }: {
+  section: any
+  pageBreak: boolean
+  paper: PrintPaper
+  orientation: PrintOrientation
+  selectedStatusCodes: PrintStatusCode[]
+}) {
   const mode = section.mode as 'bulanan' | 'semester'
   const rows = section.rows || []
   const dates = section.dates || []
@@ -1140,9 +1504,9 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation }: { secti
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.nis}</td>
                 <td style={{ ...printTd, fontSize: '8.5pt', paddingLeft: '4pt' }}>{row.nama_lengkap}</td>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.jenis_kelamin}</td>
-                {(row.cells || []).map((cell: any) => <td key={cell.tanggal} style={{ ...printTd, textAlign: 'center' }}>{cell.mark}</td>)}
+                {(row.cells || []).map((cell: any) => <td key={cell.tanggal} style={{ ...printTd, textAlign: 'center' }}>{selectedStatusCodes.includes(cell.mark) ? cell.mark : ''}</td>)}
                 {dates.length === 0 && <td style={printTd} />}
-                {ATTENDANCE_CODES.map(code => <td key={code} style={{ ...printTd, textAlign: 'center' }}>{row.totals?.[code] || 0}</td>)}
+                {ATTENDANCE_CODES.map(code => <td key={code} style={{ ...printTd, textAlign: 'center' }}>{selectedStatusCodes.includes(code) ? row.totals?.[code] || 0 : ''}</td>)}
               </tr>
             ))}
           </tbody>
@@ -1174,8 +1538,8 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation }: { secti
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.nis}</td>
                 <td style={{ ...printTd, fontSize: '8.5pt', paddingLeft: '4pt' }}>{row.nama_lengkap}</td>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.jenis_kelamin}</td>
-                {(row.monthTotals || []).map((item: any) => <td key={item.month} style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal', fontSize: '6.5pt' }}>{compactStatusTotals(item)}</td>)}
-                <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal', fontSize: '6.5pt' }}>{compactStatusTotals(row.semesterTotal)}</td>
+                {(row.monthTotals || []).map((item: any) => <td key={item.month} style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal', fontSize: '6.5pt' }}>{compactStatusTotals(item, selectedStatusCodes)}</td>)}
+                <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal', fontSize: '6.5pt' }}>{compactStatusTotals(row.semesterTotal, selectedStatusCodes)}</td>
               </tr>
             ))}
           </tbody>
@@ -1183,7 +1547,7 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation }: { secti
       )}
 
       <div style={{ marginTop: '5pt', fontSize: '7pt' }}>
-        Legenda: H Hadir; S Sakit; I Izin; A Alfa; B Bolos sebagian jam; K Perlu keputusan wali; BI Belum ada input; BL Belum lengkap.
+        Legenda: {selectedStatusLegend(selectedStatusCodes)}.
       </div>
 
       <div style={{ marginTop: '8pt', display: 'flex', justifyContent: 'space-between', fontSize: '8pt' }}>
@@ -1230,7 +1594,7 @@ function PrintHeader({ title, subtitle }: { title: string; subtitle: string }) {
   )
 }
 
-function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai, paper, orientation }: any) {
+function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai, paper, orientation, selectedStatusCodes }: any) {
   const sections = data.sections || []
   const maxSlots = orientation === 'landscape' ? 6 : 3
   const pages = mode !== 'hari' ? sections : sections.flatMap((section: any) => {
@@ -1272,12 +1636,12 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai, paper, orientat
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{i + 1}</td>
                     <td style={{ border: '1px solid #000', padding: 4 }}>{row.nama_lengkap}</td>
                     <td style={{ border: '1px solid #000', padding: 4 }}>{row.nisn || '-'}</td>
-                    {row.cells.map((cell: any) => <td key={cell.jam_ke} style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{statusStyle(cell.status).label}</td>)}
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{attendanceStatusLabel(row.status_harian)}</td>
-                    <td style={{ border: '1px solid #000', padding: 4 }}>{attendanceSourceLabel(row.sumber_status)}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.submitted_blok || 0}/{row.total_blok || 0}</td>
-                    <td style={{ border: '1px solid #000', padding: 4 }}>{row.status_reason || '-'}</td>
-                    <td style={{ border: '1px solid #000', padding: 4 }}>{row.keterangan || '-'}</td>
+                    {row.cells.map((cell: any) => <td key={cell.jam_ke} style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{isSelectedPrintStatus(cell.status, selectedStatusCodes) ? statusStyle(cell.status).label : ''}</td>)}
+                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{isSelectedPrintStatus(row.status_harian, selectedStatusCodes) ? attendanceStatusLabel(row.status_harian) : ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 4 }}>{isSelectedPrintStatus(row.status_harian, selectedStatusCodes) ? attendanceSourceLabel(row.sumber_status) : ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{isSelectedPrintStatus(row.status_harian, selectedStatusCodes) ? `${row.submitted_blok || 0}/${row.total_blok || 0}` : ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 4 }}>{isSelectedPrintStatus(row.status_harian, selectedStatusCodes) ? row.status_reason || '-' : ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 4 }}>{isSelectedPrintStatus(row.status_harian, selectedStatusCodes) ? row.keterangan || '-' : ''}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1298,21 +1662,21 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai, paper, orientat
                     <td style={{ border: '1px solid #000', padding: 4 }}>{row.nama_lengkap}</td>
                     <td style={{ border: '1px solid #000', padding: 4 }}>{row.nisn || '-'}</td>
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.total_hari_efektif}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.hadir}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.sakit}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.izin}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.alfa}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.bolos}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.perlu_konfirmasi_wali}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.belum_ada_input || 0}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.belum_ada_data}</td>
+                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('H') ? row.hadir : ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('S') ? row.sakit : ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('I') ? row.izin : ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('A') ? row.alfa : ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('B') ? row.bolos : ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('K') ? row.perlu_konfirmasi_wali : ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('BI') ? row.belum_ada_input || 0 : ''}</td>
+                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('BL') ? row.belum_ada_data : ''}</td>
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.persentase_hadir}%</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
-          <p style={{ marginTop: 6, fontSize: 9 }}>Legenda: H Hadir; S Sakit; I Izin; A Alfa; B Bolos sebagian jam; K Perlu keputusan wali; BI Belum ada input; BL Belum lengkap.</p>
+          <p style={{ marginTop: 6, fontSize: 9 }}>Legenda: {selectedStatusLegend(selectedStatusCodes)}.</p>
           <p style={{ marginTop: 12, textAlign: 'right', fontSize: 10 }}>Dicetak pada {formatTimeWIB(new Date().toISOString())}</p>
         </div>
       ))}
@@ -1320,7 +1684,99 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai, paper, orientat
   )
 }
 
-function PrintSiswa({ data, tglMulai, tglSelesai, paper, orientation }: any) {
+function PrintTidakHadir({ data, tglMulai, tglSelesai, paper, orientation, selectedStatusCodes }: {
+  data: any
+  tglMulai: string
+  tglSelesai: string
+  paper: PrintPaper
+  orientation: PrintOrientation
+  selectedStatusCodes: PrintStatusCode[]
+}) {
+  if (data?.error) return <div style={{ color: '#b91c1c', fontSize: 12 }}>{data.error}</div>
+
+  const rows = (data?.data || []).filter((row: any) => isSelectedPrintStatus(row.status, selectedStatusCodes))
+  const perPage = orientation === 'landscape' ? 25 : 20
+  const pages = Array.from({ length: Math.max(1, Math.ceil(rows.length / perPage)) }, (_, index) => rows.slice(index * perPage, (index + 1) * perPage))
+  const statusLabel = selectedStatusLegend(selectedStatusCodes)
+  const periode = `${fmtTgl(tglMulai)}${tglMulai !== tglSelesai ? ` s/d ${fmtTgl(tglSelesai)}` : ''}`
+  const summary = rows.reduce((total: Record<string, number>, row: any) => {
+    total.total += 1
+    const code = attendanceStatusCode(row.status)
+    if (code === 'S') total.sakit += 1
+    if (code === 'I') total.izin += 1
+    if (code === 'A') total.alfa += 1
+    return total
+  }, { total: 0, sakit: 0, izin: 0, alfa: 0 })
+
+  return (
+    <>
+      {pages.map((pageRows: any[], pageIndex: number) => (
+        <div key={pageIndex} className={pageIndex > 0 ? 'page-break' : ''} style={printablePageStyle(paper, orientation)}>
+          <PrintHeader
+            title="Daftar Siswa Tidak Hadir"
+            subtitle={`${periode} | Status: ${statusLabel}${pages.length > 1 ? ` | Halaman ${pageIndex + 1}/${pages.length}` : ''}`}
+          />
+          {pageIndex === 0 && (
+            <div style={{ display: 'flex', gap: '8pt', marginBottom: '10pt', fontSize: '9pt' }}>
+              {[
+                ['Total kejadian', summary.total || 0],
+                ['Sakit', summary.sakit || 0],
+                ['Izin', summary.izin || 0],
+                ['Alfa', summary.alfa || 0],
+              ].map(([label, value]) => (
+                <div key={label as string} style={{ border: PRINT_BORDER, padding: '4pt 8pt', minWidth: '62pt' }}>
+                  <div style={{ fontSize: '7pt' }}>{label}</div>
+                  <div style={{ fontWeight: 700, fontSize: '12pt', lineHeight: 1.1 }}>{value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {pageRows.length > 0 ? (
+            <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '9pt' }}>
+              <colgroup>
+                <col style={{ width: '28pt' }} />
+                <col style={{ width: '68pt' }} />
+                <col style={{ width: '25%' }} />
+                <col style={{ width: '55pt' }} />
+                <col style={{ width: '72pt' }} />
+                <col style={{ width: '55pt' }} />
+                <col />
+              </colgroup>
+              <thead>
+                <tr>
+                  {['No', 'Tanggal', 'Nama Siswa', 'Kelas', 'NISN', 'Status', 'Keterangan'].map(header => (
+                    <th key={header} style={{ ...printTh, padding: '4pt 3pt', backgroundColor: '#eee' }}>{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pageRows.map((row: any, index: number) => (
+                  <tr key={`${row.siswa_id}-${row.tanggal}`}>
+                    <td style={{ ...printTd, textAlign: 'center' }}>{pageIndex * perPage + index + 1}</td>
+                    <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal' }}>{fmtTgl(row.tanggal)}<br /><span style={{ fontSize: '7pt' }}>{row.hariNama}</span></td>
+                    <td style={{ ...printTd, whiteSpace: 'normal' }}>{row.nama_lengkap}</td>
+                    <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal' }}>{row.kelas_label}</td>
+                    <td style={{ ...printTd, textAlign: 'center' }}>{row.nisn || '-'}</td>
+                    <td style={{ ...printTd, textAlign: 'center' }}>{attendanceStatusLabel(row.status)}</td>
+                    <td style={{ ...printTd, whiteSpace: 'normal' }}>{row.keterangan || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p style={{ border: PRINT_BORDER, padding: '10pt', fontSize: '10pt', textAlign: 'center' }}>Tidak ada data siswa tidak hadir pada periode dan status yang dipilih.</p>
+          )}
+          <div style={{ marginTop: '18pt', display: 'flex', justifyContent: 'space-between', fontSize: '9pt' }}>
+            <span>Dicetak pada: {formatTimeWIB(new Date().toISOString())}</span>
+            <span>Mengetahui, Wali Kelas / Petugas</span>
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
+
+function PrintSiswa({ data, tglMulai, tglSelesai, paper, orientation, selectedStatusCodes }: any) {
   const rekap = data.rekap || {}
   const siswa = rekap.siswa || {}
   const summary = rekap.summary || {}
@@ -1338,14 +1794,14 @@ function PrintSiswa({ data, tglMulai, tglSelesai, paper, orientation }: any) {
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12, fontSize: 10 }}>
         <thead><tr>{['Hadir', 'Bolos', 'Sakit', 'Izin', 'Alfa', 'Perlu keputusan wali kelas', 'Belum ada input', 'Belum lengkap'].map(h => <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>)}</tr></thead>
         <tbody><tr>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.hadir || 0}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.parsial || summary.bolos || 0}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.sakit || 0}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.izin || 0}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.alfa || 0}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.perlu_konfirmasi_wali || 0}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.belum_ada_input || 0}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{summary.belum_ada_data || 0}</td>
+          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('H') ? summary.hadir || 0 : ''}</td>
+          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('B') ? summary.parsial || summary.bolos || 0 : ''}</td>
+          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('S') ? summary.sakit || 0 : ''}</td>
+          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('I') ? summary.izin || 0 : ''}</td>
+          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('A') ? summary.alfa || 0 : ''}</td>
+          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('K') ? summary.perlu_konfirmasi_wali || 0 : ''}</td>
+          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('BI') ? summary.belum_ada_input || 0 : ''}</td>
+          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('BL') ? summary.belum_ada_data || 0 : ''}</td>
         </tr></tbody>
       </table>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
@@ -1358,16 +1814,16 @@ function PrintSiswa({ data, tglMulai, tglSelesai, paper, orientation }: any) {
               <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{i + 1}</td>
               <td style={{ border: '1px solid #000', padding: 4 }}>{fmtTgl(day.tanggal)}</td>
               <td style={{ border: '1px solid #000', padding: 4 }}>{day.hariNama}</td>
-              <td style={{ border: '1px solid #000', padding: 4 }}>{attendanceStatusLabel(day.statusHari)}</td>
-              <td style={{ border: '1px solid #000', padding: 4 }}>{attendanceSourceLabel(day.sumberStatus)}</td>
-              <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day.submittedBlok || 0}/{day.totalBlok || 0}</td>
-              <td style={{ border: '1px solid #000', padding: 4 }}>{day.statusReason || '-'}</td>
-              <td style={{ border: '1px solid #000', padding: 4 }}>{day.keterangan || day.detail?.map((d: any) => `${d.nama_mapel} jam ${d.jam_ke_mulai}-${d.jam_ke_selesai}: ${statusStyle(d.status).label}`).join(' | ') || '-'}</td>
+              <td style={{ border: '1px solid #000', padding: 4 }}>{isSelectedPrintStatus(day.statusHari, selectedStatusCodes) ? attendanceStatusLabel(day.statusHari) : ''}</td>
+              <td style={{ border: '1px solid #000', padding: 4 }}>{isSelectedPrintStatus(day.statusHari, selectedStatusCodes) ? attendanceSourceLabel(day.sumberStatus) : ''}</td>
+              <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{isSelectedPrintStatus(day.statusHari, selectedStatusCodes) ? `${day.submittedBlok || 0}/${day.totalBlok || 0}` : ''}</td>
+              <td style={{ border: '1px solid #000', padding: 4 }}>{isSelectedPrintStatus(day.statusHari, selectedStatusCodes) ? day.statusReason || '-' : ''}</td>
+              <td style={{ border: '1px solid #000', padding: 4 }}>{isSelectedPrintStatus(day.statusHari, selectedStatusCodes) ? day.keterangan || day.detail?.map((d: any) => `${d.nama_mapel} jam ${d.jam_ke_mulai}-${d.jam_ke_selesai}: ${statusStyle(d.status).label}`).join(' | ') || '-' : ''}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <p style={{ marginTop: 6, fontSize: 9 }}>Legenda: H Hadir; S Sakit; I Izin; A Alfa; B Bolos sebagian jam; K Perlu keputusan wali; BI Belum ada input; BL Belum lengkap.</p>
+      <p style={{ marginTop: 6, fontSize: 9 }}>Legenda: {selectedStatusLegend(selectedStatusCodes)}.</p>
       <p style={{ marginTop: 12, textAlign: 'right', fontSize: 10 }}>Dicetak pada {formatTimeWIB(new Date().toISOString())}</p>
     </div>
   )

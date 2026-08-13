@@ -549,6 +549,92 @@ export async function getAbsensiSiswaKelasRentang(kelasId: string, tglMulai: str
   return { error: null, kelas: classData.kelas, rows, effectiveDates }
 }
 
+type TidakHadirFilter = 'SEMUA' | 'SAKIT' | 'IZIN' | 'ALFA'
+
+/**
+ * Daftar kejadian tidak hadir, lintas kelas yang dapat diakses pengguna.
+ * Satu baris mewakili satu siswa pada satu tanggal efektif pembelajaran.
+ */
+export async function getSiswaTidakHadir(params: {
+  tglMulai: string
+  tglSelesai: string
+  status?: TidakHadirFilter
+  tingkat?: number
+  kelasId?: string
+}) {
+  const err = validateRange(params.tglMulai, params.tglSelesai)
+  if (err) return { error: err, data: [], summary: { total: 0, sakit: 0, izin: 0, alfa: 0 } }
+
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized', data: [], summary: { total: 0, sakit: 0, izin: 0, alfa: 0 } }
+
+  const scope = await getRekapScope(db, user.id)
+  const selectedStatus: TidakHadirFilter = ['SAKIT', 'IZIN', 'ALFA'].includes(params.status || '')
+    ? params.status as TidakHadirFilter
+    : 'SEMUA'
+
+  if (params.kelasId && !(await canAccessClass(db, scope, params.kelasId))) {
+    return { error: 'Anda tidak punya akses ke kelas ini.', data: [], summary: { total: 0, sakit: 0, izin: 0, alfa: 0 } }
+  }
+
+  const availableClasses = await getClassRows(db, scope, params.tingkat)
+  const kelasList = params.kelasId
+    ? availableClasses.filter(kelas => kelas.id === params.kelasId)
+    : availableClasses
+  const allowedStatuses = new Set(selectedStatus === 'SEMUA' ? ['SAKIT', 'IZIN', 'ALFA'] : [selectedStatus])
+  const data: Array<{
+    siswa_id: string
+    nama_lengkap: string
+    nisn: string | null
+    kelas_id: string
+    kelas_label: string
+    tanggal: string
+    hariNama: string
+    status: 'SAKIT' | 'IZIN' | 'ALFA'
+    keterangan: string
+    sumberStatus: string
+  }> = []
+  const summary = { total: 0, sakit: 0, izin: 0, alfa: 0 }
+
+  for (const kelas of kelasList) {
+    const classData = await getFinalAttendanceForClass(db, kelas.id, params.tglMulai, params.tglSelesai)
+    if (!classData) continue
+    const izinMap = await getIzinMapForClass(db, kelas.id, params.tglMulai, params.tglSelesai)
+
+    for (const siswa of classData.siswa) {
+      for (const day of classData.statusByStudent.get(siswa.id) || []) {
+        const status = applyIzinStatus(day, izinMap.get(`${siswa.id}__${day.tanggal}`))
+        if (!allowedStatuses.has(status)) continue
+
+        const absentStatus = status as 'SAKIT' | 'IZIN' | 'ALFA'
+        summary.total += 1
+        if (absentStatus === 'SAKIT') summary.sakit += 1
+        if (absentStatus === 'IZIN') summary.izin += 1
+        if (absentStatus === 'ALFA') summary.alfa += 1
+        data.push({
+          siswa_id: siswa.id,
+          nama_lengkap: siswa.nama_lengkap,
+          nisn: siswa.nisn || null,
+          kelas_id: kelas.id,
+          kelas_label: kelas.label,
+          tanggal: day.tanggal,
+          hariNama: HARI[hariNum(new Date(day.tanggal + 'T00:00:00'))],
+          status: absentStatus,
+          keterangan: noteFrom(day, izinMap.get(`${siswa.id}__${day.tanggal}`)),
+          sumberStatus: day.sumber_status,
+        })
+      }
+    }
+  }
+
+  data.sort((a, b) => b.tanggal.localeCompare(a.tanggal)
+    || a.kelas_label.localeCompare(b.kelas_label, 'id')
+    || a.nama_lengkap.localeCompare(b.nama_lengkap, 'id'))
+
+  return { error: null, data, summary }
+}
+
 export async function getAbsensiHeatmap(tingkat: number, tanggal: string) {
   const db = await getDB()
   const user = await getCurrentUser()
