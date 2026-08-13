@@ -299,6 +299,7 @@ type CanonicalTeacherSession = {
   guru_id: string
   guru_nama: string
   nama_mapel: string
+  kelas_id: string
   tingkat: number
   nomor_kelas: number
   kelompok: string
@@ -319,7 +320,7 @@ async function getCanonicalTeacherSessions(
   ta: { id: string; jam_pelajaran: string | null },
   tanggalMulai: string,
   tanggalSelesai: string,
-  guruId?: string
+  filters: { guruId?: string; kelasId?: string } = {}
 ): Promise<CanonicalTeacherSession[]> {
   const effectiveDates = await getEffectiveDatesInRange(db, tanggalMulai, tanggalSelesai)
   if (effectiveDates.length === 0) return []
@@ -336,9 +337,13 @@ async function getCanonicalTeacherSessions(
     WHERE jm.tahun_ajaran_id = ?
   `
   const scheduleParams: unknown[] = [ta.id]
-  if (guruId) {
+  if (filters.guruId) {
     scheduleSql += ' AND pm.guru_id = ?'
-    scheduleParams.push(guruId)
+    scheduleParams.push(filters.guruId)
+  }
+  if (filters.kelasId) {
+    scheduleSql += ' AND pm.kelas_id = ?'
+    scheduleParams.push(filters.kelasId)
   }
   scheduleSql += ' ORDER BY pm.id, jm.hari, jm.jam_ke'
   const scheduleRows = (await db.prepare(scheduleSql).bind(...scheduleParams).all<any>()).results || []
@@ -377,9 +382,13 @@ async function getCanonicalTeacherSessions(
     WHERE pm.tahun_ajaran_id = ? AND ag.guru_id = pm.guru_id
       AND ag.tanggal BETWEEN ? AND ?
   `
-  if (guruId) {
+  if (filters.guruId) {
     agendaSql += ' AND ag.guru_id = ?'
-    agendaParams.push(guruId)
+    agendaParams.push(filters.guruId)
+  }
+  if (filters.kelasId) {
+    agendaSql += ' AND pm.kelas_id = ?'
+    agendaParams.push(filters.kelasId)
   }
   const agendaRows = (await db.prepare(agendaSql).bind(...agendaParams).all<any>()).results || []
   const agendaMap = new Map<string, any>(agendaRows.map(row => [`${row.penugasan_id}:${row.tanggal}`, row]))
@@ -394,9 +403,13 @@ async function getCanonicalTeacherSessions(
     WHERE pm.tahun_ajaran_id = ? AND dt.dari_user_id = pm.guru_id
       AND dt.tanggal BETWEEN ? AND ?
   `
-  if (guruId) {
+  if (filters.guruId) {
     delegationSql += ' AND dt.dari_user_id = ?'
-    delegationParams.push(guruId)
+    delegationParams.push(filters.guruId)
+  }
+  if (filters.kelasId) {
+    delegationSql += ' AND pm.kelas_id = ?'
+    delegationParams.push(filters.kelasId)
   }
   delegationSql += ' ORDER BY dt.created_at DESC'
   const delegationRows = (await db.prepare(delegationSql).bind(...delegationParams).all<any>()).results || []
@@ -451,6 +464,7 @@ async function getCanonicalTeacherSessions(
         guru_id: schedule.guru_id,
         guru_nama: schedule.guru_nama,
         nama_mapel: schedule.nama_mapel,
+        kelas_id: schedule.kelas_id,
         tingkat: schedule.tingkat,
         nomor_kelas: schedule.nomor_kelas,
         kelompok: schedule.kelompok,
@@ -851,8 +865,16 @@ export async function batchEditAgendaStatus(
 export async function getDataCetakLaporan(
   tanggalMulai: string,
   tanggalSelesai: string,
-  guruId?: string
+  guruId?: string,
+  kelasId?: string
 ) {
+  const user = await getCurrentUser()
+  if (!user) throw new Error('Unauthorized')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggalMulai) || !/^\d{4}-\d{2}-\d{2}$/.test(tanggalSelesai)) {
+    throw new Error('Format tanggal tidak valid')
+  }
+  if (tanggalMulai > tanggalSelesai) throw new Error('Rentang tanggal tidak valid')
+
   const db = await getDB()
 
   const ta = await db.prepare(
@@ -860,7 +882,7 @@ export async function getDataCetakLaporan(
   ).first<{ id: string; jam_pelajaran: string | null }>()
   if (!ta) return []
 
-  return getCanonicalTeacherSessions(db, ta, tanggalMulai, tanggalSelesai, guruId)
+  return getCanonicalTeacherSessions(db, ta, tanggalMulai, tanggalSelesai, { guruId, kelasId })
 
   /* Implementasi cetak lama hanya membaca agenda_guru dan tidak mencakup ALFA/penugasan.
   let sql = `

@@ -1,8 +1,7 @@
 // Lokasi: app/dashboard/monitoring-agenda/components/monitoring-client.tsx
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
-import { useReactToPrint } from 'react-to-print'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -56,6 +55,48 @@ function formatTanggal(tgl: string) {
 }
 
 function todayStr() { return todayWIB() }
+
+const BULAN_OPTIONS = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+]
+
+type PrintScope = 'semua_guru' | 'per_guru' | 'per_kelas'
+type PrintPeriod = 'rentang' | 'bulan' | 'hari' | 'semester' | 'tahun'
+
+function monthEnd(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10)
+}
+
+function agendaPeriodRange(
+  mode: PrintPeriod,
+  values: { tanggal: string; bulan: string; tahun: string; tahunAjaran: string; semester: 'ganjil' | 'genap'; mulai: string; selesai: string }
+) {
+  if (mode === 'hari') return { start: values.tanggal, end: values.tanggal }
+  if (mode === 'bulan') {
+    const [year, month] = values.bulan.split('-').map(Number)
+    return { start: `${year}-${String(month).padStart(2, '0')}-01`, end: monthEnd(year, month) }
+  }
+  if (mode === 'semester') {
+    const startYear = Number(values.tahunAjaran)
+    return values.semester === 'ganjil'
+      ? { start: `${startYear}-07-01`, end: `${startYear}-12-31` }
+      : { start: `${startYear + 1}-01-01`, end: `${startYear + 1}-06-30` }
+  }
+  if (mode === 'tahun') return { start: `${values.tahun}-01-01`, end: `${values.tahun}-12-31` }
+  return { start: values.mulai, end: values.selesai }
+}
+
+function agendaPeriodLabel(mode: PrintPeriod, range: { start: string; end: string }, bulan: string, tahunAjaran: string, semester: 'ganjil' | 'genap') {
+  if (mode === 'hari') return formatTanggal(range.start)
+  if (mode === 'bulan') {
+    const [year, month] = bulan.split('-').map(Number)
+    return `${BULAN_OPTIONS[month - 1]} ${year}`
+  }
+  if (mode === 'semester') return `Semester ${semester === 'ganjil' ? 'Ganjil' : 'Genap'} Tahun Ajaran ${tahunAjaran}/${Number(tahunAjaran) + 1}`
+  if (mode === 'tahun') return `Tahun ${range.start.slice(0, 4)}`
+  return `${formatTanggal(range.start)} s/d ${formatTanggal(range.end)}`
+}
 
 function StatusBadge({ status }: { status: string }) {
   const style = STATUS_STYLE[status] || STATUS_STYLE.ALFA
@@ -786,24 +827,58 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
 // TAB: CETAK LAPORAN
 // ============================================================
 function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['filterOptions'] }) {
-  const [tglMulai, setTglMulai] = useState(() => {
-    const d = nowWIB(); d.setUTCDate(1); return d.toISOString().split('T')[0]
-  })
+  const current = nowWIB()
+  const currentYear = current.getUTCFullYear()
+  const currentMonth = String(current.getUTCMonth() + 1).padStart(2, '0')
+  const [scope, setScope] = useState<PrintScope>('semua_guru')
+  const [periodMode, setPeriodMode] = useState<PrintPeriod>('bulan')
+  const [tanggal, setTanggal] = useState(todayStr())
+  const [bulan, setBulan] = useState(`${currentYear}-${currentMonth}`)
+  const [tahun, setTahun] = useState(String(currentYear))
+  const [tahunAjaran, setTahunAjaran] = useState(String(current.getUTCMonth() + 1 >= 7 ? currentYear : currentYear - 1))
+  const [semester, setSemester] = useState<'ganjil' | 'genap'>(current.getUTCMonth() + 1 >= 7 ? 'ganjil' : 'genap')
+  const [tglMulai, setTglMulai] = useState(`${currentYear}-${currentMonth}-01`)
   const [tglSelesai, setTglSelesai] = useState(todayStr())
   const [guruId, setGuruId] = useState('')
+  const [kelasId, setKelasId] = useState('')
   const [data, setData] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [pesan, setPesan] = useState<{ tipe: 'error'; teks: string } | null>(null)
   const printRef = useRef<HTMLDivElement>(null)
   const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
+  const range = useMemo(() => agendaPeriodRange(periodMode, {
+    tanggal, bulan, tahun, tahunAjaran, semester, mulai: tglMulai, selesai: tglSelesai,
+  }), [bulan, periodMode, semester, tahun, tahunAjaran, tanggal, tglMulai, tglSelesai])
+  const periodLabel = agendaPeriodLabel(periodMode, range, bulan, tahunAjaran, semester)
+  const selectedGuru = filterOptions.guru.find(guru => guru.id === guruId)?.nama || ''
+  const selectedKelas = filterOptions.kelas.find(kelas => kelas.id === kelasId)?.label || ''
+  const guruNamaMap = new Map(filterOptions.guru.map(guru => [guru.id, guru.nama]))
+
+  const resetData = () => {
+    setData([])
+    setPesan(null)
+  }
 
   const handleLoad = async () => {
+    if (scope === 'per_guru' && !guruId) {
+      setPesan({ tipe: 'error', teks: 'Pilih guru yang akan dicetak.' })
+      return
+    }
+    if (scope === 'per_kelas' && !kelasId) {
+      setPesan({ tipe: 'error', teks: 'Pilih kelas yang akan dicetak.' })
+      return
+    }
     setIsLoading(true)
     setPesan(null)
     try {
-      const gid = guruId && guruId !== 'all_guru' ? guruId : undefined
-      const result = await getDataCetakLaporan(tglMulai, tglSelesai, gid)
+      const result = await getDataCetakLaporan(
+        range.start,
+        range.end,
+        scope === 'per_guru' ? guruId : undefined,
+        scope === 'per_kelas' ? kelasId : undefined,
+      )
       setData(result)
+      if (result.length === 0) setPesan({ tipe: 'error', teks: 'Tidak ada data agenda pada cakupan dan periode tersebut.' })
     } catch (error) {
       console.error('Gagal memuat data cetak laporan:', error)
       setPesan({ tipe: 'error', teks: 'Gagal memuat data cetak laporan. Silakan coba lagi.' })
@@ -813,45 +888,96 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
     }
   }
 
-  const handlePrint = useReactToPrint({
-    contentRef: printRef,
-    documentTitle: `laporan_agenda_guru_${tglMulai}_${tglSelesai}`,
-    pageStyle: `
-      @page { size: 215mm 330mm; margin: 0; }
-      @media print {
-        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      }
-    `,
-  })
-
-  const guruNamaMap = new Map(filterOptions.guru.map(g => [g.id, g.nama]))
+  const handlePrint = () => {
+    const el = printRef.current
+    if (!el) return
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) {
+      alert('Popup diblokir browser. Izinkan popup untuk mencetak.')
+      return
+    }
+    printWindow.document.write(`<!DOCTYPE html><html><head><base href="${window.location.origin}/"><title>Laporan Agenda Guru</title>
+<style>
+@page { size: 215mm 330mm; margin: 0; }
+html, body { margin: 0; padding: 0; background: #fff; }
+* { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+thead { display: table-header-group; }
+tr { break-inside: avoid; page-break-inside: avoid; }
+</style></head><body>${el.innerHTML}</body></html>`)
+    printWindow.document.close()
+    const images = Array.from(printWindow.document.images)
+    const ready = images.length === 0
+      ? Promise.resolve()
+      : Promise.all(images.map(image => image.complete
+        ? Promise.resolve()
+        : new Promise<void>(resolve => { image.onload = () => resolve(); image.onerror = () => resolve() })))
+    ready.then(() => {
+      printWindow.focus()
+      printWindow.print()
+    })
+  }
 
   return (
     <div className="space-y-3">
       <div className="rounded-lg border bg-white dark:bg-slate-900 p-4">
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end max-sm:[&_input]:w-full max-sm:[&_[role=combobox]]:w-full">
           <div>
-            <Label className="text-xs text-slate-500 dark:text-slate-400">Dari Tanggal</Label>
-            <Input type="date" value={tglMulai} onChange={(e) => setTglMulai(e.target.value)} className="h-9 text-sm w-[155px]" />
+            <Label className="text-xs text-slate-500 dark:text-slate-400">Cakupan Cetak</Label>
+            <Select value={scope} onValueChange={(value) => { setScope(value as PrintScope); resetData() }}>
+              <SelectTrigger className="mt-1 h-9 w-[175px] text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="semua_guru">Semua Guru</SelectItem>
+                <SelectItem value="per_guru">Per Guru</SelectItem>
+                <SelectItem value="per_kelas">Per Kelas</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div>
-            <Label className="text-xs text-slate-500 dark:text-slate-400">Sampai Tanggal</Label>
-            <Input type="date" value={tglSelesai} onChange={(e) => setTglSelesai(e.target.value)} className="h-9 text-sm w-[155px]" />
+            <Label className="text-xs text-slate-500 dark:text-slate-400">Periode</Label>
+            <Select value={periodMode} onValueChange={(value) => { setPeriodMode(value as PrintPeriod); resetData() }}>
+              <SelectTrigger className="mt-1 h-9 w-[150px] text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="hari">Per Hari</SelectItem>
+                <SelectItem value="bulan">Per Bulan</SelectItem>
+                <SelectItem value="semester">Per Semester</SelectItem>
+                <SelectItem value="tahun">Per Tahun</SelectItem>
+                <SelectItem value="rentang">Rentang Tanggal</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <div className="flex-1 min-w-[200px]">
-            <Label className="text-xs text-slate-500 dark:text-slate-400">Guru (opsional)</Label>
+          {scope === 'per_guru' && <div className="min-w-[230px] flex-1">
+            <Label className="text-xs text-slate-500 dark:text-slate-400">Guru</Label>
             <Combobox
-              options={[
-                { value: 'all_guru', label: 'Semua Guru' },
-                ...filterOptions.guru.map(g => ({ value: g.id, label: g.nama || g.label || '' }))
-              ]}
-              value={guruId || 'all_guru'}
-              onValueChange={setGuruId}
-              placeholder="Semua Guru"
+              options={filterOptions.guru.map(g => ({ value: g.id, label: g.nama || g.label || '' }))}
+              value={guruId}
+              onValueChange={(value) => { setGuruId(value); resetData() }}
+              placeholder="Pilih guru"
               searchPlaceholder="Cari nama guru..."
               emptyText="Guru tidak ditemukan"
             />
-          </div>
+          </div>}
+          {scope === 'per_kelas' && <div className="min-w-[210px] flex-1">
+            <Label className="text-xs text-slate-500 dark:text-slate-400">Kelas</Label>
+            <Combobox
+              options={filterOptions.kelas.map(k => ({ value: k.id, label: k.label || k.nama || '' }))}
+              value={kelasId}
+              onValueChange={(value) => { setKelasId(value); resetData() }}
+              placeholder="Pilih kelas"
+              searchPlaceholder="Cari kelas..."
+              emptyText="Kelas tidak ditemukan"
+            />
+          </div>}
+          {periodMode === 'hari' && <div><Label className="text-xs text-slate-500">Tanggal</Label><Input type="date" value={tanggal} onChange={e => { setTanggal(e.target.value); resetData() }} className="mt-1 h-9 w-[155px] text-sm" /></div>}
+          {periodMode === 'bulan' && <div><Label className="text-xs text-slate-500">Bulan</Label><Input type="month" value={bulan} onChange={e => { setBulan(e.target.value); resetData() }} className="mt-1 h-9 w-[155px] text-sm" /></div>}
+          {periodMode === 'tahun' && <div><Label className="text-xs text-slate-500">Tahun</Label><Input type="number" min="2020" max="2100" value={tahun} onChange={e => { setTahun(e.target.value); resetData() }} className="mt-1 h-9 w-[105px] text-sm" /></div>}
+          {periodMode === 'semester' && <>
+            <div><Label className="text-xs text-slate-500">Awal Tahun Ajaran</Label><Input type="number" min="2020" max="2100" value={tahunAjaran} onChange={e => { setTahunAjaran(e.target.value); resetData() }} className="mt-1 h-9 w-[120px] text-sm" /></div>
+            <div><Label className="text-xs text-slate-500">Semester</Label><Select value={semester} onValueChange={value => { setSemester(value as 'ganjil' | 'genap'); resetData() }}><SelectTrigger className="mt-1 h-9 w-[120px] text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ganjil">Ganjil</SelectItem><SelectItem value="genap">Genap</SelectItem></SelectContent></Select></div>
+          </>}
+          {periodMode === 'rentang' && <>
+            <div><Label className="text-xs text-slate-500">Dari Tanggal</Label><Input type="date" value={tglMulai} onChange={e => { setTglMulai(e.target.value); resetData() }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+            <div><Label className="text-xs text-slate-500">Sampai Tanggal</Label><Input type="date" value={tglSelesai} onChange={e => { setTglSelesai(e.target.value); resetData() }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+          </>}
           <Button onClick={handleLoad} disabled={isLoading} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-1.5" />}
             Muat Data
@@ -872,8 +998,16 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
 
       {/* Preview */}
       {data.length > 0 && (
-        <div className="rounded-lg border bg-white dark:bg-slate-900 p-4 overflow-x-auto">
-            <div ref={printRef} className="hidden lg:block">
+        <div className="rounded-lg border bg-slate-100 dark:bg-slate-900 p-3 overflow-x-auto">
+            <div ref={printRef} className="mx-auto w-[215mm] min-w-[215mm] bg-white shadow-sm">
+              <AgendaPrintDocument
+                data={data}
+                scope={scope}
+                scopeLabel={scope === 'per_guru' ? selectedGuru : scope === 'per_kelas' ? selectedKelas : 'Semua Guru'}
+                periodLabel={periodLabel}
+              />
+              {false && (
+              <div>
               {/* Note: This content is used for printing. Not visible in UI preview here but used by handlePrint */}
               <h2>Laporan Agenda Guru</h2>
               <p className="sub">
@@ -918,6 +1052,8 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
                 })}
               </tbody>
             </table>
+              </div>
+              )}
           </div>
         </div>
       )}
@@ -928,6 +1064,79 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
           <p className="text-sm text-slate-500 dark:text-slate-400">Pilih periode dan klik &quot;Muat Data&quot; untuk preview laporan.</p>
         </div>
       )}
+    </div>
+  )
+}
+
+const AGENDA_PRINT_FONT = '"Book Antiqua", "Palatino Linotype", Palatino, "Times New Roman", serif'
+const agendaPrintCell = {
+  border: '0.6pt solid #000',
+  padding: '2.5pt 3pt',
+  verticalAlign: 'top' as const,
+  lineHeight: 1.2,
+}
+
+function AgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
+  data: any[]
+  scope: PrintScope
+  scopeLabel: string
+  periodLabel: string
+}) {
+  const showGuru = scope !== 'per_guru'
+  const showKelas = scope !== 'per_kelas'
+
+  return (
+    <div style={{ width: '215mm', minHeight: '330mm', padding: '8mm 8mm 10mm', background: '#fff', color: '#000', fontFamily: AGENDA_PRINT_FONT, fontSize: '8pt' }}>
+      <img src="/kopsurat.png" alt="Kop Surat" style={{ width: '100%', display: 'block', marginBottom: '8pt' }} />
+      <div style={{ textAlign: 'center', marginBottom: '9pt', lineHeight: 1.35 }}>
+        <div style={{ fontSize: '13pt', fontWeight: 700 }}>LAPORAN MONITORING AGENDA GURU</div>
+        <div style={{ fontSize: '10pt', fontWeight: 600 }}>Periode: {periodLabel}</div>
+      </div>
+      <table style={{ marginBottom: '8pt', borderCollapse: 'collapse', fontSize: '9pt' }}>
+        <tbody>
+          <tr>
+            <td style={{ paddingRight: '10pt', whiteSpace: 'nowrap' }}>{scope === 'per_guru' ? 'Nama Guru' : scope === 'per_kelas' ? 'Kelas' : 'Cakupan'}</td>
+            <td style={{ paddingRight: '5pt' }}>:</td>
+            <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{scopeLabel}</td>
+          </tr>
+          <tr><td style={{ paddingRight: '10pt' }}>Jumlah Agenda</td><td style={{ paddingRight: '5pt' }}>:</td><td>{data.length} sesi</td></tr>
+        </tbody>
+      </table>
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontFamily: AGENDA_PRINT_FONT, fontSize: '7.5pt' }}>
+        <colgroup>
+          <col style={{ width: '7mm' }} /><col style={{ width: '20mm' }} />
+          {showGuru && <col style={{ width: '35mm' }} />}
+          <col style={{ width: '25mm' }} />
+          {showKelas && <col style={{ width: '17mm' }} />}
+          <col style={{ width: '11mm' }} /><col /><col style={{ width: '20mm' }} /><col style={{ width: '30mm' }} />
+        </colgroup>
+        <thead>
+          <tr>
+            {['No', 'Tanggal', ...(showGuru ? ['Guru'] : []), 'Mata Pelajaran', ...(showKelas ? ['Kelas'] : []), 'Jam', 'Materi', 'Status', 'Keterangan'].map(label => (
+              <th key={label} style={{ ...agendaPrintCell, padding: '3pt 2pt', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700, background: '#f2f2f2' }}>{label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((item, index) => (
+            <tr key={`${item.penugasan_id}-${item.tanggal}-${index}`}>
+              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{index + 1}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{new Date(`${item.tanggal}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
+              {showGuru && <td style={{ ...agendaPrintCell, whiteSpace: 'nowrap', fontSize: '7pt' }}>{item.guru_nama}</td>}
+              <td style={agendaPrintCell}>{item.nama_mapel}</td>
+              {showKelas && <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{item.tingkat} {item.kelompok} {item.nomor_kelas}</td>}
+              <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}</td>
+              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.materi || '-'}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{STATUS_STYLE[item.status]?.label || item.status}</td>
+              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.keterangan || '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ marginTop: '8pt', display: 'flex', justifyContent: 'space-between', fontSize: '7pt' }}>
+        <span>Dicetak pada {formatTimeWIB(new Date().toISOString())}</span>
+        <span>Sistem Informasi Manajemen MAN 1 Tasikmalaya</span>
+      </div>
     </div>
   )
 }
