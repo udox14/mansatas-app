@@ -228,7 +228,7 @@ export async function hapusSesiNilai(id: string): Promise<{ error?: string; succ
 // ============================================================
 export async function simpanNilaiSiswa(
   headerId: string,
-  data: Array<{ siswa_id: string; nilai: number; catatan?: string }>
+  data: Array<{ siswa_id: string; nilai: number | null; catatan?: string }>
 ): Promise<{ error?: string; success?: string }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
@@ -242,35 +242,36 @@ export async function simpanNilaiSiswa(
   ).bind(headerId, guruId).first<any>()
   if (!header) return { error: 'Sesi tidak ditemukan atau anda bukan pemiliknya.' }
 
-  if (data.length === 0) return { error: 'Tidak ada data nilai.' }
-
-  // Sebagian database lama dibuat oleh migration_mts_to_man.sql, yang belum
-  // memiliki UNIQUE(header_id, siswa_id). Gunakan replace eksplisit agar proses
-  // simpan tetap bekerja sebelum migration perbaikan indeks diterapkan.
-  const stmts = data.flatMap(d => [
-    db.prepare(`
-      DELETE FROM nilai_harian_detail
-      WHERE header_id = ? AND siswa_id = ?
-    `).bind(headerId, d.siswa_id),
-    db.prepare(`
-      INSERT INTO nilai_harian_detail (id, header_id, siswa_id, nilai, catatan)
-      VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?)
-    `).bind(headerId, d.siswa_id, d.nilai, d.catatan || null),
-  ])
+  if (data.length === 0) return { error: 'Tidak ada perubahan nilai.' }
+  if (data.length > 100) return { error: 'Terlalu banyak perubahan dalam satu batch.' }
+  if (data.some(d => d.nilai !== null && (!Number.isFinite(d.nilai) || d.nilai < 0 || d.nilai > 100))) {
+    return { error: 'Nilai harus berupa angka antara 0 dan 100.' }
+  }
 
   try {
-    // Dua statement per siswa harus selalu berada dalam batch yang sama.
+    // Sebagian database lama belum memiliki UNIQUE(header_id, siswa_id).
+    // Setiap delete+insert harus tetap di batch yang sama agar tidak terpotong.
     const studentsPerBatch = 50
     for (let i = 0; i < data.length; i += studentsPerBatch) {
-      await db.batch(stmts.slice(i * 2, (i + studentsPerBatch) * 2))
+      const stmts = data.slice(i, i + studentsPerBatch).flatMap(d => {
+        const remove = db.prepare(`
+          DELETE FROM nilai_harian_detail
+          WHERE header_id = ? AND siswa_id = ?
+        `).bind(headerId, d.siswa_id)
+        if (d.nilai === null) return [remove]
+        return [remove, db.prepare(`
+          INSERT INTO nilai_harian_detail (id, header_id, siswa_id, nilai, catatan)
+          VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?)
+        `).bind(headerId, d.siswa_id, d.nilai, d.catatan?.trim() || null)]
+      })
+      await db.batch(stmts)
     }
     await dbUpdate(db, 'nilai_harian_header', { updated_at: new Date().toISOString() }, { id: headerId })
   } catch (e: any) {
     return { error: e.message }
   }
 
-  revalidatePath('/dashboard/nilai-harian')
-  return { success: `${data.length} nilai berhasil disimpan.` }
+  return { success: `${data.length} perubahan berhasil disimpan.` }
 }
 
 // ============================================================

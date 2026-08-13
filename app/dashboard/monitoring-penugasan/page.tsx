@@ -7,7 +7,7 @@ import { Eye } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
 import { MonitoringClient } from '@/app/dashboard/monitoring-penugasan/components/monitoring-client'
-import { getMonitoringData } from './actions'
+import { getMonitoringData, getPetugasPiketMonitoring } from './actions'
 import { todayWIB } from '@/lib/time'
 
 export const metadata = { title: 'Monitoring Penugasan - MANSATAS App' }
@@ -15,9 +15,12 @@ export const metadata = { title: 'Monitoring Penugasan - MANSATAS App' }
 export const dynamic = 'force-dynamic'
 
 async function Fetcher({ tanggal }: { tanggal: string }) {
-  const { error, data } = await getMonitoringData(tanggal)
+  const [{ error, data }, petugasPiket] = await Promise.all([
+    getMonitoringData(tanggal),
+    getPetugasPiketMonitoring(tanggal),
+  ])
   if (error) return <div className="p-4 text-red-500 bg-red-50 rounded-lg">{error}</div>
-  return <MonitoringClient initialData={data} initialTanggal={tanggal} />
+  return <MonitoringClient initialData={data} initialTanggal={tanggal} petugasPiket={petugasPiket} />
 }
 
 export default async function MonitoringPenugasanPage({

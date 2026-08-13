@@ -23,6 +23,59 @@ export type MonitoringDelegasi = {
   }>
 }
 
+export type MonitoringPetugasPiket = {
+  id: string
+  nama: string
+  shift_nama: string
+}
+
+function getHariFromDate(dateStr: string): number {
+  const day = new Date(dateStr + 'T00:00:00').getDay()
+  return day === 0 ? 7 : day
+}
+
+export async function getPetugasPiketMonitoring(tanggal: string): Promise<MonitoringPetugasPiket[]> {
+  const user = await getCurrentUser()
+  if (!user) return []
+
+  const db = await getDB()
+  if (!(await checkFeatureAccess(db, user.id, 'monitoring-penugasan'))) return []
+
+  const hari = getHariFromDate(tanggal)
+  const [regular, ppl] = await Promise.all([
+    db.prepare(`
+      SELECT u.id, u.nama_lengkap, sp.nama_shift, sp.jam_mulai
+      FROM "user" u
+      JOIN jadwal_guru_piket j ON j.user_id = u.id
+      JOIN pengaturan_shift_piket sp ON sp.id = j.shift_id
+      WHERE j.hari = ? AND u.banned = 0
+      ORDER BY sp.jam_mulai, u.nama_lengkap
+    `).bind(hari).all<any>(),
+    db.prepare(`
+      SELECT u.id, u.nama_lengkap || ' (PPL)' AS nama_lengkap, sp.nama_shift, sp.jam_mulai
+      FROM "user" u
+      JOIN guru_ppl_mapping jpp ON jpp.guru_ppl_id = u.id
+      JOIN jadwal_guru_piket j ON j.id = jpp.jadwal_piket_id
+      JOIN pengaturan_shift_piket sp ON sp.id = j.shift_id
+      WHERE j.hari = ? AND u.banned = 0
+      ORDER BY sp.jam_mulai, u.nama_lengkap
+    `).bind(hari).all<any>(),
+  ])
+
+  const seen = new Set<string>()
+  const petugas: MonitoringPetugasPiket[] = []
+  for (const row of [...(regular.results || []), ...(ppl.results || [])]) {
+    if (seen.has(row.id)) continue
+    seen.add(row.id)
+    petugas.push({
+      id: row.id,
+      nama: row.nama_lengkap || 'Tanpa Nama',
+      shift_nama: row.nama_shift || 'Tanpa shift',
+    })
+  }
+  return petugas
+}
+
 export async function getMonitoringData(tanggal: string): Promise<{ error: string | null; data: MonitoringDelegasi[] }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', data: [] }

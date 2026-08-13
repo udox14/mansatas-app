@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Send, Inbox, Loader2, CheckCircle2,
   ChevronDown, ChevronUp, Clock, Users,
-  BookOpen, Trash2, ClipboardList,
+  BookOpen, Trash2, ClipboardList, MessageCircle,
 } from 'lucide-react'
 import {
   getJadwalUntukDelegasi, getDaftarUser, getTugasMasuk, getDelegasiTerkirim,
@@ -340,14 +340,36 @@ function TabKirimTugas({
                 {users.length === 0 ? (
                   <p className="text-xs text-red-600">Belum ada guru piket yang bertugas hari ini.</p>
                 ) : (
-                  <div className="bg-violet-50 border border-violet-200 rounded-lg p-2.5">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-violet-500" />
-                      <span className="text-sm font-medium text-violet-700">Semua guru piket hari ini</span>
+                  <div className="space-y-2.5">
+                    <div className="bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800 rounded-lg p-2.5">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-violet-500 shrink-0" />
+                        <span className="text-sm font-medium text-violet-700 dark:text-violet-300">
+                          Petugas piket hari ini ({users.length})
+                        </span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {users.map(user => (
+                          <span
+                            key={user.id}
+                            className="inline-flex items-center rounded-full border border-violet-200 dark:border-violet-700 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] font-medium text-violet-700 dark:text-violet-300"
+                          >
+                            {user.nama}
+                            <span className="ml-1 font-normal text-violet-400">• {user.shift_nama}</span>
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-xs text-violet-600 dark:text-violet-400 mt-2">
+                        Tugas dikirim ke semua petugas di atas. Petugas yang mengerjakan akan otomatis tercatat sebagai pelaksana.
+                      </p>
                     </div>
-                    <p className="text-xs text-violet-600 mt-1">
-                      {users.length} guru piket akan menerima tugas. Yang mengerjakan nanti otomatis tercatat sebagai pelaksana.
-                    </p>
+
+                    <div className="flex items-start gap-2 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+                      <MessageCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                      <p>
+                        <span className="font-semibold">Konfirmasi tambahan:</span> setelah mengirim tugas di aplikasi, mohon kirim WA kepada petugas piket tersebut agar tugas segera diketahui dan ditindaklanjuti.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>

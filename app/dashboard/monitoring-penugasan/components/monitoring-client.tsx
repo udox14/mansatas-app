@@ -2,16 +2,14 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import {
-  Users, CheckCircle2, Clock, CalendarDays, ArrowRight,
+  Users, CheckCircle2, Clock, CalendarDays,
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
-  Search, ChevronsUpDown, AlertTriangle, BookOpen, UserCheck, Sparkles, Filter
+  Search, ChevronsUpDown, AlertTriangle, BookOpen, UserCheck, ClipboardCheck
 } from 'lucide-react'
-import type { MonitoringDelegasi } from '../actions'
+import type { MonitoringDelegasi, MonitoringPetugasPiket } from '../actions'
 import { todayWIB } from '@/lib/time'
 
 const ALASAN_STYLE: Record<'SAKIT' | 'IZIN', { label: string; badge: string; border: string; text: string }> = {
@@ -47,10 +45,11 @@ function getAvatarInitials(name: string) {
 }
 
 export function MonitoringClient({
-  initialData, initialTanggal
+  initialData, initialTanggal, petugasPiket
 }: {
   initialData: MonitoringDelegasi[]
   initialTanggal: string
+  petugasPiket: MonitoringPetugasPiket[]
 }) {
   const router = useRouter()
   const [tanggal, setTanggal] = useState(initialTanggal)
@@ -106,7 +105,7 @@ export function MonitoringClient({
   return (
     <div className="space-y-4">
       {/* KPI Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="rounded-xl border bg-white dark:bg-slate-900 p-3.5 shadow-sm space-y-1">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <span>Total Guru Izin/Sakit</span>
@@ -143,6 +142,24 @@ export function MonitoringClient({
           </div>
           <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{totalSelesaiDelegasi} <span className="text-xs font-normal text-slate-400">/ {totalDelegasi} Tuntas</span></p>
           <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium truncate">{totalDelegasi - totalSelesaiDelegasi} Belum Selesai</p>
+        </div>
+
+        <div className="col-span-2 lg:col-span-1 rounded-xl border border-teal-200 dark:border-teal-900 bg-teal-50/60 dark:bg-teal-950/30 p-3.5 shadow-sm space-y-1 min-w-0">
+          <div className="flex items-center justify-between text-xs text-teal-700 dark:text-teal-300">
+            <span>Petugas Piket</span>
+            <ClipboardCheck className="h-4 w-4 text-teal-500" />
+          </div>
+          <p className="text-xl font-bold text-slate-900 dark:text-slate-100">
+            {petugasPiket.length} <span className="text-xs font-normal text-slate-400">Petugas</span>
+          </p>
+          <p
+            className="text-[11px] leading-4 text-teal-700 dark:text-teal-400 line-clamp-2"
+            title={petugasPiket.map(p => `${p.nama} (${p.shift_nama})`).join(', ')}
+          >
+            {petugasPiket.length > 0
+              ? petugasPiket.map(p => p.nama).join(', ')
+              : 'Belum ada jadwal piket'}
+          </p>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useTransition, useMemo } from 'react'
+import { useState, useCallback, useTransition, useEffect, useRef } from 'react'
 import Script from 'next/script'
 import {
   Plus, Pencil, Trash2, Save, Loader2, Download, Upload, FileSpreadsheet,
@@ -35,6 +35,16 @@ const gradeColor = (n: number, kkm: number) => {
   return 'text-rose-600'
 }
 const today = todayWIB
+
+type AutosaveEntry = {
+  version: number
+  nilai: string
+  catatan: string
+}
+
+type AutosaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
+const AUTOSAVE_DELAY_MS = 1000
+const AUTOSAVE_STORAGE_PREFIX = 'nilai-harian-autosave:'
 
 // ============================================================
 // TOAST
@@ -141,12 +151,100 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
   const [detailLoading, setDetailLoading] = useState(false)
   const [nilaiDraft, setNilaiDraft] = useState<Record<string, string>>({})
   const [catatanDraft, setCatatanDraft] = useState<Record<string, string>>({})
-  const [isSaving, setIsSaving] = useState(false)
+  const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('idle')
+  const [autosaveError, setAutosaveError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editTarget, setEditTarget] = useState<NilaiHeader | null>(null)
   const { msg, show } = useToast()
   const [importLogs, setImportLogs] = useState<string[]>([])
   const [isPending, startTransition] = useTransition()
+  const autosaveQueueRef = useRef(new Map<string, Map<string, AutosaveEntry>>())
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const autosaveRunningRef = useRef(false)
+  const versionRef = useRef(0)
+
+  const storageKey = (headerId: string) => `${AUTOSAVE_STORAGE_PREFIX}${headerId}`
+
+  const persistQueue = useCallback((headerId: string) => {
+    if (typeof window === 'undefined') return
+    try {
+      const queue = autosaveQueueRef.current.get(headerId)
+      if (!queue?.size) {
+        localStorage.removeItem(storageKey(headerId))
+        return
+      }
+      localStorage.setItem(storageKey(headerId), JSON.stringify(Object.fromEntries(queue)))
+    } catch {
+      // Autosave ke server tetap berjalan walaupun penyimpanan browser dibatasi.
+    }
+  }, [])
+
+  const scheduleAutosaveRef = useRef<(delay?: number) => void>(() => undefined)
+
+  const runAutosave = useCallback(async () => {
+    if (autosaveRunningRef.current) return
+    const pendingHeader = [...autosaveQueueRef.current.entries()].find(([, entries]) => entries.size > 0)
+    if (!pendingHeader) {
+      setAutosaveStatus('saved')
+      return
+    }
+
+    const [headerId, entries] = pendingHeader
+    const snapshot = [...entries.entries()]
+    const invalid = snapshot.find(([, entry]) => {
+      if (entry.nilai.trim() === '') return false
+      const nilai = Number(entry.nilai)
+      return !Number.isFinite(nilai) || nilai < 0 || nilai > 100
+    })
+    if (invalid) {
+      setAutosaveStatus('error')
+      setAutosaveError('Ada nilai yang harus berada di antara 0 dan 100.')
+      return
+    }
+
+    autosaveRunningRef.current = true
+    setAutosaveStatus('saving')
+    setAutosaveError('')
+    try {
+      const res = await simpanNilaiSiswa(headerId, snapshot.map(([siswa_id, entry]) => ({
+        siswa_id,
+        nilai: entry.nilai.trim() === '' ? null : Number(entry.nilai),
+        catatan: entry.catatan,
+      })))
+      if (res.error) throw new Error(res.error)
+
+      const currentQueue = autosaveQueueRef.current.get(headerId)
+      for (const [siswaId, savedEntry] of snapshot) {
+        if (currentQueue?.get(siswaId)?.version === savedEntry.version) currentQueue.delete(siswaId)
+      }
+      if (!currentQueue?.size) autosaveQueueRef.current.delete(headerId)
+      persistQueue(headerId)
+      setAutosaveStatus('saved')
+    } catch (error) {
+      setAutosaveStatus('error')
+      setAutosaveError(error instanceof Error ? error.message : 'Koneksi bermasalah. Nilai akan dicoba lagi otomatis.')
+    } finally {
+      autosaveRunningRef.current = false
+      if ([...autosaveQueueRef.current.values()].some(queue => queue.size > 0)) {
+        scheduleAutosaveRef.current(AUTOSAVE_DELAY_MS)
+      }
+    }
+  }, [persistQueue])
+
+  scheduleAutosaveRef.current = (delay = AUTOSAVE_DELAY_MS) => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+    autosaveTimerRef.current = setTimeout(() => void runAutosave(), delay)
+  }
+
+  const queueAutosave = useCallback((headerId: string, siswaId: string, nilai: string, catatan: string) => {
+    const headerQueue = autosaveQueueRef.current.get(headerId) || new Map<string, AutosaveEntry>()
+    headerQueue.set(siswaId, { version: ++versionRef.current, nilai, catatan })
+    autosaveQueueRef.current.set(headerId, headerQueue)
+    persistQueue(headerId)
+    setAutosaveStatus('pending')
+    setAutosaveError('')
+    scheduleAutosaveRef.current()
+  }, [persistQueue])
 
   const loadHeaders = useCallback(async () => {
     setLoading(true)
@@ -161,24 +259,68 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
     const draftN: Record<string, string> = {}
     const draftC: Record<string, string> = {}
     res.forEach(s => { draftN[s.siswa_id] = s.nilai != null ? String(s.nilai) : ''; draftC[s.siswa_id] = s.catatan || '' })
+    try {
+      const stored = localStorage.getItem(storageKey(header.id))
+      if (stored) {
+        const restored = JSON.parse(stored) as Record<string, AutosaveEntry>
+        const validStudentIds = new Set(res.map(s => s.siswa_id))
+        const headerQueue = new Map<string, AutosaveEntry>()
+        for (const [siswaId, entry] of Object.entries(restored)) {
+          if (
+            !validStudentIds.has(siswaId) ||
+            !entry ||
+            typeof entry.version !== 'number' ||
+            typeof entry.nilai !== 'string' ||
+            typeof entry.catatan !== 'string'
+          ) continue
+          draftN[siswaId] = entry.nilai
+          draftC[siswaId] = entry.catatan
+          headerQueue.set(siswaId, entry)
+          versionRef.current = Math.max(versionRef.current, entry.version)
+        }
+        if (headerQueue.size) {
+          autosaveQueueRef.current.set(header.id, headerQueue)
+          setAutosaveStatus('pending')
+          scheduleAutosaveRef.current()
+        }
+      }
+    } catch {
+      try { localStorage.removeItem(storageKey(header.id)) } catch { /* browser storage unavailable */ }
+    }
     setNilaiDraft(draftN); setCatatanDraft(draftC); setDetailLoading(false)
   }, [kelas_id])
 
-  useState(() => { loadHeaders() })
-  const _ = useMemo(() => { loadHeaders() }, [loadHeaders])
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadHeaders(), 0)
+    return () => window.clearTimeout(timer)
+  }, [loadHeaders])
 
-  const handleSaveNilai = async () => {
+  useEffect(() => {
+    const retryWhenOnline = () => scheduleAutosaveRef.current(0)
+    const warnBeforeLeave = (event: BeforeUnloadEvent) => {
+      if (![...autosaveQueueRef.current.values()].some(queue => queue.size > 0)) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('online', retryWhenOnline)
+    window.addEventListener('beforeunload', warnBeforeLeave)
+    return () => {
+      window.removeEventListener('online', retryWhenOnline)
+      window.removeEventListener('beforeunload', warnBeforeLeave)
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+    }
+  }, [])
+
+  const changeNilai = (siswaId: string, value: string) => {
     if (!selectedHeader) return
-    setIsSaving(true)
-    const data = detail.map(s => ({
-      siswa_id: s.siswa_id,
-      nilai: parseFloat(nilaiDraft[s.siswa_id] || '0') || 0,
-      catatan: catatanDraft[s.siswa_id] || '',
-    }))
-    const res = await simpanNilaiSiswa(selectedHeader.id, data)
-    if (res.error) show(false, res.error)
-    else { show(true, res.success!); await loadHeaders() }
-    setIsSaving(false)
+    setNilaiDraft(prev => ({ ...prev, [siswaId]: value }))
+    queueAutosave(selectedHeader.id, siswaId, value, catatanDraft[siswaId] || '')
+  }
+
+  const changeCatatan = (siswaId: string, value: string) => {
+    if (!selectedHeader) return
+    setCatatanDraft(prev => ({ ...prev, [siswaId]: value }))
+    queueAutosave(selectedHeader.id, siswaId, nilaiDraft[siswaId] || '', value)
   }
 
   const handleHapusSesi = (id: string) => {
@@ -186,7 +328,13 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
     startTransition(async () => {
       const res = await hapusSesiNilai(id)
       if (res.error) show(false, res.error)
-      else { show(true, 'Sesi dihapus.'); if (selectedHeader?.id === id) { setSelectedHeader(null); setDetail([]) }; await loadHeaders() }
+      else {
+        autosaveQueueRef.current.delete(id)
+        persistQueue(id)
+        show(true, 'Sesi dihapus.')
+        if (selectedHeader?.id === id) { setSelectedHeader(null); setDetail([]) }
+        await loadHeaders()
+      }
     })
   }
 
@@ -213,6 +361,11 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
           if (cat) newCat[siswa.siswa_id] = cat
         }
         setNilaiDraft(newDraft); setCatatanDraft(newCat); setImportLogs(logs)
+        for (const siswa of detail) {
+          if (newDraft[siswa.siswa_id] !== nilaiDraft[siswa.siswa_id] || newCat[siswa.siswa_id] !== catatanDraft[siswa.siswa_id]) {
+            queueAutosave(selectedHeader.id, siswa.siswa_id, newDraft[siswa.siswa_id] || '', newCat[siswa.siswa_id] || '')
+          }
+        }
         show(true, `${rows.length - logs.length} baris berhasil diimport.`)
       } catch { show(false, 'Gagal membaca file Excel.') }
     }
@@ -298,6 +451,23 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
             </div>
           </div>
 
+          <div className={cn(
+            'px-4 py-2 border-b text-[11px] flex items-center gap-2',
+            autosaveStatus === 'error' ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-slate-50 text-slate-500 border-slate-100'
+          )}>
+            {autosaveStatus === 'saving' && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {autosaveStatus === 'saved' && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
+            {autosaveStatus === 'error' && <AlertCircle className="h-3.5 w-3.5 shrink-0" />}
+            {autosaveStatus === 'pending' && <span className="h-2 w-2 rounded-full bg-amber-400" />}
+            <span>
+              {autosaveStatus === 'saving' && 'Menyimpan perubahan...'}
+              {autosaveStatus === 'saved' && 'Semua perubahan tersimpan otomatis.'}
+              {autosaveStatus === 'pending' && 'Perubahan akan disimpan otomatis dalam 1 detik.'}
+              {autosaveStatus === 'error' && `${autosaveError} Perubahan tetap aman di perangkat dan akan dicoba lagi otomatis.`}
+              {autosaveStatus === 'idle' && 'Nilai tersimpan otomatis setiap 1 detik setelah diubah.'}
+            </span>
+          </div>
+
           {importLogs.length > 0 && (
             <div className="mx-4 mt-3 p-2 bg-rose-50 border border-rose-200 rounded-lg text-[10px] text-rose-700 space-y-0.5">
               <p className="font-bold">⚠ {importLogs.length} baris gagal diimport:</p>
@@ -337,14 +507,14 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
                           <Input
                             type="number" min={0} max={100} step={0.5}
                             value={nilaiDraft[s.siswa_id] || ''}
-                            onChange={e => setNilaiDraft(prev => ({ ...prev, [s.siswa_id]: e.target.value }))}
+                            onChange={e => changeNilai(s.siswa_id, e.target.value)}
                             placeholder="Nilai"
                             className={`h-9 text-sm text-center rounded-lg font-bold ${color}`}
                           />
                         </div>
                         <Input
                           value={catatanDraft[s.siswa_id] || ''}
-                          onChange={e => setCatatanDraft(prev => ({ ...prev, [s.siswa_id]: e.target.value }))}
+                          onChange={e => changeCatatan(s.siswa_id, e.target.value)}
                           placeholder="Catatan (opsional)"
                           className="h-9 text-xs rounded-lg flex-1"
                         />
@@ -379,14 +549,14 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
                             <Input
                               type="number" min={0} max={100} step={0.5}
                               value={nilaiDraft[s.siswa_id] || ''}
-                              onChange={e => setNilaiDraft(prev => ({ ...prev, [s.siswa_id]: e.target.value }))}
+                              onChange={e => changeNilai(s.siswa_id, e.target.value)}
                               className={cn('h-7 text-xs text-center rounded w-full', color)}
                             />
                           </td>
                           <td className="px-3 py-1.5">
                             <Input
                               value={catatanDraft[s.siswa_id] || ''}
-                              onChange={e => setCatatanDraft(prev => ({ ...prev, [s.siswa_id]: e.target.value }))}
+                              onChange={e => changeCatatan(s.siswa_id, e.target.value)}
                               placeholder="opsional..."
                               className="h-7 text-xs rounded w-full"
                             />
@@ -400,13 +570,6 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
             </>
           )}
 
-          {!detailLoading && detail.length > 0 && (
-            <div className="px-4 py-3 border-t border-surface flex justify-end">
-              <Button size="sm" onClick={handleSaveNilai} disabled={isSaving} className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1 rounded-lg">
-                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Simpan Nilai
-              </Button>
-            </div>
-          )}
         </div>
       )}
 
@@ -441,7 +604,10 @@ function TabRekap({ penugasanId, mapelNama, kelasLabel }: { penugasanId: string;
     setData(res); setLoading(false)
   }, [penugasanId])
 
-  useMemo(() => { load() }, [load])
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0)
+    return () => window.clearTimeout(timer)
+  }, [load])
 
   const handleExportExcel = () => {
     if (!data) return
@@ -532,7 +698,10 @@ function TabAnalitik({ penugasanId }: { penugasanId: string }) {
     setData(res); setKkm(res.kkm); setKkmInput(String(res.kkm)); setLoading(false)
   }, [penugasanId])
 
-  useMemo(() => { load() }, [load])
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0)
+    return () => window.clearTimeout(timer)
+  }, [load])
 
   const handleSaveKkm = async () => {
     const v = parseInt(kkmInput); if (isNaN(v) || v < 0 || v > 100) { show(false, 'KKM harus 0-100'); return }
