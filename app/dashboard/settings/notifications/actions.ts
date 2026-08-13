@@ -1,17 +1,19 @@
 'use server'
 
-import { getCurrentUser } from '@/utils/auth/server'
+import { getCurrentUser, isCurrentUserPlayReviewer } from '@/utils/auth/server'
+import { PLAY_REVIEWER_WRITE_ERROR } from '@/lib/play-reviewer'
 import { sendPushNotification } from '@/lib/web-push'
 import { sendFcmNotification } from '@/lib/fcm'
 import { notify } from '@/lib/notify'
 import { checkFeatureAccess } from '@/lib/features'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { uploadToR2, validateImageFile } from '@/utils/r2'
 
 export async function sendCustomNotification(
   prevState: any,
   formData: FormData
 ) {
+  if (await isCurrentUserPlayReviewer()) return { error: PLAY_REVIEWER_WRITE_ERROR }
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -65,6 +67,7 @@ export async function sendCustomNotification(
 // Staff via notify (VAPID+FCM), ortu via FCM + tulis in-app parent_notifications
 // ============================================================
 export async function sendBroadcast(prevState: any, formData: FormData) {
+  if (await isCurrentUserPlayReviewer()) return { error: PLAY_REVIEWER_WRITE_ERROR }
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 

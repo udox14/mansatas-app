@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { processWhatsAppOutbox } from '@/lib/whatsapp'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 

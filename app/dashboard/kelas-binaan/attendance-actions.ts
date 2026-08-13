@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import { ensureActivityLogTables, logActivity } from '@/lib/activity-log'
 

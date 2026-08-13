@@ -2,14 +2,6 @@
 // Wrapper Cloudflare D1 - pengganti supabase.from(...)
 // Menyediakan helper query yang mirip pola Supabase agar migrasi lebih mudah
 
-import { getCloudflareContext } from '@opennextjs/cloudflare'
-
-// Ambil D1 binding dari Cloudflare context
-export async function getDB(): Promise<D1Database> {
-  const { env } = await getCloudflareContext({ async: true })
-  return env.DB as D1Database
-}
-
 // ============================================================
 // HELPER TYPES
 // ============================================================

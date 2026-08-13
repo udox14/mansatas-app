@@ -1,6 +1,6 @@
 // components/dashboard/WakamadDashboard.tsx
 import Link from 'next/link'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
 import { getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'

@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
@@ -27,7 +27,7 @@ interface SppTunggakanRow {
 }
 
 async function SppDataFetcher() {
-  const db = await (await import('@/utils/db')).getDB()
+  const db = await (await import('@/utils/db-server')).getDB()
 
   const [angkatanRes, tunggakanStats, tunggakanRes] = await Promise.all([
     db.prepare('SELECT DISTINCT tahun_masuk FROM siswa WHERE tahun_masuk IS NOT NULL ORDER BY tahun_masuk DESC').all<{ tahun_masuk: number }>(),

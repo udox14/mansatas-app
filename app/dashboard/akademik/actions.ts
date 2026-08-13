@@ -1,7 +1,8 @@
 // Lokasi: app/dashboard/akademik/actions.ts
 'use server'
 
-import { getDB, dbInsert, dbUpdate, dbDelete, parseJsonCol } from '@/utils/db'
+import { dbInsert, dbUpdate, dbDelete, parseJsonCol } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { requireUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'

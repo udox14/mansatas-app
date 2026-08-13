@@ -2,7 +2,7 @@
 import { Suspense } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { redirect } from 'next/navigation'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess } from '@/lib/features'
 import { FileText } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'

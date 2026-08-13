@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { nowWIB } from '@/lib/time'
 import { getUserRoles } from '@/lib/features'
 import { getAccessibleWaliKelasClasses } from '@/lib/wali-kelas-attendance'

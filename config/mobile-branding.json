@@ -1,5 +1,6 @@
 {
   "icon": "resources/android/icon.png",
+  "iconBackground": "#0d4f4a",
   "splash": "resources/android/splash.png",
   "splashBackground": "#0d4f4a"
 }

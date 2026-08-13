@@ -2,7 +2,7 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { PageLoading } from '@/components/layout/page-loading'
 import { BukuTamuPageWrapper } from './components/buku-tamu-page-wrapper'

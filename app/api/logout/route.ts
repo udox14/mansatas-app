@@ -1,6 +1,6 @@
 // app/api/logout/route.ts
 import { NextResponse } from 'next/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { cookies } from 'next/headers'
 import { COOKIE_NAME } from '@/utils/auth'
 

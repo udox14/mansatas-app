@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/tka/actions.ts
 'use server'
 
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { revalidatePath } from 'next/cache'
 import { getMemCache, setMemCache, clearMemCachePrefix } from '@/utils/mem-cache'
 import { KAMPUS_BY_ID, PRODI_BY_KAMPUS } from '@/lib/pendidikan-lanjutan'

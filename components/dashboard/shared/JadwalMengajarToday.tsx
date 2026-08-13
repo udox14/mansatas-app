@@ -1,6 +1,6 @@
 // components/dashboard/shared/JadwalMengajarToday.tsx
 import Link from 'next/link'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
 import { ClipboardText as ClipboardPen, BookOpen, CheckCircle as CheckCircle2, WarningCircle as AlertCircle, UserCheck, Calendar as CalendarDays, Prohibit as Ban } from '@phosphor-icons/react/dist/ssr'
 import { getKbmExceptionsForDate, getKalenderDateStatus, splitTeachingSlotsByExceptions } from '@/lib/kalender-pendidikan'

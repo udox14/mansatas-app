@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess } from '@/lib/features'
 import { getSystemSetting, setSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { WA_FEATURE_ID, createWhatsAppCampaign, ensureWhatsAppTables, processWhatsAppOutbox, type WaTargetScope } from '@/lib/whatsapp'

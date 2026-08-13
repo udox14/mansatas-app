@@ -2,14 +2,12 @@ package com.mansatas.app;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;
-import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
-
-import androidx.core.content.FileProvider;
+import android.widget.Toast;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -41,6 +39,10 @@ public class FileSaverPlugin extends Plugin {
             byte[] bytes = Base64.decode(data, Base64.DEFAULT);
             Uri uri;
             boolean publicDownloads;
+            boolean isImage = mimeType != null && mimeType.toLowerCase().startsWith("image/");
+            String publicFolder = isImage
+                ? Environment.DIRECTORY_PICTURES + File.separator + "MANSATAS"
+                : Environment.DIRECTORY_DOWNLOADS + File.separator + "MANSATAS";
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 ContentResolver resolver = getContext().getContentResolver();
@@ -49,11 +51,14 @@ public class FileSaverPlugin extends Plugin {
                 values.put(MediaStore.MediaColumns.MIME_TYPE, mimeType);
                 values.put(
                     MediaStore.MediaColumns.RELATIVE_PATH,
-                    Environment.DIRECTORY_DOWNLOADS + File.separator + "MANSATAS"
+                    publicFolder
                 );
                 values.put(MediaStore.MediaColumns.IS_PENDING, 1);
 
-                uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                Uri collection = isImage
+                    ? MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                    : MediaStore.Downloads.EXTERNAL_CONTENT_URI;
+                uri = resolver.insert(collection, values);
                 if (uri == null) throw new IllegalStateException("Tidak dapat membuat file Downloads.");
 
                 try (OutputStream output = resolver.openOutputStream(uri)) {
@@ -69,7 +74,8 @@ public class FileSaverPlugin extends Plugin {
                 resolver.update(uri, values, null, null);
                 publicDownloads = true;
             } else {
-                File directory = new File(getContext().getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "MANSATAS");
+                String legacyDirectory = isImage ? Environment.DIRECTORY_PICTURES : Environment.DIRECTORY_DOWNLOADS;
+                File directory = new File(getContext().getExternalFilesDir(legacyDirectory), "MANSATAS");
                 if (!directory.exists() && !directory.mkdirs()) {
                     throw new IllegalStateException("Tidak dapat membuat direktori dokumen.");
                 }
@@ -77,15 +83,16 @@ public class FileSaverPlugin extends Plugin {
                 try (OutputStream output = new FileOutputStream(file)) {
                     output.write(bytes);
                 }
-                uri = FileProvider.getUriForFile(
-                    getContext(),
-                    getContext().getPackageName() + ".fileprovider",
-                    file
-                );
+                uri = Uri.fromFile(file);
                 publicDownloads = false;
             }
 
-            openFile(uri, mimeType, filename);
+            String destination = isImage ? "Galeri/Pictures/MANSATAS" : "Download/MANSATAS";
+            getActivity().runOnUiThread(() -> Toast.makeText(
+                getContext(),
+                "Tersimpan di " + destination,
+                Toast.LENGTH_LONG
+            ).show());
 
             JSObject result = new JSObject();
             result.put("uri", uri.toString());
@@ -95,23 +102,6 @@ public class FileSaverPlugin extends Plugin {
         } catch (Exception error) {
             call.reject("Gagal menyimpan file: " + error.getMessage(), error);
         }
-    }
-
-    private void openFile(Uri uri, String mimeType, String filename) {
-        Intent viewIntent = new Intent(Intent.ACTION_VIEW);
-        viewIntent.setDataAndType(uri, mimeType);
-        viewIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-
-        Intent shareIntent = new Intent(Intent.ACTION_SEND);
-        shareIntent.setType(mimeType);
-        shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
-        shareIntent.putExtra(Intent.EXTRA_TITLE, filename);
-        shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-
-        Intent chooser = Intent.createChooser(viewIntent, "Buka " + filename);
-        chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[] { shareIntent });
-        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        getContext().startActivity(chooser);
     }
 
     private static String sanitizeFilename(String raw) {

@@ -1,5 +1,7 @@
 // utils/r2.ts
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { isCurrentUserPlayReviewer } from '@/utils/auth/server'
+import { PLAY_REVIEWER_WRITE_ERROR } from '@/lib/play-reviewer'
 
 // ============================================================
 // KONSTANTA VALIDASI
@@ -34,6 +36,10 @@ async function getR2(): Promise<R2Bucket> {
   return env.R2
 }
 
+async function assertR2WriteAllowed() {
+  if (await isCurrentUserPlayReviewer()) throw new Error(PLAY_REVIEWER_WRITE_ERROR)
+}
+
 export const KOMITE_MAX_FILES = 10
 export const KOMITE_MAX_TOTAL_SIZE = 5 * 1024 * 1024
 
@@ -46,6 +52,7 @@ export type KomiteStoredPdf = {
 }
 
 export async function uploadKomitePdfs(files: File[], pengajuanId: string, versionId: string) {
+  await assertR2WriteAllowed()
   if (files.length < 1) return { files: [] as KomiteStoredPdf[], error: 'Pilih minimal satu dokumen PDF.' }
   if (files.length > KOMITE_MAX_FILES) return { files: [] as KomiteStoredPdf[], error: `Maksimal ${KOMITE_MAX_FILES} file dalam satu versi.` }
   const total = files.reduce((sum, file) => sum + file.size, 0)
@@ -92,6 +99,7 @@ export async function uploadKomitePdfs(files: File[], pengajuanId: string, versi
 }
 
 export async function deleteKomiteObjects(keys: string[]) {
+  await assertR2WriteAllowed()
   if (!keys.length) return
   const r2 = await getR2()
   await Promise.all(keys.filter(key => key.startsWith('private/komite-pengajuan/')).map(key => r2.delete(key).catch(() => undefined)))
@@ -118,6 +126,7 @@ export async function uploadToR2(
   folder: string,
   customFileName?: string
 ): Promise<{ url: string | null; error: string | null }> {
+  await assertR2WriteAllowed()
   // Validasi wajib sebelum upload
   const validationError = validateImageFile(file)
   if (validationError) return { url: null, error: validationError }
@@ -149,6 +158,7 @@ export async function uploadToR2(
 export async function deleteFromR2(
   publicUrl: string
 ): Promise<{ success: boolean; error: string | null }> {
+  await assertR2WriteAllowed()
   try {
     const key = urlToKey(publicUrl)
     if (!key) return { success: true, error: null } // URL tidak dikenali, skip saja
@@ -190,6 +200,7 @@ export async function uploadSignature(userId: string, file: File) {
 }
 
 export async function uploadS36Pdf(userId: string, file: File) {
+  await assertR2WriteAllowed()
   const validationError = validatePdfFile(file)
   if (validationError) return { url: null, key: null, error: validationError }
 

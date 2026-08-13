@@ -1,7 +1,8 @@
 // app/dashboard/akademik/nilai/actions.ts
 'use server'
 
-import { getDB, parseJsonCol } from '@/utils/db'
+import { parseJsonCol } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { revalidatePath } from 'next/cache'
 import { SEMESTER_MAP, SEMESTER_KEYS } from './constants'

@@ -1,7 +1,8 @@
 // Lokasi: app/dashboard/monitoring-agenda/actions.ts
 'use server'
 
-import { getDB, dbUpdate, dbInsert } from '@/utils/db'
+import { dbUpdate, dbInsert } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'

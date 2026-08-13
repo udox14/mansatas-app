@@ -1,5 +1,5 @@
 // components/dashboard/shared/FeatureShortcuts.tsx
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getAllowedMenuItems } from '@/lib/features'
 import { QuickLink } from './QuickLink'
 import { LayoutGrid } from 'lucide-react'

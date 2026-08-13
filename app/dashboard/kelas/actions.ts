@@ -1,7 +1,8 @@
 // Lokasi: app/dashboard/kelas/actions.ts
 'use server'
 
-import { getDB, dbInsert, dbUpdate, dbDelete, dbSelect, dbBatchInsert } from '@/utils/db'
+import { dbInsert, dbUpdate, dbDelete, dbSelect, dbBatchInsert } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'

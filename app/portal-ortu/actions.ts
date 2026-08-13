@@ -1,6 +1,6 @@
 'use server'
 
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getAppSession } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { createAuth } from '@/utils/auth'

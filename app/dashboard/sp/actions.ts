@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/sp/actions.ts
 'use server'
 
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { uploadToR2, deleteFromR2 } from '@/utils/r2'

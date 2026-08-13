@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getAppSession } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { PortalOrtuClient } from './components/portal-ortu-client'
 import { findSlotException, getKalenderDateStatus, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
 import { ensureParentSuggestionTable } from '@/lib/parent-suggestions'

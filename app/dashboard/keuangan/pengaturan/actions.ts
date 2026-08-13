@@ -5,7 +5,7 @@ import { checkFeatureAccess } from '@/lib/features'
 import { setSystemSetting } from '@/lib/system-settings'
 import type { KomitePaymentAccount } from '@/lib/komite-payment-settings'
 import { getSession } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { uploadKomiteQris } from '@/utils/r2'
 
 async function requirePengaturanKomite() {

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import { Calendar, PlayCircle, Info, ClipboardText as ClipboardList, PaperPlaneTilt as Send, ArrowRight } from '@phosphor-icons/react/dist/ssr'

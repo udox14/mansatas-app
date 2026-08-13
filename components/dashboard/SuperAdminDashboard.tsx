@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
 import { getSuperAdminDashboardStats } from '@/utils/cache'
 import { StatCard } from './shared/StatCard'

@@ -1,12 +1,13 @@
 // app/dashboard/guru/actions.ts
 'use server'
 
-import { getDB, dbUpdate } from '@/utils/db'
+import { dbUpdate } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { createAuth, hashPassword } from '@/utils/auth'
 import { revalidatePath } from 'next/cache'
 import { uploadFotoSiswa, validateImageFile } from '@/utils/r2'
-import { getCurrentUser } from '@/utils/auth/server'
+import { getCurrentUser, isCurrentUserPlayReviewer } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
@@ -16,6 +17,7 @@ async function getAuth() {
 }
 
 async function verifyStaffAdminAccess() {
+  if (await isCurrentUserPlayReviewer()) return false
   const user = await getCurrentUser()
   if (!user) return false
   const db = await getDB()

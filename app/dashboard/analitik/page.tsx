@@ -1,7 +1,8 @@
 // Lokasi: app/dashboard/akademik/analitik/page.tsx
 import { Suspense } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB, parseJsonCol } from '@/utils/db'
+import { parseJsonCol } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { redirect } from 'next/navigation'
 import { PengaturanPanel } from './components/pengaturan-panel'
 import { AnalitikClient } from './components/analitik-client'

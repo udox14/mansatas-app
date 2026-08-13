@@ -1,6 +1,6 @@
 // components/dashboard/GuruPiketDashboard.tsx
 import Link from 'next/link'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'
 import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'

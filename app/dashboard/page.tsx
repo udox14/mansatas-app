@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/page.tsx
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { nowWIB } from '@/lib/time'
 import { getUserRoles, getUserAllowedFeatures } from '@/lib/features'
 import { SuperAdminDashboard } from '@/components/dashboard/SuperAdminDashboard'
@@ -26,6 +26,7 @@ export const dynamic  = 'force-dynamic'
 
 // ── Color theme per role ────────────────────────────────────────────────────
 const ROLE_COLOR: Record<string, string> = {
+  play_reviewer: 'amber',
   super_admin: 'emerald',
   admin_tu:    'emerald',
   kepsek:      'emerald',
@@ -42,6 +43,7 @@ const ROLE_COLOR: Record<string, string> = {
 }
 
 const ROLE_LABEL: Record<string, string> = {
+  play_reviewer: 'Google Play Reviewer (Read Only)',
   super_admin: 'Super Admin',
   admin_tu:    'Admin Tata Usaha',
   kepsek:      'Kepala Madrasah',

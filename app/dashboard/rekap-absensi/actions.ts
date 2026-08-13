@@ -1,6 +1,6 @@
 'use server'
 
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { formatNamaKelas } from '@/lib/utils'

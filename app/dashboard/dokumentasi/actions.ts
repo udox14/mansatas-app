@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { upsertDocumentationArticle, type DocumentationAudience } from '@/lib/documentation'
 
 function cleanText(value: unknown, maxLength: number) {

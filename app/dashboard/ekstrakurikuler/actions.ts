@@ -1,7 +1,8 @@
 // Lokasi: app/dashboard/ekstrakurikuler/actions.ts
 'use server'
 
-import { getDB, dbInsert } from '@/utils/db'
+import { dbInsert } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getEffectiveUser } from '@/lib/act-as'
 import { checkFeatureAccess } from '@/lib/features'

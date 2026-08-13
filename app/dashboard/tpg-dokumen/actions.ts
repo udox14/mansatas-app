@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { ensureTpgSchema } from '@/lib/tpg-schema'
 import { uploadS36Pdf, validatePdfFile } from '@/utils/r2'

@@ -1,6 +1,6 @@
 // app/dashboard/settings/fitur/page.tsx
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { redirect } from 'next/navigation'
 import { SlidersHorizontal } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'

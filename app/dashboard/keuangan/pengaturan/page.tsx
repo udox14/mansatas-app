@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { checkFeatureAccess } from '@/lib/features'
 import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
 import { getSession } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { PengaturanKomiteClient } from './pengaturan-client'
 
 export const dynamic = 'force-dynamic'

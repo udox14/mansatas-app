@@ -3,7 +3,7 @@
 import puppeteer from '@cloudflare/puppeteer'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess } from '@/lib/features'
 import { getLaporanKehadiran } from '@/app/dashboard/ekstrakurikuler/master/actions'
 import { buildEkskulKehadiranHtml } from '@/lib/pdf/ekskul-kehadiran-template'

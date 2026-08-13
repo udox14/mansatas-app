@@ -2,7 +2,7 @@
 // Widget katalog: rekap kehadiran mengajar guru hari ini (pengisian agenda KBM).
 // Bisa ditambahkan ke dashboard manapun lewat pengaturan.
 import Link from 'next/link'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
 import { getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
 import { ClipboardText as ClipboardCheck, ArrowRight, CheckCircle as CheckCircle2, Warning as AlertTriangle } from '@phosphor-icons/react/dist/ssr'

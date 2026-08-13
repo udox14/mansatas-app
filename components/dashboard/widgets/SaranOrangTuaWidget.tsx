@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { ArrowRight, ChatCenteredText } from '@phosphor-icons/react/dist/ssr'
 import { ensureParentSuggestionTable } from '@/lib/parent-suggestions'
 import { formatDateTimeWIB } from '@/lib/time'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import type { WidgetProps } from '@/lib/dashboard-widgets-meta'
 
 type SuggestionSummary = {

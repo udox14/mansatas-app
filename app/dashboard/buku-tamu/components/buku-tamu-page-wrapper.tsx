@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/buku-tamu/components/buku-tamu-page-wrapper.tsx
 // Server component — fetch data awal lalu render client components
 
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
 import { BukuTamuClient } from './buku-tamu-client'
 import { BukuTamuAdminClient } from './buku-tamu-admin-client'

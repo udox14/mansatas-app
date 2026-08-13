@@ -1,6 +1,7 @@
 'use server'
 
-import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
+import { dbInsert, dbUpdate, dbDelete } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { checkFeatureAccess } from '@/lib/features'

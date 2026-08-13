@@ -1,6 +1,8 @@
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { getMemCache, setMemCache, deleteMemCache } from '@/utils/mem-cache'
+export { PARENT_LOGIN_TINGKAT_OPTIONS } from '@/lib/system-setting-constants'
+import { PARENT_LOGIN_TINGKAT_OPTIONS } from '@/lib/system-setting-constants'
 
 export const SYSTEM_SETTING_KEYS = {
   agendaTimeRestriction: 'agenda_time_restriction_enabled',
@@ -26,8 +28,6 @@ export const SYSTEM_SETTING_KEYS = {
 } as const
 
 // Tingkat kelas yang bisa dibatasi loginnya (MA: 10, 11, 12)
-export const PARENT_LOGIN_TINGKAT_OPTIONS = [10, 11, 12] as const
-
 // Pesan bawaan saat login tingkat tertentu diblokir
 export const DEFAULT_PARENT_LOGIN_BLOCK_MESSAGE =
   'Login portal orang tua untuk tingkat kelas Anda sedang dinonaktifkan sementara oleh sekolah. Silakan hubungi admin sekolah untuk informasi lebih lanjut.'

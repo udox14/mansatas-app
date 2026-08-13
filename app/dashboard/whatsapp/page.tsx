@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { MessageCircle, Play, RefreshCcw, SendHorizonal } from 'lucide-react'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess } from '@/lib/features'
 import { WA_FEATURE_ID, ensureWhatsAppTables, previewWhatsAppRecipients, getWhatsAppConfig, type WaTargetScope } from '@/lib/whatsapp'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'

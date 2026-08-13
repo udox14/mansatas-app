@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/ekstrakurikuler/master/page.tsx
 import { getCurrentUser } from '@/utils/auth/server'
 import { redirect } from 'next/navigation'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'

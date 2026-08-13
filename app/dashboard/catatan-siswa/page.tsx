@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { NotePencil } from '@phosphor-icons/react/dist/ssr'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess } from '@/lib/features'
 import {
   getAccessibleStudentNoteClasses,

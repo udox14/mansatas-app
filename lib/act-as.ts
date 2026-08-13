@@ -4,7 +4,7 @@
 
 import { cookies } from 'next/headers'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getUserRoles } from '@/lib/features'
 
 export const ACT_AS_COOKIE = 'act-as-user-id'

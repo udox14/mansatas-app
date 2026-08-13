@@ -1,7 +1,8 @@
 // app/dashboard/settings/profile/actions.ts
 'use server'
 
-import { getDB, dbUpdate } from '@/utils/db'
+import { dbUpdate } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { uploadAvatar, uploadSignature, validateImageFile } from '@/utils/r2'
 import { createAuth } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'

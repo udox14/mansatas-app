@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/kedisiplinan/page.tsx
 import { Suspense } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { redirect } from 'next/navigation'
 import { checkFeatureAccess, getPrimaryRole, getUserRoles } from '@/lib/features'
 import { CalendarDays } from 'lucide-react'

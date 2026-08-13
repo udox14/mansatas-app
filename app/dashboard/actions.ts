@@ -2,7 +2,7 @@
 'use server'
 
 import { cookies } from 'next/headers'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { redirect } from 'next/navigation'
 import { COOKIE_NAME } from '@/utils/auth'
 

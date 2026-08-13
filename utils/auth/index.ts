@@ -3,6 +3,8 @@
 // Hanya pakai Web Crypto (PBKDF2) + D1 — zero external dependencies
 
 import { logActivity } from '@/lib/activity-log'
+import { COOKIE_NAME, extractToken } from './token'
+export { COOKIE_NAME, extractToken } from './token'
 
 // ============================================================
 // PASSWORD HASHING (PBKDF2 — native Web Crypto, jalan di Workers)
@@ -43,7 +45,6 @@ export async function verifyPassword(hash: string, password: string): Promise<bo
 // SESSION HELPERS
 // ============================================================
 const SESSION_EXPIRY_DAYS = 30
-export const COOKIE_NAME = 'session_token'
 
 function generateToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32))
@@ -122,24 +123,6 @@ export type ParentAuthSession = {
 // ============================================================
 // HELPER: extract token dari cookie header
 // ============================================================
-export function extractToken(hdrs: Headers): string | null {
-  const cookieHeader = hdrs.get('cookie') || ''
-  for (const part of cookieHeader.split(';')) {
-    const trimmed = part.trim()
-    // Cookie baru
-    if (trimmed.startsWith(`${COOKIE_NAME}=`)) {
-      return trimmed.slice(COOKIE_NAME.length + 1).split('.')[0]
-    }
-    // Backward compat: cookie lama better-auth
-    if (trimmed.startsWith('better-auth.session_token=')) {
-      return trimmed.slice('better-auth.session_token='.length).split('.')[0]
-    }
-    if (trimmed.startsWith('__Secure-better-auth.session_token=')) {
-      return trimmed.slice('__Secure-better-auth.session_token='.length).split('.')[0]
-    }
-  }
-  return null
-}
 
 // ============================================================
 // MAP DB ROW → AuthUser

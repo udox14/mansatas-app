@@ -25,7 +25,7 @@ import {
   setAttendanceSkipIncompleteForDailyStatusEnabled, setHeroSettings, uploadHeroImageAction,
   setDashboardItemVisibility, setDashboardExtraWidgets, setParentLoginHelpSettings, setParentLoginBlockSettings
 } from '../actions'
-import { PARENT_LOGIN_TINGKAT_OPTIONS } from '@/lib/system-settings'
+import { PARENT_LOGIN_TINGKAT_OPTIONS } from '@/lib/system-setting-constants'
 import { DASHBOARD_GROUPS, isVisible, type VisibilityMap } from '@/lib/dashboard-visibility'
 import { WIDGET_CATALOG_META, type WidgetsConfigMap } from '@/lib/dashboard-widgets-meta'
 import { DEFAULT_POLA_JAM } from '../types'

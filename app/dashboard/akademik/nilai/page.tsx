@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/utils/auth/server'
 import { NilaiPageTabs } from './components/nilai-page-tabs'
 import { PageHeader } from '@/components/layout/page-header'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 
 export const metadata = { title: 'Rekap Nilai Akademik - MANSATAS App' }

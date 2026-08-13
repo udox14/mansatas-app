@@ -74,6 +74,7 @@ const compressImage = async (file: File): Promise<File> => {
 }
 
 const DEFAULT_ROLES: MasterRoleType[] = [
+  { value: 'play_reviewer', label: 'Google Play Reviewer (Read Only)', is_custom: 0 },
   { value: 'super_admin', label: 'Super Admin', is_custom: 0 },
   { value: 'admin_tu', label: 'Admin TU', is_custom: 0 },
   { value: 'kepsek', label: 'Kepala Madrasah', is_custom: 0 },
@@ -88,6 +89,7 @@ const DEFAULT_ROLES: MasterRoleType[] = [
 ]
 
 const ROLE_COLORS: Record<string, string> = {
+  play_reviewer: 'bg-amber-100 text-amber-800 border-amber-300',
   super_admin: 'bg-rose-100 text-rose-700 border-rose-200',
   admin_tu: 'bg-violet-100 text-violet-700 border-violet-200',
   kepsek: 'bg-amber-100 text-amber-700 border-amber-200',

@@ -2,7 +2,7 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { BottomNav } from '@/components/layout/bottom-nav'
@@ -12,6 +12,7 @@ import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { DEFAULT_SIDEBAR_GROUPS, parseSidebarGroups, resolveSidebarGroups, type SidebarGroupConfig } from '@/config/menu'
 import { getUnreadStudentNoteCountForWali } from '@/lib/student-notes'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
+import { PLAY_REVIEWER_ROLE } from '@/lib/play-reviewer'
 
 const SIDEBAR_TEMPLATE_KEY = 'default'
 
@@ -127,10 +128,11 @@ export default async function DashboardLayout({
   }
   
   const navEnabled = navLinks.length > 0;
+  const isPlayReviewer = userRoles.includes(PLAY_REVIEWER_ROLE)
 
   return (
     <div className="flex h-[100dvh] w-full bg-slate-50 dark:bg-slate-800 dark:bg-slate-950 text-slate-900 dark:text-slate-50 dark:text-slate-100 overflow-hidden">
-      <PushNotificationBanner />
+      {!isPlayReviewer && <PushNotificationBanner />}
       <Sidebar
         userRoles={userRoles}
         primaryRole={primaryRole}
@@ -151,6 +153,11 @@ export default async function DashboardLayout({
         />
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-5">
           <div className={`mx-auto max-w-7xl ${navEnabled ? 'pb-24' : 'pb-8'}`}>
+            {isPlayReviewer && (
+              <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                Mode Google Play Reviewer: akses hanya-baca. Data pribadi telah disamarkan dan seluruh perubahan diblokir.
+              </div>
+            )}
             <Suspense fallback={<PageSkeleton />}>
               {children}
             </Suspense>

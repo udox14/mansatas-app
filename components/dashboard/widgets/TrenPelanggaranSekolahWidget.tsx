@@ -1,7 +1,7 @@
 // components/dashboard/widgets/TrenPelanggaranSekolahWidget.tsx
 // Widget katalog: tren pelanggaran siswa se-sekolah 7 hari terakhir.
 import Link from 'next/link'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
 import { TrendDown as TrendingDown, TrendUp as TrendingUp, ArrowRight } from '@phosphor-icons/react/dist/ssr'
 import type { WidgetProps } from '@/lib/dashboard-widgets-meta'

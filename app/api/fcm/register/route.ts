@@ -1,5 +1,5 @@
 import { getSession, getParentSession } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { NextRequest, NextResponse } from 'next/server'
 
 // Simpan FCM device token. Deteksi sesi: staff (user_id) atau orang tua (siswa_id).

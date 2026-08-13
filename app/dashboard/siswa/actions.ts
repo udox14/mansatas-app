@@ -1,7 +1,8 @@
 // Lokasi: app/dashboard/siswa/actions.ts
 'use server'
 
-import { getDB, dbInsert, dbUpdate, dbDelete, dbSelectOne, dbBatchInsert, serializeValue } from '@/utils/db'
+import { dbInsert, dbUpdate, dbDelete, dbSelectOne, dbBatchInsert, serializeValue } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { uploadFotoSiswa, validateImageFile, deleteFromR2 } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'

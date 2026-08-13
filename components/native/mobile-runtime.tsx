@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { OfflineBanner } from './offline-banner'
 import { downloadAndOpenNativeFile } from '@/lib/pdf/download'
+import { createNativePrintWindow, printDocumentNative } from '@/lib/native-print'
 
 export type MobileBackMode = 'history' | 'confirm-exit' | 'exit'
 
@@ -43,6 +44,7 @@ export function writeMobileRuntimeSettings(settings: MobileRuntimeSettings) {
 
 export async function unregisterNativePushToken() {
   if (typeof window === 'undefined') return
+  navigator.serviceWorker?.controller?.postMessage({ type: 'CLEAR_PRIVATE_CACHE' })
   const token =
     window.localStorage.getItem(CURRENT_FCM_TOKEN_KEY) ||
     window.localStorage.getItem(PENDING_FCM_TOKEN_KEY)
@@ -210,6 +212,9 @@ export function MobileRuntime() {
     let backListener: { remove: () => Promise<void> } | null = null
     let linkHandler: ((event: MouseEvent) => void) | null = null
     let originalWindowOpen: typeof window.open | null = null
+    let originalWindowPrint: typeof window.print | null = null
+    let originalAnchorClick: typeof HTMLAnchorElement.prototype.click | null = null
+    let iframeObserver: MutationObserver | null = null
     let cancelled = false
 
     async function boot() {
@@ -223,8 +228,11 @@ export function MobileRuntime() {
 
       originalWindowOpen = window.open
       window.open = (url?: string | URL, target?: string, features?: string) => {
-        if (url && typeof url === 'string') {
-          const fullUrl = url.startsWith('/') ? `${window.location.origin}${url}` : url
+        const rawUrl = typeof url === 'string' ? url : url?.toString() || ''
+        if (!rawUrl && target === '_blank') return createNativePrintWindow()
+
+        if (rawUrl) {
+          const fullUrl = rawUrl.startsWith('/') ? `${window.location.origin}${rawUrl}` : rawUrl
           const isFile =
             /\.pdf(?:$|\?)/i.test(fullUrl) ||
             fullUrl.includes('/api/pdf/') ||
@@ -237,7 +245,13 @@ export function MobileRuntime() {
             return null
           }
 
-          if (target === '_blank' || fullUrl.includes('print')) {
+          const isSameOrigin = fullUrl.startsWith(window.location.origin)
+          if (isSameOrigin && fullUrl.toLowerCase().includes('print')) {
+            window.location.href = fullUrl
+            return null
+          }
+
+          if (target === '_blank') {
             Browser.open({ url: fullUrl }).catch(() => {
               window.location.href = fullUrl
             })
@@ -245,6 +259,50 @@ export function MobileRuntime() {
           }
         }
         return originalWindowOpen ? originalWindowOpen.call(window, url, target, features) : null
+      }
+
+      originalWindowPrint = window.print
+      window.print = () => {
+        void printDocumentNative(document).catch((error) => {
+          console.error('[NativePrint] Gagal mencetak halaman:', error)
+          window.alert('Gagal membuka dialog cetak Android.')
+        })
+      }
+
+      const patchFramePrint = (frame: HTMLIFrameElement) => {
+        const patch = () => {
+          try {
+            if (!frame.contentWindow || !frame.contentDocument) return
+            frame.contentWindow.print = () => {
+              if (!frame.contentDocument) return
+              void printDocumentNative(frame.contentDocument).catch(console.error)
+            }
+          } catch {
+            // Iframe lintas origin tidak boleh diakses dan bukan dokumen cetak aplikasi.
+          }
+        }
+        frame.addEventListener('load', patch)
+        patch()
+      }
+      document.querySelectorAll('iframe').forEach(patchFramePrint)
+      iframeObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+          mutation.addedNodes.forEach((node) => {
+            if (node instanceof HTMLIFrameElement) patchFramePrint(node)
+            if (node instanceof HTMLElement) node.querySelectorAll('iframe').forEach(patchFramePrint)
+          })
+        }
+      })
+      iframeObserver.observe(document.documentElement, { childList: true, subtree: true })
+
+      originalAnchorClick = HTMLAnchorElement.prototype.click
+      HTMLAnchorElement.prototype.click = function nativeDownloadClick() {
+        const href = this.href
+        if (this.hasAttribute('download') || href.startsWith('blob:')) {
+          void downloadAndOpenNativeFile(href, this.getAttribute('download') || undefined).catch(console.error)
+          return
+        }
+        originalAnchorClick?.call(this)
       }
 
       const getSettings = () => readMobileRuntimeSettings()
@@ -268,7 +326,6 @@ export function MobileRuntime() {
       })
 
       linkHandler = (event: MouseEvent) => {
-        if (!getSettings().externalLinksInApp) return
         const anchor = (event.target as HTMLElement | null)?.closest('a[href]') as HTMLAnchorElement | null
         if (!anchor?.href) return
 
@@ -280,8 +337,7 @@ export function MobileRuntime() {
           href.includes('download') ||
           href.includes('/spb') ||
           anchor.hasAttribute('download')
-        const isPrintRoute =
-          href.includes('/print') || href.includes('print-ckh') || anchor.target === '_blank'
+        const isPrintRoute = href.includes('/print') || href.includes('print-ckh')
 
         if (isFile) {
           event.preventDefault()
@@ -290,11 +346,10 @@ export function MobileRuntime() {
         }
         if (isPrintRoute) {
           event.preventDefault()
-          Browser.open({ url: href }).catch(() => {
-            window.location.href = href
-          })
+          window.location.href = href
           return
         }
+        if (!getSettings().externalLinksInApp) return
         if (!href.startsWith(window.location.origin) && /^https?:\/\//i.test(href)) {
           event.preventDefault()
           Browser.open({ url: href }).catch(() => {
@@ -311,6 +366,9 @@ export function MobileRuntime() {
       backListener?.remove().catch(() => {})
       if (linkHandler) document.removeEventListener('click', linkHandler, true)
       if (originalWindowOpen) window.open = originalWindowOpen
+      if (originalWindowPrint) window.print = originalWindowPrint
+      if (originalAnchorClick) HTMLAnchorElement.prototype.click = originalAnchorClick
+      iframeObserver?.disconnect()
     }
   }, [])
 

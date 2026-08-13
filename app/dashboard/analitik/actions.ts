@@ -1,7 +1,8 @@
 // Lokasi: app/dashboard/akademik/analitik/actions.ts
 'use server'
 
-import { getDB, dbUpdate, parseJsonCol } from '@/utils/db'
+import { dbUpdate, parseJsonCol } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { revalidatePath } from 'next/cache'
 import { SEMESTER_KEYS } from '@/app/dashboard/akademik/nilai/constants'
 

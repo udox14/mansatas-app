@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { getAppSession } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getKuitansiTahunAjaran } from '@/lib/tahun-ajaran'
 import type { KuitansiData } from '@/app/dashboard/keuangan/components/kuitansi-print'
 import { ParentReceiptPageClient } from './kuitansi-page-client'

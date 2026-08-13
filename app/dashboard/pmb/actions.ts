@@ -1,7 +1,8 @@
 // Lokasi: app/dashboard/pmb/actions.ts
 'use server'
 
-import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
+import { dbInsert, dbUpdate, dbDelete } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { revalidatePath } from 'next/cache'

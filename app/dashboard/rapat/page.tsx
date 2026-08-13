@@ -1,5 +1,5 @@
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { RapatClient } from './components/RapatClient'
 import { formatTanggalPanjang } from '@/lib/time'
 import { getUserRoles } from '@/lib/features'

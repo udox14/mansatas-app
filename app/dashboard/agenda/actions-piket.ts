@@ -1,7 +1,8 @@
 // Lokasi: app/dashboard/agenda/actions-piket.ts
 'use server'
 
-import { getDB, dbInsert } from '@/utils/db'
+import { dbInsert } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { uploadToR2 } from '@/utils/r2'

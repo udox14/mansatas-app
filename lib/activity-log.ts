@@ -1,5 +1,6 @@
 import { headers } from 'next/headers'
-import { getDB, serializeValue } from '@/utils/db'
+import { serializeValue } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getSession } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { ensureSchemaOnce } from '@/lib/schema-guard'

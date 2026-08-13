@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/kehadiran/actions.ts
 'use server'
 
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'

@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/layout/page-header'
 import { checkFeatureAccess } from '@/lib/features'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
 import { redirect } from 'next/navigation'
 import { MobileAppSettingsClient } from './mobile-app-settings-client'

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { createParentAnnouncement, deleteParentAnnouncement, toggleParentAnnouncement } from './actions'
 import { CreatePengumumanModal } from './create-modal'

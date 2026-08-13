@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess } from '@/lib/features'
 import { logActivity } from '@/lib/activity-log'
 import { STUDENT_NOTE_MAX_LENGTH } from '@/lib/student-note-shared'

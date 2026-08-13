@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { KAMPUS_BY_ID, PRODI_BY_KAMPUS } from '@/lib/pendidikan-lanjutan'
 import type { RencanaKategori } from '@/lib/pendidikan-lanjutan'
 

@@ -1,5 +1,5 @@
 import { buildPushPayload } from '@block65/webcrypto-web-push';
-import { getDB } from '@/utils/db';
+import { getDB } from '@/utils/db-server'
 
 const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const privateVapidKey = process.env.VAPID_PRIVATE_KEY;

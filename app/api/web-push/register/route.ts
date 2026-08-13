@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/utils/auth/server";
-import { getDB } from "@/utils/db";
+import { getDB } from '@/utils/db-server'
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {

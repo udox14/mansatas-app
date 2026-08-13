@@ -2,6 +2,7 @@
 // Resolves user access to features based on multi-role + overrides
 
 import { MENU_ITEMS } from '@/config/menu'
+import { isPlayReviewerRole, PLAY_REVIEWER_ROLE } from '@/lib/play-reviewer'
 
 export type CrudAction = 'create' | 'read' | 'update' | 'delete'
 
@@ -14,17 +15,19 @@ export async function getUserRoles(db: D1Database, userId: string): Promise<stri
     'SELECT role FROM user_roles WHERE user_id = ?'
   ).bind(userId).all<{ role: string }>()
 
-  const roles = result.results?.map(r => r.role) ?? []
+  let roles = result.results?.map(r => r.role) ?? []
 
   // Fallback: jika user_roles kosong, pakai kolom user.role
   if (roles.length === 0) {
     const user = await db.prepare(
       'SELECT role FROM "user" WHERE id = ?'
     ).bind(userId).first<{ role: string }>()
-    if (user?.role) return [user.role]
+    if (user?.role) roles = [user.role]
   }
 
-  return roles
+  // Reviewer perlu melihat cabang UI admin yang masih memakai pemeriksaan role lama.
+  // Role reviewer tetap disertakan dan selalu menang pada seluruh pemeriksaan write.
+  return isPlayReviewerRole(roles) ? Array.from(new Set([...roles, 'super_admin'])) : roles
 }
 
 /**
@@ -104,9 +107,9 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
   // Remove revokes
   for (const f of overrides.revokes) allowed.delete(f)
 
-  // Super admin tidak boleh terkunci dari modul sistem akibat seed role_features
+  // Super admin/reviewer tidak boleh terkunci dari modul sistem akibat seed role_features
   // yang tertinggal atau override lama. MENU_ITEMS menjadi sumber daftar lengkap.
-  if (roles.includes('super_admin')) {
+  if (roles.includes('super_admin') || roles.includes(PLAY_REVIEWER_ROLE)) {
     for (const item of MENU_ITEMS) allowed.add(item.id)
   }
 
@@ -143,6 +146,7 @@ export async function checkFeatureCrudAccess(
   if (action === 'read') return true
 
   const roles = await getUserRoles(db, userId)
+  if (isPlayReviewerRole(roles)) return false
   if (roles.length === 0) return false
 
   const columnMap: Record<CrudAction, string> = {

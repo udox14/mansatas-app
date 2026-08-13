@@ -1,5 +1,5 @@
 // components/dashboard/shared/KehadiranPribadiCard.tsx
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { todayWIB, currentTimeWIB } from '@/lib/time'
 import { getEffectiveDatesInRange, getKbmExceptionsForRange, hariNumFromDateString, hasActiveTeachingSlots } from '@/lib/kalender-pendidikan'
 import { getMemCache, setMemCache } from '@/utils/mem-cache'

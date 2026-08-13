@@ -1,10 +1,12 @@
 'use server'
 
-import { getCurrentUser } from '@/utils/auth/server'
+import { getCurrentUser, isCurrentUserPlayReviewer } from '@/utils/auth/server'
+import { PLAY_REVIEWER_WRITE_ERROR } from '@/lib/play-reviewer'
 import { sendFcmNotification } from '@/lib/fcm'
 
 // Kirim FCM test ke perangkat milik user yang sedang login.
 export async function sendTestFcmToSelf() {
+  if (await isCurrentUserPlayReviewer()) return { error: PLAY_REVIEWER_WRITE_ERROR }
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 

@@ -1,7 +1,7 @@
 // components/dashboard/widgets/KehadiranSiswaSekolahWidget.tsx
 // Widget katalog: ringkasan kehadiran siswa se-sekolah hari ini (estimasi).
 import Link from 'next/link'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
 import { Calendar as CalendarCheck, ArrowRight } from '@phosphor-icons/react/dist/ssr'
 import type { WidgetProps } from '@/lib/dashboard-widgets-meta'

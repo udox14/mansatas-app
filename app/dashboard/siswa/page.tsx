@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/siswa/page.tsx
 import { Suspense } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { redirect } from 'next/navigation'
 import { getUserRoles, checkFeatureAccess } from '@/lib/features'
 import { SiswaClient } from './components/siswa-client'

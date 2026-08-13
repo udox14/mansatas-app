@@ -1,5 +1,6 @@
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB, parseJsonCol } from '@/utils/db'
+import { parseJsonCol } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'

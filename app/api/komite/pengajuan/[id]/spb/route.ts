@@ -1,7 +1,7 @@
 import puppeteer from '@cloudflare/puppeteer'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getUserRoles } from '@/lib/features'
 import { canViewKomitePengajuan, ensureKomitePengajuanSchema } from '@/lib/komite-pengajuan'
 import { terbilang } from '@/lib/terbilang'

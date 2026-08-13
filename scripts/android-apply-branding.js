@@ -16,6 +16,7 @@ async function main() {
   const config = JSON.parse(await readFile(configPath, 'utf8'))
   const icon = resolve(root, config.icon || 'resources/android/icon.png')
   const splash = resolve(root, config.splash || icon)
+  const iconBackground = config.iconBackground || config.splashBackground || '#0d4f4a'
   const splashBackground = config.splashBackground || '#0d4f4a'
   const resDir = join(root, 'android', 'app', 'src', 'main', 'res')
 
@@ -48,33 +49,41 @@ function Save-ScaledPng([System.Drawing.Image]$source, [string]$path, [int]$widt
   $y = ($height - $targetSize) / 2
   $g.DrawImage($source, [int]$x, [int]$y, [int]$targetSize, [int]$targetSize)
   $g.Dispose()
-  $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+  $tempPath = "$path.$([Guid]::NewGuid().ToString('N')).tmp.png"
+  $bmp.Save($tempPath, [System.Drawing.Imaging.ImageFormat]::Png)
   $bmp.Dispose()
+  Move-Item -LiteralPath $tempPath -Destination $path -Force
 }
 
-function Save-RoundPng([System.Drawing.Image]$source, [string]$path, [int]$size, [double]$scale) {
+function Save-RoundPng([System.Drawing.Image]$source, [string]$path, [int]$size, [System.Drawing.Color]$background, [double]$scale) {
   $bmp = New-Object System.Drawing.Bitmap($size, $size)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
   $g.Clear([System.Drawing.Color]::Transparent)
-  $diameter = [Math]::Floor($size * $scale)
-  $offset = [Math]::Floor(($size - $diameter) / 2)
   $clip = New-Object System.Drawing.Drawing2D.GraphicsPath
-  $clip.AddEllipse($offset, $offset, $diameter, $diameter)
+  $clip.AddEllipse(0, 0, $size, $size)
+  $brush = New-Object System.Drawing.SolidBrush($background)
+  $g.FillEllipse($brush, 0, 0, $size, $size)
+  $brush.Dispose()
   $g.SetClip($clip)
-  $g.DrawImage($source, $offset, $offset, $diameter, $diameter)
+  $targetSize = [Math]::Floor($size * $scale)
+  $offset = [Math]::Floor(($size - $targetSize) / 2)
+  $g.DrawImage($source, $offset, $offset, $targetSize, $targetSize)
   $clip.Dispose()
   $g.Dispose()
-  $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png)
+  $tempPath = "$path.$([Guid]::NewGuid().ToString('N')).tmp.png"
+  $bmp.Save($tempPath, [System.Drawing.Imaging.ImageFormat]::Png)
   $bmp.Dispose()
+  Move-Item -LiteralPath $tempPath -Destination $path -Force
 }
 
 $resDir = '${psString(resDir)}'
 $iconSource = [System.Drawing.Image]::FromFile('${psString(icon)}')
 $splashSource = [System.Drawing.Image]::FromFile('${psString(splash)}')
 $transparent = [System.Drawing.Color]::Transparent
+$iconBg = Convert-HexColor '${psString(iconBackground)}'
 $splashBg = Convert-HexColor '${psString(splashBackground)}'
 
 $iconSizes = @{
@@ -88,9 +97,9 @@ $iconSizes = @{
 foreach ($entry in $iconSizes.GetEnumerator()) {
   $dir = Join-Path $resDir $entry.Key
   New-Item -ItemType Directory -Force $dir | Out-Null
-  Save-ScaledPng $iconSource (Join-Path $dir 'ic_launcher.png') $entry.Value $entry.Value $transparent 0.72
-  Save-RoundPng $iconSource (Join-Path $dir 'ic_launcher_round.png') $entry.Value 0.84
-  Save-ScaledPng $iconSource (Join-Path $dir 'ic_launcher_foreground.png') $entry.Value $entry.Value $transparent 0.66
+  Save-ScaledPng $iconSource (Join-Path $dir 'ic_launcher.png') $entry.Value $entry.Value $iconBg 1.04
+  Save-RoundPng $iconSource (Join-Path $dir 'ic_launcher_round.png') $entry.Value $iconBg 1.04
+  Save-ScaledPng $iconSource (Join-Path $dir 'ic_launcher_foreground.png') $entry.Value $entry.Value $transparent 0.82
 }
 
 $splashSizes = @{

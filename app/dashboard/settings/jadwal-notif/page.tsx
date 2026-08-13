@@ -1,7 +1,7 @@
 import { getCurrentUser } from '@/utils/auth/server'
 import { redirect } from 'next/navigation'
 import { checkFeatureAccess } from '@/lib/features'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { PageHeader } from '@/components/layout/page-header'
 import { ALL_ROLES } from '@/config/menu'
 import { getAllUsersForCheckbox } from '@/app/dashboard/rapat/actions'

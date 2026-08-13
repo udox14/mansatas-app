@@ -1,6 +1,6 @@
 // Lokasi: app/dashboard/settings/page.tsx
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { redirect } from 'next/navigation'
 import { checkFeatureAccess } from '@/lib/features'
 import { Settings } from 'lucide-react'

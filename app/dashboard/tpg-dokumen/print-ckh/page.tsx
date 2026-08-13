@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import type { CSSProperties } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getUserRoles } from '@/lib/features'
 import { ensureTpgSchema } from '@/lib/tpg-schema'
 import { CKH_DEFAULT_SATUAN, CKH_DEFAULT_VOL, buildCkhDateRowSpans, formatCkhDate, formatCkhMonth } from '@/lib/ckh'

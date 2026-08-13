@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getSession } from '@/utils/auth/server'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import {

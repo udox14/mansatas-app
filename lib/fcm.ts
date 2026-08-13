@@ -5,7 +5,7 @@
 // Butuh Worker secrets: FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY (PEM service account).
 // Access token OAuth2 di-cache di KV (NEXT_INC_CACHE_KV) ~55 menit.
 
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 
 const TOKEN_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging'

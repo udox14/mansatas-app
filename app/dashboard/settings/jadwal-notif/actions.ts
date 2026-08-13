@@ -1,7 +1,10 @@
 'use server'
 
-import { getDB, dbInsert, dbUpdate } from '@/utils/db'
+import { dbInsert, dbUpdate } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
+import { isCurrentUserPlayReviewer } from '@/utils/auth/server'
+import { PLAY_REVIEWER_WRITE_ERROR } from '@/lib/play-reviewer'
 import { checkFeatureAccess } from '@/lib/features'
 import { getSystemSettingBoolean, setSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { revalidatePath } from 'next/cache'
@@ -121,6 +124,7 @@ export async function hapusJadwalNotifikasi(id: string) {
 // TEST KIRIM SEKARANG
 // ============================================================
 export async function testKirimJadwal(id: string) {
+  if (await isCurrentUserPlayReviewer()) return { error: PLAY_REVIEWER_WRITE_ERROR }
   const { error, db } = await assertAdmin()
   if (error || !db) return { error }
 

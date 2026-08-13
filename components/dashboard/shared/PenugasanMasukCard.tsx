@@ -1,6 +1,6 @@
 // components/dashboard/shared/PenugasanMasukCard.tsx
 import Link from 'next/link'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
 import { Tray as Inbox, PaperPlaneTilt as Send, ArrowRight, ClipboardText as ClipboardList } from '@phosphor-icons/react/dist/ssr'
 

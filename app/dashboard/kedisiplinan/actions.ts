@@ -1,7 +1,8 @@
 // Lokasi: app/dashboard/kedisiplinan/actions.ts
 'use server'
 
-import { getDB, dbInsert, dbUpdate, dbDelete } from '@/utils/db'
+import { dbInsert, dbUpdate, dbDelete } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { uploadBuktiFoto, deleteFromR2, validateImageFile } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'

@@ -1,8 +1,10 @@
 'use server'
 
-import { getDB, dbInsert } from '@/utils/db'
-import { getCurrentUser } from '@/utils/auth/server'
+import { dbInsert } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
+import { getCurrentUser, isCurrentUserPlayReviewer } from '@/utils/auth/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { PLAY_REVIEWER_WRITE_ERROR } from '@/lib/play-reviewer'
 import { revalidatePath } from 'next/cache'
 import { nowWIB, todayWIB } from '@/lib/time'
 
@@ -77,6 +79,7 @@ export async function simpanEntriTamu(formData: {
   foto_base64?: string     // "data:image/jpeg;base64,..."
   foto_content_type?: string
 }): Promise<{ error?: string; success?: string; id?: string }> {
+  if (await isCurrentUserPlayReviewer()) return { error: PLAY_REVIEWER_WRITE_ERROR }
   const user = await getCurrentUser()
   if (!user) return { error: 'Sesi tidak ditemukan. Silakan login ulang.' }
 
@@ -198,6 +201,7 @@ export async function getTamuHariIni(): Promise<EntriTamu[]> {
 // 4. HAPUS ENTRI TAMU (admin only)
 // ============================================================
 export async function hapusEntriTamu(id: string): Promise<{ error?: string; success?: string }> {
+  if (await isCurrentUserPlayReviewer()) return { error: PLAY_REVIEWER_WRITE_ERROR }
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 

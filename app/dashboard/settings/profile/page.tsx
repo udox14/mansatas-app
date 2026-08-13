@@ -1,6 +1,6 @@
 // Lokasi: app/dashboard/settings/profile/page.tsx
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { redirect } from 'next/navigation'
 import { UserCircle } from 'lucide-react'
 import { ProfileClient } from './components/profile-client'

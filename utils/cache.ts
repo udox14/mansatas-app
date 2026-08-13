@@ -4,7 +4,7 @@
 // Tidak menggunakan unstable_cache / 'use cache' directive agar kompatibel
 
 import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { getDB } from './db'
+import { getDB } from './db-server'
 import { todayWIB } from '@/lib/time'
 import { getMemCache, setMemCache } from '@/utils/mem-cache'
 
@@ -222,4 +222,3 @@ export async function getSuperAdminDashboardStats(): Promise<SuperAdminDashboard
 
   return stats
 }
-

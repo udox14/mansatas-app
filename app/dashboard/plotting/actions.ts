@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/plotting/actions.ts
 'use server'
 
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { revalidatePath } from 'next/cache'
 import { ensureRiwayatKelasSnapshotColumns, formatKelasSnapshot } from '@/lib/riwayat-kelas'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'

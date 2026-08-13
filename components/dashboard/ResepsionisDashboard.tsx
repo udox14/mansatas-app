@@ -1,6 +1,6 @@
 // components/dashboard/ResepsionisDashboard.tsx
 import Link from 'next/link'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { formatTimeWIB, todayWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 import { JadwalMengajarToday } from './shared/JadwalMengajarToday'

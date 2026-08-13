@@ -1,7 +1,7 @@
 'use server'
 
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess } from '@/lib/features'
 import { formatNamaKelas } from '@/lib/utils'
 import { todayWIB, currentTimeWIB } from '@/lib/time'

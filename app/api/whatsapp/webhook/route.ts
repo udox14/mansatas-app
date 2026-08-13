@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { getWhatsAppConfig, updateWhatsAppMessageStatus, verifyWhatsAppSignature, verifyKirimdevSignature } from '@/lib/whatsapp'
 
 export async function GET(req: NextRequest) {

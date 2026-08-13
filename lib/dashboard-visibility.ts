@@ -104,6 +104,7 @@ export const DASHBOARD_GROUPS: DashGroup[] = [
 // Map role → group key dashboard
 export function dashboardKeyForRole(role: string): string {
   switch (role) {
+    case 'play_reviewer':
     case 'super_admin':
     case 'admin_tu':
       return 'admin'

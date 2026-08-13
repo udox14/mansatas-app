@@ -7,7 +7,7 @@ import { getEffectiveUser, getActAsUserList } from '@/lib/act-as'
 import { ActAsBanner } from '@/components/layout/act-as-banner'
 
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 
 export const dynamic = 'force-dynamic'
 

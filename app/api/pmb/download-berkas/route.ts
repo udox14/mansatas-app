@@ -1,6 +1,6 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getCurrentUser, isCurrentUserPlayReviewer } from '@/utils/auth/server'
+import { getDB } from '@/utils/db-server'
 import { getUserRoles } from '@/lib/features'
 import { createZip } from '@/lib/zip'
 
@@ -39,6 +39,7 @@ function extFrom(url: string) {
 }
 
 export async function GET(request: Request) {
+  if (await isCurrentUserPlayReviewer()) return new Response('Private document is hidden in reviewer mode.', { status: 403 })
   const user = await getCurrentUser()
   if (!user) return new Response('Unauthorized', { status: 401 })
 

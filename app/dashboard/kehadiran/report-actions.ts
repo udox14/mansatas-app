@@ -3,7 +3,7 @@
 import { getEffectiveUser } from '@/lib/act-as'
 import { formatNamaKelas } from '@/lib/utils'
 import { getCurrentUser } from '@/utils/auth/server'
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 
 export type TeacherAttendanceStatus = 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'

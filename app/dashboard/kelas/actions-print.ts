@@ -1,6 +1,6 @@
 'use server'
 
-import { getDB } from '@/utils/db'
+import { getDB } from '@/utils/db-server'
 
 export type SiswaAbsensiRow = {
   urut: number
