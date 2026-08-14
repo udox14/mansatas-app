@@ -55,6 +55,45 @@ export function attendanceStatusLabel(status: string | null | undefined) {
   return ATTENDANCE_STATUS_META[normalized]?.label || status
 }
 
+export function isWaliDecisionPendingStatus(status: string | null | undefined) {
+  if (!status) return false
+  const normalized = status === 'BOLOS'
+    ? 'PARSIAL'
+    : status === 'PERLU KONFIRMASI WALI'
+      ? 'PERLU_KONFIRMASI_WALI'
+      : status === 'BELUM ADA INPUT'
+        ? 'BELUM_ADA_INPUT'
+        : status === 'BELUM ADA DATA'
+          ? 'BELUM_ADA_DATA'
+          : status
+  return ['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA', 'ALFA'].includes(normalized)
+}
+
+export type PendingWaliDecisionDate = {
+  tanggal: string
+  pendingStudents: number
+}
+
+export function summarizePendingWaliDecisionDates(
+  rows: Array<{
+    siswa_id: string
+    tanggal: string
+    status_akhir: string | null | undefined
+    wali_status: string | null | undefined
+  }>,
+): PendingWaliDecisionDate[] {
+  const pendingStudentIdsByDate = new Map<string, Set<string>>()
+  for (const row of rows) {
+    if (row.wali_status || !isWaliDecisionPendingStatus(row.status_akhir)) continue
+    if (!pendingStudentIdsByDate.has(row.tanggal)) pendingStudentIdsByDate.set(row.tanggal, new Set())
+    pendingStudentIdsByDate.get(row.tanggal)!.add(row.siswa_id)
+  }
+
+  return Array.from(pendingStudentIdsByDate.entries())
+    .map(([tanggal, siswaIds]) => ({ tanggal, pendingStudents: siswaIds.size }))
+    .sort((a, b) => a.tanggal.localeCompare(b.tanggal))
+}
+
 export function attendanceStatusCode(status: string | null | undefined) {
   if (!status) return ATTENDANCE_STATUS_META.BELUM_ADA_DATA.code
   const normalized = status === 'BOLOS'

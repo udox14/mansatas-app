@@ -13,18 +13,21 @@ export function KelasSelector({
   view = 'home',
   risiko,
   quickEdit = false,
+  tanggal,
 }: {
   kelasList: KelasOption[]
   selectedKelasId: string
   view?: string
   risiko?: string
   quickEdit?: boolean
+  tanggal?: string
 }) {
   const router = useRouter()
   const buildHref = (kelasId: string) => {
     const params = new URLSearchParams({ kelas: kelasId, view })
     if (risiko) params.set('risiko', risiko)
     if (quickEdit) params.set('edit', '1')
+    if (tanggal) params.set('tanggal', tanggal)
     return `/dashboard/kelas-binaan?${params.toString()}`
   }
 

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
+import { todayWIB } from '@/lib/time'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import { ensureActivityLogTables, logActivity } from '@/lib/activity-log'
 
@@ -17,6 +18,16 @@ type KeputusanAbsensiInput = {
 
 function isAdminRole(roles: string[]) {
   return roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
+}
+
+function isValidDateOnly(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return false
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
 }
 
 async function canAccessKelas(db: D1Database, userId: string, kelasId: string, roles: string[]) {
@@ -45,7 +56,8 @@ export async function simpanKeputusanAbsensiWaliBatch(
   if (!user) return { error: 'Unauthorized' }
 
   if (!kelasId || !tanggal) return { error: 'Kelas dan tanggal wajib dipilih.' }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return { error: 'Format tanggal tidak valid.' }
+  if (!isValidDateOnly(tanggal)) return { error: 'Format tanggal tidak valid.' }
+  if (tanggal > todayWIB()) return { error: 'Keputusan absensi hanya dapat diisi sampai hari ini.' }
 
   const db = await getDB()
   const roles = await getUserRoles(db, user.id)

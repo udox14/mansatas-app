@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState, useTransition } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   CheckCircle2,
   ClipboardCheck,
@@ -21,6 +21,7 @@ import {
 import {
   attendanceSourceLabel,
   attendanceStatusLabel,
+  isWaliDecisionPendingStatus,
   type FinalAttendanceSource,
   type FinalAttendanceStatus,
 } from '@/lib/attendance-status'
@@ -57,6 +58,8 @@ export type KeputusanAbsensiRow = {
 type Props = {
   kelasId: string
   tanggal: string
+  today: string
+  minDate: string
   rows: KeputusanAbsensiRow[]
   isEffective: boolean
   holidayReason?: string | null
@@ -89,12 +92,20 @@ function priority(status: FinalStatus) {
   return 6
 }
 
-function needsWaliDecision(status: FinalStatus) {
-  return ['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA', 'ALFA'].includes(status)
+function formatTanggal(tanggal: string) {
+  return new Intl.DateTimeFormat('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta',
+  }).format(new Date(`${tanggal}T00:00:00+07:00`))
 }
 
-export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, holidayReason }: Props) {
+export function KeputusanAbsensiHariIni({ kelasId, tanggal, today, minDate, rows, isEffective, holidayReason }: Props) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [items, setItems] = useState(() => rows.map(row => ({
     ...row,
     draft_status: row.wali_status,
@@ -107,6 +118,21 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
   const [hasChanges, setHasChanges] = useState(false)
   const [isPending, startTransition] = useTransition()
 
+  useEffect(() => {
+    setItems(rows.map(row => ({
+      ...row,
+      draft_status: row.wali_status,
+      draft_keterangan: row.keterangan_wali_kelas || '',
+    })))
+    setExpanded(null)
+    setHistoryByStudent({})
+    setHasChanges(false)
+  }, [kelasId, tanggal, rows])
+
+  useEffect(() => {
+    setMessage(null)
+  }, [kelasId, tanggal])
+
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => (
       priority(a.status_akhir) - priority(b.status_akhir) ||
@@ -114,7 +140,7 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
     ))
   }, [items])
 
-  const attentionCount = rows.filter(row => needsWaliDecision(row.status_akhir)).length
+  const attentionCount = rows.filter(row => isWaliDecisionPendingStatus(row.status_akhir) && !row.wali_status).length
   const decidedCount = items.filter(row => row.draft_status !== null).length
 
   const setStatus = (siswaId: string, status: WaliStatus | null) => {
@@ -127,6 +153,16 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
     setItems(prev => prev.map(item => item.siswa_id === siswaId ? { ...item, draft_keterangan: value } : item))
     setHasChanges(true)
     setMessage(null)
+  }
+
+  const changeDate = (nextDate: string) => {
+    if (!nextDate || nextDate === tanggal) return
+    if (hasChanges && !window.confirm('Perubahan yang belum disimpan akan hilang. Ganti tanggal sekarang?')) return
+
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('view', 'keputusan')
+    params.set('tanggal', nextDate)
+    router.push(`${pathname}?${params.toString()}`)
   }
 
   const toggleExpanded = async (siswaId: string) => {
@@ -173,9 +209,21 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
             <ClipboardCheck className="h-3.5 w-3.5 text-purple-600" />
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Keputusan Absensi Hari Ini</p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500">Input guru per mapel menjadi dasar keputusan harian wali kelas</p>
+            <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Keputusan Absensi Harian</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500">Input guru per mapel menjadi dasar keputusan wali kelas per tanggal</p>
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <label htmlFor="keputusan-absensi-tanggal" className="whitespace-nowrap text-[10px] font-semibold text-slate-500 dark:text-slate-400">Tanggal</label>
+          <input
+            id="keputusan-absensi-tanggal"
+            type="date"
+            value={tanggal}
+            min={minDate}
+            max={today}
+            onChange={event => changeDate(event.target.value)}
+            className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 focus:border-purple-300 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2 text-[10px]">
           <span className="rounded-full border border-purple-200 bg-purple-50 px-2 py-1 font-semibold text-purple-700">{attentionCount} perlu dicek</span>
@@ -183,9 +231,13 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
         </div>
       </div>
 
+      <div className="border-b border-surface-2 px-4 py-2 text-[11px] text-slate-500 dark:text-slate-400">
+        Menampilkan keputusan untuk <span className="font-semibold text-slate-700 dark:text-slate-200">{tanggal === today ? 'hari ini' : formatTanggal(tanggal)}</span>. Pilih tanggal sebelumnya untuk melengkapi keputusan yang tertunda.
+      </div>
+
       {!isEffective ? (
         <div className="px-4 py-6 text-center text-xs text-slate-500">
-          {holidayReason || 'Hari ini tidak efektif pembelajaran. Keputusan absensi tidak wajib diisi.'}
+          {holidayReason || 'Tanggal ini tidak efektif pembelajaran. Keputusan absensi tidak wajib diisi.'}
         </div>
       ) : rows.length === 0 ? (
         <div className="px-4 py-6 text-center text-xs text-slate-400">Belum ada siswa aktif di kelas ini.</div>
@@ -205,7 +257,7 @@ export function KeputusanAbsensiHariIni({ kelasId, tanggal, rows, isEffective, h
             {sortedItems.map((row, index) => {
               const isExpanded = expanded === row.siswa_id
               const finalStatus = row.draft_status || row.status_akhir
-              const noTeacherDetailText = needsWaliDecision(row.status_akhir)
+              const noTeacherDetailText = isWaliDecisionPendingStatus(row.status_akhir)
                 ? 'Belum ada detail input guru yang bisa dijadikan rujukan untuk siswa ini.'
                 : 'Tidak ada catatan ketidakhadiran dari guru untuk siswa ini.'
 

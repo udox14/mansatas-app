@@ -17,7 +17,11 @@ import { KelasBinaanCatatanSiswaView } from '@/app/dashboard/kelas-binaan/compon
 import { getStudentNotes, getUnreadStudentNoteCountForWali } from '@/lib/student-notes'
 import { studentNoteCollator, type StudentNoteStudent } from '@/lib/student-note-shared'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
-import { attendanceSourceLabel as sharedSourceLabel, attendanceStatusLabel as sharedAttendanceStatusLabel } from '@/lib/attendance-status'
+import {
+  attendanceSourceLabel as sharedSourceLabel,
+  attendanceStatusLabel as sharedAttendanceStatusLabel,
+  summarizePendingWaliDecisionDates,
+} from '@/lib/attendance-status'
 import {
   Warning as AlertTriangle,
   ArrowRight,
@@ -44,6 +48,7 @@ type Props = {
   kelasIdOverride?: string | null
   riskFilter?: string
   view?: KelasBinaanView
+  decisionDate?: string | null
   showWelcome?: boolean
   showTopCards?: boolean
   showFeatureShortcuts?: boolean
@@ -85,13 +90,47 @@ function summonStatusLabel(status: string | null) {
   return status
 }
 
-function attentionPriority(status: string | null | undefined) {
-  if (status === 'PERLU_KONFIRMASI_WALI') return 0
-  if (status === 'PARSIAL') return 1
-  if (status === 'BELUM_ADA_INPUT') return 2
-  if (status === 'BELUM_ADA_DATA') return 3
-  if (status === 'ALFA') return 4
-  return 5
+function isValidDateOnly(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return false
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  if (month < 1 || month > 12 || day < 1) return false
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  return day <= daysInMonth
+}
+
+function resolveDecisionDate(value: string | null | undefined, today: string, minDate: string) {
+  if (!value || !isValidDateOnly(value) || value > today) return today
+  return value < minDate ? minDate : value
+}
+
+function resolveSemesterStartDate(
+  ta: { nama: string; semester: number } | null,
+  today: string,
+  fallback: string,
+) {
+  const match = String(ta?.nama || '').match(/(\d{4})\D+(\d{4})/)
+  if (!match) return fallback
+
+  const firstYear = Number(match[1])
+  const secondYear = Number(match[2])
+  const startDate = Number(ta?.semester) === 1
+    ? `${firstYear}-07-01`
+    : `${secondYear}-01-01`
+
+  return startDate <= today ? startDate : fallback
+}
+
+function formatPendingDate(tanggal: string) {
+  return new Intl.DateTimeFormat('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta',
+  }).format(new Date(`${tanggal}T00:00:00+07:00`))
 }
 
 function quickEditDomisiliLabel(tempatTinggal: string | null, desaKelurahan: string | null) {
@@ -118,6 +157,7 @@ export async function KelasBinaanDashboard({
   kelasIdOverride = null,
   riskFilter = 'all',
   view = 'home',
+  decisionDate = null,
   showWelcome = true,
   showTopCards = true,
   dashboardVisibility,
@@ -127,9 +167,9 @@ export async function KelasBinaanDashboard({
   const show = (id: string) => dashboardVisibility?.[id] !== false
   const db = await getDB()
   const today = todayWIB()
-  const startOfMonth = new Date(today + 'T00:00:00')
-  startOfMonth.setDate(1)
-  const startOfMonthStr = startOfMonth.toISOString().split('T')[0]
+  const startOfMonthStr = `${today.slice(0, 7)}-01`
+  const semesterStartDate = resolveSemesterStartDate(taAktif, today, startOfMonthStr)
+  const selectedDecisionDate = resolveDecisionDate(decisionDate, today, semesterStartDate)
 
   const kelas = kelasIdOverride
     ? await db.prepare(`
@@ -214,9 +254,18 @@ export async function KelasBinaanDashboard({
     `).run()
   })
 
-  const [todayCalendarStatus, snapshotMonth, topPelanggaran, agendaTerbaru, izinPembelajaranHariIni, komunikasiStatusRaw, komunikasiTimelineRaw] = await Promise.all([
+  const attendanceSnapshotPromise = getFinalAttendanceForClass(
+    db,
+    kelas.id,
+    semesterStartDate,
+    today,
+    { tahunAjaranId: taAktif?.id },
+  )
+
+  const [todayCalendarStatus, decisionCalendarStatus, attendanceSnapshot, topPelanggaran, agendaTerbaru, izinPembelajaranHariIni, komunikasiStatusRaw, komunikasiTimelineRaw] = await Promise.all([
     getKalenderDateStatus(db, today),
-    getFinalAttendanceForClass(db, kelas.id, startOfMonthStr, today),
+    getKalenderDateStatus(db, selectedDecisionDate),
+    attendanceSnapshotPromise,
     db.prepare(`
       SELECT sp.siswa_id, s.nama_lengkap, s.nisn, SUM(mp.poin) as total_poin, COUNT(*) as jumlah_kasus
       FROM siswa_pelanggaran sp
@@ -285,10 +334,15 @@ export async function KelasBinaanDashboard({
     }])
   )
 
-  const jumlahSiswa = snapshotMonth?.siswa.length ?? 0
+  const jumlahSiswa = attendanceSnapshot?.siswa.length ?? 0
   const isTodayEffective = todayCalendarStatus.isEffective
   const todayHolidayReason = todayCalendarStatus.reason || 'Tidak efektif pembelajaran'
-  const todayRows = snapshotMonth?.siswa.map(siswa => snapshotMonth.statusByStudent.get(siswa.id)?.find(row => row.tanggal === today)).filter(Boolean) ?? []
+  const todayRows = attendanceSnapshot?.siswa.map(siswa => attendanceSnapshot.statusByStudent.get(siswa.id)?.find(row => row.tanggal === today)).filter(Boolean) ?? []
+  const isDecisionDateEffective = decisionCalendarStatus.isEffective
+  const decisionHolidayReason = decisionCalendarStatus.reason || 'Tidak efektif pembelajaran'
+  const decisionRows = attendanceSnapshot?.siswa
+    .map(siswa => attendanceSnapshot.statusByStudent.get(siswa.id)?.find(row => row.tanggal === selectedDecisionDate))
+    .filter(Boolean) ?? []
 
   const todaySummary = {
     hadir: 0,
@@ -320,11 +374,12 @@ export async function KelasBinaanDashboard({
     }
   }
 
-  const studentRows = snapshotMonth?.siswa.map(siswa => {
-    const statuses = snapshotMonth.statusByStudent.get(siswa.id) || []
+  const studentRows = attendanceSnapshot?.siswa.map(siswa => {
+    const statuses = attendanceSnapshot.statusByStudent.get(siswa.id) || []
     const todayStatus = statuses.find(item => item.tanggal === today) || null
     const monthly = { sakit: 0, izin: 0, alfa: 0, parsial: 0, perluKonfirmasiWali: 0 }
     for (const status of statuses) {
+      if (status.tanggal < startOfMonthStr || status.tanggal > today) continue
       if (status.status_akhir === 'SAKIT') monthly.sakit++
       else if (status.status_akhir === 'IZIN') monthly.izin++
       else if (status.status_akhir === 'ALFA') monthly.alfa++
@@ -381,9 +436,9 @@ export async function KelasBinaanDashboard({
     else todaySummary.hadir++
   }
 
-  const summaryByDate = (snapshotMonth?.dates || []).map(tanggal => {
-    const rows = snapshotMonth?.siswa
-      .map(siswa => snapshotMonth.statusByStudent.get(siswa.id)?.find(item => item.tanggal === tanggal))
+  const summaryByDate = (attendanceSnapshot?.dates || []).filter(tanggal => tanggal >= startOfMonthStr).map(tanggal => {
+    const rows = attendanceSnapshot?.siswa
+      .map(siswa => attendanceSnapshot.statusByStudent.get(siswa.id)?.find(item => item.tanggal === tanggal))
       .filter(Boolean) as NonNullable<(typeof todayRows)[number]>[]
 
     const summary = { tanggal, tidakHadir: 0, perhatian: 0 }
@@ -393,6 +448,11 @@ export async function KelasBinaanDashboard({
     }
     return summary
   }).slice(-7)
+
+  const pendingDecisionDates = summarizePendingWaliDecisionDates(
+    Array.from(attendanceSnapshot?.statusByStudent.values() || []).flat(),
+  )
+  const pendingDecisionTotal = pendingDecisionDates.reduce((total, item) => total + item.pendingStudents, 0)
 
   const maxTidakHadir = Math.max(1, ...summaryByDate.map(item => item.tidakHadir))
   const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
@@ -415,8 +475,10 @@ export async function KelasBinaanDashboard({
     .slice(0, 6)
 
   const namaKelas = formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok)
-  const keputusanAbsensiRows = (todayRows as KeputusanAbsensiRow[])
-  const baseParams = kelasIdOverride ? `kelas=${encodeURIComponent(kelas.id)}` : ''
+  const keputusanAbsensiRows = decisionRows as KeputusanAbsensiRow[]
+  const baseParams = new URLSearchParams()
+  if (kelasIdOverride) baseParams.set('kelas', kelas.id)
+  if (decisionDate) baseParams.set('tanggal', selectedDecisionDate)
   const viewHref = (targetView: KelasBinaanView, extra?: Record<string, string>) => {
     const params = new URLSearchParams(baseParams)
     params.set('view', targetView)
@@ -427,12 +489,6 @@ export async function KelasBinaanDashboard({
     return `/dashboard/kelas-binaan?${params.toString()}`
   }
   const returnToKelasBinaan = encodeURIComponent(viewHref(view))
-  const pendingDecisionRows = studentRows
-    .filter(row => isTodayEffective && row.todayStatus && ['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA', 'ALFA'].includes(row.todayStatus.status_akhir))
-    .sort((a, b) => (
-      attentionPriority(a.todayStatus?.status_akhir) - attentionPriority(b.todayStatus?.status_akhir) ||
-      a.nama_lengkap.localeCompare(b.nama_lengkap)
-    ))
   const todaySummaryItems = [
     { label: 'Hadir', value: todaySummary.hadir, tone: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: 'Sakit', value: todaySummary.sakit, tone: 'text-amber-600', bg: 'bg-amber-50' },
@@ -444,7 +500,7 @@ export async function KelasBinaanDashboard({
     { label: 'Belum Lengkap', value: todaySummary.belumAdaData, tone: 'text-slate-600', bg: 'bg-slate-100' },
   ]
   const menuItems: Array<{ view: KelasBinaanView; title: string; desc: string; count: number | string; icon: any; tone: string }> = [
-    { view: 'keputusan', title: 'Keputusan Absensi', desc: 'Tetapkan status harian siswa', count: pendingDecisionRows.length, icon: ClipboardList, tone: 'text-purple-600 bg-purple-50 border-purple-100' },
+    { view: 'keputusan', title: 'Keputusan Absensi', desc: 'Tetapkan status harian siswa', count: pendingDecisionTotal, icon: ClipboardList, tone: 'text-purple-600 bg-purple-50 border-purple-100' },
     { view: 'siswa', title: 'Daftar Siswa', desc: 'Data, komunikasi, dan tindak lanjut', count: jumlahSiswa, icon: Users, tone: 'text-slate-600 bg-slate-50 border-slate-200' },
     { view: 'rekap', title: 'Rekap Absensi', desc: 'Ringkasan dan tren 7 hari', count: tidakMasukHariIni.length, icon: CalendarCheck, tone: 'text-blue-600 bg-blue-50 border-blue-100' },
     { view: 'perhatian', title: 'Perlu Perhatian', desc: 'Alfa, bolos, belum lengkap, poin', count: perluPerhatian.length, icon: ShieldAlert, tone: 'text-amber-600 bg-amber-50 border-amber-100' },
@@ -486,6 +542,45 @@ export async function KelasBinaanDashboard({
         </div>
       </div>
 
+      {(view === 'home' || view === 'keputusan') && pendingDecisionDates.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-purple-200 bg-purple-50/70 shadow-sm dark:border-purple-900/70 dark:bg-purple-950/20">
+          <div className="flex items-start gap-3 px-4 py-3 sm:px-5">
+            <div className="rounded-lg border border-purple-200 bg-white p-2 text-purple-600 dark:border-purple-900 dark:bg-purple-950/40 dark:text-purple-300">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-purple-900 dark:text-purple-100">Keputusan belum diputuskan</p>
+              <p className="mt-0.5 text-[11px] text-purple-700 dark:text-purple-300">
+                {pendingDecisionDates.length} tanggal · {pendingDecisionTotal} keputusan siswa perlu dilengkapi. Pilih tanggal di bawah untuk membukanya.
+              </p>
+            </div>
+          </div>
+          <div className="max-h-72 divide-y divide-purple-100 overflow-y-auto border-t border-purple-200 bg-white/70 dark:divide-purple-900/50 dark:border-purple-900/70 dark:bg-slate-950/20">
+            {pendingDecisionDates.map(item => {
+              const isSelected = view === 'keputusan' && item.tanggal === selectedDecisionDate
+              return (
+                <Link
+                  key={item.tanggal}
+                  href={viewHref('keputusan', { tanggal: item.tanggal })}
+                  className={`flex items-center gap-3 px-4 py-3 transition-colors sm:px-5 ${
+                    isSelected
+                      ? 'bg-purple-100/80 dark:bg-purple-900/30'
+                      : 'hover:bg-purple-50 dark:hover:bg-purple-950/30'
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">{formatPendingDate(item.tanggal)}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{item.pendingStudents} siswa belum diputuskan</p>
+                  </div>
+                  {isSelected && <span className="rounded-full border border-purple-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-purple-700 dark:border-purple-800 dark:bg-purple-950/50 dark:text-purple-200">Tanggal dipilih</span>}
+                  <ArrowRight className="h-4 w-4 shrink-0 text-purple-400" />
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {view === 'home' && (
         <>
           {show('menu_navigasi') && (
@@ -522,12 +617,14 @@ export async function KelasBinaanDashboard({
 
       {view === 'keputusan' && (
         <KeputusanAbsensiHariIni
-        kelasId={kelas.id}
-        tanggal={today}
-        rows={keputusanAbsensiRows}
-        isEffective={isTodayEffective}
-        holidayReason={todayHolidayReason}
-      />
+          kelasId={kelas.id}
+          tanggal={selectedDecisionDate}
+          today={today}
+          minDate={semesterStartDate}
+          rows={keputusanAbsensiRows}
+          isEffective={isDecisionDateEffective}
+          holidayReason={decisionHolidayReason}
+        />
       )}
 
       {view === 'catatan' && (

@@ -33,9 +33,9 @@ const KELAS_BINAAN_VIEWS: KelasBinaanView[] = ['home', 'keputusan', 'siswa', 're
 export default async function KelasBinaanPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kelas?: string; risiko?: string; view?: string; edit?: string; siswa?: string }>
+  searchParams: Promise<{ kelas?: string; risiko?: string; view?: string; edit?: string; siswa?: string; tanggal?: string }>
 }) {
-  const { kelas: kelasId, risiko, view, edit, siswa } = await searchParams
+  const { kelas: kelasId, risiko, view, edit, siswa, tanggal } = await searchParams
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
@@ -75,6 +75,7 @@ export default async function KelasBinaanPage({
     const params = new URLSearchParams({ kelas: nextKelasId, view: activeView })
     if (risiko) params.set('risiko', risiko)
     if (edit === '1') params.set('edit', '1')
+    if (tanggal) params.set('tanggal', tanggal)
     return `/dashboard/kelas-binaan?${params.toString()}`
   }
 
@@ -112,6 +113,7 @@ export default async function KelasBinaanPage({
             view={activeView}
             risiko={risiko}
             quickEdit={edit === '1'}
+            tanggal={tanggal}
           />
         )
       )}
@@ -128,6 +130,7 @@ export default async function KelasBinaanPage({
         kelasIdOverride={selectedKelasId}
         riskFilter={risiko || 'all'}
         view={activeView}
+        decisionDate={tanggal || null}
         quickEdit={edit === '1'}
         noteStudentId={siswa || null}
         showWelcome={false}

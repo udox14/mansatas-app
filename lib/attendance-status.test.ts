@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { deriveDailyTeacherStatus, resolveFinalAttendanceStatus } from './attendance-status'
+import {
+  deriveDailyTeacherStatus,
+  isWaliDecisionPendingStatus,
+  resolveFinalAttendanceStatus,
+  summarizePendingWaliDecisionDates,
+} from './attendance-status'
 
 function derive(statuses: Array<'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'>, total = statuses.length, skipIncomplete = false) {
   return deriveDailyTeacherStatus({ totalBlocks: total, submittedStatuses: statuses, skipIncomplete })
@@ -70,5 +75,37 @@ describe('resolveFinalAttendanceStatus', () => {
       status: 'HADIR',
       source: 'perizinan_sekolah',
     })
+  })
+})
+
+describe('isWaliDecisionPendingStatus', () => {
+  it.each(['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA', 'ALFA'])('menandai %s sebagai tertunda', status => {
+    expect(isWaliDecisionPendingStatus(status)).toBe(true)
+  })
+
+  it.each(['HADIR', 'SAKIT', 'IZIN', null, undefined])('tidak menandai %s sebagai tertunda', status => {
+    expect(isWaliDecisionPendingStatus(status)).toBe(false)
+  })
+})
+
+describe('summarizePendingWaliDecisionDates', () => {
+  it('mengelompokkan siswa tertunda per tanggal dan menghapus duplikasi siswa', () => {
+    expect(summarizePendingWaliDecisionDates([
+      { siswa_id: 's1', tanggal: '2026-08-12', status_akhir: 'ALFA', wali_status: null },
+      { siswa_id: 's1', tanggal: '2026-08-12', status_akhir: 'ALFA', wali_status: null },
+      { siswa_id: 's2', tanggal: '2026-08-12', status_akhir: 'PARSIAL', wali_status: null },
+      { siswa_id: 's3', tanggal: '2026-08-13', status_akhir: 'BELUM_ADA_DATA', wali_status: null },
+      { siswa_id: 's4', tanggal: '2026-08-13', status_akhir: 'ALFA', wali_status: 'HADIR' },
+    ])).toEqual([
+      { tanggal: '2026-08-12', pendingStudents: 2 },
+      { tanggal: '2026-08-13', pendingStudents: 1 },
+    ])
+  })
+
+  it('mengembalikan daftar kosong jika semua status sudah diputuskan atau tidak membutuhkan keputusan', () => {
+    expect(summarizePendingWaliDecisionDates([
+      { siswa_id: 's1', tanggal: '2026-08-12', status_akhir: 'HADIR', wali_status: null },
+      { siswa_id: 's2', tanggal: '2026-08-12', status_akhir: 'ALFA', wali_status: 'ALFA' },
+    ])).toEqual([])
   })
 })
