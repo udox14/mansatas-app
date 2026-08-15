@@ -58,7 +58,7 @@ describe('deriveDailyTeacherStatus', () => {
 
   it('menganggap izin parsial dari Perizinan Siswa sebagai hadir saat agregasi harian', () => {
     const result = derive([
-      normalizeDailyTeacherBlockStatus('IZIN', true),
+      normalizeDailyTeacherBlockStatus('IZIN', true, 'HADIR'),
       normalizeDailyTeacherBlockStatus('HADIR'),
     ])
     expect(result).toMatchObject({

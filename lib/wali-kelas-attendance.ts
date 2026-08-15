@@ -508,11 +508,17 @@ export async function getFinalAttendanceForClass(
       const studentPermissionDailyStatus = resolveStudentPermissionDailyStatus(teacherSubmittedStatuses)
       const submittedStatuses = blockStatuses
         .filter(block => block.submitted)
-        .map(block => normalizeDailyTeacherBlockStatus(
-          block.status as SubmittedBlockStatus,
-          permissionBlockIds.has(block.penugasan_id),
-          permissionBlockStatusById.get(block.penugasan_id) || studentPermissionDailyStatus,
-        ))
+        .map(block => {
+          const permissionStatus = permissionBlockStatusById.get(block.penugasan_id)
+          const dailyPermissionStatus = permissionStatus === 'SAKIT'
+            ? 'SAKIT'
+            : studentPermissionDailyStatus
+          return normalizeDailyTeacherBlockStatus(
+            block.status as SubmittedBlockStatus,
+            permissionBlockIds.has(block.penugasan_id),
+            dailyPermissionStatus,
+          )
+        })
       const guruState = deriveDailyTeacherStatus({
         totalBlocks: totalBlok,
         submittedStatuses,
