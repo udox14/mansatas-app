@@ -47,6 +47,8 @@ export type FinalAttendanceDetail = {
   detail_guru: Array<{
     status: string
     nama_mapel: string
+    guru_nama: string | null
+    sumber: 'guru' | 'perizinan_siswa'
     jam_ke_mulai: number
     jam_ke_selesai: number
     catatan: string
@@ -150,7 +152,6 @@ function izinKeluarOverlapsBlock(row: { waktu_keluar: string; waktu_kembali?: st
 
 function formatIzinKeterangan(row: { alasan?: string | null; keterangan?: string | null; pelapor_nama?: string | null; jam_pelajaran?: unknown }) {
   const parts = ['Perizinan']
-  if (row.pelapor_nama) parts.push(`oleh ${row.pelapor_nama}`)
   if (row.alasan) parts.push(`- ${row.alasan}`)
   const jam = parseIzinJamPelajaran(row.jam_pelajaran)
   if (jam.length > 0) parts.push(`(Jam ${jam.join(', ')})`)
@@ -197,7 +198,7 @@ export async function getFinalAttendanceForClass(
   endDate: string,
   options?: { tahunAjaranId?: string; siswaId?: string }
 ): Promise<FinalAttendanceClassData | null> {
-  const cacheKey = `final-att:v2:${kelasId}:${startDate}:${endDate}:${options?.tahunAjaranId ?? ''}:${options?.siswaId ?? ''}`
+  const cacheKey = `final-att:v3:${kelasId}:${startDate}:${endDate}:${options?.tahunAjaranId ?? ''}:${options?.siswaId ?? ''}`
   const cached = getMemCache<FinalAttendanceClassData>(cacheKey)
   if (cached) return cached
 
@@ -255,18 +256,35 @@ export async function getFinalAttendanceForClass(
   const [jadwalRes, absensiRes, waliRes, izinRes, izinKeluarRes, sesiRes] = await Promise.all([
     ta?.id
       ? db.prepare(`
-          SELECT jm.hari, jm.jam_ke, jm.penugasan_id
+          SELECT jm.hari, jm.jam_ke, jm.penugasan_id,
+            COALESCE(mp.nama_mapel, 'Mata pelajaran') as nama_mapel,
+            assignment_user.nama_lengkap as assignment_guru_nama
           FROM jadwal_mengajar jm
           JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
+          LEFT JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
+          LEFT JOIN "user" assignment_user ON pm.guru_id = assignment_user.id
           WHERE pm.kelas_id = ? AND jm.tahun_ajaran_id = ?
-        `).bind(kelasId, ta.id).all<{ hari: number; jam_ke: number; penugasan_id: string }>()
-      : Promise.resolve({ results: [] as Array<{ hari: number; jam_ke: number; penugasan_id: string }> }),
+        `).bind(kelasId, ta.id).all<{
+          hari: number
+          jam_ke: number
+          penugasan_id: string
+          nama_mapel: string
+          assignment_guru_nama: string | null
+        }>()
+      : Promise.resolve({ results: [] as Array<{
+        hari: number
+        jam_ke: number
+        penugasan_id: string
+        nama_mapel: string
+        assignment_guru_nama: string | null
+      }> }),
     db.prepare(`
       SELECT ab.tanggal, ab.siswa_id, ab.penugasan_id, ab.status, ab.catatan, ab.jam_ke_mulai, ab.jam_ke_selesai,
-        mp.nama_mapel
+        mp.nama_mapel, input_user.nama_lengkap as guru_nama
       FROM absensi_siswa ab
       JOIN penugasan_mengajar pm ON ab.penugasan_id = pm.id
       JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
+      LEFT JOIN "user" input_user ON ab.diinput_oleh = input_user.id
       WHERE pm.kelas_id = ? AND ab.tanggal BETWEEN ? AND ?
       ORDER BY ab.tanggal, ab.siswa_id, ab.jam_ke_mulai
     `).bind(kelasId, startDate, endDate).all<any>(),
@@ -298,9 +316,10 @@ export async function getFinalAttendanceForClass(
         AND (ik.waktu_kembali IS NULL OR substr(ik.waktu_kembali, 1, 10) >= ?)
     `).bind(kelasId, startDate, endDate).all<any>(),
     db.prepare(`
-      SELECT asg.tanggal, asg.penugasan_id
+      SELECT asg.tanggal, asg.penugasan_id, asg.diinput_oleh, input_user.nama_lengkap as guru_nama
       FROM absensi_sesi_guru asg
       JOIN penugasan_mengajar pm ON asg.penugasan_id = pm.id
+      LEFT JOIN "user" input_user ON asg.diinput_oleh = input_user.id
       WHERE pm.kelas_id = ? AND asg.tanggal BETWEEN ? AND ?
     `).bind(kelasId, startDate, endDate).all<any>(),
   ])
@@ -312,7 +331,12 @@ export async function getFinalAttendanceForClass(
   }
 
   const jadwalByHari = new Map<number, Map<string, Set<number>>>()
+  const assignmentMetaById = new Map<string, { nama_mapel: string; guru_nama: string | null }>()
   for (const row of jadwalRes.results || []) {
+    assignmentMetaById.set(row.penugasan_id, {
+      nama_mapel: row.nama_mapel,
+      guru_nama: row.assignment_guru_nama || null,
+    })
     if (!jadwalByHari.has(row.hari)) jadwalByHari.set(row.hari, new Map())
     const penMap = jadwalByHari.get(row.hari)!
     if (!penMap.has(row.penugasan_id)) penMap.set(row.penugasan_id, new Set())
@@ -332,6 +356,8 @@ export async function getFinalAttendanceForClass(
       jam_ke_selesai: number
       block_start: number | null
       block_end: number | null
+      nama_mapel: string
+      assignment_guru_nama: string | null
     }>
   }
   const blocksByDate = new Map<string, ClassDayBlocks>()
@@ -351,6 +377,7 @@ export async function getFinalAttendanceForClass(
         const jamKeSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1]
         const startSlot = slots.find(slot => Number(slot.id) === jamKeMulai)
         const endSlot = slots.find(slot => Number(slot.id) === jamKeSelesai)
+        const assignmentMeta = assignmentMetaById.get(penugasanId)
         return {
           penugasan_id: penugasanId,
           jam_ke: slotState.activeJamKe,
@@ -358,6 +385,8 @@ export async function getFinalAttendanceForClass(
           jam_ke_selesai: jamKeSelesai,
           block_start: parseTimeMinutes(startSlot?.mulai),
           block_end: parseTimeMinutes(endSlot?.selesai),
+          nama_mapel: assignmentMeta?.nama_mapel || 'Mata pelajaran',
+          assignment_guru_nama: assignmentMeta?.guru_nama || null,
         }
       })
       .filter(block => block.jam_ke.length > 0)
@@ -369,6 +398,7 @@ export async function getFinalAttendanceForClass(
     penugasan_id: string
     status: string
     nama_mapel: string
+    guru_nama: string | null
     jam_ke_mulai: number
     jam_ke_selesai: number
     catatan: string
@@ -380,16 +410,18 @@ export async function getFinalAttendanceForClass(
       penugasan_id: row.penugasan_id,
       status: row.status,
       nama_mapel: row.nama_mapel,
+      guru_nama: row.guru_nama || null,
       jam_ke_mulai: row.jam_ke_mulai,
       jam_ke_selesai: row.jam_ke_selesai,
       catatan: row.catatan || '',
     })
   }
 
-  const sesiMap = new Map<string, Set<string>>()
+  const sesiMap = new Map<string, { guru_nama: string | null }>()
   for (const row of sesiRes.results || []) {
-    if (!sesiMap.has(row.tanggal)) sesiMap.set(row.tanggal, new Set())
-    sesiMap.get(row.tanggal)!.add(row.penugasan_id)
+    sesiMap.set(`${row.tanggal}__${row.penugasan_id}`, {
+      guru_nama: row.guru_nama || null,
+    })
   }
 
   const waliMap = new Map<string, { status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'; keterangan: string | null }>()
@@ -423,8 +455,12 @@ export async function getFinalAttendanceForClass(
       const izinKelasRows = izinKelasMap.get(`${siswa.id}__${tanggal}`) || []
       const izinKeluarRows = izinKeluarMap.get(siswa.id) || []
       const activeBlocks = dayBlocks.blocks
-      const submittedPenugasanIds = sesiMap.get(tanggal) || new Set<string>()
-      const detailByPenugasan = new Map<string, FinalAttendanceDetail['detail_guru'][number]>()
+      const hasAnyPermissionSource = izinKelasRows.length > 0 || izinKeluarRows.some(row =>
+        activeBlocks.some(block => izinKeluarOverlapsBlock(row, tanggal, block.block_start, block.block_end))
+      )
+      const hasAnyNonHadirTeacherRecord = baseGuruRecords.some(record => record.status !== 'HADIR')
+      const showSubmittedHadirTeacherDetails = hasAnyPermissionSource || hasAnyNonHadirTeacherRecord
+      const detailGuru: FinalAttendanceDetail['detail_guru'] = []
       const permissionBlockIds = new Set<string>()
       const permissionBlockStatusById = new Map<string, StudentPermissionStatus>()
       const blockStatuses: FinalAttendanceDetail['block_statuses'] = activeBlocks.map(block => {
@@ -439,10 +475,13 @@ export async function getFinalAttendanceForClass(
           ...izinKelasForBlock.map(row => formatIzinKeterangan(row)),
           ...izinKeluarForBlock.map(row => [
             'Perizinan keluar komplek',
-            row.pelapor_nama ? `oleh ${row.pelapor_nama}` : '',
             row.keterangan ? `: ${row.keterangan}` : '',
           ].filter(Boolean).join(' ')),
         ]
+        const permissionNames = Array.from(new Set([
+          ...izinKelasForBlock.map(row => row.pelapor_nama),
+          ...izinKeluarForBlock.map(row => row.pelapor_nama),
+        ].map(name => String(name || '').trim()).filter(Boolean)))
         const permissionStatus: StudentPermissionStatus = izinKelasForBlock.some(row =>
           studentPermissionStatusFromReason(row.alasan) === 'SAKIT'
         )
@@ -451,6 +490,8 @@ export async function getFinalAttendanceForClass(
         const permissionDetail = notes.length > 0 ? {
           status: permissionStatus,
           nama_mapel: 'Perizinan',
+          guru_nama: permissionNames.length > 0 ? permissionNames.join(', ') : null,
+          sumber: 'perizinan_siswa' as const,
           jam_ke_mulai: block.jam_ke_mulai,
           jam_ke_selesai: block.jam_ke_selesai,
           catatan: notes.join('; '),
@@ -464,24 +505,28 @@ export async function getFinalAttendanceForClass(
           record.jam_ke_mulai <= block.jam_ke_selesai &&
           record.jam_ke_selesai >= block.jam_ke_mulai
         )
+        const sessionInfo = sesiMap.get(`${tanggal}__${block.penugasan_id}`)
+        const submitted = Boolean(permissionDetail || rawRecord || sessionInfo)
+        const teacherStatus: SubmittedBlockStatus | 'BELUM_ADA_INPUT' = rawRecord && ['HADIR', 'SAKIT', 'IZIN', 'ALFA'].includes(rawRecord.status)
+          ? rawRecord.status as SubmittedBlockStatus
+          : sessionInfo
+            ? 'HADIR'
+            : 'BELUM_ADA_INPUT'
+        const teacherDetail = (rawRecord || (sessionInfo && showSubmittedHadirTeacherDetails)) ? {
+          status: teacherStatus,
+          nama_mapel: rawRecord?.nama_mapel || block.nama_mapel,
+          guru_nama: rawRecord?.guru_nama || sessionInfo?.guru_nama || block.assignment_guru_nama || null,
+          sumber: 'guru' as const,
+          jam_ke_mulai: rawRecord?.jam_ke_mulai ?? block.jam_ke_mulai,
+          jam_ke_selesai: rawRecord?.jam_ke_selesai ?? block.jam_ke_selesai,
+          catatan: rawRecord?.catatan || '',
+        } : null
+        if (permissionDetail) detailGuru.push(permissionDetail)
+        if (teacherDetail) detailGuru.push(teacherDetail)
 
-        const effectiveDetail = permissionDetail || (rawRecord ? {
-          status: rawRecord.status,
-          nama_mapel: rawRecord.nama_mapel,
-          jam_ke_mulai: rawRecord.jam_ke_mulai,
-          jam_ke_selesai: rawRecord.jam_ke_selesai,
-          catatan: rawRecord.catatan,
-        } : null)
-        if (effectiveDetail) detailByPenugasan.set(block.penugasan_id, effectiveDetail)
-
-        const submitted = Boolean(permissionDetail || rawRecord || submittedPenugasanIds.has(block.penugasan_id))
         const status = permissionDetail
-          ? 'IZIN'
-          : rawRecord && ['HADIR', 'SAKIT', 'IZIN', 'ALFA'].includes(rawRecord.status)
-            ? rawRecord.status as SubmittedBlockStatus
-            : submitted
-              ? 'HADIR'
-              : 'BELUM_ADA_INPUT'
+          ? permissionStatus
+          : teacherStatus
 
         return {
           penugasan_id: block.penugasan_id,
@@ -491,8 +536,10 @@ export async function getFinalAttendanceForClass(
           jam_ke_selesai: block.jam_ke_selesai,
         }
       })
-      const guruRecords = Array.from(detailByPenugasan.values())
-        .sort((a, b) => a.jam_ke_mulai - b.jam_ke_mulai)
+      const guruRecords = detailGuru.sort((a, b) => (
+        a.jam_ke_mulai - b.jam_ke_mulai ||
+        (a.sumber === 'perizinan_siswa' ? -1 : 1)
+      ))
       const hasStudentPermission = permissionBlockIds.size > 0
       const fullDayStudentPermission = activeBlocks.length > 0 && activeBlocks.every(block =>
         permissionBlockIds.has(block.penugasan_id)
