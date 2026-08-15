@@ -820,7 +820,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       SAKIT: { label: 'Sakit', className: 'bg-amber-50 text-amber-700' },
       IZIN: { label: 'Izin', className: 'bg-sky-50 text-sky-700' },
       ALFA: { label: 'Tanpa keterangan', className: 'bg-rose-50 text-rose-700' },
-      PARSIAL: { label: 'Parsial', className: 'bg-violet-50 text-violet-700' },
+      PARSIAL: { label: 'Bolos', className: 'bg-violet-50 text-violet-700' },
       PERLU_KONFIRMASI_WALI: { label: 'Perlu dicek walas', className: 'bg-violet-50 text-violet-700' },
       BELUM_ADA_INPUT: { label: 'Belum diinput', className: 'bg-slate-100 text-slate-600' },
       BELUM_ADA_DATA: { label: 'Data belum lengkap', className: 'bg-slate-100 text-slate-600' },

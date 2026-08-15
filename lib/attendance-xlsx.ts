@@ -123,7 +123,7 @@ export async function buildAttendanceWorkbook(input: {
   const XLSX = await import('xlsx')
   const workbook = XLSX.utils.book_new()
   const codes = selectedCodes(input.selectedStatusCodes)
-  const statusLabels: Record<PrintStatusCode, string> = { H: 'Hadir', S: 'Sakit', I: 'Izin', A: 'Alfa', B: 'Bolos sebagian jam', K: 'Perlu keputusan wali', BI: 'Belum ada input', BL: 'Belum lengkap' }
+  const statusLabels: Record<PrintStatusCode, string> = { H: 'Hadir', S: 'Sakit', I: 'Izin', A: 'Alfa', B: 'Bolos', K: 'Perlu keputusan wali', BI: 'Belum ada input', BL: 'Belum lengkap' }
   const legend = `Legenda: ${codes.map(code => `${code}=${statusLabels[code]}`).join('; ')}`
 
   const createSheet = (title: string, period: string, rows: Record<string, unknown>[]) => {

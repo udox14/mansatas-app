@@ -12,12 +12,14 @@ export type FinalAttendanceSource =
   | 'guru'
   | 'wali_kelas'
   | 'koreksi_wali_kelas'
+  | 'perizinan_siswa'
   | 'perizinan_sekolah'
   | 'perlu_konfirmasi_wali'
   | 'belum_ada_input'
   | 'belum_ada_data'
 
 export type SubmittedBlockStatus = 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'
+export type StudentPermissionStatus = 'SAKIT' | 'IZIN'
 
 export const ATTENDANCE_STATUS_META: Record<FinalAttendanceStatus, {
   label: string
@@ -27,7 +29,7 @@ export const ATTENDANCE_STATUS_META: Record<FinalAttendanceStatus, {
   SAKIT: { label: 'Sakit', code: 'S' },
   IZIN: { label: 'Izin', code: 'I' },
   ALFA: { label: 'Alfa', code: 'A' },
-  PARSIAL: { label: 'Bolos sebagian jam', code: 'B' },
+  PARSIAL: { label: 'Bolos', code: 'B' },
   PERLU_KONFIRMASI_WALI: { label: 'Perlu keputusan wali', code: 'K' },
   BELUM_ADA_INPUT: { label: 'Belum ada input', code: 'BI' },
   BELUM_ADA_DATA: { label: 'Belum lengkap', code: 'BL' },
@@ -37,6 +39,7 @@ export const ATTENDANCE_SOURCE_LABELS: Record<FinalAttendanceSource, string> = {
   guru: 'Guru',
   wali_kelas: 'Wali Kelas',
   koreksi_wali_kelas: 'Koreksi Wali',
+  perizinan_siswa: 'Perizinan Siswa',
   perizinan_sekolah: 'Perizinan Sekolah',
   perlu_konfirmasi_wali: 'Perlu Keputusan Wali',
   belum_ada_input: 'Belum Ada Input',
@@ -66,7 +69,41 @@ export function isWaliDecisionPendingStatus(status: string | null | undefined) {
         : status === 'BELUM ADA DATA'
           ? 'BELUM_ADA_DATA'
           : status
-  return ['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA', 'ALFA'].includes(normalized)
+  return ['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'ALFA'].includes(normalized)
+}
+
+/**
+ * Normalisasi status izin siswa untuk agregasi harian.
+ * Detail blok tetap menyimpan status sumbernya (IZIN atau SAKIT).
+ */
+export function normalizeDailyTeacherBlockStatus(
+  status: SubmittedBlockStatus,
+  fromStudentPermission = false,
+  studentPermissionStatus: SubmittedBlockStatus = 'HADIR',
+): SubmittedBlockStatus {
+  return fromStudentPermission ? studentPermissionStatus : status
+}
+
+export function resolveStudentPermissionDailyStatus(
+  teacherStatuses: SubmittedBlockStatus[],
+): SubmittedBlockStatus {
+  return teacherStatuses.length > 0 && teacherStatuses.every(status => status === 'IZIN')
+    ? 'IZIN'
+    : 'HADIR'
+}
+
+export function studentPermissionStatusFromReason(
+  alasan: string | null | undefined,
+): StudentPermissionStatus {
+  const normalized = String(alasan || '').trim().toUpperCase().replace(/\s+/g, ' ')
+  return [
+    'SAKIT DI UKS',
+    'SAKIT (DI UKS)',
+    'SAKIT PULANG',
+    'SAKIT (PULANG)',
+  ].includes(normalized)
+    ? 'SAKIT'
+    : 'IZIN'
 }
 
 export type PendingWaliDecisionDate = {
@@ -114,6 +151,7 @@ export function resolveFinalAttendanceStatus(input: {
   teacherStatus: FinalAttendanceStatus
   waliStatus?: SubmittedBlockStatus | null
   fullDaySchoolPermission?: boolean
+  fullDayStudentPermissionStatus?: StudentPermissionStatus
 }): { status: FinalAttendanceStatus; source: FinalAttendanceSource } {
   if (input.fullDaySchoolPermission) return { status: 'HADIR', source: 'perizinan_sekolah' }
   if (input.waliStatus) {
@@ -123,6 +161,9 @@ export function resolveFinalAttendanceStatus(input: {
         ? 'wali_kelas'
         : 'koreksi_wali_kelas',
     }
+  }
+  if (input.fullDayStudentPermissionStatus) {
+    return { status: input.fullDayStudentPermissionStatus, source: 'perizinan_siswa' }
   }
   if (input.teacherStatus === 'BELUM_ADA_INPUT') return { status: input.teacherStatus, source: 'belum_ada_input' }
   if (input.teacherStatus === 'BELUM_ADA_DATA') return { status: input.teacherStatus, source: 'belum_ada_data' }
@@ -167,7 +208,7 @@ export function deriveDailyTeacherStatus(input: {
       status: 'BELUM_ADA_INPUT',
       submittedBlocks,
       pendingBlocks,
-      requiresWaliDecision: true,
+      requiresWaliDecision: false,
       reason: `0/${totalBlocks} blok disubmit; belum ada input guru.`,
     }
   }
@@ -177,7 +218,7 @@ export function deriveDailyTeacherStatus(input: {
       status: 'BELUM_ADA_DATA',
       submittedBlocks,
       pendingBlocks,
-      requiresWaliDecision: true,
+      requiresWaliDecision: false,
       reason: `${submittedBlocks}/${totalBlocks} blok disubmit; ${pendingBlocks} blok belum lengkap.`,
     }
   }
@@ -207,7 +248,7 @@ export function deriveDailyTeacherStatus(input: {
     status,
     submittedBlocks,
     pendingBlocks,
-    requiresWaliDecision: status === 'PARSIAL' || status === 'PERLU_KONFIRMASI_WALI',
+    requiresWaliDecision: status === 'PARSIAL' || status === 'PERLU_KONFIRMASI_WALI' || status === 'ALFA',
     reason,
   }
 }

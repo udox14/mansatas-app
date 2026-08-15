@@ -11,7 +11,7 @@ import {
   loadSiswaKeterangan, simpanKeteranganBatch,
   type SiswaKeterangan, type KelasWaliKelas,
 } from '../actions'
-import { attendanceSourceLabel, attendanceStatusLabel } from '@/lib/attendance-status'
+import { attendanceSourceLabel, attendanceStatusLabel, isWaliDecisionPendingStatus } from '@/lib/attendance-status'
 
 interface Props {
   kelasList: KelasWaliKelas[]
@@ -42,10 +42,6 @@ function statusPriority(status: string | null | undefined) {
   if (status === 'BELUM_ADA_DATA') return 3
   if (status === 'ALFA') return 4
   return 5
-}
-
-function needsWaliDecision(status: string | null | undefined) {
-  return ['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA', 'ALFA'].includes(status || '')
 }
 
 export function KeteranganClient({ kelasList, initialKelasId }: Props) {
@@ -309,7 +305,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
                   <div className="px-3 pb-2">
                     {s.detail_guru.length === 0 ? (
                       <p className="text-[11px] text-slate-400">
-                        {needsWaliDecision(s.status_akhir)
+                        {isWaliDecisionPendingStatus(s.status_akhir)
                           ? 'Belum ada detail input guru yang bisa dijadikan rujukan untuk siswa ini.'
                           : 'Tidak ada catatan ketidakhadiran dari guru untuk siswa ini.'}
                       </p>

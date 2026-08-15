@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   deriveDailyTeacherStatus,
   isWaliDecisionPendingStatus,
+  normalizeDailyTeacherBlockStatus,
   resolveFinalAttendanceStatus,
+  resolveStudentPermissionDailyStatus,
+  studentPermissionStatusFromReason,
   summarizePendingWaliDecisionDates,
 } from './attendance-status'
 
@@ -37,9 +40,13 @@ describe('deriveDailyTeacherStatus', () => {
     expect(derive(['HADIR', 'ALFA']).status).toBe('PARSIAL')
   })
 
+  it('menandai alfa seragam sebagai status yang tetap perlu dikonfirmasi wali', () => {
+    expect(derive(['ALFA', 'ALFA'])).toMatchObject({ status: 'ALFA', requiresWaliDecision: true })
+  })
+
   it('membedakan belum ada input dari belum lengkap', () => {
-    expect(derive([], 3).status).toBe('BELUM_ADA_INPUT')
-    expect(derive(['HADIR'], 3).status).toBe('BELUM_ADA_DATA')
+    expect(derive([], 3)).toMatchObject({ status: 'BELUM_ADA_INPUT', requiresWaliDecision: false })
+    expect(derive(['HADIR'], 3)).toMatchObject({ status: 'BELUM_ADA_DATA', requiresWaliDecision: false })
   })
 
   it('menggunakan hanya blok tersubmit saat pengaturan abaikan blok aktif', () => {
@@ -47,6 +54,51 @@ describe('deriveDailyTeacherStatus', () => {
     expect(result.status).toBe('PERLU_KONFIRMASI_WALI')
     expect(result.submittedBlocks).toBe(2)
     expect(result.pendingBlocks).toBe(2)
+  })
+
+  it('menganggap izin parsial dari Perizinan Siswa sebagai hadir saat agregasi harian', () => {
+    const result = derive([
+      normalizeDailyTeacherBlockStatus('IZIN', true),
+      normalizeDailyTeacherBlockStatus('HADIR'),
+    ])
+    expect(result).toMatchObject({
+      status: 'HADIR',
+      requiresWaliDecision: false,
+    })
+  })
+
+  it('menganggap izin siswa dan izin guru sebagai izin harian', () => {
+    const permissionStatus = resolveStudentPermissionDailyStatus(['IZIN', 'IZIN', 'IZIN'])
+    const result = derive([
+      normalizeDailyTeacherBlockStatus('IZIN', true, permissionStatus),
+      normalizeDailyTeacherBlockStatus('IZIN'),
+      normalizeDailyTeacherBlockStatus('IZIN'),
+      normalizeDailyTeacherBlockStatus('IZIN'),
+    ])
+    expect(result).toMatchObject({ status: 'IZIN', requiresWaliDecision: false })
+  })
+
+  it('tetap memakai hadir untuk izin siswa jika blok guru tidak seluruhnya izin', () => {
+    expect(resolveStudentPermissionDailyStatus(['HADIR', 'IZIN'])).toBe('HADIR')
+  })
+
+  it('tetap mempertahankan izin guru sebagai izin biasa', () => {
+    expect(normalizeDailyTeacherBlockStatus('IZIN')).toBe('IZIN')
+  })
+
+  it('memetakan alasan sakit dari Perizinan Siswa menjadi status sakit', () => {
+    expect(studentPermissionStatusFromReason('SAKIT DI UKS')).toBe('SAKIT')
+    expect(studentPermissionStatusFromReason('SAKIT (DI UKS)')).toBe('SAKIT')
+    expect(studentPermissionStatusFromReason('SAKIT (PULANG)')).toBe('SAKIT')
+    expect(studentPermissionStatusFromReason('KEGIATAN DI LUAR')).toBe('IZIN')
+  })
+
+  it('mengagregasikan izin siswa dengan alasan sakit sebagai sakit', () => {
+    const result = derive([
+      normalizeDailyTeacherBlockStatus('IZIN', true, 'SAKIT'),
+      normalizeDailyTeacherBlockStatus('SAKIT'),
+    ])
+    expect(result).toMatchObject({ status: 'SAKIT', requiresWaliDecision: false })
   })
 
   it('tidak menganggap hadir+sakit atau hadir+izin sebagai hadir meski blok belum lengkap diabaikan', () => {
@@ -76,14 +128,35 @@ describe('resolveFinalAttendanceStatus', () => {
       source: 'perizinan_sekolah',
     })
   })
+
+  it('menetapkan status sakit dari Perizinan Siswa jika mencakup sehari penuh', () => {
+    expect(resolveFinalAttendanceStatus({ teacherStatus: 'BELUM_ADA_DATA', fullDayStudentPermissionStatus: 'SAKIT' })).toEqual({
+      status: 'SAKIT',
+      source: 'perizinan_siswa',
+    })
+  })
+
+  it('menetapkan izin dari modul Perizinan Siswa jika mencakup sehari penuh', () => {
+    expect(resolveFinalAttendanceStatus({ teacherStatus: 'BELUM_ADA_DATA', fullDayStudentPermissionStatus: 'IZIN' })).toEqual({
+      status: 'IZIN',
+      source: 'perizinan_siswa',
+    })
+  })
+
+  it('tidak mengubah izin parsial menjadi izin sehari penuh', () => {
+    expect(resolveFinalAttendanceStatus({ teacherStatus: 'HADIR' })).toEqual({
+      status: 'HADIR',
+      source: 'guru',
+    })
+  })
 })
 
 describe('isWaliDecisionPendingStatus', () => {
-  it.each(['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA', 'ALFA'])('menandai %s sebagai tertunda', status => {
+  it.each(['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'ALFA'])('menandai %s sebagai tertunda', status => {
     expect(isWaliDecisionPendingStatus(status)).toBe(true)
   })
 
-  it.each(['HADIR', 'SAKIT', 'IZIN', null, undefined])('tidak menandai %s sebagai tertunda', status => {
+  it.each(['HADIR', 'SAKIT', 'IZIN', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA', null, undefined])('tidak menandai %s sebagai tertunda', status => {
     expect(isWaliDecisionPendingStatus(status)).toBe(false)
   })
 })
@@ -95,10 +168,10 @@ describe('summarizePendingWaliDecisionDates', () => {
       { siswa_id: 's1', tanggal: '2026-08-12', status_akhir: 'ALFA', wali_status: null },
       { siswa_id: 's2', tanggal: '2026-08-12', status_akhir: 'PARSIAL', wali_status: null },
       { siswa_id: 's3', tanggal: '2026-08-13', status_akhir: 'BELUM_ADA_DATA', wali_status: null },
+      { siswa_id: 's5', tanggal: '2026-08-13', status_akhir: 'BELUM_ADA_INPUT', wali_status: null },
       { siswa_id: 's4', tanggal: '2026-08-13', status_akhir: 'ALFA', wali_status: 'HADIR' },
     ])).toEqual([
       { tanggal: '2026-08-12', pendingStudents: 2 },
-      { tanggal: '2026-08-13', pendingStudents: 1 },
     ])
   })
 

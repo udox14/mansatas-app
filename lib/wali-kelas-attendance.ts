@@ -9,9 +9,13 @@ import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { getMemCache, setMemCache } from '@/utils/mem-cache'
 import {
   deriveDailyTeacherStatus,
+  normalizeDailyTeacherBlockStatus,
   resolveFinalAttendanceStatus,
+  resolveStudentPermissionDailyStatus,
+  studentPermissionStatusFromReason,
   type FinalAttendanceSource,
   type FinalAttendanceStatus,
+  type StudentPermissionStatus,
   type SubmittedBlockStatus,
 } from '@/lib/attendance-status'
 
@@ -421,6 +425,8 @@ export async function getFinalAttendanceForClass(
       const activeBlocks = dayBlocks.blocks
       const submittedPenugasanIds = sesiMap.get(tanggal) || new Set<string>()
       const detailByPenugasan = new Map<string, FinalAttendanceDetail['detail_guru'][number]>()
+      const permissionBlockIds = new Set<string>()
+      const permissionBlockStatusById = new Map<string, StudentPermissionStatus>()
       const blockStatuses: FinalAttendanceDetail['block_statuses'] = activeBlocks.map(block => {
         const izinKelasForBlock = izinKelasRows.filter(row => {
           const jam = parseIzinJamPelajaran(row.jam_pelajaran)
@@ -437,13 +443,22 @@ export async function getFinalAttendanceForClass(
             row.keterangan ? `: ${row.keterangan}` : '',
           ].filter(Boolean).join(' ')),
         ]
+        const permissionStatus: StudentPermissionStatus = izinKelasForBlock.some(row =>
+          studentPermissionStatusFromReason(row.alasan) === 'SAKIT'
+        )
+          ? 'SAKIT'
+          : 'IZIN'
         const permissionDetail = notes.length > 0 ? {
-          status: 'IZIN' as const,
+          status: permissionStatus,
           nama_mapel: 'Perizinan',
           jam_ke_mulai: block.jam_ke_mulai,
           jam_ke_selesai: block.jam_ke_selesai,
           catatan: notes.join('; '),
         } : null
+        if (permissionDetail) {
+          permissionBlockIds.add(block.penugasan_id)
+          permissionBlockStatusById.set(block.penugasan_id, permissionStatus)
+        }
         const rawRecord = baseGuruRecords.find(record =>
           record.penugasan_id === block.penugasan_id &&
           record.jam_ke_mulai <= block.jam_ke_selesai &&
@@ -478,9 +493,26 @@ export async function getFinalAttendanceForClass(
       })
       const guruRecords = Array.from(detailByPenugasan.values())
         .sort((a, b) => a.jam_ke_mulai - b.jam_ke_mulai)
+      const hasStudentPermission = permissionBlockIds.size > 0
+      const fullDayStudentPermission = activeBlocks.length > 0 && activeBlocks.every(block =>
+        permissionBlockIds.has(block.penugasan_id)
+      )
+      const permissionStatuses = Array.from(permissionBlockStatusById.values())
+      const fullDayStudentPermissionStatus = fullDayStudentPermission && permissionStatuses.length > 0 &&
+        permissionStatuses.every(status => status === permissionStatuses[0])
+        ? permissionStatuses[0]
+        : undefined
+      const teacherSubmittedStatuses = blockStatuses
+        .filter(block => block.submitted && !permissionBlockIds.has(block.penugasan_id))
+        .map(block => block.status as SubmittedBlockStatus)
+      const studentPermissionDailyStatus = resolveStudentPermissionDailyStatus(teacherSubmittedStatuses)
       const submittedStatuses = blockStatuses
         .filter(block => block.submitted)
-        .map(block => block.status as SubmittedBlockStatus)
+        .map(block => normalizeDailyTeacherBlockStatus(
+          block.status as SubmittedBlockStatus,
+          permissionBlockIds.has(block.penugasan_id),
+          permissionBlockStatusById.get(block.penugasan_id) || studentPermissionDailyStatus,
+        ))
       const guruState = deriveDailyTeacherStatus({
         totalBlocks: totalBlok,
         submittedStatuses,
@@ -488,7 +520,9 @@ export async function getFinalAttendanceForClass(
       })
       const guruStatus = guruState.status
       const activeJam = Array.from(new Set(activeBlocks.flatMap(block => block.jam_ke)))
-      const izinSekolahRows = izinKelasRows.filter(row => Number(row.hitung_sebagai_hadir) === 1)
+      const izinSekolahRows = izinKelasRows.filter(row =>
+        Number(row.hitung_sebagai_hadir) === 1 && studentPermissionStatusFromReason(row.alasan) !== 'SAKIT'
+      )
       const izinSekolahSehariPenuh = activeJam.length > 0 && activeJam.every(jamKe =>
         izinSekolahRows.some(row => {
           const jamIzin = parseIzinJamPelajaran(row.jam_pelajaran)
@@ -499,12 +533,22 @@ export async function getFinalAttendanceForClass(
         teacherStatus: guruStatus,
         waliStatus: waliRecord?.status ?? null,
         fullDaySchoolPermission: izinSekolahSehariPenuh,
+        fullDayStudentPermissionStatus,
       })
-      const statusReason = izinSekolahSehariPenuh
-        ? 'Izin kepentingan sekolah mencakup seluruh blok KBM dan dihitung hadir.'
-        : waliRecord?.status
-          ? `Status ditetapkan wali kelas menjadi ${waliRecord.status}.`
-          : guruState.reason
+      let statusReason = guruState.reason
+      if (izinSekolahSehariPenuh) {
+        statusReason = 'Izin kepentingan sekolah mencakup seluruh blok KBM dan dihitung hadir.'
+      } else if (waliRecord?.status) {
+        statusReason = `Status ditetapkan wali kelas menjadi ${waliRecord.status}.`
+      } else if (fullDayStudentPermissionStatus === 'SAKIT') {
+        statusReason = 'Perizinan Siswa mencakup seluruh blok KBM dengan alasan sakit.'
+      } else if (fullDayStudentPermissionStatus === 'IZIN') {
+        statusReason = 'Izin dari modul Perizinan Siswa mencakup seluruh blok KBM dan dihitung sebagai izin.'
+      } else if (hasStudentPermission) {
+        statusReason = `${fullDayStudentPermission ? 'Perizinan Siswa mencakup seluruh blok KBM dengan alasan berbeda.' : 'Perizinan Siswa hanya mencakup sebagian blok KBM.'} ${guruState.reason}`
+      }
+
+      const submittedBlok = blockStatuses.filter(block => block.submitted).length
 
       perDay.push({
         siswa_id: siswa.id,
@@ -512,15 +556,15 @@ export async function getFinalAttendanceForClass(
         nisn: siswa.nisn,
         tanggal,
         total_blok: totalBlok,
-        submitted_blok: guruState.submittedBlocks,
-        pending_blok: guruState.pendingBlocks,
+        submitted_blok: submittedBlok,
+        pending_blok: Math.max(0, totalBlok - submittedBlok),
         guru_status: guruStatus,
         guru_status_reason: guruState.reason,
         wali_status: waliRecord?.status ?? null,
         status_akhir: resolvedFinal.status,
         sumber_status: resolvedFinal.source,
         status_reason: statusReason,
-        requires_wali_decision: !izinSekolahSehariPenuh && !waliRecord && guruState.requiresWaliDecision,
+        requires_wali_decision: !izinSekolahSehariPenuh && !fullDayStudentPermissionStatus && !waliRecord && guruState.requiresWaliDecision,
         keterangan_wali_kelas: waliRecord?.keterangan ?? null,
         block_statuses: blockStatuses,
         detail_guru: guruRecords,
@@ -585,7 +629,7 @@ export async function getSchoolAttendanceEstimateForDate(db: D1Database, tanggal
     db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>(),
     db.prepare(`SELECT COUNT(*) as total FROM siswa WHERE status = 'aktif'`).first<{ total: number }>(),
     db.prepare(`
-      SELECT itk.siswa_id, itk.jam_pelajaran, s.kelas_id,
+      SELECT itk.siswa_id, itk.jam_pelajaran, itk.alasan, s.kelas_id,
         COALESCE(aik.hitung_sebagai_hadir, 0) as hitung_sebagai_hadir
       FROM izin_tidak_masuk_kelas itk
       JOIN siswa s ON s.id = itk.siswa_id AND s.status = 'aktif'
@@ -632,12 +676,17 @@ export async function getSchoolAttendanceEstimateForDate(db: D1Database, tanggal
   }
 
   const allIzinStudents = new Set<string>()
-  const schoolRowsByStudent = new Map<string, Array<{ kelas_id: string; jam_pelajaran: unknown }>>()
+  const schoolRowsByStudent = new Map<string, Array<{ kelas_id: string; jam_pelajaran: unknown; alasan: string | null }>>()
   for (const row of izinRes.results || []) {
     allIzinStudents.add(row.siswa_id)
+    if (studentPermissionStatusFromReason(row.alasan) === 'SAKIT') continue
     if (Number(row.hitung_sebagai_hadir) !== 1) continue
     if (!schoolRowsByStudent.has(row.siswa_id)) schoolRowsByStudent.set(row.siswa_id, [])
-    schoolRowsByStudent.get(row.siswa_id)!.push(row)
+    schoolRowsByStudent.get(row.siswa_id)!.push({
+      kelas_id: row.kelas_id,
+      jam_pelajaran: row.jam_pelajaran,
+      alasan: row.alasan || null,
+    })
   }
 
   const schoolPresentStudents = new Set<string>()

@@ -46,7 +46,7 @@ const PRINT_STATUS_OPTIONS: Array<{ code: PrintStatusCode; label: string }> = [
   { code: 'S', label: 'Sakit' },
   { code: 'I', label: 'Izin' },
   { code: 'A', label: 'Alfa' },
-  { code: 'B', label: 'Bolos sebagian jam' },
+  { code: 'B', label: 'Bolos' },
   { code: 'K', label: 'Perlu keputusan wali' },
   { code: 'BI', label: 'Belum ada input' },
   { code: 'BL', label: 'Belum lengkap' },
@@ -69,8 +69,8 @@ const ST: Record<string, { label: string; cls: string; dot: string; short: strin
   SAKIT: { label: 'Sakit', short: 'S', dot: 'bg-amber-500', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
   IZIN: { label: 'Izin', short: 'I', dot: 'bg-blue-500', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
   ALFA: { label: 'Alfa', short: 'A', dot: 'bg-red-500', cls: 'bg-red-50 text-red-700 border-red-200' },
-  BOLOS: { label: 'Bolos sebagian jam', short: 'B', dot: 'bg-yellow-500', cls: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
-  PARSIAL: { label: 'Bolos sebagian jam', short: 'B', dot: 'bg-yellow-500', cls: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+  BOLOS: { label: 'Bolos', short: 'B', dot: 'bg-yellow-500', cls: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+  PARSIAL: { label: 'Bolos', short: 'B', dot: 'bg-yellow-500', cls: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
   'PERLU KONFIRMASI WALI': { label: 'Perlu keputusan wali kelas', short: 'K', dot: 'bg-purple-500', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
   PERLU_KONFIRMASI_WALI: { label: 'Perlu keputusan wali kelas', short: 'K', dot: 'bg-purple-500', cls: 'bg-purple-50 text-purple-700 border-purple-200' },
   'BELUM ADA INPUT': { label: 'Belum ada input', short: 'BI', dot: 'bg-slate-400', cls: 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700' },
@@ -245,7 +245,7 @@ function SummaryChips({ item }: { item: any }) {
     ['Sakit', item.sakit, 'text-amber-700 bg-amber-50 border-amber-200'],
     ['Izin', item.izin, 'text-blue-700 bg-blue-50 border-blue-200'],
     ['Alfa', item.alfa, 'text-red-700 bg-red-50 border-red-200'],
-    ['Bolos sebagian jam', item.bolos, 'text-yellow-700 bg-yellow-50 border-yellow-200'],
+    ['Bolos', item.bolos, 'text-yellow-700 bg-yellow-50 border-yellow-200'],
     ['Perlu keputusan wali kelas', item.perlu_konfirmasi_wali, 'text-purple-700 bg-purple-50 border-purple-200'],
     ['Belum ada input', item.belum_ada_input, 'text-slate-600 bg-slate-100 border-slate-200'],
     ['Belum lengkap', item.belum_ada_data, 'text-slate-600 bg-slate-100 border-slate-200'],
@@ -787,7 +787,7 @@ function TabSiswa({ filterOptions, initialJump, onBack }: {
             <table className="min-w-full text-left text-xs">
               <thead className="bg-slate-50 text-slate-500 dark:bg-slate-800">
                 <tr>
-                  {['No', 'Nama Siswa', 'NISN', 'Hari Efektif', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Bolos sebagian jam', 'Perlu keputusan wali kelas', 'Belum ada input', 'Belum lengkap', 'Kehadiran'].map(h => (
+                  {['No', 'Nama Siswa', 'NISN', 'Hari Efektif', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Bolos', 'Perlu keputusan wali kelas', 'Belum ada input', 'Belum lengkap', 'Kehadiran'].map(h => (
                     <th key={h} className="whitespace-nowrap px-3 py-2">{h}</th>
                   ))}
                 </tr>
@@ -1650,7 +1650,7 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai, paper, orientat
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
               <thead>
                 <tr>
-                  {['No', 'Nama Siswa', 'NISN', 'Hari Efektif', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Bolos sebagian jam', 'Perlu keputusan wali kelas', 'Belum ada input', 'Belum lengkap', 'Kehadiran'].map(h => (
+                  {['No', 'Nama Siswa', 'NISN', 'Hari Efektif', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Bolos', 'Perlu keputusan wali kelas', 'Belum ada input', 'Belum lengkap', 'Kehadiran'].map(h => (
                     <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>
                   ))}
                 </tr>
