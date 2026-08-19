@@ -52,6 +52,18 @@ const PRINT_STATUS_OPTIONS: Array<{ code: PrintStatusCode; label: string }> = [
   { code: 'BL', label: 'Belum lengkap' },
 ]
 const ALL_PRINT_STATUS_CODES = PRINT_STATUS_OPTIONS.map(item => item.code)
+const DEFAULT_PRINT_STATUS_CODES: PrintStatusCode[] = ['S', 'I', 'A']
+const PRINT_STATUS_STORAGE_KEY = 'mansatas_rekap_absensi_print_status_codes'
+
+function normalizePrintStatusCodes(value: unknown): PrintStatusCode[] {
+  if (!Array.isArray(value)) return DEFAULT_PRINT_STATUS_CODES
+  const normalized = ALL_PRINT_STATUS_CODES.filter(code => value.some(item => item === code))
+  return normalized.length > 0 ? normalized : DEFAULT_PRINT_STATUS_CODES
+}
+
+function getSelectedPrintStatusOptions(selectedCodes: PrintStatusCode[]) {
+  return PRINT_STATUS_OPTIONS.filter(option => selectedCodes.includes(option.code))
+}
 
 function printDimensions(paper: PrintPaper, orientation: PrintOrientation) {
   const base = paper === 'A4' ? { width: 210, height: 297 } : { width: 215, height: 330 }
@@ -159,8 +171,7 @@ function isSelectedPrintStatus(status: string | null | undefined, selectedCodes:
 }
 
 function selectedStatusLegend(selectedCodes: PrintStatusCode[]) {
-  return PRINT_STATUS_OPTIONS
-    .filter(item => selectedCodes.includes(item.code))
+  return getSelectedPrintStatusOptions(selectedCodes)
     .map(item => `${item.code} ${item.label}`)
     .join('; ')
 }
@@ -963,7 +974,8 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
   const [mode, setMode] = useState<Mode>('hari')
   const [absencePeriod, setAbsencePeriod] = useState<AbsencePeriod>('hari')
   const [absenceMonth, setAbsenceMonth] = useState(today().slice(0, 7))
-  const [printStatusCodes, setPrintStatusCodes] = useState<PrintStatusCode[]>(ALL_PRINT_STATUS_CODES)
+  const [printStatusCodes, setPrintStatusCodes] = useState<PrintStatusCode[]>(DEFAULT_PRINT_STATUS_CODES)
+  const [printStatusPreferencesLoaded, setPrintStatusPreferencesLoaded] = useState(false)
   const [showPrintStatusOptions, setShowPrintStatusOptions] = useState(false)
   const [monitoringMode, setMonitoringMode] = useState<'bulanan' | 'semester'>('bulanan')
   const [tingkat, setTingkat] = useState(initialTingkat)
@@ -985,6 +997,26 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
   const printRef = useRef<HTMLDivElement>(null)
   const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
 
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(PRINT_STATUS_STORAGE_KEY)
+      if (raw) setPrintStatusCodes(normalizePrintStatusCodes(JSON.parse(raw)))
+    } catch {
+      // Abaikan cache yang tidak tersedia atau rusak; gunakan default.
+    } finally {
+      setPrintStatusPreferencesLoaded(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!printStatusPreferencesLoaded) return
+    try {
+      window.localStorage.setItem(PRINT_STATUS_STORAGE_KEY, JSON.stringify(printStatusCodes))
+    } catch {
+      // Browser dapat menolak localStorage dalam mode private atau kebijakan tertentu.
+    }
+  }, [printStatusCodes, printStatusPreferencesLoaded])
+
   const kelasByTingkat = useMemo(() => filterOptions.kelas.filter(k => k.tingkat === Number(tingkat)), [filterOptions.kelas, tingkat])
   const absenceRange = useMemo(() => {
     if (absencePeriod === 'hari') return { start: tanggal, end: tanggal }
@@ -1005,7 +1037,10 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
   }, [printStatusCodes, printableStatusOptions])
   const togglePrintStatus = (code: PrintStatusCode) => {
     setPrintStatusCodes(current => {
-      if (current.includes(code)) return current.length === 1 ? current : current.filter(item => item !== code)
+      if (current.includes(code)) {
+        const selectedVisibleCount = printableStatusOptions.filter(option => current.includes(option.code)).length
+        return selectedVisibleCount <= 1 ? current : current.filter(item => item !== code)
+      }
       return [...current, code]
     })
     setPrintData(null)
@@ -1153,7 +1188,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
               if (kind === 'tidak-hadir') {
                 setPrintStatusCodes(current => {
                   const absentCodes = current.filter(code => ['S', 'I', 'A'].includes(code))
-                  return absentCodes.length ? absentCodes : ['S', 'I', 'A']
+                  return absentCodes.length ? absentCodes : DEFAULT_PRINT_STATUS_CODES
                 })
               }
               setPrintData(null)
@@ -1314,7 +1349,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
           </div>
           <div className={`mt-3 ${showPrintStatusOptions ? '' : 'hidden'}`}>
             <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-[11px] text-slate-500">Status yang tidak dipilih tetap memiliki kolom, tetapi nilainya kosong.</p>
+              <p className="text-[11px] text-slate-500">Status yang tidak dipilih tidak akan ditampilkan sebagai kolom.</p>
               <button type="button" onClick={() => { setPrintStatusCodes(printableStatusOptions.map(option => option.code)); setPrintData(null) }} className="shrink-0 text-xs font-semibold text-indigo-600 hover:underline">Semua</button>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
@@ -1378,6 +1413,19 @@ function compactStatusTotals(totals: Record<string, number> | undefined, selecte
     .filter(code => selectedStatusCodes.includes(code))
     .map(code => `${code}:${totals?.[code] || 0}`)
     .join(' ')
+}
+
+function printStatusCount(row: Record<string, any>, code: PrintStatusCode) {
+  switch (code) {
+    case 'H': return row.hadir ?? 0
+    case 'S': return row.sakit ?? 0
+    case 'I': return row.izin ?? 0
+    case 'A': return row.alfa ?? 0
+    case 'B': return row.bolos ?? row.parsial ?? 0
+    case 'K': return row.perlu_konfirmasi_wali ?? 0
+    case 'BI': return row.belum_ada_input ?? 0
+    case 'BL': return row.belum_ada_data ?? 0
+  }
 }
 
 function printablePageStyle(paper: PrintPaper, orientation: PrintOrientation) {
@@ -1447,6 +1495,8 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedS
   const months = section.months || []
   const namaKelas = section.kelas?.label || '-'
   const title = `REKAP ABSENSI KELAS ${namaKelas}`
+  const selectedStatusOptions = getSelectedPrintStatusOptions(selectedStatusCodes)
+  const selectedStatusColumnCount = Math.max(selectedStatusOptions.length, 1)
   const subtitle = mode === 'bulanan'
     ? `BULAN ${String(section.labelPeriode || '').toUpperCase()}`
     : String(section.labelPeriode || '').toUpperCase()
@@ -1479,7 +1529,9 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedS
             <col />
             <col style={{ width: '18pt' }} />
             {dates.map((tanggal: string) => <col key={tanggal} style={{ width: dateColWidth }} />)}
-            {ATTENDANCE_CODES.map(code => <col key={code} style={{ width: code.length === 1 ? '17pt' : '20pt' }} />)}
+            {selectedStatusOptions.length > 0
+              ? selectedStatusOptions.map(option => <col key={option.code} style={{ width: option.code.length === 1 ? '17pt' : '20pt' }} />)
+              : <col />}
           </colgroup>
           <thead>
             <tr>
@@ -1488,13 +1540,15 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedS
               <th rowSpan={2} style={{ ...printTh, letterSpacing: '2pt' }}>Nama</th>
               <th rowSpan={2} style={printTh}>JK</th>
               <th colSpan={dates.length || 1} style={printTh}>Tanggal</th>
-              <th colSpan={ATTENDANCE_CODES.length} style={printTh}>Jumlah</th>
+              <th colSpan={selectedStatusColumnCount} style={printTh}>Jumlah</th>
             </tr>
             <tr>
               {dates.length > 0
                 ? dates.map((tanggal: string) => <th key={tanggal} style={{ ...printTh, fontSize: '7pt', padding: '1pt 0' }}>{Number(tanggal.slice(8, 10))}</th>)
                 : <th style={printTh}>-</th>}
-              {ATTENDANCE_CODES.map(code => <th key={code} style={printTh}>{code}</th>)}
+              {selectedStatusOptions.length > 0
+                ? selectedStatusOptions.map(option => <th key={option.code} style={printTh}>{option.code}</th>)
+                : <th style={printTh}>-</th>}
             </tr>
           </thead>
           <tbody>
@@ -1506,7 +1560,9 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedS
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.jenis_kelamin}</td>
                 {(row.cells || []).map((cell: any) => <td key={cell.tanggal} style={{ ...printTd, textAlign: 'center' }}>{selectedStatusCodes.includes(cell.mark) ? cell.mark : ''}</td>)}
                 {dates.length === 0 && <td style={printTd} />}
-                {ATTENDANCE_CODES.map(code => <td key={code} style={{ ...printTd, textAlign: 'center' }}>{selectedStatusCodes.includes(code) ? row.totals?.[code] || 0 : ''}</td>)}
+                {selectedStatusOptions.length > 0
+                  ? selectedStatusOptions.map(option => <td key={option.code} style={{ ...printTd, textAlign: 'center' }}>{row.totals?.[option.code] || 0}</td>)
+                  : <td style={{ ...printTd, textAlign: 'center' }}>-</td>}
               </tr>
             ))}
           </tbody>
@@ -1650,7 +1706,11 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai, paper, orientat
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
               <thead>
                 <tr>
-                  {['No', 'Nama Siswa', 'NISN', 'Hari Efektif', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Bolos', 'Perlu keputusan wali kelas', 'Belum ada input', 'Belum lengkap', 'Kehadiran'].map(h => (
+                  {[
+                    'No', 'Nama Siswa', 'NISN', 'Hari Efektif',
+                    ...getSelectedPrintStatusOptions(selectedStatusCodes).map(option => option.label),
+                    'Kehadiran',
+                  ].map(h => (
                     <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>
                   ))}
                 </tr>
@@ -1662,14 +1722,11 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai, paper, orientat
                     <td style={{ border: '1px solid #000', padding: 4 }}>{row.nama_lengkap}</td>
                     <td style={{ border: '1px solid #000', padding: 4 }}>{row.nisn || '-'}</td>
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.total_hari_efektif}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('H') ? row.hadir : ''}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('S') ? row.sakit : ''}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('I') ? row.izin : ''}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('A') ? row.alfa : ''}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('B') ? row.bolos : ''}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('K') ? row.perlu_konfirmasi_wali : ''}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('BI') ? row.belum_ada_input || 0 : ''}</td>
-                    <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('BL') ? row.belum_ada_data : ''}</td>
+                    {getSelectedPrintStatusOptions(selectedStatusCodes).map(option => (
+                      <td key={option.code} style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>
+                        {printStatusCount(row, option.code)}
+                      </td>
+                    ))}
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.persentase_hadir}%</td>
                   </tr>
                 ))}
@@ -1707,6 +1764,14 @@ function PrintTidakHadir({ data, tglMulai, tglSelesai, paper, orientation, selec
     if (code === 'A') total.alfa += 1
     return total
   }, { total: 0, sakit: 0, izin: 0, alfa: 0 })
+  const summaryItems: Array<{ label: string; value: number }> = [
+    { label: 'Total kejadian', value: summary.total || 0 },
+    ...[
+      { code: 'S' as PrintStatusCode, label: 'Sakit', value: summary.sakit || 0 },
+      { code: 'I' as PrintStatusCode, label: 'Izin', value: summary.izin || 0 },
+      { code: 'A' as PrintStatusCode, label: 'Alfa', value: summary.alfa || 0 },
+    ].filter(item => selectedStatusCodes.includes(item.code)),
+  ]
 
   return (
     <>
@@ -1718,15 +1783,10 @@ function PrintTidakHadir({ data, tglMulai, tglSelesai, paper, orientation, selec
           />
           {pageIndex === 0 && (
             <div style={{ display: 'flex', gap: '8pt', marginBottom: '10pt', fontSize: '9pt' }}>
-              {[
-                ['Total kejadian', summary.total || 0],
-                ['Sakit', summary.sakit || 0],
-                ['Izin', summary.izin || 0],
-                ['Alfa', summary.alfa || 0],
-              ].map(([label, value]) => (
-                <div key={label as string} style={{ border: PRINT_BORDER, padding: '4pt 8pt', minWidth: '62pt' }}>
-                  <div style={{ fontSize: '7pt' }}>{label}</div>
-                  <div style={{ fontWeight: 700, fontSize: '12pt', lineHeight: 1.1 }}>{value}</div>
+              {summaryItems.map(item => (
+                <div key={item.label} style={{ border: PRINT_BORDER, padding: '4pt 8pt', minWidth: '62pt' }}>
+                  <div style={{ fontSize: '7pt' }}>{item.label}</div>
+                  <div style={{ fontWeight: 700, fontSize: '12pt', lineHeight: 1.1 }}>{item.value}</div>
                 </div>
               ))}
             </div>
@@ -1780,6 +1840,7 @@ function PrintSiswa({ data, tglMulai, tglSelesai, paper, orientation, selectedSt
   const rekap = data.rekap || {}
   const siswa = rekap.siswa || {}
   const summary = rekap.summary || {}
+  const selectedStatusOptions = getSelectedPrintStatusOptions(selectedStatusCodes)
   return (
     <div style={printablePageStyle(paper, orientation)}>
       <PrintHeader title="Rekap Absensi Siswa" subtitle={`${siswa.nama || '-'} | Kelas ${siswa.kelas || '-'} | ${fmtTgl(tglMulai)} s/d ${fmtTgl(tglSelesai)}`} />
@@ -1792,16 +1853,13 @@ function PrintSiswa({ data, tglMulai, tglSelesai, paper, orientation, selectedSt
         </tbody>
       </table>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12, fontSize: 10 }}>
-        <thead><tr>{['Hadir', 'Bolos', 'Sakit', 'Izin', 'Alfa', 'Perlu keputusan wali kelas', 'Belum ada input', 'Belum lengkap'].map(h => <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>)}</tr></thead>
+        <thead><tr>{selectedStatusOptions.map(option => <th key={option.code} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{option.label}</th>)}</tr></thead>
         <tbody><tr>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('H') ? summary.hadir || 0 : ''}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('B') ? summary.parsial || summary.bolos || 0 : ''}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('S') ? summary.sakit || 0 : ''}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('I') ? summary.izin || 0 : ''}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('A') ? summary.alfa || 0 : ''}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('K') ? summary.perlu_konfirmasi_wali || 0 : ''}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('BI') ? summary.belum_ada_input || 0 : ''}</td>
-          <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{selectedStatusCodes.includes('BL') ? summary.belum_ada_data || 0 : ''}</td>
+          {selectedStatusOptions.map(option => (
+            <td key={option.code} style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>
+              {printStatusCount(summary, option.code)}
+            </td>
+          ))}
         </tr></tbody>
       </table>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>

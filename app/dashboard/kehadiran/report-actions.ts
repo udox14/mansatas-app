@@ -304,8 +304,15 @@ export async function getTeacherAttendanceReport(input: {
     const sessionKey = `${raw.penugasan_id}__${raw.tanggal}`
     const classRoster = Array.from(studentsByClass.get(assignment.kelas_id)?.values() || [])
     const snapshotIds = snapshotStudentsBySession.get(sessionKey)
-    const roster = snapshotIds
+    const snapshotRoster = snapshotIds
       ? classRoster.filter(siswa => snapshotIds.has(siswa.id))
+      : null
+    // Snapshot sesi baru seharusnya berisi semua siswa, termasuk HADIR. Namun
+    // snapshot lama/parsial bisa hanya berisi siswa tidak hadir (format sparse).
+    // Jangan menjadikan snapshot parsial sebagai roster, karena siswa yang
+    // tidak tercatat harus dianggap HADIR pada sesi yang sudah disubmit.
+    const roster = snapshotRoster && snapshotRoster.length === classRoster.length
+      ? snapshotRoster
       : classRoster
     sessionStudentIds.set(sessionKey, new Set(roster.map(siswa => siswa.id)))
     const schedule = scheduleMap.get(`${raw.penugasan_id}__${dayNumber(raw.tanggal)}`)
