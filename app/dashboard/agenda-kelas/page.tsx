@@ -20,6 +20,7 @@ async function AgendaKelasDataFetcher() {
   return (
     <AgendaKelasClient
       daftarKelas={options.kelas}
+      kepala={options.kepala}
       today={todayWIB()}
       initialSignatureSettings={signatureSettings.settings}
     />

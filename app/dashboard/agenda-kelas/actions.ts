@@ -56,6 +56,12 @@ export type AgendaKelasOption = {
   km_nama: string
 }
 
+export type AgendaKelasSigner = {
+  nama: string
+  nip: string | null
+  signature_url: string | null
+}
+
 export type AgendaKelasRow = {
   jam_ke: number
   jam_label: string
@@ -290,25 +296,36 @@ async function ensureAccess() {
 
 export async function getAgendaKelasOptions() {
   const access = await ensureAccess()
-  if (access.error || !access.db) return { error: access.error, kelas: [] }
+  if (access.error || !access.db) return { error: access.error, kelas: [], kepala: null as AgendaKelasSigner | null }
 
-  const rows = await access.db.prepare(`
-    SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok,
-      COUNT(CASE WHEN s.status = 'aktif' THEN 1 END) as jumlah_siswa,
-      wali.nama_lengkap AS wali_kelas_nama,
-      wali.nip AS wali_kelas_nip,
-      wali.signature_url AS wali_kelas_signature_url,
-      km.nama_lengkap AS km_nama
-    FROM kelas k
-    LEFT JOIN siswa s ON s.kelas_id = k.id
-    LEFT JOIN "user" wali ON k.wali_kelas_id = wali.id
-    LEFT JOIN siswa km ON k.km_siswa_id = km.id AND km.kelas_id = k.id AND km.status = 'aktif'
-    GROUP BY k.id, k.tingkat, k.nomor_kelas, k.kelompok, wali.nama_lengkap, wali.nip, wali.signature_url, km.nama_lengkap
-    ORDER BY CAST(k.tingkat AS INTEGER) ASC, CAST(k.nomor_kelas AS INTEGER) ASC, k.kelompok ASC
-  `).all<any>()
+  const [rows, kepala] = await Promise.all([
+    access.db.prepare(`
+      SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok,
+        COUNT(CASE WHEN s.status = 'aktif' THEN 1 END) as jumlah_siswa,
+        wali.nama_lengkap AS wali_kelas_nama,
+        wali.nip AS wali_kelas_nip,
+        wali.signature_url AS wali_kelas_signature_url,
+        km.nama_lengkap AS km_nama
+      FROM kelas k
+      LEFT JOIN siswa s ON s.kelas_id = k.id
+      LEFT JOIN "user" wali ON k.wali_kelas_id = wali.id
+      LEFT JOIN siswa km ON k.km_siswa_id = km.id AND km.kelas_id = k.id AND km.status = 'aktif'
+      GROUP BY k.id, k.tingkat, k.nomor_kelas, k.kelompok, wali.nama_lengkap, wali.nip, wali.signature_url, km.nama_lengkap
+      ORDER BY CAST(k.tingkat AS INTEGER) ASC, CAST(k.nomor_kelas AS INTEGER) ASC, k.kelompok ASC
+    `).all<any>(),
+    access.db.prepare(`
+      SELECT COALESCE(u.nama_lengkap, u.name) AS nama, u.nip, u.signature_url
+      FROM "user" u
+      LEFT JOIN user_roles ur ON ur.user_id = u.id
+      WHERE u.role = 'kepsek' OR ur.role = 'kepsek'
+      ORDER BY u.nama_lengkap ASC
+      LIMIT 1
+    `).first<AgendaKelasSigner>(),
+  ])
 
   return {
     error: null,
+    kepala: kepala || null,
     kelas: (rows.results || []).map(row => ({
       id: row.id,
       tingkat: Number(row.tingkat),
