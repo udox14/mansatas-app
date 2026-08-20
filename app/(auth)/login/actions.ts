@@ -1,7 +1,7 @@
 // app/(auth)/login/actions.ts
 'use server'
 
-import { createAuth, COOKIE_NAME } from '@/utils/auth'
+import { createAuth, COOKIE_NAME, SESSION_MAX_AGE_SECONDS } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { headers, cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -31,7 +31,7 @@ export async function login(prevState: any, formData: FormData) {
       httpOnly: true,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 30 * 24 * 60 * 60,
+      maxAge: SESSION_MAX_AGE_SECONDS,
     })
   } catch (e: any) {
     const msg = e?.message || ''

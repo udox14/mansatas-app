@@ -549,6 +549,8 @@ export async function getAbsensiSiswaKelasRentang(kelasId: string, tglMulai: str
   return { error: null, kelas: classData.kelas, rows, effectiveDates }
 }
 
+type CatatanAbsenStatus = 'SAKIT' | 'IZIN' | 'ALFA'
+
 type TidakHadirFilter = 'SEMUA' | 'SAKIT' | 'IZIN' | 'ALFA'
 
 /**
@@ -633,6 +635,111 @@ export async function getSiswaTidakHadir(params: {
     || a.nama_lengkap.localeCompare(b.nama_lengkap, 'id'))
 
   return { error: null, data, summary }
+}
+
+/**
+ * Catatan mentah Sakit/Izin/Alfa yang ditulis guru saat mengisi absensi.
+ * Data ini sengaja tidak mengikuti status final harian siswa.
+ */
+export async function getCatatanAbsenOlehGuru(params: {
+  tglMulai: string
+  tglSelesai: string
+  statuses?: CatatanAbsenStatus[]
+  tingkat?: number
+  kelasId: string
+  siswaId?: string
+}) {
+  const emptyResult = { error: null as string | null, data: [], summary: { total: 0, sakit: 0, izin: 0, alfa: 0 } }
+  const err = validateRange(params.tglMulai, params.tglSelesai)
+  if (err) return { ...emptyResult, error: err }
+
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { ...emptyResult, error: 'Unauthorized' }
+
+  const scope = await getRekapScope(db, user.id)
+  if (!params.kelasId) return { ...emptyResult, error: 'Pilih kelas terlebih dahulu.' }
+  if (!(await canAccessClass(db, scope, params.kelasId))) {
+    return { ...emptyResult, error: 'Anda tidak punya akses ke kelas ini.' }
+  }
+
+  const availableClasses = await getClassRows(db, scope, params.tingkat)
+  const kelasList = availableClasses.filter(kelas => kelas.id === params.kelasId)
+  if (kelasList.length === 0) return emptyResult
+
+  let selectedSiswa: { id: string; nama_lengkap: string; nisn: string | null } | null = null
+  if (params.siswaId) {
+    selectedSiswa = await db.prepare('SELECT id, nama_lengkap, nisn FROM siswa WHERE id = ? AND kelas_id = ? LIMIT 1')
+      .bind(params.siswaId, params.kelasId)
+      .first<{ id: string; nama_lengkap: string; nisn: string | null }>()
+    if (!selectedSiswa) return { ...emptyResult, error: 'Siswa tidak ditemukan pada kelas yang dipilih.' }
+  }
+
+  const allowedStatuses: CatatanAbsenStatus[] = ['SAKIT', 'IZIN', 'ALFA']
+  const statuses = allowedStatuses.filter(status => params.statuses?.includes(status) ?? true)
+  if (statuses.length === 0) return emptyResult
+
+  const classIds = kelasList.map(kelas => kelas.id)
+  const rows = await db.prepare(`
+    SELECT ab.id, ab.tanggal, ab.siswa_id, ab.status, ab.catatan,
+      ab.jam_ke_mulai, ab.jam_ke_selesai,
+      s.nama_lengkap, s.nisn, pm.kelas_id,
+      mp.nama_mapel,
+      COALESCE(input_user.nama_lengkap, assignment_user.nama_lengkap) as guru_nama
+    FROM absensi_siswa ab
+    JOIN siswa s ON s.id = ab.siswa_id
+    JOIN penugasan_mengajar pm ON pm.id = ab.penugasan_id
+    JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
+    LEFT JOIN "user" input_user ON input_user.id = ab.diinput_oleh
+    LEFT JOIN "user" assignment_user ON assignment_user.id = pm.guru_id
+    WHERE pm.kelas_id IN (${classIds.map(() => '?').join(',')})
+      AND ab.tanggal BETWEEN ? AND ?
+      AND ab.status IN (${statuses.map(() => '?').join(',')})
+      AND TRIM(COALESCE(ab.catatan, '')) <> ''
+      ${params.siswaId ? 'AND ab.siswa_id = ?' : ''}
+  `).bind(...classIds, params.tglMulai, params.tglSelesai, ...statuses, ...(params.siswaId ? [params.siswaId] : [])).all<any>()
+
+  const kelasById = new Map(kelasList.map(kelas => [kelas.id, kelas.label]))
+  const data = (rows.results || []).map(row => ({
+    id: row.id,
+    tanggal: row.tanggal,
+    hariNama: HARI[hariNum(new Date(row.tanggal + 'T00:00:00'))],
+    siswa_id: row.siswa_id,
+    nama_lengkap: row.nama_lengkap,
+    nisn: row.nisn || null,
+    kelas_id: row.kelas_id,
+    kelas_label: kelasById.get(row.kelas_id) || '-',
+    status: row.status as CatatanAbsenStatus,
+    nama_mapel: row.nama_mapel || '-',
+    jam_ke_mulai: Number(row.jam_ke_mulai) || 0,
+    jam_ke_selesai: Number(row.jam_ke_selesai) || Number(row.jam_ke_mulai) || 0,
+    guru_nama: row.guru_nama || '-',
+    catatan: String(row.catatan).trim(),
+  }))
+
+  data.sort((a, b) => b.tanggal.localeCompare(a.tanggal)
+    || a.kelas_label.localeCompare(b.kelas_label, 'id')
+    || a.nama_lengkap.localeCompare(b.nama_lengkap, 'id')
+    || a.jam_ke_mulai - b.jam_ke_mulai)
+
+  const summary = data.reduce((total, row) => {
+    total.total += 1
+    if (row.status === 'SAKIT') total.sakit += 1
+    if (row.status === 'IZIN') total.izin += 1
+    if (row.status === 'ALFA') total.alfa += 1
+    return total
+  }, { total: 0, sakit: 0, izin: 0, alfa: 0 })
+
+  return {
+    error: null,
+    data,
+    summary,
+    scope: {
+      mode: selectedSiswa ? 'siswa' : 'kelas',
+      kelas_label: kelasList[0].label,
+      siswa: selectedSiswa,
+    },
+  }
 }
 
 export async function getAbsensiHeatmap(tingkat: number, tanggal: string) {
@@ -735,16 +842,14 @@ export async function getCetakRekapKelas(params: {
   tanggal?: string
   tglMulai?: string
   tglSelesai?: string
-  tingkat?: number
-  kelasId?: string
+  kelasId: string
 }) {
   const db = await getDB()
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', sections: [] }
   const scope = await getRekapScope(db, user.id)
-  const kelasList = params.kelasId
-    ? (await getClassRows(db, scope)).filter(k => k.id === params.kelasId)
-    : await getClassRows(db, scope, params.tingkat)
+  const kelasList = (await getClassRows(db, scope)).filter(k => k.id === params.kelasId)
+  if (kelasList.length === 0) return { error: 'Pilih satu kelas yang dapat diakses.', sections: [] }
 
   const sections: any[] = []
   for (const kelas of kelasList) {
@@ -786,15 +891,14 @@ function monthLabel(month: number) {
 }
 
 export async function getCetakMonitoringSiswa(params: {
-  kelasId?: string
-  tingkat?: number
+  kelasId: string
   mode: MonitoringPrintMode
   tglMulai: string
   tglSelesai: string
   months?: number[]
   labelPeriode?: string
 }) {
-  if (!params.kelasId && !params.tingkat) return { error: 'Kelas atau tingkat wajib dipilih.', sections: [] }
+  if (!params.kelasId) return { error: 'Pilih satu kelas terlebih dahulu.', sections: [] }
   if (!params.tglMulai || !params.tglSelesai || params.tglMulai > params.tglSelesai) {
     return { error: 'Rentang tanggal tidak valid.', sections: [] }
   }
@@ -804,9 +908,7 @@ export async function getCetakMonitoringSiswa(params: {
   if (!user) return { error: 'Unauthorized', sections: [] }
 
   const scope = await getRekapScope(db, user.id)
-  const kelasList = params.kelasId
-    ? (await getClassRows(db, scope)).filter(kelas => kelas.id === params.kelasId)
-    : await getClassRows(db, scope, params.tingkat)
+  const kelasList = (await getClassRows(db, scope)).filter(kelas => kelas.id === params.kelasId)
 
   if (kelasList.length === 0) {
     return { error: 'Tidak ada kelas yang bisa dicetak.', sections: [] }

@@ -3,8 +3,18 @@
 // Hanya pakai Web Crypto (PBKDF2) + D1 — zero external dependencies
 
 import { logActivity } from '@/lib/activity-log'
-import { COOKIE_NAME, extractToken } from './token'
-export { COOKIE_NAME, extractToken } from './token'
+import {
+  COOKIE_NAME,
+  extractToken,
+  SESSION_EXPIRY_DAYS,
+  SESSION_MAX_AGE_SECONDS,
+} from './token'
+export {
+  COOKIE_NAME,
+  extractToken,
+  SESSION_EXPIRY_DAYS,
+  SESSION_MAX_AGE_SECONDS,
+} from './token'
 
 // ============================================================
 // PASSWORD HASHING (PBKDF2 — native Web Crypto, jalan di Workers)
@@ -44,8 +54,6 @@ export async function verifyPassword(hash: string, password: string): Promise<bo
 // ============================================================
 // SESSION HELPERS
 // ============================================================
-const SESSION_EXPIRY_DAYS = 30
-
 function generateToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32))
   return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
@@ -277,8 +285,7 @@ export function createAuth(db: D1Database) {
           },
         })
 
-        const maxAge = SESSION_EXPIRY_DAYS * 24 * 60 * 60
-        const setCookie = buildSetCookie(token, maxAge)
+        const setCookie = buildSetCookie(token, SESSION_MAX_AGE_SECONDS)
 
         if (opts.asResponse) {
           return new Response(JSON.stringify({ user: mapUser(user), session: { id: sessionId, token } }), {
@@ -494,8 +501,7 @@ export function createAuth(db: D1Database) {
            VALUES (?, ?, ?, ?, ?, ?, ?)`
         ).bind(sessionId, token, siswa.id, String(siswa.nisn || '').replace(/\D/g, ''), expiresAt, now, now).run()
 
-        const maxAge = SESSION_EXPIRY_DAYS * 24 * 60 * 60
-        const setCookie = buildSetCookie(token, maxAge)
+        const setCookie = buildSetCookie(token, SESSION_MAX_AGE_SECONDS)
         const payload = {
           user: {
             type: 'parent' as const,

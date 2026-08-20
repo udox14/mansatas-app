@@ -1,6 +1,6 @@
 import { attendanceSourceLabel, attendanceStatusLabel } from './attendance-status'
 
-export type AttendanceExportKind = 'monitoring' | 'kelas' | 'siswa' | 'tidak-hadir'
+export type AttendanceExportKind = 'monitoring' | 'kelas' | 'siswa' | 'tidak-hadir' | 'catatan-guru'
 type PrintStatusCode = 'H' | 'S' | 'I' | 'A' | 'B' | 'K' | 'BI' | 'BL'
 const ALL_STATUS_CODES: PrintStatusCode[] = ['H', 'S', 'I', 'A', 'B', 'K', 'BI', 'BL']
 
@@ -112,6 +112,24 @@ function absentRows(data: any, codes: PrintStatusCode[]) {
   }))
 }
 
+function teacherNoteRows(data: any, codes: PrintStatusCode[]) {
+  return (data.data || []).filter((row: any) => codes.includes(statusCode(row.status))).map((row: any, index: number) => ({
+    No: index + 1,
+    Tanggal: row.tanggal,
+    Hari: row.hariNama,
+    Nama: row.nama_lengkap,
+    Kelas: row.kelas_label,
+    NISN: row.nisn || '',
+    Status: attendanceStatusLabel(row.status),
+    'Mata Pelajaran': row.nama_mapel || '',
+    'Jam Pelajaran': row.jam_ke_mulai === row.jam_ke_selesai
+      ? row.jam_ke_mulai
+      : `${row.jam_ke_mulai}-${row.jam_ke_selesai}`,
+    'Guru Penginput': row.guru_nama || '',
+    Catatan: row.catatan || '',
+  }))
+}
+
 export async function buildAttendanceWorkbook(input: {
   kind: AttendanceExportKind
   mode?: 'hari' | 'rentang'
@@ -162,6 +180,17 @@ export async function buildAttendanceWorkbook(input: {
       absentRows(input.data, codes),
     )
     XLSX.utils.book_append_sheet(workbook, sheet, 'Tidak Hadir')
+  } else if (input.kind === 'catatan-guru') {
+    const scope = input.data?.scope
+    const scopeLabel = scope?.mode === 'siswa'
+      ? `Per Siswa: ${scope.siswa?.nama_lengkap || '-'} - Kelas ${scope.kelas_label || '-'}`
+      : `Per Kelas: ${scope?.kelas_label || '-'}`
+    const sheet = createSheet(
+      `Catatan Absen oleh Guru - ${scopeLabel}`,
+      input.periodLabel || '',
+      teacherNoteRows(input.data, codes),
+    )
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Catatan Absen oleh Guru')
   } else {
     const rekap = input.data.rekap || {}
     const sheet = createSheet(
