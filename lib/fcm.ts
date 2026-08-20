@@ -291,8 +291,12 @@ const STATUS_LABEL: Record<string, string> = {
 
 export async function notifyParentsAttendance(
   db: D1Database,
-  options: { penugasanId: string; tanggal: string }
+  options: { penugasanId: string; tanggal: string; siswaIds?: string[] }
 ) {
+  if (options.siswaIds && options.siswaIds.length === 0) return { notified: 0 }
+  const siswaFilter = options.siswaIds?.length
+    ? `AND ab.siswa_id IN (${options.siswaIds.map(() => '?').join(',')})`
+    : ''
   const rows = await db
     .prepare(
       `
@@ -302,10 +306,11 @@ export async function notifyParentsAttendance(
       WHERE ab.penugasan_id = ? AND ab.tanggal = ?
         AND ab.status IN ('ALFA','SAKIT')
         AND s.status = 'aktif'
+        ${siswaFilter}
       ORDER BY s.nama_lengkap
     `
     )
-    .bind(options.penugasanId, options.tanggal)
+    .bind(options.penugasanId, options.tanggal, ...(options.siswaIds || []))
     .all<{ siswa_id: string; status: string; nama_lengkap: string }>()
 
   const list = rows.results || []

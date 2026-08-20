@@ -15,7 +15,7 @@ export const metadata = { title: 'Absensi Siswa - MANSATAS App' }
 
 async function AbsensiFetcher({ effectiveUserId, dateOverride }: { effectiveUserId: string; dateOverride?: string }) {
   const data = await getBlokMengajarHariIni(effectiveUserId, dateOverride)
-  return <AbsensiClient initialData={data} />
+  return <AbsensiClient initialData={data} ownerId={effectiveUserId} />
 }
 
 export const dynamic = 'force-dynamic'

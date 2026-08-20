@@ -1,11 +1,11 @@
 // Lokasi: app/dashboard/kehadiran/components/absensi-client.tsx
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   CheckCircle2, XCircle, Thermometer, ShieldAlert,
-  Loader2, BookOpen, RefreshCw, Save,
+  Loader2, BookOpen, RefreshCw, CloudUpload, WifiOff,
   MessageSquare, Users, ArrowLeft, ClipboardCheck,
   CalendarRange, ListChecks, Ban,
 } from 'lucide-react'
@@ -18,6 +18,7 @@ import type { KbmException } from '@/lib/kalender-pendidikan'
 import { TeacherAttendanceReportPanel } from './teacher-attendance-report'
 
 interface Props {
+  ownerId: string
   initialData: {
     error: string | null
     blocks: BlokMengajar[]
@@ -30,6 +31,60 @@ interface Props {
 }
 
 const STATUS_CYCLE: Array<SiswaAbsensi['status']> = ['HADIR', 'SAKIT', 'ALFA', 'IZIN']
+const AUTOSAVE_STORAGE_KEY = 'mansatas_absensi_autosave_v1'
+const AUTOSAVE_INTERVAL_MS = 2_000
+
+type PendingAttendance = {
+  penugasanId: string
+  tanggal: string
+  slotMulai: string
+  slotSelesai: string
+  jamKeMulai: number
+  jamKeSelesai: number
+  jumlahJam: number
+  siswa: SiswaAbsensi[]
+  ownerId: string
+  updatedAt: number
+}
+
+type PendingAttendanceQueue = Record<string, PendingAttendance>
+let memoryPendingQueue: PendingAttendanceQueue = {}
+let localStorageUnavailable = false
+
+function attendanceKey(ownerId: string, penugasanId: string, tanggal: string) {
+  return `${ownerId}::${penugasanId}::${tanggal}`
+}
+
+function readPendingQueue(): PendingAttendanceQueue {
+  if (typeof window === 'undefined') return {}
+  if (localStorageUnavailable) return memoryPendingQueue
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(AUTOSAVE_STORAGE_KEY) || '{}')
+    memoryPendingQueue = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+    return memoryPendingQueue
+  } catch {
+    localStorageUnavailable = true
+    return memoryPendingQueue
+  }
+}
+
+function writePendingQueue(queue: PendingAttendanceQueue) {
+  memoryPendingQueue = queue
+  if (typeof window === 'undefined') return false
+  try {
+    if (Object.keys(queue).length === 0) window.localStorage.removeItem(AUTOSAVE_STORAGE_KEY)
+    else window.localStorage.setItem(AUTOSAVE_STORAGE_KEY, JSON.stringify(queue))
+    localStorageUnavailable = false
+    return true
+  } catch {
+    localStorageUnavailable = true
+    return false
+  }
+}
+
+function pendingCountForOwner(queue: PendingAttendanceQueue, ownerId: string) {
+  return Object.values(queue).filter(item => item.ownerId === ownerId).length
+}
 const STATUS_UI: Record<string, { bg: string; text: string; icon: any; label: string; border: string }> = {
   HADIR: { bg: 'bg-emerald-50 dark:bg-emerald-950/50', text: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle2, label: 'Hadir', border: 'border-emerald-200 dark:border-emerald-800' },
   SAKIT: { bg: 'bg-amber-50', text: 'text-amber-700', icon: Thermometer, label: 'Sakit', border: 'border-amber-200' },
@@ -37,7 +92,7 @@ const STATUS_UI: Record<string, { bg: string; text: string; icon: any; label: st
   IZIN:  { bg: 'bg-blue-50', text: 'text-blue-700', icon: ShieldAlert, label: 'Izin', border: 'border-blue-200' },
 }
 
-export function AbsensiClient({ initialData }: Props) {
+export function AbsensiClient({ initialData, ownerId }: Props) {
   const [activeTab, setActiveTab] = useState<'input' | 'rekap'>('input')
 
   return (
@@ -59,23 +114,107 @@ export function AbsensiClient({ initialData }: Props) {
         </button>
       </div>
 
-      {activeTab === 'input'
-        ? <AbsensiInputPanel initialData={initialData} />
-        : <TeacherAttendanceReportPanel />}
+      <div className={activeTab === 'input' ? 'block' : 'hidden'}>
+        <AbsensiInputPanel initialData={initialData} ownerId={ownerId} />
+      </div>
+      {activeTab === 'rekap' && <TeacherAttendanceReportPanel />}
     </div>
   )
 }
 
-function AbsensiInputPanel({ initialData }: Props) {
+function AbsensiInputPanel({ initialData, ownerId }: Props) {
   const [data, setData] = useState(initialData)
   const [activeBlock, setActiveBlock] = useState<BlokMengajar | null>(null)
   const [siswaList, setSiswaList] = useState<SiswaAbsensi[]>([])
   const [isLoadingSiswa, setIsLoadingSiswa] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [isOnline, setIsOnline] = useState(true)
+  const [pendingCount, setPendingCount] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [pesan, setPesan] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null)
   const [expandedNote, setExpandedNote] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
+  const syncInProgressRef = useRef(false)
+  const activeAttendanceKeyRef = useRef<string | null>(null)
+
+  const flushPending = useCallback(async () => {
+    if (syncInProgressRef.current || (typeof navigator !== 'undefined' && !navigator.onLine)) return
+    const initialQueue = readPendingQueue()
+    const pendingEntries = Object.entries(initialQueue)
+      .filter(([, item]) => item.ownerId === ownerId)
+      .sort(([, a], [, b]) => a.updatedAt - b.updatedAt)
+    if (pendingEntries.length === 0) {
+      setPendingCount(0)
+      return
+    }
+
+    syncInProgressRef.current = true
+    setIsSyncing(true)
+    try {
+      for (const [key, pending] of pendingEntries) {
+        if (!navigator.onLine) break
+        try {
+          const res = await simpanAbsensi(
+            pending.penugasanId, pending.tanggal,
+            pending.slotMulai, pending.slotSelesai,
+            pending.jamKeMulai, pending.jamKeSelesai, pending.jumlahJam,
+            pending.siswa.map(s => ({ siswa_id: s.siswa_id, status: s.status, catatan: s.catatan })),
+          )
+          if (res.error) {
+            setPesan({ tipe: 'error', teks: `Belum dapat sinkron: ${res.error}` })
+            continue
+          }
+
+          // Jangan hapus perubahan baru yang dibuat saat request sebelumnya masih berjalan.
+          const latestQueue = readPendingQueue()
+          if (latestQueue[key]?.updatedAt === pending.updatedAt) {
+            delete latestQueue[key]
+            writePendingQueue(latestQueue)
+            if (activeAttendanceKeyRef.current === key) setHasChanges(false)
+          }
+          setData(prev => ({
+            ...prev,
+            blocks: prev.blocks.map(block => block.penugasan_id === pending.penugasanId
+              ? {
+                  ...block,
+                  sudah_absen: true,
+                  tidak_hadir: pending.siswa.filter(s => s.status !== 'HADIR').length,
+                }
+              : block),
+          }))
+        } catch {
+          setPesan({ tipe: 'error', teks: 'Koneksi belum stabil. Data tetap aman di perangkat dan akan dicoba lagi otomatis.' })
+          break
+        }
+      }
+    } finally {
+      const remaining = pendingCountForOwner(readPendingQueue(), ownerId)
+      setPendingCount(remaining)
+      setIsOnline(typeof navigator === 'undefined' ? true : navigator.onLine)
+      setIsSyncing(false)
+      syncInProgressRef.current = false
+    }
+  }, [ownerId])
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine)
+    setPendingCount(pendingCountForOwner(readPendingQueue(), ownerId))
+
+    const handleOnline = () => {
+      setIsOnline(true)
+      void flushPending()
+    }
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    const timer = window.setInterval(() => void flushPending(), AUTOSAVE_INTERVAL_MS)
+    void flushPending()
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [flushPending, ownerId])
 
   const refresh = async () => {
     setIsRefreshing(true)
@@ -84,62 +223,101 @@ function AbsensiInputPanel({ initialData }: Props) {
   }
 
   const openBlock = useCallback(async (block: BlokMengajar) => {
+    const key = attendanceKey(ownerId, block.penugasan_id, data.tanggal)
+    activeAttendanceKeyRef.current = key
     setActiveBlock(block)
     setIsLoadingSiswa(true)
     setPesan(null)
-    setHasChanges(false)
-    const res = await loadSiswaAbsensi(
-      block.penugasan_id,
-      block.kelas_id,
-      data.tanggal,
-      block.jam_ke_mulai,
-      block.jam_ke_selesai,
-    )
-    if (res.error) setPesan({ tipe: 'error', teks: res.error })
-    else setSiswaList(res.siswa)
+    const localPending = readPendingQueue()[key]
+    setHasChanges(Boolean(localPending))
+    try {
+      const res = await loadSiswaAbsensi(
+        block.penugasan_id,
+        block.kelas_id,
+        data.tanggal,
+        block.jam_ke_mulai,
+        block.jam_ke_selesai,
+      )
+      if (res.error) {
+        if (localPending) {
+          setSiswaList(localPending.siswa)
+          setPesan({ tipe: 'sukses', teks: 'Menampilkan data yang tersimpan aman di perangkat.' })
+        } else setPesan({ tipe: 'error', teks: res.error })
+      } else if (readPendingQueue()[key]) {
+        const latestPending = readPendingQueue()[key]
+        const localByStudent = new Map(latestPending.siswa.map(s => [s.siswa_id, s]))
+        setSiswaList(res.siswa.map(s => {
+          const local = localByStudent.get(s.siswa_id)
+          return local ? { ...s, status: local.status, catatan: local.catatan } : s
+        }))
+        setHasChanges(true)
+      } else {
+        setSiswaList(res.siswa)
+        setHasChanges(false)
+      }
+    } catch {
+      if (localPending) {
+        setSiswaList(localPending.siswa)
+        setPesan({ tipe: 'sukses', teks: 'Sedang offline. Data terakhir dari perangkat berhasil dipulihkan.' })
+      } else {
+        setPesan({ tipe: 'error', teks: 'Data siswa belum tersedia offline. Buka kelas ini sekali saat terhubung ke internet.' })
+      }
+    }
     setIsLoadingSiswa(false)
-  }, [data.tanggal])
+  }, [data.tanggal, ownerId])
 
   const closeBlock = () => {
-    if (hasChanges && !confirm('Ada perubahan belum disimpan. Yakin ingin keluar?')) return
+    activeAttendanceKeyRef.current = null
     setActiveBlock(null); setSiswaList([]); setHasChanges(false); setPesan(null)
   }
 
+  const persistLocally = (nextSiswa: SiswaAbsensi[]) => {
+    if (!activeBlock) return
+    const key = attendanceKey(ownerId, activeBlock.penugasan_id, data.tanggal)
+    const queue = readPendingQueue()
+    queue[key] = {
+      penugasanId: activeBlock.penugasan_id,
+      tanggal: data.tanggal,
+      slotMulai: activeBlock.slot_mulai,
+      slotSelesai: activeBlock.slot_selesai,
+      jamKeMulai: activeBlock.jam_ke_mulai,
+      jamKeSelesai: activeBlock.jam_ke_selesai,
+      jumlahJam: activeBlock.jumlah_jam,
+      siswa: nextSiswa,
+      ownerId,
+      updatedAt: Date.now(),
+    }
+    const storedOnDevice = writePendingQueue(queue)
+    setPendingCount(pendingCountForOwner(queue, ownerId))
+    setHasChanges(true)
+    if (!storedOnDevice) {
+      setPesan({ tipe: 'error', teks: 'Penyimpanan perangkat tidak tersedia. Biarkan halaman ini tetap terbuka sampai data tersinkron.' })
+    }
+  }
+
+  const updateAttendance = (updater: (current: SiswaAbsensi[]) => SiswaAbsensi[]) => {
+    setSiswaList(current => {
+      const next = updater(current)
+      persistLocally(next)
+      return next
+    })
+  }
+
   const toggleStatus = (siswaId: string) => {
-    setSiswaList(prev => prev.map(s => {
+    updateAttendance(prev => prev.map(s => {
       if (s.siswa_id !== siswaId) return s
       const idx = STATUS_CYCLE.indexOf(s.status)
       const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length]
       return { ...s, status: next }
     }))
-    setHasChanges(true)
   }
 
   const setStatus = (siswaId: string, status: SiswaAbsensi['status']) => {
-    setSiswaList(prev => prev.map(s => s.siswa_id === siswaId ? { ...s, status } : s))
-    setHasChanges(true)
+    updateAttendance(prev => prev.map(s => s.siswa_id === siswaId ? { ...s, status } : s))
   }
 
   const setCatatan = (siswaId: string, catatan: string) => {
-    setSiswaList(prev => prev.map(s => s.siswa_id === siswaId ? { ...s, catatan } : s))
-    setHasChanges(true)
-  }
-
-  const handleSave = async () => {
-    if (!activeBlock) return
-    setIsSaving(true); setPesan(null)
-    const dataAbsen = siswaList.map(s => ({
-      siswa_id: s.siswa_id, status: s.status, catatan: s.catatan,
-    }))
-    const res = await simpanAbsensi(
-      activeBlock.penugasan_id, data.tanggal,
-      activeBlock.slot_mulai, activeBlock.slot_selesai,
-      activeBlock.jam_ke_mulai, activeBlock.jam_ke_selesai, activeBlock.jumlah_jam,
-      dataAbsen,
-    )
-    if (res.error) setPesan({ tipe: 'error', teks: res.error })
-    else { setPesan({ tipe: 'sukses', teks: res.success || 'Berhasil!' }); setHasChanges(false); refresh() }
-    setIsSaving(false)
+    updateAttendance(prev => prev.map(s => s.siswa_id === siswaId ? { ...s, catatan } : s))
   }
 
   const { blocks, tanggal, hariNama, error, calendarStatus } = data
@@ -197,9 +375,9 @@ function AbsensiInputPanel({ initialData }: Props) {
                 {(counts.IZIN || 0) > 0 && <span className="text-[10px] px-2 py-1 rounded-md bg-blue-100 text-blue-700 font-medium">Izin {counts.IZIN}</span>}
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <button onClick={() => { setSiswaList(prev => prev.map(s => ({ ...s, status: 'HADIR' }))); setHasChanges(true) }}
+                <button onClick={() => updateAttendance(prev => prev.map(s => ({ ...s, status: 'HADIR' })))}
                   className="text-[10px] px-2.5 py-1 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 font-semibold">Semua Hadir</button>
-                <button onClick={() => { setSiswaList(prev => prev.map(s => ({ ...s, status: 'ALFA' }))); setHasChanges(true) }}
+                <button onClick={() => updateAttendance(prev => prev.map(s => ({ ...s, status: 'ALFA' })))}
                   className="text-[10px] px-2.5 py-1 rounded-md bg-white dark:bg-slate-900 border border-red-200 text-red-700 hover:bg-red-50 font-semibold">Semua Alfa</button>
               </div>
             </div>
@@ -303,21 +481,26 @@ function AbsensiInputPanel({ initialData }: Props) {
           )
         })}
 
-        {/* Floating Save Button */}
+        {/* Floating autosave status */}
         {siswaList.length > 0 && (
           <div className="fixed bottom-16 left-0 right-0 z-20 p-3 bg-gradient-to-t from-white via-white dark:from-slate-900 dark:via-slate-900 to-transparent pointer-events-none md:bottom-0">
             <div className="max-w-lg mx-auto pointer-events-auto">
-              <Button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-200 dark:shadow-emerald-900/30 h-11 text-sm font-semibold"
-              >
-                {isSaving ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Menyimpan...</>
-                ) : (
-                  <><Save className="h-4 w-4 mr-2" />Simpan Absensi {hasChanges ? '(ada perubahan)' : ''}</>
-                )}
-              </Button>
+              <div className={`flex h-11 items-center justify-center gap-2 rounded-lg border px-4 text-xs font-semibold shadow-lg ${
+                !isOnline
+                  ? 'border-amber-200 bg-amber-50 text-amber-700 shadow-amber-100 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300'
+                  : hasChanges || pendingCount > 0 || isSyncing
+                    ? 'border-blue-200 bg-blue-50 text-blue-700 shadow-blue-100 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700 shadow-emerald-100 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300'
+              }`}>
+                {!isOnline ? <WifiOff className="h-4 w-4" /> : isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : hasChanges || pendingCount > 0 ? <CloudUpload className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                {!isOnline
+                  ? 'Tersimpan di perangkat · menunggu koneksi'
+                  : isSyncing
+                    ? 'Menyinkronkan ke database...'
+                    : hasChanges || pendingCount > 0
+                      ? 'Tersimpan lokal · autosync maksimal 2 detik'
+                      : 'Semua perubahan sudah tersinkron'}
+              </div>
             </div>
           </div>
         )}

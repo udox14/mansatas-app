@@ -475,6 +475,16 @@ export async function simpanAbsensi(
   }
 
   const toSave = dataAbsen.filter(d => d.status !== 'HADIR')
+  const previousRows = await db.prepare(`
+    SELECT siswa_id, status
+    FROM absensi_siswa
+    WHERE penugasan_id = ? AND tanggal = ?
+  `).bind(penugasanId, tanggal).all<{ siswa_id: string; status: string }>()
+  const previousStatus = new Map((previousRows.results || []).map(row => [row.siswa_id, row.status]))
+  const changedNotificationIds = toSave
+    .filter(row => (row.status === 'ALFA' || row.status === 'SAKIT') && previousStatus.get(row.siswa_id) !== row.status)
+    .map(row => row.siswa_id)
+  const hasNewAlfa = toSave.some(row => row.status === 'ALFA' && previousStatus.get(row.siswa_id) !== 'ALFA')
   const delStmt = db.prepare('DELETE FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?').bind(penugasanId, tanggal)
   const delSnapshotStmt = db.prepare('DELETE FROM absensi_sesi_siswa WHERE penugasan_id = ? AND tanggal = ?').bind(penugasanId, tanggal)
   const snapshotStmts = dataAbsen.map(d => db.prepare(`
@@ -514,20 +524,24 @@ export async function simpanAbsensi(
   } catch (e: any) { return { error: e.message } }
   invalidateAttendanceCache()
 
-  try {
-    await enqueueAttendanceAlfaNotifications(db, {
-      penugasanId,
-      tanggal,
-      createdBy: diinputOleh,
-    })
-  } catch (waError) {
-    console.error('Gagal enqueue notifikasi WhatsApp ALFA:', waError)
+  if (hasNewAlfa) {
+    try {
+      await enqueueAttendanceAlfaNotifications(db, {
+        penugasanId,
+        tanggal,
+        createdBy: diinputOleh,
+      })
+    } catch (waError) {
+      console.error('Gagal enqueue notifikasi WhatsApp ALFA:', waError)
+    }
   }
 
-  try {
-    await notifyParentsAttendance(db, { penugasanId, tanggal })
-  } catch (fcmError) {
-    console.error('Gagal kirim notifikasi FCM absensi ke ortu:', fcmError)
+  if (changedNotificationIds.length > 0) {
+    try {
+      await notifyParentsAttendance(db, { penugasanId, tanggal, siswaIds: changedNotificationIds })
+    } catch (fcmError) {
+      console.error('Gagal kirim notifikasi FCM absensi ke ortu:', fcmError)
+    }
   }
 
   revalidatePath('/dashboard/kehadiran')
