@@ -81,6 +81,7 @@ export function DetailSiswaClient({
   const roles = currentUser?.roles || []
   const canFullEdit = roles.some((r: string) => ['super_admin', 'admin_tu'].includes(r))
   const canPrintFullReport = roles.some((r: string) => ['super_admin', 'kepsek', 'wakamad', 'admin_tu', 'guru_bk'].includes(r))
+  const canOpenInsight = roles.some((r: string) => ['super_admin', 'kepsek', 'wakamad'].includes(r))
 
   // State untuk Accordion Akademik (Otomatis buka kelas saat ini, atau kelas 10 jika belum ada)
   const [openAccordion, setOpenAccordion] = useState<number | null>(siswa.kelas?.tingkat || 10)
@@ -323,6 +324,13 @@ export function DetailSiswaClient({
                 >
                   <Link href={`/dashboard/siswa/${siswa.id}/full-report`}>
                     <Printer className="h-3.5 w-3.5" /> Full Report
+                  </Link>
+                </Button>
+              )}
+              {canOpenInsight && (
+                <Button asChild size="sm" variant="outline" className="h-9 gap-1.5 border-violet-200 px-3 text-xs font-semibold text-violet-700 hover:bg-violet-50">
+                  <Link href={`/dashboard/verifikasi-siswa/${siswa.id}`}>
+                    <ShieldCheck className="h-3.5 w-3.5" /> Buka Insight
                   </Link>
                 </Button>
               )}

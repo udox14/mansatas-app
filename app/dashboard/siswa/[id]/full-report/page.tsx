@@ -13,7 +13,7 @@ export default async function FullStudentReportPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ periode?: string }>
+  searchParams: Promise<{ periode?: string; tahun?: string }>
 }) {
   const [{ id }, query, user] = await Promise.all([params, searchParams, getCurrentUser()])
   if (!user) redirect('/login')
@@ -28,9 +28,9 @@ export default async function FullStudentReportPage({
   const allowed = await canAccessFullStudentReport(db, user.id, roles, studentScope.kelas_id)
   if (!allowed) redirect('/dashboard/siswa')
 
-  const report = await loadFullStudentReport(db, id, query.periode)
+  const selectedPeriod = query.periode || (query.tahun ? `year:${query.tahun}` : undefined)
+  const report = await loadFullStudentReport(db, id, selectedPeriod)
   if (!report) notFound()
 
   return <FullReportClient report={report} />
 }
-

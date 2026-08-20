@@ -27,6 +27,7 @@ export type ReportPeriod = {
   label: string
   nama: string
   semester: number
+  semesterIds?: string[]
   startDate: string | null
   endDate: string | null
 }
@@ -116,6 +117,12 @@ function dateClause(column: string, period: ReportPeriod | null) {
   return { sql: ` AND substr(${column}, 1, 10) BETWEEN ? AND ?`, binds: [period.startDate, period.endDate] }
 }
 
+function academicYearClause(column: string, period: ReportPeriod | null) {
+  if (!period) return { sql: '', binds: [] as string[] }
+  const ids = period.semesterIds?.length ? period.semesterIds : [period.id]
+  return { sql: ` AND ${column} IN (${ids.map(() => '?').join(',')})`, binds: ids }
+}
+
 function periodLabel(period: ReportPeriod | null) {
   return period?.label || 'Seluruh Riwayat'
 }
@@ -187,20 +194,42 @@ export async function loadFullStudentReport(
     SELECT id, nama, semester FROM tahun_ajaran
     ORDER BY nama DESC, semester DESC
   `)
-  const periods = rawPeriods.map(row => ({
+  const semesterPeriods = rawPeriods.map(row => ({
     ...row,
     label: `${row.nama} · Semester ${row.semester}`,
     ...academicPeriodDates(row.nama, row.semester),
   }))
+  const grouped = new Map<string, typeof rawPeriods>()
+  for (const row of rawPeriods) grouped.set(row.nama, [...(grouped.get(row.nama) || []), row])
+  const yearPeriods: ReportPeriod[] = Array.from(grouped.entries()).map(([nama, rows]) => {
+    const first = academicPeriodDates(nama, 1)
+    const second = academicPeriodDates(nama, 2)
+    return {
+      id: `year:${nama}`,
+      label: `${nama} · Gabungan Semester 1–2`,
+      nama,
+      semester: 0,
+      semesterIds: rows.map(row => row.id),
+      startDate: first.startDate,
+      endDate: second.endDate,
+    }
+  })
+  const periods = [...yearPeriods, ...semesterPeriods]
   const period = selectedPeriodId ? periods.find(item => item.id === selectedPeriodId) || null : null
   const dateFilter = (column: string) => dateClause(column, period)
-  const taSql = period ? ' AND tahun_ajaran_id = ?' : ''
-  const taBinds = period ? [period.id] : []
+  const taFilter = (column: string) => academicYearClause(column, period)
+  const defaultTa = taFilter('tahun_ajaran_id')
+  const taSql = defaultTa.sql
+  const taBinds = defaultTa.binds
+  const periodClass = period ? await safeFirst<{ kelas_id: string }>(db,
+    `SELECT rk.kelas_id FROM riwayat_kelas rk WHERE rk.siswa_id = ?${taFilter('rk.tahun_ajaran_id').sql} ORDER BY rk.created_at DESC LIMIT 1`,
+    [studentId, ...taBinds]) : null
+  const reportClassId = periodClass?.kelas_id || student.kelas_id || null
 
   const [
     classHistory, admission, admissionAchievements, academicRecord, dailyGrades, programTests,
     tkaRows, psychology, plotting, futurePlans, universityResults,
-    attendance, monthlyAttendance, attendanceCorrections, classPermits, exitPermits,
+    attendanceSessions, attendance, monthlyAttendance, attendanceCorrections, classPermits, exitPermits,
     violations, warningLetters, warningFollowups, warningDecision, sanctionConfigs,
     bkRows, notesRows, tahfidzProgress, tahfidzLogs, tahfidzScores,
     extracurricularRows, extracurricularAttendance,
@@ -215,7 +244,7 @@ export async function loadFullStudentReport(
       FROM riwayat_kelas rk
       LEFT JOIN kelas k ON k.id = rk.kelas_id
       LEFT JOIN tahun_ajaran ta ON ta.id = rk.tahun_ajaran_id
-      WHERE rk.siswa_id = ?${period ? ' AND rk.tahun_ajaran_id = ?' : ''}
+      WHERE rk.siswa_id = ?${taFilter('rk.tahun_ajaran_id').sql}
       ORDER BY ta.nama, ta.semester
     `, [studentId, ...taBinds]),
     safeFirst<any>(db, `SELECT id, no_pendaftaran, tahun_ajaran, jalur, status_verifikasi,
@@ -233,7 +262,7 @@ export async function loadFullStudentReport(
       JOIN nilai_harian_header nh ON nh.id = nd.header_id
       JOIN penugasan_mengajar pm ON pm.id = nh.penugasan_id
       JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
-      WHERE nd.siswa_id = ?${period ? ' AND nh.tahun_ajaran_id = ?' : ''}
+      WHERE nd.siswa_id = ?${taFilter('nh.tahun_ajaran_id').sql}
       GROUP BY mp.id, mp.nama_mapel ORDER BY mp.nama_mapel`, [studentId, ...taBinds]),
     (() => { const f = dateFilter('pht.tanggal'); return safeAll<any>(db, `SELECT pht.status, pht.nilai, COUNT(*) AS jumlah
       FROM pu_hasil_tes pht WHERE pht.siswa_id = ?${f.sql}
@@ -244,28 +273,32 @@ export async function loadFullStudentReport(
       FROM tka_mapel_pilihan p
       LEFT JOIN tka_hasil h ON h.siswa_id = p.siswa_id AND h.tahun_ajaran_id = p.tahun_ajaran_id
       LEFT JOIN tahun_ajaran ta ON ta.id = p.tahun_ajaran_id
-      WHERE p.siswa_id = ?${period ? ' AND p.tahun_ajaran_id = ?' : ''}
+      WHERE p.siswa_id = ?${taFilter('p.tahun_ajaran_id').sql}
       ORDER BY ta.nama, ta.semester`, [studentId, ...taBinds]),
     safeFirst<any>(db, `SELECT iq_score, iq_klasifikasi, riasec, rekom_jurusan, mbti, gaya_belajar,
       mapel_pilihan, usia_thn, usia_bln FROM siswa_psikotes WHERE siswa_id = ?`, [studentId]),
     safeAll<any>(db, `SELECT ta.nama, ta.semester, p.minat_jurusan, p.status
       FROM plotting_penjurusan_draft p LEFT JOIN tahun_ajaran ta ON ta.id = p.target_tahun_ajaran_id
-      WHERE p.siswa_id = ?${period ? ' AND (p.source_tahun_ajaran_id = ? OR p.target_tahun_ajaran_id = ?)' : ''}
-      ORDER BY p.updated_at DESC`, period ? [studentId, period.id, period.id] : [studentId]),
+      WHERE p.siswa_id = ?${period ? ` AND (p.source_tahun_ajaran_id IN (${taBinds.map(() => '?').join(',')}) OR p.target_tahun_ajaran_id IN (${taBinds.map(() => '?').join(',')}))` : ''}
+      ORDER BY p.updated_at DESC`, period ? [studentId, ...taBinds, ...taBinds] : [studentId]),
     safeAll<any>(db, `SELECT ta.nama, ta.semester, r.kategori
       FROM rencana_pasca_lulus r LEFT JOIN tahun_ajaran ta ON ta.id = r.tahun_ajaran_id
-      WHERE r.siswa_id = ?${period ? ' AND r.tahun_ajaran_id = ?' : ''}`, [studentId, ...taBinds]),
+      WHERE r.siswa_id = ?${taFilter('r.tahun_ajaran_id').sql}`, [studentId, ...taBinds]),
     safeAll<any>(db, `SELECT ta.nama, ta.semester, p.jenis_data, p.kampus_nama, p.program_studi,
       p.jalur, p.status, p.pilihan_ke
       FROM penerimaan_pt p LEFT JOIN tahun_ajaran ta ON ta.id = p.tahun_ajaran_id
-      WHERE p.siswa_id = ?${period ? ' AND p.tahun_ajaran_id = ?' : ''}
+      WHERE p.siswa_id = ?${taFilter('p.tahun_ajaran_id').sql}
       ORDER BY ta.nama, p.pilihan_ke`, [studentId, ...taBinds]),
-    (() => { const f = dateFilter('a.tanggal'); return safeAll<any>(db, `SELECT UPPER(a.status) AS status, COUNT(*) AS jumlah
-      FROM absensi_siswa a WHERE a.siswa_id = ?${f.sql} GROUP BY UPPER(a.status)`, [studentId, ...f.binds]) })(),
+    safeFirst<any>(db, `SELECT COUNT(*) AS total FROM absensi_sesi_guru sg JOIN penugasan_mengajar pm ON pm.id=sg.penugasan_id
+      WHERE pm.kelas_id = ?${taFilter('pm.tahun_ajaran_id').sql}`, [reportClassId, ...taBinds]),
+    (() => { const f = dateFilter('tanggal'); return safeAll<any>(db, `SELECT status, COUNT(*) AS jumlah FROM (
+      SELECT UPPER(status) AS status,penugasan_id,tanggal FROM absensi_sesi_siswa WHERE siswa_id=? AND UPPER(status)<>'HADIR'${f.sql}
+      UNION SELECT UPPER(status) AS status,penugasan_id,tanggal FROM absensi_siswa WHERE siswa_id=? AND UPPER(status)<>'HADIR'${f.sql}
+      ) GROUP BY status`, [studentId, ...f.binds, studentId, ...f.binds]) })(),
     safeAll<any>(db, `SELECT r.bulan, SUM(r.sakit) AS sakit, SUM(r.izin) AS izin, SUM(r.alpa) AS alpa,
       ta.nama, ta.semester FROM rekap_kehadiran_bulanan r
       LEFT JOIN tahun_ajaran ta ON ta.id = r.tahun_ajaran_id
-      WHERE r.siswa_id = ?${period ? ' AND r.tahun_ajaran_id = ?' : ''}
+      WHERE r.siswa_id = ?${taFilter('r.tahun_ajaran_id').sql}
       GROUP BY r.tahun_ajaran_id, r.bulan ORDER BY ta.nama, ta.semester, r.bulan`, [studentId, ...taBinds]),
     (() => { const f = dateFilter('tanggal'); return safeAll<any>(db, `SELECT UPPER(status) AS status, COUNT(*) AS jumlah
       FROM keterangan_absensi_wali_kelas WHERE siswa_id = ?${f.sql} GROUP BY UPPER(status)`, [studentId, ...f.binds]) })(),
@@ -275,7 +308,7 @@ export async function loadFullStudentReport(
       FROM izin_keluar_komplek WHERE siswa_id = ?${f.sql} GROUP BY status`, [studentId, ...f.binds]) })(),
     safeAll<any>(db, `SELECT mp.kategori, COUNT(*) AS jumlah, SUM(mp.poin) AS poin
       FROM siswa_pelanggaran sp JOIN master_pelanggaran mp ON mp.id = sp.master_pelanggaran_id
-      WHERE sp.siswa_id = ?${period ? ' AND sp.tahun_ajaran_id = ?' : ''}
+      WHERE sp.siswa_id = ?${taFilter('sp.tahun_ajaran_id').sql}
       GROUP BY mp.kategori ORDER BY poin DESC`, [studentId, ...taBinds]),
     (() => { const f = dateFilter('tanggal_sp'); return safeAll<any>(db, `SELECT level, COUNT(*) AS jumlah, MAX(total_poin) AS poin_tertinggi
       FROM surat_peringatan WHERE siswa_id = ?${f.sql} GROUP BY level ORDER BY level`, [studentId, ...f.binds]) })(),
@@ -286,7 +319,7 @@ export async function loadFullStudentReport(
     safeAll<any>(db, `SELECT bidang, tindak_lanjut, COUNT(*) AS jumlah, MIN(created_at) AS pertama, MAX(created_at) AS terakhir
       FROM bk_rekaman WHERE siswa_id = ?${taSql} GROUP BY bidang, tindak_lanjut ORDER BY bidang`, [studentId, ...taBinds]),
     safeAll<any>(db, `SELECT mapel_nama_snapshot, COUNT(*) AS jumlah, MIN(created_at) AS pertama, MAX(created_at) AS terakhir
-      FROM catatan_siswa WHERE siswa_id = ?${period ? ' AND tahun_ajaran_id = ?' : ''}
+      FROM catatan_siswa WHERE siswa_id = ?${taSql}
       GROUP BY mapel_nama_snapshot ORDER BY jumlah DESC`, [studentId, ...taBinds]),
     safeAll<any>(db, `SELECT juz, COUNT(*) AS surah, SUM(json_array_length(ayat_hafal)) AS ayat
       FROM tahfidz_progress WHERE siswa_id = ? GROUP BY juz ORDER BY juz`, [studentId]),
@@ -295,14 +328,14 @@ export async function loadFullStudentReport(
     safeAll<any>(db, `SELECT juz, nilai FROM tahfidz_nilai WHERE siswa_id = ? ORDER BY juz`, [studentId]),
     safeAll<any>(db, `SELECT e.nama, ea.status, en.nilai, ta.nama AS tahun_ajaran, ta.semester
       FROM ekstrakurikuler_anggota ea JOIN ekstrakurikuler e ON e.id = ea.ekstrakurikuler_id
-      LEFT JOIN ekstrakurikuler_nilai en ON en.ekstrakurikuler_id = e.id AND en.siswa_id = ea.siswa_id${period ? ' AND en.tahun_ajaran_id = ?' : ''}
+      LEFT JOIN ekstrakurikuler_nilai en ON en.ekstrakurikuler_id = e.id AND en.siswa_id = ea.siswa_id${taFilter('en.tahun_ajaran_id').sql}
       LEFT JOIN tahun_ajaran ta ON ta.id = en.tahun_ajaran_id
-      WHERE ea.siswa_id = ? ORDER BY e.nama`, period ? [period.id, studentId] : [studentId]),
+      WHERE ea.siswa_id = ? ORDER BY e.nama`, period ? [...taBinds, studentId] : [studentId]),
     safeAll<any>(db, `SELECT e.nama, UPPER(a.status) AS status, COUNT(*) AS jumlah
       FROM ekstrakurikuler_absensi a
       JOIN ekstrakurikuler_pertemuan p ON p.id = a.pertemuan_id
       JOIN ekstrakurikuler e ON e.id = p.ekstrakurikuler_id
-      WHERE a.siswa_id = ?${period ? ' AND p.tahun_ajaran_id = ?' : ''}
+      WHERE a.siswa_id = ?${taFilter('p.tahun_ajaran_id').sql}
       GROUP BY e.nama, UPPER(a.status) ORDER BY e.nama`, [studentId, ...taBinds]),
     safeFirst<any>(db, `SELECT nominal_target, total_dibayar, total_diskon, status FROM fin_dspt WHERE siswa_id = ?`, [studentId]),
     (() => { const f = !period ? '' : period.startDate && period.endDate ? ' AND printf(\'%04d-%02d-01\', tahun, bulan) BETWEEN ? AND ?' : ' AND 1 = 0'; return safeAll<any>(db, `SELECT COUNT(*) AS bulan,
@@ -311,7 +344,7 @@ export async function loadFullStudentReport(
     safeFirst<any>(db, `SELECT jumlah, total_dibayar, status FROM fin_spp_saldo_awal WHERE siswa_id = ?`, [studentId]),
     safeAll<any>(db, `SELECT COUNT(*) AS tagihan, SUM(total_nominal) AS nominal,
       SUM(total_dibayar) AS dibayar, SUM(total_diskon) AS diskon
-      FROM fin_koperasi_tagihan WHERE siswa_id = ?${period ? ' AND tahun_ajaran_id = ?' : ''}`, [studentId, ...taBinds]),
+      FROM fin_koperasi_tagihan WHERE siswa_id = ?${taSql}`, [studentId, ...taBinds]),
     (() => { const f = dateFilter('created_at'); return safeAll<any>(db, `SELECT kategori, COUNT(*) AS jumlah,
       SUM(CASE WHEN is_void = 0 THEN jumlah_total ELSE 0 END) AS total,
       SUM(CASE WHEN is_void = 1 THEN 1 ELSE 0 END) AS void
@@ -373,8 +406,11 @@ export async function loadFullStudentReport(
   if (academicRecord) {
     const records = period && classHistory[0]?.tingkat
       ? (() => {
-          const key = semesterKey(number(classHistory[0].tingkat), period.semester)
-          return key ? [{ label: period.label, values: parseObject(academicRecord[key]) }] : []
+          const semesters = period.semester === 0 ? [1, 2] : [period.semester]
+          return semesters.flatMap(semester => {
+            const key = semesterKey(number(classHistory[0].tingkat), semester)
+            return key ? [{ label: `${period.nama} · Semester ${semester}`, values: parseObject(academicRecord[key]) }] : []
+          })
         })()
       : [1, 2, 3, 4, 5, 6].map(index => ({ label: `Semester ${index}`, values: parseObject(academicRecord[`nilai_smt${index}`]) }))
     const subjects = Array.from(new Set(records.flatMap(item => Object.keys(item.values)))).sort()
@@ -388,9 +424,10 @@ export async function loadFullStudentReport(
     }
   }
 
-  const totalAttendance = attendance.reduce((sum, row) => sum + number(row.jumlah), 0)
-  const present = attendance.filter(row => ['HADIR', 'TERLAMBAT'].includes(text(row.status).toUpperCase()))
-    .reduce((sum, row) => sum + number(row.jumlah), 0)
+  const totalAttendance = number(attendanceSessions?.total)
+  const totalAbsent = attendance.reduce((sum, row) => sum + number(row.jumlah), 0)
+  const present = Math.max(0, totalAttendance - totalAbsent)
+  const attendanceWithPresent = [{ status: 'HADIR', jumlah: present }, ...attendance]
   const violationPoints = violations.reduce((sum, row) => sum + number(row.poin), 0)
   const activeSanction = [...sanctionConfigs]
     .sort((a, b) => number(b.poin_minimal) - number(a.poin_minimal))
@@ -461,7 +498,7 @@ export async function loadFullStudentReport(
       { label: 'Izin Kelas', value: integer(classPermits.reduce((s, r) => s + number(r.jumlah), 0)) },
       { label: 'Izin Keluar Kompleks', value: integer(exitPermits.reduce((s, r) => s + number(r.jumlah), 0)) },
     ], [
-      { title: 'Status Kehadiran', headers: ['Status', 'Jumlah'], rows: groupRows(attendance, 'status') },
+      { title: 'Status Kehadiran', headers: ['Status', 'Jumlah'], rows: groupRows(attendanceWithPresent, 'status') },
       { title: 'Rekap Bulanan', headers: ['Tahun/Semester', 'Bulan', 'Sakit', 'Izin', 'Alfa'], rows: monthlyAttendance.map(row => [`${text(row.nama)} / ${text(row.semester)}`, text(row.bulan), integer(row.sakit), integer(row.izin), integer(row.alpa)]) },
       { title: 'Koreksi Wali Kelas', headers: ['Status Akhir', 'Jumlah'], rows: groupRows(attendanceCorrections, 'status') },
       { title: 'Alasan Izin Kelas', headers: ['Alasan', 'Jumlah'], rows: groupRows(classPermits, 'alasan') },
