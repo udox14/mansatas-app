@@ -8,6 +8,7 @@ import {
   CKH_DEFAULT_SATUAN,
   CKH_DEFAULT_VOL,
   CKH_OTHER_DUTY_ACTIVITY,
+  buildAssignmentTeachingRows,
   buildTeachingRows,
   countCkhItems,
   getCkhEffectiveDates,
@@ -238,6 +239,25 @@ async function buildGeneratedRows(db: D1Database, userId: string, year: number, 
     `).bind(userId, startDate, endDate, ta.id).all<any>()
 
     generated.push(...buildTeachingRows((agendaRes.results || []).filter(row => effectiveSet.has(row.tanggal))))
+
+    const assignmentRes = await db.prepare(`
+      SELECT dt.tanggal, dtk.tugas, mp.nama_mapel, k.tingkat, k.nomor_kelas, k.kelompok
+      FROM delegasi_tugas dt
+      JOIN delegasi_tugas_kelas dtk ON dtk.delegasi_id = dt.id
+      JOIN penugasan_mengajar pm ON dtk.penugasan_mengajar_id = pm.id
+      JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
+      JOIN kelas k ON dtk.kelas_id = k.id
+      WHERE dt.dari_user_id = ?
+        AND dt.tanggal BETWEEN ? AND ?
+        AND pm.tahun_ajaran_id = ?
+        AND dtk.tugas IS NOT NULL
+        AND TRIM(dtk.tugas) <> ''
+      ORDER BY dt.tanggal ASC, mp.nama_mapel ASC, k.tingkat ASC, k.nomor_kelas ASC
+    `).bind(userId, startDate, endDate, ta.id).all<any>()
+
+    generated.push(...buildAssignmentTeachingRows(
+      (assignmentRes.results || []).filter(row => effectiveSet.has(row.tanggal))
+    ))
     generated.forEach(row => datesWithTeaching.add(row.tanggal))
   }
 

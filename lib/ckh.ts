@@ -15,7 +15,7 @@ export type CkhGeneratedRow = {
   catatan_harian: string
   vol?: number
   satuan?: string
-  source: 'autofill' | 'calendar'
+  source: 'autofill' | 'assignment' | 'calendar'
   source_key: string
 }
 
@@ -160,6 +160,15 @@ type AgendaRow = {
   kelompok: string
 }
 
+type AssignmentRow = {
+  tanggal: string
+  tugas: string | null
+  nama_mapel: string
+  tingkat: number
+  nomor_kelas: string
+  kelompok: string
+}
+
 export function buildTeachingRows(rows: AgendaRow[]) {
   const grouped = new Map<string, Set<string>>()
 
@@ -181,6 +190,31 @@ export function buildTeachingRows(rows: AgendaRow[]) {
       vol: Math.max(1, kelas.length),
       source: 'autofill' as const,
       source_key: `agenda:${tanggal}:${mapel}:${materi}`,
+    }
+  })
+}
+
+export function buildAssignmentTeachingRows(rows: AssignmentRow[]) {
+  const grouped = new Map<string, Set<string>>()
+
+  for (const row of rows) {
+    const tugas = normalizeCkhText(row.tugas)
+    if (!tugas) continue
+    const key = `${row.tanggal}::${row.nama_mapel}::${tugas}`
+    if (!grouped.has(key)) grouped.set(key, new Set())
+    grouped.get(key)!.add(formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok))
+  }
+
+  return Array.from(grouped.entries()).map(([key, kelasSet]) => {
+    const [tanggal, mapel, tugas] = key.split('::')
+    const kelas = Array.from(kelasSet).sort((a, b) => a.localeCompare(b, 'id-ID'))
+    return {
+      tanggal,
+      kegiatan_bulanan: CKH_TEACHING_ACTIVITY,
+      catatan_harian: `Mengajar ${mapel}: "${tugas}" di kelas ${joinIndonesian(kelas)}`,
+      vol: Math.max(1, kelas.length),
+      source: 'assignment' as const,
+      source_key: `assignment:${tanggal}:${mapel}:${tugas}`,
     }
   })
 }

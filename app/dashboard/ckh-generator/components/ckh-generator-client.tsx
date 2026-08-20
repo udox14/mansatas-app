@@ -114,6 +114,7 @@ const roleOptions = [
 
 function sourceLabel(row: Pick<Row, 'source' | 'source_key'>) {
   if (row.source_key?.startsWith('pattern:')) return 'Pola'
+  if (row.source === 'assignment' || row.source_key?.startsWith('assignment:')) return 'Penugasan'
   if (row.source === 'autofill') return 'Agenda'
   if (row.source === 'calendar') return 'Kalender'
   return 'Manual'
@@ -883,7 +884,7 @@ export function CkhGeneratorClient({
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
             <Button variant="outline" onClick={syncDraft} disabled={isSyncing} className="h-10 gap-2 whitespace-nowrap">
               {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-              Sinkronkan Agenda
+              Sinkronkan Agenda & Penugasan
             </Button>
             <SignatureSettingsDialog
               documentId={initialData.document.id}
@@ -954,7 +955,11 @@ export function CkhGeneratorClient({
                   {rows.map(row => {
                     const span = rowDateSpans.get(row)
                     return (
-                    <tr key={row.id} className={cn('bg-white transition-colors hover:bg-slate-50', row.has_conflict && 'bg-amber-50 hover:bg-amber-50')}>
+                    <tr key={row.id} className={cn(
+                      'bg-white transition-colors hover:bg-slate-50',
+                      (row.source === 'assignment' || row.source_key?.startsWith('assignment:')) && 'bg-sky-50 hover:bg-sky-100',
+                      row.has_conflict && 'bg-amber-50 hover:bg-amber-50',
+                    )}>
                       {span?.isFirstOfDate ? (
                         <>
                           <td rowSpan={span.dateRowSpan} className="border border-slate-300 p-2 text-center align-middle font-medium text-slate-500">{span.dateIndex}</td>
@@ -1030,7 +1035,7 @@ export function CkhGeneratorClient({
                           <div className="mt-2 rounded border border-amber-300 bg-amber-100 p-2 text-[11px] text-amber-800">
                             <div className="flex items-start gap-1.5">
                               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                              <span>Agenda/kalender punya versi baru: {row.suggested_catatan_harian}</span>
+                              <span>Agenda/penugasan/kalender punya versi baru: {row.suggested_catatan_harian}</span>
                             </div>
                             <Button size="sm" variant="outline" className="mt-2 h-7 text-[11px]" onClick={() => acceptSuggestion(row.id)}>
                               <Check className="mr-1 h-3 w-3" /> Pakai versi baru
@@ -1065,7 +1070,12 @@ export function CkhGeneratorClient({
                       </td>
                       <td className="border border-slate-300 p-1.5 align-top print:hidden">
                         <div className="flex items-center justify-center gap-1">
-                          <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500">{sourceLabel(row)}</span>
+                          <span className={cn(
+                            'rounded-full px-2 py-1 text-[10px] font-medium',
+                            (row.source === 'assignment' || row.source_key?.startsWith('assignment:'))
+                              ? 'bg-sky-100 text-sky-700'
+                              : 'bg-slate-100 text-slate-500',
+                          )}>{sourceLabel(row)}</span>
                           <button disabled={busyRowId === row.id} onClick={() => removeRow(row.id)} className="rounded-md p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50" title="Hapus baris">
                             {busyRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                           </button>
