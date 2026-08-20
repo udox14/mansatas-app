@@ -11,6 +11,7 @@ import {
   getStudentNoteContext,
   getStudentNotes,
   getStudentNoteStudents,
+  getStudentsWithNotes,
 } from '@/lib/student-notes'
 import { PageHeader } from '@/components/layout/page-header'
 import { CatatanSiswaClient } from './catatan-siswa-client'
@@ -29,7 +30,9 @@ export default async function CatatanSiswaPage({
   const db = await getDB()
   if (!(await checkFeatureAccess(db, user.id, 'catatan-siswa'))) redirect('/dashboard')
 
-  const mode = query.mode === 'saya' ? 'saya' as const : 'kelas' as const
+  const mode = query.mode === 'saya' ? 'saya' as const
+    : query.mode === 'bercatatan' ? 'bercatatan' as const
+    : 'kelas' as const
   const context = await getStudentNoteContext(db, user.id)
   const [assignments, classes] = await Promise.all([
     getStudentNoteAssignments(db, user.id),
@@ -41,7 +44,19 @@ export default async function CatatanSiswaPage({
     return (
       <div className="min-w-0 space-y-4 animate-in fade-in duration-500 pb-10">
         <PageHeader title="Catatan Siswa" description="Catat dan baca informasi internal siswa yang terhubung dengan tugas Anda." />
-        <CatatanSiswaClient assignments={assignments} classes={classes} students={[]} notes={notes} selectedAssignmentId={null} selectedClassId={null} selectedStudent={null} mode={mode} />
+        <CatatanSiswaClient assignments={assignments} classes={classes} students={[]} notedStudents={[]} notes={notes} selectedAssignmentId={null} selectedClassId={null} selectedStudent={null} mode={mode} />
+      </div>
+    )
+  }
+
+  if (mode === 'bercatatan') {
+    const notedStudents = await getStudentsWithNotes(db, user.id, context.roles)
+    const selectedStudent = notedStudents.find(item => item.id === query.siswa) || notedStudents[0] || null
+    const notes = selectedStudent ? await getStudentNotes(db, user.id, selectedStudent.id, context.roles) : []
+    return (
+      <div className="min-w-0 space-y-4 animate-in fade-in duration-500 pb-10">
+        <PageHeader title="Catatan Siswa" description="Catat dan baca informasi internal siswa yang terhubung dengan tugas Anda." />
+        <CatatanSiswaClient assignments={assignments} classes={classes} students={[]} notedStudents={notedStudents} notes={notes} selectedAssignmentId={null} selectedClassId={null} selectedStudent={selectedStudent} mode={mode} />
       </div>
     )
   }
@@ -72,6 +87,7 @@ export default async function CatatanSiswaPage({
           assignments={assignments}
           classes={classes}
           students={students}
+          notedStudents={[]}
           notes={notes}
           selectedAssignmentId={selectedAssignment?.id || null}
           selectedClassId={selectedClassId}

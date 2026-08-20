@@ -39,3 +39,9 @@ export type StudentNoteStudent = {
   foto_url: string | null
   kelas_id: string
 }
+
+export type StudentNoteStudentWithStats = StudentNoteStudent & {
+  kelas_label: string
+  note_count: number
+  latest_note_at: string
+}

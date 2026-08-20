@@ -8,22 +8,25 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { StudentNoteTimeline } from '@/components/student-notes/student-note-timeline'
-import type { StudentNote, StudentNoteAssignment, StudentNoteClass, StudentNoteStudent } from '@/lib/student-note-shared'
+import type { StudentNote, StudentNoteAssignment, StudentNoteClass, StudentNoteStudent, StudentNoteStudentWithStats } from '@/lib/student-note-shared'
 
 type Props = {
   assignments: StudentNoteAssignment[]
   classes: StudentNoteClass[]
   students: StudentNoteStudent[]
+  notedStudents: StudentNoteStudentWithStats[]
   notes: StudentNote[]
   selectedAssignmentId: string | null
   selectedClassId: string | null
   selectedStudent: StudentNoteStudent | null
-  mode: 'kelas' | 'saya'
+  mode: 'kelas' | 'saya' | 'bercatatan'
 }
 
 export function CatatanSiswaClient(props: Props) {
   const router = useRouter()
   const [search, setSearch] = useState('')
+  const [notedClass, setNotedClass] = useState('semua')
+  const [notedSort, setNotedSort] = useState('terbaru')
   const visibleStudents = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('id-ID')
     if (!needle) return props.students
@@ -31,6 +34,22 @@ export function CatatanSiswaClient(props: Props) {
       student.nama_lengkap.toLocaleLowerCase('id-ID').includes(needle) || String(student.nisn || '').includes(needle)
     )
   }, [props.students, search])
+  const notedClasses = useMemo(() => Array.from(
+    new Map(props.notedStudents.map(student => [student.kelas_id, student.kelas_label])).entries()
+  ).sort((a, b) => a[1].localeCompare(b[1], 'id-ID', { numeric: true })), [props.notedStudents])
+  const visibleNotedStudents = useMemo(() => {
+    const needle = search.trim().toLocaleLowerCase('id-ID')
+    return props.notedStudents
+      .filter(student => notedClass === 'semua' || student.kelas_id === notedClass)
+      .filter(student => !needle
+        || student.nama_lengkap.toLocaleLowerCase('id-ID').includes(needle)
+        || String(student.nisn || '').includes(needle))
+      .sort((a, b) => {
+        if (notedSort === 'terbanyak') return b.note_count - a.note_count || a.nama_lengkap.localeCompare(b.nama_lengkap, 'id-ID')
+        if (notedSort === 'nama') return a.nama_lengkap.localeCompare(b.nama_lengkap, 'id-ID')
+        return b.latest_note_at.localeCompare(a.latest_note_at) || a.nama_lengkap.localeCompare(b.nama_lengkap, 'id-ID')
+      })
+  }, [props.notedStudents, search, notedClass, notedSort])
 
   const navigate = (values: { assignment?: string | null; kelas?: string | null; siswa?: string | null }) => {
     const params = new URLSearchParams()
@@ -44,19 +63,86 @@ export function CatatanSiswaClient(props: Props) {
     router.push(`/dashboard/catatan-siswa?${params.toString()}`)
   }
 
+  const navigateNotedStudent = (siswaId: string) => {
+    const params = new URLSearchParams({ mode: 'bercatatan', siswa: siswaId })
+    router.push(`/dashboard/catatan-siswa?${params.toString()}`)
+  }
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 rounded-xl border border-surface bg-surface p-1 shadow-sm sm:w-fit">
+      <div className="grid grid-cols-3 gap-1 rounded-xl border border-surface bg-surface p-1 shadow-sm sm:w-fit sm:gap-2">
         <Link href="/dashboard/catatan-siswa?mode=kelas" className={`rounded-lg px-4 py-2 text-center text-xs font-semibold transition-colors ${props.mode === 'kelas' ? 'bg-emerald-600 text-white' : 'text-slate-500 hover:bg-surface-2'}`}>
           Kelas & Siswa
         </Link>
         <Link href="/dashboard/catatan-siswa?mode=saya" className={`rounded-lg px-4 py-2 text-center text-xs font-semibold transition-colors ${props.mode === 'saya' ? 'bg-emerald-600 text-white' : 'text-slate-500 hover:bg-surface-2'}`}>
           Catatan Saya
         </Link>
+        <Link href="/dashboard/catatan-siswa?mode=bercatatan" className={`rounded-lg px-2 py-2 text-center text-xs font-semibold transition-colors sm:px-4 ${props.mode === 'bercatatan' ? 'bg-emerald-600 text-white' : 'text-slate-500 hover:bg-surface-2'}`}>
+          Siswa Bercatatan
+        </Link>
       </div>
 
       {props.mode === 'saya' ? (
         <StudentNoteTimeline notes={props.notes} showStudentOnCards />
+      ) : props.mode === 'bercatatan' ? (
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+          <aside className="min-w-0 space-y-3 rounded-xl border border-surface bg-surface p-4 shadow-sm lg:sticky lg:top-0 lg:self-start">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Siswa Bercatatan</p>
+                <p className="mt-0.5 text-[11px] text-slate-400">{visibleNotedStudents.length} dari {props.notedStudents.length} siswa</p>
+              </div>
+            </div>
+            <div className="relative">
+              <MagnifyingGlass className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input value={search} onChange={event => setSearch(event.target.value)} placeholder="Cari nama atau NISN..." className="min-h-10 pl-9" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Select value={notedClass} onValueChange={setNotedClass}>
+                <SelectTrigger className="min-h-10 w-full"><SelectValue placeholder="Semua kelas" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="semua">Semua kelas</SelectItem>
+                  {notedClasses.map(([id, label]) => <SelectItem key={id} value={id}>Kelas {label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={notedSort} onValueChange={setNotedSort}>
+                <SelectTrigger className="min-h-10 w-full"><SelectValue placeholder="Urutkan" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="terbaru">Catatan terbaru</SelectItem>
+                  <SelectItem value="terbanyak">Catatan terbanyak</SelectItem>
+                  <SelectItem value="nama">Nama A–Z</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="max-h-[58dvh] space-y-1 overflow-y-auto pr-1">
+              {visibleNotedStudents.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 px-3 py-8 text-center text-xs text-slate-400 dark:border-slate-700">
+                  Tidak ada siswa yang cocok dengan filter.
+                </div>
+              ) : visibleNotedStudents.map(student => (
+                <button key={student.id} type="button" onClick={() => navigateNotedStudent(student.id)} className={`flex min-h-14 w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors ${props.selectedStudent?.id === student.id ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'hover:bg-surface-2'}`}>
+                  <AvatarSiswa fotoUrl={student.foto_url} nama={student.nama_lengkap} size="sm" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-semibold">{student.nama_lengkap}</span>
+                    <span className="block truncate text-[10px] text-slate-400">{student.kelas_label} · NISN {student.nisn || '-'}</span>
+                  </span>
+                  <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">{student.note_count}</span>
+                </button>
+              ))}
+            </div>
+          </aside>
+          <main className="min-w-0">
+            {props.selectedStudent ? (
+              <StudentNoteTimeline notes={props.notes} siswa={props.selectedStudent} readOnlyLabel="Daftar ini hanya menampilkan siswa yang sudah memiliki catatan. Untuk menambah catatan baru, gunakan tab Kelas & Siswa." />
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-surface px-5 py-14 text-center dark:border-slate-700">
+                <NotePencil className="mx-auto h-10 w-10 text-slate-300 dark:text-slate-600" />
+                <p className="mt-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Belum ada siswa yang memiliki catatan</p>
+                <p className="mt-1 text-xs text-slate-400">Siswa akan muncul otomatis setelah catatan pertamanya disimpan.</p>
+              </div>
+            )}
+          </main>
+        </div>
       ) : (
         <div className="grid min-w-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="min-w-0 space-y-4 rounded-xl border border-surface bg-surface p-4 shadow-sm lg:sticky lg:top-0 lg:self-start">

@@ -9,8 +9,9 @@ import {
   type StudentNoteAssignment,
   type StudentNoteClass,
   type StudentNoteStudent,
+  type StudentNoteStudentWithStats,
 } from '@/lib/student-note-shared'
-export type { StudentNote, StudentNoteAssignment, StudentNoteClass, StudentNoteStudent } from '@/lib/student-note-shared'
+export type { StudentNote, StudentNoteAssignment, StudentNoteClass, StudentNoteStudent, StudentNoteStudentWithStats } from '@/lib/student-note-shared'
 
 const GLOBAL_READER_ROLES = ['super_admin', 'admin_tu', 'kepsek', 'wakamad']
 
@@ -161,6 +162,60 @@ export async function getStudentNoteStudents(db: D1Database, kelasId: string): P
     FROM siswa WHERE kelas_id = ? AND status = 'aktif'
   `).bind(kelasId).all<StudentNoteStudent>()
   return (rows.results || []).sort((a, b) => studentNoteCollator.compare(a.nama_lengkap, b.nama_lengkap))
+}
+
+export async function getStudentsWithNotes(
+  db: D1Database,
+  userId: string,
+  roles?: string[],
+): Promise<StudentNoteStudentWithStats[]> {
+  const resolvedRoles = roles ?? await getUserRoles(db, userId)
+  const isGlobal = resolvedRoles.some(role => GLOBAL_READER_ROLES.includes(role))
+  const accessFilter = isGlobal ? '' : `AND (
+    EXISTS (SELECT 1 FROM catatan_siswa own_note WHERE own_note.siswa_id = s.id AND own_note.pencatat_id = ?)
+    OR k.wali_kelas_id = ?
+    OR EXISTS (
+      SELECT 1 FROM penugasan_mengajar pm
+      JOIN tahun_ajaran ta ON ta.id = pm.tahun_ajaran_id AND ta.is_active = 1
+      WHERE pm.kelas_id = s.kelas_id AND (
+        pm.guru_id = ? OR pm.id IN (
+          SELECT DISTINCT jm.penugasan_id FROM jadwal_mengajar jm
+          JOIN guru_ppl_mapping gpm ON gpm.jadwal_mengajar_id = jm.id
+          WHERE gpm.guru_ppl_id = ?
+        )
+      )
+    )
+    OR EXISTS (
+      SELECT 1 FROM kelas_binaan_bk kb
+      JOIN tahun_ajaran ta_bk ON ta_bk.id = kb.tahun_ajaran_id AND ta_bk.is_active = 1
+      WHERE kb.kelas_id = s.kelas_id AND kb.guru_bk_id = ?
+    )
+  )`
+  const statement = db.prepare(`
+    SELECT s.id, s.nama_lengkap, s.nisn, s.foto_url, s.kelas_id,
+      k.tingkat, k.nomor_kelas, k.kelompok,
+      COUNT(cs.id) AS note_count, MAX(cs.created_at) AS latest_note_at
+    FROM siswa s
+    JOIN kelas k ON k.id = s.kelas_id
+    JOIN catatan_siswa cs ON cs.siswa_id = s.id
+    WHERE s.status = 'aktif' ${accessFilter}
+    GROUP BY s.id, s.nama_lengkap, s.nisn, s.foto_url, s.kelas_id,
+      k.tingkat, k.nomor_kelas, k.kelompok
+  `)
+  const rows = await (isGlobal
+    ? statement.all<any>()
+    : statement.bind(userId, userId, userId, userId, userId).all<any>())
+
+  return (rows.results || []).map(row => ({
+    id: row.id,
+    nama_lengkap: row.nama_lengkap,
+    nisn: row.nisn || null,
+    foto_url: row.foto_url || null,
+    kelas_id: row.kelas_id,
+    kelas_label: formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok),
+    note_count: Number(row.note_count || 0),
+    latest_note_at: row.latest_note_at,
+  })).sort((a, b) => studentNoteCollator.compare(a.nama_lengkap, b.nama_lengkap))
 }
 
 export async function canReadStudentNotes(
