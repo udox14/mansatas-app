@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   ArrowLeft, ChevronDown, ChevronRight, Clock,
-  FileSpreadsheet, Loader2, Printer, Search, User, UserRoundX, Users,
+  FileSpreadsheet, Loader2, Printer, Search, Settings2, User, UserRoundX, Users,
 } from 'lucide-react'
 import {
   getAbsensiHeatmap,
@@ -995,7 +996,7 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
   const [siswaId, setSiswaId] = useState('')
   const [printData, setPrintData] = useState<any>(null)
   const [paper, setPaper] = useState<PrintPaper>('F4')
-  const [orientation, setOrientation] = useState<PrintOrientation>('landscape')
+  const [orientation, setOrientation] = useState<PrintOrientation>('portrait')
   const [loading, setLoading] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
   const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
@@ -1213,7 +1214,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
             <Select value={printKind} onValueChange={(v) => {
               const kind = v as PrintKind
               setPrintKind(kind)
-              setOrientation(kind === 'siswa' ? 'portrait' : 'landscape')
+              setOrientation('portrait')
               if (kind === 'catatan-guru') {
                 setKelasId('')
                 setSiswaId('')
@@ -1406,21 +1407,12 @@ tr { break-inside: avoid; page-break-inside: avoid; }
             </Select>
           </div>
         </div>
-        <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/50">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <Label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Status cetak</Label>
-              <p className="text-[11px] text-slate-500">{printStatusSummary}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowPrintStatusOptions(current => !current)}
-              className="text-xs font-semibold text-indigo-600 hover:underline"
-            >
-              {showPrintStatusOptions ? 'Tutup' : 'Atur'}
-            </button>
-          </div>
-          <div className={`mt-3 ${showPrintStatusOptions ? '' : 'hidden'}`}>
+        <Dialog open={showPrintStatusOptions} onOpenChange={setShowPrintStatusOptions}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Atur Status Cetak</DialogTitle>
+            </DialogHeader>
+            <p className="text-xs text-slate-500">Status aktif: {printStatusSummary}</p>
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="text-[11px] text-slate-500">Status yang tidak dipilih tidak akan ditampilkan sebagai kolom.</p>
               <button type="button" onClick={() => { setPrintStatusCodes(printableStatusOptions.map(option => option.code)); setPrintData(null) }} className="shrink-0 text-xs font-semibold text-indigo-600 hover:underline">Semua</button>
@@ -1436,9 +1428,12 @@ tr { break-inside: avoid; page-break-inside: avoid; }
               )
             })}
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <Button type="button" onClick={() => setShowPrintStatusOptions(true)} size="sm" variant="outline" className="w-full sm:w-auto">
+            <Settings2 className="mr-1 h-4 w-4" />Status Cetak
+          </Button>
           <Button
             onClick={() => load(false)}
             disabled={loading || (printKind !== 'siswa' && !kelasId) || (printKind === 'siswa' && !siswaId) || (printKind === 'catatan-guru' && catatanMode === 'siswa' && !siswaId)}
@@ -1598,7 +1593,9 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedS
         pageBreakBefore: pageBreak ? 'always' : 'auto',
       }}
     >
-      <div style={{ marginLeft: '-7mm', marginRight: '-7mm', marginBottom: '5pt' }}>
+      <div style={orientation === 'landscape'
+        ? { width: '200mm', maxWidth: '100%', margin: '0 auto 5pt' }
+        : { marginLeft: '-7mm', marginRight: '-7mm', marginBottom: '5pt' }}>
         <img src="/kopsurat.png" alt="Kop Surat" style={{ width: '100%', display: 'block' }} />
       </div>
 
@@ -1724,10 +1721,19 @@ const printTd = {
   fontWeight: 400,
 }
 
-function PrintHeader({ title, subtitle }: { title: string; subtitle: string }) {
+function PrintHeader({ title, subtitle, orientation }: { title: string; subtitle: string; orientation: PrintOrientation }) {
   return (
     <div>
-      <img src="/kopsurat.png" alt="Kop Surat" style={{ width: '100%', display: 'block', marginBottom: 12 }} />
+      <img
+        src="/kopsurat.png"
+        alt="Kop Surat"
+        style={{
+          width: orientation === 'landscape' ? '200mm' : '100%',
+          maxWidth: '100%',
+          display: 'block',
+          margin: orientation === 'landscape' ? '0 auto 12px' : '0 0 12px',
+        }}
+      />
       <div style={{ textAlign: 'center', marginBottom: 12 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, textTransform: 'uppercase', margin: 0 }}>{title}</h2>
         <p style={{ fontSize: 12, margin: '4px 0', color: '#444' }}>{subtitle}</p>
@@ -1762,6 +1768,7 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai, paper, orientat
           <PrintHeader
             title="Rekap Absensi Siswa Per Kelas"
             subtitle={`Kelas ${section.kelas?.label || '-'} | ${mode === 'hari' ? fmtTglFull(tanggal) : `${fmtTgl(tglMulai)} s/d ${fmtTgl(tglSelesai)}`}${section.slotPart ? ` | ${section.slotPart}` : ''}`}
+            orientation={orientation}
           />
           {mode === 'hari' ? (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
@@ -1866,6 +1873,7 @@ function PrintTidakHadir({ data, tglMulai, tglSelesai, paper, orientation, selec
           <PrintHeader
             title="Daftar Siswa Tidak Hadir"
             subtitle={`${periode} | Status: ${statusLabel}${pages.length > 1 ? ` | Halaman ${pageIndex + 1}/${pages.length}` : ''}`}
+            orientation={orientation}
           />
           {pageIndex === 0 && (
             <div style={{ display: 'flex', gap: '8pt', marginBottom: '10pt', fontSize: '9pt' }}>
@@ -1933,9 +1941,8 @@ function PrintCatatanAbsenGuru({ data, tglMulai, tglSelesai, paper, orientation,
   if (data?.error) return <div style={{ color: '#b91c1c', fontSize: 12 }}>{data.error}</div>
 
   const rows = (data?.data || []).filter((row: any) => isSelectedPrintStatus(row.status, selectedStatusCodes))
-  const scopeLabel = data?.scope?.mode === 'siswa'
-    ? `Per Siswa: ${data.scope.siswa?.nama_lengkap || '-'} | Kelas ${data.scope.kelas_label || '-'}`
-    : `Per Kelas: ${data?.scope?.kelas_label || '-'}`
+  const isPerSiswa = data?.scope?.mode === 'siswa'
+  const scopeLabel = isPerSiswa ? 'Per Siswa' : `Per Kelas: ${data?.scope?.kelas_label || '-'}`
   const perPage = orientation === 'landscape' ? 18 : 12
   const pages = Array.from({ length: Math.max(1, Math.ceil(rows.length / perPage)) }, (_, index) => rows.slice(index * perPage, (index + 1) * perPage))
   const periode = `${fmtTgl(tglMulai)}${tglMulai !== tglSelesai ? ` s/d ${fmtTgl(tglSelesai)}` : ''}`
@@ -1961,7 +1968,17 @@ function PrintCatatanAbsenGuru({ data, tglMulai, tglSelesai, paper, orientation,
           <PrintHeader
             title="Catatan Absen oleh Guru"
             subtitle={`${scopeLabel} | ${periode} | Status: ${selectedStatusLegend(selectedStatusCodes)}${pages.length > 1 ? ` | Halaman ${pageIndex + 1}/${pages.length}` : ''}`}
+            orientation={orientation}
           />
+          {isPerSiswa && pageIndex === 0 && (
+            <table style={{ marginBottom: '10pt', borderCollapse: 'collapse', fontSize: '9pt' }}>
+              <tbody>
+                <tr><td style={{ padding: '1.5pt 10pt 1.5pt 0' }}>Nama Siswa</td><td style={{ padding: '1.5pt 0', fontWeight: 700 }}>: {data.scope.siswa?.nama_lengkap || '-'}</td></tr>
+                <tr><td style={{ padding: '1.5pt 10pt 1.5pt 0' }}>Kelas</td><td style={{ padding: '1.5pt 0' }}>: {data.scope.kelas_label || '-'}</td></tr>
+                <tr><td style={{ padding: '1.5pt 10pt 1.5pt 0' }}>NISN</td><td style={{ padding: '1.5pt 0' }}>: {data.scope.siswa?.nisn || '-'}</td></tr>
+              </tbody>
+            </table>
+          )}
           {pageIndex === 0 && (
             <div style={{ display: 'flex', gap: '8pt', marginBottom: '10pt', fontSize: '9pt' }}>
               {summaryItems.map(item => (
@@ -1976,19 +1993,19 @@ function PrintCatatanAbsenGuru({ data, tglMulai, tglSelesai, paper, orientation,
             <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: orientation === 'landscape' ? '8pt' : '7pt' }}>
               <colgroup>
                 <col style={{ width: '24pt' }} />
-                <col style={{ width: '58pt' }} />
-                <col style={{ width: '14%' }} />
-                <col style={{ width: '48pt' }} />
-                <col style={{ width: '62pt' }} />
+                <col style={{ width: isPerSiswa ? '62pt' : '58pt' }} />
+                {!isPerSiswa && <col style={{ width: '14%' }} />}
+                {!isPerSiswa && <col style={{ width: '48pt' }} />}
+                {!isPerSiswa && <col style={{ width: '62pt' }} />}
                 <col style={{ width: '44pt' }} />
-                <col style={{ width: '12%' }} />
+                <col style={{ width: isPerSiswa ? '17%' : '12%' }} />
                 <col style={{ width: '38pt' }} />
-                <col style={{ width: '13%' }} />
+                <col style={{ width: isPerSiswa ? '20%' : '13%' }} />
                 <col />
               </colgroup>
               <thead>
                 <tr>
-                  {['No', 'Tanggal', 'Nama Siswa', 'Kelas', 'NISN', 'Status', 'Mata Pelajaran', 'Jam', 'Guru Penginput', 'Catatan'].map(header => (
+                  {['No', 'Tanggal', ...(!isPerSiswa ? ['Nama Siswa', 'Kelas', 'NISN'] : []), 'Status', 'Mata Pelajaran', 'Jam', 'Guru Penginput', 'Catatan'].map(header => (
                     <th key={header} style={{ ...printTh, padding: '3pt 2pt', backgroundColor: '#eee' }}>{header}</th>
                   ))}
                 </tr>
@@ -1997,10 +2014,10 @@ function PrintCatatanAbsenGuru({ data, tglMulai, tglSelesai, paper, orientation,
                 {pageRows.map((row: any, index: number) => (
                   <tr key={row.id || `${row.siswa_id}-${row.tanggal}-${row.jam_ke_mulai}`}>
                     <td style={{ ...printTd, textAlign: 'center' }}>{pageIndex * perPage + index + 1}</td>
-                    <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal' }}>{fmtTgl(row.tanggal)}<br /><span style={{ fontSize: '6pt' }}>{row.hariNama}</span></td>
-                    <td style={{ ...printTd, whiteSpace: 'normal' }}>{row.nama_lengkap}</td>
-                    <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal' }}>{row.kelas_label}</td>
-                    <td style={{ ...printTd, textAlign: 'center' }}>{row.nisn || '-'}</td>
+                    <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal' }}>{fmtTgl(row.tanggal)}{!isPerSiswa && <><br /><span style={{ fontSize: '6pt' }}>{row.hariNama}</span></>}</td>
+                    {!isPerSiswa && <td style={{ ...printTd, whiteSpace: 'normal' }}>{row.nama_lengkap}</td>}
+                    {!isPerSiswa && <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal' }}>{row.kelas_label}</td>}
+                    {!isPerSiswa && <td style={{ ...printTd, textAlign: 'center' }}>{row.nisn || '-'}</td>}
                     <td style={{ ...printTd, textAlign: 'center' }}>{attendanceStatusLabel(row.status)}</td>
                     <td style={{ ...printTd, whiteSpace: 'normal' }}>{row.nama_mapel || '-'}</td>
                     <td style={{ ...printTd, textAlign: 'center' }}>{row.jam_ke_mulai === row.jam_ke_selesai ? row.jam_ke_mulai : `${row.jam_ke_mulai}-${row.jam_ke_selesai}`}</td>
@@ -2030,7 +2047,7 @@ function PrintSiswa({ data, tglMulai, tglSelesai, paper, orientation, selectedSt
   const selectedStatusOptions = getSelectedPrintStatusOptions(selectedStatusCodes)
   return (
     <div style={printablePageStyle(paper, orientation)}>
-      <PrintHeader title="Rekap Absensi Siswa" subtitle={`${siswa.nama || '-'} | Kelas ${siswa.kelas || '-'} | ${fmtTgl(tglMulai)} s/d ${fmtTgl(tglSelesai)}`} />
+      <PrintHeader title="Rekap Absensi Siswa" subtitle={`${siswa.nama || '-'} | Kelas ${siswa.kelas || '-'} | ${fmtTgl(tglMulai)} s/d ${fmtTgl(tglSelesai)}`} orientation={orientation} />
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12, fontSize: 11 }}>
         <tbody>
           <tr><td style={{ padding: 3, width: 120 }}>Nama</td><td style={{ padding: 3 }}>: {siswa.nama || '-'}</td></tr>

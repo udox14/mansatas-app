@@ -12,7 +12,7 @@ import {
   User, GraduationCap, ShieldAlert, DoorOpen, LineChart, 
   MapPin, Phone, Users, CheckCircle2, History, AlertTriangle, 
   Image as ImageIcon, ChevronDown, ChevronUp, BookOpen, Pencil,
-  LogOut, RotateCcw, CalendarSearch, ShieldCheck, Wallet, Receipt, Landmark, NotebookPen, ArrowLeftRight
+  LogOut, RotateCcw, CalendarSearch, ShieldCheck, Wallet, Receipt, Landmark, NotebookPen, ArrowLeftRight, Printer
 } from 'lucide-react'
 import { EditSiswaModal } from '../../components/edit-modal'
 import { TandaiKeluarModal, BatalkanKeluarModal } from './tandai-keluar-modal'
@@ -80,6 +80,7 @@ export function DetailSiswaClient({
   // Define canFullEdit based on currentUser roles
   const roles = currentUser?.roles || []
   const canFullEdit = roles.some((r: string) => ['super_admin', 'admin_tu'].includes(r))
+  const canPrintFullReport = roles.some((r: string) => ['super_admin', 'kepsek', 'wakamad', 'admin_tu', 'guru_bk'].includes(r))
 
   // State untuk Accordion Akademik (Otomatis buka kelas saat ini, atau kelas 10 jika belum ada)
   const [openAccordion, setOpenAccordion] = useState<number | null>(siswa.kelas?.tingkat || 10)
@@ -314,6 +315,17 @@ export function DetailSiswaClient({
               >
                 <Pencil className="h-3.5 w-3.5" /> Edit Biodata
               </Button>
+              {canPrintFullReport && (
+                <Button
+                  asChild
+                  size="sm"
+                  className="h-9 gap-1.5 bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"
+                >
+                  <Link href={`/dashboard/siswa/${siswa.id}/full-report`}>
+                    <Printer className="h-3.5 w-3.5" /> Full Report
+                  </Link>
+                </Button>
+              )}
               {canFullEdit && siswa.status === 'aktif' && siswa.kelas && (
                 <Button
                   onClick={() => setShowMutasiModal(true)}
