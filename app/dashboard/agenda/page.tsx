@@ -10,11 +10,12 @@ import { PageHeader } from '@/components/layout/page-header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AgendaClient } from './components/agenda-client'
 import { AgendaPiketClient } from './components/agenda-piket-client'
-import { RiwayatMateriTab } from './components/riwayat-materi-tab'
-import { getJadwalGuruHariIni, getRiwayatMateri, getRiwayatTahunAjaran, type RiwayatTahunAjaran } from './actions'
+import { RiwayatKehadiranTab } from './components/riwayat-kehadiran-tab'
+import { getJadwalGuruHariIni } from './actions'
 import { getJadwalPiketHariIni } from './actions-piket'
 import { getEffectiveUser, getActAsUserList, getActAsDate } from '@/lib/act-as'
 import { ActAsBanner } from '@/components/layout/act-as-banner'
+import { getTeacherAttendance } from '@/lib/teacher-attendance'
 
 export const metadata = { title: 'Agenda Guru - MANSATAS App' }
 
@@ -44,32 +45,21 @@ async function AgendaPiketDataFetcher({
 
 async function RiwayatDataFetcher({
   effectiveUserId,
-  selectedTahunAjaranId,
-  tahunAjaranOptions,
+  month,
 }: {
   effectiveUserId: string
-  selectedTahunAjaranId?: string
-  tahunAjaranOptions: RiwayatTahunAjaran[]
+  month?: string
 }) {
-  const data = await getRiwayatMateri(effectiveUserId, selectedTahunAjaranId)
-  const activeTahunAjaranId = tahunAjaranOptions.find(ta => ta.is_active === 1)?.id || null
-  const resolvedTahunAjaranId = selectedTahunAjaranId || activeTahunAjaranId
-
-  return (
-    <RiwayatMateriTab
-      key={resolvedTahunAjaranId || 'tanpa-tahun-ajaran'}
-      data={data}
-      tahunAjaranOptions={tahunAjaranOptions}
-      selectedTahunAjaranId={resolvedTahunAjaranId}
-    />
-  )
+  const db = await getDB()
+  const result = await getTeacherAttendance(db, effectiveUserId, month)
+  return <RiwayatKehadiranTab key={result.month} result={result} />
 }
 
 export const dynamic = 'force-dynamic'
 export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; tahun_ajaran_id?: string }>
+  searchParams: Promise<{ date?: string; tab?: string; bulan?: string }>
 }) {
   const params = await searchParams
   const user = await getCurrentUser()
@@ -96,13 +86,6 @@ export default async function AgendaPage({
 
   // Ambil daftar guru hanya jika super admin
   const actAsUsers = isSuperAdmin ? await getActAsUserList() : []
-  const tahunAjaranOptions = await getRiwayatTahunAjaran(effectiveUserId)
-  const activeTahunAjaranId = tahunAjaranOptions.find(ta => ta.is_active === 1)?.id
-  const requestedTahunAjaranId = params?.tahun_ajaran_id
-  const selectedTahunAjaranId = requestedTahunAjaranId && tahunAjaranOptions.some(ta => ta.id === requestedTahunAjaranId)
-    ? requestedTahunAjaranId
-    : activeTahunAjaranId
-
   // Cek apakah user ini punya jadwal piket (untuk tampilkan/sembunyikan tab)
   // const targetUserId = effectiveUserId || user.id
   // const piketCheck = await db.prepare(`
@@ -118,6 +101,9 @@ export default async function AgendaPage({
   //   LIMIT 1
   // `).bind(targetUserId, targetUserId).first<any>()
   const hasPiketJadwal = false // !!piketCheck (disembunyikan sementara)
+  const selectedTab = params.tab === 'riwayat'
+    ? 'riwayat'
+    : (params.tab === 'piket' && hasPiketJadwal ? 'piket' : 'mengajar')
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -141,7 +127,7 @@ export default async function AgendaPage({
       )}
 
       {/* Tabs Layout */}
-      <Tabs defaultValue="mengajar" className="space-y-3">
+      <Tabs defaultValue={selectedTab} className="space-y-3">
         <TabsList className={`grid w-full ${hasPiketJadwal ? 'grid-cols-3' : 'grid-cols-2'} max-w-sm`}>
           <TabsTrigger value="mengajar" className="text-xs sm:text-sm">
             <ClipboardPen className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />
@@ -179,11 +165,10 @@ export default async function AgendaPage({
         )}
 
         <TabsContent value="riwayat">
-          <Suspense fallback={<PageLoading text="Memuat riwayat materi..." />}>
+          <Suspense fallback={<PageLoading text="Memuat riwayat kehadiran..." />}>
             <RiwayatDataFetcher
               effectiveUserId={effectiveUserId}
-              selectedTahunAjaranId={selectedTahunAjaranId}
-              tahunAjaranOptions={tahunAjaranOptions}
+              month={params.bulan}
             />
           </Suspense>
         </TabsContent>
