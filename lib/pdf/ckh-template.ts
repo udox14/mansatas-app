@@ -138,7 +138,7 @@ export function buildCkhHtml(data: CkhPdfData): string {
       <tr>
         <th style="${TH};width:7mm">NO</th>
         <th style="${TH};width:22mm">TANGGAL</th>
-        <th style="${TH};width:44mm">KEGIATAN BULANAN</th>
+        <th style="${TH};width:48mm">KEGIATAN BULANAN</th>
         <th style="${TH}">CATATAN KINERJA HARIAN</th>
         <th style="${TH};width:12mm">VOL</th>
         <th style="${TH};width:20mm">SATUAN</th>

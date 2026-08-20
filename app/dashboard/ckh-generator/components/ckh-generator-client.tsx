@@ -276,7 +276,7 @@ function CkhPrintDocument({
           <tr>
             <th style={th('7mm')}>NO</th>
             <th style={th('22mm')}>TANGGAL</th>
-            <th style={th('44mm')}>KEGIATAN BULANAN</th>
+            <th style={th('48mm')}>KEGIATAN BULANAN</th>
             <th style={th(undefined)}>CATATAN KINERJA HARIAN</th>
             <th style={th('12mm')}>VOL</th>
             <th style={th('20mm')}>SATUAN</th>

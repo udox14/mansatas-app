@@ -898,9 +898,10 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
     }
     printWindow.document.write(`<!DOCTYPE html><html><head><base href="${window.location.origin}/"><title>Laporan Agenda Guru</title>
 <style>
-@page { size: 215mm 330mm; margin: 0; }
+@page { size: 215mm 330mm; margin: 8mm 8mm 10mm; }
 html, body { margin: 0; padding: 0; background: #fff; }
 * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+.agenda-print-document { width: auto !important; min-height: 0 !important; padding: 0 !important; }
 thead { display: table-header-group; }
 tr { break-inside: avoid; page-break-inside: avoid; }
 </style></head><body>${el.innerHTML}</body></html>`)
@@ -1038,7 +1039,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
                       <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{item.tanggal}</td>
                       <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{item.guru_nama}</td>
                       <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{item.nama_mapel}</td>
-                      <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{item.tingkat} {item.kelompok} {item.nomor_kelas}</td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{item.tingkat}-{item.nomor_kelas}</td>
                       <td style={{ border: '1px solid #000', padding: '4px 6px' }}>
                         {item.jam_ke_mulai === item.jam_ke_selesai ? `${item.jam_ke_mulai}` : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}
                       </td>
@@ -1086,7 +1087,7 @@ function AgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
   const showKelas = scope !== 'per_kelas'
 
   return (
-    <div style={{ width: '215mm', minHeight: '330mm', padding: '8mm 8mm 10mm', background: '#fff', color: '#000', fontFamily: AGENDA_PRINT_FONT, fontSize: '8pt' }}>
+    <div className="agenda-print-document" style={{ width: '215mm', minHeight: '330mm', padding: '8mm 8mm 10mm', background: '#fff', color: '#000', fontFamily: AGENDA_PRINT_FONT, fontSize: '8pt' }}>
       <img src="/kopsurat.png" alt="Kop Surat" style={{ width: '100%', display: 'block', marginBottom: '8pt' }} />
       <div style={{ textAlign: 'center', marginBottom: '9pt', lineHeight: 1.35 }}>
         <div style={{ fontSize: '13pt', fontWeight: 700 }}>LAPORAN MONITORING AGENDA GURU</div>
@@ -1124,7 +1125,7 @@ function AgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{new Date(`${item.tanggal}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
               {showGuru && <td style={{ ...agendaPrintCell, whiteSpace: 'nowrap', fontSize: '7pt' }}>{item.guru_nama}</td>}
               <td style={agendaPrintCell}>{item.nama_mapel}</td>
-              {showKelas && <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{item.tingkat} {item.kelompok} {item.nomor_kelas}</td>}
+              {showKelas && <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.tingkat}-{item.nomor_kelas}</td>}
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}</td>
               <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.materi || '-'}</td>
               <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{STATUS_STYLE[item.status]?.label || item.status}</td>

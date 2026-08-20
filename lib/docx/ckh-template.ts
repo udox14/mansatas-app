@@ -210,7 +210,7 @@ function imageMeta(contentType: string): ImageMeta | null {
   return null
 }
 
-function imageDrawingXml(image: CkhDocxSignatureImage, relId: string, drawingId: number, settings: CkhDocxSignatureSettings) {
+function imageDrawingXml(image: CkhDocxSignatureImage, relId: string, drawingId: number, settings: CkhDocxSignatureSettings, horizontalBaseMm = 0) {
   const requestedWidthMm = Math.max(1, cleanNumber(Number(settings.signature_width_mm), 38))
   const aspect = image.widthPx > 0 && image.heightPx > 0 ? image.heightPx / image.widthPx : 0.28
   const naturalHeightMm = Math.max(1, requestedWidthMm * aspect)
@@ -222,7 +222,8 @@ function imageDrawingXml(image: CkhDocxSignatureImage, relId: string, drawingId:
   const id = String(drawingId)
   const graphic = `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${id}" name="Tanda tangan CKH"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}" cstate="print"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic>`
   const drawingPr = `<wp:docPr id="${id}" name="Tanda tangan CKH" descr="Tanda tangan pengguna"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>`
-  const anchor = `<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="251658240" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="column"><wp:posOffset>${mmToEmu(cleanNumber(Number(settings.signature_x_mm), 14))}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>${mmToEmu(cleanNumber(Number(settings.signature_y_mm), 12))}</wp:posOffset></wp:positionV><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>${drawingPr}${graphic}</wp:anchor>`
+  const horizontalOffsetMm = horizontalBaseMm + cleanNumber(Number(settings.signature_x_mm), 14)
+  const anchor = `<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="251658240" behindDoc="1" locked="0" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="column"><wp:posOffset>${mmToEmu(horizontalOffsetMm)}</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>${mmToEmu(cleanNumber(Number(settings.signature_y_mm), 12))}</wp:posOffset></wp:positionV><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/>${drawingPr}${graphic}</wp:anchor>`
   return `<w:r><w:rPr><w:noProof/></w:rPr><w:drawing>${anchor}</w:drawing></w:r>`
 }
 
@@ -270,7 +271,7 @@ function buildProfileTable(user: any, available: number) {
 }
 
 function buildDataTable(rows: CkhDocxRow[], available: number) {
-  const widths = [7, 22, 44, 0, 12, 20].map(mmToTwips)
+  const widths = [7, 22, 48, 0, 12, 20].map(mmToTwips)
   const fixedWidth = widths.reduce((sum, item, index) => index === 3 ? sum : sum + item, 0)
   widths[3] = Math.max(mmToTwips(35), available - fixedWidth)
   widths[3] += available - widths.reduce((sum, item) => sum + item, 0)
@@ -314,8 +315,9 @@ function buildSignatureTable(data: CkhDocxData, geometry: ReturnType<typeof page
   const columnWidths = [Math.round(geometry.available * 0.46), Math.round(geometry.available * 0.08), 0]
   columnWidths[2] = geometry.available - columnWidths[0] - columnWidths[1]
   const cellMargins = { top: 0, right: 0, bottom: 0, left: mmToTwips(14) }
+  const rightColumnStartMm = (columnWidths[0] + columnWidths[1]) / TWIPS_PER_MM
   const imageXml = imageRelId && signatureImage && Number(signatureSettings.signature_enabled) === 1
-    ? imageDrawingXml(signatureImage, imageRelId, 1, signatureSettings)
+    ? imageDrawingXml(signatureImage, imageRelId, 1, signatureSettings, rightColumnStartMm)
     : ''
   const leftContent = [
     paragraph(textRuns('Mengetahui :', { size: 10 })),
@@ -324,7 +326,7 @@ function buildSignatureTable(data: CkhDocxData, geometry: ReturnType<typeof page
     paragraph(textRuns('NIP. ', { size: 10 }) + (signer?.nip ? textRuns(signer.nip, { size: 10 }) : runXml('Silakan isi dulu di Profil', { size: 10, italic: true }))),
   ].join('')
   const rightContent = [
-    paragraph(textRuns(`Tasikmalaya, ${tanggalCetak}`, { size: 10 }) + imageXml),
+    paragraph(imageXml + textRuns(`Tasikmalaya, ${tanggalCetak}`, { size: 10 })),
     paragraph(textRuns(user?.jabatan_cetak || user?.role || 'Pegawai', { size: 10, bold: true, allCaps: true }), { after: mmToTwips(20) }),
     paragraph(textRuns(user?.nama_lengkap, { size: 10, bold: true, underline: true })),
     paragraph(textRuns('NIP. ', { size: 10 }) + (user?.nip ? textRuns(user.nip, { size: 10 }) : runXml('Silakan isi dulu di Profil', { size: 10, italic: true }))),
