@@ -576,7 +576,10 @@ export async function prosesMutasi(payload: {
 
     revalidatePath(`/dashboard/kelas/${payload.kelasIdLama}`)
     revalidatePath(`/dashboard/kelas/${payload.kelasIdTujuan}`)
+    revalidatePath(`/dashboard/siswa/${payload.siswaIdLama}`)
+    if (payload.siswaIdBarter) revalidatePath(`/dashboard/siswa/${payload.siswaIdBarter}`)
     revalidatePath('/dashboard/kelas')
+    revalidatePath('/dashboard/siswa')
     return { success: 'Proses mutasi siswa berhasil!' }
   } catch (err: any) {
     return { error: err.message || 'Terjadi kesalahan sistem saat mutasi.' }

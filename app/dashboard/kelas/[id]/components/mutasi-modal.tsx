@@ -37,19 +37,19 @@ export function MutasiModal({ isOpen, onClose, siswa, currentKelasId, tingkat }:
   const isTargetFull = selectedKelas ? selectedKelas.jumlah_siswa >= selectedKelas.kapasitas : false
 
   useEffect(() => {
-    if (selectedKelasId && isTargetFull) {
+    if (selectedKelasId) {
       setIsSiswaLoading(true); setSelectedSiswaBarterId('')
       getSiswaUntukBarter(selectedKelasId).then((data: SiswaBarterType[]) => {
         setSiswaBarterList(data); setIsSiswaLoading(false)
       })
     } else { setSiswaBarterList([]); setSelectedSiswaBarterId('') }
-  }, [selectedKelasId, isTargetFull])
+  }, [selectedKelasId])
 
   const handleSubmit = async () => {
     if (!selectedKelasId) return
     if (isTargetFull && !selectedSiswaBarterId) { setMessage({ type: 'error', text: 'Kelas penuh! Pilih siswa untuk ditukar (barter).' }); return }
     setIsSubmitting(true); setMessage(null)
-    const result = await prosesMutasi({ siswaIdLama: siswa!.id, kelasIdLama: currentKelasId, kelasIdTujuan: selectedKelasId, siswaIdBarter: isTargetFull ? selectedSiswaBarterId : null })
+    const result = await prosesMutasi({ siswaIdLama: siswa!.id, kelasIdLama: currentKelasId, kelasIdTujuan: selectedKelasId, siswaIdBarter: selectedSiswaBarterId || null })
     if (result.error) { setMessage({ type: 'error', text: result.error }); setIsSubmitting(false) }
     else { setMessage({ type: 'success', text: result.success || 'Berhasil!' }); setTimeout(() => { setIsSubmitting(false); onClose() }, 1500) }
   }
@@ -90,21 +90,27 @@ export function MutasiModal({ isOpen, onClose, siswa, currentKelasId, tingkat }:
               </Select>
             )}
           </div>
-          {selectedKelasId && isTargetFull && (
-            <div className="space-y-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <div className="flex gap-2 text-amber-800 text-xs">
+          {selectedKelasId && (
+            <div className={`space-y-2 p-3 border rounded-lg ${isTargetFull ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
+              <div className={`flex gap-2 text-xs ${isTargetFull ? 'text-amber-800' : 'text-blue-800'}`}>
                 <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                <p><strong>Kelas penuh!</strong> Pilih siswa pengganti (barter) dari kelas tersebut.</p>
+                <p>{isTargetFull
+                  ? <><strong>Kelas penuh!</strong> Pilih siswa pengganti (barter) dari kelas tersebut.</>
+                  : <><strong>Barter opsional.</strong> Pilih siswa dari kelas tujuan jika ingin menukar siswa, atau biarkan kosong untuk memindahkan saja.</>
+                }</p>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-amber-900">Siswa untuk Ditukar</Label>
+                <Label className={`text-xs font-semibold ${isTargetFull ? 'text-amber-900' : 'text-blue-900'}`}>Siswa untuk Ditukar {isTargetFull ? '(Wajib)' : '(Opsional)'}</Label>
                 {isSiswaLoading ? (
-                  <div className="h-9 border border-amber-200 rounded-lg flex items-center justify-center bg-surface text-xs text-amber-500"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memuat...</div>
+                  <div className={`h-9 border rounded-lg flex items-center justify-center bg-surface text-xs ${isTargetFull ? 'border-amber-200 text-amber-500' : 'border-blue-200 text-blue-500'}`}><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memuat...</div>
                 ) : (
-                  <Select value={selectedSiswaBarterId} onValueChange={setSelectedSiswaBarterId}>
-                    <SelectTrigger className="h-9 text-xs rounded-lg bg-surface border-amber-200"><SelectValue placeholder="-- Pilih Siswa --" /></SelectTrigger>
+                  <Select value={selectedSiswaBarterId} onValueChange={value => setSelectedSiswaBarterId(value === '__tanpa_barter__' ? '' : value)}>
+                    <SelectTrigger className={`h-9 text-xs rounded-lg bg-surface ${isTargetFull ? 'border-amber-200' : 'border-blue-200'}`}><SelectValue placeholder="-- Pilih Siswa --" /></SelectTrigger>
                     <SelectContent>
-                      {siswaBarterList.map(s => <SelectItem key={s.id} value={s.id} className="text-xs">{s.nama_lengkap} (NISN: {s.nisn})</SelectItem>)}
+                      {!isTargetFull && <SelectItem value="__tanpa_barter__" className="text-xs">Tanpa barter (pindahkan saja)</SelectItem>}
+                      {siswaBarterList.length === 0
+                        ? <SelectItem value="empty" disabled>Tidak ada siswa aktif</SelectItem>
+                        : siswaBarterList.map(s => <SelectItem key={s.id} value={s.id} className="text-xs">{s.nama_lengkap} (NISN: {s.nisn})</SelectItem>)}
                     </SelectContent>
                   </Select>
                 )}
@@ -112,7 +118,7 @@ export function MutasiModal({ isOpen, onClose, siswa, currentKelasId, tingkat }:
             </div>
           )}
           <Button onClick={handleSubmit} disabled={!selectedKelasId || isSubmitting || (isTargetFull && !selectedSiswaBarterId)} className="w-full h-9 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
-            {isSubmitting ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memproses...</> : isTargetFull ? 'Lakukan Barter Siswa' : 'Pindahkan Siswa'}
+            {isSubmitting ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Memproses...</> : selectedSiswaBarterId ? 'Lakukan Barter Siswa' : 'Pindahkan Siswa'}
           </Button>
         </div>
       </DialogContent>

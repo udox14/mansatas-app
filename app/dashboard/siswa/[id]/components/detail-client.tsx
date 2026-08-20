@@ -12,7 +12,7 @@ import {
   User, GraduationCap, ShieldAlert, DoorOpen, LineChart, 
   MapPin, Phone, Users, CheckCircle2, History, AlertTriangle, 
   Image as ImageIcon, ChevronDown, ChevronUp, BookOpen, Pencil,
-  LogOut, RotateCcw, CalendarSearch, ShieldCheck, Wallet, Receipt, Landmark, NotebookPen
+  LogOut, RotateCcw, CalendarSearch, ShieldCheck, Wallet, Receipt, Landmark, NotebookPen, ArrowLeftRight
 } from 'lucide-react'
 import { EditSiswaModal } from '../../components/edit-modal'
 import { TandaiKeluarModal, BatalkanKeluarModal } from './tandai-keluar-modal'
@@ -23,6 +23,7 @@ import type { SanksiConfig } from '../../../kedisiplinan/actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { StudentNoteTimeline } from '@/components/student-notes/student-note-timeline'
 import type { StudentNote } from '@/lib/student-note-shared'
+import { MutasiModal } from '@/app/dashboard/kelas/[id]/components/mutasi-modal'
 
 const MIGRATION_CUTOFF_DATE = '2026-05-01'
 
@@ -73,6 +74,7 @@ export function DetailSiswaClient({
   const router = useRouter()
   const [showKeluarModal, setShowKeluarModal] = useState(false)
   const [showBatalkanModal, setShowBatalkanModal] = useState(false)
+  const [showMutasiModal, setShowMutasiModal] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   
   // Define canFullEdit based on currentUser roles
@@ -246,6 +248,19 @@ export function DetailSiswaClient({
         kelasList={kelasList ?? []}
       />
 
+      {siswa.kelas && (
+        <MutasiModal
+          isOpen={showMutasiModal}
+          onClose={() => {
+            setShowMutasiModal(false)
+            router.refresh()
+          }}
+          siswa={{ id: siswa.id, nama_lengkap: siswa.nama_lengkap, nisn: siswa.nisn }}
+          currentKelasId={siswa.kelas.id}
+          tingkat={siswa.kelas.tingkat}
+        />
+      )}
+
       {/* HEADER PROFIL */}
       <div className="bg-surface rounded-xl p-5 sm:p-6 border border-surface shadow-sm flex flex-col lg:flex-row items-center lg:items-start gap-5 sm:gap-6">
         {/* FOTO PROFIL / INISIAL */}
@@ -299,6 +314,16 @@ export function DetailSiswaClient({
               >
                 <Pencil className="h-3.5 w-3.5" /> Edit Biodata
               </Button>
+              {canFullEdit && siswa.status === 'aktif' && siswa.kelas && (
+                <Button
+                  onClick={() => setShowMutasiModal(true)}
+                  size="sm"
+                  variant="outline"
+                  className="h-9 px-3 text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 gap-1.5"
+                >
+                  <ArrowLeftRight className="h-3.5 w-3.5" /> Mutasi / Barter
+                </Button>
+              )}
               {canFullEdit && siswa.status === 'aktif' && (
                 <Button
                   onClick={() => setShowKeluarModal(true)}
