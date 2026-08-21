@@ -7,11 +7,10 @@ export type VerificationThresholds = {
   version: 1
   attendanceWarning: number
   attendanceCritical: number
-  academicCriticalRatio: number
 }
 
 export type DomainIndicator = {
-  domain: 'akademik' | 'kehadiran' | 'kedisiplinan' | 'bk'
+  domain: 'kehadiran' | 'kedisiplinan' | 'bk'
   level: RiskLevel
   label: string
   reason: string
@@ -23,7 +22,6 @@ export const DEFAULT_VERIFICATION_THRESHOLDS: VerificationThresholds = {
   version: 1,
   attendanceWarning: 90,
   attendanceCritical: 80,
-  academicCriticalRatio: 30,
 }
 
 const RISK_WEIGHT: Record<RiskLevel, number> = { aman: 0, perhatian: 1, kritis: 2 }
@@ -32,18 +30,15 @@ export function normalizeVerificationThresholds(value: unknown): VerificationThr
   const source = value && typeof value === 'object' ? value as Partial<VerificationThresholds> : {}
   const warning = Number(source.attendanceWarning)
   const critical = Number(source.attendanceCritical)
-  const academic = Number(source.academicCriticalRatio)
   if (
     source.version !== 1 ||
-    !Number.isFinite(warning) || !Number.isFinite(critical) || !Number.isFinite(academic) ||
-    critical < 0 || critical > 100 || warning < 0 || warning > 100 || critical >= warning ||
-    academic < 1 || academic > 100
+    !Number.isFinite(warning) || !Number.isFinite(critical) ||
+    critical < 0 || critical > 100 || warning < 0 || warning > 100 || critical >= warning
   ) return { ...DEFAULT_VERIFICATION_THRESHOLDS }
   return {
     version: 1,
     attendanceWarning: warning,
     attendanceCritical: critical,
-    academicCriticalRatio: academic,
   }
 }
 
@@ -70,22 +65,6 @@ export function attendanceIndicator(present: number, total: number, settings: Ve
     reason: level === 'aman' ? 'Persentase kehadiran memenuhi ambang.' : `Persentase kehadiran berada di bawah ambang ${level === 'kritis' ? 'kritis' : 'perhatian'}.`,
     actual: `${percentage.toFixed(1)}% (${present}/${total})`,
     threshold: `Perhatian <${settings.attendanceWarning}% · Kritis <${settings.attendanceCritical}%`,
-  }
-}
-
-export function academicIndicator(problematic: number, total: number, settings: VerificationThresholds): DomainIndicator {
-  if (total <= 0) return {
-    domain: 'akademik', level: 'kritis', label: 'Kritis',
-    reason: 'Belum ada nilai akademik yang dapat dianalisis.', actual: '0 mata pelajaran',
-    threshold: `Kritis bila ≥${settings.academicCriticalRatio}% mapel bermasalah`,
-  }
-  const ratio = problematic / total * 100
-  const level: RiskLevel = ratio >= settings.academicCriticalRatio ? 'kritis' : problematic > 0 ? 'perhatian' : 'aman'
-  return {
-    domain: 'akademik', level, label: riskLabel(level),
-    reason: problematic === 0 ? 'Seluruh nilai tersedia dan memenuhi KKM efektif.' : `${problematic} dari ${total} mapel belum lengkap atau berada di bawah KKM efektif.`,
-    actual: `${problematic}/${total} mapel (${ratio.toFixed(1)}%)`,
-    threshold: `Kritis bila ≥${settings.academicCriticalRatio}% mapel bermasalah`,
   }
 }
 

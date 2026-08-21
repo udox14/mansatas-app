@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_VERIFICATION_THRESHOLDS,
-  academicIndicator,
   academicYearDates,
   attendanceIndicator,
   counselingIndicator,
@@ -20,7 +19,7 @@ describe('student verification access and settings', () => {
 
   it('falls back when persisted settings are malformed', () => {
     expect(parseVerificationThresholds('{broken')).toEqual(DEFAULT_VERIFICATION_THRESHOLDS)
-    expect(normalizeVerificationThresholds({ version: 1, attendanceWarning: 70, attendanceCritical: 80, academicCriticalRatio: 30 }))
+    expect(normalizeVerificationThresholds({ version: 1, attendanceWarning: 70, attendanceCritical: 80 }))
       .toEqual(DEFAULT_VERIFICATION_THRESHOLDS)
   })
 })
@@ -30,12 +29,6 @@ describe('student verification indicators', () => {
     expect(attendanceIndicator(95, 100, DEFAULT_VERIFICATION_THRESHOLDS).level).toBe('aman')
     expect(attendanceIndicator(85, 100, DEFAULT_VERIFICATION_THRESHOLDS).level).toBe('perhatian')
     expect(attendanceIndicator(79, 100, DEFAULT_VERIFICATION_THRESHOLDS).level).toBe('kritis')
-  })
-
-  it('marks academic data critical at thirty percent problems', () => {
-    expect(academicIndicator(0, 10, DEFAULT_VERIFICATION_THRESHOLDS).level).toBe('aman')
-    expect(academicIndicator(2, 10, DEFAULT_VERIFICATION_THRESHOLDS).level).toBe('perhatian')
-    expect(academicIndicator(3, 10, DEFAULT_VERIFICATION_THRESHOLDS).level).toBe('kritis')
   })
 
   it('uses existing discipline thresholds and open counseling', () => {

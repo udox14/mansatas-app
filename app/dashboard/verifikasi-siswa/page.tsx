@@ -10,13 +10,13 @@ import { VerificationQueueClient } from './verification-queue-client'
 export const metadata = { title: 'Insight & Verifikasi Siswa - MANSATAS' }
 export const dynamic = 'force-dynamic'
 
-export default async function VerificationStudentsPage({ searchParams }: { searchParams: Promise<{ tahun?: string }> }) {
+export default async function VerificationStudentsPage({ searchParams }: { searchParams: Promise<{ tahun?: string; kelas?: string }> }) {
   const [user, query] = await Promise.all([getCurrentUser(), searchParams])
   if (!user) redirect('/login')
   const db = await getDB()
   const roles = await getUserRoles(db, user.id)
   if (!canAccessStudentVerification(roles)) redirect('/dashboard')
-  const data = await loadVerificationQueue(db, query.tahun)
+  const data = await loadVerificationQueue(db, query.tahun, query.kelas)
   return (
     <div className="space-y-5 pb-14">
       <PageHeader title="Insight & Verifikasi Siswa" description="Pusat analisis lintas-domain untuk verifikasi kondisi siswa menjelang kenaikan kelas." icon={ShieldCheck} iconColor="text-emerald-600" />

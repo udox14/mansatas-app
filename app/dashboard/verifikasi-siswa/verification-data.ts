@@ -1,7 +1,6 @@
 import { formatNamaKelas } from '@/lib/utils'
 import { ensureRiwayatKelasSnapshotColumns } from '@/lib/riwayat-kelas'
 import {
-  academicIndicator,
   academicYearDates,
   attendanceIndicator,
   counselingIndicator,
@@ -37,6 +36,7 @@ export type VerificationQueueData = {
   settings: VerificationThresholds
   settingsUpdatedAt: string | null
   classes: { id: string; name: string }[]
+  selectedClassId: string | null
   students: VerificationQueueStudent[]
 }
 export type InsightMetric = { label: string; value: string; hint?: string }
@@ -128,16 +128,44 @@ export async function loadVerificationYears(db: D1Database, selectedName?: strin
   return { years, selected }
 }
 
+export async function loadVerificationClasses(db: D1Database, selected: VerificationYear): Promise<{ id: string; name: string }[]> {
+  const rows = await safeAll<{ id: string; name: string }>(db, `
+    WITH sources AS (
+      SELECT rk.kelas_id AS id,
+        COALESCE(rk.kelas_nama, 'Kelas ' || COALESCE(rk.kelas_tingkat, k.tingkat) || ' ' || COALESCE(rk.kelas_kelompok, k.kelompok) || '-' || COALESCE(rk.kelas_nomor, k.nomor_kelas)) AS name
+      FROM riwayat_kelas rk
+      JOIN tahun_ajaran ta ON ta.id = rk.tahun_ajaran_id
+      LEFT JOIN kelas k ON k.id = rk.kelas_id
+      WHERE ta.nama = ?
+      UNION ALL
+      SELECT k.id, 'Kelas ' || k.tingkat || ' ' || k.kelompok || '-' || k.nomor_kelas
+      FROM kelas k
+      WHERE ? = 1
+    )
+    SELECT id, MAX(name) AS name FROM sources WHERE id IS NOT NULL GROUP BY id ORDER BY name COLLATE NOCASE
+  `, [selected.name, selected.active ? 1 : 0])
+  return rows.map(row => ({ id: String(row.id), name: String(row.name || 'Tanpa nama kelas') }))
+}
+
 async function loadSettings(db: D1Database) {
   const row = await safeFirst<{ value: string; updated_at: string | null }>(db,
     'SELECT value, updated_at FROM system_settings WHERE key = ?', [VERIFICATION_SETTINGS_ID])
   return { settings: parseVerificationThresholds(row?.value), updatedAt: row?.updated_at || null }
 }
 
-export async function loadVerificationQueue(db: D1Database, selectedName?: string): Promise<VerificationQueueData | null> {
+export async function loadVerificationCatalog(db: D1Database, selectedName?: string): Promise<VerificationQueueData | null> {
   await ensureRiwayatKelasSnapshotColumns(db).catch(() => undefined)
   const [{ years, selected }, settingData] = await Promise.all([loadVerificationYears(db, selectedName), loadSettings(db)])
   if (!selected) return null
+  const classes = await loadVerificationClasses(db, selected)
+  return { years, selectedYear: selected, settings: settingData.settings, settingsUpdatedAt: settingData.updatedAt, classes, selectedClassId: null, students: [] }
+}
+
+export async function loadVerificationQueue(db: D1Database, selectedName?: string, selectedClassId?: string): Promise<VerificationQueueData | null> {
+  const catalog = await loadVerificationCatalog(db, selectedName)
+  if (!catalog) return null
+  if (!selectedClassId) return catalog
+  const selected = catalog.selectedYear
 
   const roster = await safeAll<Row>(db, `
     WITH history AS (
@@ -161,15 +189,15 @@ export async function loadVerificationQueue(db: D1Database, selectedName?: strin
     FROM siswa s
     LEFT JOIN history h ON h.siswa_id = s.id AND h.rn = 1
     LEFT JOIN kelas ck ON ck.id = s.kelas_id
-    WHERE h.siswa_id IS NOT NULL OR (? = 1 AND s.kelas_id IS NOT NULL)
+    WHERE (h.siswa_id IS NOT NULL OR (? = 1 AND s.kelas_id IS NOT NULL))
+      AND COALESCE(h.kelas_id, CASE WHEN ? = 1 THEN s.kelas_id END) = ?
     ORDER BY COALESCE(h.tingkat, ck.tingkat), COALESCE(h.nomor_kelas, ck.nomor_kelas), s.nama_lengkap
-  `, [selected.name, ...Array(5).fill(selected.active ? 1 : 0)])
+  `, [selected.name, ...Array(5).fill(selected.active ? 1 : 0), selected.active ? 1 : 0, selectedClassId])
 
   const ta = yearIn(selected.semesterIds, 'tahun_ajaran_id')
   const attendanceDate = dateBetween(selected, 'tanggal')
   const spDate = dateBetween(selected, 'tanggal_sp')
-  const [rdmRows, attendanceSessions, absenceRows, disciplineRows, spRows, bkRows, disciplineConfig] = await Promise.all([
-    safeAll<Row>(db, 'SELECT siswa_id, nilai_smt1, nilai_smt2, nilai_smt3, nilai_smt4, nilai_smt5, nilai_smt6 FROM rekap_nilai_akademik'),
+  const [attendanceSessions, absenceRows, disciplineRows, spRows, bkRows, disciplineConfig] = await Promise.all([
     safeAll<Row>(db, `SELECT pm.kelas_id, COUNT(*) AS total FROM absensi_sesi_guru sg
       JOIN penugasan_mengajar pm ON pm.id=sg.penugasan_id
       WHERE 1=1${ta.sql.replaceAll('tahun_ajaran_id','pm.tahun_ajaran_id')} GROUP BY pm.kelas_id`, ta.binds),
@@ -190,19 +218,17 @@ export async function loadVerificationQueue(db: D1Database, selectedName?: strin
     safeFirst<{ value: string }>(db, "SELECT value FROM kedisiplinan_config WHERE key = 'threshold_kritis'"),
   ])
   const index = <T extends Row>(rows: T[]) => new Map(rows.map(row => [String(row.siswa_id), row]))
-  const rdm = index(rdmRows), absences = index(absenceRows), discipline = index(disciplineRows), sp = index(spRows), bk = index(bkRows)
+  const absences = index(absenceRows), discipline = index(disciplineRows), sp = index(spRows), bk = index(bkRows)
   const sessionsByClass = new Map(attendanceSessions.map(row => [String(row.kelas_id), asNumber(row.total)]))
   const criticalPoints = asNumber(disciplineConfig?.value) || 75
 
   const students = roster.map(row => {
     const grade = asNumber(row.tingkat)
-    const academicSummary = summarizeRdmAcademic(rdm.get(row.id) || null, grade)
     const totalSessions = sessionsByClass.get(String(row.kelas_id)) || 0
     const presentSessions = Math.max(0, totalSessions - asNumber(absences.get(row.id)?.tidak_hadir))
     const spLevel = asNumber(sp.get(row.id)?.level)
     const indicators = [
-      academicIndicator(academicSummary.problematic, academicSummary.total, settingData.settings),
-      attendanceIndicator(presentSessions, totalSessions, settingData.settings),
+      attendanceIndicator(presentSessions, totalSessions, catalog.settings),
       disciplineIndicator(asNumber(discipline.get(row.id)?.poin), spLevel ? `SP${spLevel}` : null, criticalPoints),
       counselingIndicator(asNumber(bk.get(row.id)?.terbuka), asNumber(bk.get(row.id)?.kritis)),
     ]
@@ -213,16 +239,25 @@ export async function loadVerificationQueue(db: D1Database, selectedName?: strin
       className: row.kelas_nama || fallbackClass, grade, indicators, overall: worstRisk(indicators),
     } satisfies VerificationQueueStudent
   })
-  const classes = Array.from(new Map(students.filter(s => s.classId).map(s => [s.classId!, { id: s.classId!, name: s.className }])).values())
-    .sort((a, b) => a.name.localeCompare(b.name, 'id', { numeric: true }))
-  return { years, selectedYear: selected, settings: settingData.settings, settingsUpdatedAt: settingData.updatedAt, classes, students }
+  return { ...catalog, selectedClassId, students }
 }
 
 function metric(label: string, value: unknown, hint?: string): InsightMetric { return { label, value: display(value), hint } }
 function detail(headers: string[], rows: string[][]): InsightDetail { return { headers, rows } }
 
 export async function loadStudentInsight(db: D1Database, studentId: string, selectedName?: string): Promise<StudentInsightData | null> {
-  const queue = await loadVerificationQueue(db, selectedName)
+  const catalog = await loadVerificationCatalog(db, selectedName)
+  if (!catalog) return null
+  const classRow = await safeFirst<{ class_id: string | null }>(db, `
+    SELECT COALESCE(
+      (SELECT rk.kelas_id FROM riwayat_kelas rk JOIN tahun_ajaran ta ON ta.id = rk.tahun_ajaran_id
+       WHERE rk.siswa_id = ? AND ta.nama = ? ORDER BY ta.semester DESC, rk.created_at DESC LIMIT 1),
+      CASE WHEN ? = 1 THEN s.kelas_id END
+    ) AS class_id
+    FROM siswa s WHERE s.id = ?
+  `, [studentId, catalog.selectedYear.name, catalog.selectedYear.active ? 1 : 0, studentId])
+  if (!classRow?.class_id) return null
+  const queue = await loadVerificationQueue(db, catalog.selectedYear.name, classRow.class_id)
   if (!queue) return null
   const queueStudent = queue.students.find(student => student.id === studentId)
   if (!queueStudent) return null
@@ -305,7 +340,6 @@ export async function loadStudentInsight(db: D1Database, studentId: string, sele
   const highestSp = warningLetters.reduce((highest, row) => Math.max(highest, asNumber(String(row.level).replace(/\D/g,''))), 0)
   const openBk = bkRecords.filter(row => !['SUDAH','SELESAI'].includes(String(row.tindak_lanjut).toUpperCase())).length
   const indicators = [
-    academicIndicator(rdmSummary.problematic, rdmSummary.total, queue.settings),
     attendanceIndicator(present, totalAttendance, queue.settings),
     disciplineIndicator(violationPoints, highestSp ? `SP${highestSp}` : null),
     counselingIndicator(openBk),
@@ -335,8 +369,8 @@ export async function loadStudentInsight(db: D1Database, studentId: string, sele
       ]),hasData:true,
     },
     {
-      id:'akademik',title:'Akademik',description:'Rapor, nilai harian, KKM, TKA, psikotes, dan rencana lanjutan.',indicator:byDomain.get('akademik'),
-      metrics:[metric('Rata-rata rapor',rdmSummary.rows.length?(rdmSummary.rows.reduce((s,r)=>s+(r.average||0),0)/rdmSummary.rows.length).toFixed(1):'-'),metric('Mapel bermasalah',`${rdmSummary.problematic}/${rdmSummary.total}`),metric('Penilaian harian',dailyGrades.length),metric('Minat jurusan',student.minat_jurusan)],
+      id:'akademik',title:'Akademik',description:'Informasi rapor, nilai harian, KKM, TKA, psikotes, dan rencana lanjutan. Tidak memengaruhi indikator kondisi.',
+      metrics:[metric('Rata-rata rapor',rdmSummary.rows.length?(rdmSummary.rows.reduce((s,r)=>s+(r.average||0),0)/rdmSummary.rows.length).toFixed(1):'-'),metric('Catatan kelengkapan',`${rdmSummary.problematic}/${rdmSummary.total}`),metric('Penilaian harian',dailyGrades.length),metric('Minat jurusan',student.minat_jurusan)],
       chart:{kind:'bar',data:academicChart,keys:['Semester 1','Semester 2','KKM']},
       details:detail(['Sumber','Periode/Mapel','Nilai/Status','Keterangan'],[
         ...rdmSummary.rows.map(row=>['Rapor',row.subject,row.average?.toFixed(1)||'-',row.reason]),
