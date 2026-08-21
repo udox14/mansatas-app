@@ -15,7 +15,7 @@ export type CkhGeneratedRow = {
   catatan_harian: string
   vol?: number
   satuan?: string
-  source: 'autofill' | 'assignment' | 'calendar'
+  source: 'autofill' | 'calendar'
   source_key: string
 }
 
@@ -213,7 +213,10 @@ export function buildAssignmentTeachingRows(rows: AssignmentRow[]) {
       kegiatan_bulanan: CKH_TEACHING_ACTIVITY,
       catatan_harian: `Mengajar ${mapel}: "${tugas}" di kelas ${joinIndonesian(kelas)}`,
       vol: Math.max(1, kelas.length),
-      source: 'assignment' as const,
+      // Gunakan source autofill agar tetap kompatibel dengan database lama
+      // yang belum menjalankan migrasi perluasan CHECK source. Identitas
+      // Penugasan tetap dibawa oleh source_key dan dipakai untuk label/warna.
+      source: 'autofill' as const,
       source_key: `assignment:${tanggal}:${mapel}:${tugas}`,
     }
   })

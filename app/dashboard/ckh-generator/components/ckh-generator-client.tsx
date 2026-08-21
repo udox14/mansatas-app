@@ -884,7 +884,7 @@ export function CkhGeneratorClient({
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
             <Button variant="outline" onClick={syncDraft} disabled={isSyncing} className="h-10 gap-2 whitespace-nowrap">
               {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
-              Sinkronkan Agenda & Penugasan
+              Sinkronkan
             </Button>
             <SignatureSettingsDialog
               documentId={initialData.document.id}

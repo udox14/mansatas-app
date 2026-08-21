@@ -19,7 +19,7 @@ describe('buildAssignmentTeachingRows', () => {
       kegiatan_bulanan: 'Melaksanakan proses pembelajaran',
       catatan_harian: 'Mengajar Matematika: "Kerjakan latihan bab 2" di kelas 10-1 A',
       vol: 1,
-      source: 'assignment',
+      source: 'autofill',
       source_key: 'assignment:2026-08-20:Matematika:Kerjakan latihan bab 2',
     }])
     expect(rows[0].catatan_harian).not.toMatch(/sakit|izin/i)

@@ -1,12 +1,11 @@
 import { getCurrentUser } from '@/utils/auth/server';
 import { redirect } from 'next/navigation';
-import { NotificationClient } from './components/NotificationClient';
 import { checkFeatureAccess } from '@/lib/features';
 import { getDB } from '@/utils/db-server'
 import { ALL_ROLES } from '@/config/menu';
 import { PageHeader } from '@/components/layout/page-header';
 import { getAllUsersForCheckbox } from '@/app/dashboard/rapat/actions';
-import { AutomaticNotificationSettings } from './components/AutomaticNotificationSettings';
+import { NotificationWorkspace } from './components/NotificationWorkspace';
 import { getNotificationSettings } from '@/lib/notification-engine';
 import { NOTIFICATION_EVENT_DEFINITIONS } from '@/lib/notification-catalog';
 
@@ -38,12 +37,9 @@ export default async function AdminNotificationsPage() {
         description="Atur notifikasi otomatis dan kirim pemberitahuan push ke perangkat pengguna."
       />
 
-      <AutomaticNotificationSettings
+      <NotificationWorkspace
         definitions={NOTIFICATION_EVENT_DEFINITIONS}
         settings={automaticSettings}
-      />
-
-      <NotificationClient 
         roles={[...ALL_ROLES]}
         allUsers={allUsers}
         diagnostics={{

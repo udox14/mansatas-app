@@ -1,441 +1,419 @@
 'use client'
 
-import { useActionState, useState, useCallback, useEffect } from 'react'
-import { useFormStatus } from 'react-dom'
-import { Loader2, Send, AlertCircle, CheckCircle2, Monitor, Key, Users, Search, Filter } from 'lucide-react'
+import { useActionState, useMemo, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
+import { AlertCircle, CheckCircle2, Filter, Search, Send, Users } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import { DataPagination } from '@/components/ui/data-pagination'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { sendCustomNotification, sendBroadcast } from '../actions'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { sendBroadcast, sendCustomNotification } from '../actions'
 
-// ============================================================
-// Types
-// ============================================================
-type UserItem = { id: string; nama_lengkap: string; role: string; all_roles: string[] }
-type RoleOption = { value: string; label: string }
+export type NotificationUserItem = {
+  id: string
+  nama_lengkap: string
+  role: string
+  all_roles: string[]
+}
+
+export type NotificationRoleOption = {
+  value: string
+  label: string
+}
+
+export type NotificationDiagnostics = {
+  totalDevices: number
+  vapidKey: string
+  subscribedUserIds: string[]
+}
 
 const ROLE_LABEL: Record<string, string> = {
-  super_admin: 'Super Admin', admin_tu: 'Admin TU', kepsek: 'Kepala Madrasah',
-  wakamad: 'Wakamad', guru: 'Guru', guru_bk: 'Guru BK', guru_piket: 'Guru Piket',
-  wali_kelas: 'Wali Kelas', resepsionis: 'Resepsionis', guru_ppl: 'Guru PPL', guru_tahfidz: 'Guru Tahfidz',
+  super_admin: 'Super Admin',
+  admin_tu: 'Admin TU',
+  kepsek: 'Kepala Madrasah',
+  wakamad: 'Wakamad',
+  guru: 'Guru',
+  guru_bk: 'Guru BK',
+  guru_piket: 'Guru Piket',
+  wali_kelas: 'Wali Kelas',
+  resepsionis: 'Resepsionis',
+  guru_ppl: 'Guru PPL',
+  guru_tahfidz: 'Guru Tahfidz',
 }
-const getRoleLabel = (r: string) => ROLE_LABEL[r] || r
 
-// ============================================================
-// Submit Button
-// ============================================================
+export function getRoleLabel(role: string) {
+  return ROLE_LABEL[role] || role
+}
+
 function SubmitBtn() {
-  const { pending } = useFormStatus()
   return (
-    <Button disabled={pending} className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg h-10 mt-2">
-      {pending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+    <Button type="submit" className="w-full bg-blue-600 text-white hover:bg-blue-700">
+      <Send className="h-4 w-4" />
       Kirim Broadcast Notifikasi
     </Button>
   )
 }
 
 function BroadcastSubmitBtn() {
-  const { pending } = useFormStatus()
   return (
-    <Button disabled={pending} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-10 mt-2">
-      {pending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-      Kirim Broadcast ke Semua
+    <Button type="submit" className="w-full bg-emerald-600 text-white hover:bg-emerald-700">
+      <Send className="h-4 w-4" />
+      Kirim Broadcast ke Audience
     </Button>
   )
 }
 
-// ============================================================
-// Checkbox Peserta — sama persis dengan di rapat
-// ============================================================
-function CheckboxPeserta({
-  allUsers, roles, selectedIds, setSelectedIds,
+function ActionFeedback({ state }: { state: any }) {
+  const message = state?.error || state?.success
+  if (!message) return null
+
+  const error = Boolean(state?.error)
+  return (
+    <Alert variant={error ? 'destructive' : 'default'} className={error ? '' : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300'}>
+      {error ? <AlertCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+      <AlertDescription>{message}</AlertDescription>
+    </Alert>
+  )
+}
+
+function RecipientTable({
+  allUsers,
+  roles,
+  selectedIds,
+  setSelectedIds,
 }: {
-  allUsers: UserItem[]
-  roles: RoleOption[]
+  allUsers: NotificationUserItem[]
+  roles: NotificationRoleOption[]
   selectedIds: Set<string>
-  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>
+  setSelectedIds: Dispatch<SetStateAction<Set<string>>>
 }) {
   const [search, setSearch] = useState('')
   const [filterRole, setFilterRole] = useState('_all')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number | 'semua'>(25)
 
-  const filtered = allUsers.filter(u => {
-    const matchRole = filterRole === '_all' || u.all_roles.includes(filterRole)
-    const q = search.toLowerCase()
-    const matchQ = !q || u.nama_lengkap.toLowerCase().includes(q) || u.role.toLowerCase().includes(q)
-    return matchRole && matchQ
-  })
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    return allUsers.filter((user) => {
+      const matchesRole = filterRole === '_all' || user.all_roles.includes(filterRole)
+      const matchesSearch = !query || [
+        user.nama_lengkap,
+        user.role,
+        getRoleLabel(user.role),
+        ...user.all_roles.map(getRoleLabel),
+      ].some((value) => value.toLowerCase().includes(query))
+      return matchesRole && matchesSearch
+    })
+  }, [allUsers, filterRole, search])
 
-  const allFilteredIds = filtered.map(u => u.id)
-  const allChecked = allFilteredIds.length > 0 && allFilteredIds.every(id => selectedIds.has(id))
-  const someChecked = allFilteredIds.some(id => selectedIds.has(id))
+  const visibleUsers = useMemo(() => {
+    if (pageSize === 'semua') return filtered
+    const start = (page - 1) * pageSize
+    return filtered.slice(start, start + pageSize)
+  }, [filtered, page, pageSize])
+
+  const allFilteredIds = filtered.map((user) => user.id)
+  const allChecked = allFilteredIds.length > 0 && allFilteredIds.every((id) => selectedIds.has(id))
+  const someChecked = allFilteredIds.some((id) => selectedIds.has(id))
 
   const toggleAll = () => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (allChecked) { allFilteredIds.forEach(id => next.delete(id)) }
-      else { allFilteredIds.forEach(id => next.add(id)) }
+    setSelectedIds((previous) => {
+      const next = new Set(previous)
+      if (allChecked) {
+        allFilteredIds.forEach((id) => next.delete(id))
+      } else {
+        allFilteredIds.forEach((id) => next.add(id))
+      }
       return next
     })
   }
 
   const toggle = (id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+    setSelectedIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
 
+  const updateSearch = (value: string) => {
+    setSearch(value)
+    setPage(1)
+  }
+
+  const updateRole = (value: string) => {
+    setFilterRole(value)
+    setPage(1)
+  }
+
   return (
-    <div className="space-y-2">
-      {/* Search + Filter */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+    <div className="space-y-3 rounded-lg border bg-muted/10 p-3 sm:p-4">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Cari nama..."
-            className="h-8 pl-8 text-xs rounded-lg"
+            value={search}
+            onChange={(event) => updateSearch(event.target.value)}
+            placeholder="Cari nama atau role..."
+            className="pl-9"
+            aria-label="Cari penerima broadcast"
           />
         </div>
-        <Select value={filterRole} onValueChange={setFilterRole}>
-          <SelectTrigger className="h-8 w-36 text-xs rounded-lg">
-            <Filter className="h-3 w-3 mr-1.5 text-slate-400" />
-            <SelectValue placeholder="Semua Role" />
+        <Select value={filterRole} onValueChange={updateRole}>
+          <SelectTrigger className="w-full sm:w-48">
+            <Filter className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+            <SelectValue placeholder="Semua role" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="_all" className="text-xs">Semua Role</SelectItem>
-            {roles.map(r => (
-              <SelectItem key={r.value} value={r.value} className="text-xs">{r.label}</SelectItem>
-            ))}
+            <SelectItem value="_all">Semua role</SelectItem>
+            {roles.map((role) => <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
 
-      {/* Select All */}
-      <div className="flex items-center justify-between px-1">
-        <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-400">
-          <input
-            type="checkbox"
-            checked={allChecked}
-            ref={el => { if (el) el.indeterminate = !allChecked && someChecked }}
-            onChange={toggleAll}
-            className="rounded"
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <label className="flex items-center gap-2 font-medium">
+          <Checkbox
+            checked={allChecked ? true : someChecked ? 'indeterminate' : false}
+            onCheckedChange={toggleAll}
+            aria-label="Pilih semua penerima hasil filter"
           />
-          Pilih Semua ({filtered.length} tampil dari {allUsers.length})
+          Pilih semua hasil filter ({filtered.length})
         </label>
-        <span className="text-[10px] text-slate-400 font-medium">{selectedIds.size} dipilih</span>
+        <span>{selectedIds.size} penerima dipilih</span>
       </div>
 
-      {/* Scrollable List */}
-      <div className="border border-slate-200 dark:border-slate-800 dark:border-slate-700 rounded-lg overflow-y-auto max-h-48 divide-y divide-slate-100 dark:divide-slate-800">
-        {filtered.length === 0 ? (
-          <div className="py-6 text-center text-xs text-slate-400">Tidak ada pengguna ditemukan.</div>
-        ) : (
-          filtered.map(u => (
-            <label key={u.id} className={cn(
-              'flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors',
-              selectedIds.has(u.id) && 'bg-blue-50/60 dark:bg-blue-900/20'
-            )}>
-              <input
-                type="checkbox"
-                checked={selectedIds.has(u.id)}
-                onChange={() => toggle(u.id)}
-                className="rounded shrink-0"
-              />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{u.nama_lengkap}</p>
-                <p className="text-[10px] text-slate-400">{getRoleLabel(u.role)}</p>
-              </div>
-            </label>
-          ))
-        )}
+      <div className="rounded-md border bg-background">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12" />
+              <TableHead>Nama</TableHead>
+              <TableHead>Role</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visibleUsers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={3} className="h-20 text-center text-sm text-muted-foreground">
+                  Tidak ada pengguna yang sesuai.
+                </TableCell>
+              </TableRow>
+            ) : visibleUsers.map((user) => (
+              <TableRow key={user.id} data-state={selectedIds.has(user.id) ? 'selected' : undefined}>
+                <TableCell>
+                  <Checkbox
+                    checked={selectedIds.has(user.id)}
+                    onCheckedChange={() => toggle(user.id)}
+                    aria-label={`Pilih ${user.nama_lengkap}`}
+                  />
+                </TableCell>
+                <TableCell className="font-medium">{user.nama_lengkap}</TableCell>
+                <TableCell className="text-muted-foreground">{getRoleLabel(user.role)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
+
+      <DataPagination
+        total={filtered.length}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => {
+          setPageSize(size)
+          setPage(1)
+        }}
+        entityLabel="pengguna"
+      />
     </div>
   )
 }
 
-// ============================================================
-// Main Component
-// ============================================================
-export function NotificationClient({ roles = [], allUsers = [], diagnostics }: {
-  roles: RoleOption[]
-  allUsers: UserItem[]
-  diagnostics?: {
-    totalDevices: number
-    vapidKey: string
-    subscribedUserIds: string[]
-  }
+export function NotificationClient({ roles = [], allUsers = [] }: {
+  roles: NotificationRoleOption[]
+  allUsers: NotificationUserItem[]
 }) {
   const [state, action] = useActionState(sendCustomNotification, {} as any)
   const [bcState, bcAction] = useActionState(sendBroadcast, {} as any)
   const [targetType, setTargetType] = useState('all')
   const [targetRole, setTargetRole] = useState(roles[0]?.value || '')
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(allUsers.map(u => u.id)))
-  const [subTab, setSubTab] = useState<'sudah' | 'belum'>('sudah')
-  
-  const subscribedUsers = allUsers.filter(u => diagnostics?.subscribedUserIds.includes(u.id))
-  const unsubscribedUsers = allUsers.filter(u => diagnostics && !diagnostics.subscribedUserIds.includes(u.id))
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(allUsers.map((user) => user.id)))
 
-  const handleTargetTypeChange = useCallback((v: string) => {
-    setTargetType(v)
-    if (v === 'all') {
-      setSelectedIds(new Set(allUsers.map(u => u.id)))
-    } else if (v === 'role') {
-      setSelectedIds(new Set(allUsers.filter(u => u.all_roles.includes(targetRole)).map(u => u.id)))
+  const handleTargetTypeChange = (value: string) => {
+    setTargetType(value)
+    if (value === 'all') {
+      setSelectedIds(new Set(allUsers.map((user) => user.id)))
+    } else if (value === 'role') {
+      setSelectedIds(new Set(allUsers.filter((user) => user.all_roles.includes(targetRole)).map((user) => user.id)))
     } else {
-      // custom: biarkan user pilih manual, mulai kosong
       setSelectedIds(new Set())
     }
-  }, [allUsers, targetRole])
+  }
 
-  const handleTargetRoleChange = useCallback((v: string) => {
-    setTargetRole(v)
-    setSelectedIds(new Set(allUsers.filter(u => u.all_roles.includes(v)).map(u => u.id)))
-  }, [allUsers])
+  const handleTargetRoleChange = (value: string) => {
+    setTargetRole(value)
+    setSelectedIds(new Set(allUsers.filter((user) => user.all_roles.includes(value)).map((user) => user.id)))
+  }
 
   return (
-    <div className="space-y-4">
-      {/* Broadcast Semua (pegawai + orang tua) — teks + link + gambar */}
-      <div className="rounded-xl border border-surface bg-surface p-4 sm:p-5 shadow-none">
-        <form action={bcAction} className="space-y-4" encType="multipart/form-data">
-          <div className="flex items-center gap-2 mb-2">
-            <Send className="h-4 w-4 text-emerald-500" />
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-tight">
-              Broadcast ke Semua (Pegawai + Orang Tua)
-            </h3>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2">
-            Pegawai via VAPID + FCM, orang tua via FCM (perlu APK). Juga tersimpan di portal ortu.
-          </p>
+    <Tabs defaultValue="general" className="space-y-4">
+      <TabsList className="grid h-auto w-full max-w-xl grid-cols-2">
+        <TabsTrigger value="general" className="gap-2 py-2.5">
+          <Send className="h-4 w-4" />
+          Broadcast umum
+        </TabsTrigger>
+        <TabsTrigger value="staff" className="gap-2 py-2.5">
+          <Users className="h-4 w-4" />
+          Broadcast pegawai
+        </TabsTrigger>
+      </TabsList>
 
-          {bcState?.error && (
-            <div className="p-3 text-sm text-rose-600 bg-rose-50 rounded-lg border border-rose-100 flex gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" /> {bcState.error}
-            </div>
-          )}
-          {bcState?.success && (
-            <div className="p-3 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-100 flex gap-2">
-              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" /> {bcState.success}
-            </div>
-          )}
+      <TabsContent value="general" forceMount className="mt-0">
+        <Card className="border-surface shadow-none">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Send className="h-5 w-5 text-emerald-600" />
+              Broadcast umum
+            </CardTitle>
+            <CardDescription className="text-xs leading-5">
+              Kirim ke pegawai, orang tua, atau keduanya. Pegawai memakai VAPID + FCM; orang tua memakai FCM dan tetap mendapat fallback di portal.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={bcAction} className="space-y-5" encType="multipart/form-data">
+              <ActionFeedback state={bcState} />
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Judul</Label>
-            <Input name="title" required placeholder="Cth: Libur Semester" className="h-9 text-sm rounded-lg" />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Penerima</Label>
-            <Select name="audience" defaultValue="all">
-              <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua (Pegawai + Orang Tua)</SelectItem>
-                <SelectItem value="staff">Pegawai saja</SelectItem>
-                <SelectItem value="parents">Orang Tua saja</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Isi Pesan</Label>
-            <Textarea name="body" required rows={3} placeholder="Tulis pesan..." className="resize-none text-sm rounded-lg min-h-[80px]" />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">URL Tujuan</Label>
-              <Input name="url" defaultValue="/dashboard" placeholder="/dashboard" className="h-9 text-sm rounded-lg" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Gambar (opsional, maks 2MB)</Label>
-              <Input name="image" type="file" accept="image/jpeg,image/png,image/webp" className="h-9 text-sm rounded-lg file:text-xs" />
-            </div>
-          </div>
-
-          <BroadcastSubmitBtn />
-        </form>
-      </div>
-
-      {/* Broadcast Form Card */}
-      <div className="rounded-xl border border-surface bg-surface p-4 sm:p-5 shadow-none">
-        <form
-          action={(fd) => {
-            // Selalu kirim targetUserIds untuk semua mode agar backend handle
-            fd.set('targetType', 'custom')
-            fd.set('targetUserIds', JSON.stringify([...selectedIds]))
-            return action(fd)
-          }}
-          className="space-y-4"
-        >
-          <div className="flex items-center gap-2 mb-2">
-            <Send className="h-4 w-4 text-blue-500" />
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 uppercase tracking-tight">Form Broadcast</h3>
-          </div>
-
-          {state?.error && (
-            <div className="p-3 text-sm text-rose-600 bg-rose-50 rounded-lg border border-rose-100 flex gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" /> {state.error}
-            </div>
-          )}
-          {state?.success && (
-            <div className="p-3 text-sm text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-100 flex gap-2">
-              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" /> {state.success}
-            </div>
-          )}
-
-          {/* Judul */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Judul Notifikasi</Label>
-            <Input name="title" required placeholder="Cth: Pengumuman Rapat Dinas" className="h-9 text-sm rounded-lg" />
-          </div>
-
-          {/* Target cepat + role */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Preset Target</Label>
-              <Select value={targetType} onValueChange={handleTargetTypeChange}>
-                <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Pengguna</SelectItem>
-                  <SelectItem value="role">Berdasarkan Role</SelectItem>
-                  <SelectItem value="custom">Pilih Manual</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {targetType === 'role' && (
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Role</Label>
-                <Select value={targetRole} onValueChange={handleTargetRoleChange}>
-                  <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {roles.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="broadcast-title">Judul</Label>
+                  <Input id="broadcast-title" name="title" required placeholder="Contoh: Libur semester" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Penerima</Label>
+                  <Select name="audience" defaultValue="all">
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua (Pegawai + Orang Tua)</SelectItem>
+                      <SelectItem value="staff">Pegawai saja</SelectItem>
+                      <SelectItem value="parents">Orang Tua saja</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            )}
 
-            <div className={cn('space-y-1.5 col-span-2 sm:col-span-1', targetType === 'role' ? 'sm:col-span-1' : '')}>
-              <Label className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                <Users className="h-3.5 w-3.5" /> Penerima
-                <span className="text-slate-400 font-normal">({selectedIds.size} dipilih)</span>
-              </Label>
-            </div>
-          </div>
-
-          {/* Daftar Checkbox Penerima */}
-          <CheckboxPeserta
-            allUsers={allUsers}
-            roles={roles}
-            selectedIds={selectedIds}
-            setSelectedIds={setSelectedIds}
-          />
-
-          {/* Isi Pesan */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">Isi Pesan / Body</Label>
-            <Textarea name="body" required rows={3} placeholder="Tulis pesan lengkap di sini..." className="resize-none text-sm rounded-lg min-h-[80px]" />
-          </div>
-
-          {/* URL */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium text-slate-500 dark:text-slate-400">URL Tujuan (Internal Path)</Label>
-            <Input name="url" defaultValue="/dashboard" placeholder="/dashboard" className="h-9 text-sm rounded-lg" />
-          </div>
-
-          <SubmitBtn />
-        </form>
-      </div>
-
-      {/* Diagnostics Section */}
-      {diagnostics && (
-        <div className="rounded-xl border border-surface bg-surface-2/30 p-4 sm:p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Monitor className="h-4 w-4 text-slate-400" />
-            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Status Subscriber</h3>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
-            <div className="bg-surface border border-surface rounded-xl p-3 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                <Users className="h-5 w-5 text-blue-600" />
+              <div className="space-y-2">
+                <Label htmlFor="broadcast-body">Isi pesan</Label>
+                <Textarea id="broadcast-body" name="body" required rows={5} placeholder="Tulis pesan..." className="resize-y" />
               </div>
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">Total Devices</p>
-                <p className="text-xl font-black text-slate-900 dark:text-slate-50 dark:text-white leading-none">
-                  {diagnostics.totalDevices}
-                </p>
-              </div>
-            </div>
 
-            <div className="bg-surface border border-surface rounded-xl p-3 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center shrink-0">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="broadcast-url">URL tujuan</Label>
+                  <Input id="broadcast-url" name="url" defaultValue="/dashboard" placeholder="/dashboard" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="broadcast-image">Gambar (opsional, maks. 2MB)</Label>
+                  <Input id="broadcast-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" className="file:text-xs" />
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">Akun Aktif</p>
-                <p className="text-xl font-black text-slate-900 dark:text-slate-50 dark:text-white leading-none">
-                  {subscribedUsers.length} <span className="text-[10px] font-medium text-slate-400">/ {allUsers.length}</span>
-                </p>
-              </div>
-            </div>
 
-            <div className="bg-surface border border-surface rounded-xl p-3 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center shrink-0">
-                <Key className="h-5 w-5 text-violet-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">VAPID Key Status</p>
-                <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate bg-slate-50 dark:bg-slate-800 dark:bg-slate-900 px-1 rounded border border-slate-100 dark:border-slate-800 py-0.5">
-                  {diagnostics.vapidKey}
-                </p>
-              </div>
-            </div>
-          </div>
+              <BroadcastSubmitBtn />
+            </form>
+          </CardContent>
+        </Card>
+      </TabsContent>
 
-          <div className="rounded-xl border border-surface bg-surface overflow-hidden">
-             <div className="flex border-b border-surface-2 bg-slate-50 dark:bg-slate-800 dark:bg-slate-900/50">
-               <button type="button" onClick={() => setSubTab('sudah')} className={cn('flex-1 py-3 text-xs font-bold border-b-2 transition-colors', subTab === 'sudah' ? 'border-emerald-500 dark:border-emerald-500 text-emerald-700 dark:text-emerald-400 bg-white dark:bg-slate-900 dark:bg-slate-950' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 dark:hover:bg-slate-800')}>
-                 Sudah Mengaktifkan ({subscribedUsers.length})
-               </button>
-               <button type="button" onClick={() => setSubTab('belum')} className={cn('flex-1 py-3 text-xs font-bold border-b-2 transition-colors', subTab === 'belum' ? 'border-amber-500 text-amber-700 bg-white dark:bg-slate-900 dark:bg-slate-950' : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 dark:hover:bg-slate-800')}>
-                 Belum Mengaktifkan ({unsubscribedUsers.length})
-               </button>
-             </div>
-             
-             <div className="max-h-[400px] overflow-y-auto divide-y divide-surface-2">
-                {(subTab === 'sudah' ? subscribedUsers : unsubscribedUsers).length === 0 ? (
-                  <div className="p-8 text-center text-xs text-slate-400">Tidak ada data.</div>
-                ) : (
-                  (subTab === 'sudah' ? subscribedUsers : unsubscribedUsers).map(u => (
-                    <div key={u.id} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 dark:hover:bg-slate-800/30 transition-colors">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{u.nama_lengkap}</p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400">{getRoleLabel(u.role)}</p>
-                      </div>
-                      <div className="shrink-0">
-                         {subTab === 'sudah' ? (
-                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
-                             <CheckCircle2 className="h-3 w-3" /> Aktif
-                           </span>
-                         ) : (
-                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-50 border border-amber-100 text-[10px] font-bold text-amber-700">
-                             <AlertCircle className="h-3 w-3" /> Belum Aktif
-                           </span>
-                         )}
-                      </div>
-                    </div>
-                  ))
+      <TabsContent value="staff" forceMount className="mt-0">
+        <Card className="border-surface shadow-none">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="h-5 w-5 text-blue-600" />
+              Broadcast pegawai
+            </CardTitle>
+            <CardDescription className="text-xs leading-5">
+              Pilih semua pegawai, berdasarkan role, atau tentukan penerima secara manual. Daftar penerima menggunakan pagination agar halaman tidak memiliki scroll ganda.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              action={(formData) => {
+                // Backend menerima targetUserIds sebagai sumber kebenaran untuk mode targeted.
+                formData.set('targetType', 'custom')
+                formData.set('targetUserIds', JSON.stringify([...selectedIds]))
+                return action(formData)
+              }}
+              className="space-y-5"
+            >
+              <ActionFeedback state={state} />
+
+              <div className="grid gap-4 md:grid-cols-[minmax(0,220px)_minmax(0,220px)_1fr]">
+                <div className="space-y-2">
+                  <Label>Preset target</Label>
+                  <Select value={targetType} onValueChange={handleTargetTypeChange}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Semua pegawai</SelectItem>
+                      <SelectItem value="role">Berdasarkan role</SelectItem>
+                      <SelectItem value="custom">Pilih manual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {targetType === 'role' && (
+                  <div className="space-y-2">
+                    <Label>Role</Label>
+                    <Select value={targetRole} onValueChange={handleTargetRoleChange}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {roles.map((role) => <SelectItem key={role.value} value={role.value}>{role.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
-             </div>
-          </div>
-        </div>
-      )}
-    </div>
+
+                <div className={cn('flex items-end pb-1 text-sm text-muted-foreground', targetType !== 'role' && 'md:col-span-2')}>
+                  <span>{selectedIds.size} penerima dipilih</span>
+                </div>
+              </div>
+
+              <RecipientTable
+                allUsers={allUsers}
+                roles={roles}
+                selectedIds={selectedIds}
+                setSelectedIds={setSelectedIds}
+              />
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="targeted-broadcast-title">Judul notifikasi</Label>
+                  <Input id="targeted-broadcast-title" name="title" required placeholder="Contoh: Pengumuman rapat dinas" />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="targeted-broadcast-body">Isi pesan</Label>
+                  <Textarea id="targeted-broadcast-body" name="body" required rows={5} placeholder="Tulis pesan lengkap..." className="resize-y" />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="targeted-broadcast-url">URL tujuan (internal path)</Label>
+                  <Input id="targeted-broadcast-url" name="url" defaultValue="/dashboard" placeholder="/dashboard" />
+                </div>
+              </div>
+
+              <SubmitBtn />
+            </form>
+          </CardContent>
+        </Card>
+      </TabsContent>
+    </Tabs>
   )
 }
