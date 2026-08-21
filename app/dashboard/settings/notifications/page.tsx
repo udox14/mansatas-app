@@ -31,7 +31,7 @@ export default async function AdminNotificationsPage() {
   const automaticSettings = await getNotificationSettings(db);
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-500 pb-12">
+    <div className="min-w-0 space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
         title="Notifikasi & Broadcast"
         description="Atur notifikasi otomatis dan kirim pemberitahuan push ke perangkat pengguna."

@@ -247,6 +247,7 @@ export function NotificationClient({ roles = [], allUsers = [] }: {
   const [state, action] = useActionState(sendCustomNotification, {} as any)
   const [bcState, bcAction] = useActionState(sendBroadcast, {} as any)
   const [targetType, setTargetType] = useState('all')
+  const [activeTab, setActiveTab] = useState('general')
   const [targetRole, setTargetRole] = useState(roles[0]?.value || '')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(allUsers.map((user) => user.id)))
 
@@ -267,8 +268,8 @@ export function NotificationClient({ roles = [], allUsers = [] }: {
   }
 
   return (
-    <Tabs defaultValue="general" className="space-y-4">
-      <TabsList className="grid h-auto w-full max-w-xl grid-cols-2">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="min-w-0 space-y-4">
+      <TabsList aria-label="Jenis broadcast" className="grid h-auto w-full max-w-xl grid-cols-2">
         <TabsTrigger value="general" className="gap-2 py-2.5">
           <Send className="h-4 w-4" />
           Broadcast umum
@@ -279,8 +280,8 @@ export function NotificationClient({ roles = [], allUsers = [] }: {
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="general" forceMount className="mt-0">
-        <Card className="border-surface shadow-none">
+      <TabsContent value="general" className="min-w-0 mt-0">
+        <Card className="min-w-0 overflow-hidden border-surface shadow-none">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Send className="h-5 w-5 text-emerald-600" />
@@ -334,8 +335,8 @@ export function NotificationClient({ roles = [], allUsers = [] }: {
         </Card>
       </TabsContent>
 
-      <TabsContent value="staff" forceMount className="mt-0">
-        <Card className="border-surface shadow-none">
+      <TabsContent value="staff" className="min-w-0 mt-0">
+        <Card className="min-w-0 overflow-hidden border-surface shadow-none">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Users className="h-5 w-5 text-blue-600" />

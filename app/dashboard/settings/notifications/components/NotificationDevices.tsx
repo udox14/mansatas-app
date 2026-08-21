@@ -68,7 +68,7 @@ export function NotificationDevices({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="border-surface shadow-none">
           <CardContent className="flex items-center gap-3 p-4">
@@ -112,7 +112,7 @@ export function NotificationDevices({
         </Card>
       </div>
 
-      <Card className="border-surface shadow-none">
+      <Card className="min-w-0 overflow-hidden border-surface shadow-none">
         <CardHeader className="gap-4 pb-4">
           <div>
             <CardTitle className="flex items-center gap-2 text-base">

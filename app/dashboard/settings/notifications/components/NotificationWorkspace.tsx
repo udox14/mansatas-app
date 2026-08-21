@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Bell, Monitor, Send } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { NotificationEventDefinition } from '@/lib/notification-catalog'
@@ -32,32 +33,34 @@ export function NotificationWorkspace({
   allUsers: NotificationUserItem[]
   diagnostics: NotificationDiagnostics
 }) {
+  const [activeTab, setActiveTab] = useState('automatic')
+
   return (
-    <Tabs defaultValue="automatic" className="space-y-4">
-      <TabsList className="grid h-auto w-full grid-cols-3">
-        <TabsTrigger value="automatic" className="gap-2 py-2.5">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="min-w-0 space-y-4">
+      <TabsList aria-label="Bagian pengaturan notifikasi" className="grid h-auto w-full grid-cols-3 p-1">
+        <TabsTrigger value="automatic" className="min-w-0 gap-1.5 px-2 py-2.5 sm:gap-2 sm:px-3">
           <Bell className="h-4 w-4" />
-          Otomatis
+          <span className="truncate">Otomatis</span>
         </TabsTrigger>
-        <TabsTrigger value="broadcast" className="gap-2 py-2.5">
+        <TabsTrigger value="broadcast" className="min-w-0 gap-1.5 px-2 py-2.5 sm:gap-2 sm:px-3">
           <Send className="h-4 w-4" />
-          Broadcast
+          <span className="truncate">Broadcast</span>
         </TabsTrigger>
-        <TabsTrigger value="devices" className="gap-2 py-2.5">
+        <TabsTrigger value="devices" className="min-w-0 gap-1.5 px-2 py-2.5 sm:gap-2 sm:px-3">
           <Monitor className="h-4 w-4" />
-          Perangkat
+          <span className="truncate">Perangkat</span>
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="automatic" forceMount className="mt-0">
+      <TabsContent value="automatic" className="min-w-0 mt-0">
         <AutomaticNotificationSettings definitions={definitions} settings={settings} />
       </TabsContent>
 
-      <TabsContent value="broadcast" forceMount className="mt-0">
+      <TabsContent value="broadcast" className="min-w-0 mt-0">
         <NotificationClient roles={roles} allUsers={allUsers} />
       </TabsContent>
 
-      <TabsContent value="devices" forceMount className="mt-0">
+      <TabsContent value="devices" className="min-w-0 mt-0">
         <NotificationDevices roles={roles} allUsers={allUsers} diagnostics={diagnostics} />
       </TabsContent>
     </Tabs>

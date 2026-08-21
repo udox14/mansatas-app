@@ -221,7 +221,7 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
 
   return (
     <>
-      <Card className="border-surface shadow-none">
+      <Card className="min-w-0 overflow-hidden border-surface shadow-none">
         <CardHeader className="gap-4 pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -271,6 +271,53 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
         </CardHeader>
 
         <CardContent className="p-0">
+          <div className="space-y-3 border-t p-3 md:hidden">
+            {filteredDefinitions.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                Tidak ada event yang sesuai filter.
+              </p>
+            ) : filteredDefinitions.map((definition) => {
+              const draft = drafts[definition.key] || draftFrom(definition, settingsByKey.get(definition.key))
+              return (
+                <article key={definition.key} className="space-y-3 rounded-xl border bg-background p-3 shadow-sm">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
+                      <Badge variant="outline" className="text-[10px] font-medium">{GROUP_LABEL[definition.group]}</Badge>
+                      <h3 className="font-medium leading-5">{definition.label}</h3>
+                      <p className="text-xs leading-4 text-muted-foreground">{definition.description}</p>
+                    </div>
+                    <Badge
+                      variant={draft.enabled ? 'default' : 'secondary'}
+                      className={draft.enabled ? 'shrink-0 bg-emerald-600 hover:bg-emerald-600' : 'shrink-0'}
+                    >
+                      {draft.enabled ? 'Aktif' : 'Nonaktif'}
+                    </Badge>
+                  </div>
+
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg bg-muted/35 p-3 text-xs">
+                    <div className="min-w-0">
+                      <dt className="text-muted-foreground">Channel</dt>
+                      <dd className="mt-0.5 break-words font-medium">{getChannelLabels(draft.channels)}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-muted-foreground">Reminder</dt>
+                      <dd className="mt-0.5 font-medium">{draft.reminder.enabled ? `${draft.reminder.frequencyMinutes} menit` : 'Nonaktif'}</dd>
+                    </div>
+                    <div className="col-span-2 min-w-0">
+                      <dt className="text-muted-foreground">Penerima</dt>
+                      <dd className="mt-0.5 break-words font-medium">{getTargetLabel(draft.target)}</dd>
+                    </div>
+                  </dl>
+
+                  <Button type="button" size="sm" variant="outline" className="w-full" onClick={() => setSelectedKey(definition.key)}>
+                    Atur notifikasi
+                  </Button>
+                </article>
+              )
+            })}
+          </div>
+
+          <div className="hidden md:block">
           <Table>
             <TableHeader>
               <TableRow>
@@ -323,6 +370,7 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
               })}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
