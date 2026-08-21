@@ -8,7 +8,8 @@ import { checkFeatureAccess, getPrimaryRole, getUserRoles } from '@/lib/features
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
 import { AnalitikKedisiplinanClient } from '../kedisiplinan/components/analitik-client'
-import { getAnalitikKedisiplinan, getSanksiList, type SanksiConfig } from '../kedisiplinan/actions'
+import { getAnalitikKedisiplinan } from '../kedisiplinan/actions'
+import { loadSanksiList, type SanksiConfig } from '@/lib/sanksi-service'
 import { MonitoringKedisiplinanClient } from './components/monitoring-kedisiplinan-client'
 import { cn } from '@/lib/utils'
 
@@ -76,7 +77,7 @@ async function MonitoringDataFetcher({ currentUser, taAktifId, sanksiList, lifet
 async function MonitoringFetcher({ currentUser, taAktifId }: { currentUser: any; taAktifId: string }) {
   const db = await getDB()
   const [sanksiList, lifetimePoinRes] = await Promise.all([
-    getSanksiList(),
+    loadSanksiList(db),
     db.prepare(`
       SELECT sp.siswa_id, SUM(mp.poin) as total_poin
       FROM siswa_pelanggaran sp

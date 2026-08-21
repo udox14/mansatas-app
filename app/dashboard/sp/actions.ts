@@ -13,7 +13,7 @@ import { getUserRoles } from '@/lib/features'
 import { uploadToR2, deleteFromR2 } from '@/utils/r2'
 import { revalidatePath } from 'next/cache'
 import { getDataForSurat } from '../surat/actions'
-import { getSanksiList } from '../kedisiplinan/actions'
+import { loadSanksiList } from '@/lib/sanksi-service'
 import { KODE_KLASIFIKASI_SP } from './constants'
 import type { SpLevel, KeputusanSp } from './constants'
 
@@ -92,7 +92,7 @@ export async function getDataForSP() {
 
   const [masterData, sanksiList] = await Promise.all([
     getDataForSurat(),
-    getSanksiList(),
+    loadSanksiList(db),
   ])
 
   // Rekomendasi: siswa dgn akumulasi poin seumur hidup yg melewati threshold

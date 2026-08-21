@@ -24,8 +24,8 @@ import {
   previewImportPelanggaranMassal,
   commitImportPelanggaranMassal,
   type ImportPelanggaranPreviewRow,
-  type SanksiConfig,
 } from '../actions'
+import type { SanksiConfig } from '@/lib/sanksi-service'
 import { cn } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { todayWIB } from '@/lib/time'

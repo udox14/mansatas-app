@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { SanksiConfigModal } from './sanksi-config-modal'
-import type { SanksiConfig } from '../actions'
+import type { SanksiConfig } from '@/lib/sanksi-service'
 
 const KATEGORI_COLORS: Record<string, string> = {
   'Ringan':  'bg-yellow-400',

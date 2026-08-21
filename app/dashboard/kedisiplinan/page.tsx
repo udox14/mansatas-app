@@ -8,7 +8,7 @@ import { CalendarDays } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
 import { KedisiplinanClient } from './components/kedisiplinan-client'
 import { PageHeader } from '@/components/layout/page-header'
-import { getSanksiList, type SanksiConfig } from './actions'
+import { loadSanksiList, type SanksiConfig } from '@/lib/sanksi-service'
 
 export const metadata = { title: 'Kedisiplinan & Tata Tertib - MANSATAS App' }
 
@@ -53,7 +53,7 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
 async function KedisiplinanFetcher({ currentUser, taAktifId }: { currentUser: any; taAktifId: string }) {
   const db = await getDB()
   const [sanksiList, lifetimePoinRes] = await Promise.all([
-    getSanksiList(),
+    loadSanksiList(db),
     db.prepare(`
       SELECT sp.siswa_id, SUM(mp.poin) as total_poin
       FROM siswa_pelanggaran sp

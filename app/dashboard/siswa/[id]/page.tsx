@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { DetailSiswaClient } from './components/detail-client'
-import { getSanksiList } from '../../kedisiplinan/actions'
+import { loadSanksiList } from '@/lib/sanksi-service'
 import { getUserRoles } from '@/lib/features'
 import { ensureRiwayatKelasSnapshotColumns } from '@/lib/riwayat-kelas'
 import { getStudentNotes } from '@/lib/student-notes'
@@ -190,7 +190,7 @@ export default async function DetailSiswaPage({
       FROM kelas ORDER BY tingkat ASC, kelompok ASC, nomor_kelas ASC
     `).all<any>(),
 
-    getSanksiList(),
+    loadSanksiList(db),
   ])
 
   const rawRna = rekapNilai || {}

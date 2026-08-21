@@ -13,6 +13,12 @@ import { uploadBuktiFoto, deleteFromR2, validateImageFile } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { currentTimeWIB, todayWIB } from '@/lib/time'
+import {
+  ensureSanksiTable,
+  loadSanksiList,
+  reorderSanksi,
+  type SanksiConfig,
+} from '@/lib/sanksi-service'
 // import { formatNamaKelas } from '@/lib/utils'
 import { revalidatePath } from 'next/cache'
 
@@ -432,7 +438,7 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
     const poinSesudah = totalRes?.total || 0
     const poinSebelum = poinSesudah - (masterData?.poin || 0)
 
-    const sanksiList = await getSanksiList()
+    const sanksiList = await loadSanksiList(db)
     const getForPoin = (p: number) =>
       [...sanksiList].sort((a, b) => b.poin_minimal - a.poin_minimal).find(s => p >= s.poin_minimal) || null
 
@@ -872,7 +878,7 @@ export async function getAnalitikKedisiplinan(taAktifId: string) {
       GROUP BY s.kelas_id ORDER BY total_poin DESC
     `).bind(taAktifId).all<any>(),
 
-    getSanksiList(),
+    loadSanksiList(db),
   ])
 
   const sanksiList: SanksiConfig[] = sanksiListRes
@@ -900,63 +906,9 @@ export async function getAnalitikKedisiplinan(taAktifId: string) {
 // ============================================================
 // 6. SANKSI CONFIG (CRUD)
 // ============================================================
-export type SanksiConfig = {
-  id: string
-  nama: string
-  deskripsi: string | null
-  poin_minimal: number
-  urutan: number
-}
-
-async function ensureSanksiTable(db: any) {
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS sanksi_config (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      nama TEXT NOT NULL,
-      deskripsi TEXT,
-      poin_minimal INTEGER NOT NULL DEFAULT 0,
-      urutan INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    )
-  `).run()
-}
-
-async function reorderSanksi(db: any) {
-  const all = await db.prepare(`SELECT id FROM sanksi_config ORDER BY poin_minimal ASC`).all()
-  for (let i = 0; i < (all.results?.length || 0); i++) {
-    await db.prepare(`UPDATE sanksi_config SET urutan = ? WHERE id = ?`).bind(i + 1, all.results![i].id).run()
-  }
-}
-
 export async function getSanksiList(): Promise<SanksiConfig[]> {
   const db = await getDB()
-  try {
-    await ensureSanksiTable(db)
-    const res = await db.prepare(`SELECT * FROM sanksi_config ORDER BY poin_minimal ASC`).all<any>()
-    let list: SanksiConfig[] = res.results || []
-
-    if (list.length === 0) {
-      const defaults = [
-        { nama: 'SP1', deskripsi: 'Surat Peringatan 1', poin_minimal: 100, urutan: 1 },
-        { nama: 'SP2', deskripsi: 'Surat Peringatan 2', poin_minimal: 150, urutan: 2 },
-        { nama: 'SP3', deskripsi: 'Surat Peringatan 3', poin_minimal: 200, urutan: 3 },
-      ]
-      for (const d of defaults) {
-        await db.prepare(`INSERT INTO sanksi_config (nama, deskripsi, poin_minimal, urutan) VALUES (?, ?, ?, ?)`)
-          .bind(d.nama, d.deskripsi, d.poin_minimal, d.urutan).run()
-      }
-      const res2 = await db.prepare(`SELECT * FROM sanksi_config ORDER BY poin_minimal ASC`).all<any>()
-      list = res2.results || []
-    }
-    return list
-  } catch {
-    return [
-      { id: 'default-1', nama: 'SP1', deskripsi: 'Surat Peringatan 1', poin_minimal: 100, urutan: 1 },
-      { id: 'default-2', nama: 'SP2', deskripsi: 'Surat Peringatan 2', poin_minimal: 150, urutan: 2 },
-      { id: 'default-3', nama: 'SP3', deskripsi: 'Surat Peringatan 3', poin_minimal: 200, urutan: 3 },
-    ]
-  }
+  return loadSanksiList(db)
 }
 
 export async function simpanSanksiItem(prevState: any, formData: FormData) {
@@ -1051,7 +1003,8 @@ export async function simpanKedisiplinanConfig(prevState: any, formData: FormDat
 // 8. AMBIL KONFIGURASI (kept for backward compat — sekarang delegate ke sanksi)
 // ============================================================
 export async function getKedisiplinanConfig() {
-  const sanksiList = await getSanksiList()
+  const db = await getDB()
+  const sanksiList = await loadSanksiList(db)
   return {
     threshold_perhatian:  sanksiList[0]?.poin_minimal ?? 25,
     threshold_peringatan: sanksiList[1]?.poin_minimal ?? 50,
