@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
+import { emitConfiguredNotification, getParentStudentIdsForAnnouncement } from '@/lib/notification-engine'
 
 async function ensureTable(db: D1Database) {
   await db.prepare(`
@@ -119,6 +120,28 @@ export async function createParentAnnouncement(formData: FormData) {
       INSERT INTO parent_announcement_targets (announcement_id, target_type, tingkat)
       VALUES (?, 'angkatan', ?)
     `).bind(resolvedAnnouncementId, tingkat).run()
+  }
+
+  try {
+    const due = await db.prepare(`
+      SELECT 1 AS is_due
+      FROM parent_announcements
+      WHERE id = ? AND is_active = 1 AND datetime(publish_at) <= datetime('now')
+        AND (expires_at IS NULL OR datetime(expires_at) > datetime('now'))
+      LIMIT 1
+    `).bind(resolvedAnnouncementId).first()
+    if (due) {
+      const siswaIds = await getParentStudentIdsForAnnouncement(db, resolvedAnnouncementId)
+      await emitConfiguredNotification({
+        eventKey: 'parent_announcement_published',
+        sourceRef: `parent-announcement:${resolvedAnnouncementId}`,
+        context: { judul: title, isi_pengumuman: body, tanggal: publishAt || new Date().toISOString().slice(0, 10), siswaIds },
+        db,
+        parentType: 'pengumuman',
+      })
+    }
+  } catch (notificationError) {
+    console.error('[notification] parent_announcement_published gagal:', notificationError)
   }
 
   revalidatePath('/dashboard/pengumuman-ortu')

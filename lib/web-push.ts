@@ -1,35 +1,56 @@
 import { buildPushPayload } from '@block65/webcrypto-web-push';
 import { getDB } from '@/utils/db-server'
 
-const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-const privateVapidKey = process.env.VAPID_PRIVATE_KEY;
-const subject = process.env.VAPID_SUBJECT || 'mailto:admin@localhost';
+export type WebPushRuntimeEnv = {
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY?: string
+  VAPID_PRIVATE_KEY?: string
+  VAPID_SUBJECT?: string
+}
+
+export type WebPushRuntimeOptions = {
+  db?: D1Database
+  env?: WebPushRuntimeEnv
+}
 
 type PushTarget = { userId?: string; userIds?: string[]; role?: string; all?: boolean };
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {
+  const output: R[] = []
+  let cursor = 0
+  const worker = async () => {
+    while (cursor < items.length) {
+      const index = cursor++
+      output[index] = await mapper(items[index])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker))
+  return output
+}
 
 /**
  * Mengirim push notification ke user menggunakan Web Crypto (Cloudflare Workers Compatible)
  */
 export async function sendPushNotification(
   notification: { title: string, body: string, url?: string, icon?: string },
-  target: PushTarget
+  target: PushTarget,
+  options: WebPushRuntimeOptions = {},
 ) {
   try {
-    const db = await getDB();
+    const db = options.db || await getDB();
     
     let query: string;
     let bindings: any[] = [];
 
     if (target.userId) {
-      query = `SELECT endpoint, p256dh, auth FROM web_push_subscriptions WHERE LOWER(user_id) = LOWER(?)`;
+      query = `SELECT DISTINCT endpoint, p256dh, auth FROM web_push_subscriptions WHERE LOWER(user_id) = LOWER(?)`;
       bindings = [target.userId];
     } else if (target.userIds && target.userIds.length > 0) {
       const placeholders = target.userIds.map(() => '?').join(',');
-      query = `SELECT wp.endpoint, wp.p256dh, wp.auth FROM web_push_subscriptions wp WHERE LOWER(wp.user_id) IN (${placeholders})`;
+      query = `SELECT DISTINCT wp.endpoint, wp.p256dh, wp.auth FROM web_push_subscriptions wp WHERE LOWER(wp.user_id) IN (${placeholders})`;
       bindings = target.userIds.map(id => id.toLowerCase());
     } else if (target.role) {
       query = `
-        SELECT wp.endpoint, wp.p256dh, wp.auth
+        SELECT DISTINCT wp.endpoint, wp.p256dh, wp.auth
         FROM web_push_subscriptions wp
         JOIN "user" u ON LOWER(wp.user_id) = LOWER(u.id)
         WHERE (
@@ -39,7 +60,7 @@ export async function sendPushNotification(
       `;
       bindings = [target.role, target.role];
     } else if (target.all) {
-      query = `SELECT endpoint, p256dh, auth FROM web_push_subscriptions`;
+      query = `SELECT DISTINCT endpoint, p256dh, auth FROM web_push_subscriptions`;
       bindings = [];
     } else {
       return { success: false, message: "No target specified" };
@@ -52,6 +73,10 @@ export async function sendPushNotification(
       return { success: true, sent: 0, message: "No active subscriptions found for target" };
     }
 
+    const publicVapidKey = options.env?.NEXT_PUBLIC_VAPID_PUBLIC_KEY || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    const privateVapidKey = options.env?.VAPID_PRIVATE_KEY || process.env.VAPID_PRIVATE_KEY;
+    const subject = options.env?.VAPID_SUBJECT || process.env.VAPID_SUBJECT || 'mailto:admin@localhost';
+
     if (!publicVapidKey || !privateVapidKey) {
       console.error("[PushService] VAPID keys missing in environment");
       return { success: false, message: "VAPID keys not configured" };
@@ -59,8 +84,8 @@ export async function sendPushNotification(
 
     const payload = JSON.stringify(notification);
     
-    // Kirim secara paralel menggunakan fetch-based library
-    const promises = results.map(async (row: any) => {
+    // Batasi concurrency karena pembuatan VAPID payload memakai Web Crypto.
+    const report = await mapWithConcurrency(results, 10, async (row: any) => {
       try {
         const subscription = {
           endpoint: row.endpoint,
@@ -104,11 +129,14 @@ export async function sendPushNotification(
         return { success: false, endpoint: row.endpoint, error: err.message };
       }
     });
-
-    const report = await Promise.all(promises);
     const sent = report.filter(r => r.success).length;
 
-    return { success: true, sent, report };
+    return {
+      success: sent > 0 || report.length === 0,
+      sent,
+      report,
+      ...(sent === 0 && report.length > 0 ? { error: 'Semua subscription Web Push gagal menerima notifikasi.' } : {}),
+    };
   } catch (error) {
     console.error("Failed to send push notification:", error);
     return { success: false, error };

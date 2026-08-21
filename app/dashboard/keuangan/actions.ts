@@ -5,6 +5,7 @@ import { getSession } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { checkFeatureAccess } from '@/lib/features'
 import { todayWIB } from '@/lib/time'
+import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1037,6 +1038,26 @@ export async function konfirmasiDsptPaymentSubmission(submissionId: string) {
 
   await recalcTagihanStatus(db, [{ refType: 'dspt', refId: submission.dspt_id, jumlah }])
 
+  try {
+    const student = await getStudentNotificationContext(db, submission.siswa_id)
+    if (student) {
+      await emitConfiguredNotification({
+        eventKey: 'finance_payment_confirmed',
+        sourceRef: `payment-confirmed:${submissionId}`,
+        context: {
+          ...student,
+          nominal: new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(jumlah),
+          nomor_kuitansi: nomorKuitansi,
+          tanggal: todayWIB(),
+        },
+        db,
+        parentType: 'keuangan',
+      })
+    }
+  } catch (error) {
+    console.error('[notification] finance_payment_confirmed gagal:', error)
+  }
+
   revalidatePath('/dashboard/keuangan')
   revalidatePath('/dashboard/keuangan/dspt')
   revalidatePath('/dashboard/keuangan/transaksi')
@@ -1051,7 +1072,7 @@ export async function tolakDsptPaymentSubmission(submissionId: string, reason: s
   const alasan = reason.trim()
   if (alasan.length < 3) return { error: 'Alasan penolakan wajib diisi', success: null }
 
-  const submission = await db.prepare('SELECT siswa_id, status FROM fin_payment_submissions WHERE id = ?').bind(submissionId).first<any>()
+  const submission = await db.prepare('SELECT siswa_id, jumlah, metode_bayar, status, bukti_uploaded_at, updated_at FROM fin_payment_submissions WHERE id = ?').bind(submissionId).first<any>()
   if (!submission) return { error: 'Pengajuan pembayaran tidak ditemukan', success: null }
   if (submission.status === 'terkonfirmasi') return { error: 'Pengajuan sudah terkonfirmasi dan tidak bisa ditolak', success: null }
 
@@ -1064,6 +1085,26 @@ export async function tolakDsptPaymentSubmission(submissionId: string, reason: s
         updated_at = datetime('now')
     WHERE id = ?
   `).bind(userId, alasan, submissionId).run()
+
+  try {
+    const student = await getStudentNotificationContext(db, submission.siswa_id)
+    if (student) {
+      await emitConfiguredNotification({
+        eventKey: 'finance_payment_rejected',
+        sourceRef: `payment-rejected:${submissionId}:${submission.bukti_uploaded_at || submission.updated_at || submission.status}`,
+        context: {
+          ...student,
+          nominal: new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(submission.jumlah || 0)),
+          alasan,
+          tanggal: todayWIB(),
+        },
+        db,
+        parentType: 'keuangan',
+      })
+    }
+  } catch (error) {
+    console.error('[notification] finance_payment_rejected gagal:', error)
+  }
 
   revalidatePath('/dashboard/keuangan/dspt')
   revalidatePath('/portal-ortu')

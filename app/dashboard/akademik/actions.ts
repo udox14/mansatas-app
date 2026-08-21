@@ -12,6 +12,7 @@ async function getDB() {
 import { requireUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
+import { emitConfiguredNotification } from '@/lib/notification-engine'
 import { findDefaultTeacherCode } from '@/lib/academic-teacher-code-defaults'
 import {
   applyAcademicDataset,
@@ -391,6 +392,21 @@ export async function importJadwalASC(xmlText: string): Promise<{
 // 4. JADWAL CRUD (edit manual per cell)
 // ============================================================
 
+async function emitScheduleChanged(db: D1Database, sourceRef: string, context: Record<string, unknown>) {
+  const userIds = Array.isArray(context.userIds) ? [...new Set(context.userIds.map(String).filter(Boolean))] : []
+  if (userIds.length === 0) return
+  try {
+    await emitConfiguredNotification({
+      eventKey: 'schedule_changed',
+      sourceRef,
+      context: { ...context, userIds },
+      db,
+    })
+  } catch (error) {
+    console.error('[notification] schedule_changed gagal:', error)
+  }
+}
+
 // Ambil jadwal per kelas — lazy load, dipanggil dari client
 export async function getJadwalByKelas(kelas_id: string, tahun_ajaran_id: string) {
   const db = await getDB()
@@ -439,8 +455,34 @@ export async function editSlotJadwal(
   penugasan_id_baru: string
 ) {
   const db = await getDB()
+  const before = await db.prepare(`
+    SELECT jm.id, jm.hari, jm.jam_ke, pm.guru_id, mp.nama_mapel,
+           k.tingkat, k.nomor_kelas, k.kelompok
+    FROM jadwal_mengajar jm
+    JOIN penugasan_mengajar pm ON pm.id = jm.penugasan_id
+    LEFT JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
+    LEFT JOIN kelas k ON k.id = pm.kelas_id
+    WHERE jm.id = ? LIMIT 1
+  `).bind(jadwal_id).first<any>()
   const result = await dbUpdate(db, 'jadwal_mengajar', { penugasan_id: penugasan_id_baru }, { id: jadwal_id })
   if (result.error) return { error: result.error }
+  const after = await db.prepare(`
+    SELECT jm.hari, jm.jam_ke, pm.guru_id, mp.nama_mapel,
+           k.tingkat, k.nomor_kelas, k.kelompok
+    FROM jadwal_mengajar jm
+    JOIN penugasan_mengajar pm ON pm.id = jm.penugasan_id
+    LEFT JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
+    LEFT JOIN kelas k ON k.id = pm.kelas_id
+    WHERE jm.id = ? LIMIT 1
+  `).bind(jadwal_id).first<any>()
+  await emitScheduleChanged(db, `schedule:${jadwal_id}:edit:${penugasan_id_baru}`, {
+    userIds: [before?.guru_id, after?.guru_id].filter(Boolean),
+    perubahan: `Slot hari ${after?.hari ?? before?.hari ?? '-'} jam ke-${after?.jam_ke ?? before?.jam_ke ?? '-'} diperbarui dari ${before?.nama_mapel || 'jadwal lama'} menjadi ${after?.nama_mapel || 'jadwal baru'}.`,
+    kelas: [after?.tingkat, after?.nomor_kelas, after?.kelompok].filter(Boolean).join(' '),
+    mapel: after?.nama_mapel || before?.nama_mapel || '-',
+    hari: after?.hari ?? before?.hari ?? '-',
+    jam: after?.jam_ke ?? before?.jam_ke ?? '-',
+  })
   revalidatePath('/dashboard/akademik')
   return { success: 'Slot jadwal berhasil diperbarui.' }
 }
@@ -448,8 +490,25 @@ export async function editSlotJadwal(
 // Hapus satu slot jadwal
 export async function hapusSlotJadwal(jadwal_id: string) {
   const db = await getDB()
+  const before = await db.prepare(`
+    SELECT jm.hari, jm.jam_ke, pm.guru_id, mp.nama_mapel,
+           k.tingkat, k.nomor_kelas, k.kelompok
+    FROM jadwal_mengajar jm
+    JOIN penugasan_mengajar pm ON pm.id = jm.penugasan_id
+    LEFT JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
+    LEFT JOIN kelas k ON k.id = pm.kelas_id
+    WHERE jm.id = ? LIMIT 1
+  `).bind(jadwal_id).first<any>()
   const result = await dbDelete(db, 'jadwal_mengajar', { id: jadwal_id })
   if (result.error) return { error: result.error }
+  await emitScheduleChanged(db, `schedule:${jadwal_id}:deleted`, {
+    userIds: before?.guru_id ? [before.guru_id] : [],
+    perubahan: `Slot hari ${before?.hari ?? '-'} jam ke-${before?.jam_ke ?? '-'} untuk ${before?.nama_mapel || 'mata pelajaran'} dihapus.`,
+    kelas: [before?.tingkat, before?.nomor_kelas, before?.kelompok].filter(Boolean).join(' '),
+    mapel: before?.nama_mapel || '-',
+    hari: before?.hari ?? '-',
+    jam: before?.jam_ke ?? '-',
+  })
   revalidatePath('/dashboard/akademik')
   return { success: 'Slot jadwal berhasil dihapus.' }
 }
@@ -466,6 +525,24 @@ export async function tambahSlotJadwal(
   if (result.error) {
     return { error: result.error.includes('UNIQUE') ? 'Slot hari & jam ini sudah terisi.' : result.error }
   }
+  const savedId = String((result.data as any)?.id || '')
+  const saved = savedId ? await db.prepare(`
+    SELECT jm.id, jm.hari, jm.jam_ke, pm.guru_id, mp.nama_mapel,
+           k.tingkat, k.nomor_kelas, k.kelompok
+    FROM jadwal_mengajar jm
+    JOIN penugasan_mengajar pm ON pm.id = jm.penugasan_id
+    LEFT JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
+    LEFT JOIN kelas k ON k.id = pm.kelas_id
+    WHERE jm.id = ? LIMIT 1
+  `).bind(savedId).first<any>() : null
+  await emitScheduleChanged(db, `schedule:${savedId || `${penugasan_id}:${hari}:${jam_ke}`}:created`, {
+    userIds: saved?.guru_id ? [saved.guru_id] : [],
+    perubahan: `Slot hari ${hari} jam ke-${jam_ke} ditambahkan untuk ${saved?.nama_mapel || 'mata pelajaran'}.`,
+    kelas: [saved?.tingkat, saved?.nomor_kelas, saved?.kelompok].filter(Boolean).join(' '),
+    mapel: saved?.nama_mapel || '-',
+    hari,
+    jam: jam_ke,
+  })
   revalidatePath('/dashboard/akademik')
   return { success: 'Slot jadwal berhasil ditambahkan.' }
 }
@@ -474,6 +551,12 @@ export async function tambahSlotJadwal(
 export async function resetJadwalKelas(kelas_id: string, tahun_ajaran_id: string) {
   const db = await getDB()
   try {
+    const teachers = await db.prepare(`
+      SELECT DISTINCT pm.guru_id
+      FROM penugasan_mengajar pm
+      JOIN jadwal_mengajar jm ON jm.penugasan_id = pm.id
+      WHERE jm.tahun_ajaran_id = ? AND pm.kelas_id = ? AND pm.tahun_ajaran_id = ?
+    `).bind(tahun_ajaran_id, kelas_id, tahun_ajaran_id).all<{ guru_id: string }>()
     await db.prepare(`
       DELETE FROM jadwal_mengajar
       WHERE tahun_ajaran_id = ?
@@ -481,6 +564,14 @@ export async function resetJadwalKelas(kelas_id: string, tahun_ajaran_id: string
           SELECT id FROM penugasan_mengajar WHERE kelas_id = ? AND tahun_ajaran_id = ?
         )
     `).bind(tahun_ajaran_id, kelas_id, tahun_ajaran_id).run()
+    await emitScheduleChanged(db, `schedule:class:${kelas_id}:reset:${tahun_ajaran_id}`, {
+      userIds: (teachers.results || []).map((row) => row.guru_id),
+      perubahan: 'Seluruh jadwal mengajar pada kelas ini direset.',
+      kelas: kelas_id,
+      mapel: '-',
+      hari: '-',
+      jam: '-',
+    })
     revalidatePath('/dashboard/akademik')
     return { success: 'Jadwal kelas berhasil direset.' }
   } catch (e: any) {

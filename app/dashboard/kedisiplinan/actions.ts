@@ -21,6 +21,7 @@ import {
 } from '@/lib/sanksi-service'
 // import { formatNamaKelas } from '@/lib/utils'
 import { revalidatePath } from 'next/cache'
+import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
 
 const INPUT_PELANGGARAN_ROLES = ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru']
 const MANAGE_KEDISIPLINAN_ROLES = ['super_admin', 'wakamad', 'guru_bk']
@@ -415,12 +416,14 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
     updated_at: new Date().toISOString(),
   }
 
+  let savedId = id || ''
   if (id) {
     const result = await dbUpdate(db, 'siswa_pelanggaran', payload, { id })
     if (result.error) return { error: 'Gagal mengedit: ' + result.error, success: null }
   } else {
     const result = await dbInsert(db, 'siswa_pelanggaran', payload)
     if (result.error) return { error: 'Gagal merekam data: ' + result.error, success: null }
+    savedId = String((result.data as any)?.id || '')
   }
 
   // Cek apakah siswa naik level sanksi (hanya saat tambah baru, bukan edit)
@@ -432,7 +435,7 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
       WHERE sp.siswa_id = ?
     `).bind(siswa_id).first<{ total: number }>()
 
-    const masterData = await db.prepare(`SELECT poin FROM master_pelanggaran WHERE id = ?`)
+    const masterData = await db.prepare(`SELECT poin, nama_pelanggaran FROM master_pelanggaran WHERE id = ?`)
       .bind(master_pelanggaran_id).first<{ poin: number }>()
 
     const poinSesudah = totalRes?.total || 0
@@ -447,6 +450,45 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
 
     if (sanksiSesudah && sanksiSesudah.id !== sanksiSebelum?.id) {
       naik_sanksi = { nama: sanksiSesudah.nama, deskripsi: sanksiSesudah.deskripsi, total_poin: poinSesudah }
+    }
+  }
+
+  if (!id) {
+    try {
+      const student = await getStudentNotificationContext(db, siswa_id)
+      const master = await db.prepare('SELECT nama_pelanggaran, poin FROM master_pelanggaran WHERE id = ? LIMIT 1').bind(master_pelanggaran_id).first<{ nama_pelanggaran: string; poin: number }>()
+      if (student && master) {
+        await emitConfiguredNotification({
+          eventKey: 'discipline_violation_created',
+          sourceRef: `discipline:${savedId || `${siswa_id}:${tanggal}:${master_pelanggaran_id}`}`,
+          context: {
+            ...student,
+            nama_pelanggaran: master.nama_pelanggaran,
+            poin: master.poin,
+            tanggal,
+            keterangan: keterangan || '-',
+          },
+          db,
+          parentType: 'kedisiplinan',
+        })
+
+        if (naik_sanksi) {
+          await emitConfiguredNotification({
+            eventKey: 'discipline_sanction_reached',
+            sourceRef: `sanksi:${naik_sanksi.nama}`,
+            context: {
+              ...student,
+              level_sanksi: naik_sanksi.nama,
+              total_poin: naik_sanksi.total_poin,
+              tanggal,
+            },
+            db,
+            parentType: 'sanksi',
+          })
+        }
+      }
+    } catch (error) {
+      console.error('[notification] discipline notification gagal:', error)
     }
   }
 

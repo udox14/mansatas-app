@@ -41,6 +41,25 @@
   "services": [
     { "binding": "SELF", "service": "mansatas-app" }
   ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "NOTIFICATION_QUEUE",
+        "queue": "mansatas-notification-queue"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "mansatas-notification-queue",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "retry_delay": 60,
+        "max_concurrency": 1,
+        "dead_letter_queue": "mansatas-notification-dlq"
+      }
+    ]
+  },
   "vars": {
     "BETTER_AUTH_URL": "https://mansatas-app.drudox.workers.dev",
     "ALLOWED_APP_ORIGINS": "https://mansatas-app.drudox.workers.dev,https://app.mansatas.com,capacitor://localhost,http://localhost",

@@ -16,6 +16,7 @@ import { publicServerError } from '@/lib/security-log'
 import { createSignedMediaUrl } from '@/lib/media-security'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { z } from 'zod'
+import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
 
 const bkIdSchema = z.string().trim().min(1).max(100)
 const bkCreateSchema = z.object({
@@ -34,6 +35,10 @@ const bkUpdateSchema = bkCreateSchema.pick({
   tindak_lanjut: true,
   catatan_tindak_lanjut: true,
 }).partial().strict()
+
+function involvesParentFollowup(value: unknown) {
+  return /orang\s*tua|pemanggilan|kolaborasi/i.test(String(value || ''))
+}
 
 function resolveBkIdentity(actor: AuthenticatedActor, requestedGuruId?: string) {
   if (actor.kind !== 'staff') throw new Error('Staff session required')
@@ -336,6 +341,27 @@ export async function tambahRekamanBK(payload: unknown) {
     catatan_tindak_lanjut: safePayload.catatan_tindak_lanjut || '',
   })
   if (result.error) return { error: result.error }
+  if (involvesParentFollowup(safePayload.tindak_lanjut)) {
+    try {
+      const student = await getStudentNotificationContext(db, safePayload.siswa_id)
+      if (student) {
+        await emitConfiguredNotification({
+          eventKey: 'bk_parent_followup',
+          sourceRef: `bk:${(result.data as any)?.id || crypto.randomUUID()}`,
+          context: {
+            ...student,
+            tindak_lanjut: safePayload.tindak_lanjut || '-',
+            catatan: safePayload.catatan_tindak_lanjut || '-',
+            tanggal: new Date().toISOString().slice(0, 10),
+          },
+          db,
+          parentType: /pemanggilan/i.test(safePayload.tindak_lanjut) ? 'pemanggilan' : 'kolaborasi',
+        })
+      }
+    } catch (error) {
+      console.error('[notification] bk_parent_followup gagal:', error)
+    }
+  }
   revalidatePath('/dashboard/bk')
   return { success: 'Rekaman BK berhasil disimpan.', id: (result.data as any)?.id }
 }
@@ -346,12 +372,34 @@ export async function editRekamanBK(id: string, payload: unknown) {
   if (!parsed.success || Object.keys(parsed.data).length === 0) return { error: 'Data rekaman BK tidak valid.' }
   const db = await getDB()
   if (!(await assertRekamanScope(db, actor, id))) return { error: 'Rekaman tidak ditemukan.' }
+  const before = await db.prepare('SELECT siswa_id, tindak_lanjut, catatan_tindak_lanjut FROM bk_rekaman WHERE id = ? LIMIT 1').bind(id).first<{ siswa_id: string; tindak_lanjut: string; catatan_tindak_lanjut: string | null }>()
   const safePayload = {
     ...parsed.data,
     updated_at: new Date().toISOString(),
   }
   const result = await dbUpdate(db, 'bk_rekaman', safePayload, { id })
   if (result.error) return { error: result.error }
+  if (before && safePayload.tindak_lanjut !== undefined && involvesParentFollowup(safePayload.tindak_lanjut)) {
+    try {
+      const student = await getStudentNotificationContext(db, before.siswa_id)
+      if (student) {
+        await emitConfiguredNotification({
+          eventKey: 'bk_parent_followup',
+          sourceRef: `bk:${id}:${encodeURIComponent(String(safePayload.tindak_lanjut))}`,
+          context: {
+            ...student,
+            tindak_lanjut: safePayload.tindak_lanjut || '-',
+            catatan: safePayload.catatan_tindak_lanjut || before.catatan_tindak_lanjut || '-',
+            tanggal: new Date().toISOString().slice(0, 10),
+          },
+          db,
+          parentType: /pemanggilan/i.test(String(safePayload.tindak_lanjut)) ? 'pemanggilan' : 'kolaborasi',
+        })
+      }
+    } catch (error) {
+      console.error('[notification] bk_parent_followup (edit) gagal:', error)
+    }
+  }
   revalidatePath('/dashboard/bk')
   return { success: 'Rekaman berhasil diperbarui.' }
 }

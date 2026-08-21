@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser } from '@/lib/act-as'
+import { notifyParentsGradeAvailable } from '@/lib/notification-engine'
 
 // ============================================================
 // TYPES
@@ -120,7 +121,7 @@ export async function getNilaiDetail(headerId: string, kelasId: string): Promise
   const db = await getDB()
   // Verify ownership
   const header = await db.prepare(
-    'SELECT id FROM nilai_harian_header WHERE id = ? AND created_by = ?'
+    'SELECT id, judul, tanggal FROM nilai_harian_header WHERE id = ? AND created_by = ?'
   ).bind(headerId, guruId).first<any>()
   if (!header) return []
 
@@ -270,6 +271,17 @@ export async function simpanNilaiSiswa(
     await dbUpdate(db, 'nilai_harian_header', { updated_at: new Date().toISOString() }, { id: headerId })
   } catch (e: any) {
     return { error: e.message }
+  }
+
+  try {
+    await notifyParentsGradeAvailable(db, {
+      siswaIds: data.filter((row) => row.nilai !== null).map((row) => row.siswa_id),
+      jenisNilai: header.judul,
+      semester: 'nilai_harian',
+      tanggal: header.tanggal,
+    })
+  } catch (error) {
+    console.error('[notification] grade_available nilai harian gagal:', error)
   }
 
   return { success: `${data.length} perubahan berhasil disimpan.` }

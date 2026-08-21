@@ -5,6 +5,7 @@ import { getDB } from '@/utils/db-server'
 import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
+import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
 
 const KELAS_BINAAN_DOMISILI = [
   'Pesantren Sukamanah',
@@ -221,6 +222,28 @@ export async function createParentSummonFromKelasBinaan(formData: FormData) {
     sourceRef
   ).run()
 
+  try {
+    const student = await getStudentNotificationContext(db, siswaId)
+    if (student) {
+      await emitConfiguredNotification({
+        eventKey: 'parent_summon_created',
+        sourceRef,
+        context: {
+          ...student,
+          alasan: reason,
+          catatan: note || '-',
+          tanggal: eventDate || new Date().toISOString().slice(0, 10),
+          waktu: eventTime || '-',
+          tempat: location || '-',
+        },
+        db,
+        parentType: 'pemanggilan',
+      })
+    }
+  } catch (error) {
+    console.error('[notification] parent_summon_created gagal:', error)
+  }
+
   await db.prepare(`
     INSERT INTO parent_thread_notes (siswa_id, actor_type, actor_id, note_type, content)
     VALUES (?, 'wali_kelas', ?, 'pemanggilan', ?)
@@ -254,12 +277,12 @@ export async function cancelLatestParentSummonFromKelasBinaan(formData: FormData
   if (!allowed) return { error: 'Akses ditolak.' }
 
   const latest = await db.prepare(`
-    SELECT id, status
+    SELECT id, status, reason, event_date, event_time, location, note
     FROM parent_summons
     WHERE siswa_id = ?
     ORDER BY created_at DESC
     LIMIT 1
-  `).bind(siswaId).first<{ id: string; status: string }>()
+  `).bind(siswaId).first<{ id: string; status: string; reason: string; event_date: string | null; event_time: string | null; location: string | null; note: string | null }>()
 
   if (!latest) return { error: 'Belum ada pemanggilan untuk dibatalkan.' }
   if (latest.status === 'dibatalkan') return { error: 'Pemanggilan terbaru sudah dibatalkan.' }
@@ -279,6 +302,25 @@ export async function cancelLatestParentSummonFromKelasBinaan(formData: FormData
     note,
     `cancel:${latest.id}`
   ).run()
+
+  try {
+    const student = await getStudentNotificationContext(db, siswaId)
+    if (student) {
+      await emitConfiguredNotification({
+        eventKey: 'parent_summon_cancelled',
+        sourceRef: `cancel:${latest.id}`,
+        context: {
+          ...student,
+          catatan: note || latest.note || '-',
+          tanggal: latest.event_date || new Date().toISOString().slice(0, 10),
+        },
+        db,
+        parentType: 'pemanggilan',
+      })
+    }
+  } catch (error) {
+    console.error('[notification] parent_summon_cancelled gagal:', error)
+  }
 
   await db.prepare(`
     INSERT INTO parent_thread_notes (siswa_id, actor_type, actor_id, note_type, content)

@@ -12,6 +12,22 @@ const TOKEN_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging'
 const TOKEN_AUD = 'https://oauth2.googleapis.com/token'
 const KV_TOKEN_KEY = 'fcm_access_token'
 
+export type FcmRuntimeEnv = {
+  FCM_PROJECT_ID?: string
+  FCM_CLIENT_EMAIL?: string
+  FCM_PRIVATE_KEY?: string
+  NEXT_INC_CACHE_KV?: KVNamespace
+  NEXT_PUBLIC_APP_URL?: string
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY?: string
+  VAPID_PRIVATE_KEY?: string
+  VAPID_SUBJECT?: string
+}
+
+export type FcmRuntimeOptions = {
+  db?: D1Database
+  env?: FcmRuntimeEnv
+}
+
 export type FcmNotif = {
   title: string
   body: string
@@ -31,6 +47,8 @@ export type FcmTarget = {
   siswaIds?: string[]
   allParents?: boolean
 }
+
+let accessTokenInFlight: Promise<string> | null = null
 
 // ============================================================
 // OAuth2: mint access token dari service account (JWT RS256)
@@ -101,17 +119,19 @@ async function mintAccessToken(clientEmail: string, privateKeyPem: string): Prom
   return json.access_token
 }
 
-async function getAccessToken(): Promise<string> {
-  const clientEmail = process.env.FCM_CLIENT_EMAIL
-  const privateKey = process.env.FCM_PRIVATE_KEY
+async function getAccessToken(runtimeEnv?: FcmRuntimeEnv): Promise<string> {
+  const clientEmail = runtimeEnv?.FCM_CLIENT_EMAIL || process.env.FCM_CLIENT_EMAIL
+  const privateKey = runtimeEnv?.FCM_PRIVATE_KEY || process.env.FCM_PRIVATE_KEY
   if (!clientEmail || !privateKey) throw new Error('FCM_CLIENT_EMAIL / FCM_PRIVATE_KEY belum diset')
 
-  let kv: KVNamespace | undefined
+  let kv: KVNamespace | undefined = runtimeEnv?.NEXT_INC_CACHE_KV
   try {
-    const { env } = await getCloudflareContext({ async: true })
-    kv = env.NEXT_INC_CACHE_KV
+    if (!kv) {
+      const { env } = await getCloudflareContext({ async: true })
+      kv = (env as unknown as { NEXT_INC_CACHE_KV?: KVNamespace }).NEXT_INC_CACHE_KV
+    }
   } catch {
-    kv = undefined
+    // Unit tests and local callers may not have a Cloudflare context.
   }
 
   if (kv) {
@@ -119,32 +139,42 @@ async function getAccessToken(): Promise<string> {
     if (cached) return cached
   }
 
-  const token = await mintAccessToken(clientEmail, privateKey)
-  if (kv) {
-    // exp 3600s, cache 3300s biar aman
-    await kv.put(KV_TOKEN_KEY, token, { expirationTtl: 3300 })
+  if (accessTokenInFlight) return accessTokenInFlight
+
+  accessTokenInFlight = (async () => {
+    const token = await mintAccessToken(clientEmail, privateKey)
+    if (kv) {
+      // exp 3600s, cache 3300s biar aman
+      await kv.put(KV_TOKEN_KEY, token, { expirationTtl: 3300 })
+    }
+    return token
+  })()
+
+  try {
+    return await accessTokenInFlight
+  } finally {
+    accessTokenInFlight = null
   }
-  return token
 }
 
 // ============================================================
 // Ambil token FCM sesuai target
 // ============================================================
-async function resolveTokens(target: FcmTarget): Promise<string[]> {
-  const db = await getDB()
+async function resolveTokens(target: FcmTarget, database?: D1Database): Promise<string[]> {
+  const db = database || await getDB()
   let query: string
   let bindings: unknown[] = []
 
   if (target.userId) {
-    query = `SELECT token FROM fcm_tokens WHERE owner_type='staff' AND LOWER(user_id) = LOWER(?)`
+    query = `SELECT DISTINCT token FROM fcm_tokens WHERE owner_type='staff' AND LOWER(user_id) = LOWER(?)`
     bindings = [target.userId]
   } else if (target.userIds && target.userIds.length > 0) {
     const ph = target.userIds.map(() => '?').join(',')
-    query = `SELECT token FROM fcm_tokens WHERE owner_type='staff' AND LOWER(user_id) IN (${ph})`
+    query = `SELECT DISTINCT token FROM fcm_tokens WHERE owner_type='staff' AND LOWER(user_id) IN (${ph})`
     bindings = target.userIds.map((id) => id.toLowerCase())
   } else if (target.role) {
     query = `
-      SELECT ft.token
+      SELECT DISTINCT ft.token
       FROM fcm_tokens ft
       JOIN "user" u ON LOWER(ft.user_id) = LOWER(u.id)
       WHERE ft.owner_type='staff' AND (
@@ -154,48 +184,52 @@ async function resolveTokens(target: FcmTarget): Promise<string[]> {
     `
     bindings = [target.role, target.role]
   } else if (target.all) {
-    query = `SELECT token FROM fcm_tokens WHERE owner_type='staff'`
+    query = `SELECT DISTINCT token FROM fcm_tokens WHERE owner_type='staff'`
   } else if (target.siswaId) {
-    query = `SELECT token FROM fcm_tokens WHERE owner_type='parent' AND siswa_id = ?`
+    query = `SELECT DISTINCT token FROM fcm_tokens WHERE owner_type='parent' AND siswa_id = ?`
     bindings = [target.siswaId]
   } else if (target.siswaIds && target.siswaIds.length > 0) {
     const ph = target.siswaIds.map(() => '?').join(',')
-    query = `SELECT token FROM fcm_tokens WHERE owner_type='parent' AND siswa_id IN (${ph})`
+    query = `SELECT DISTINCT token FROM fcm_tokens WHERE owner_type='parent' AND siswa_id IN (${ph})`
     bindings = target.siswaIds
   } else if (target.allParents) {
-    query = `SELECT token FROM fcm_tokens WHERE owner_type='parent'`
+    query = `SELECT DISTINCT token FROM fcm_tokens WHERE owner_type='parent'`
   } else {
     return []
   }
 
   const res = await db.prepare(query).bind(...bindings).all<{ token: string }>()
-  return (res.results || []).map((r) => r.token)
+  return [...new Set((res.results || []).map((r) => r.token).filter(Boolean))]
 }
 
 // ============================================================
 // Kirim FCM notification
 // ============================================================
-export async function sendFcmNotification(notification: FcmNotif, target: FcmTarget) {
+export async function sendFcmNotification(
+  notification: FcmNotif,
+  target: FcmTarget,
+  options: FcmRuntimeOptions = {},
+) {
   try {
-    const projectId = process.env.FCM_PROJECT_ID
+    const projectId = options.env?.FCM_PROJECT_ID || process.env.FCM_PROJECT_ID
     if (!projectId) {
       console.error('[FCM] FCM_PROJECT_ID belum diset')
       return { success: false, message: 'FCM not configured' }
     }
 
-    const tokens = await resolveTokens(target)
+    const db = options.db || await getDB()
+    const tokens = await resolveTokens(target, db)
     if (tokens.length === 0) {
       return { success: true, sent: 0, message: 'No FCM tokens for target' }
     }
 
-    const accessToken = await getAccessToken()
+    const accessToken = await getAccessToken(options.env)
     const endpoint = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`
-    const db = await getDB()
 
     let imageUrl = notification.image
     if (imageUrl) {
       if (imageUrl.startsWith('/')) {
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.mansatas.com'
+        const appUrl = options.env?.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'https://app.mansatas.com'
         imageUrl = `${appUrl}${imageUrl}`
       }
       // Pastikan HTTPS untuk keandalan Android OS download gambar
@@ -254,7 +288,7 @@ export async function sendFcmNotification(notification: FcmNotif, target: FcmTar
         if (res.ok) return { success: true, token }
         const errText = await res.text()
         // UNREGISTERED / NOT_FOUND → token mati, hapus
-        if (res.status === 404 || errText.includes('UNREGISTERED') || errText.includes('registration-token-not-registered')) {
+        if ([401, 403, 404, 410].includes(res.status) || errText.includes('UNREGISTERED') || errText.includes('registration-token-not-registered')) {
           await db.prepare('DELETE FROM fcm_tokens WHERE token = ?').bind(token).run()
         }
         console.error(`[FCM] gagal kirim (${res.status}): ${errText}`)
@@ -268,11 +302,18 @@ export async function sendFcmNotification(notification: FcmNotif, target: FcmTar
     const report: any[] = []
     for (let i = 0; i < tokens.length; i += 100) {
       const chunk = tokens.slice(i, i + 100)
-      const r = await Promise.all(chunk.map(send))
-      report.push(...r)
+      for (let start = 0; start < chunk.length; start += 20) {
+        const r = await Promise.all(chunk.slice(start, start + 20).map(send))
+        report.push(...r)
+      }
     }
     const sent = report.filter((r) => r.success).length
-    return { success: true, sent, report }
+    return {
+      success: sent > 0 || report.length === 0,
+      sent,
+      report,
+      ...(sent === 0 && report.length > 0 ? { error: 'Semua token FCM gagal menerima notifikasi.' } : {}),
+    }
   } catch (error) {
     console.error('[FCM] Gagal mengirim FCM:', error)
     return { success: false, error }

@@ -50,6 +50,9 @@ declare interface R2HTTPMetadata { contentType?: string; contentLanguage?: strin
 declare interface R2Checksums { md5?: ArrayBuffer; sha1?: ArrayBuffer; sha256?: ArrayBuffer; sha384?: ArrayBuffer; sha512?: ArrayBuffer }
 declare interface R2Conditional { etagMatches?: string; etagDoesNotMatch?: string; uploadedBefore?: Date; uploadedAfter?: Date }
 declare interface Fetcher { fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> }
+declare interface Queue {
+  send(body: unknown, options?: { contentType?: 'json'; delaySeconds?: number }): Promise<void>
+}
 declare type Service<T = unknown> = Fetcher & T
 declare interface BrowserRun extends Fetcher {}
 declare interface RateLimit { limit(options: { key: string }): Promise<{ success: boolean }> }

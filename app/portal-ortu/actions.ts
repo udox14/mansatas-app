@@ -10,6 +10,7 @@ import { ensureParentSuggestionTable, normalizeParentSuggestionCategory } from '
 import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
 import { getFinalAttendanceForStudent } from '@/lib/wali-kelas-attendance'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
+import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
 
 type SummonResponse = 'hadir' | 'reschedule'
 const SEMESTER_NILAI_COLUMNS = ['nilai_smt1', 'nilai_smt2', 'nilai_smt3', 'nilai_smt4', 'nilai_smt5', 'nilai_smt6'] as const
@@ -254,7 +255,7 @@ export async function uploadParentPaymentProof(formData: FormData) {
   if (!file || file.size <= 0) return { error: 'File bukti pembayaran wajib diupload.' }
 
   const submission = await db.prepare(`
-    SELECT id, siswa_id, status
+    SELECT id, siswa_id, status, jumlah, metode_bayar
     FROM fin_payment_submissions
     WHERE id = ? AND siswa_id = ?
   `).bind(submissionId, session.user.siswa_id).first<any>()
@@ -270,6 +271,26 @@ export async function uploadParentPaymentProof(formData: FormData) {
         reject_reason = NULL, rejected_by = NULL, rejected_at = NULL, updated_at = datetime('now')
     WHERE id = ? AND siswa_id = ?
   `).bind(uploaded.url, submissionId, session.user.siswa_id).run()
+
+  try {
+    const student = await getStudentNotificationContext(db, submission.siswa_id)
+    if (student) {
+      await emitConfiguredNotification({
+        eventKey: 'finance_payment_proof_uploaded',
+        sourceRef: `payment-proof:${submissionId}:${submission.status}`,
+        context: {
+          ...student,
+          nominal: new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(submission.jumlah || 0)),
+          tanggal: new Date().toISOString().slice(0, 10),
+          metode_bayar: submission.metode_bayar === 'qris' ? 'QRIS' : 'transfer',
+        },
+        db,
+        parentType: 'keuangan',
+      })
+    }
+  } catch (error) {
+    console.error('[notification] finance_payment_proof_uploaded gagal:', error)
+  }
 
   revalidatePath('/portal-ortu')
   return { success: 'Bukti pembayaran berhasil diupload.', buktiUrl: uploaded.url }

@@ -330,7 +330,10 @@ export async function submitKomiteAction(id: string) {
     db.prepare(`UPDATE komite_pengajuan_versions SET submitted_at=datetime('now') WHERE id=?`).bind(version.id),
   ])
   await logActivity({ db, module: 'komite_pengajuan', action: 'submit', summary: `Mengirim pengajuan ${row.judul} ke Bendahara Komite`, entityType: 'komite_pengajuan', entityId: id, entityLabel: row.judul })
-  await notify({ title: 'Pengajuan dana baru', body: `${user.nama_lengkap || user.name} mengirim "${row.judul}".`, url: PAGE_PATH }, { role: 'bendahara_komite' })
+  await notify({ title: 'Pengajuan dana baru', body: `${user.nama_lengkap || user.name} mengirim "${row.judul}".`, url: PAGE_PATH }, { role: 'bendahara_komite' }, {
+    eventKey: 'komite_review',
+    sourceRef: `komite:${id}:submitted:${row.current_version}`,
+  })
   revalidatePath(PAGE_PATH)
   return { success: 'Pengajuan dikirim ke Bendahara Komite.' }
 }
@@ -436,11 +439,15 @@ export async function reviewKomiteAction(formData: FormData) {
   }
   await logActivity({ db, module: 'komite_pengajuan', action: `review_${action}`, severity: action === 'tolak' ? 'warning' : 'info', summary: `${action === 'setujui' ? 'Menyetujui' : action === 'minta_revisi' ? 'Meminta revisi' : 'Menolak'} pengajuan ${row.judul} pada tahap ${permission.stage}`, entityType: 'komite_pengajuan', entityId: id, entityLabel: row.judul, metadata: { stage: permission.stage, bypass: permission.bypass, version: row.current_version } })
 
-  if (nextStatus === 'menunggu_ketua') await notify({ title: 'Pengajuan menunggu review', body: `"${row.judul}" menunggu persetujuan Ketua Komite.`, url: PAGE_PATH }, { role: 'ketua_komite' })
-  else if (nextStatus === 'menunggu_kepala') await notify({ title: 'Pengajuan menunggu review', body: `"${row.judul}" menunggu persetujuan Kepala Madrasah.`, url: PAGE_PATH }, { role: 'kepsek' })
-  else if (nextStatus === 'perlu_revisi') await notify({ title: 'Pengajuan perlu revisi', body: `"${row.judul}" perlu diperbaiki. Buka riwayat untuk melihat catatan reviewer.`, url: PAGE_PATH }, { userId: row.pengaju_id })
-  else if (nextStatus === 'ditolak') await notify({ title: 'Pengajuan ditolak', body: `"${row.judul}" ditolak.`, url: PAGE_PATH }, { userId: row.pengaju_id })
-  else if (nextStatus === 'disetujui') await notify({ title: 'Pengajuan disetujui', body: `"${row.judul}" disetujui. SPB telah tersedia.`, url: PAGE_PATH }, { userId: row.pengaju_id })
+  const reviewNotificationOptions = {
+    eventKey: 'komite_review',
+    sourceRef: `komite:${id}:review:${row.current_version}:${nextStatus}`,
+  }
+  if (nextStatus === 'menunggu_ketua') await notify({ title: 'Pengajuan menunggu review', body: `"${row.judul}" menunggu persetujuan Ketua Komite.`, url: PAGE_PATH }, { role: 'ketua_komite' }, reviewNotificationOptions)
+  else if (nextStatus === 'menunggu_kepala') await notify({ title: 'Pengajuan menunggu review', body: `"${row.judul}" menunggu persetujuan Kepala Madrasah.`, url: PAGE_PATH }, { role: 'kepsek' }, reviewNotificationOptions)
+  else if (nextStatus === 'perlu_revisi') await notify({ title: 'Pengajuan perlu revisi', body: `"${row.judul}" perlu diperbaiki. Buka riwayat untuk melihat catatan reviewer.`, url: PAGE_PATH }, { userId: row.pengaju_id }, reviewNotificationOptions)
+  else if (nextStatus === 'ditolak') await notify({ title: 'Pengajuan ditolak', body: `"${row.judul}" ditolak.`, url: PAGE_PATH }, { userId: row.pengaju_id }, reviewNotificationOptions)
+  else if (nextStatus === 'disetujui') await notify({ title: 'Pengajuan disetujui', body: `"${row.judul}" disetujui. SPB telah tersedia.`, url: PAGE_PATH }, { userId: row.pengaju_id }, reviewNotificationOptions)
   revalidatePath(PAGE_PATH)
   return { success: nextStatus === 'disetujui' ? 'Pengajuan disetujui dan SPB telah terbit.' : 'Review berhasil disimpan.' }
 }
@@ -483,7 +490,10 @@ export async function delegateKetuaReviewAction(formData: FormData) {
     title: 'Delegasi review Komite',
     body: `Ketua Komite mendelegasikan review "${row.judul}" kepada Anda.`,
     url: PAGE_PATH,
-  }, { userId: member.id })
+  }, { userId: member.id }, {
+    eventKey: 'komite_review',
+    sourceRef: `komite:${id}:delegate:${member.id}`,
+  })
   revalidatePath(PAGE_PATH)
   return { success: `Review berhasil didelegasikan kepada ${member.name}.` }
 }

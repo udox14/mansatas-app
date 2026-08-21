@@ -1,35 +1,63 @@
-// lib/notify.ts
-// Wrapper fan-out ke dua kanal notif yang berjalan permanen berdampingan:
-//   - VAPID Web Push (lib/web-push.ts)  → web / PWA / iOS
-//   - FCM (lib/fcm.ts)                  → Android native (Capacitor)
-// Satu device hanya punya salah satu kanal (VAPID sub ATAU FCM token), jadi tidak dobel.
+// Legacy-compatible wrapper untuk jalur notifikasi lama.
+// Semua pengiriman tetap melewati notification engine agar deduplikasi,
+// batching, Queue, dan fallback in-app berlaku konsisten.
 
-import { sendPushNotification } from '@/lib/web-push'
-import { sendFcmNotification, type FcmNotif, type FcmTarget } from '@/lib/fcm'
+import { dispatchRawNotification, type NotificationContext } from '@/lib/notification-engine'
+import type { FcmNotif, FcmTarget } from '@/lib/fcm'
+import type { NotificationTargetConfig } from '@/lib/notification-catalog'
 
-export async function notify(notification: FcmNotif, target: FcmTarget) {
-  const [vapid, fcm] = await Promise.all([
-    // Web Push (VAPID) hanya paham target staff: userId/userIds/role/all
-    (target.userId || target.userIds || target.role || target.all)
-      ? sendPushNotification(
-          {
-            title: notification.title,
-            body: notification.body,
-            url: notification.url,
-            icon: (notification.data && notification.data.icon) || undefined,
-          },
-          {
-            userId: target.userId,
-            userIds: target.userIds,
-            role: target.role,
-            all: target.all,
-          }
-        ).catch((e) => ({ success: false, error: e }))
-      : Promise.resolve({ success: true, sent: 0 }),
-    sendFcmNotification(notification, target).catch((e) => ({ success: false, error: e })),
-  ])
+type LegacyNotifyOptions = {
+  eventKey?: string
+  sourceRef?: string
+}
 
-  const vapidSent = (vapid as any).sent || 0
-  const fcmSent = (fcm as any).sent || 0
-  return { success: true, vapidSent, fcmSent, sent: vapidSent + fcmSent, vapid, fcm }
+function convertTarget(target: FcmTarget): { config: NotificationTargetConfig; context: NotificationContext; parent: boolean } | null {
+  if (target.userId) {
+    return { config: { kind: 'staff_users' }, context: { userId: target.userId, userIds: [target.userId] }, parent: false }
+  }
+  if (target.userIds?.length) {
+    return { config: { kind: 'staff_users' }, context: { userIds: target.userIds }, parent: false }
+  }
+  if (target.role) {
+    return { config: { kind: 'staff_role', value: target.role }, context: {}, parent: false }
+  }
+  if (target.all) {
+    return { config: { kind: 'staff_all' }, context: {}, parent: false }
+  }
+  if (target.siswaId) {
+    return { config: { kind: 'parent_student' }, context: { siswaId: target.siswaId }, parent: true }
+  }
+  if (target.siswaIds?.length) {
+    return { config: { kind: 'parent_students' }, context: { siswaIds: target.siswaIds }, parent: true }
+  }
+  if (target.allParents) {
+    return { config: { kind: 'parents_all' }, context: {}, parent: true }
+  }
+  return null
+}
+
+export async function notify(notification: FcmNotif, target: FcmTarget, options: LegacyNotifyOptions = {}) {
+  const converted = convertTarget(target)
+  if (!converted) return { success: false, sent: 0, error: 'Target notifikasi tidak valid.' }
+
+  const result = await dispatchRawNotification({
+    eventKey: options.eventKey || 'legacy_notify',
+    sourceRef: options.sourceRef || `legacy-notify:${crypto.randomUUID()}`,
+    title: notification.title,
+    body: notification.body,
+    url: notification.url || '/dashboard',
+    image: notification.image,
+    channels: converted.parent ? ['fcm', 'in_app'] : ['fcm', 'webpush'],
+    target: converted.config,
+    context: converted.context,
+    parentType: 'legacy',
+  })
+
+  return {
+    success: result.status !== 'failed',
+    sent: result.sent,
+    queued: result.queued,
+    status: result.status,
+    error: result.error,
+  }
 }

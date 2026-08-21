@@ -6,6 +6,9 @@ import { getDB } from '@/utils/db-server'
 import { ALL_ROLES } from '@/config/menu';
 import { PageHeader } from '@/components/layout/page-header';
 import { getAllUsersForCheckbox } from '@/app/dashboard/rapat/actions';
+import { AutomaticNotificationSettings } from './components/AutomaticNotificationSettings';
+import { getNotificationSettings } from '@/lib/notification-engine';
+import { NOTIFICATION_EVENT_DEFINITIONS } from '@/lib/notification-catalog';
 
 export const dynamic = 'force-dynamic'
 
@@ -26,12 +29,18 @@ export default async function AdminNotificationsPage() {
 
   const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'N/A';
   const allUsers = await getAllUsersForCheckbox();
+  const automaticSettings = await getNotificationSettings(db);
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
-        title="Broadcast Notifikasi"
-        description="Kirim pemberitahuan push langsung ke perangkat pengguna."
+        title="Notifikasi & Broadcast"
+        description="Atur notifikasi otomatis dan kirim pemberitahuan push ke perangkat pengguna."
+      />
+
+      <AutomaticNotificationSettings
+        definitions={NOTIFICATION_EVENT_DEFINITIONS}
+        settings={automaticSettings}
       />
 
       <NotificationClient 

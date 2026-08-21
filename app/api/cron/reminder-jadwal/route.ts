@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDB } from '@/utils/db-server'
-import { notify } from '@/lib/notify'
+import { dispatchRawNotification } from '@/lib/notification-engine'
 import { nowWIB } from '@/lib/time'
 import { getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { constantTimeSecretEqual } from '@/lib/constant-time'
 import { internalErrorJson } from '@/lib/request-security'
+import { dispatchConfiguredReminders, dispatchDueParentAnnouncements } from '@/lib/notification-engine'
 
 /**
  * Master Cron Dispatcher — dipanggil setiap 5 menit oleh Cloudflare Cron Trigger.
@@ -37,6 +38,19 @@ export async function GET(req: NextRequest) {
 
     const now = nowWIB()
 
+    let announcementResult = { processed: 0 }
+    try {
+      announcementResult = await dispatchDueParentAnnouncements(db)
+    } catch (error) {
+      console.error('[notification] parent announcement cron gagal:', error)
+    }
+    let automaticReminderResult = { processed: 0 }
+    try {
+      automaticReminderResult = await dispatchConfiguredReminders(db)
+    } catch (error) {
+      console.error('[notification] automatic reminder cron gagal:', error)
+    }
+
     // Jam & menit sekarang WIB
     const jammenit = `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`
     const today = now.toISOString().split('T')[0]
@@ -49,7 +63,7 @@ export async function GET(req: NextRequest) {
     `).bind(jammenit).all<any>()
 
     if (!jadwals || jadwals.length === 0) {
-      return NextResponse.json({ message: `Tidak ada jadwal untuk jam ${jammenit}` })
+      return NextResponse.json({ message: `Tidak ada jadwal untuk jam ${jammenit}`, announcementsProcessed: announcementResult.processed, automaticRemindersProcessed: automaticReminderResult.processed })
     }
 
     const log: any[] = []
@@ -103,17 +117,31 @@ export async function GET(req: NextRequest) {
         target.userIds = ids
       }
 
-      const result = await notify(
-        { title: jadwal.judul, body: jadwal.isi, url: jadwal.url || '/dashboard' },
-        target
-      )
+      const notificationTarget = targetType === 'all'
+        ? { kind: 'staff_all' as const }
+        : targetType === 'role'
+          ? { kind: 'staff_role' as const, value: target.role }
+          : { kind: 'staff_users' as const }
+      const notification = await dispatchRawNotification({
+        eventKey: 'scheduled_broadcast',
+        sourceRef: `scheduled:${jadwal.id || jadwal.nama}:${today}:${jammenit}`,
+        title: jadwal.judul,
+        body: jadwal.isi,
+        url: jadwal.url || '/dashboard',
+        channels: ['fcm', 'webpush'],
+        target: notificationTarget,
+        context: target.userIds ? { userIds: target.userIds } : {},
+        db,
+      })
 
       log.push({
         jadwal: jadwal.nama,
         jam: jadwal.jam,
         targetType,
-        sent: result.sent || 0,
-        success: result.success,
+        sent: notification.sent || 0,
+        queued: notification.queued || 0,
+        success: notification.status !== 'failed',
+        error: notification.error,
       })
     }
 
@@ -123,6 +151,8 @@ export async function GET(req: NextRequest) {
       jammenit,
       hariIni,
       processed: log.length,
+      announcementsProcessed: announcementResult.processed,
+      automaticRemindersProcessed: automaticReminderResult.processed,
       log,
     })
 

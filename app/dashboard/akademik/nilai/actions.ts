@@ -14,6 +14,7 @@ import { revalidatePath } from 'next/cache'
 import { SEMESTER_MAP, SEMESTER_KEYS } from './constants'
 import { getCurrentUser } from '@/utils/auth/server'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
+import { notifyParentsGradeAvailable } from '@/lib/notification-engine'
 
 // ============================================================
 // KV CACHE — rekap nilai jarang berubah (update per semester).
@@ -227,6 +228,16 @@ export async function simpanImportNilai(preparedRows: { siswaId: string, nilaiOb
     // For simplicity, we just count based on preparedRows instead of db.batch results since db.batch either succeeds or throws on D1.
   }
   successCount = preparedRows.length
+
+  try {
+    await notifyParentsGradeAvailable(db, {
+      siswaIds: preparedRows.map((row) => row.siswaId),
+      jenisNilai: SEMESTER_MAP[targetKolom as keyof typeof SEMESTER_MAP],
+      semester: targetKolom,
+    })
+  } catch (error) {
+    console.error('[notification] grade_available gagal:', error)
+  }
 
   await invalidateRekapCache()
   revalidatePath('/dashboard/akademik/nilai')

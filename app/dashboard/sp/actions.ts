@@ -16,6 +16,7 @@ import { getDataForSurat } from '../surat/actions'
 import { loadSanksiList } from '@/lib/sanksi-service'
 import { KODE_KLASIFIKASI_SP } from './constants'
 import type { SpLevel, KeputusanSp } from './constants'
+import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
 
 const BULAN_ROMAWI = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 const MANAGE_SP_ROLES = ['super_admin', 'kepsek', 'wakamad', 'admin_tu', 'guru_bk']
@@ -188,6 +189,27 @@ export async function tetapkanSP(data: {
       user.id,
       namaPenetap,
     ).first<any>()
+
+    try {
+      const student = await getStudentNotificationContext(db, data.siswa_id)
+      if (student) {
+        await emitConfiguredNotification({
+          eventKey: 'warning_letter_issued',
+          sourceRef: `sp:${result?.id || nomorSurat}`,
+          context: {
+            ...student,
+            level_sp: data.level,
+            nomor_surat: nomorSurat,
+            alasan: data.alasan || '-',
+            tanggal: data.data_surat?.tanggal_surat_raw || new Date().toISOString().slice(0, 10),
+          },
+          db,
+          parentType: 'sp',
+        })
+      }
+    } catch (notificationError) {
+      console.error('[notification] warning_letter_issued gagal:', notificationError)
+    }
 
     revalidatePath('/dashboard/sp')
     return { success: 'SP berhasil ditetapkan & disimpan.', nomor_surat: nomorSurat, id: result?.id }

@@ -5,8 +5,8 @@ import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
-import { notify } from '@/lib/notify'
 import { nowWIBISO, todayWIB } from '@/lib/time'
+import { emitConfiguredNotification } from '@/lib/notification-engine'
 
 // ============================================================
 // HELPER — Cek role admin
@@ -96,14 +96,13 @@ export async function buatUndanganRapat(
 
   // Kirim Push Notification (user IDs spesifik)
   try {
-    await notify(
-      {
-        title: 'Undangan Rapat Baru',
-        body: `Agenda: ${agenda} pada ${tanggal} jam ${waktu} di ${tempat}. Harap konfirmasi kehadiran Anda.`,
-        url: '/dashboard/rapat'
-      },
-      { userIds: validIds }
-    )
+    const notification = await emitConfiguredNotification({
+      eventKey: 'meeting_invitation',
+      sourceRef: `rapat:${rapatId}:invitation`,
+      context: { agenda, tanggal, waktu, tempat, userIds: validIds },
+      db,
+    })
+    if (notification.status === 'failed') console.error('[notification] meeting_invitation gagal:', notification.error)
   } catch (e) {
     console.error('Gagal mengirim push notif rapat', e)
   }
@@ -194,14 +193,19 @@ export async function kirimUlangUndangan(
   if (!peserta) return { error: 'Peserta tidak ditemukan, bukan pending, atau rapat bukan milik Anda.' }
 
   try {
-    await notify(
-      {
-        title: '🔔 Pengingat Undangan Rapat',
-        body: `Agenda: ${peserta.agenda} pada ${peserta.tanggal} jam ${peserta.waktu}. Harap segera konfirmasi kehadiran Anda.`,
-        url: '/dashboard/rapat'
+    const notification = await emitConfiguredNotification({
+      eventKey: 'meeting_reminder',
+      sourceRef: `rapat:${rapatId}:reminder:${pesertaId}:${Math.floor(Date.now() / 60000)}`,
+      context: {
+        agenda: peserta.agenda,
+        tanggal: peserta.tanggal,
+        waktu: peserta.waktu,
+        tempat: peserta.tempat,
+        userIds: [peserta.user_id],
       },
-      { userIds: [peserta.user_id] }
-    )
+      db,
+    })
+    if (notification.status === 'failed') throw new Error(notification.error || 'Notifikasi gagal dikirim.')
   } catch (e) {
     console.error('Gagal kirim ulang notif', e)
     return { error: 'Gagal mengirim notifikasi.' }

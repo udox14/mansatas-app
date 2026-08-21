@@ -10,7 +10,7 @@ import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { currentTimeWIB, todayWIB, nowWIB } from '@/lib/time'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
-import { notifyParentsAttendance } from '@/lib/fcm'
+import { notifyParentsAttendanceConfigured } from '@/lib/notification-engine'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import {
@@ -538,7 +538,7 @@ export async function simpanAbsensi(
 
   if (changedNotificationIds.length > 0) {
     try {
-      await notifyParentsAttendance(db, { penugasanId, tanggal, siswaIds: changedNotificationIds })
+      await notifyParentsAttendanceConfigured(db, { penugasanId, tanggal, siswaIds: changedNotificationIds })
     } catch (fcmError) {
       console.error('Gagal kirim notifikasi FCM absensi ke ortu:', fcmError)
     }

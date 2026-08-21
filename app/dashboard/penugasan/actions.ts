@@ -7,9 +7,8 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import { nowWIBISO, todayWIB } from '@/lib/time'
-import { notify } from '@/lib/notify'
 import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
-import { notifyParentsAttendance } from '@/lib/fcm'
+import { emitConfiguredNotification, notifyParentsAttendanceConfigured } from '@/lib/notification-engine'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
@@ -406,13 +405,19 @@ export async function kirimDelegasiTugas(
   // Trigger Push Notification
   try {
     const jumlahSesi = items.length;
-    await Promise.allSettled(guruPiket.map(piket =>
-      notify({
-        title: 'Tugas Baru Masuk!',
-        body: `Ada penugasan piket dari ${user.name || 'Guru'} (${alasanKetidakhadiran}) untuk ${jumlahSesi} sesi kelas pada tanggal ${tanggal}.`,
-        url: '/dashboard/penugasan'
-      }, { userId: piket.id })
-    ));
+    const notification = await emitConfiguredNotification({
+      eventKey: 'assignment_delegated',
+      sourceRef: `delegasi:${delegasiId}`,
+      context: {
+        nama_guru: user.name || 'Guru',
+        alasan: alasanKetidakhadiran,
+        jumlah_sesi: jumlahSesi,
+        tanggal,
+        userIds: guruPiket.map((piket) => piket.id),
+      },
+      db,
+    })
+    if (notification.status === 'failed') console.error('[notification] assignment_delegated gagal:', notification.error)
   } catch (pushErr) {
     console.error("Gagal mengirim push alert ke guru piket:", pushErr);
   }
@@ -820,7 +825,7 @@ export async function simpanAbsensiDelegasi(
 
   if (toSave.length > 0) {
     try {
-      await notifyParentsAttendance(db, { penugasanId: penugasanMengajarId, tanggal })
+      await notifyParentsAttendanceConfigured(db, { penugasanId: penugasanMengajarId, tanggal })
     } catch (fcmError) {
       console.error('Gagal kirim notifikasi FCM absensi delegasi ke ortu:', fcmError)
     }
