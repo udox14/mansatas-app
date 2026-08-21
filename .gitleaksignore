@@ -1,0 +1,5 @@
+# Internal D1 settings key; not a credential.
+54f1683e8b440dbc6c3a392b4c3ba71762a9109a:app/dashboard/verifikasi-siswa/verification-core.ts:generic-api-key:2
+
+# Firebase Android client API key; intentionally public and restricted in Firebase/Google Cloud.
+255a75714ed9ff9b8d6a92b7cf18077c2db7e6f9:android/app/google-services.json:gcp-api-key:18
