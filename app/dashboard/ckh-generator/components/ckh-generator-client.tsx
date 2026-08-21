@@ -472,7 +472,7 @@ function PrintDialog({
       <DialogTrigger asChild>
         <Button className="h-10 gap-2 whitespace-nowrap bg-slate-900 text-white hover:bg-slate-800">
           <Printer className="h-4 w-4" />
-          Cetak / Simpan PDF
+          Download
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
@@ -878,7 +878,7 @@ export function CkhGeneratorClient({
             <span className="text-left opacity-80 sm:text-right">
               {documentStatus === 'FINAL'
                 ? 'Dokumen ini akan muncul di Dokumen TPG TU.'
-                : 'Klik Kirim CKH setelah data sudah benar.'}
+                : 'Klik Kirim ke TU setelah data sudah benar.'}
             </span>
           </div>
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
@@ -907,7 +907,7 @@ export function CkhGeneratorClient({
             />
             <Button onClick={finalizeDocument} disabled={isPending} className="h-10 gap-2 whitespace-nowrap bg-emerald-600 text-white hover:bg-emerald-700">
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              Kirim CKH
+              Kirim ke TU
             </Button>
           </div>
         </div>
@@ -955,134 +955,135 @@ export function CkhGeneratorClient({
                   {rows.map(row => {
                     const span = rowDateSpans.get(row)
                     return (
-                    <tr key={row.id} className={cn(
-                      'bg-white transition-colors hover:bg-slate-50',
-                      (row.source === 'assignment' || row.source_key?.startsWith('assignment:')) && 'bg-sky-50 hover:bg-sky-100',
-                      row.has_conflict && 'bg-amber-50 hover:bg-amber-50',
-                    )}>
-                      {span?.isFirstOfDate ? (
-                        <>
-                          <td rowSpan={span.dateRowSpan} className="border border-slate-300 p-2 text-center align-middle font-medium text-slate-500">{span.dateIndex}</td>
-                          <td rowSpan={span.dateRowSpan} className="border border-slate-300 p-1.5 align-middle">
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              placeholder="DD/MM/YYYY"
-                              value={isoToDisplayDate(row.tanggal)}
-                              onChange={e => {
-                                const iso = displayToIsoDate(e.target.value)
-                                if (iso) updateRowLocal(row.id, { tanggal: iso })
-                              }}
-                              onBlur={e => {
-                                const iso = displayToIsoDate(e.target.value)
-                                if (!iso) {
-                                  setMessage({ type: 'error', text: 'Format tanggal harus DD/MM/YYYY.' })
-                                  return
-                                }
-                                updateRowLocal(row.id, { tanggal: iso })
-                                saveRow({ ...row, tanggal: iso })
-                              }}
-                              className="h-8 rounded-md border-slate-200 bg-white px-1 text-center text-[12px] shadow-none focus-visible:ring-1"
-                            />
-                          </td>
-                        </>
-                      ) : null}
-                      <td className="border border-slate-300 p-1.5 align-top">
-                        <div className="flex items-start gap-1">
-                          <textarea
-                          value={row.kegiatan_bulanan}
-                          onChange={e => updateRowLocal(row.id, { kegiatan_bulanan: e.target.value })}
-                          onBlur={e => saveRow({ ...row, kegiatan_bulanan: e.target.value })}
-                            rows={2}
-                            className="min-h-8 w-full resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] leading-relaxed outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
-                          />
-                          <button
-                            type="button"
-                            onMouseDown={e => e.preventDefault()}
-                            onClick={() => addRowForDate(row)}
-                            disabled={addingForRowId === row.id}
-                            className="rounded-md p-1 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 print:hidden"
-                            title="Tambah baris CKH di tanggal ini"
-                          >
-                            {addingForRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                          </button>
-                        </div>
-                      </td>
-                      <td className="border border-slate-300 p-1.5 align-top">
-                        <div className="flex items-start gap-1">
-                          <textarea
-                            value={row.catatan_harian}
-                            onChange={e => {
-                              const catatan = e.target.value
-                              updateRowLocal(row.id, { catatan_harian: catatan, vol: countCkhItems(catatan) })
-                            }}
-                            onBlur={e => saveRow({ ...row, catatan_harian: e.target.value, vol: countCkhItems(e.target.value) })}
-                            rows={2}
-                            className="w-full resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] leading-relaxed outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
-                          />
-                          <button
-                            type="button"
-                            onMouseDown={e => e.preventDefault()}
-                            onClick={() => addRowForDate(row)}
-                            disabled={addingForRowId === row.id}
-                            className="rounded-md p-1 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 print:hidden"
-                            title="Tambah baris CKH di tanggal ini"
-                          >
-                            {addingForRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                          </button>
-                        </div>
-                        {row.has_conflict ? (
-                          <div className="mt-2 rounded border border-amber-300 bg-amber-100 p-2 text-[11px] text-amber-800">
-                            <div className="flex items-start gap-1.5">
-                              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                              <span>Agenda/penugasan/kalender punya versi baru: {row.suggested_catatan_harian}</span>
-                            </div>
-                            <Button size="sm" variant="outline" className="mt-2 h-7 text-[11px]" onClick={() => acceptSuggestion(row.id)}>
-                              <Check className="mr-1 h-3 w-3" /> Pakai versi baru
-                            </Button>
-                          </div>
+                      <tr key={row.id} className={cn(
+                        'bg-white transition-colors hover:bg-slate-50',
+                        (row.source === 'assignment' || row.source_key?.startsWith('assignment:')) && 'bg-sky-50 hover:bg-sky-100',
+                        row.has_conflict && 'bg-amber-50 hover:bg-amber-50',
+                      )}>
+                        {span?.isFirstOfDate ? (
+                          <>
+                            <td rowSpan={span.dateRowSpan} className="border border-slate-300 p-2 text-center align-middle font-medium text-slate-500">{span.dateIndex}</td>
+                            <td rowSpan={span.dateRowSpan} className="border border-slate-300 p-1.5 align-middle">
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="DD/MM/YYYY"
+                                value={isoToDisplayDate(row.tanggal)}
+                                onChange={e => {
+                                  const iso = displayToIsoDate(e.target.value)
+                                  if (iso) updateRowLocal(row.id, { tanggal: iso })
+                                }}
+                                onBlur={e => {
+                                  const iso = displayToIsoDate(e.target.value)
+                                  if (!iso) {
+                                    setMessage({ type: 'error', text: 'Format tanggal harus DD/MM/YYYY.' })
+                                    return
+                                  }
+                                  updateRowLocal(row.id, { tanggal: iso })
+                                  saveRow({ ...row, tanggal: iso })
+                                }}
+                                className="h-8 rounded-md border-slate-200 bg-white px-1 text-center text-[12px] shadow-none focus-visible:ring-1"
+                              />
+                            </td>
+                          </>
                         ) : null}
-                      </td>
-                      <td className="border border-slate-300 p-1.5 text-center align-top">
-                        <Input
-                          type="number"
-                          min={1}
-                          value={row.vol || CKH_DEFAULT_VOL}
-                          onChange={e => updateRowLocal(row.id, { vol: Math.max(1, Number(e.target.value) || 1) })}
-                          onBlur={e => saveRow({ ...row, vol: Math.max(1, Number(e.target.value) || 1) })}
-                          className="h-8 rounded-md border-slate-200 bg-white px-1 text-center text-[12px] shadow-none focus-visible:ring-1"
-                        />
-                      </td>
-                      <td className="border border-slate-300 p-1.5 text-center align-top">
-                        <select
-                          value={row.satuan || CKH_DEFAULT_SATUAN}
-                          onChange={e => {
-                            const satuan = e.target.value
-                            updateRowLocal(row.id, { satuan })
-                            saveRow({ ...row, satuan })
-                          }}
-                          className="h-8 w-full rounded-md border border-slate-200 bg-white px-1 text-center text-[12px] outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
-                        >
-                          {CKH_SATUAN_OPTIONS.map(option => (
-                            <option key={option} value={option}>{option}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="border border-slate-300 p-1.5 align-top print:hidden">
-                        <div className="flex items-center justify-center gap-1">
-                          <span className={cn(
-                            'rounded-full px-2 py-1 text-[10px] font-medium',
-                            (row.source === 'assignment' || row.source_key?.startsWith('assignment:'))
-                              ? 'bg-sky-100 text-sky-700'
-                              : 'bg-slate-100 text-slate-500',
-                          )}>{sourceLabel(row)}</span>
-                          <button disabled={busyRowId === row.id} onClick={() => removeRow(row.id)} className="rounded-md p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50" title="Hapus baris">
-                            {busyRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )})}
+                        <td className="border border-slate-300 p-1.5 align-top">
+                          <div className="flex items-start gap-1">
+                            <textarea
+                              value={row.kegiatan_bulanan}
+                              onChange={e => updateRowLocal(row.id, { kegiatan_bulanan: e.target.value })}
+                              onBlur={e => saveRow({ ...row, kegiatan_bulanan: e.target.value })}
+                              rows={2}
+                              className="min-h-8 w-full resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] leading-relaxed outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+                            />
+                            <button
+                              type="button"
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => addRowForDate(row)}
+                              disabled={addingForRowId === row.id}
+                              className="rounded-md p-1 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 print:hidden"
+                              title="Tambah baris CKH di tanggal ini"
+                            >
+                              {addingForRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="border border-slate-300 p-1.5 align-top">
+                          <div className="flex items-start gap-1">
+                            <textarea
+                              value={row.catatan_harian}
+                              onChange={e => {
+                                const catatan = e.target.value
+                                updateRowLocal(row.id, { catatan_harian: catatan, vol: countCkhItems(catatan) })
+                              }}
+                              onBlur={e => saveRow({ ...row, catatan_harian: e.target.value, vol: countCkhItems(e.target.value) })}
+                              rows={2}
+                              className="w-full resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[12px] leading-relaxed outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+                            />
+                            <button
+                              type="button"
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => addRowForDate(row)}
+                              disabled={addingForRowId === row.id}
+                              className="rounded-md p-1 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 print:hidden"
+                              title="Tambah baris CKH di tanggal ini"
+                            >
+                              {addingForRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+                          {row.has_conflict ? (
+                            <div className="mt-2 rounded border border-amber-300 bg-amber-100 p-2 text-[11px] text-amber-800">
+                              <div className="flex items-start gap-1.5">
+                                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                <span>Agenda/penugasan/kalender punya versi baru: {row.suggested_catatan_harian}</span>
+                              </div>
+                              <Button size="sm" variant="outline" className="mt-2 h-7 text-[11px]" onClick={() => acceptSuggestion(row.id)}>
+                                <Check className="mr-1 h-3 w-3" /> Pakai versi baru
+                              </Button>
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="border border-slate-300 p-1.5 text-center align-top">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={row.vol || CKH_DEFAULT_VOL}
+                            onChange={e => updateRowLocal(row.id, { vol: Math.max(1, Number(e.target.value) || 1) })}
+                            onBlur={e => saveRow({ ...row, vol: Math.max(1, Number(e.target.value) || 1) })}
+                            className="h-8 rounded-md border-slate-200 bg-white px-1 text-center text-[12px] shadow-none focus-visible:ring-1"
+                          />
+                        </td>
+                        <td className="border border-slate-300 p-1.5 text-center align-top">
+                          <select
+                            value={row.satuan || CKH_DEFAULT_SATUAN}
+                            onChange={e => {
+                              const satuan = e.target.value
+                              updateRowLocal(row.id, { satuan })
+                              saveRow({ ...row, satuan })
+                            }}
+                            className="h-8 w-full rounded-md border border-slate-200 bg-white px-1 text-center text-[12px] outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200"
+                          >
+                            {CKH_SATUAN_OPTIONS.map(option => (
+                              <option key={option} value={option}>{option}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="border border-slate-300 p-1.5 align-top print:hidden">
+                          <div className="flex items-center justify-center gap-1">
+                            <span className={cn(
+                              'rounded-full px-2 py-1 text-[10px] font-medium',
+                              (row.source === 'assignment' || row.source_key?.startsWith('assignment:'))
+                                ? 'bg-sky-100 text-sky-700'
+                                : 'bg-slate-100 text-slate-500',
+                            )}>{sourceLabel(row)}</span>
+                            <button disabled={busyRowId === row.id} onClick={() => removeRow(row.id)} className="rounded-md p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50" title="Hapus baris">
+                              {busyRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
