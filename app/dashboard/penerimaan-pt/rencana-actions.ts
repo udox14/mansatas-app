@@ -4,6 +4,21 @@ import { revalidatePath } from 'next/cache'
 import { getDB } from '@/utils/db-server'
 import { KAMPUS_BY_ID, PRODI_BY_KAMPUS } from '@/lib/pendidikan-lanjutan'
 import type { RencanaKategori } from '@/lib/pendidikan-lanjutan'
+import { assertStudentScope, requireActionAccess } from '@/lib/action-security'
+import { publicServerError } from '@/lib/security-log'
+import { z } from 'zod'
+
+const idSchema = z.string().trim().min(1).max(100)
+const rencanaPayloadSchema = z.object({
+  siswa_id: idSchema,
+  tahun_ajaran_id: idSchema,
+  kategori: z.enum(['KULIAH', 'BEKERJA', 'WIRAUSAHA', 'TNI_POLRI', 'MENIKAH', 'PESANTREN', 'KURSUS_PELATIHAN', 'BELUM_MENENTUKAN', 'LAINNYA']),
+  catatan: z.string().trim().max(1000).nullable().optional(),
+  pilihan1_kampus_id: idSchema.nullable().optional(),
+  pilihan1_prodi: z.string().trim().max(200).nullable().optional(),
+  pilihan2_kampus_id: idSchema.nullable().optional(),
+  pilihan2_prodi: z.string().trim().max(200).nullable().optional(),
+}).strict()
 
 export type RencanaPendidikanData = {
   kategori: RencanaKategori
@@ -17,6 +32,8 @@ export type RencanaPendidikanData = {
 }
 
 export async function getRencanaPendidikanSiswa(siswaId: string, tahunAjaranId: string): Promise<RencanaPendidikanData> {
+  const actor = await requireActionAccess('penerimaan-pt', 'read')
+  await assertStudentScope(actor, siswaId, 'penerimaan-pt')
   const db = await getDB()
   const row = await db.prepare(`
     SELECT COALESCE(r.kategori, 'KULIAH') kategori, r.catatan,
@@ -37,16 +54,12 @@ export async function getRencanaPendidikanSiswa(siswaId: string, tahunAjaranId: 
   }
 }
 
-export async function saveRencanaPendidikanSiswa(payload: {
-  siswa_id: string
-  tahun_ajaran_id: string
-  kategori: RencanaKategori
-  catatan?: string | null
-  pilihan1_kampus_id?: string | null
-  pilihan1_prodi?: string | null
-  pilihan2_kampus_id?: string | null
-  pilihan2_prodi?: string | null
-}) {
+export async function saveRencanaPendidikanSiswa(input: unknown) {
+  const actor = await requireActionAccess('penerimaan-pt', 'update')
+  const parsed = rencanaPayloadSchema.safeParse(input)
+  if (!parsed.success) return { error: 'Data rencana pendidikan tidak valid.' }
+  const payload = parsed.data
+  await assertStudentScope(actor, payload.siswa_id, 'penerimaan-pt')
   const note = payload.catatan?.trim() || null
   if (payload.kategori === 'LAINNYA' && !note) return { error: 'Catatan wajib diisi untuk rencana Lainnya.' }
   const choices = [
@@ -93,7 +106,7 @@ export async function saveRencanaPendidikanSiswa(payload: {
     revalidatePath('/dashboard/tka')
     revalidatePath('/dashboard/penerimaan-pt')
     return { success: true }
-  } catch (error: any) {
-    return { error: error.message || 'Gagal menyimpan rencana.' }
+  } catch (error) {
+    return publicServerError('penerimaan_pt.save_rencana', error)
   }
 }

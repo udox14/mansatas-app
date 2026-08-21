@@ -2,7 +2,13 @@
 'use server'
 
 import { dbInsert, dbUpdate, dbDelete } from '@/utils/db'
-import { getDB } from '@/utils/db-server'
+import { getDB as getRawDB } from '@/utils/db-server'
+import { requireActionAccess } from '@/lib/action-security'
+
+async function getDB() {
+  await requireActionAccess('izin', 'read')
+  return getRawDB()
+}
 import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { revalidatePath } from 'next/cache'

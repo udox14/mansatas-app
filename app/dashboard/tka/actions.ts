@@ -6,6 +6,8 @@ import { revalidatePath } from 'next/cache'
 import { getMemCache, setMemCache, clearMemCachePrefix } from '@/utils/mem-cache'
 import { KAMPUS_BY_ID, PRODI_BY_KAMPUS } from '@/lib/pendidikan-lanjutan'
 import type { RencanaKategori } from '@/lib/pendidikan-lanjutan'
+import { assertClassScope, assertStudentScope, isAdministrativeActor, requireActionAccess } from '@/lib/action-security'
+import { publicServerError } from '@/lib/security-log'
 
 export type KelasItem = {
   id: string
@@ -103,15 +105,18 @@ const pendidikanJoins = `
 // CACHE KEYS (TKA)
 // ============================================================
 const CACHE_TTL = 60_000 // 60 detik
-const rekapJumlahKey = (taId: string) => `tka:rekap:jumlah:${taId}`
-const rekapSiswaKey = (taId: string, filter: RekapFilter) =>
-  `tka:rekap:siswa:${taId}:${JSON.stringify(filter)}`
+const rekapJumlahKey = (taId: string, actorId: string) => `tka:rekap:jumlah:${taId}:${actorId}`
+const rekapSiswaKey = (taId: string, actorId: string, filter: RekapFilter) =>
+  `tka:rekap:siswa:${taId}:${actorId}:${JSON.stringify(filter)}`
 
 // ============================================================
 // INITIAL DATA (2 query paralel — kelas 12 saja)
 // ============================================================
 export async function getInitialDataTka() {
+  const actor = await requireActionAccess('tka', 'read')
+  if (actor.kind !== 'staff') return { tahunAjaranAktif: null, kelasList: [] }
   const db = await getDB()
+  const restricted = !isAdministrativeActor(actor)
 
   const [taRes, kelasRes] = await Promise.all([
     db.prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string; nama: string; semester: string }>(),
@@ -119,8 +124,13 @@ export async function getInitialDataTka() {
       SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
       FROM kelas k
       WHERE k.tingkat = 12
+        ${restricted ? `AND (
+          k.wali_kelas_id = ?
+          OR EXISTS (SELECT 1 FROM kelas_binaan_bk kb WHERE kb.kelas_id = k.id AND kb.guru_bk_id = ?)
+          OR EXISTS (SELECT 1 FROM penugasan_mengajar pm WHERE pm.kelas_id = k.id AND pm.guru_id = ?)
+        )` : ''}
       ORDER BY k.tingkat ASC, k.nomor_kelas ASC, k.kelompok ASC
-    `).all<KelasItem>(),
+    `).bind(...(restricted ? [actor.id, actor.id, actor.id] : [])).all<KelasItem>(),
   ])
 
   return {
@@ -133,6 +143,8 @@ export async function getInitialDataTka() {
 // GET SISWA BY KELAS (lazy load)
 // ============================================================
 export async function getSiswaByKelasForTka(kelasId: string, tahunAjaranId: string) {
+  const actor = await requireActionAccess('tka', 'read')
+  await assertClassScope(actor, kelasId, 'tka')
   const db = await getDB()
 
   // Query utama: siswa yang punya kelas_id langsung
@@ -183,8 +195,17 @@ export async function getSiswaByKelasForTka(kelasId: string, tahunAjaranId: stri
 // SEARCH SISWA KELAS 12 (lazy, enter-triggered)
 // ============================================================
 export async function searchSiswaKelas12ForTka(query: string, tahunAjaranId: string) {
+  const actor = await requireActionAccess('tka', 'read')
+  if (actor.kind !== 'staff' || query.trim().length < 2 || query.length > 100) return []
   const db = await getDB()
   const like = `%${query}%`
+  const restricted = !isAdministrativeActor(actor)
+  const scopeSql = restricted ? `AND (
+    k.wali_kelas_id = ?
+    OR EXISTS (SELECT 1 FROM kelas_binaan_bk kb WHERE kb.kelas_id = k.id AND kb.guru_bk_id = ?)
+    OR EXISTS (SELECT 1 FROM penugasan_mengajar pm WHERE pm.kelas_id = k.id AND pm.guru_id = ?)
+  )` : ''
+  const scopeParams = restricted ? [actor.id, actor.id, actor.id] : []
 
   // Query: siswa aktif di kelas tingkat 12, dengan fallback riwayat_kelas
   const rows = await db.prepare(`
@@ -204,9 +225,10 @@ export async function searchSiswaKelas12ForTka(query: string, tahunAjaranId: str
     WHERE s.status = 'aktif'
       AND k.tingkat = 12
       AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)
+      ${scopeSql}
     ORDER BY s.nama_lengkap COLLATE NOCASE ASC
     LIMIT 50
-  `).bind(tahunAjaranId, tahunAjaranId, tahunAjaranId, tahunAjaranId, like, like).all<TkaMapelRow>()
+  `).bind(tahunAjaranId, tahunAjaranId, tahunAjaranId, tahunAjaranId, like, like, ...scopeParams).all<TkaMapelRow>()
 
   if (rows.results && rows.results.length > 0) {
     return rows.results
@@ -231,9 +253,10 @@ export async function searchSiswaKelas12ForTka(query: string, tahunAjaranId: str
     WHERE s.status = 'aktif'
       AND k.tingkat = 12
       AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)
+      ${scopeSql}
     ORDER BY s.nama_lengkap COLLATE NOCASE ASC
     LIMIT 50
-  `).bind(tahunAjaranId, tahunAjaranId, tahunAjaranId, tahunAjaranId, tahunAjaranId, like, like).all<TkaMapelRow>()
+  `).bind(tahunAjaranId, tahunAjaranId, tahunAjaranId, tahunAjaranId, tahunAjaranId, like, like, ...scopeParams).all<TkaMapelRow>()
 
   return fallback.results || []
 }
@@ -245,7 +268,10 @@ export async function batchSaveMapelPilihan(
   items: TkaSaveItem[],
   tahunAjaranId: string
 ) {
+  const actor = await requireActionAccess('tka', 'update')
   if (items.length === 0) return { success: true, saved: 0 }
+  if (!Array.isArray(items) || items.length > 100) return { success: false, error: 'Maksimal 100 siswa per penyimpanan.' }
+  await Promise.all(items.map(item => assertStudentScope(actor, item.siswa_id, 'tka')))
   const db = await getDB()
 
   const itemStatements = items.map(item => {
@@ -319,8 +345,9 @@ export async function batchSaveMapelPilihan(
     clearMemCachePrefix('tka:')
     revalidatePath('/dashboard/tka')
     return { success: true, saved: items.length }
-  } catch (e: any) {
-    return { success: false, error: e.message }
+  } catch (error) {
+    const safeError = publicServerError('tka.batch_save', error)
+    return { success: false, ...safeError }
   }
 }
 
@@ -328,25 +355,39 @@ export async function batchSaveMapelPilihan(
 // REKAP JUMLAH MAPEL PILIHAN (1 & 2) — di-cache per tahun ajaran
 // ============================================================
 export async function getRekapMapelPilihan(tahunAjaranId: string) {
-  const cacheKey = rekapJumlahKey(tahunAjaranId)
+  const actor = await requireActionAccess('tka', 'read')
+  if (actor.kind !== 'staff') return { pilihan1: [], pilihan2: [] }
+  const cacheKey = rekapJumlahKey(tahunAjaranId, actor.id)
   const cached = getMemCache<{ pilihan1: TkaRekapItem[]; pilihan2: TkaRekapItem[] }>(cacheKey)
   if (cached) return cached
 
   const db = await getDB()
+  const restricted = !isAdministrativeActor(actor)
+  const scopeSql = restricted ? `AND EXISTS (
+    SELECT 1 FROM siswa s LEFT JOIN kelas k ON s.kelas_id = k.id
+    WHERE s.id = tka_mapel_pilihan.siswa_id AND (
+      k.wali_kelas_id = ?
+      OR EXISTS (SELECT 1 FROM kelas_binaan_bk kb WHERE kb.kelas_id = s.kelas_id AND kb.guru_bk_id = ?)
+      OR EXISTS (SELECT 1 FROM penugasan_mengajar pm WHERE pm.kelas_id = s.kelas_id AND pm.guru_id = ?)
+    )
+  )` : ''
+  const scopeParams = restricted ? [actor.id, actor.id, actor.id] : []
 
   const [rekap1, rekap2] = await Promise.all([
     db.prepare(`
       SELECT mapel_pilihan1 as mapel, COUNT(*) as jumlah
       FROM tka_mapel_pilihan
       WHERE tahun_ajaran_id = ? AND mapel_pilihan1 IS NOT NULL AND mapel_pilihan1 != ''
+      ${scopeSql}
       GROUP BY mapel_pilihan1
-    `).bind(tahunAjaranId).all<TkaRekapItem>(),
+    `).bind(tahunAjaranId, ...scopeParams).all<TkaRekapItem>(),
     db.prepare(`
       SELECT mapel_pilihan2 as mapel, COUNT(*) as jumlah
       FROM tka_mapel_pilihan
       WHERE tahun_ajaran_id = ? AND mapel_pilihan2 IS NOT NULL AND mapel_pilihan2 != ''
+      ${scopeSql}
       GROUP BY mapel_pilihan2
-    `).bind(tahunAjaranId).all<TkaRekapItem>(),
+    `).bind(tahunAjaranId, ...scopeParams).all<TkaRekapItem>(),
   ])
 
   const result = {
@@ -358,16 +399,27 @@ export async function getRekapMapelPilihan(tahunAjaranId: string) {
 }
 
 export async function getRekapRencanaPascaLulus(tahunAjaranId: string) {
+  const actor = await requireActionAccess('tka', 'read')
+  if (actor.kind !== 'staff') return []
   const db = await getDB()
+  const restricted = !isAdministrativeActor(actor)
   const result = await db.prepare(`
     SELECT COALESCE(r.kategori, 'KULIAH') kategori, COUNT(DISTINCT tmp.siswa_id) jumlah
     FROM tka_mapel_pilihan tmp
     LEFT JOIN rencana_pasca_lulus r
       ON r.siswa_id = tmp.siswa_id AND r.tahun_ajaran_id = tmp.tahun_ajaran_id
     WHERE tmp.tahun_ajaran_id = ?
+      ${restricted ? `AND EXISTS (
+        SELECT 1 FROM siswa s LEFT JOIN kelas k ON s.kelas_id = k.id
+        WHERE s.id = tmp.siswa_id AND (
+          k.wali_kelas_id = ?
+          OR EXISTS (SELECT 1 FROM kelas_binaan_bk kb WHERE kb.kelas_id = s.kelas_id AND kb.guru_bk_id = ?)
+          OR EXISTS (SELECT 1 FROM penugasan_mengajar pm WHERE pm.kelas_id = s.kelas_id AND pm.guru_id = ?)
+        )
+      )` : ''}
     GROUP BY COALESCE(r.kategori, 'KULIAH')
     ORDER BY jumlah DESC
-  `).bind(tahunAjaranId).all<RencanaRekapItem>()
+  `).bind(tahunAjaranId, ...(restricted ? [actor.id, actor.id, actor.id] : [])).all<RencanaRekapItem>()
   return result.results || []
 }
 
@@ -377,7 +429,9 @@ export async function getRekapRencanaPascaLulus(tahunAjaranId: string) {
 // (skala data kecil: siswa kelas 12, maks ~300 baris).
 // ============================================================
 export async function getSiswaRekapTka(tahunAjaranId: string, filter: RekapFilter = {}) {
-  const cacheKey = rekapSiswaKey(tahunAjaranId, filter)
+  const actor = await requireActionAccess('tka', 'read')
+  if (actor.kind !== 'staff') return []
+  const cacheKey = rekapSiswaKey(tahunAjaranId, actor.id, filter)
   const cached = getMemCache<TkaSiswaRekapRow[]>(cacheKey)
   if (cached) return cached
 
@@ -385,6 +439,15 @@ export async function getSiswaRekapTka(tahunAjaranId: string, filter: RekapFilte
 
   const conditions: string[] = ['tmp.tahun_ajaran_id = ?']
   const params: any[] = [tahunAjaranId]
+
+  if (!isAdministrativeActor(actor)) {
+    conditions.push(`(
+      k.wali_kelas_id = ?
+      OR EXISTS (SELECT 1 FROM kelas_binaan_bk kb WHERE kb.kelas_id = COALESCE(s.kelas_id, rk.kelas_id) AND kb.guru_bk_id = ?)
+      OR EXISTS (SELECT 1 FROM penugasan_mengajar pm WHERE pm.kelas_id = COALESCE(s.kelas_id, rk.kelas_id) AND pm.guru_id = ?)
+    )`)
+    params.push(actor.id, actor.id, actor.id)
+  }
 
   const { kelas_id, mapel, pilihan, search, rencana, kampus_id, prodi } = filter
 
@@ -405,6 +468,7 @@ export async function getSiswaRekapTka(tahunAjaranId: string, filter: RekapFilte
   }
 
   if (search) {
+    if (search.length > 100) return []
     conditions.push('(s.nama_lengkap LIKE ? OR s.nisn LIKE ?)')
     params.push(`%${search}%`, `%${search}%`)
   }

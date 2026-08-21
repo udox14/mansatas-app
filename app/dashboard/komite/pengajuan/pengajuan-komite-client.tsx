@@ -17,7 +17,7 @@ import {
   Pencil, Plus, RotateCcw, Search, Send, Trash2, UserRoundCog, XCircle,
 } from 'lucide-react'
 import {
-  delegateKetuaReviewAction, deleteKomiteAction, deleteKomiteDraftAction, reviewKomiteAction, saveKomiteDraftAction,
+  delegateKetuaReviewAction, deleteKomiteAction, deleteKomiteDraftAction, reviewKomiteAction,
   saveKomiteRealisasiAction, setNamedKomiteSubmitterAction, submitKomiteAction,
 } from './actions'
 
@@ -35,7 +35,7 @@ type Props = {
   nextNomorSpb?: string
 }
 
-const MAX_TOTAL = 5 * 1024 * 1024
+const MAX_TOTAL = 6 * 1024 * 1024
 const MAX_DETAIL_ROWS = 10
 const statusStyle: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
@@ -219,7 +219,11 @@ export function PengajuanKomiteClient(props: Props) {
         )}
       </Tabs>}
 
-      <DraftDialog open={formOpen} item={editing} pending={pending} message={message} onClose={() => setFormOpen(false)} onSubmit={formData => run(() => saveKomiteDraftAction(formData), () => setFormOpen(false))} />
+      <DraftDialog open={formOpen} item={editing} pending={pending} message={message} onClose={() => setFormOpen(false)} onSubmit={formData => run(async () => {
+        const response = await fetch('/api/komite/pengajuan/draft', { method: 'POST', body: formData, credentials: 'include' })
+        const result = await response.json().catch(() => ({ error: 'Respons upload tidak valid.' }))
+        return response.ok ? result : { error: result.error || 'Gagal mengunggah dokumen.' }
+      }, () => setFormOpen(false))} />
       <ReviewDialog value={review} nextNomorSpb={props.nextNomorSpb} pending={pending} onClose={() => setReview(null)} onSubmit={formData => run(() => reviewKomiteAction(formData), () => { setReview(null); setDetailId(''); setActiveTab(detailOriginTab) })} />
       <DelegationDialog item={delegation} members={props.committeeMembers} pending={pending} onClose={() => setDelegation(null)} onSubmit={formData => run(() => delegateKetuaReviewAction(formData), () => setDelegation(null))} />
       <RealisasiDialog item={realisasi} pending={pending} onClose={() => setRealisasi(null)} onSubmit={formData => run(() => saveKomiteRealisasiAction(formData), () => setRealisasi(null))} />
@@ -427,7 +431,7 @@ function DraftDialog({ open, item, pending, message, onClose, onSubmit }: { open
     <div className="space-y-1.5"><Label htmlFor="kode_rkas_program">Kode RKAS/Program (opsional)</Label><Input id="kode_rkas_program" name="kode_rkas_program" maxLength={220} defaultValue={item?.kode_rkas_program === '-' ? '' : item?.kode_rkas_program || ''} placeholder="Contoh: 3.2.1 (Pengembangan Sarana & Prasarana Pembelajaran)" /></div>
     <div className="space-y-1.5"><Label htmlFor="uraian">Uraian umum</Label><Textarea id="uraian" name="uraian" maxLength={4000} rows={4} defaultValue={item?.uraian || ''} required /></div>
     <DetailRowsEditor rows={rows} setRows={setRows} />
-    <div className="space-y-1.5"><Label htmlFor="files">Dokumen PDF {needsFiles ? '' : '(kosongkan bila tidak diganti)'}</Label><Input id="files" name="files" type="file" accept="application/pdf,.pdf" multiple required={needsFiles} onChange={e => setTotal(Array.from(e.target.files || []).reduce((sum, file) => sum + file.size, 0))} /><div className="flex justify-between gap-2 text-xs"><span className="text-slate-500">Maksimal 10 PDF, total 5 MB.</span><span className={total > MAX_TOTAL ? 'font-semibold text-rose-600' : 'text-slate-500'}>{size(total)} / 5 MB</span></div></div>
+    <div className="space-y-1.5"><Label htmlFor="files">Dokumen PDF {needsFiles ? '' : '(kosongkan bila tidak diganti)'}</Label><Input id="files" name="files" type="file" accept="application/pdf,.pdf" multiple required={needsFiles} onChange={e => setTotal(Array.from(e.target.files || []).reduce((sum, file) => sum + file.size, 0))} /><div className="flex justify-between gap-2 text-xs"><span className="text-slate-500">Maksimal 10 PDF, request total 6 MB.</span><span className={total > MAX_TOTAL ? 'font-semibold text-rose-600' : 'text-slate-500'}>{size(total)} / 6 MB</span></div></div>
     <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={onClose}>Batal</Button><Button type="submit" disabled={pending || total > MAX_TOTAL || detailTotal(rows) <= 0}>{pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Simpan Draft</Button></div>
   </form></DialogContent></Dialog>
 }

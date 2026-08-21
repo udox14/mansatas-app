@@ -2,7 +2,13 @@
 'use server'
 
 import { dbInsert } from '@/utils/db'
-import { getDB } from '@/utils/db-server'
+import { getDB as getRawDB } from '@/utils/db-server'
+import { requireActionAccess } from '@/lib/action-security'
+
+async function getDB() {
+  await requireActionAccess('ekstrakurikuler', 'read')
+  return getRawDB()
+}
 import { getCurrentUser } from '@/utils/auth/server'
 import { getEffectiveUser } from '@/lib/act-as'
 import { checkFeatureAccess } from '@/lib/features'

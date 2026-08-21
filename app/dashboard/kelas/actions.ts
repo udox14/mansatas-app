@@ -6,65 +6,38 @@ import { getDB } from '@/utils/db-server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
+import { ADMINISTRATIVE_ROLES, requireActionAccess } from '@/lib/action-security'
+import { syncAllWaliKelasRoles } from '@/lib/kelas-role-service'
+import { publicServerError } from '@/lib/security-log'
+import { z } from 'zod'
+import { isImportChunkWithinLimits } from '@/lib/payload-limits'
+
+const idSchema = z.string().trim().min(1).max(100)
+const kelasUpdateSchema = z.object({
+  tingkat: z.number().int().min(1).max(12).optional(),
+  kelompok: z.string().trim().max(50).optional(),
+  nomor_kelas: z.string().trim().min(1).max(20).optional(),
+  kapasitas: z.number().int().min(1).max(100).optional(),
+  wali_kelas_id: idSchema.nullable().optional(),
+  km_siswa_id: idSchema.nullable().optional(),
+}).strict()
+const kelasImportRowSchema = z.object({
+  TINGKAT: z.union([z.string(), z.number()]),
+  KELOMPOK: z.union([z.string(), z.number()]).optional(),
+  NOMOR_KELAS: z.union([z.string(), z.number()]),
+  KAPASITAS: z.union([z.string(), z.number()]).optional(),
+  WALI_KELAS: z.string().optional(),
+}).strict()
+const mutasiSchema = z.object({
+  siswaIdLama: idSchema,
+  kelasIdLama: idSchema,
+  kelasIdTujuan: idSchema,
+  siswaIdBarter: idSchema.nullable(),
+}).strict()
 
 // ============================================================
 // HELPER: Sinkronisasi role 'wali_kelas' di tabel user_roles
 // ============================================================
-export async function syncAllWaliKelasRoles(db: D1Database) {
-  try {
-    await db.prepare(`
-      INSERT OR IGNORE INTO master_roles (value, label, is_custom)
-      VALUES ('wali_kelas', 'Wali Kelas', 0)
-    `).run()
-
-    const walisRes = await db.prepare(`
-      SELECT DISTINCT wali_kelas_id FROM kelas WHERE wali_kelas_id IS NOT NULL AND wali_kelas_id != ''
-    `).all<{ wali_kelas_id: string }>()
-
-    const activeWaliIds = new Set((walisRes.results || []).map(r => r.wali_kelas_id))
-
-    for (const wid of activeWaliIds) {
-      const rolesRes = await db.prepare(`
-        SELECT role FROM user_roles WHERE user_id = ?
-      `).bind(wid).all<{ role: string }>()
-
-      const existingRoles = (rolesRes.results || []).map(r => r.role)
-
-      if (existingRoles.length === 0) {
-        const u = await db.prepare(`SELECT role FROM "user" WHERE id = ?`).bind(wid).first<{ role: string }>()
-        const primaryRole = u?.role || 'guru'
-
-        await db.batch([
-          db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(wid, primaryRole),
-          db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(wid, 'wali_kelas'),
-        ])
-      } else if (!existingRoles.includes('wali_kelas')) {
-        await db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(wid, 'wali_kelas').run()
-      }
-    }
-
-    const oldWaliRolesRes = await db.prepare(`
-      SELECT user_id FROM user_roles WHERE role = 'wali_kelas'
-    `).all<{ user_id: string }>()
-
-    for (const row of oldWaliRolesRes.results || []) {
-      if (!activeWaliIds.has(row.user_id)) {
-        await db.prepare(`DELETE FROM user_roles WHERE user_id = ? AND role = 'wali_kelas'`).bind(row.user_id).run()
-
-        const u = await db.prepare(`SELECT role FROM "user" WHERE id = ?`).bind(row.user_id).first<{ role: string }>()
-        if (u?.role === 'wali_kelas') {
-          const remRolesRes = await db.prepare(`SELECT role FROM user_roles WHERE user_id = ?`).bind(row.user_id).all<{ role: string }>()
-          const remRoles = (remRolesRes.results || []).map(r => r.role)
-          const newPrimary = remRoles[0] || 'guru'
-          await db.prepare(`UPDATE "user" SET role = ?, updatedAt = datetime('now') WHERE id = ?`).bind(newPrimary, row.user_id).run()
-        }
-      }
-    }
-  } catch (err) {
-    console.error('Error syncing wali kelas roles:', err)
-  }
-}
-
 async function syncWaliKelasRole(db: D1Database, _guruIdBaru?: string | null, _guruIdLama?: string | null) {
   await syncAllWaliKelasRoles(db)
 }
@@ -72,7 +45,8 @@ async function syncWaliKelasRole(db: D1Database, _guruIdBaru?: string | null, _g
 // ============================================================
 // 1. CRUD KELAS
 // ============================================================
-export async function tambahKelas(prevState: any, formData: FormData) {
+export async function tambahKelas(_prevState: unknown, formData: FormData) {
+  await requireActionAccess('kelas', 'create', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const wali_kelas_id = (formData.get('wali_kelas_id') as string) || null
   const payload = {
@@ -83,7 +57,7 @@ export async function tambahKelas(prevState: any, formData: FormData) {
     kapasitas: parseInt(formData.get('kapasitas') as string) || 36,
   }
 
-  const result = await dbInsert<any>(db, 'kelas', payload)
+  const result = await dbInsert(db, 'kelas', payload)
   if (result.error) return { error: result.error, success: null }
 
   // Sync role wali_kelas otomatis
@@ -105,14 +79,19 @@ export async function tambahKelas(prevState: any, formData: FormData) {
   return { error: null, success: 'Kelas berhasil ditambahkan!' }
 }
 
-export async function editKelas(id: string, payload: any) {
+export async function editKelas(id: string, payload: unknown) {
+  await requireActionAccess('kelas', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
+  const parsed = kelasUpdateSchema.safeParse(payload)
+  if (!parsed.success) return { error: 'Data kelas tidak valid.', success: null }
+  const safePayload = parsed.data
+  if (Object.keys(safePayload).length === 0) return { error: 'Tidak ada perubahan yang valid.', success: null }
   const db = await getDB()
   const before = await db.prepare('SELECT * FROM kelas WHERE id = ?').bind(id).first<any>()
   if (!before) return { error: 'Kelas tidak ditemukan.', success: null }
-  const result = await dbUpdate(db, 'kelas', payload, { id })
+  const result = await dbUpdate(db, 'kelas', safePayload, { id })
   if (result.error) return { error: result.error, success: null }
   await syncAllWaliKelasRoles(db)
-  const after = { ...before, ...payload }
+  const after = { ...before, ...safePayload }
   await logActivity({
     db,
     module: 'kelas',
@@ -131,6 +110,7 @@ export async function editKelas(id: string, payload: any) {
 }
 
 export async function hapusKelas(id: string) {
+  await requireActionAccess('kelas', 'delete', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const before = await db.prepare('SELECT * FROM kelas WHERE id = ?').bind(id).first<any>()
   const result = await dbDelete(db, 'kelas', { id })
@@ -152,7 +132,13 @@ export async function hapusKelas(id: string) {
   return { error: null, success: 'Kelas berhasil dihapus!' }
 }
 
-export async function importKelasMassal(dataExcel: any[]) {
+export async function importKelasMassal(dataExcel: unknown[]) {
+  await requireActionAccess('kelas', 'create', { allowedRoles: ADMINISTRATIVE_ROLES })
+  if (!isImportChunkWithinLimits(dataExcel)) {
+    return { error: 'Data impor maksimal 500 baris dan 1 MB per chunk.', success: null }
+  }
+  const parsedRows = z.array(kelasImportRowSchema).max(500).safeParse(dataExcel)
+  if (!parsedRows.success) return { error: 'Format data impor kelas tidak valid.', success: null }
   const db = await getDB()
 
   // Ambil data guru untuk pencocokan nama wali kelas
@@ -163,11 +149,11 @@ export async function importKelasMassal(dataExcel: any[]) {
   })
 
   const toInsert: any[] = []
-  for (const row of dataExcel) {
-    const tingkat = parseInt(row.TINGKAT)
+  for (const row of parsedRows.data) {
+    const tingkat = parseInt(String(row.TINGKAT), 10)
     const kelompok = String(row.KELOMPOK || 'UMUM').trim()
     const nomor_kelas = String(row.NOMOR_KELAS || '').trim()
-    const kapasitas = parseInt(row.KAPASITAS) || 36
+    const kapasitas = parseInt(String(row.KAPASITAS ?? ''), 10) || 36
     const namaGuru = String(row.WALI_KELAS || '').trim().toLowerCase()
     if (!tingkat || !nomor_kelas) continue
 
@@ -204,7 +190,8 @@ export async function importKelasMassal(dataExcel: any[]) {
 // ============================================================
 // 2. INLINE EDIT & BATCH SAVE
 // ============================================================
-export async function editKelasForm(prevState: any, formData: FormData) {
+export async function editKelasForm(_prevState: unknown, formData: FormData) {
+  await requireActionAccess('kelas', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const id = formData.get('id') as string
 
@@ -259,6 +246,7 @@ export async function editKelasForm(prevState: any, formData: FormData) {
 }
 
 export async function setWaliKelas(kelasId: string, guruId: string | null) {
+  await requireActionAccess('kelas', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const guruIdBaru = guruId === 'none' ? null : guruId
 
@@ -295,6 +283,7 @@ function validateDateInput(date?: string | null) {
 }
 
 export async function setStatusKbmKelas(kelasId: string, aktif: boolean, tanggalMulai?: string) {
+  await requireActionAccess('kelas', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const tanggal = validateDateInput(tanggalMulai)
   if (!aktif && !tanggal) return { error: 'Tanggal mulai nonaktif wajib diisi.', success: null }
@@ -340,6 +329,7 @@ export async function setStatusKbmKelas(kelasId: string, aktif: boolean, tanggal
 }
 
 export async function setStatusKbmTingkat(tingkat: number, aktif: boolean, tanggalMulai?: string) {
+  await requireActionAccess('kelas', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const tanggal = validateDateInput(tanggalMulai)
   if (!aktif && !tanggal) return { error: 'Tanggal mulai nonaktif wajib diisi.', success: null }
@@ -381,6 +371,10 @@ export async function setStatusKbmTingkat(tingkat: number, aktif: boolean, tangg
 export async function batchUpdateKelas(
   updates: { id: string; kelompok?: string; wali_kelas_id?: string | null }[]
 ) {
+  await requireActionAccess('kelas', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
+  if (!Array.isArray(updates) || updates.length === 0 || updates.length > 500) {
+    return { error: 'Perubahan massal harus berisi 1 sampai 500 kelas.', success: null }
+  }
   const db = await getDB()
 
   // Hanya update yang mengubah wali_kelas_id
@@ -451,6 +445,7 @@ export async function batchUpdateKelas(
 // 3. DETAIL KELAS: MUTASI & TAMBAH SISWA
 // ============================================================
 export async function getSiswaTanpaKelas() {
+  await requireActionAccess('kelas', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const result = await db
     .prepare(
@@ -463,6 +458,7 @@ export async function getSiswaTanpaKelas() {
 }
 
 export async function assignSiswaKeKelas(siswaId: string, kelasId: string) {
+  await requireActionAccess('kelas', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const before = await db.prepare('SELECT id, nama_lengkap, kelas_id FROM siswa WHERE id = ?').bind(siswaId).first<any>()
   const result = await dbUpdate(db, 'siswa', { kelas_id: kelasId }, { id: siswaId })
@@ -486,6 +482,7 @@ export async function assignSiswaKeKelas(siswaId: string, kelasId: string) {
 }
 
 export async function getKelasTujuanMutasi(tingkat: number, currentKelasId: string) {
+  await requireActionAccess('kelas', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const rows = await db
     .prepare(
@@ -509,6 +506,7 @@ export async function getKelasTujuanMutasi(tingkat: number, currentKelasId: stri
 }
 
 export async function getSiswaUntukBarter(kelasId: string) {
+  await requireActionAccess('kelas', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const result = await db
     .prepare(
@@ -521,68 +519,73 @@ export async function getSiswaUntukBarter(kelasId: string) {
   return result.results
 }
 
-export async function prosesMutasi(payload: {
-  siswaIdLama: string
-  kelasIdLama: string
-  kelasIdTujuan: string
-  siswaIdBarter: string | null
-}) {
+export async function prosesMutasi(payload: unknown) {
+  await requireActionAccess('kelas', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
+  const parsed = mutasiSchema.safeParse(payload)
+  if (!parsed.success || parsed.data.kelasIdLama === parsed.data.kelasIdTujuan) {
+    return { error: 'Data mutasi tidak valid.' }
+  }
+  const safePayload = parsed.data
   const db = await getDB()
-  const siswaLama = await db.prepare('SELECT id, nama_lengkap, kelas_id FROM siswa WHERE id = ?').bind(payload.siswaIdLama).first<any>()
-  const siswaBarter = payload.siswaIdBarter
-    ? await db.prepare('SELECT id, nama_lengkap, kelas_id FROM siswa WHERE id = ?').bind(payload.siswaIdBarter).first<any>()
+  const siswaLama = await db.prepare('SELECT id, nama_lengkap, kelas_id FROM siswa WHERE id = ?').bind(safePayload.siswaIdLama).first<any>()
+  if (!siswaLama || siswaLama.kelas_id !== safePayload.kelasIdLama) return { error: 'Data siswa atau kelas asal tidak sesuai.' }
+  const siswaBarter = safePayload.siswaIdBarter
+    ? await db.prepare('SELECT id, nama_lengkap, kelas_id FROM siswa WHERE id = ?').bind(safePayload.siswaIdBarter).first<any>()
     : null
+  if (safePayload.siswaIdBarter && (!siswaBarter || siswaBarter.kelas_id !== safePayload.kelasIdTujuan)) {
+    return { error: 'Data siswa barter atau kelas tujuan tidak sesuai.' }
+  }
 
   try {
-    if (payload.siswaIdBarter) {
+    if (safePayload.siswaIdBarter) {
       // Atomic swap via D1 batch (pengganti PostgreSQL RPC swap_siswa_kelas)
       await db.batch([
         db
           .prepare('UPDATE siswa SET kelas_id = ? WHERE id = ?')
-          .bind(payload.kelasIdTujuan, payload.siswaIdLama),
+          .bind(safePayload.kelasIdTujuan, safePayload.siswaIdLama),
         db
           .prepare('UPDATE siswa SET kelas_id = ? WHERE id = ?')
-          .bind(payload.kelasIdLama, payload.siswaIdBarter),
+          .bind(safePayload.kelasIdLama, safePayload.siswaIdBarter),
       ])
     } else {
       await db
         .prepare('UPDATE siswa SET kelas_id = ? WHERE id = ?')
-        .bind(payload.kelasIdTujuan, payload.siswaIdLama)
+        .bind(safePayload.kelasIdTujuan, safePayload.siswaIdLama)
         .run()
     }
 
     await logActivity({
       db,
       module: 'kelas',
-      action: payload.siswaIdBarter ? 'swap_mutasi_siswa' : 'mutasi_siswa',
+      action: safePayload.siswaIdBarter ? 'swap_mutasi_siswa' : 'mutasi_siswa',
       severity: 'warning',
-      summary: payload.siswaIdBarter
-        ? `Mutasi barter siswa ${siswaLama?.nama_lengkap || payload.siswaIdLama} dengan ${siswaBarter?.nama_lengkap || payload.siswaIdBarter}`
-        : `Mutasi siswa ${siswaLama?.nama_lengkap || payload.siswaIdLama} ke kelas tujuan`,
+      summary: safePayload.siswaIdBarter
+        ? `Mutasi barter siswa ${siswaLama?.nama_lengkap || safePayload.siswaIdLama} dengan ${siswaBarter?.nama_lengkap || safePayload.siswaIdBarter}`
+        : `Mutasi siswa ${siswaLama?.nama_lengkap || safePayload.siswaIdLama} ke kelas tujuan`,
       entityType: 'siswa',
-      entityId: payload.siswaIdLama,
-      entityLabel: siswaLama?.nama_lengkap || payload.siswaIdLama,
+      entityId: safePayload.siswaIdLama,
+      entityLabel: siswaLama?.nama_lengkap || safePayload.siswaIdLama,
       before: { siswaLama, siswaBarter },
       after: {
-        siswaLama: { ...siswaLama, kelas_id: payload.kelasIdTujuan },
-        siswaBarter: siswaBarter ? { ...siswaBarter, kelas_id: payload.kelasIdLama } : null,
+        siswaLama: { ...siswaLama, kelas_id: safePayload.kelasIdTujuan },
+        siswaBarter: siswaBarter ? { ...siswaBarter, kelas_id: safePayload.kelasIdLama } : null,
       },
-      metadata: payload,
+      metadata: safePayload,
       targets: [
-        { type: 'siswa', id: payload.siswaIdLama, label: siswaLama?.nama_lengkap || payload.siswaIdLama },
-        ...(payload.siswaIdBarter ? [{ type: 'siswa', id: payload.siswaIdBarter, label: siswaBarter?.nama_lengkap || payload.siswaIdBarter }] : []),
+        { type: 'siswa', id: safePayload.siswaIdLama, label: siswaLama?.nama_lengkap || safePayload.siswaIdLama },
+        ...(safePayload.siswaIdBarter ? [{ type: 'siswa', id: safePayload.siswaIdBarter, label: siswaBarter?.nama_lengkap || safePayload.siswaIdBarter }] : []),
       ],
     })
 
-    revalidatePath(`/dashboard/kelas/${payload.kelasIdLama}`)
-    revalidatePath(`/dashboard/kelas/${payload.kelasIdTujuan}`)
-    revalidatePath(`/dashboard/siswa/${payload.siswaIdLama}`)
-    if (payload.siswaIdBarter) revalidatePath(`/dashboard/siswa/${payload.siswaIdBarter}`)
+    revalidatePath(`/dashboard/kelas/${safePayload.kelasIdLama}`)
+    revalidatePath(`/dashboard/kelas/${safePayload.kelasIdTujuan}`)
+    revalidatePath(`/dashboard/siswa/${safePayload.siswaIdLama}`)
+    if (safePayload.siswaIdBarter) revalidatePath(`/dashboard/siswa/${safePayload.siswaIdBarter}`)
     revalidatePath('/dashboard/kelas')
     revalidatePath('/dashboard/siswa')
     return { success: 'Proses mutasi siswa berhasil!' }
-  } catch (err: any) {
-    return { error: err.message || 'Terjadi kesalahan sistem saat mutasi.' }
+  } catch (error) {
+    return publicServerError('kelas.mutasi', error)
   }
 }
 
@@ -592,6 +595,7 @@ export async function prosesMutasi(payload: {
 
 // Ambil data untuk modal assign BK: semua kelas + guru BK + mapping existing
 export async function getDataAssignBK() {
+  await requireActionAccess('kelas', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const [guruBkAll, taAktif] = await Promise.all([
     db.prepare(`SELECT id, nama_lengkap FROM "user" WHERE role = 'guru_bk' ORDER BY nama_lengkap ASC`).all<any>(),
@@ -610,6 +614,8 @@ export async function getDataAssignBK() {
 
 // Set kelas binaan satu guru BK (replace)
 export async function setKelasBinaanBKFromKelas(guru_bk_id: string, kelas_ids: string[], tahun_ajaran_id: string) {
+  await requireActionAccess('kelas', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
+  if (!Array.isArray(kelas_ids) || kelas_ids.length > 100) return { error: 'Maksimal 100 kelas binaan.' }
   if (!tahun_ajaran_id) return { error: 'Tahun Ajaran aktif belum diatur.' }
   const db = await getDB()
   try {
@@ -628,7 +634,7 @@ export async function setKelasBinaanBKFromKelas(guru_bk_id: string, kelas_ids: s
     }
     revalidatePath('/', 'layout')
     return { success: 'Kelas binaan berhasil disimpan.' }
-  } catch (e: any) {
-    return { error: e?.message ?? 'Gagal menyimpan.' }
+  } catch (error) {
+    return publicServerError('kelas.set_kelas_binaan_bk', error)
   }
 }

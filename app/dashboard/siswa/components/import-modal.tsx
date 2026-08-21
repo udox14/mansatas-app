@@ -111,7 +111,7 @@ export function ImportModalSiswa() {
   return (
     <>
       <Script
-        src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"
+        src="/vendor/xlsx-0.20.3.full.min.js"
         strategy="lazyOnload"
         onLoad={() => setXlsxReady(true)}
       />

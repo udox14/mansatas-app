@@ -7,10 +7,9 @@ import { GuruClient } from './components/guru-client'
 import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
 import { checkFeatureAccess } from '@/lib/features'
-import { ensureJabatanStrukturalSchema } from './actions'
-import { syncPembinaRoles } from '@/app/dashboard/ekstrakurikuler/master/actions'
-import { syncAllWaliKelasRoles } from '@/app/dashboard/kelas/actions'
-import { syncGuruPiketRoles } from '@/app/dashboard/jadwal-piket/actions'
+import { ensureJabatanStrukturalSchema } from '@/lib/jabatan-struktural-service'
+import { syncPembinaRoles, syncGuruPiketRoles } from '@/lib/assigned-role-service'
+import { syncAllWaliKelasRoles } from '@/lib/kelas-role-service'
 
 export const metadata = { title: 'Data Guru & Pegawai - MANSATAS App' }
 

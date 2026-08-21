@@ -6,6 +6,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getCurrentUser } from '@/utils/auth/server'
 import { buildCkhHtml, type CkhPdfData } from '@/lib/pdf/ckh-template'
 import { renderPdfWithCache } from '@/lib/pdf-cache'
+import { createSignedMediaUrl } from '@/lib/media-security'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,9 +37,15 @@ export async function POST(request: Request) {
   const paperCss = PAPER[body.paper || 'f4'] || PAPER.f4
   const m = body.margins || { top: 15, right: 12, bottom: 15, left: 12 }
 
+  const { env } = await getCloudflareContext({ async: true })
+  const signedSignatureUrl = await createSignedMediaUrl(
+    body.user.signature_url,
+    'browser-rendering:ckh',
+    env.MEDIA_SIGNING_SECRET || ''
+  )
   const html = buildCkhHtml({
     rows: body.rows,
-    user: body.user,
+    user: { ...body.user, signature_url: signedSignatureUrl },
     kepsek: body.kepsek,
     kepalaTu: body.kepalaTu,
     userRoles: body.userRoles || [],
@@ -55,7 +62,6 @@ export async function POST(request: Request) {
     route: 'ckh',
     html,
     render: async () => {
-      const { env } = await getCloudflareContext({ async: true })
       const browser = await puppeteer.launch(env.BROWSER as Parameters<typeof puppeteer.launch>[0])
       try {
         const page = await browser.newPage()

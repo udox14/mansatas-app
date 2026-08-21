@@ -9,7 +9,7 @@ import { logActivity } from '@/lib/activity-log'
 import {
   DEFAULT_VERIFICATION_THRESHOLDS,
   normalizeVerificationThresholds,
-  VERIFICATION_SETTINGS_KEY,
+  VERIFICATION_SETTINGS_ID,
   type VerificationThresholds,
 } from './verification-core'
 
@@ -35,13 +35,13 @@ export async function saveVerificationSettings(input: VerificationThresholds) {
   const error = validateSettings(candidate)
   if (error) return { error }
   const normalized = normalizeVerificationThresholds(candidate)
-  const beforeRaw = await getSystemSetting(VERIFICATION_SETTINGS_KEY, JSON.stringify(DEFAULT_VERIFICATION_THRESHOLDS))
+  const beforeRaw = await getSystemSetting(VERIFICATION_SETTINGS_ID, JSON.stringify(DEFAULT_VERIFICATION_THRESHOLDS))
   const before = normalizeVerificationThresholds(JSON.parse(beforeRaw))
-  await setSystemSetting(VERIFICATION_SETTINGS_KEY, JSON.stringify(normalized))
+  await setSystemSetting(VERIFICATION_SETTINGS_ID, JSON.stringify(normalized))
   await logActivity({
     db: auth.db, module: 'verifikasi-siswa', action: 'update_thresholds', severity: 'warning',
     summary: 'Mengubah ambang indikator Insight & Verifikasi Siswa', entityType: 'system_setting',
-    entityId: VERIFICATION_SETTINGS_KEY, before, after: normalized,
+    entityId: VERIFICATION_SETTINGS_ID, before, after: normalized,
   })
   revalidatePath('/dashboard/verifikasi-siswa')
   return { success: true, settings: normalized }

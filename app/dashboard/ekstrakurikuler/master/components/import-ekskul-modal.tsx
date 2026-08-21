@@ -59,7 +59,7 @@ export function ImportEkskulModal({ isOpen, onClose }: { isOpen: boolean; onClos
 
   return (
     <>
-      <Script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" strategy="lazyOnload" />
+      <Script src="/vendor/xlsx-0.20.3.full.min.js" strategy="lazyOnload" />
       <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
         <DialogContent className="sm:max-w-md rounded-xl">
           <DialogHeader className="border-b pb-3">

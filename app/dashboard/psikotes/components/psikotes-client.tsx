@@ -838,7 +838,7 @@ function TabImport({ mappingList: initialMapping }: { mappingList: RekomMapping[
       return
     }
     const script = document.createElement('script')
-    script.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'
+    script.src = '/vendor/xlsx-0.20.3.full.min.js'
     script.async = true
     script.onload = () => {
       xlsxRef.current = (window as any).XLSX

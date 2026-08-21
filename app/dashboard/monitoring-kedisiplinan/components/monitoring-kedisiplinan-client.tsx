@@ -485,7 +485,7 @@ export function MonitoringKedisiplinanClient({
 
   return (
     <>
-      <Script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" strategy="lazyOnload" />
+      <Script src="/vendor/xlsx-0.20.3.full.min.js" strategy="lazyOnload" />
       <div className="space-y-3">
         <Tabs defaultValue="riwayat" className="space-y-3">
           {canManageMaster && (

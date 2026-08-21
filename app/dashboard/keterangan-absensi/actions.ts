@@ -1,7 +1,13 @@
 // Lokasi: app/dashboard/keterangan-absensi/actions.ts
 'use server'
 
-import { getDB } from '@/utils/db-server'
+import { getDB as getRawDB } from '@/utils/db-server'
+import { requireActionAccess } from '@/lib/action-security'
+
+async function getDB() {
+  await requireActionAccess('keterangan-absensi', 'read')
+  return getRawDB()
+}
 import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { formatNamaKelas } from '@/lib/utils'
@@ -146,6 +152,7 @@ export async function simpanKeterangan(
   status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' | null,
   keterangan: string
 ): Promise<{ error?: string; success?: string }> {
+  await requireActionAccess('keterangan-absensi', 'update')
   return simpanKeputusanAbsensiWali(siswaId, tanggal, status, keterangan)
 }
 
@@ -155,5 +162,6 @@ export async function simpanKeteranganBatch(
   tanggal: string,
   data: Array<{ siswa_id: string; status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' | null; keterangan: string }>
 ): Promise<{ error?: string; success?: string }> {
+  await requireActionAccess('keterangan-absensi', 'update')
   return simpanKeputusanAbsensiWaliBatch(kelasId, tanggal, data)
 }

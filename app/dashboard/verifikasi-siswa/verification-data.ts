@@ -10,7 +10,7 @@ import {
   riskLabel,
   summarizeRdmAcademic,
   VERIFICATION_ROLES,
-  VERIFICATION_SETTINGS_KEY,
+  VERIFICATION_SETTINGS_ID,
   worstRisk,
   type DomainIndicator,
   type RiskLevel,
@@ -130,7 +130,7 @@ export async function loadVerificationYears(db: D1Database, selectedName?: strin
 
 async function loadSettings(db: D1Database) {
   const row = await safeFirst<{ value: string; updated_at: string | null }>(db,
-    'SELECT value, updated_at FROM system_settings WHERE key = ?', [VERIFICATION_SETTINGS_KEY])
+    'SELECT value, updated_at FROM system_settings WHERE key = ?', [VERIFICATION_SETTINGS_ID])
   return { settings: parseVerificationThresholds(row?.value), updatedAt: row?.updated_at || null }
 }
 

@@ -6,6 +6,7 @@ import { getUserRoles } from '@/lib/features'
 import { canViewKomitePengajuan, ensureKomitePengajuanSchema } from '@/lib/komite-pengajuan'
 import { terbilang } from '@/lib/terbilang'
 import { renderPdfWithCache } from '@/lib/pdf-cache'
+import { createSignedMediaUrl } from '@/lib/media-security'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,8 +51,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       ? db.prepare(`SELECT COALESCE(nama_lengkap,name,email) AS name,signature_url FROM "user" WHERE id=?`).bind(row.ketua_delegated_by).first<any>()
       : Promise.resolve(null),
   ])
+  const { env } = await getCloudflareContext({ async: true })
+  const signedReviews = await Promise.all((reviewRows.results || []).map(async review => ({
+    ...review,
+    actor_signature_url: await createSignedMediaUrl(
+      review.actor_signature_url,
+      `browser-rendering:komite-spb:${id}`,
+      env.MEDIA_SIGNING_SECRET || ''
+    ),
+  })))
+  const signedDelegatedChairman = delegatedChairman ? {
+    ...delegatedChairman,
+    signature_url: await createSignedMediaUrl(
+      delegatedChairman.signature_url,
+      `browser-rendering:komite-spb:${id}`,
+      env.MEDIA_SIGNING_SECRET || ''
+    ),
+  } : null
   const latest = new Map<string,any>()
-  for (const review of reviewRows.results || []) latest.set(review.stage,review)
+  for (const review of signedReviews) latest.set(review.stage,review)
   if (!latest.get('bendahara') || !latest.get('ketua') || !latest.get('kepala')) return new Response('Data persetujuan SPB belum lengkap',{ status:409 })
 
   const rincian = (detailRows.results || []).length ? detailRows.results || [] : [{
@@ -64,9 +82,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const origin = new URL(request.url).origin
   const signer = (stage: string, label: string, title: string) => {
     const review = latest.get(stage)
-    const useChairmanIdentity = stage === 'ketua' && review.actor_role === 'anggota_komite' && delegatedChairman
-    const signerName = useChairmanIdentity ? delegatedChairman.name : review.actor_name
-    const signerSignature = useChairmanIdentity ? delegatedChairman.signature_url : review.actor_signature_url
+    const useChairmanIdentity = stage === 'ketua' && review.actor_role === 'anggota_komite' && signedDelegatedChairman
+    const signerName = useChairmanIdentity ? signedDelegatedChairman.name : review.actor_name
+    const signerSignature = useChairmanIdentity ? signedDelegatedChairman.signature_url : review.actor_signature_url
     const signature = absolute(signerSignature,origin)
     return `<div class="sign">
       <div class="sign-label">${esc(label)}</div>
@@ -202,7 +220,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     route: 'komite-spb',
     html,
     render: async () => {
-      const { env } = await getCloudflareContext({ async:true })
       const browser = await puppeteer.launch(env.BROWSER as Parameters<typeof puppeteer.launch>[0])
       try {
         const page = await browser.newPage()

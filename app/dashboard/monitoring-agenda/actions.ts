@@ -2,7 +2,13 @@
 'use server'
 
 import { dbUpdate, dbInsert } from '@/utils/db'
-import { getDB } from '@/utils/db-server'
+import { getDB as getRawDB } from '@/utils/db-server'
+import { requireActionAccess } from '@/lib/action-security'
+
+async function getDB() {
+  await requireActionAccess('monitoring-agenda', 'read')
+  return getRawDB()
+}
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'

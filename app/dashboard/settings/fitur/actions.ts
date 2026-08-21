@@ -1,7 +1,17 @@
 // app/dashboard/settings/fitur/actions.ts
 'use server'
 
-import { getDB } from '@/utils/db-server'
+import { getDB as getRawDB } from '@/utils/db-server'
+import { requireActionAccess } from '@/lib/action-security'
+
+async function getDB() {
+  await requireActionAccess('settings-fitur', 'read')
+  return getRawDB()
+}
+
+async function requireFeatureAdmin(action: 'create' | 'update' | 'delete' = 'update') {
+  return requireActionAccess('settings-fitur', action, { allowedRoles: ['super_admin'] })
+}
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import {
@@ -156,6 +166,7 @@ export async function getRoleFeatureMatrix(): Promise<{
  * Toggle a feature for a role (enable/disable)
  */
 export async function toggleRoleFeature(role: string, featureId: string, enabled: boolean) {
+  await requireFeatureAdmin('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -208,6 +219,7 @@ export async function toggleRoleFeature(role: string, featureId: string, enabled
  * Batch update: set all features for a role
  */
 export async function setRoleFeatures(role: string, featureIds: string[]) {
+  await requireFeatureAdmin('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -261,6 +273,7 @@ export async function setRoleFeaturePermission(
   action: keyof CrudPermission,
   enabled: boolean
 ) {
+  await requireFeatureAdmin('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -365,6 +378,7 @@ export async function getUserRolesAction(userId: string): Promise<string[]> {
  * Set roles for a user (replaces all existing)
  */
 export async function setUserRoles(userId: string, roles: string[], primaryRole: string) {
+  await requireFeatureAdmin('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -443,6 +457,7 @@ export async function setUserFeatureOverride(
   featureId: string,
   action: 'grant' | 'revoke' | 'remove'
 ) {
+  await requireFeatureAdmin('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -487,6 +502,7 @@ export async function setUserFeatureOverrides(
   userId: string,
   overrides: { featureId: string; action: 'grant' | 'revoke' }[]
 ) {
+  await requireFeatureAdmin('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -543,6 +559,7 @@ export async function getAllMasterRoles(): Promise<MasterRole[]> {
  * Create a new custom role
  */
 export async function createCustomRole(label: string, value: string) {
+  await requireFeatureAdmin('create')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -583,6 +600,7 @@ export async function createCustomRole(label: string, value: string) {
  * Edit label of an existing custom role
  */
 export async function editCustomRole(value: string, newLabel: string) {
+  await requireFeatureAdmin('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -620,6 +638,7 @@ export async function editCustomRole(value: string, newLabel: string) {
  * Delete a custom role (only if no users are assigned to it)
  */
 export async function deleteCustomRole(value: string) {
+  await requireFeatureAdmin('delete')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -666,6 +685,7 @@ export async function deleteCustomRole(value: string) {
  * Update mobile nav links for a role
  */
 export async function setRoleMobileNav(value: string, navLinks: string[]) {
+  await requireFeatureAdmin('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -700,6 +720,7 @@ export async function setRoleMobileNav(value: string, navLinks: string[]) {
 }
 
 export async function setSidebarTemplateConfig(groups: SidebarGroupConfig[]) {
+  await requireFeatureAdmin('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -756,6 +777,7 @@ export async function setSidebarTemplateConfig(groups: SidebarGroupConfig[]) {
  * Update sidebar override for a role. The global sidebar template remains the source of truth.
  */
 export async function setRoleSidebarConfig(value: string, override: SidebarRoleOverrideConfig) {
+  await requireFeatureAdmin('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -798,6 +820,7 @@ export async function setRoleSidebarConfig(value: string, override: SidebarRoleO
  * Update display label for a feature. This does not change feature_id or route.
  */
 export async function setFeatureDisplayTitle(featureId: string, title: string) {
+  await requireFeatureAdmin('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 

@@ -4,6 +4,52 @@
 import { dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { getDB } from '@/utils/db-server'
 import { revalidatePath } from 'next/cache'
+import {
+  ADMINISTRATIVE_ROLES,
+  assertClassScope,
+  assertStudentScope,
+  isAdministrativeActor,
+  requireActionAccess,
+  type AuthenticatedActor,
+} from '@/lib/action-security'
+import { publicServerError } from '@/lib/security-log'
+import { createSignedMediaUrl } from '@/lib/media-security'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { z } from 'zod'
+
+const bkIdSchema = z.string().trim().min(1).max(100)
+const bkCreateSchema = z.object({
+  siswa_id: bkIdSchema,
+  guru_bk_id: bkIdSchema,
+  tahun_ajaran_id: bkIdSchema,
+  bidang: z.enum(['Pribadi', 'Karir', 'Sosial', 'Akademik']),
+  topik_id: bkIdSchema.nullable(),
+  deskripsi: z.string().max(5000),
+  tindak_lanjut: z.string().max(500),
+  catatan_tindak_lanjut: z.string().max(5000).optional(),
+}).strict()
+const bkUpdateSchema = bkCreateSchema.pick({
+  topik_id: true,
+  deskripsi: true,
+  tindak_lanjut: true,
+  catatan_tindak_lanjut: true,
+}).partial().strict()
+
+function resolveBkIdentity(actor: AuthenticatedActor, requestedGuruId?: string) {
+  if (actor.kind !== 'staff') throw new Error('Staff session required')
+  return {
+    guruId: isAdministrativeActor(actor) && requestedGuruId ? requestedGuruId : actor.id,
+    isAdmin: isAdministrativeActor(actor),
+  }
+}
+
+async function assertRekamanScope(db: D1Database, actor: AuthenticatedActor, rekamanId: string) {
+  const row = await db.prepare('SELECT siswa_id FROM bk_rekaman WHERE id = ? LIMIT 1')
+    .bind(rekamanId).first<{ siswa_id: string }>()
+  if (!row) return null
+  await assertStudentScope(actor, row.siswa_id, 'bk')
+  return row
+}
 
 // ============================================================
 // TYPES
@@ -130,11 +176,22 @@ async function getGuruBKPenandaTangan(
   `).bind(guru_bk_id).first<GuruBKSignature>()
 }
 
+async function signGuruBKSignature(guru: GuruBKSignature, audience: string): Promise<GuruBKSignature> {
+  const { env } = await getCloudflareContext({ async: true })
+  if (!env.MEDIA_SIGNING_SECRET) return guru
+  return {
+    ...guru,
+    signature_url: await createSignedMediaUrl(guru.signature_url, audience, env.MEDIA_SIGNING_SECRET),
+  }
+}
+
 // ============================================================
 // 1. KELAS BINAAN (per TA)
 // ============================================================
 
 export async function getKelasBinaanGurubk(guru_bk_id: string, tahun_ajaran_id: string) {
+  const actor = await requireActionAccess('bk', 'read')
+  const identity = resolveBkIdentity(actor, guru_bk_id)
   const db = await getDB()
   const res = await db.prepare(`
     SELECT kb.kelas_id, k.tingkat, k.nomor_kelas, k.kelompok
@@ -142,11 +199,13 @@ export async function getKelasBinaanGurubk(guru_bk_id: string, tahun_ajaran_id: 
     JOIN kelas k ON kb.kelas_id = k.id
     WHERE kb.guru_bk_id = ? AND kb.tahun_ajaran_id = ?
     ORDER BY k.tingkat ASC, k.kelompok ASC, k.nomor_kelas ASC
-  `).bind(guru_bk_id, tahun_ajaran_id).all<any>()
+  `).bind(identity.guruId, tahun_ajaran_id).all<any>()
   return res.results || []
 }
 
 export async function setKelasBinaanBK(guru_bk_id: string, kelas_ids: string[], tahun_ajaran_id: string) {
+  await requireActionAccess('bk', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
+  if (!Array.isArray(kelas_ids) || kelas_ids.length > 100) return { error: 'Maksimal 100 kelas binaan.' }
   const db = await getDB()
   try {
     await db.prepare('DELETE FROM kelas_binaan_bk WHERE guru_bk_id = ? AND tahun_ajaran_id = ?').bind(guru_bk_id, tahun_ajaran_id).run()
@@ -163,8 +222,8 @@ export async function setKelasBinaanBK(guru_bk_id: string, kelas_ids: string[], 
     }
     revalidatePath('/', 'layout')
     return { success: 'Kelas binaan berhasil diperbarui.' }
-  } catch (e: any) {
-    return { error: e?.message ?? 'Gagal memperbarui kelas binaan.' }
+  } catch (error) {
+    return publicServerError('bk.set_kelas_binaan', error)
   }
 }
 
@@ -173,15 +232,19 @@ export async function setKelasBinaanBK(guru_bk_id: string, kelas_ids: string[], 
 // ============================================================
 
 export async function tambahTopikBK(bidang: BidangBK, nama: string, guru_bk_id: string) {
+  const actor = await requireActionAccess('bk', 'create')
+  const identity = resolveBkIdentity(actor, guru_bk_id)
   if (!nama.trim()) return { error: 'Nama topik tidak boleh kosong.' }
+  if (nama.length > 120 || !['Pribadi', 'Karir', 'Sosial', 'Akademik'].includes(bidang)) return { error: 'Data topik tidak valid.' }
   const db = await getDB()
-  const result = await dbInsert(db, 'bk_topik', { bidang, nama: nama.trim(), created_by: guru_bk_id })
+  const result = await dbInsert(db, 'bk_topik', { bidang, nama: nama.trim(), created_by: identity.guruId })
   if (result.error) return { error: result.error.includes('UNIQUE') ? 'Topik ini sudah ada.' : result.error }
   revalidatePath('/dashboard/bk')
   return { success: 'Topik berhasil ditambahkan.' }
 }
 
 export async function editTopikBK(id: string, nama: string) {
+  await requireActionAccess('bk', 'update')
   if (!nama.trim()) return { error: 'Nama topik tidak boleh kosong.' }
   const db = await getDB()
   const result = await dbUpdate(db, 'bk_topik', { nama: nama.trim() }, { id })
@@ -191,6 +254,7 @@ export async function editTopikBK(id: string, nama: string) {
 }
 
 export async function hapusTopikBK(id: string) {
+  await requireActionAccess('bk', 'delete')
   const db = await getDB()
   const result = await dbDelete(db, 'bk_topik', { id })
   if (result.error) return { error: result.error }
@@ -203,11 +267,14 @@ export async function hapusTopikBK(id: string) {
 // ============================================================
 
 export async function searchSiswaBinaan(guru_bk_id: string, query: string, tahun_ajaran_id: string) {
+  const actor = await requireActionAccess('bk', 'read')
+  const identity = resolveBkIdentity(actor, guru_bk_id)
   if (query.trim().length < 2) return []
+  if (query.length > 100) return []
   const db = await getDB()
   const binaanRes = await db.prepare(
     'SELECT kelas_id FROM kelas_binaan_bk WHERE guru_bk_id = ? AND tahun_ajaran_id = ?'
-  ).bind(guru_bk_id, tahun_ajaran_id).all<{ kelas_id: string }>()
+  ).bind(identity.guruId, tahun_ajaran_id).all<{ kelas_id: string }>()
   const kelasIds = (binaanRes.results || []).map(r => r.kelas_id)
   if (kelasIds.length === 0) return []
   const placeholders = kelasIds.map(() => '?').join(',')
@@ -226,6 +293,8 @@ export async function searchSiswaBinaan(guru_bk_id: string, query: string, tahun
 }
 
 export async function getRekamanSiswa(siswa_id: string, tahun_ajaran_id: string) {
+  const actor = await requireActionAccess('bk', 'read')
+  await assertStudentScope(actor, siswa_id, 'bk')
   const db = await getDB()
   const res = await db.prepare(`
     SELECT r.id, r.bidang, r.topik_id, r.deskripsi, r.penanganan, r.tindak_lanjut, r.catatan_tindak_lanjut,
@@ -244,43 +313,53 @@ export async function getRekamanSiswa(siswa_id: string, tahun_ajaran_id: string)
   }))
 }
 
-export async function tambahRekamanBK(payload: {
-  siswa_id: string; guru_bk_id: string; tahun_ajaran_id: string
-  bidang: BidangBK; topik_id: string | null; deskripsi: string
-  tindak_lanjut: TindakLanjut; catatan_tindak_lanjut?: string
-}) {
+export async function tambahRekamanBK(payload: unknown) {
+  const actor = await requireActionAccess('bk', 'create')
+  const parsed = bkCreateSchema.safeParse(payload)
+  if (!parsed.success) return { error: 'Data rekaman BK tidak valid.' }
+  const safePayload = parsed.data
+  const identity = resolveBkIdentity(actor, safePayload.guru_bk_id)
+  await assertStudentScope(actor, safePayload.siswa_id, 'bk')
   const db = await getDB()
   // Validasi akses: siswa harus dari kelas binaan guru BK di TA ini
   const binaanRes = await db.prepare(
     'SELECT kelas_id FROM kelas_binaan_bk WHERE guru_bk_id = ? AND tahun_ajaran_id = ?'
-  ).bind(payload.guru_bk_id, payload.tahun_ajaran_id).all<{ kelas_id: string }>()
+  ).bind(identity.guruId, safePayload.tahun_ajaran_id).all<{ kelas_id: string }>()
   const kelasIds = new Set((binaanRes.results || []).map(r => r.kelas_id))
-  const siswa = await db.prepare('SELECT kelas_id FROM siswa WHERE id = ?').bind(payload.siswa_id).first<{ kelas_id: string }>()
-  if (!siswa || !kelasIds.has(siswa.kelas_id)) return { error: 'Siswa ini bukan dari kelas binaan Anda.' }
+  const siswa = await db.prepare('SELECT kelas_id FROM siswa WHERE id = ?').bind(safePayload.siswa_id).first<{ kelas_id: string }>()
+  if (!siswa || (!identity.isAdmin && !kelasIds.has(siswa.kelas_id))) return { error: 'Siswa ini bukan dari kelas binaan Anda.' }
   const result = await dbInsert(db, 'bk_rekaman', {
-    siswa_id: payload.siswa_id, guru_bk_id: payload.guru_bk_id,
-    tahun_ajaran_id: payload.tahun_ajaran_id, bidang: payload.bidang,
-    topik_id: payload.topik_id || null, deskripsi: payload.deskripsi || '',
-    penanganan: '[]', tindak_lanjut: payload.tindak_lanjut || '',
-    catatan_tindak_lanjut: payload.catatan_tindak_lanjut || '',
+    siswa_id: safePayload.siswa_id, guru_bk_id: identity.guruId,
+    tahun_ajaran_id: safePayload.tahun_ajaran_id, bidang: safePayload.bidang,
+    topik_id: safePayload.topik_id || null, deskripsi: safePayload.deskripsi || '',
+    penanganan: '[]', tindak_lanjut: safePayload.tindak_lanjut || '',
+    catatan_tindak_lanjut: safePayload.catatan_tindak_lanjut || '',
   })
   if (result.error) return { error: result.error }
   revalidatePath('/dashboard/bk')
   return { success: 'Rekaman BK berhasil disimpan.', id: (result.data as any)?.id }
 }
 
-export async function editRekamanBK(id: string, payload: {
-  topik_id?: string | null; deskripsi?: string; tindak_lanjut?: TindakLanjut; catatan_tindak_lanjut?: string
-}) {
+export async function editRekamanBK(id: string, payload: unknown) {
+  const actor = await requireActionAccess('bk', 'update')
+  const parsed = bkUpdateSchema.safeParse(payload)
+  if (!parsed.success || Object.keys(parsed.data).length === 0) return { error: 'Data rekaman BK tidak valid.' }
   const db = await getDB()
-  const result = await dbUpdate(db, 'bk_rekaman', { ...payload, updated_at: new Date().toISOString() }, { id })
+  if (!(await assertRekamanScope(db, actor, id))) return { error: 'Rekaman tidak ditemukan.' }
+  const safePayload = {
+    ...parsed.data,
+    updated_at: new Date().toISOString(),
+  }
+  const result = await dbUpdate(db, 'bk_rekaman', safePayload, { id })
   if (result.error) return { error: result.error }
   revalidatePath('/dashboard/bk')
   return { success: 'Rekaman berhasil diperbarui.' }
 }
 
 export async function hapusRekamanBK(id: string) {
+  const actor = await requireActionAccess('bk', 'delete')
   const db = await getDB()
+  if (!(await assertRekamanScope(db, actor, id))) return { error: 'Rekaman tidak ditemukan.' }
   const result = await dbDelete(db, 'bk_rekaman', { id })
   if (result.error) return { error: result.error }
   revalidatePath('/dashboard/bk')
@@ -288,7 +367,10 @@ export async function hapusRekamanBK(id: string) {
 }
 
 export async function tambahSesiPenanganan(rekaman_id: string, tipe: TipePenanganan, tanggal: string, catatan: string) {
+  const actor = await requireActionAccess('bk', 'update')
   const db = await getDB()
+  if (!(await assertRekamanScope(db, actor, rekaman_id))) return { error: 'Rekaman tidak ditemukan.' }
+  if (!['KONSELING', 'KONSELING_KELOMPOK', 'HOME_VISIT'].includes(tipe) || !/^\d{4}-\d{2}-\d{2}$/.test(tanggal) || catatan.length > 5000) return { error: 'Data sesi tidak valid.' }
   const row = await db.prepare('SELECT penanganan FROM bk_rekaman WHERE id = ?').bind(rekaman_id).first<{ penanganan: string }>()
   if (!row) return { error: 'Rekaman tidak ditemukan.' }
   let sesiList: SesiPenanganan[] = []
@@ -301,7 +383,9 @@ export async function tambahSesiPenanganan(rekaman_id: string, tipe: TipePenanga
 }
 
 export async function hapusSesiPenanganan(rekaman_id: string, sesi_id: string) {
+  const actor = await requireActionAccess('bk', 'update')
   const db = await getDB()
+  if (!(await assertRekamanScope(db, actor, rekaman_id))) return { error: 'Rekaman tidak ditemukan.' }
   const row = await db.prepare('SELECT penanganan FROM bk_rekaman WHERE id = ?').bind(rekaman_id).first<{ penanganan: string }>()
   if (!row) return { error: 'Rekaman tidak ditemukan.' }
   let sesiList: SesiPenanganan[] = []
@@ -320,14 +404,19 @@ export async function getListSiswaBerrekaman(
   filter: { bidang?: BidangBK | ''; tindak_lanjut?: TindakLanjut | ''; kelas_id?: string },
   page: number = 1, pageSize: number = 10
 ) {
+  const actor = await requireActionAccess('bk', 'read')
+  const identity = resolveBkIdentity(actor, guru_bk_id)
+  const effectiveAdmin = identity.isAdmin
+  page = Math.max(1, Math.floor(page))
+  pageSize = Math.min(100, Math.max(1, Math.floor(pageSize)))
   const db = await getDB()
   const conditions: string[] = ['r.tahun_ajaran_id = ?']
   const params: any[] = [tahun_ajaran_id]
 
-  if (!is_admin) {
+  if (!effectiveAdmin) {
     const binaanRes = await db.prepare(
       'SELECT kelas_id FROM kelas_binaan_bk WHERE guru_bk_id = ? AND tahun_ajaran_id = ?'
-    ).bind(guru_bk_id, tahun_ajaran_id).all<{ kelas_id: string }>()
+    ).bind(identity.guruId, tahun_ajaran_id).all<{ kelas_id: string }>()
     const kelasIds = (binaanRes.results || []).map(r => r.kelas_id)
     if (kelasIds.length === 0) return { rows: [], total: 0 }
     if (filter.kelas_id) {
@@ -376,6 +465,9 @@ export async function getListSiswaBerrekaman(
 // ============================================================
 
 export async function getLaporanBKSiswa(siswa_id: string, tahun_ajaran_id: string, guru_bk_id: string, is_admin: boolean) {
+  const actor = await requireActionAccess('bk', 'read')
+  const identity = resolveBkIdentity(actor, guru_bk_id)
+  await assertStudentScope(actor, siswa_id, 'bk')
   const db = await getDB()
   try {
     const siswa = await db.prepare(`
@@ -387,14 +479,14 @@ export async function getLaporanBKSiswa(siswa_id: string, tahun_ajaran_id: strin
       LIMIT 1
     `).bind(siswa_id).first<any>()
     if (!siswa) return { error: 'Siswa tidak ditemukan.' }
-    if (!is_admin && siswa.kelas_id && !(await isKelasBinaan(db, guru_bk_id, tahun_ajaran_id, siswa.kelas_id))) {
+    if (!identity.isAdmin && siswa.kelas_id && !(await isKelasBinaan(db, identity.guruId, tahun_ajaran_id, siswa.kelas_id))) {
       return { error: 'Anda tidak memiliki akses laporan siswa ini.' }
     }
 
     const ta = await db.prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE id = ? LIMIT 1').bind(tahun_ajaran_id).first<any>()
     if (!ta) return { error: 'Tahun ajaran tidak ditemukan.' }
 
-    const guru = await getGuruBKPenandaTangan(db, guru_bk_id, tahun_ajaran_id, is_admin, siswa.kelas_id)
+    const guru = await getGuruBKPenandaTangan(db, identity.guruId, tahun_ajaran_id, identity.isAdmin, siswa.kelas_id)
     if (!guru) return { error: 'Data Guru BK penanda tangan tidak ditemukan.' }
 
     const rekamanRes = await db.prepare(`
@@ -419,7 +511,7 @@ export async function getLaporanBKSiswa(siswa_id: string, tahun_ajaran_id: strin
         kelas_kelompok: siswa.kelas_kelompok,
       },
       ta,
-      guru_bk: guru,
+      guru_bk: await signGuruBKSignature(guru, `official-render:bk-siswa:${siswa_id}`),
       rekaman: (rekamanRes.results || []).map((r: any) => ({
         id: r.id,
         siswa_id: r.siswa_id,
@@ -435,22 +527,25 @@ export async function getLaporanBKSiswa(siswa_id: string, tahun_ajaran_id: strin
       })),
     }
     return { data: laporan }
-  } catch (e: any) {
-    return { error: e?.message ?? 'Gagal mengambil data laporan siswa.' }
+  } catch (error) {
+    return publicServerError('bk.laporan_siswa', error)
   }
 }
 
 export async function getLaporanBKKelas(kelas_id: string, tahun_ajaran_id: string, guru_bk_id: string, is_admin: boolean) {
+  const actor = await requireActionAccess('bk', 'read')
+  const identity = resolveBkIdentity(actor, guru_bk_id)
+  await assertClassScope(actor, kelas_id, 'bk')
   const db = await getDB()
   try {
-    if (!is_admin && !(await isKelasBinaan(db, guru_bk_id, tahun_ajaran_id, kelas_id))) {
+    if (!identity.isAdmin && !(await isKelasBinaan(db, identity.guruId, tahun_ajaran_id, kelas_id))) {
       return { error: 'Anda tidak memiliki akses laporan kelas ini.' }
     }
 
     const [kelas, ta, guru] = await Promise.all([
       db.prepare('SELECT id, tingkat, nomor_kelas, kelompok FROM kelas WHERE id = ? LIMIT 1').bind(kelas_id).first<any>(),
       db.prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE id = ? LIMIT 1').bind(tahun_ajaran_id).first<any>(),
-      getGuruBKPenandaTangan(db, guru_bk_id, tahun_ajaran_id, is_admin, kelas_id),
+      getGuruBKPenandaTangan(db, identity.guruId, tahun_ajaran_id, identity.isAdmin, kelas_id),
     ])
     if (!kelas) return { error: 'Kelas tidak ditemukan.' }
     if (!ta) return { error: 'Tahun ajaran tidak ditemukan.' }
@@ -501,10 +596,15 @@ export async function getLaporanBKKelas(kelas_id: string, tahun_ajaran_id: strin
       bidang_list: Array.from(bidangSet).join(', '),
     }))
 
-    const laporan: LaporanBKKelas = { kelas, ta, guru_bk: guru, siswa }
+    const laporan: LaporanBKKelas = {
+      kelas,
+      ta,
+      guru_bk: await signGuruBKSignature(guru, `official-render:bk-kelas:${kelas_id}`),
+      siswa,
+    }
     return { data: laporan }
-  } catch (e: any) {
-    return { error: e?.message ?? 'Gagal mengambil data laporan kelas.' }
+  } catch (error) {
+    return publicServerError('bk.laporan_kelas', error)
   }
 }
 
@@ -513,6 +613,7 @@ export async function getLaporanBKKelas(kelas_id: string, tahun_ajaran_id: strin
 // ============================================================
 
 export async function sinkronKelasBinaanDariPenugasan() {
+  await requireActionAccess('bk', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   try {
     const ta = await getTaAktif(db)
@@ -543,12 +644,13 @@ export async function sinkronKelasBinaanDariPenugasan() {
 
     revalidatePath('/', 'layout')
     return { success: `Sinkronisasi selesai: ${rows.length} kelas binaan untuk TA ${ta.nama} Smt ${ta.semester}.` }
-  } catch (e: any) {
-    return { error: e?.message ?? 'Gagal sinkronisasi.' }
+  } catch (error) {
+    return publicServerError('bk.sinkron_kelas_binaan', error)
   }
 }
 
 export async function getKelasBinaanPerGuru(tahun_ajaran_id: string) {
+  await requireActionAccess('bk', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const res = await db.prepare(`
     SELECT u.id as guru_id, u.nama_lengkap as guru_nama,
@@ -571,13 +673,15 @@ export async function getKelasBinaanPerGuru(tahun_ajaran_id: string) {
 // 7. DATA UNTUK PAGE
 // ============================================================
 export async function getInitialDataBK(guru_bk_id: string, is_admin: boolean) {
+  const actor = await requireActionAccess('bk', 'read')
+  const identity = resolveBkIdentity(actor, guru_bk_id)
   const db = await getDB()
   const [taAktif, topikAll] = await Promise.all([
     db.prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>(),
     db.prepare('SELECT id, bidang, nama FROM bk_topik ORDER BY bidang ASC, nama ASC').all<any>(),
   ])
 
-  const kelasBinaan = is_admin
+  const kelasBinaan = identity.isAdmin
     ? await db.prepare(`
         SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok,
           u.nama_lengkap as guru_bk_nama
@@ -594,7 +698,7 @@ export async function getInitialDataBK(guru_bk_id: string, is_admin: boolean) {
           JOIN kelas k ON kb.kelas_id = k.id
           WHERE kb.guru_bk_id = ? AND kb.tahun_ajaran_id = ?
           ORDER BY k.tingkat ASC, k.kelompok ASC, k.nomor_kelas ASC
-        `).bind(guru_bk_id, taAktif.id).all<any>()
+        `).bind(identity.guruId, taAktif.id).all<any>()
       : { results: [] }
 
   return {

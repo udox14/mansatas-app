@@ -819,7 +819,7 @@ export function NilaiHarianClient({ penugasanList }: { penugasanList: PenugasanG
 
   return (
     <div className="space-y-4">
-      <Script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" strategy="lazyOnload" />
+      <Script src="/vendor/xlsx-0.20.3.full.min.js" strategy="lazyOnload" />
 
       {/* Pilih Mapel + Kelas */}
       <div className="bg-surface border border-surface rounded-xl p-4">

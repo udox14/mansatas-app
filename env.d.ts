@@ -49,6 +49,11 @@ declare interface R2Objects { objects: R2Object[]; truncated: boolean; cursor?: 
 declare interface R2HTTPMetadata { contentType?: string; contentLanguage?: string; contentDisposition?: string; contentEncoding?: string; cacheControl?: string; cacheExpiry?: Date }
 declare interface R2Checksums { md5?: ArrayBuffer; sha1?: ArrayBuffer; sha256?: ArrayBuffer; sha384?: ArrayBuffer; sha512?: ArrayBuffer }
 declare interface R2Conditional { etagMatches?: string; etagDoesNotMatch?: string; uploadedBefore?: Date; uploadedAfter?: Date }
+declare interface Fetcher { fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> }
+declare type Service<T = unknown> = Fetcher & T
+declare interface BrowserRun extends Fetcher {}
+declare interface RateLimit { limit(options: { key: string }): Promise<{ success: boolean }> }
+declare interface ExecutionContext { waitUntil(promise: Promise<unknown>): void; passThroughOnException(): void }
 declare interface KVNamespace {
   get(key: string, options?: KVNamespaceGetOptions<undefined>): Promise<string | null>
   get(key: string, type: 'text'): Promise<string | null>
@@ -67,22 +72,25 @@ declare interface KVNamespaceListResult<T> { keys: { name: string; expiration?: 
 // CLOUDFLARE ENV BINDINGS
 // ============================================================
 interface CloudflareEnv {
-  // D1 Database
   DB: D1Database
-
-  // R2 Bucket
   R2: R2Bucket
-
-  // KV Namespace (incremental cache Next.js)
   NEXT_INC_CACHE_KV: KVNamespace
-
-  // Browser Rendering (HTML→PDF) — binding di-cast ke Fetcher oleh @cloudflare/puppeteer
-  BROWSER: unknown
-
-  // Environment variables
-  BETTER_AUTH_SECRET: string
+  LOGIN_RATE_LIMITER: RateLimit
+  BROWSER: BrowserRun
+  STATIC_ASSETS: Fetcher
+  SELF: Fetcher
   BETTER_AUTH_URL: string
-  R2_PUBLIC_URL: string
+  ALLOWED_APP_ORIGINS: string
+  CSP_ENFORCE: string
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: string
+  VAPID_SUBJECT: string
+
+  // Secret bindings tidak ditulis di wrangler.jsonc dan ditambahkan melalui `wrangler secret put`.
+  BETTER_AUTH_SECRET: string
+  MEDIA_SIGNING_SECRET: string
+  AUTH_RATE_LIMIT_PEPPER: string
+  CRON_SECRET: string
+  VAPID_PRIVATE_KEY: string
 
   // FCM (Firebase Cloud Messaging) HTTP v1 — service account secrets
   FCM_PROJECT_ID: string

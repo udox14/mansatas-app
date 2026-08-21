@@ -1,7 +1,13 @@
 'use server'
 
 import { dbInsert, dbUpdate, dbDelete } from '@/utils/db'
-import { getDB } from '@/utils/db-server'
+import { getDB as getRawDB } from '@/utils/db-server'
+import { requireActionAccess } from '@/lib/action-security'
+
+async function getDB() {
+  await requireActionAccess('jadwal-piket', 'read')
+  return getRawDB()
+}
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { checkFeatureAccess } from '@/lib/features'
@@ -46,7 +52,7 @@ async function tableExists(db: D1Database, tableName: string) {
   return Boolean(row)
 }
 
-export async function syncGuruPiketRoles(db: D1Database) {
+async function syncGuruPiketRoles(db: D1Database) {
   try {
     await db.prepare(`
       INSERT OR IGNORE INTO master_roles (value, label, is_custom)

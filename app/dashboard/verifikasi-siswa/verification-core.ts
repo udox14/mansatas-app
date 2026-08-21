@@ -1,5 +1,5 @@
 export const VERIFICATION_ROLES = ['super_admin', 'kepsek', 'wakamad'] as const
-export const VERIFICATION_SETTINGS_KEY = 'student_verification_thresholds_v1'
+export const VERIFICATION_SETTINGS_ID = 'student_verification_thresholds_v1'
 
 export type RiskLevel = 'aman' | 'perhatian' | 'kritis'
 

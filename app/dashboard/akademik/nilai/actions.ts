@@ -2,7 +2,13 @@
 'use server'
 
 import { parseJsonCol } from '@/utils/db'
-import { getDB } from '@/utils/db-server'
+import { getDB as getRawDB } from '@/utils/db-server'
+import { requireActionAccess } from '@/lib/action-security'
+
+async function getDB() {
+  await requireActionAccess('akademik-nilai', 'read')
+  return getRawDB()
+}
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { revalidatePath } from 'next/cache'
 import { SEMESTER_MAP, SEMESTER_KEYS } from './constants'

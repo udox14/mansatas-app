@@ -40,9 +40,15 @@ export function ImportModal() {
         const workbook = XLSX.read(event.target?.result, { type: 'binary' })
         const worksheet = workbook.Sheets[workbook.SheetNames[0]]
         const jsonData = XLSX.utils.sheet_to_json(worksheet)
-        const result = await importKelasMassal(jsonData)
-        if (result.error) setMessage({ type: 'error', text: result.error })
-        else if (result.success) { setMessage({ type: 'success', text: result.success }); setTimeout(() => setIsOpen(false), 2000) }
+        let imported = 0
+        let importError = ''
+        for (let offset = 0; offset < jsonData.length; offset += 500) {
+          const result = await importKelasMassal(jsonData.slice(offset, offset + 500))
+          if (result.error) { importError = result.error; break }
+          imported += Math.min(500, jsonData.length - offset)
+        }
+        if (importError) setMessage({ type: 'error', text: importError })
+        else { setMessage({ type: 'success', text: `Berhasil mengimport ${imported} kelas.` }); setTimeout(() => setIsOpen(false), 2000) }
       } catch (err: any) {
         setMessage({ type: 'error', text: err.message || 'Gagal memproses file Excel.' })
       } finally {
@@ -54,7 +60,7 @@ export function ImportModal() {
 
   return (
     <>
-      <Script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" strategy="lazyOnload" />
+      <Script src="/vendor/xlsx-0.20.3.full.min.js" strategy="lazyOnload" />
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 border-surface rounded-md px-3">

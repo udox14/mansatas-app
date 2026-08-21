@@ -1,6 +1,7 @@
 'use server'
 
 import { getDB } from '@/utils/db-server'
+import { ADMINISTRATIVE_ROLES, assertClassScope, requireActionAccess } from '@/lib/action-security'
 
 export type SiswaAbsensiRow = {
   urut: number
@@ -28,6 +29,8 @@ export type BlankAbsensiData = {
 }
 
 export async function getDataBlankAbsensi(kelasId: string): Promise<BlankAbsensiData | null> {
+  const actor = await requireActionAccess('kelas', 'read')
+  await assertClassScope(actor, kelasId, 'kelas')
   const db = await getDB()
 
   const [kelasRow, siswaResult, taAktif] = await Promise.all([
@@ -81,6 +84,7 @@ export async function getDataBlankAbsensi(kelasId: string): Promise<BlankAbsensi
 export async function getDataBlankAbsensiByTingkat(
   tingkat: '10' | '11' | '12' | 'semua'
 ): Promise<BlankAbsensiData[]> {
+  await requireActionAccess('kelas', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
 
   let kelasQuery = `

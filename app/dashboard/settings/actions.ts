@@ -2,7 +2,16 @@
 'use server'
 
 import { dbInsert, dbUpdate, dbDelete } from '@/utils/db'
-import { getDB } from '@/utils/db-server'
+import { getDB as getRawDB } from '@/utils/db-server'
+import { ADMINISTRATIVE_ROLES, requireActionAccess } from '@/lib/action-security'
+
+async function getDB() {
+  await requireActionAccess('settings', 'read')
+  return getRawDB()
+}
+async function requireSettingsMutation(action: 'create' | 'update' | 'delete' = 'update') {
+  return requireActionAccess('settings', action, { allowedRoles: ADMINISTRATIVE_ROLES })
+}
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import type { SlotJam, PolaJam } from './types'
@@ -16,7 +25,8 @@ import { createActivityDiff, logActivity } from '@/lib/activity-log'
 // ============================================================
 // TAMBAH TAHUN AJARAN
 // ============================================================
-export async function tambahTahunAjaran(prevState: any, formData: FormData) {
+export async function tambahTahunAjaran(prevState: unknown, formData: FormData) {
+  await requireSettingsMutation('create')
   const db = await getDB()
 
   const rawJurusan = formData.get('daftar_jurusan') as string
@@ -62,6 +72,7 @@ export async function tambahTahunAjaran(prevState: any, formData: FormData) {
 // SET VISIBILITAS ITEM DASHBOARD (per role)
 // ============================================================
 export async function setDashboardItemVisibility(visibility: VisibilityMap) {
+  await requireSettingsMutation('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Tidak terautentikasi' }
 
@@ -90,6 +101,7 @@ export async function setDashboardItemVisibility(visibility: VisibilityMap) {
 // SET WIDGET TAMBAHAN PER DASHBOARD (katalog)
 // ============================================================
 export async function setDashboardExtraWidgets(config: WidgetsConfigMap) {
+  await requireSettingsMutation('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Tidak terautentikasi' }
 
@@ -117,6 +129,7 @@ export async function setDashboardExtraWidgets(config: WidgetsConfigMap) {
 // SET AKTIF TAHUN AJARAN
 // ============================================================
 export async function setAktifTahunAjaran(id: string) {
+  await requireSettingsMutation('update')
   const db = await getDB()
   try {
     await ensureRiwayatKelasSnapshotColumns(db)
@@ -216,6 +229,7 @@ export async function setAktifTahunAjaran(id: string) {
 // HAPUS TAHUN AJARAN
 // ============================================================
 export async function hapusTahunAjaran(id: string, isActive: boolean) {
+  await requireSettingsMutation('delete')
   if (isActive) {
     return { error: 'Tidak bisa menghapus Tahun Ajaran yang sedang aktif. Aktifkan tahun ajaran lain terlebih dahulu.' }
   }
@@ -242,6 +256,7 @@ export async function hapusTahunAjaran(id: string, isActive: boolean) {
 // SIMPAN DAFTAR JURUSAN
 // ============================================================
 export async function simpanDaftarJurusan(tahun_ajaran_id: string, daftar_jurusan: string[]) {
+  await requireSettingsMutation('update')
   const db = await getDB()
   if (!daftar_jurusan.includes('UMUM')) daftar_jurusan.push('UMUM')
   const before = await db.prepare('SELECT id, nama, semester, daftar_jurusan FROM tahun_ajaran WHERE id = ?').bind(tahun_ajaran_id).first<any>()
@@ -268,6 +283,7 @@ export async function simpanDaftarJurusan(tahun_ajaran_id: string, daftar_jurusa
 // SIMPAN JAM PELAJARAN (pola per hari)
 // ============================================================
 export async function simpanJamPelajaran(tahun_ajaran_id: string, pola_jam: PolaJam[]) {
+  await requireSettingsMutation('update')
   try {
     if (!tahun_ajaran_id) return { error: 'ID tahun ajaran tidak valid.' }
     if (!pola_jam || !Array.isArray(pola_jam) || pola_jam.length === 0) {
@@ -331,6 +347,7 @@ export async function getPolaJamByTA(tahun_ajaran_id: string): Promise<PolaJam[]
 // PENGATURAN GLOBAL
 // ============================================================
 export async function setAgendaTimeRestrictionEnabled(enabled: boolean) {
+  await requireSettingsMutation('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -366,6 +383,7 @@ export async function setAgendaLateSetting(
   thresholdMinutes: number,
   thresholdByJam: Record<string, number> = {}
 ) {
+  await requireSettingsMutation('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -407,6 +425,7 @@ export async function setAgendaLateSetting(
 }
 
 export async function setAttendanceTimeRestrictionEnabled(enabled: boolean) {
+  await requireSettingsMutation('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -438,6 +457,7 @@ export async function setAttendanceTimeRestrictionEnabled(enabled: boolean) {
 }
 
 export async function setAttendanceSkipIncompleteForDailyStatusEnabled(enabled: boolean) {
+  await requireSettingsMutation('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -471,6 +491,7 @@ export async function setAttendanceSkipIncompleteForDailyStatusEnabled(enabled: 
 }
 
 export async function setHeroSettings(bgUrl: string, runningText: string, textColor: string, runningTextBg: string, runningTextColor: string) {
+  await requireSettingsMutation('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -503,6 +524,7 @@ export async function setHeroSettings(bgUrl: string, runningText: string, textCo
 }
 
 export async function setParentLoginHelpSettings(enabled: boolean, whatsapp: string, info: string) {
+  await requireSettingsMutation('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -544,6 +566,7 @@ export async function setParentLoginHelpSettings(enabled: boolean, whatsapp: str
 }
 
 export async function setParentLoginBlockSettings(enabled: boolean, tingkat: number[], message: string) {
+  await requireSettingsMutation('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
@@ -590,6 +613,7 @@ export async function setParentLoginBlockSettings(enabled: boolean, tingkat: num
 }
 
 export async function uploadHeroImageAction(formData: FormData) {
+  await requireSettingsMutation('update')
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 

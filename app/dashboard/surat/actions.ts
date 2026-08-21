@@ -6,10 +6,22 @@ import { revalidatePath } from 'next/cache'
 import type { JenisSurat } from './constants'
 import { KODE_KLASIFIKASI_SURAT } from './constants'
 import { getSystemSetting, setSystemSetting } from '@/lib/system-settings'
-import { ensureJabatanStrukturalSchema } from '../guru/actions'
+import { ensureJabatanStrukturalSchema } from '@/lib/jabatan-struktural-service'
+import { ADMINISTRATIVE_ROLES, requireActionAccess } from '@/lib/action-security'
+import { publicServerError } from '@/lib/security-log'
+import { z } from 'zod'
 
 const BULAN_ROMAWI = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 const PENANDATANGAN_SETTING_KEY = 'surat_penandatangan'
+const jenisSuratSchema = z.enum(['sppd', 'ket_aktif', 'pindah', 'mutasi_keluar', 'mutasi_masuk', 'kelakuan_baik', 'penelitian', 'panggilan_ortu'])
+const suratInputSchema = z.object({
+  jenis_surat: jenisSuratSchema,
+  perihal: z.string().max(500).optional(),
+  data_surat: z.record(z.string().max(100), z.unknown()),
+  dicetak_oleh: z.string().max(100),
+  nama_pencetak: z.string().max(200),
+  nomor_urut_manual: z.string().trim().min(1).max(40).optional(),
+}).strict()
 
 export type SuratPenandatanganSettings = {
   kepala?: string
@@ -19,6 +31,7 @@ export type SuratPenandatanganSettings = {
 }
 
 export async function getSuratPenandatanganSettings(): Promise<SuratPenandatanganSettings> {
+  await requireActionAccess('surat', 'read')
   const raw = await getSystemSetting(PENANDATANGAN_SETTING_KEY, '{}')
   try {
     const parsed = JSON.parse(raw)
@@ -29,6 +42,7 @@ export async function getSuratPenandatanganSettings(): Promise<SuratPenandatanga
 }
 
 export async function simpanSuratPenandatanganSettings(settings: SuratPenandatanganSettings): Promise<{ success?: string; error?: string }> {
+  await requireActionAccess('surat', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
   try {
     await setSystemSetting(PENANDATANGAN_SETTING_KEY, JSON.stringify({
       kepala: settings.kepala || '',
@@ -38,8 +52,8 @@ export async function simpanSuratPenandatanganSettings(settings: SuratPenandatan
     }))
     revalidatePath('/dashboard/surat')
     return { success: 'Pengaturan penandatangan berhasil disimpan.' }
-  } catch (e: any) {
-    return { error: 'Gagal menyimpan pengaturan: ' + (e?.message || '') }
+  } catch (error) {
+    return publicServerError('surat.simpan_penandatangan', error)
   }
 }
 
@@ -47,6 +61,7 @@ export async function simpanSuratPenandatanganSettings(settings: SuratPenandatan
 // GET DATA FOR SURAT (siswa, guru, kelas, pejabat)
 // ============================================================
 export async function getDataForSurat() {
+  await requireActionAccess('surat', 'read')
   const db = await getDB()
   await ensureJabatanStrukturalSchema(db)
 
@@ -123,27 +138,29 @@ function formatNomorSurat(jenisSurat: JenisSurat, nomorUrutLokal: string, bulan:
 // ============================================================
 // SIMPAN SURAT KELUAR
 // ============================================================
-export async function simpanSuratKeluar(data: {
-  jenis_surat: JenisSurat
-  perihal?: string
-  data_surat: any
-  dicetak_oleh: string
-  nama_pencetak: string
-  nomor_urut_manual?: string
-}): Promise<{ success?: string; error?: string; nomor_surat?: string; id?: string }> {
+export async function simpanSuratKeluar(data: unknown): Promise<{ success?: string; error?: string; nomor_surat?: string; id?: string }> {
+  const actor = await requireActionAccess('surat', 'create')
+  if (actor.kind !== 'staff') return { error: 'Akses ditolak.' }
   const db = await getDB()
+  const parsed = suratInputSchema.safeParse(data)
+  if (!parsed.success) return { error: 'Data surat tidak valid.' }
+  const input = parsed.data
+  if (JSON.stringify(input.data_surat).length > 100_000) return { error: 'Data surat melebihi batas.' }
 
-  if (!data.nomor_urut_manual) {
+  if (!input.nomor_urut_manual) {
     return { error: 'Nomor Urut Surat harus diisi (wajib)!' }
   }
 
-  const d = data.data_surat?.tanggal_surat_raw ? new Date(data.data_surat.tanggal_surat_raw) : new Date()
+  const rawDate = typeof input.data_surat.tanggal_surat_raw === 'string' ? input.data_surat.tanggal_surat_raw : null
+  const d = rawDate ? new Date(rawDate) : new Date()
   const tahun = d.getFullYear()
   const bulan = d.getMonth() + 1
 
-  const nomorUrut = parseInt(data.nomor_urut_manual.replace(/[^0-9]/g, '')) || 0
-  const nomorSurat = formatNomorSurat(data.jenis_surat, data.nomor_urut_manual, bulan, tahun)
-  const dataSurat = { ...data.data_surat, nomor_surat: nomorSurat }
+  const nomorUrut = parseInt(input.nomor_urut_manual.replace(/[^0-9]/g, '')) || 0
+  const nomorSurat = formatNomorSurat(input.jenis_surat, input.nomor_urut_manual, bulan, tahun)
+  const dataSurat = { ...input.data_surat, nomor_surat: nomorSurat }
+  const pencetak = await db.prepare('SELECT COALESCE(nama_lengkap, name) AS nama FROM "user" WHERE id = ? LIMIT 1')
+    .bind(actor.id).first<{ nama: string }>()
 
   try {
     const result = await db.prepare(`
@@ -151,20 +168,20 @@ export async function simpanSuratKeluar(data: {
       VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING id
     `).bind(
-      data.jenis_surat,
+      input.jenis_surat,
       nomorUrut,
       nomorSurat,
       tahun,
-      data.perihal || null,
+      input.perihal || null,
       JSON.stringify(dataSurat),
-      data.dicetak_oleh,
-      data.nama_pencetak
+      actor.id,
+      pencetak?.nama || 'Pengguna'
     ).first<any>()
 
     revalidatePath('/dashboard/surat')
     return { success: 'Surat berhasil disimpan!', nomor_surat: nomorSurat, id: result?.id }
-  } catch (e: any) {
-    return { error: 'Gagal menyimpan surat: ' + (e?.message || '') }
+  } catch (error) {
+    return publicServerError('surat.simpan', error)
   }
 }
 
@@ -176,6 +193,7 @@ export async function getSuratKeluar(filters?: {
   bulan?: number
   tahun?: number
 }): Promise<any[]> {
+  await requireActionAccess('surat', 'read')
   const db = await getDB()
   let sql = `SELECT id, jenis_surat, nomor_urut, nomor_surat, tahun, perihal, data_surat, nama_pencetak, created_at FROM surat_keluar WHERE 1=1`
   const params: any[] = []
@@ -203,13 +221,14 @@ export async function getSuratKeluar(filters?: {
 // HAPUS SURAT KELUAR
 // ============================================================
 export async function hapusSuratKeluar(id: string): Promise<{ success?: string; error?: string }> {
+  await requireActionAccess('surat', 'delete')
   const db = await getDB()
   try {
     await db.prepare('DELETE FROM surat_keluar WHERE id = ?').bind(id).run()
     revalidatePath('/dashboard/surat')
     return { success: 'Surat berhasil dihapus dari log.' }
-  } catch (e: any) {
-    return { error: 'Gagal menghapus: ' + (e?.message || '') }
+  } catch (error) {
+    return publicServerError('surat.hapus', error)
   }
 }
 
@@ -217,14 +236,16 @@ export async function hapusSuratKeluar(id: string): Promise<{ success?: string; 
 // HAPUS SURAT KELUAR BATCH
 // ============================================================
 export async function hapusSuratKeluarBatch(ids: string[]): Promise<{ success?: string; error?: string }> {
+  await requireActionAccess('surat', 'delete', { allowedRoles: ADMINISTRATIVE_ROLES })
   if (!ids || ids.length === 0) return { error: 'Tidak ada data yang dipilih.' }
+  if (ids.length > 100) return { error: 'Maksimal 100 surat per proses.' }
   const db = await getDB()
   try {
     const placeholders = ids.map(() => '?').join(',')
     await db.prepare(`DELETE FROM surat_keluar WHERE id IN (${placeholders})`).bind(...ids).run()
     revalidatePath('/dashboard/surat')
     return { success: `${ids.length} Surat berhasil dihapus dari log.` }
-  } catch (e: any) {
-    return { error: 'Gagal menghapus: ' + (e?.message || '') }
+  } catch (error) {
+    return publicServerError('surat.hapus_batch', error)
   }
 }

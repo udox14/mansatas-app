@@ -298,13 +298,18 @@ export function AnalitikClient({ dataSiswa, pengaturan }: { dataSiswa: SiswaData
           jsonData.push(obj)
         }
 
-        const result = await importNilaiDariExcel(jsonData, targetImport)
-        if (result.error) {
-          allLogs.push(`[${file.name}] Error: ${result.error}`)
+        const importResults = []
+        for (let offset = 0; offset < jsonData.length; offset += 500) {
+          importResults.push(await importNilaiDariExcel(jsonData.slice(offset, offset + 500), targetImport))
+        }
+        const firstError = importResults.find(result => result.error)?.error
+        if (firstError) {
+          allLogs.push(`[${file.name}] Error: ${firstError}`)
         } else {
           totalSuccess++
-          if (result.logs && result.logs.length > 0) {
-            const enrichedLogs = result.logs.map(log => {
+          const chunkLogs = importResults.flatMap(result => result.logs || [])
+          if (chunkLogs.length > 0) {
+            const enrichedLogs = chunkLogs.map(log => {
               const match = log.match(/NISN:\s*(\d+)/i) || log.match(/NISN\s+(\d+)/i) || log.match(/NISN\s*(\d+)/i)
               if (match && match[1]) {
                 const targetNisn = match[1]
@@ -503,7 +508,7 @@ export function AnalitikClient({ dataSiswa, pengaturan }: { dataSiswa: SiswaData
 
   return (
     <div className="space-y-4">
-      <Script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" strategy="lazyOnload" />
+      <Script src="/vendor/xlsx-0.20.3.full.min.js" strategy="lazyOnload" />
 
       {/* TOOLBAR FILTER & SEARCH */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 bg-background p-4 rounded-lg border shadow-sm">

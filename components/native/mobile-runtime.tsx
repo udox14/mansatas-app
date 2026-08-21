@@ -105,6 +105,29 @@ export function MobileRuntime() {
     return () => window.removeEventListener('mansatas-sw-update-available', handleSwUpdate)
   }, [])
 
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return
+    if (!isAuthenticatedArea) {
+      if (pathname === '/login' || pathname.startsWith('/portal-ortu/login')) {
+        navigator.serviceWorker.controller?.postMessage({ type: 'CLEAR_PRIVATE_CACHE' })
+      }
+      return
+    }
+
+    let cancelled = false
+    fetch('/api/auth/get-session', { credentials: 'include', cache: 'no-store' })
+      .then(response => response.ok ? response.json() : null)
+      .then(data => {
+        if (cancelled || !data?.session?.id) return
+        navigator.serviceWorker.controller?.postMessage({
+          type: 'SET_CACHE_CONTEXT',
+          context: data.session.id,
+        })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [isAuthenticatedArea, pathname])
+
   // FCM baru dimulai setelah pengguna masuk. Token yang gagal dikirim karena sesi
   // belum siap disimpan sementara dan dicoba ulang saat aplikasi kembali aktif.
   useEffect(() => {

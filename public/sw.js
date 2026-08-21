@@ -2,9 +2,13 @@
 // Aset publik memakai cache statis. Halaman/data akun yang sudah dibuka memakai
 // cache privat perangkat dan selalu dibersihkan ketika pengguna logout/login ulang.
 
-const CACHE_NAME = 'mansatas-static-v8'
-const PRIVATE_CACHE_NAME = 'mansatas-private-v1'
+const CACHE_NAME = 'mansatas-static-v9'
+const PRIVATE_CACHE_PREFIX = 'mansatas-private-v2-'
+const PRIVATE_META_CACHE = 'mansatas-private-meta-v2'
+const PRIVATE_CONTEXT_KEY = new Request(`${self.location.origin}/__mansatas_cache_context`)
 const PRIVATE_CACHE_LIMIT = 100
+const PRIVATE_CACHE_TTL = 24 * 60 * 60 * 1000
+let activePrivateContext = null
 const STATIC_ASSETS = [
   '/offline.html',
   '/manifest.json',
@@ -17,10 +21,44 @@ const STATIC_ASSETS = [
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting()
+  if (event.data && event.data.type === 'SET_CACHE_CONTEXT') {
+    event.waitUntil(setPrivateContext(event.data.context))
+  }
   if (event.data && event.data.type === 'CLEAR_PRIVATE_CACHE') {
-    event.waitUntil(caches.delete(PRIVATE_CACHE_NAME))
+    event.waitUntil(clearPrivateCaches())
   }
 })
+
+function isValidPrivateContext(value) {
+  return typeof value === 'string' && /^[a-zA-Z0-9_-]{8,160}$/.test(value)
+}
+
+async function getPrivateContext() {
+  if (activePrivateContext) return activePrivateContext
+  const response = await (await caches.open(PRIVATE_META_CACHE)).match(PRIVATE_CONTEXT_KEY)
+  const value = response ? await response.text() : ''
+  if (isValidPrivateContext(value)) activePrivateContext = value
+  return activePrivateContext
+}
+
+async function setPrivateContext(context) {
+  if (!isValidPrivateContext(context)) return
+  const previous = await getPrivateContext()
+  activePrivateContext = context
+  await (await caches.open(PRIVATE_META_CACHE)).put(PRIVATE_CONTEXT_KEY, new Response(context))
+  if (previous && previous !== context) await caches.delete(PRIVATE_CACHE_PREFIX + previous)
+}
+
+async function clearPrivateCaches() {
+  activePrivateContext = null
+  const keys = await caches.keys()
+  await Promise.all(keys.filter(key => key.startsWith(PRIVATE_CACHE_PREFIX) || key === PRIVATE_META_CACHE).map(key => caches.delete(key)))
+}
+
+async function openPrivateCache() {
+  const context = await getPrivateContext()
+  return context ? caches.open(PRIVATE_CACHE_PREFIX + context) : null
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -34,7 +72,10 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key !== CACHE_NAME && key !== PRIVATE_CACHE_NAME)
+          .filter((key) =>
+            (key.startsWith('mansatas-static-') && key !== CACHE_NAME) ||
+            key.startsWith('mansatas-private-v1')
+          )
           .map((key) => caches.delete(key))
       )
     )
@@ -43,10 +84,19 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) return
+  if (!event.request.url.startsWith('http')) return
 
   const url = new URL(event.request.url)
   const sameOrigin = url.origin === self.location.origin
+  if (event.request.method !== 'GET') {
+    if (sameOrigin && url.pathname.startsWith('/api/auth/sign-out')) {
+      event.respondWith(fetch(event.request).then(async response => {
+        await clearPrivateCaches()
+        return response
+      }))
+    }
+    return
+  }
   const isAuthenticatedPath =
     url.pathname.startsWith('/dashboard') ||
     (url.pathname.startsWith('/portal-ortu') && !url.pathname.startsWith('/portal-ortu/login'))
@@ -56,6 +106,7 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/api/auth/sign-out')
   const isStaticAsset =
     sameOrigin &&
+    !url.pathname.startsWith('/api/') &&
     (
       url.pathname.startsWith('/_next/static/') ||
       url.pathname.match(/\.(png|jpg|jpeg|svg|webp|gif|ico|woff2?|ttf|eot|css)$/i)
@@ -67,7 +118,7 @@ self.addEventListener('fetch', (event) => {
         const cachedResponse = await cache.match(event.request)
         const fetchPromise = fetch(event.request)
           .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
+            if (canStorePrivate(networkResponse)) {
               cache.put(event.request, networkResponse.clone())
             }
             return networkResponse
@@ -81,7 +132,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (sameOrigin && isLoginPath) {
-    event.waitUntil(caches.delete(PRIVATE_CACHE_NAME))
+    event.waitUntil(clearPrivateCaches())
   }
 
   // Halaman akun yang pernah dibuka tampil seketika dari cache, lalu diperbarui
@@ -110,6 +161,10 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/api/') &&
     !url.pathname.startsWith('/api/auth/') &&
     !url.pathname.startsWith('/api/fcm/') &&
+    !url.pathname.startsWith('/api/pdf/') &&
+    !url.pathname.startsWith('/api/media/') &&
+    !url.pathname.startsWith('/api/komite/') &&
+    !url.pathname.includes('/download') &&
     !url.pathname.startsWith('/api/health')
   if (isPrivateApi) {
     event.respondWith(networkFirstPrivate(event.request, event.request, event))
@@ -141,6 +196,7 @@ function normalizedRscKey(url) {
 
 function canStorePrivate(response) {
   if (!response || response.status !== 200 || response.type === 'opaque') return false
+  if (/(?:^|,)\s*no-store\s*(?:,|$)/i.test(response.headers.get('cache-control') || '')) return false
   try {
     const finalUrl = new URL(response.url)
     return finalUrl.pathname !== '/login' && !finalUrl.pathname.startsWith('/portal-ortu/login')
@@ -156,16 +212,45 @@ async function trimPrivateCache(cache) {
 }
 
 async function storePrivate(cache, key, response) {
-  if (!canStorePrivate(response)) return
-  await cache.put(key, response.clone()).catch(() => {})
+  if (!cache || !canStorePrivate(response)) return
+  const clone = response.clone()
+  const headers = new Headers(clone.headers)
+  headers.set('x-mansatas-cache-time', String(Date.now()))
+  await cache.put(key, new Response(clone.body, {
+    status: clone.status,
+    statusText: clone.statusText,
+    headers,
+  })).catch(() => {})
   await trimPrivateCache(cache)
 }
 
+async function readFreshPrivate(cache, key) {
+  if (!cache) return null
+  const response = await cache.match(key)
+  if (!response) return null
+  const storedAt = Number(response.headers.get('x-mansatas-cache-time') || 0)
+  if (!storedAt || Date.now() - storedAt > PRIVATE_CACHE_TTL) {
+    await cache.delete(key)
+    return null
+  }
+  return response
+}
+
+async function clearOnAuthFailure(response) {
+  let redirectedToLogin = false
+  try {
+    const finalUrl = new URL(response.url)
+    redirectedToLogin = finalUrl.pathname === '/login' || finalUrl.pathname.startsWith('/portal-ortu/login')
+  } catch {}
+  if (response.status === 401 || response.status === 403 || redirectedToLogin) await clearPrivateCaches()
+}
+
 async function staleWhileRevalidatePrivate(request, event) {
-  const cache = await caches.open(PRIVATE_CACHE_NAME)
-  const cached = await cache.match(request)
+  const cache = await openPrivateCache()
+  const cached = await readFreshPrivate(cache, request)
   const refresh = fetch(request)
     .then(async (response) => {
+      await clearOnAuthFailure(response)
       await storePrivate(cache, request, response)
       return response
     })
@@ -177,13 +262,14 @@ async function staleWhileRevalidatePrivate(request, event) {
 }
 
 async function networkFirstPrivate(request, cacheKey, event) {
-  const cache = await caches.open(PRIVATE_CACHE_NAME)
+  const cache = await openPrivateCache()
   try {
     const response = await fetch(request)
+    await clearOnAuthFailure(response)
     event.waitUntil(storePrivate(cache, cacheKey, response))
     return response
   } catch {
-    return (await cache.match(cacheKey)) || offlineResponse()
+    return (await readFreshPrivate(cache, cacheKey)) || offlineResponse()
   }
 }
 

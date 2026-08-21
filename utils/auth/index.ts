@@ -288,9 +288,24 @@ export function createAuth(db: D1Database) {
         const setCookie = buildSetCookie(token, SESSION_MAX_AGE_SECONDS)
 
         if (opts.asResponse) {
-          return new Response(JSON.stringify({ user: mapUser(user), session: { id: sessionId, token } }), {
+          return new Response(JSON.stringify({
+            user: {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              nama_lengkap: user.nama_lengkap,
+              avatar_url: user.avatar_url,
+            },
+            session: { id: sessionId, userId: user.id, expiresAt },
+          }), {
             status: 200,
-            headers: { 'Content-Type': 'application/json', 'Set-Cookie': setCookie },
+            headers: {
+              'Content-Type': 'application/json',
+              'Set-Cookie': setCookie,
+              'Cache-Control': 'no-store, max-age=0',
+              'Pragma': 'no-cache',
+            },
           })
         }
 
@@ -519,9 +534,25 @@ export function createAuth(db: D1Database) {
         }
 
         if (opts.asResponse) {
-          return new Response(JSON.stringify(payload), {
+          return new Response(JSON.stringify({
+            user: {
+              type: payload.user.type,
+              siswa_id: payload.user.siswa_id,
+              nama_lengkap: payload.user.nama_lengkap,
+            },
+            session: {
+              id: payload.session.id,
+              siswaId: payload.session.siswaId,
+              expiresAt: payload.session.expiresAt,
+            },
+          }), {
             status: 200,
-            headers: { 'Content-Type': 'application/json', 'Set-Cookie': setCookie },
+            headers: {
+              'Content-Type': 'application/json',
+              'Set-Cookie': setCookie,
+              'Cache-Control': 'no-store, max-age=0',
+              'Pragma': 'no-cache',
+            },
           })
         }
 

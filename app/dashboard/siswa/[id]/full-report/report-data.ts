@@ -1,4 +1,6 @@
 import { formatNamaKelas } from '@/lib/utils'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { createSignedMediaUrl } from '@/lib/media-security'
 
 export const FULL_REPORT_ROLES = ['super_admin', 'kepsek', 'wakamad', 'admin_tu', 'guru_bk'] as const
 
@@ -573,14 +575,22 @@ export async function loadFullStudentReport(
     ]),
   ]
 
+  const { env } = await getCloudflareContext({ async: true })
+  const signingSecret = env.MEDIA_SIGNING_SECRET || ''
+  const audience = `official-render:student-full-report:${studentId}`
+  const [principalSignature, homeroomSignature] = await Promise.all([
+    signingSecret ? createSignedMediaUrl(resolvedPrincipal?.signature_url, audience, signingSecret) : resolvedPrincipal?.signature_url,
+    signingSecret ? createSignedMediaUrl(homeroom?.signature_url, audience, signingSecret) : homeroom?.signature_url,
+  ])
+
   return {
     student,
     className,
     period,
     periods,
     generatedAt: new Date().toISOString(),
-    principal: resolvedPrincipal,
-    homeroom,
+    principal: resolvedPrincipal ? { ...resolvedPrincipal, signature_url: principalSignature || null } : null,
+    homeroom: homeroom ? { ...homeroom, signature_url: homeroomSignature || null } : null,
     sections,
   }
 }

@@ -2,7 +2,13 @@
 'use server'
 
 import { dbInsert, dbUpdate, dbDelete } from '@/utils/db'
-import { getDB } from '@/utils/db-server'
+import { getDB as getRawDB } from '@/utils/db-server'
+import { requireActionAccess } from '@/lib/action-security'
+
+async function getDB() {
+  await requireActionAccess('ekstrakurikuler-master', 'read')
+  return getRawDB()
+}
 import { getCurrentUser } from '@/utils/auth/server'
 import { checkFeatureAccess } from '@/lib/features'
 import { revalidatePath } from 'next/cache'
@@ -51,7 +57,7 @@ async function assertAdmin(): Promise<{ db: D1Database; userId: string } | { err
 // ============================================================
 // HELPER: SYNC PEMBINA ROLES
 // ============================================================
-export async function syncPembinaRoles(db: D1Database) {
+async function syncPembinaRoles(db: D1Database) {
   try {
     // 1. Memastikan master_roles memiliki role pembina_ekstrakurikuler
     await db.prepare(`

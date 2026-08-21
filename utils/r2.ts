@@ -41,7 +41,7 @@ async function assertR2WriteAllowed() {
 }
 
 export const KOMITE_MAX_FILES = 10
-export const KOMITE_MAX_TOTAL_SIZE = 5 * 1024 * 1024
+export const KOMITE_MAX_TOTAL_SIZE = 6 * 1024 * 1024
 
 export type KomiteStoredPdf = {
   id: string
@@ -56,7 +56,7 @@ export async function uploadKomitePdfs(files: File[], pengajuanId: string, versi
   if (files.length < 1) return { files: [] as KomiteStoredPdf[], error: 'Pilih minimal satu dokumen PDF.' }
   if (files.length > KOMITE_MAX_FILES) return { files: [] as KomiteStoredPdf[], error: `Maksimal ${KOMITE_MAX_FILES} file dalam satu versi.` }
   const total = files.reduce((sum, file) => sum + file.size, 0)
-  if (total > KOMITE_MAX_TOTAL_SIZE) return { files: [] as KomiteStoredPdf[], error: 'Ukuran gabungan dokumen maksimal 5 MB.' }
+  if (total > KOMITE_MAX_TOTAL_SIZE) return { files: [] as KomiteStoredPdf[], error: 'Ukuran gabungan dokumen maksimal 6 MB.' }
 
   const prepared: Array<{ file: File; bytes: ArrayBuffer; meta: KomiteStoredPdf }> = []
   for (const file of files) {
@@ -143,7 +143,7 @@ export async function uploadToR2(
     await r2.put(fileName, buffer, {
       httpMetadata: {
         contentType: file.type || 'image/jpeg',
-        cacheControl: 'public, max-age=31536000',
+        cacheControl: folder === 'system' ? 'public, max-age=31536000, immutable' : 'private, no-store',
       },
     })
 

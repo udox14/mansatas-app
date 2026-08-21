@@ -545,7 +545,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
 
   return (
     <>
-      <Script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" strategy="lazyOnload" />
+      <Script src="/vendor/xlsx-0.20.3.full.min.js" strategy="lazyOnload" />
 
       {/* MODAL EDIT PROFIL */}
       <Dialog open={!!editingPegawai} onOpenChange={open => !open && setEditingPegawai(null)}>

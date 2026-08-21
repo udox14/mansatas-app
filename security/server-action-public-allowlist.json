@@ -1,0 +1,12 @@
+{
+  "app/(auth)/login/actions.ts#login": "Public authentication entrypoint; credentials are validated by the internal auth service and API throttle.",
+  "app/dashboard/actions.ts#logout": "Publicly callable idempotent logout; it only revokes the caller cookie/session and cannot affect another actor.",
+  "app/dashboard/sarpras/actions.ts#getKategoriList": "Accepted legacy Sarpras exception requested by the application owner.",
+  "app/dashboard/sarpras/actions.ts#saveKategori": "Accepted legacy Sarpras exception requested by the application owner.",
+  "app/dashboard/sarpras/actions.ts#deleteKategori": "Accepted legacy Sarpras exception requested by the application owner.",
+  "app/dashboard/sarpras/actions.ts#getAsetList": "Accepted legacy Sarpras exception requested by the application owner.",
+  "app/dashboard/sarpras/actions.ts#saveAset": "Accepted legacy Sarpras exception requested by the application owner.",
+  "app/dashboard/sarpras/actions.ts#deleteAset": "Accepted legacy Sarpras exception requested by the application owner.",
+  "app/dashboard/sarpras/actions.ts#getSarprasOptions": "Accepted legacy Sarpras exception requested by the application owner.",
+  "app/dashboard/sarpras/actions.ts#uploadFotoAsetAction": "Accepted legacy Sarpras exception requested by the application owner."
+}

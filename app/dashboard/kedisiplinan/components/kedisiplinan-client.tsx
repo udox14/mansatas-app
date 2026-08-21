@@ -519,7 +519,7 @@ export function KedisiplinanClient({
 
   return (
     <>
-      <Script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" strategy="lazyOnload" />
+      <Script src="/vendor/xlsx-0.20.3.full.min.js" strategy="lazyOnload" />
       <div className="space-y-3">
         <Tabs defaultValue="riwayat" className="space-y-3">
           <TabsList className={cn("bg-surface border border-surface rounded-lg w-full grid p-0.5 gap-0.5 h-auto", canManageMaster ? 'grid-cols-2' : 'grid-cols-1')}>

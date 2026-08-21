@@ -42,7 +42,6 @@ async function uploadFotoToR2(
   try {
     const { env } = await getCloudflareContext({ async: true })
     const r2 = env.R2 as R2Bucket
-    const r2PublicUrl = env.R2_PUBLIC_URL as string
 
     // Decode base64 → ArrayBuffer
     const binaryStr = atob(base64Data)
@@ -57,11 +56,11 @@ async function uploadFotoToR2(
     await r2.put(key, bytes.buffer, {
       httpMetadata: {
         contentType,
-        cacheControl: 'public, max-age=31536000',
+        cacheControl: 'private, no-store',
       },
     })
 
-    return `${r2PublicUrl}/${key}`
+    return `/api/media/${key}`
   } catch (e: any) {
     console.error('[R2 Upload Error]', e.message)
     return null

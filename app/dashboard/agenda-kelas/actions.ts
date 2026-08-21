@@ -22,6 +22,8 @@ import {
   type FinalAttendanceStatus,
 } from '@/lib/wali-kelas-attendance'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { createSignedMediaUrl } from '@/lib/media-security'
 
 const HARI = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 const AGENDA_KELAS_SIGNATURE_SETTING_PREFIX = 'agenda_kelas_signature_settings:'
@@ -294,6 +296,26 @@ async function ensureAccess() {
   return { error: null, db, user }
 }
 
+async function mediaSigningSecret() {
+  const { env } = await getCloudflareContext({ async: true })
+  return env.MEDIA_SIGNING_SECRET || ''
+}
+
+async function signAgendaPage(page: AgendaKelasPageData, audience: string, secret: string): Promise<AgendaKelasPageData> {
+  if (!secret) return page
+  return {
+    ...page,
+    kelas: {
+      ...page.kelas,
+      wali_kelas_signature_url: await createSignedMediaUrl(page.kelas.wali_kelas_signature_url, audience, secret),
+    },
+    kepala: {
+      ...page.kepala,
+      signature_url: await createSignedMediaUrl(page.kepala.signature_url, audience, secret),
+    },
+  }
+}
+
 export async function getAgendaKelasOptions() {
   const access = await ensureAccess()
   if (access.error || !access.db) return { error: access.error, kelas: [], kepala: null as AgendaKelasSigner | null }
@@ -323,10 +345,15 @@ export async function getAgendaKelasOptions() {
     `).first<AgendaKelasSigner>(),
   ])
 
+  const secret = await mediaSigningSecret()
+  const audience = `official-render:agenda-kelas:options:${access.user?.id || 'staff'}`
   return {
     error: null,
-    kepala: kepala || null,
-    kelas: (rows.results || []).map(row => ({
+    kepala: kepala ? {
+      ...kepala,
+      signature_url: secret ? await createSignedMediaUrl(kepala.signature_url, audience, secret) : kepala.signature_url,
+    } : null,
+    kelas: await Promise.all((rows.results || []).map(async row => ({
       id: row.id,
       tingkat: Number(row.tingkat),
       nomor_kelas: row.nomor_kelas,
@@ -335,9 +362,11 @@ export async function getAgendaKelasOptions() {
       jumlah_siswa: Number(row.jumlah_siswa || 0),
       wali_kelas_nama: row.wali_kelas_nama || 'Belum diatur',
       wali_kelas_nip: row.wali_kelas_nip || null,
-      wali_kelas_signature_url: row.wali_kelas_signature_url || null,
+      wali_kelas_signature_url: secret
+        ? await createSignedMediaUrl(row.wali_kelas_signature_url || null, audience, secret)
+        : row.wali_kelas_signature_url || null,
       km_nama: row.km_nama || 'Belum diatur',
-    })),
+    }))),
   }
 }
 
@@ -526,7 +555,9 @@ async function buildAgendaKelasHari(
 export async function getAgendaKelasHari(kelasId: string, tanggal = todayWIB()): Promise<{ error: string | null; data: AgendaKelasPageData | null }> {
   const access = await ensureAccess()
   if (access.error || !access.db) return { error: access.error, data: null }
-  return buildAgendaKelasHari(access.db, kelasId, tanggal)
+  const result = await buildAgendaKelasHari(access.db, kelasId, tanggal)
+  if (!result.data) return result
+  return { ...result, data: await signAgendaPage(result.data, `official-render:agenda-kelas:${kelasId}:${tanggal}`, await mediaSigningSecret()) }
 }
 
 export async function getAdjacentAgendaKelasDate(kelasId: string, tanggal: string, direction: 'prev' | 'next') {
@@ -862,7 +893,11 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
     if (r.data && isPrintableAgendaKelasPage(r.data)) pages.push(r.data)
   }
 
-  return { error: null, pages }
+  const secret = await mediaSigningSecret()
+  return {
+    error: null,
+    pages: await Promise.all(pages.map(page => signAgendaPage(page, `official-render:agenda-kelas:${page.kelas.id}:${page.tanggal}`, secret))),
+  }
 }
 
 export type AgendaKelasCetakExportMeta = {
@@ -1305,10 +1340,16 @@ export async function getAgendaKelasCetakExportData(
     if (isPrintableAgendaKelasPage(page)) pages.push(page)
   }
 
-  const pageKelasIds = new Set(pages.map(page => page.kelas.id))
+  const secret = await mediaSigningSecret()
+  const signedPages = await Promise.all(pages.map(page => signAgendaPage(
+    page,
+    `official-render:agenda-kelas:${page.kelas.id}:${page.tanggal}`,
+    secret
+  )))
+  const pageKelasIds = new Set(signedPages.map(page => page.kelas.id))
   return {
     error: null,
-    pages,
+    pages: signedPages,
     meta: {
       jobCount: jobs.length,
       pageCount: pages.length,

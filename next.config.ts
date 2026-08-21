@@ -1,6 +1,18 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async headers() {
+    const securityHeaders = [
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(), payment=(), usb=()' },
+      { key: 'X-Frame-Options', value: 'DENY' },
+      ...(process.env.NODE_ENV === 'production'
+        ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' }]
+        : []),
+    ]
+    return [{ source: '/:path*', headers: securityHeaders }]
+  },
   images: {
     unoptimized: true,
   },
@@ -18,9 +30,7 @@ const nextConfig: NextConfig = {
       "@radix-ui/react-tabs", "recharts", "date-fns",
     ],
     serverActions: {
-      // Batas 5 MB berlaku untuk seluruh multipart request, bukan hanya PDF.
-      // Form pengajuan sendiri ikut memakai sebagian ukuran request.
-      bodySizeLimit: '10mb',
+      bodySizeLimit: '3mb',
     },
   },
 };

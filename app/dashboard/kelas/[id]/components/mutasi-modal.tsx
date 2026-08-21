@@ -50,7 +50,7 @@ export function MutasiModal({ isOpen, onClose, siswa, currentKelasId, tingkat }:
     if (isTargetFull && !selectedSiswaBarterId) { setMessage({ type: 'error', text: 'Kelas penuh! Pilih siswa untuk ditukar (barter).' }); return }
     setIsSubmitting(true); setMessage(null)
     const result = await prosesMutasi({ siswaIdLama: siswa!.id, kelasIdLama: currentKelasId, kelasIdTujuan: selectedKelasId, siswaIdBarter: selectedSiswaBarterId || null })
-    if (result.error) { setMessage({ type: 'error', text: result.error }); setIsSubmitting(false) }
+    if ('error' in result && result.error) { setMessage({ type: 'error', text: result.error }); setIsSubmitting(false) }
     else { setMessage({ type: 'success', text: result.success || 'Berhasil!' }); setTimeout(() => { setIsSubmitting(false); onClose() }, 1500) }
   }
 

@@ -1279,7 +1279,7 @@ function ImportExcelModal({
     setLoading(true)
 
     const script = document.createElement('script')
-    script.src = 'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js'
+    script.src = '/vendor/xlsx-0.20.3.full.min.js'
     script.onload = () => {
       const reader = new FileReader()
       reader.onload = (evt) => {

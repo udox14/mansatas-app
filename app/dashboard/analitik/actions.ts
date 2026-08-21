@@ -5,6 +5,21 @@ import { dbUpdate, parseJsonCol } from '@/utils/db'
 import { getDB } from '@/utils/db-server'
 import { revalidatePath } from 'next/cache'
 import { SEMESTER_KEYS } from '@/app/dashboard/akademik/nilai/constants'
+import { requireActionAccess } from '@/lib/action-security'
+import { publicServerError } from '@/lib/security-log'
+import { z } from 'zod'
+import { isImportChunkWithinLimits } from '@/lib/payload-limits'
+
+const ADMINISTRATIVE_ROLES = ['super_admin', 'admin_tu', 'kepsek', 'wakamad'] as const
+const pengaturanSchema = z.object({
+  mapel_snbp: z.array(z.string().trim().min(1).max(120)).max(100),
+  mapel_span: z.array(z.string().trim().min(1).max(120)).max(100),
+  bobot_rapor: z.number().finite().min(0).max(100),
+  bobot_um: z.number().finite().min(0).max(100),
+}).strict()
+const excelRowSchema = z.record(z.string().max(160), z.union([
+  z.string().max(500), z.number().finite(), z.boolean(), z.null(), z.undefined(),
+]))
 
 function isValidNilaiColumn(targetKolom: string): targetKolom is typeof SEMESTER_KEYS[number] {
   return SEMESTER_KEYS.includes(targetKolom)
@@ -14,6 +29,7 @@ function isValidNilaiColumn(targetKolom: string): targetKolom is typeof SEMESTER
 // 1. PENGATURAN AKADEMIK (singleton row 'global')
 // ============================================================
 export async function getPengaturanAkademik() {
+  await requireActionAccess('analitik', 'read')
   const db = await getDB()
   const row = await db
     .prepare('SELECT * FROM pengaturan_akademik WHERE id = ?')
@@ -35,16 +51,20 @@ export async function getPengaturanAkademik() {
   }
 }
 
-export async function simpanPengaturanAkademik(payload: any) {
+export async function simpanPengaturanAkademik(payload: unknown) {
+  await requireActionAccess('analitik', 'update', { allowedRoles: [...ADMINISTRATIVE_ROLES] })
+  const parsed = pengaturanSchema.safeParse(payload)
+  if (!parsed.success) return { error: 'Data pengaturan tidak valid.' }
+  const settings = parsed.data
   const db = await getDB()
   const result = await dbUpdate(
     db,
     'pengaturan_akademik',
     {
-      mapel_snbp: JSON.stringify(payload.mapel_snbp),
-      mapel_span: JSON.stringify(payload.mapel_span),
-      bobot_rapor: payload.bobot_rapor,
-      bobot_um: payload.bobot_um,
+      mapel_snbp: JSON.stringify(settings.mapel_snbp),
+      mapel_span: JSON.stringify(settings.mapel_span),
+      bobot_rapor: settings.bobot_rapor,
+      bobot_um: settings.bobot_um,
       updated_at: new Date().toISOString(),
     },
     { id: 'global' }
@@ -59,7 +79,14 @@ export async function simpanPengaturanAkademik(payload: any) {
 // 2. IMPORT NILAI DARI EXCEL
 // FIX: Chunk upsert per 50 baris agar tidak spike memory di Worker
 // ============================================================
-export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string) {
+export async function importNilaiDariExcel(dataExcel: unknown[], targetKolom: string) {
+  await requireActionAccess('analitik', 'create', { allowedRoles: [...ADMINISTRATIVE_ROLES] })
+  if (!isImportChunkWithinLimits(dataExcel)) {
+    return { error: 'Data impor maksimal 500 baris dan 1 MB per chunk.', logs: [] }
+  }
+  const parsedRows = z.array(excelRowSchema).max(500).safeParse(dataExcel)
+  if (!parsedRows.success) return { error: 'Format data impor tidak valid.', logs: [] }
+  const validatedRows = parsedRows.data
   if (!isValidNilaiColumn(targetKolom)) return { error: 'Kolom target tidak valid.', logs: [] }
   const db = await getDB()
 
@@ -85,8 +112,8 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
   const toUpsert: any[] = []
   const errorLogs: string[] = []
 
-  for (let i = 0; i < dataExcel.length; i++) {
-    const row = dataExcel[i]
+  for (let i = 0; i < validatedRows.length; i++) {
+    const row = validatedRows[i]
 
     const nisnKey = Object.keys(row).find((k) => k.toUpperCase().trim() === 'NISN')
     const nisn = nisnKey ? String(row[nisnKey]).trim() : ''
@@ -193,6 +220,7 @@ export async function importNilaiDariExcel(dataExcel: any[], targetKolom: string
 // 3. RESET NILAI SATU KOLOM
 // ============================================================
 export async function resetNilaiKolom(targetKolom: string) {
+  await requireActionAccess('analitik', 'delete', { allowedRoles: [...ADMINISTRATIVE_ROLES] })
   if (!isValidNilaiColumn(targetKolom)) return { error: 'Kolom target tidak valid.' }
   const db = await getDB()
   try {
@@ -200,8 +228,8 @@ export async function resetNilaiKolom(targetKolom: string) {
       .prepare(`UPDATE rekap_nilai_akademik SET ${targetKolom} = '{}', updated_at = ?`)
       .bind(new Date().toISOString())
       .run()
-  } catch (e: any) {
-    return { error: e.message }
+  } catch (error) {
+    return publicServerError('analitik.reset_nilai', error)
   }
   revalidatePath('/dashboard/akademik/analitik')
   return { success: `Kolom ${targetKolom} berhasil direset.` }

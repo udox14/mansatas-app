@@ -1,0 +1,11 @@
+{
+  "exceptions": [
+    {
+      "advisory": "GHSA-jmr9-qjv8-65gv",
+      "package": "extract-zip",
+      "severity": "high",
+      "reviewBy": "2026-11-21",
+      "reason": "Transitif dari @cloudflare/puppeteer 1.3.0. Jalur ekstraksi browser CLI tidak dibundel atau dapat dipanggil pada runtime Cloudflare Worker; browser disediakan melalui binding BROWSER. Tinjau ulang saat rilis upstream menyediakan dependency yang telah ditambal."
+    }
+  ]
+}

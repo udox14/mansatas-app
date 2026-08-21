@@ -5,6 +5,14 @@ import { dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { getDB } from '@/utils/db-server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
+import {
+  ADMINISTRATIVE_ROLES,
+  assertClassScope,
+  assertStudentScope,
+  isAdministrativeActor,
+  requireActionAccess,
+} from '@/lib/action-security'
+import { isImportChunkWithinLimits } from '@/lib/payload-limits'
 
 // ============================================================
 // TYPES
@@ -49,16 +57,21 @@ export type PsikotesRow = {
 // 1. INITIAL DATA (1 batch query)
 // ============================================================
 export async function getInitialDataPsikotes(userRole: string, userId: string) {
+  const actor = await requireActionAccess('psikotes', 'read')
   const db = await getDB()
-
-  // Kelas yang boleh dilihat berdasarkan role
-  const isAdmin = ['super_admin', 'kepsek'].includes(userRole)
-  const isWaliKelas = userRole === 'wali_kelas' || userRole === 'guru'
+  if (actor.kind !== 'staff') return { mappingList: [], kelasList: [], stats: null }
+  const unrestricted = isAdministrativeActor(actor)
+  const classScope = unrestricted ? '' : `WHERE k.wali_kelas_id = ? OR EXISTS (
+    SELECT 1 FROM kelas_binaan_bk kb WHERE kb.kelas_id = k.id AND kb.guru_bk_id = ?
+  ) OR EXISTS (
+    SELECT 1 FROM penugasan_mengajar pm WHERE pm.kelas_id = k.id AND pm.guru_id = ?
+  )`
+  const scopeParams = unrestricted ? [] : [actor.id, actor.id, actor.id]
 
   // Ambil mapping + kelas list + stats dalam 1 batch
   const [mappingRes, kelasRes, statsRes] = await Promise.all([
     db.prepare('SELECT id, label_excel, jurusan_db, keterangan FROM psikotes_rekom_mapping ORDER BY label_excel ASC').all<RekomMapping>(),
-    db.prepare('SELECT id, tingkat, nomor_kelas, kelompok FROM kelas ORDER BY tingkat ASC, kelompok ASC, nomor_kelas ASC').all<any>(),
+    db.prepare(`SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok FROM kelas k ${classScope} ORDER BY k.tingkat ASC, k.kelompok ASC, k.nomor_kelas ASC`).bind(...scopeParams).all<any>(),
     db.prepare(`
       SELECT
         COUNT(*) as total,
@@ -68,8 +81,11 @@ export async function getInitialDataPsikotes(userRole: string, userId: string) {
         SUM(CASE WHEN gaya_belajar = 'VISUAL' THEN 1 ELSE 0 END) as visual,
         SUM(CASE WHEN gaya_belajar = 'AUDITORI' THEN 1 ELSE 0 END) as auditori,
         SUM(CASE WHEN gaya_belajar = 'KINESTETIK' THEN 1 ELSE 0 END) as kinestetik
-      FROM siswa_psikotes
-    `).first<any>(),
+      FROM siswa_psikotes sp
+      JOIN siswa s ON sp.siswa_id = s.id
+      LEFT JOIN kelas k ON s.kelas_id = k.id
+      ${classScope}
+    `).bind(...scopeParams).first<any>(),
   ])
 
   return {
@@ -90,10 +106,23 @@ export async function getListPsikotes(filter: {
   iq_klasifikasi?: string
   search?: string
 }, page: number = 1, pageSize: number = 20) {
+  const actor = await requireActionAccess('psikotes', 'read')
   const db = await getDB()
 
   const conditions: string[] = ['sp.id IS NOT NULL']
   const params: any[] = []
+
+  if (actor.kind !== 'staff') return { rows: [], total: 0 }
+  if (!isAdministrativeActor(actor)) {
+    conditions.push(`(
+      k.wali_kelas_id = ?
+      OR EXISTS (SELECT 1 FROM kelas_binaan_bk kb WHERE kb.kelas_id = s.kelas_id AND kb.guru_bk_id = ?)
+      OR EXISTS (SELECT 1 FROM penugasan_mengajar pm WHERE pm.kelas_id = s.kelas_id AND pm.guru_id = ?)
+    )`)
+    params.push(actor.id, actor.id, actor.id)
+  }
+  page = Math.max(1, Math.floor(page))
+  pageSize = Math.min(100, Math.max(1, Math.floor(pageSize)))
 
   if (filter.kelas_id) {
     conditions.push('s.kelas_id = ?')
@@ -116,6 +145,7 @@ export async function getListPsikotes(filter: {
     params.push(filter.iq_klasifikasi)
   }
   if (filter.search) {
+    if (filter.search.length > 100) return { rows: [], total: 0 }
     conditions.push('(LOWER(s.nama_lengkap) LIKE LOWER(?) OR s.nisn LIKE ?)')
     params.push(`%${filter.search}%`, `%${filter.search}%`)
   }
@@ -158,6 +188,8 @@ export async function getListPsikotes(filter: {
 // 3. DETAIL SATU SISWA (lazy load saat klik)
 // ============================================================
 export async function getDetailPsikotes(siswa_id: string) {
+  const actor = await requireActionAccess('psikotes', 'read')
+  await assertStudentScope(actor, siswa_id, 'psikotes')
   const db = await getDB()
   const row = await db.prepare(`
     SELECT sp.*,
@@ -175,21 +207,28 @@ export async function getDetailPsikotes(siswa_id: string) {
 // 4. ANALITIK (1 query agregasi)
 // ============================================================
 export async function getAnalitikPsikotes(kelas_id?: string) {
+  const actor = await requireActionAccess('psikotes', 'read')
+  if (kelas_id) await assertClassScope(actor, kelas_id, 'psikotes')
   const db = await getDB()
 
   // Semua query dibangun dengan WHERE clause eksplisit
   // Saat filter kelas: JOIN siswa + WHERE s.kelas_id = ?
   // Saat semua kelas: tidak ada JOIN/WHERE tambahan
+  const unrestricted = isAdministrativeActor(actor)
   const makeQuery = (selectClause: string, extraWhere?: string) => {
-    if (kelas_id) {
-      const w = extraWhere ? `AND ${extraWhere}` : ''
-      return `${selectClause} FROM siswa_psikotes sp JOIN siswa s ON sp.siswa_id = s.id WHERE s.kelas_id = ? ${w}`
-    } else {
-      const w = extraWhere ? `WHERE ${extraWhere}` : ''
-      return `${selectClause} FROM siswa_psikotes sp ${w}`
-    }
+    const conditions: string[] = []
+    if (kelas_id) conditions.push('s.kelas_id = ?')
+    if (!unrestricted && actor.kind === 'staff') conditions.push(`(
+      k.wali_kelas_id = ?
+      OR EXISTS (SELECT 1 FROM kelas_binaan_bk kb WHERE kb.kelas_id = s.kelas_id AND kb.guru_bk_id = ?)
+      OR EXISTS (SELECT 1 FROM penugasan_mengajar pm WHERE pm.kelas_id = s.kelas_id AND pm.guru_id = ?)
+    )`)
+    if (extraWhere) conditions.push(extraWhere)
+    return `${selectClause} FROM siswa_psikotes sp JOIN siswa s ON sp.siswa_id = s.id LEFT JOIN kelas k ON s.kelas_id = k.id${conditions.length ? ` WHERE ${conditions.join(' AND ')}` : ''}`
   }
-  const params = kelas_id ? [kelas_id] : []
+  const params: string[] = []
+  if (kelas_id) params.push(kelas_id)
+  if (!unrestricted && actor.kind === 'staff') params.push(actor.id, actor.id, actor.id)
 
   const [iqDist, gayaDist, rekomDist, riasecDist, mbtiDist, bakatAvg, minatAvg] = await Promise.all([
     db.prepare(makeQuery('SELECT iq_klasifikasi, COUNT(*) as n') + ' GROUP BY iq_klasifikasi ORDER BY n DESC')
@@ -225,6 +264,8 @@ export async function getAnalitikPsikotes(kelas_id?: string) {
 // 5. MAPPING JURUSAN CRUD
 // ============================================================
 export async function tambahMapping(label_excel: string, jurusan_db: string, keterangan: string) {
+  await requireActionAccess('psikotes', 'create', { allowedRoles: ADMINISTRATIVE_ROLES })
+  if (!label_excel.trim() || label_excel.length > 120 || !jurusan_db.trim() || jurusan_db.length > 120 || keterangan.length > 1000) return { error: 'Data mapping tidak valid.' }
   const db = await getDB()
   const result = await dbInsert(db, 'psikotes_rekom_mapping', {
     label_excel: label_excel.trim().toUpperCase(),
@@ -237,6 +278,7 @@ export async function tambahMapping(label_excel: string, jurusan_db: string, ket
 }
 
 export async function editMapping(id: string, jurusan_db: string, keterangan: string) {
+  await requireActionAccess('psikotes', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const result = await dbUpdate(db, 'psikotes_rekom_mapping', {
     jurusan_db: jurusan_db.trim(),
@@ -249,6 +291,7 @@ export async function editMapping(id: string, jurusan_db: string, keterangan: st
 }
 
 export async function hapusMapping(id: string) {
+  await requireActionAccess('psikotes', 'delete', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const result = await dbDelete(db, 'psikotes_rekom_mapping', { id })
   if (result.error) return { error: result.error }
@@ -265,7 +308,9 @@ export async function fuzzyMatchNama(namaList: string[]): Promise<{
   candidates: { siswa_id: string; nama_lengkap: string; nisn: string; kelas: string }[]
   status: 'matched' | 'ambiguous' | 'notfound'
 }[]> {
+  await requireActionAccess('psikotes', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   if (namaList.length === 0) return []
+  if (!Array.isArray(namaList) || namaList.length > 500 || namaList.some(nama => typeof nama !== 'string' || nama.length > 200)) return []
   const db = await getDB()
 
   // 1 query untuk SEMUA nama — tidak peduli berapa chunk yang dikirim client
@@ -329,7 +374,9 @@ export async function importPsikotesChunk(rows: {
   mbti?: string | null; gaya_belajar?: string | null
   usia_thn?: number | null; usia_bln?: number | null
 }[]): Promise<{ success: number; error: number; errors: string[] }> {
+  await requireActionAccess('psikotes', 'create', { allowedRoles: ADMINISTRATIVE_ROLES })
   if (rows.length === 0) return { success: 0, error: 0, errors: [] }
+  if (!isImportChunkWithinLimits(rows)) return { success: 0, error: rows.length, errors: ['Maksimal 500 baris dan 1 MB per chunk.'] }
 
   const db = await getDB()
   const errors: string[] = []
@@ -433,6 +480,8 @@ export async function importPsikotesChunk(rows: {
 
 // Hapus data psikotes satu siswa
 export async function hapusPsikotes(siswa_id: string) {
+  const actor = await requireActionAccess('psikotes', 'delete')
+  await assertStudentScope(actor, siswa_id, 'psikotes')
   const db = await getDB()
   const result = await dbDelete(db, 'siswa_psikotes', { siswa_id })
   if (result.error) return { error: result.error }
@@ -444,6 +493,7 @@ export async function hapusPsikotes(siswa_id: string) {
 // NORMALIZE: perbaiki typo gaya_belajar di data yang sudah ada
 // ============================================================
 export async function normalizeGayaBelajar() {
+  await requireActionAccess('psikotes', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const res = await db.prepare(`
     UPDATE siswa_psikotes

@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { constantTimeSecretEqual } from '@/lib/constant-time'
+import { internalErrorJson } from '@/lib/request-security'
 
 export async function GET(request: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404, headers: { 'Cache-Control': 'no-store' } })
+  }
   const migrateSecret = process.env.MIGRATE_SECRET || process.env.CRON_SECRET
   const authHeader = request.headers.get('Authorization')
-  if (!migrateSecret || authHeader !== `Bearer ${migrateSecret}`) {
+  if (!migrateSecret || !(await constantTimeSecretEqual(authHeader, `Bearer ${migrateSecret}`))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
@@ -51,7 +56,7 @@ export async function GET(request: Request) {
 
     await db.batch(stmts)
     return NextResponse.json({ success: true, message: 'Migration applied!' })
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+  } catch (error) {
+    return internalErrorJson('migration.dev_endpoint', error)
   }
 }

@@ -8,6 +8,33 @@
 export type DbResult<T> = { data: T | null; error: string | null }
 export type DbListResult<T> = { data: T[]; error: string | null }
 
+const SQL_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
+const ALLOWED_TABLES = new Set<string>([
+  'agenda_guru', 'agenda_piket', 'bk_rekaman', 'bk_topik', 'buku_tamu',
+  'delegasi_tugas', 'delegasi_tugas_kelas', 'ekstrakurikuler', 'ekstrakurikuler_pertemuan',
+  'izin_keluar_komplek', 'izin_tidak_masuk_kelas', 'jadwal_guru_piket', 'jadwal_mengajar',
+  'jadwal_notifikasi', 'kelas', 'master_pelanggaran', 'mata_pelajaran', 'nilai_harian_header',
+  'penerimaan_pt', 'pengaturan_akademik', 'penugasan_mengajar', 'peserta_rapat',
+  'pmb_jadwal_tes', 'pmb_pendaftar', 'psikotes_rekom_mapping', 'siswa',
+  'siswa_pelanggaran', 'siswa_psikotes', 'tahun_ajaran', 'undangan_rapat', 'user',
+])
+
+function safeIdentifier(value: string): string {
+  if (!SQL_IDENTIFIER.test(value)) throw new Error('Invalid database identifier')
+  return `"${value}"`
+}
+
+function safeTable(value: string): string {
+  const normalized = value === '"user"' ? 'user' : value
+  if (!ALLOWED_TABLES.has(normalized)) throw new Error('Database table is not allowlisted')
+  return safeIdentifier(normalized)
+}
+
+function safeColumnList(value: string | undefined): string {
+  if (!value || value.trim() === '*') return '*'
+  return value.split(',').map(column => safeIdentifier(column.trim())).join(', ')
+}
+
 // ============================================================
 // GENERIC QUERY HELPERS
 // ============================================================
@@ -19,23 +46,28 @@ export async function dbSelect<T>(
   where?: Record<string, unknown>,
   options?: { orderBy?: string; limit?: number; columns?: string }
 ): Promise<T[]> {
-  const cols = options?.columns ?? '*'
-  let sql = `SELECT ${cols} FROM ${table}`
+  const cols = safeColumnList(options?.columns)
+  let sql = `SELECT ${cols} FROM ${safeTable(table)}`
   const params: unknown[] = []
 
   if (where && Object.keys(where).length > 0) {
     const conditions = Object.entries(where)
       .filter(([, v]) => v !== undefined)
       .map(([k, v]) => {
-        if (v === null) return `${k} IS NULL`
+        if (v === null) return `${safeIdentifier(k)} IS NULL`
         params.push(v)
-        return `${k} = ?`
+        return `${safeIdentifier(k)} = ?`
       })
     if (conditions.length > 0) sql += ` WHERE ${conditions.join(' AND ')}`
   }
 
-  if (options?.orderBy) sql += ` ORDER BY ${options.orderBy}`
-  if (options?.limit) sql += ` LIMIT ${options.limit}`
+  if (options?.orderBy) sql += ` ORDER BY ${safeIdentifier(options.orderBy)}`
+  if (options?.limit) {
+    if (!Number.isInteger(options.limit) || options.limit < 1 || options.limit > 10_000) {
+      throw new Error('Invalid query limit')
+    }
+    sql += ` LIMIT ${options.limit}`
+  }
 
   const result = await db.prepare(sql).bind(...params).all<T>()
   return result.results
@@ -64,10 +96,11 @@ export async function dbInsert<T = any>(
     Object.entries(data).filter(([, v]) => v !== undefined)
   )
   const keys = Object.keys(clean)
+  if (keys.length === 0) return { success: false, error: 'Tidak ada data untuk disimpan.' }
   const placeholders = keys.map(() => '?').join(', ')
   const values = Object.values(clean).map(serializeValue)
 
-  const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING *`
+  const sql = `INSERT INTO ${safeTable(table)} (${keys.map(safeIdentifier).join(', ')}) VALUES (${placeholders}) RETURNING *`
 
   try {
     const result = await db.prepare(sql).bind(...values).first<T>()
@@ -87,13 +120,16 @@ export async function dbUpdate(
   const clean = Object.fromEntries(
     Object.entries(data).filter(([, v]) => v !== undefined)
   )
-  const setClauses = Object.keys(clean).map(k => `${k} = ?`).join(', ')
+  if (Object.keys(clean).length === 0 || Object.keys(where).length === 0) {
+    return { success: false, error: 'Data atau filter pembaruan kosong.' }
+  }
+  const setClauses = Object.keys(clean).map(k => `${safeIdentifier(k)} = ?`).join(', ')
   const setValues = Object.values(clean).map(serializeValue)
 
-  const whereClauses = Object.keys(where).map(k => `${k} = ?`).join(' AND ')
+  const whereClauses = Object.keys(where).map(k => `${safeIdentifier(k)} = ?`).join(' AND ')
   const whereValues = Object.values(where)
 
-  const sql = `UPDATE ${table} SET ${setClauses} WHERE ${whereClauses}`
+  const sql = `UPDATE ${safeTable(table)} SET ${setClauses} WHERE ${whereClauses}`
 
   try {
     await db.prepare(sql).bind(...setValues, ...whereValues).run()
@@ -109,10 +145,11 @@ export async function dbDelete(
   table: string,
   where: Record<string, unknown>
 ): Promise<{ success: boolean; error: string | null }> {
-  const conditions = Object.keys(where).map(k => `${k} = ?`).join(' AND ')
+  if (Object.keys(where).length === 0) return { success: false, error: 'Filter penghapusan kosong.' }
+  const conditions = Object.keys(where).map(k => `${safeIdentifier(k)} = ?`).join(' AND ')
   const values = Object.values(where)
 
-  const sql = `DELETE FROM ${table} WHERE ${conditions}`
+  const sql = `DELETE FROM ${safeTable(table)} WHERE ${conditions}`
 
   try {
     await db.prepare(sql).bind(...values).run()
@@ -133,17 +170,19 @@ export async function dbUpsert(
     Object.entries(data).filter(([, v]) => v !== undefined)
   )
   const keys = Object.keys(clean)
+  if (keys.length === 0) return { success: false, error: 'Tidak ada data untuk disimpan.' }
+  safeIdentifier(conflictKey)
   const placeholders = keys.map(() => '?').join(', ')
   const values = Object.values(clean).map(serializeValue)
 
   // ON CONFLICT DO UPDATE
   const updateClauses = keys
     .filter(k => k !== conflictKey)
-    .map(k => `${k} = excluded.${k}`)
+    .map(k => `${safeIdentifier(k)} = excluded.${safeIdentifier(k)}`)
     .join(', ')
 
-  const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})
-               ON CONFLICT(${conflictKey}) DO UPDATE SET ${updateClauses}`
+  const sql = `INSERT INTO ${safeTable(table)} (${keys.map(safeIdentifier).join(', ')}) VALUES (${placeholders})
+               ON CONFLICT(${safeIdentifier(conflictKey)}) DO UPDATE SET ${updateClauses}`
 
   try {
     await db.prepare(sql).bind(...values).run()
@@ -167,7 +206,7 @@ export async function dbBatchInsert(
   const keys = Array.from(allKeysSet)
   
   const placeholders = keys.map(() => '?').join(', ')
-  const sql = `INSERT OR IGNORE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`
+  const sql = `INSERT OR IGNORE INTO ${safeTable(table)} (${keys.map(safeIdentifier).join(', ')}) VALUES (${placeholders})`
 
   const statements = rows.map(row => {
     // Mapping dengan fallback null jika row tersebut tidak punya kolom tsb

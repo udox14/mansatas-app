@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDB } from '@/utils/db-server'
 import { processWhatsAppOutbox } from '@/lib/whatsapp'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { constantTimeSecretEqual } from '@/lib/constant-time'
+import { internalErrorJson } from '@/lib/request-security'
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('Authorization')
   const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || !(await constantTimeSecretEqual(authHeader, `Bearer ${cronSecret}`))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -24,8 +26,7 @@ export async function GET(req: NextRequest) {
 
     const result = await processWhatsAppOutbox(db, 25)
     return NextResponse.json({ success: true, ...result })
-  } catch (error: any) {
-    console.error('WhatsApp cron error:', error)
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+  } catch (error) {
+    return internalErrorJson('cron.whatsapp', error)
   }
 }

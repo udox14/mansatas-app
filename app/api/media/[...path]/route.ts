@@ -4,6 +4,8 @@
 
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { NextResponse } from 'next/server'
+import { authorizeMediaRequest } from '@/lib/media-security'
+import { logSecurityEvent } from '@/lib/security-log'
 
 export async function GET(
   request: Request,
@@ -11,19 +13,18 @@ export async function GET(
 ) {
   try {
     const { path } = await params
-    const key = path.join('/')
-    // Dokumen pengajuan Komite selalu melalui endpoint terautentikasi khusus.
-    if (key.startsWith('private/komite-pengajuan/')) {
-      return new Response('Not Found', { status: 404 })
-    }
-    // Semua file dikunci cache-nya selama 1 tahun (immutable).
-    // Saat foto di-update, URL-nya menggunakan parameter versi (?v=timestamp),
-    // jadi browser akan otomatis unduh versi baru. Ini menghemat operasi Class B R2.
-    const cacheControl = 'public, max-age=31536000, immutable'
+    const rawKey = path.join('/')
 
-    if (!key) {
+    if (!rawKey) {
       return NextResponse.json({ error: 'Path required' }, { status: 400 })
     }
+
+    const authorized = await authorizeMediaRequest(request, rawKey)
+    if (!authorized) return new Response('Not Found', { status: 404, headers: { 'Cache-Control': 'private, no-store' } })
+    const { key, policy } = authorized
+    const cacheControl = policy.visibility === 'public'
+      ? policy.cacheControl
+      : 'private, no-store'
 
     const { env } = await getCloudflareContext({ async: true })
     const object = await env.R2.get(key)
@@ -36,11 +37,11 @@ export async function GET(
 
     // Check if-none-match for 304 responses  
     const ifNoneMatch = request.headers.get('if-none-match')
-    if (ifNoneMatch && ifNoneMatch === object.etag) {
+    if (ifNoneMatch && ifNoneMatch === object.httpEtag) {
       return new Response(null, {
         status: 304,
         headers: {
-          'ETag': object.etag,
+          'ETag': object.httpEtag,
           'Cache-Control': cacheControl,
         },
       })
@@ -51,7 +52,7 @@ export async function GET(
     const headers = new Headers({
       'Content-Type': contentType,
       'Cache-Control': cacheControl,
-      'ETag': object.etag,
+      'ETag': object.httpEtag,
     })
     if (object.size > 0) headers.set('Content-Length', String(object.size))
 
@@ -59,8 +60,8 @@ export async function GET(
       status: 200,
       headers,
     })
-  } catch (e: any) {
-    console.error('R2 media proxy error:', e?.message || e)
-    return new Response('Internal Server Error', { status: 500 })
+  } catch (error) {
+    const correlationId = logSecurityEvent('error', 'r2_media_proxy_failed', { error })
+    return new Response(`Internal Server Error. ID: ${correlationId}`, { status: 500, headers: { 'Cache-Control': 'no-store' } })
   }
 }

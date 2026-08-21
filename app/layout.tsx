@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next"
 import "./globals.css"
 import { GlobalAlertProvider } from '@/components/ui/global-alert'
 import { MobileRuntime } from '@/components/native/mobile-runtime'
+import { headers } from 'next/headers'
 
 export const metadata: Metadata = {
   title: "MANSATAS App",
@@ -36,16 +37,18 @@ export const viewport: Viewport = {
   maximumScale: 1,
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const nonce = (await headers()).get('x-nonce') || undefined
   return (
     <html lang="id" suppressHydrationWarning>
       <head>
         {/* Anti-flicker: baca localStorage SEBELUM React hydration */}
         <script
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var d=localStorage.getItem('mansatas_dark');if(d==='true')document.documentElement.classList.add('dark')}catch(e){}})()`,
           }}
@@ -54,6 +57,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         {/* PWA: Register service worker */}
         <script
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: `
               window.__MANSATAS_DEFERRED_PWA_PROMPT = null;

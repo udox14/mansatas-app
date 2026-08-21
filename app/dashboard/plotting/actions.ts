@@ -5,6 +5,17 @@ import { getDB } from '@/utils/db-server'
 import { revalidatePath } from 'next/cache'
 import { ensureRiwayatKelasSnapshotColumns, formatKelasSnapshot } from '@/lib/riwayat-kelas'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
+import { ADMINISTRATIVE_ROLES, requireActionAccess } from '@/lib/action-security'
+import { publicServerError } from '@/lib/security-log'
+import { z } from 'zod'
+
+const plottingIdSchema = z.string().trim().min(1).max(100)
+const plottingContextSchema = z.object({
+  source_tahun_ajaran_id: plottingIdSchema.optional(),
+  target_tahun_ajaran_id: plottingIdSchema.optional(),
+}).strict()
+const jurusanRowSchema = z.object({ id: plottingIdSchema, minat_jurusan: z.string().trim().max(50) }).strict()
+const plottingRowSchema = z.object({ siswa_id: plottingIdSchema, kelas_id: plottingIdSchema }).strict()
 
 type TahunAjaranRef = {
   id: string
@@ -54,6 +65,7 @@ function normalizeJurusan(value: string | null | undefined) {
 }
 
 export async function getTahunAjaranList() {
+  await requireActionAccess('plotting', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const rows = await db
     .prepare('SELECT id, nama, semester, is_active, daftar_jurusan FROM tahun_ajaran ORDER BY nama ASC, semester ASC')
@@ -86,6 +98,7 @@ async function resolvePlottingContext(db: D1Database, context?: PlottingContext)
 // 1. AMBIL TAHUN AJARAN AKTIF
 // ============================================================
 export async function getTahunAjaranAktif() {
+  await requireActionAccess('plotting', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   let ta = await db
     .prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE is_active = 1 LIMIT 1')
@@ -107,6 +120,7 @@ export async function getTahunAjaranAktif() {
 // 2. SISWA BELUM PUNYA KELAS
 // ============================================================
 export async function getSiswaBelumAdaKelas() {
+  await requireActionAccess('plotting', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   const result = await db
     .prepare(
@@ -122,6 +136,7 @@ export async function getSiswaBelumAdaKelas() {
 // 3. KELAS BERDASARKAN TINGKAT
 // ============================================================
 export async function getKelasByTingkat(tingkat: number, tahun_ajaran_id?: string) {
+  await requireActionAccess('plotting', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   await ensureRiwayatKelasSnapshotColumns(db)
   const { target } = await resolvePlottingContext(db, { target_tahun_ajaran_id: tahun_ajaran_id })
@@ -167,6 +182,7 @@ export async function getSiswaByTingkat(
   source_tahun_ajaran_id?: string,
   target_tahun_ajaran_id?: string
 ) {
+  await requireActionAccess('plotting', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   await ensurePlottingPenjurusanDraftTable(db)
   await ensureRiwayatKelasSnapshotColumns(db)
@@ -232,6 +248,7 @@ export async function getSiswaByTingkat(
 }
 
 export async function getSiswaLulusByRiwayatTingkat(tingkat: number) {
+  await requireActionAccess('plotting', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   await ensureRiwayatKelasSnapshotColumns(db)
   const ta = await getTahunAjaranAktif()
@@ -273,6 +290,7 @@ export async function setDraftPenjurusan(
   minat_jurusan: string | null,
   context?: PlottingContext
 ) {
+  await requireActionAccess('plotting', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
   const db = await getDB()
   await ensurePlottingPenjurusanDraftTable(db)
   await ensureRiwayatKelasSnapshotColumns(db)
@@ -322,18 +340,25 @@ export async function setDraftPenjurusan(
 }
 
 export async function setDraftPenjurusanMassal(
-  payload: { id: string; minat_jurusan: string }[],
+  payload: unknown,
   context?: PlottingContext
 ) {
+  await requireActionAccess('plotting', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
+  const parsedPayload = z.array(jurusanRowSchema).min(1).max(500).safeParse(payload)
+  const parsedContext = plottingContextSchema.safeParse(context ?? {})
+  if (!parsedPayload.success || !parsedContext.success) {
+    return { error: 'Data massal harus berisi 1 sampai 500 siswa.' }
+  }
+  const safePayload = parsedPayload.data
   const db = await getDB()
   await ensurePlottingPenjurusanDraftTable(db)
   await ensureRiwayatKelasSnapshotColumns(db)
-  const { source, target } = await resolvePlottingContext(db, context)
+  const { source, target } = await resolvePlottingContext(db, parsedContext.data)
   const now = new Date().toISOString()
 
   const chunkSize = 100
-  for (let i = 0; i < payload.length; i += chunkSize) {
-    const chunk = payload.slice(i, i + chunkSize)
+  for (let i = 0; i < safePayload.length; i += chunkSize) {
+    const chunk = safePayload.slice(i, i + chunkSize)
     const stmts = chunk.map((p) =>
       db
         .prepare(
@@ -357,12 +382,12 @@ export async function setDraftPenjurusanMassal(
     module: 'plotting',
     action: 'set_penjurusan_massal',
     severity: 'warning',
-    summary: `Menetapkan minat jurusan ${payload.length} siswa`,
+    summary: `Menetapkan minat jurusan ${safePayload.length} siswa`,
     entityType: 'siswa',
     entityId: null,
     entityLabel: 'Penetapan jurusan massal',
-    metadata: { source_tahun_ajaran_id: source.id, target_tahun_ajaran_id: target.id, count: payload.length },
-    targets: payload.map(p => ({
+    metadata: { source_tahun_ajaran_id: source.id, target_tahun_ajaran_id: target.id, count: safePayload.length },
+    targets: safePayload.map(p => ({
       type: 'siswa',
       id: p.id,
       metadata: { minat_jurusan: normalizeJurusan(p.minat_jurusan) },
@@ -377,23 +402,27 @@ export async function setDraftPenjurusanMassal(
 // 6. SIMPAN PLOTTING MASSAL
 // ============================================================
 export async function simpanPlottingMassal(
-  hasilPlotting: { siswa_id: string; kelas_id: string }[],
+  hasilPlotting: unknown,
   context?: PlottingContext
 ) {
-  if (!hasilPlotting.length) return { error: 'Tidak ada data plotting.' }
+  await requireActionAccess('plotting', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
+  const parsedPlotting = z.array(plottingRowSchema).min(1).max(500).safeParse(hasilPlotting)
+  const parsedContext = plottingContextSchema.safeParse(context ?? {})
+  if (!parsedPlotting.success || !parsedContext.success) return { error: 'Data plotting tidak valid atau melebihi 500 siswa.' }
+  const safePlotting = parsedPlotting.data
 
   const db = await getDB()
   await ensurePlottingPenjurusanDraftTable(db)
   await ensureRiwayatKelasSnapshotColumns(db)
-  const { source, target } = await resolvePlottingContext(db, context)
+  const { source, target } = await resolvePlottingContext(db, parsedContext.data)
 
   try {
     const now = new Date().toISOString()
     const chunkSize = 100
 
     if (source.id !== target.id && source.is_active === 1) {
-      for (let i = 0; i < hasilPlotting.length; i += chunkSize) {
-        const chunk = hasilPlotting.slice(i, i + chunkSize)
+      for (let i = 0; i < safePlotting.length; i += chunkSize) {
+        const chunk = safePlotting.slice(i, i + chunkSize)
         const placeholders = chunk.map(() => '?').join(', ')
         const sourceRows = await db
           .prepare(
@@ -428,7 +457,7 @@ export async function simpanPlottingMassal(
     }
 
     if (target.is_active === 1) {
-      const updateStmts = hasilPlotting.map((plot) =>
+      const updateStmts = safePlotting.map((plot) =>
         db
           .prepare('UPDATE siswa SET kelas_id = ?, updated_at = ? WHERE id = ?')
           .bind(plot.kelas_id, now, plot.siswa_id)
@@ -439,7 +468,7 @@ export async function simpanPlottingMassal(
       }
     }
 
-    const uniqueTargetKelasIds = Array.from(new Set(hasilPlotting.map(plot => plot.kelas_id)))
+    const uniqueTargetKelasIds = Array.from(new Set(safePlotting.map(plot => plot.kelas_id)))
     const targetKelasMap = new Map<string, { tingkat: number; nomor_kelas: string; kelompok: string }>()
     for (let i = 0; i < uniqueTargetKelasIds.length; i += chunkSize) {
       const chunk = uniqueTargetKelasIds.slice(i, i + chunkSize)
@@ -453,7 +482,7 @@ export async function simpanPlottingMassal(
       })
     }
 
-    const riwayatStmts = hasilPlotting.map((plot) => {
+    const riwayatStmts = safePlotting.map((plot) => {
       const kelas = targetKelasMap.get(plot.kelas_id)
       return (
       db
@@ -477,8 +506,8 @@ export async function simpanPlottingMassal(
     }
 
     try {
-      for (let i = 0; i < hasilPlotting.length; i += chunkSize) {
-        const chunk = hasilPlotting.slice(i, i + chunkSize)
+      for (let i = 0; i < safePlotting.length; i += chunkSize) {
+        const chunk = safePlotting.slice(i, i + chunkSize)
         const placeholders = chunk.map(() => '?').join(', ')
         await db
           .prepare(
@@ -504,7 +533,7 @@ export async function simpanPlottingMassal(
       module: 'plotting',
       action: 'apply_plotting_massal',
       severity: 'warning',
-      summary: `Menyimpan ${hasilPlotting.length} hasil plotting siswa`,
+      summary: `Menyimpan ${safePlotting.length} hasil plotting siswa`,
       entityType: 'tahun_ajaran',
       entityId: target.id,
       entityLabel: `${target.nama} SMT ${target.semester}`,
@@ -513,7 +542,7 @@ export async function simpanPlottingMassal(
         target_tahun_ajaran_id: target.id,
         targetIsActive: target.is_active === 1,
       },
-      targets: hasilPlotting.map(plot => ({
+      targets: safePlotting.map(plot => ({
         type: 'siswa',
         id: plot.siswa_id,
         metadata: { kelas_id: plot.kelas_id },
@@ -523,10 +552,9 @@ export async function simpanPlottingMassal(
     const mode = target.is_active === 1
       ? 'dan memperbarui kelas aktif siswa'
       : `sebagai rencana TA ${target.nama} SMT ${target.semester}. Kelas aktif siswa belum berubah sampai TA tersebut diaktifkan.`
-    return { success: `Berhasil menyimpan ${hasilPlotting.length} hasil plotting ${mode}` }
-  } catch (err: any) {
-    console.error('Gagal menyimpan plotting:', err)
-    return { error: `Terjadi kesalahan sistem saat menyimpan plotting: ${err?.message ?? 'detail tidak tersedia'}` }
+    return { success: `Berhasil menyimpan ${safePlotting.length} hasil plotting ${mode}` }
+  } catch (error) {
+    return publicServerError('plotting.simpan_massal', error)
   }
 }
 
@@ -534,6 +562,8 @@ export async function simpanPlottingMassal(
 // 7. PROSES KELULUSAN MASSAL KELAS 12
 // ============================================================
 export async function prosesKelulusanMassal(siswaIds: string[]) {
+  await requireActionAccess('plotting', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
+  if (!Array.isArray(siswaIds) || siswaIds.length > 500) return { error: 'Maksimal 500 siswa per proses.' }
   if (!siswaIds.length) return { error: 'Tidak ada siswa yang dipilih.' }
 
   const db = await getDB()
@@ -586,6 +616,7 @@ export async function getPlottingExportData(
   target_tahun_ajaran_id: string,
   tingkat: number[]
 ) {
+  await requireActionAccess('plotting', 'read', { allowedRoles: ADMINISTRATIVE_ROLES })
   if (!tingkat.length) return { data: [] }
 
   const db = await getDB()
@@ -649,6 +680,8 @@ export async function getPlottingExportData(
 }
 
 export async function batalkanKelulusanMassal(siswaIds: string[]) {
+  await requireActionAccess('plotting', 'update', { allowedRoles: ADMINISTRATIVE_ROLES })
+  if (!Array.isArray(siswaIds) || siswaIds.length > 500) return { error: 'Maksimal 500 siswa per proses.' }
   if (!siswaIds.length) return { error: 'Tidak ada siswa yang dipilih.' }
 
   const db = await getDB()

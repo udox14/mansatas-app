@@ -3,6 +3,7 @@
 
 import { MENU_ITEMS } from '@/config/menu'
 import { isPlayReviewerRole, PLAY_REVIEWER_ROLE } from '@/lib/play-reviewer'
+import { logSecurityEvent } from '@/lib/security-log'
 
 export type CrudAction = 'create' | 'read' | 'update' | 'delete'
 
@@ -53,15 +54,7 @@ export async function getRoleFeatures(db: D1Database, roles: string[]): Promise<
     `SELECT DISTINCT feature_id FROM role_features WHERE role IN (${placeholders})`
   ).bind(...roles).all<{ feature_id: string }>()
 
-  const dbFeatures = new Set(result.results?.map(r => r.feature_id) ?? [])
-  if (dbFeatures.size > 0) return dbFeatures
-
-  // Fallback: jika seed role_features belum up-to-date, pakai mapping default dari config/menu.ts
-  const fallback = new Set<string>()
-  for (const item of MENU_ITEMS) {
-    if (item.roles.some(role => roles.includes(role))) fallback.add(item.id)
-  }
-  return fallback
+  return new Set(result.results?.map(r => r.feature_id) ?? [])
 }
 
 /**
@@ -126,14 +119,19 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
  * Used in page-level access checks
  */
 export async function checkFeatureAccess(db: D1Database, userId: string, featureId: string): Promise<boolean> {
-  const features = await getUserAllowedFeatures(db, userId)
-  return features.includes(featureId)
+  try {
+    const features = await getUserAllowedFeatures(db, userId)
+    return features.includes(featureId)
+  } catch (error) {
+    logSecurityEvent('error', 'feature_access_check_failed', { userId, featureId, error })
+    return false
+  }
 }
 
 /**
  * Check if a user has a CRUD action for a feature.
- * Backward compatible: if the CRUD table is missing or no row exists yet,
- * allowed feature access grants all CRUD actions until an admin customizes it.
+ * Fail closed: izin C/U/D harus memiliki baris eksplisit pada tabel permission.
+ * User override grant tanpa permission role tetap memperoleh akses read-only.
  */
 export async function checkFeatureCrudAccess(
   db: D1Database,
@@ -143,11 +141,11 @@ export async function checkFeatureCrudAccess(
 ): Promise<boolean> {
   const hasReadAccess = await checkFeatureAccess(db, userId, featureId)
   if (!hasReadAccess) return false
-  if (action === 'read') return true
-
   const roles = await getUserRoles(db, userId)
-  if (isPlayReviewerRole(roles)) return false
-  if (roles.length === 0) return false
+  if (roles.length === 0) {
+    logSecurityEvent('warning', 'feature_crud_role_missing', { userId, featureId, action })
+    return false
+  }
 
   const columnMap: Record<CrudAction, string> = {
     create: 'can_create',
@@ -159,18 +157,28 @@ export async function checkFeatureCrudAccess(
   const placeholders = roles.map(() => '?').join(',')
 
   try {
-    const result = await db.prepare(`
-      SELECT COUNT(*) as configured_count, MAX(${column}) as allowed
+    const [result, overrides] = await Promise.all([
+      db.prepare(`
+      SELECT COUNT(*) as configured_count, MAX(can_read) as readable, MAX(${column}) as allowed
       FROM role_feature_permissions
       WHERE feature_id = ?
         AND role IN (${placeholders})
-        AND can_read = 1
-    `).bind(featureId, ...roles).first()
-    const row = result as { configured_count: number; allowed: number | null } | null
-    if (!row || row.configured_count === 0) return true
-    return row.allowed === 1
-  } catch {
-    return true
+    `).bind(featureId, ...roles).first(),
+      getUserOverrides(db, userId),
+    ])
+    const row = result as { configured_count: number; readable: number | null; allowed: number | null } | null
+    const userReadGrant = overrides.grants.has(featureId) && !overrides.revokes.has(featureId)
+    if (!row || row.configured_count === 0) {
+      if (action === 'read' && userReadGrant) return true
+      logSecurityEvent('warning', 'feature_crud_permission_missing', { userId, featureId, action, roles })
+      return false
+    }
+    if (action === 'read') return row.readable === 1 || userReadGrant
+    if (isPlayReviewerRole(roles)) return false
+    return row.readable === 1 && row.allowed === 1
+  } catch (error) {
+    logSecurityEvent('error', 'feature_crud_check_failed', { userId, featureId, action, error })
+    return false
   }
 }
 

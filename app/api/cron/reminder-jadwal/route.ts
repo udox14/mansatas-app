@@ -4,6 +4,8 @@ import { notify } from '@/lib/notify'
 import { nowWIB } from '@/lib/time'
 import { getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { constantTimeSecretEqual } from '@/lib/constant-time'
+import { internalErrorJson } from '@/lib/request-security'
 
 /**
  * Master Cron Dispatcher — dipanggil setiap 5 menit oleh Cloudflare Cron Trigger.
@@ -17,7 +19,7 @@ export async function GET(req: NextRequest) {
   // Auth check
   const authHeader = req.headers.get('Authorization')
   const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!cronSecret || !(await constantTimeSecretEqual(authHeader, `Bearer ${cronSecret}`))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -124,8 +126,7 @@ export async function GET(req: NextRequest) {
       log,
     })
 
-  } catch (error: any) {
-    console.error('Cron Dispatcher Error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error: unknown) {
+    return internalErrorJson('cron.reminder_jadwal', error)
   }
 }

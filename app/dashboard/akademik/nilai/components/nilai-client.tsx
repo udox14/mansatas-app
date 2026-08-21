@@ -246,7 +246,7 @@ export function NilaiClient() {
 
   return (
     <>
-      <Script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" strategy="afterInteractive" />
+      <Script src="/vendor/xlsx-0.20.3.full.min.js" strategy="afterInteractive" />
 
       {/* Manual Verification Dialog */}
       <Dialog open={isVerifyDialogOpen} onOpenChange={setIsVerifyDialogOpen}>
