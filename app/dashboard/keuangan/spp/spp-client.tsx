@@ -13,12 +13,14 @@ import {
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 import { formatRupiah } from '@/lib/utils'
 import { FinanceExportExcelDialog, type FinanceExportRow } from '../components/export-excel-dialog'
+import { SiswaStatusFilter, matchSiswaStatusFilter, type SiswaStatusFilterValue } from '../components/siswa-status-filter'
 
 interface SppTunggakanRow {
   id: string
   siswa_id: string
   nama_lengkap: string
   nisn: string | null
+  siswa_status: string
   tahun_masuk: number | null
   tingkat: number | null
   nomor_kelas: number | null
@@ -30,24 +32,16 @@ interface SppTunggakanRow {
   metode_bayar_set: string | null
 }
 
-interface SppTunggakanStats {
-  total: number
-  total_jumlah: number
-  total_dibayar: number
-  total_sisa: number
-}
-
 export function SppClient({
   tunggakanList,
-  tunggakanStats,
   angkatanList,
 }: {
   tunggakanList: SppTunggakanRow[]
-  tunggakanStats: SppTunggakanStats | null
   angkatanList: number[]
 }) {
   const router = useRouter()
   const [search, setSearch] = useState('')
+  const [filterSiswaStatus, setFilterSiswaStatus] = useState<SiswaStatusFilterValue>('aktif')
   const [filterAngkatan, setFilterAngkatan] = useState('semua')
   const [filterKelas, setFilterKelas] = useState('semua')
   const [filterMetode, setFilterMetode] = useState('semua')
@@ -73,6 +67,7 @@ export function SppClient({
       const matchSearch = !term
         || row.nama_lengkap.toLowerCase().includes(term)
         || (row.nisn ?? '').toLowerCase().includes(term)
+      const matchSiswaStatus = matchSiswaStatusFilter(row.siswa_status, filterSiswaStatus)
       const matchAngkatan = filterAngkatan === 'semua' || String(row.tahun_masuk) === filterAngkatan
       const matchKelas = filterKelas === 'semua' || kelas === filterKelas
       const metodeSet = String(row.metode_bayar_set ?? '').split(',').map(metode => metode.trim())
@@ -80,13 +75,18 @@ export function SppClient({
         || (filterMetode === 'tunai'
           ? metodeSet.includes('tunai')
           : metodeSet.some(metode => metode === 'transfer' || metode === 'qris'))
-      return matchSearch && matchAngkatan && matchKelas && matchMetode
+      return matchSearch && matchSiswaStatus && matchAngkatan && matchKelas && matchMetode
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tunggakanList, search, filterAngkatan, filterKelas, filterMetode])
+  }, [tunggakanList, search, filterSiswaStatus, filterAngkatan, filterKelas, filterMetode])
 
   const paginated = paginate(filtered)
-  const filteredTotal = filtered.reduce((sum, row) => sum + Math.max(0, row.jumlah - (row.total_dibayar ?? 0)), 0)
+  const tunggakanStats = useMemo(() => ({
+    total: filtered.length,
+    total_jumlah: filtered.reduce((sum, row) => sum + (row.jumlah ?? 0), 0),
+    total_dibayar: filtered.reduce((sum, row) => sum + (row.total_dibayar ?? 0), 0),
+    total_sisa: filtered.reduce((sum, row) => sum + Math.max(0, row.jumlah - (row.total_dibayar ?? 0)), 0),
+  }), [filtered])
 
   function getKelas(row: SppTunggakanRow) {
     return row.tingkat && row.nomor_kelas
@@ -99,6 +99,7 @@ export function SppClient({
     siswa_id: row.siswa_id,
     nama_lengkap: row.nama_lengkap,
     nisn: row.nisn,
+    siswa_status: row.siswa_status,
     tahun_masuk: row.tahun_masuk,
     kelas: getKelas(row),
     spp_tunggakan: row.jumlah,
@@ -114,6 +115,7 @@ export function SppClient({
     siswa_id: row.siswa_id,
     nama_lengkap: row.nama_lengkap,
     nisn: row.nisn,
+    siswa_status: row.siswa_status,
     tahun_masuk: row.tahun_masuk,
     kelas: getKelas(row),
     spp_tunggakan: row.jumlah,
@@ -135,10 +137,10 @@ export function SppClient({
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
-          { label: 'Siswa Ditagih', value: `${tunggakanStats?.total ?? 0} siswa`, color: 'text-slate-900 dark:text-slate-50' },
-          { label: 'Total Tunggakan', value: formatRupiah(tunggakanStats?.total_jumlah ?? 0), color: 'text-slate-900 dark:text-slate-50' },
-          { label: 'Sudah Dibayar', value: formatRupiah(tunggakanStats?.total_dibayar ?? 0), color: 'text-emerald-600' },
-          { label: 'Sisa Ditagih', value: formatRupiah(filteredTotal), color: 'text-rose-600' },
+          { label: 'Siswa Ditagih', value: `${tunggakanStats.total} siswa`, color: 'text-slate-900 dark:text-slate-50' },
+          { label: 'Total Tunggakan', value: formatRupiah(tunggakanStats.total_jumlah), color: 'text-slate-900 dark:text-slate-50' },
+          { label: 'Sudah Dibayar', value: formatRupiah(tunggakanStats.total_dibayar), color: 'text-emerald-600' },
+          { label: 'Sisa Ditagih', value: formatRupiah(tunggakanStats.total_sisa), color: 'text-rose-600' },
         ].map(item => (
           <div key={item.label} className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
             <p className="text-[11px] text-slate-500 dark:text-slate-400">{item.label}</p>
@@ -157,6 +159,7 @@ export function SppClient({
             className="h-8 rounded-md pl-8 text-sm"
           />
         </div>
+        <SiswaStatusFilter value={filterSiswaStatus} onValueChange={setFilterSiswaStatus} />
         <Select value={filterAngkatan} onValueChange={setFilterAngkatan}>
           <SelectTrigger className="h-8 w-36 rounded-md text-xs"><SelectValue placeholder="Angkatan" /></SelectTrigger>
           <SelectContent>

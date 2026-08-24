@@ -102,7 +102,7 @@ export async function getDsptList(filters?: { status?: string; angkatan?: string
     SELECT
       d.id, d.siswa_id AS dspt_siswa_id, d.nominal_target, d.total_dibayar, d.total_diskon,
       COALESCE(d.status, 'tidak_ada') as status, d.catatan,
-      s.id as siswa_id, s.nama_lengkap, s.nisn,
+      s.id as siswa_id, s.nama_lengkap, s.nisn, s.status AS siswa_status,
       s.tahun_masuk,
       k.tingkat, k.nomor_kelas, k.kelompok,
       mb.metode_bayar_set,
@@ -199,7 +199,7 @@ export async function searchSiswa(q: string) {
            s.tahun_masuk
     FROM siswa s
     LEFT JOIN kelas k ON k.id = s.kelas_id
-    WHERE s.nama_lengkap LIKE ? OR s.nisn LIKE ?
+    WHERE s.status = 'aktif' AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)
     ORDER BY s.nama_lengkap ASC
     LIMIT 20
   `).bind(term, term).all<any>()

@@ -1,7 +1,9 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { FileSpreadsheet } from 'lucide-react'
 import { FinanceExportExcelDialog, type ExportSource, type FinanceExportRow } from '../components/export-excel-dialog'
+import { SiswaStatusFilter, matchSiswaStatusFilter, type SiswaStatusFilterValue } from '../components/siswa-status-filter'
 
 export function KeuanganExportClient({
   rows,
@@ -10,8 +12,15 @@ export function KeuanganExportClient({
   rows: FinanceExportRow[]
   sources: ExportSource[]
 }) {
-  const totalDspt = rows.filter(row => row.source === 'DSPT').length
-  const totalSpp = rows.filter(row => row.source === 'SPP').length
+  const [filterSiswaStatus, setFilterSiswaStatus] = useState<SiswaStatusFilterValue>('aktif')
+
+  const filteredRows = useMemo(
+    () => rows.filter(row => matchSiswaStatusFilter(row.siswa_status, filterSiswaStatus)),
+    [rows, filterSiswaStatus],
+  )
+
+  const totalDspt = filteredRows.filter(row => row.source === 'DSPT').length
+  const totalSpp = filteredRows.filter(row => row.source === 'SPP').length
 
   return (
     <div className="space-y-4">
@@ -25,13 +34,14 @@ export function KeuanganExportClient({
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Pilih sumber data, cakupan siswa, kelas, angkatan, dan kolom yang ingin dimasukkan ke file Excel.
             </p>
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
               <span className="rounded-md bg-slate-100 px-2 py-1 dark:bg-slate-800">DSPT: {totalDspt} baris</span>
               <span className="rounded-md bg-slate-100 px-2 py-1 dark:bg-slate-800">SPP: {totalSpp} baris</span>
+              <SiswaStatusFilter value={filterSiswaStatus} onValueChange={setFilterSiswaStatus} />
             </div>
           </div>
           <FinanceExportExcelDialog
-            rows={rows}
+            rows={filteredRows}
             sources={sources}
             defaultSources={sources}
             triggerLabel="Mulai Export"

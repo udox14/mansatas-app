@@ -15,6 +15,7 @@ interface SppTunggakanRow {
   siswa_id: string
   nama_lengkap: string
   nisn: string | null
+  siswa_status: string
   tahun_masuk: number | null
   tingkat: number | null
   nomor_kelas: number | null
@@ -29,21 +30,12 @@ interface SppTunggakanRow {
 async function SppDataFetcher() {
   const db = await (await import('@/utils/db-server')).getDB()
 
-  const [angkatanRes, tunggakanStats, tunggakanRes] = await Promise.all([
+  const [angkatanRes, tunggakanRes] = await Promise.all([
     db.prepare('SELECT DISTINCT tahun_masuk FROM siswa WHERE tahun_masuk IS NOT NULL ORDER BY tahun_masuk DESC').all<{ tahun_masuk: number }>(),
     db.prepare(`
       SELECT
-        COUNT(*) AS total,
-        COALESCE(SUM(jumlah), 0) AS total_jumlah,
-        COALESCE(SUM(total_dibayar), 0) AS total_dibayar,
-        COALESCE(SUM(jumlah - total_dibayar), 0) AS total_sisa
-      FROM fin_spp_saldo_awal
-      WHERE status != 'lunas' AND jumlah > total_dibayar
-    `).first<{ total: number; total_jumlah: number; total_dibayar: number; total_sisa: number }>(),
-    db.prepare(`
-      SELECT
         sa.id, sa.siswa_id, sa.jumlah, sa.total_dibayar, sa.status, sa.keterangan,
-        s.nama_lengkap, s.nisn, s.tahun_masuk,
+        s.nama_lengkap, s.nisn, s.status AS siswa_status, s.tahun_masuk,
         k.tingkat, k.nomor_kelas, k.kelompok,
         (
           SELECT GROUP_CONCAT(DISTINCT t.metode_bayar)
@@ -64,7 +56,6 @@ async function SppDataFetcher() {
   return (
     <SppClient
       tunggakanList={tunggakanRes.results ?? []}
-      tunggakanStats={tunggakanStats ?? null}
       angkatanList={(angkatanRes.results ?? []).map(r => r.tahun_masuk)}
     />
   )

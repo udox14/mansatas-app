@@ -21,6 +21,7 @@ export type FinanceExportRow = {
   siswa_id: string
   nama_lengkap: string
   nisn?: string | null
+  siswa_status?: string | null
   tahun_masuk?: number | null
   kelas?: string | null
   dspt_target?: number | null
@@ -47,6 +48,7 @@ const EXPORT_FIELDS: ExportField[] = [
   { key: 'source', label: 'Sumber' },
   { key: 'nama_lengkap', label: 'Nama Siswa' },
   { key: 'nisn', label: 'NISN' },
+  { key: 'siswa_status', label: 'Status Siswa' },
   { key: 'kelas', label: 'Kelas' },
   { key: 'tahun_masuk', label: 'Angkatan' },
   { key: 'metode_bayar', label: 'Metode Bayar' },
@@ -76,6 +78,17 @@ function normalizeStatus(status?: string | null) {
     nyicil: 'Nyicil',
     belum_bayar: 'Belum Bayar',
     tidak_ada: 'Belum Diinput',
+  }
+  return labels[status] ?? status
+}
+
+function normalizeSiswaStatus(status?: string | null) {
+  if (!status) return ''
+  const labels: Record<string, string> = {
+    aktif: 'Aktif',
+    lulus: 'Lulus',
+    keluar: 'Keluar',
+    pindah: 'Pindah',
   }
   return labels[status] ?? status
 }
@@ -173,9 +186,11 @@ export function FinanceExportExcelDialog({
         const value = row[field.key]
         item[field.label] = field.key === 'dspt_status' || field.key === 'spp_status'
           ? normalizeStatus(value as string | null)
-          : typeof value === 'number'
-            ? value
-            : value ?? ''
+          : field.key === 'siswa_status'
+            ? normalizeSiswaStatus(value as string | null)
+            : typeof value === 'number'
+              ? value
+              : value ?? ''
       })
       return item
     })

@@ -25,6 +25,19 @@ import {
 } from '@/components/ui/table'
 import { formatRupiah } from '@/lib/utils'
 import { dateInputWIB, formatDateTimeWIB, formatDateWIB, todayWIB } from '@/lib/time'
+import { SiswaStatusFilter, matchSiswaStatusFilter, type SiswaStatusFilterValue } from '../components/siswa-status-filter'
+
+interface DsptRow {
+  siswa_id: string
+  nama_lengkap: string
+  nisn: string | null
+  siswa_status: string
+  tahun_masuk: number
+  nominal_target: number | null
+  total_dibayar: number | null
+  total_diskon: number | null
+  status: string | null
+}
 
 interface RekapAngkatan {
   tahun_masuk: number
@@ -72,6 +85,7 @@ interface TunggakanRow {
   siswa_id: string
   nama_lengkap: string
   nisn: string | null
+  siswa_status: string
   tahun_masuk: number | null
   kelas: string | null
   nominal: number
@@ -85,7 +99,7 @@ interface TunggakanRow {
 type MateriKey = 'ringkasan' | 'arusKas' | 'angkatan'
 
 interface LaporanClientProps {
-  rekapAngkatan: RekapAngkatan[]
+  dsptRows: DsptRow[]
   transaksi: TransaksiRow[]
   kasKeluar: KasKeluarRow[]
   tunggakan: TunggakanRow[]
@@ -135,13 +149,14 @@ function sumBy<T>(rows: T[], picker: (row: T) => number) {
   return rows.reduce((sum, row) => sum + picker(row), 0)
 }
 
-export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }: LaporanClientProps) {
+export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: LaporanClientProps) {
   const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
   const printRef = useRef<HTMLElement>(null)
   const [tanggalAwal, setTanggalAwal] = useState(firstDayOfMonthInput())
   const [tanggalAkhir, setTanggalAkhir] = useState(todayInput())
   const [kategori, setKategori] = useState('semua')
   const [metodeBayar, setMetodeBayar] = useState('semua')
+  const [filterSiswaStatus, setFilterSiswaStatus] = useState<SiswaStatusFilterValue>('aktif')
   const [search, setSearch] = useState('')
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [judul, setJudul] = useState('Laporan Keuangan Madrasah')
@@ -191,14 +206,44 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
     return tunggakan.filter(row => {
       const matchKategori = kategori === 'semua'
         || (kategori === 'spp' ? row.jenis === 'spp_tunggakan_awal' : row.jenis === kategori)
+      const matchSiswaStatus = matchSiswaStatusFilter(row.siswa_status, filterSiswaStatus)
       const matchSearch = !term
         || row.nama_lengkap.toLowerCase().includes(term)
         || (row.nisn ?? '').toLowerCase().includes(term)
         || String(row.tahun_masuk ?? '').includes(term)
-      return matchKategori && matchSearch
+      return matchKategori && matchSiswaStatus && matchSearch
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tunggakan, kategori, search])
+  }, [tunggakan, kategori, filterSiswaStatus, search])
+
+  const rekapAngkatan = useMemo(() => {
+    const groups = new Map<number, RekapAngkatan>()
+    for (const row of dsptRows) {
+      if (!matchSiswaStatusFilter(row.siswa_status, filterSiswaStatus)) continue
+      let group = groups.get(row.tahun_masuk)
+      if (!group) {
+        group = {
+          tahun_masuk: row.tahun_masuk,
+          total_siswa: 0,
+          dspt_lunas: 0,
+          dspt_nyicil: 0,
+          dspt_belum: 0,
+          dspt_target: 0,
+          dspt_dibayar: 0,
+          dspt_diskon: 0,
+        }
+        groups.set(row.tahun_masuk, group)
+      }
+      group.total_siswa += 1
+      if (row.status === 'lunas') group.dspt_lunas += 1
+      else if (row.status === 'nyicil') group.dspt_nyicil += 1
+      else group.dspt_belum += 1
+      group.dspt_target += row.nominal_target ?? 0
+      group.dspt_dibayar += row.total_dibayar ?? 0
+      group.dspt_diskon += row.total_diskon ?? 0
+    }
+    return [...groups.values()].sort((a, b) => b.tahun_masuk - a.tahun_masuk)
+  }, [dsptRows, filterSiswaStatus])
 
   const transaksiAktif = transaksiPeriode.filter(row => !row.is_void)
   const pemasukan = sumBy(transaksiAktif, row => row.jumlah_total)
@@ -320,7 +365,7 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-          <div className="grid gap-2 xl:grid-cols-[1fr_1fr_170px_150px_auto]">
+          <div className="grid gap-2 xl:grid-cols-[1fr_1fr_170px_170px_150px_auto]">
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="mb-1 block text-[11px] font-semibold text-slate-500">Tanggal Awal</label>
@@ -353,6 +398,10 @@ export function LaporanClient({ rekapAngkatan, transaksi, kasKeluar, tunggakan }
                   <SelectItem value="spp">SPP Tunggakan</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-500">Status Siswa</label>
+              <SiswaStatusFilter value={filterSiswaStatus} onValueChange={setFilterSiswaStatus} className="h-9 w-full text-xs" />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-semibold text-slate-500">Metode</label>

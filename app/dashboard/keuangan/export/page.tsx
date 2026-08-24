@@ -35,7 +35,7 @@ export default async function KeuanganExportPage() {
       SELECT
         d.id, d.nominal_target, d.total_dibayar, d.total_diskon,
         COALESCE(d.status, 'tidak_ada') AS status, d.catatan,
-        s.id AS siswa_id, s.nama_lengkap, s.nisn, s.tahun_masuk,
+        s.id AS siswa_id, s.nama_lengkap, s.nisn, s.status AS siswa_status, s.tahun_masuk,
         k.tingkat, k.nomor_kelas, k.kelompok
       FROM siswa s
       LEFT JOIN fin_dspt d ON d.siswa_id = s.id
@@ -52,6 +52,7 @@ export default async function KeuanganExportPage() {
         siswa_id: row.siswa_id,
         nama_lengkap: row.nama_lengkap,
         nisn: row.nisn,
+        siswa_status: row.siswa_status,
         tahun_masuk: row.tahun_masuk,
         kelas: getKelas(row),
         dspt_target: target,
@@ -69,7 +70,7 @@ export default async function KeuanganExportPage() {
     const sppRes = await db.prepare(`
       SELECT
         sa.id, sa.siswa_id, sa.jumlah, sa.total_dibayar, sa.status, sa.keterangan,
-        s.nama_lengkap, s.nisn, s.tahun_masuk,
+        s.nama_lengkap, s.nisn, s.status AS siswa_status, s.tahun_masuk,
         k.tingkat, k.nomor_kelas, k.kelompok
       FROM fin_spp_saldo_awal sa
       INNER JOIN siswa s ON s.id = sa.siswa_id
@@ -84,6 +85,7 @@ export default async function KeuanganExportPage() {
         siswa_id: row.siswa_id,
         nama_lengkap: row.nama_lengkap,
         nisn: row.nisn,
+        siswa_status: row.siswa_status,
         tahun_masuk: row.tahun_masuk,
         kelas: getKelas(row),
         spp_tunggakan: row.jumlah,

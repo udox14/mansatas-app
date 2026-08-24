@@ -24,12 +24,14 @@ import {
 } from '../actions'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 import { FinanceExportExcelDialog, type FinanceExportRow } from '../components/export-excel-dialog'
+import { SiswaStatusFilter, matchSiswaStatusFilter, type SiswaStatusFilterValue } from '../components/siswa-status-filter'
 
 interface DsptRow {
   id: string | null
   siswa_id: string
   nama_lengkap: string
   nisn: string
+  siswa_status: string
   tahun_masuk: number
   nominal_target: number | null
   total_dibayar: number | null
@@ -113,6 +115,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
   const [search, setSearch] = useState('')
+  const [filterSiswaStatus, setFilterSiswaStatus] = useState<SiswaStatusFilterValue>('aktif')
   const [filterStatus, setFilterStatus] = useState('semua')
   const [filterMetode, setFilterMetode] = useState('semua')
   const [filterAngkatan, setFilterAngkatan] = useState(searchParams.get('angkatan') ?? 'semua')
@@ -219,6 +222,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
     reset()
     return data.filter(row => {
       const matchSearch = !search || row.nama_lengkap.toLowerCase().includes(search.toLowerCase()) || row.nisn?.includes(search)
+      const matchSiswaStatus = matchSiswaStatusFilter(row.siswa_status, filterSiswaStatus)
       const matchStatus = filterStatus === 'semua' || row.status === filterStatus
       const metodeSet = String(row.metode_bayar_set ?? '').split(',').map(metode => metode.trim())
       const matchMetode = filterMetode === 'semua'
@@ -228,10 +232,10 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
       const matchAngkatan = filterAngkatan === 'semua' || String(row.tahun_masuk) === filterAngkatan
       const matchKelas = filterKelas === 'semua' || `${row.tingkat}-${row.nomor_kelas}${row.kelompok ? ' ' + row.kelompok : ''}` === filterKelas
       const matchBulan = filterBulan === 'semua' || (row.bulan_bayar_set ?? '').includes(filterBulan)
-      return matchSearch && matchStatus && matchMetode && matchAngkatan && matchKelas && matchBulan
+      return matchSearch && matchSiswaStatus && matchStatus && matchMetode && matchAngkatan && matchKelas && matchBulan
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, search, filterStatus, filterMetode, filterAngkatan, filterKelas, filterBulan])
+  }, [data, search, filterSiswaStatus, filterStatus, filterMetode, filterAngkatan, filterKelas, filterBulan])
 
   const filteredProofHistory = useMemo(() => {
     const term = proofSearch.trim().toLowerCase()
@@ -267,6 +271,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
       siswa_id: row.siswa_id,
       nama_lengkap: row.nama_lengkap,
       nisn: row.nisn,
+      siswa_status: row.siswa_status,
       tahun_masuk: row.tahun_masuk,
       kelas,
       dspt_target: target,
@@ -291,6 +296,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
       siswa_id: row.siswa_id,
       nama_lengkap: row.nama_lengkap,
       nisn: row.nisn,
+      siswa_status: row.siswa_status,
       tahun_masuk: row.tahun_masuk,
       kelas,
       dspt_target: target,
@@ -448,6 +454,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           <Input placeholder="Cari nama atau NISN..." value={search}
             onChange={e => setSearch(e.target.value)} className="pl-8 h-8 text-sm rounded-md" />
         </div>
+        <SiswaStatusFilter value={filterSiswaStatus} onValueChange={setFilterSiswaStatus} />
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="h-8 w-36 text-xs rounded-md"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>

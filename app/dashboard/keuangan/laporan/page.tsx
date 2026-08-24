@@ -10,15 +10,16 @@ import { LaporanClient } from './laporan-client'
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Laporan Keuangan | MANSATAS' }
 
-type RekapAngkatanRow = {
+type DsptRow = {
+  siswa_id: string
+  nama_lengkap: string
+  nisn: string | null
+  siswa_status: string
   tahun_masuk: number
-  total_siswa: number
-  dspt_lunas: number
-  dspt_nyicil: number
-  dspt_belum: number
-  dspt_target: number
-  dspt_dibayar: number
-  dspt_diskon: number
+  nominal_target: number | null
+  total_dibayar: number | null
+  total_diskon: number | null
+  status: string | null
 }
 
 type TransaksiRow = {
@@ -56,6 +57,7 @@ type TunggakanRow = {
   siswa_id: string
   nama_lengkap: string
   nisn: string | null
+  siswa_status: string
   tahun_masuk: number | null
   kelas: string | null
   nominal: number
@@ -69,22 +71,15 @@ type TunggakanRow = {
 async function LaporanDataFetcher() {
   const db = await getDB()
 
-  const [rekapAngkatan, transaksi, kasKeluar, tunggakan] = await Promise.all([
+  const [dsptRows, transaksi, kasKeluar, tunggakan] = await Promise.all([
     db.prepare(`
       SELECT
-        s.tahun_masuk,
-        COUNT(DISTINCT s.id) as total_siswa,
-        COUNT(DISTINCT CASE WHEN d.status='lunas' THEN d.id END) as dspt_lunas,
-        COUNT(DISTINCT CASE WHEN d.status='nyicil' THEN d.id END) as dspt_nyicil,
-        COUNT(DISTINCT CASE WHEN d.status='belum_bayar' OR d.id IS NULL THEN s.id END) as dspt_belum,
-        COALESCE(SUM(d.nominal_target),0) as dspt_target,
-        COALESCE(SUM(d.total_dibayar),0) as dspt_dibayar,
-        COALESCE(SUM(d.total_diskon),0) as dspt_diskon
+        s.id as siswa_id, s.nama_lengkap, s.nisn, s.status AS siswa_status, s.tahun_masuk,
+        d.nominal_target, d.total_dibayar, d.total_diskon, d.status
       FROM siswa s
       LEFT JOIN fin_dspt d ON d.siswa_id = s.id
-      GROUP BY s.tahun_masuk
-      ORDER BY s.tahun_masuk DESC
-    `).all<RekapAngkatanRow>(),
+      ORDER BY s.nama_lengkap ASC
+    `).all<DsptRow>(),
     db.prepare(`
       SELECT
         t.id,
@@ -132,6 +127,7 @@ async function LaporanDataFetcher() {
           s.id as siswa_id,
           s.nama_lengkap,
           s.nisn,
+          s.status AS siswa_status,
           s.tahun_masuk,
           COALESCE(k.tingkat || '-' || k.nomor_kelas || ' ' || k.kelompok, '-') as kelas,
           d.nominal_target as nominal,
@@ -153,6 +149,7 @@ async function LaporanDataFetcher() {
           s.id as siswa_id,
           s.nama_lengkap,
           s.nisn,
+          s.status AS siswa_status,
           s.tahun_masuk,
           COALESCE(k.tingkat || '-' || k.nomor_kelas || ' ' || k.kelompok, '-') as kelas,
           sp.jumlah as nominal,
@@ -173,7 +170,7 @@ async function LaporanDataFetcher() {
 
   return (
     <LaporanClient
-      rekapAngkatan={rekapAngkatan.results ?? []}
+      dsptRows={dsptRows.results ?? []}
       transaksi={transaksi.results ?? []}
       kasKeluar={kasKeluar.results ?? []}
       tunggakan={tunggakan.results ?? []}
