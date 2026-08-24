@@ -54,7 +54,7 @@ function defaultTahunAnggaran() {
 
 const BULAN_ROMAWI = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 
-async function generateNextNomorSpb(db: D1Database, dateInput?: Date | string): Promise<string> {
+export async function generateNextNomorSpb(db: D1Database, dateInput?: Date | string): Promise<string> {
   const d = dateInput ? new Date(dateInput) : new Date()
   const year = d.getFullYear()
   const monthIndex = d.getMonth() + 1
@@ -182,7 +182,6 @@ export async function getKomiteDashboardData() {
     ...row,
     tahun_anggaran: row.tahun_anggaran || defaultTahunAnggaran(),
     kode_rkas_program: row.kode_rkas_program || '-',
-    realisasi_status: row.realisasi_status || 'belum',
     rincian: details.filter(detail => detail.pengajuan_id === row.id),
     versions: versions.filter(v => v.pengajuan_id === row.id).map(version => ({
       ...version,
@@ -231,6 +230,9 @@ export async function getKomiteDashboardData() {
     return roles.includes(KOMITE_STAGE_ROLE[stage]) && item.pengaju_id !== user.id
   })
 
+  const canApproveSpb = isSuper || roles.includes('bendahara_komite')
+  const nextNomorSpb = canApproveSpb ? await generateNextNomorSpb(db) : undefined
+
   return {
     items,
     users,
@@ -240,6 +242,7 @@ export async function getKomiteDashboardData() {
     canCreate: await canSubmitKomite(db, user.id, roles),
     isSuper,
     reviewCount: reviewQueue.length,
+    nextNomorSpb,
   }
 }
 
@@ -496,24 +499,6 @@ export async function delegateKetuaReviewAction(formData: FormData) {
   })
   revalidatePath(PAGE_PATH)
   return { success: `Review berhasil didelegasikan kepada ${member.name}.` }
-}
-
-export async function saveKomiteRealisasiAction(formData: FormData) {
-  const { db, user, roles } = await requireContext()
-  if (!roles.includes('super_admin') && !roles.includes('bendahara_komite')) return { error: 'Hanya Bendahara Komite atau Super Admin yang dapat mencatat realisasi.' }
-  const id = cleanText(formData.get('id'), 80)
-  const tanggal = cleanText(formData.get('realisasi_tanggal'), 20)
-  const metode = cleanText(formData.get('realisasi_metode'), 20)
-  const petugas = cleanText(formData.get('realisasi_petugas'), 180) || (user.nama_lengkap || user.name || 'Bendahara Komite')
-  const catatan = cleanMultiline(formData.get('realisasi_catatan'), 1000)
-  if (!tanggal || !['Tunai','Transfer'].includes(metode)) return { error: 'Tanggal dan metode realisasi wajib diisi.' }
-  const row = await db.prepare('SELECT * FROM komite_pengajuan WHERE id=?').bind(id).first<any>()
-  if (!row || row.status !== 'disetujui') return { error: 'Realisasi hanya dapat dicatat untuk pengajuan yang sudah disetujui.' }
-  await db.prepare(`UPDATE komite_pengajuan SET realisasi_status='sudah',realisasi_tanggal=?,realisasi_metode=?,realisasi_petugas=?,realisasi_catatan=?,updated_at=datetime('now') WHERE id=?`)
-    .bind(tanggal, metode, petugas, catatan || null, id).run()
-  await logActivity({ db, module: 'komite_pengajuan', action: 'save_realisasi', summary: `Mencatat realisasi pencairan ${row.judul}`, entityType: 'komite_pengajuan', entityId: id, entityLabel: row.judul, metadata: { metode, tanggal } })
-  revalidatePath(PAGE_PATH)
-  return { success: 'Realisasi pencairan berhasil dicatat.' }
 }
 
 export async function setNamedKomiteSubmitterAction(userId: string, enabled: boolean) {

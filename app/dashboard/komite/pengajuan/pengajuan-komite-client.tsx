@@ -13,12 +13,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
-  ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, CircleHelp, Download, FileText, HandCoins, Loader2,
+  ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, CircleHelp, Download, FileText, Loader2,
   Pencil, Plus, RotateCcw, Search, Send, Trash2, UserRoundCog, XCircle,
 } from 'lucide-react'
 import {
   delegateKetuaReviewAction, deleteKomiteAction, deleteKomiteDraftAction, reviewKomiteAction,
-  saveKomiteRealisasiAction, setNamedKomiteSubmitterAction, submitKomiteAction,
+  setNamedKomiteSubmitterAction, submitKomiteAction,
 } from './actions'
 
 type Item = any
@@ -60,10 +60,6 @@ function date(value?: string) {
   if (!value) return '-'
   return new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }).format(new Date(value.endsWith('Z') ? value : `${value.replace(' ', 'T')}Z`))
 }
-function dateOnly(value?: string) {
-  if (!value) return ''
-  return String(value).slice(0, 10)
-}
 function size(value: number) {
   return value >= 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(value / 1024)} KB`
 }
@@ -91,7 +87,6 @@ export function PengajuanKomiteClient(props: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const canSeeReviewerTabs = props.roles.some(role => ['super_admin', 'bendahara_komite', 'ketua_komite', 'anggota_komite', 'kepsek'].includes(role))
-  const canRealize = props.roles.includes('super_admin') || props.roles.includes('bendahara_komite')
   const initialTab = canSeeReviewerTabs && props.reviewCount ? 'review' : 'mine'
   const [activeTab, setActiveTab] = useState(initialTab)
   const [detailId, setDetailId] = useState('')
@@ -100,7 +95,6 @@ export function PengajuanKomiteClient(props: Props) {
   const [editing, setEditing] = useState<Item | null>(null)
   const [review, setReview] = useState<{ item: Item; action: string } | null>(null)
   const [delegation, setDelegation] = useState<Item | null>(null)
-  const [realisasi, setRealisasi] = useState<Item | null>(null)
   const [message, setMessage] = useState('')
   const [query, setQuery] = useState('')
 
@@ -120,7 +114,6 @@ export function PengajuanKomiteClient(props: Props) {
   const showOwnerActions = Boolean(detailItem && detailOriginTab === 'mine' && ['draft','perlu_revisi'].includes(detailItem.status))
   const showReviewActions = Boolean(detailItem && detailOriginTab === 'review' && canReviewItem(detailItem, props.roles, props.isSuper, props.currentUserId))
   const showDelegateAction = Boolean(detailItem && detailOriginTab === 'review' && detailItem.status === 'menunggu_ketua' && props.roles.includes('ketua_komite'))
-  const showRealizationAction = Boolean(detailItem && detailItem.status === 'disetujui' && canRealize)
   const showSuperAdminDelete = Boolean(detailItem && props.isSuper)
 
   function openDetail(id: string) {
@@ -155,11 +148,10 @@ export function PengajuanKomiteClient(props: Props) {
       )}
       {detailItem ? (
         <DetailPage item={detailItem} mode={detailOriginTab} onBack={() => { setActiveTab(detailOriginTab); setDetailId('') }}
-          actions={(showOwnerActions || showReviewActions || showDelegateAction || showRealizationAction || showSuperAdminDelete) ? <>
+          actions={(showOwnerActions || showReviewActions || showDelegateAction || showSuperAdminDelete) ? <>
             {showOwnerActions && <OwnerActions item={detailItem} pending={pending} hideDelete={props.isSuper} onEdit={() => { setMessage(''); setEditing(detailItem); setFormOpen(true) }} onRun={task => run(task, () => setDetailId(''))} />}
             {showDelegateAction && <Button variant="outline" className="mb-2 w-full" disabled={pending || props.committeeMembers.length === 0} onClick={() => setDelegation(detailItem)}><UserRoundCog className="mr-2 h-4 w-4" />{detailItem.ketua_delegate_id ? 'Alihkan Delegasi Review' : 'Delegasikan Review'}</Button>}
             {showReviewActions && <ReviewActions item={detailItem} onReview={action => setReview({ item: detailItem, action })} />}
-            {showRealizationAction && <Button variant="outline" className="mt-2 w-full sm:w-auto" disabled={pending} onClick={() => setRealisasi(detailItem)}><HandCoins className="mr-2 h-4 w-4" />Catat Realisasi</Button>}
             {showSuperAdminDelete && <Button variant="destructive" className="mt-2 w-full sm:w-auto" disabled={pending} onClick={() => {
               if (confirm(`Hapus pengajuan berstatus "${statusLabel[detailItem.status] || detailItem.status}" beserta seluruh versi dokumen dan riwayat review? Tindakan ini tidak dapat dibatalkan.`)) run(() => deleteKomiteAction(detailItem.id), () => setDetailId(''))
             }}><Trash2 className="mr-2 h-4 w-4" />Hapus Pengajuan</Button>}
@@ -226,7 +218,6 @@ export function PengajuanKomiteClient(props: Props) {
       }, () => setFormOpen(false))} />
       <ReviewDialog value={review} nextNomorSpb={props.nextNomorSpb} pending={pending} onClose={() => setReview(null)} onSubmit={formData => run(() => reviewKomiteAction(formData), () => { setReview(null); setDetailId(''); setActiveTab(detailOriginTab) })} />
       <DelegationDialog item={delegation} members={props.committeeMembers} pending={pending} onClose={() => setDelegation(null)} onSubmit={formData => run(() => delegateKetuaReviewAction(formData), () => setDelegation(null))} />
-      <RealisasiDialog item={realisasi} pending={pending} onClose={() => setRealisasi(null)} onSubmit={formData => run(() => saveKomiteRealisasiAction(formData), () => setRealisasi(null))} />
     </>
   )
 }
@@ -291,11 +282,10 @@ function DetailPage({ item, mode, onBack, actions }: { item: Item; mode: string;
     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><CardTitle className="break-words text-lg leading-snug sm:text-xl">{item.judul}</CardTitle><p className="mt-1 text-xs text-slate-500">{item.pengaju_name} - {date(item.created_at)}</p></div><Status status={item.status} /></div>
   </CardHeader><CardContent className="space-y-5 p-4 sm:p-5">
     <StatusHint item={item} mode={mode} />
-    <dl className="grid grid-cols-2 overflow-hidden rounded-lg border sm:grid-cols-4">
+    <dl className="grid grid-cols-2 overflow-hidden rounded-lg border sm:grid-cols-3">
       <CompactInfo label="Nominal" value={money(item.nominal)} />
       <CompactInfo label="Nomor SPB" value={item.nomor_spb || 'Belum ditetapkan'} />
       <CompactInfo label="Penerima" value={item.penerima_pembayaran || 'Belum ditetapkan'} />
-      <CompactInfo label="Realisasi" value={item.realisasi_status === 'sudah' ? `${item.realisasi_metode || '-'} - ${dateOnly(item.realisasi_tanggal)}` : 'Belum dicatat'} />
     </dl>
     <div className="grid gap-3 sm:grid-cols-2">
       <InfoBlock label="Tahun Anggaran" value={item.tahun_anggaran || '-'} />
@@ -364,8 +354,8 @@ function StatusHint({ item, mode }: { item: Item; mode: string }) {
     message = 'Pengajuan ini sudah ditutup. Lihat alasan penolakan pada Riwayat Review.'
     color = 'border-rose-200 bg-rose-50 text-rose-900 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200'
   } else if (item.status === 'disetujui') {
-    title = item.realisasi_status === 'sudah' ? 'Pengajuan sudah dicairkan' : 'Pengajuan sudah disetujui'
-    message = item.realisasi_status === 'sudah' ? 'SPB dan bukti realisasi final dapat diunduh.' : 'SPB tersedia. Halaman kedua masih berupa bukti realisasi draft sampai Bendahara mencatat pencairan.'
+    title = 'Pengajuan sudah disetujui'
+    message = 'SPB tersedia dan dapat diunduh.'
     color = 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200'
   } else if (item.status.startsWith('menunggu_')) {
     title = 'Sedang menunggu pemeriksaan'
@@ -484,18 +474,5 @@ function DelegationDialog({ item, members, pending, onClose, onSubmit }: { item:
     <div className="space-y-1.5"><Label>Pilih Anggota Komite</Label><Select name="member_id" defaultValue={item.ketua_delegate_id || undefined} required><SelectTrigger><SelectValue placeholder="Pilih nama anggota" /></SelectTrigger><SelectContent>{members.map(member => <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>)}</SelectContent></Select></div>
     {!members.length && <p className="text-sm text-rose-600">Belum ada pengguna dengan role Anggota Komite.</p>}
     <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={onClose}>Batal</Button><Button type="submit" disabled={pending || !members.length}>{pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Simpan Delegasi</Button></div>
-  </form>}</DialogContent></Dialog>
-}
-
-function RealisasiDialog({ item, pending, onClose, onSubmit }: { item: Item | null; pending: boolean; onClose: () => void; onSubmit: (data: FormData) => void }) {
-  return <Dialog open={!!item} onOpenChange={open => !open && onClose()}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>Catat Realisasi Pencairan</DialogTitle></DialogHeader>{item && <form action={onSubmit} className="space-y-4"><input type="hidden" name="id" value={item.id} />
-    <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800"><p className="text-sm font-semibold">{item.judul}</p><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{money(item.nominal)}</p></div>
-    <div className="grid gap-3 sm:grid-cols-2">
-      <div className="space-y-1.5"><Label htmlFor="realisasi_tanggal">Tanggal realisasi</Label><Input id="realisasi_tanggal" name="realisasi_tanggal" type="date" defaultValue={dateOnly(item.realisasi_tanggal) || new Date().toISOString().slice(0, 10)} required /></div>
-      <div className="space-y-1.5"><Label>Metode</Label><Select name="realisasi_metode" defaultValue={item.realisasi_metode || 'Tunai'} required><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Tunai">Tunai</SelectItem><SelectItem value="Transfer">Transfer</SelectItem></SelectContent></Select></div>
-    </div>
-    <div className="space-y-1.5"><Label htmlFor="realisasi_petugas">Diserahkan oleh</Label><Input id="realisasi_petugas" name="realisasi_petugas" defaultValue={item.realisasi_petugas || 'Bendahara Komite'} maxLength={180} required /></div>
-    <div className="space-y-1.5"><Label htmlFor="realisasi_catatan">Catatan (opsional)</Label><Textarea id="realisasi_catatan" name="realisasi_catatan" rows={3} defaultValue={item.realisasi_catatan || ''} maxLength={1000} /></div>
-    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={onClose}>Batal</Button><Button type="submit" disabled={pending}>{pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Simpan Realisasi</Button></div>
   </form>}</DialogContent></Dialog>
 }
