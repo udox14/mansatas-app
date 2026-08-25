@@ -54,7 +54,7 @@ function defaultTahunAnggaran() {
 
 const BULAN_ROMAWI = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 
-export async function generateNextNomorSpb(db: D1Database, dateInput?: Date | string): Promise<string> {
+async function generateNextNomorSpb(db: D1Database, dateInput?: Date | string): Promise<string> {
   const d = dateInput ? new Date(dateInput) : new Date()
   const year = d.getFullYear()
   const monthIndex = d.getMonth() + 1
