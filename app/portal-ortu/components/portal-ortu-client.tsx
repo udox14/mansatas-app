@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -158,6 +158,8 @@ async function compressPaymentProofImage(file: File, targetKb = 80): Promise<Fil
 
 export function PortalOrtuClient({ data }: { data: any }) {
   const router = useRouter()
+  const [isRefreshing, startRefreshTransition] = useTransition()
+  const notificationHistoryActive = useRef(false)
   const [activeTab, setActiveTab] = useState('beranda')
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [paymentStep, setPaymentStep] = useState<1 | 2 | 3>(1)
@@ -387,6 +389,37 @@ export function PortalOrtuClient({ data }: { data: any }) {
     setTourOpen(false)
     setActiveTab(id)
   }
+
+  const openNotifications = () => {
+    if (activeTab === 'notifications') return
+    window.history.pushState({ ...window.history.state, portalOrtuTab: 'notifications' }, '')
+    notificationHistoryActive.current = true
+    changeTab('notifications')
+  }
+
+  const returnToBeranda = () => {
+    if (notificationHistoryActive.current) {
+      window.history.back()
+      return
+    }
+    changeTab('beranda')
+  }
+
+  const refreshPortal = () => {
+    startRefreshTransition(() => router.refresh())
+  }
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (!notificationHistoryActive.current) return
+      notificationHistoryActive.current = false
+      setTourOpen(false)
+      setActiveTab('beranda')
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
   useEffect(() => {
     const resetScroll = () => {
@@ -685,7 +718,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
               aria-expanded={tkaExpanded}
               aria-controls="parent-tka-details"
               onClick={() => setTkaExpanded(value => !value)}
-              className="flex w-full items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-[#FEFDFB] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C2522D] sm:px-5"
+              className="flex w-full items-center gap-3 px-4 py-4 text-left outline-none transition-colors hover:bg-[#FEFDFB] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C2522D] sm:px-5"
             >
               <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#FFF1EF] text-[#C2522D]">
                 <GraduationCap className="h-5 w-5" />
@@ -723,9 +756,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-wide text-[#6B6B63]">Mata pelajaran TKA</p>
                           <div className="mt-2 rounded-xl border border-[#D8D4CC] bg-white p-3">
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-col gap-2">
                               {[tkaSummary.selection.mapelPilihan1, tkaSummary.selection.mapelPilihan2].map((mapel: string | null, index: number) => (
-                                <span key={index} className={`inline-flex items-center gap-2 rounded-lg py-2 pl-2 pr-3 text-sm font-bold ${mapel ? 'bg-[#F2F0EC] text-[#1A1A18]' : 'bg-amber-50 text-amber-700'}`}>
+                                <span key={index} className={`flex w-full items-center gap-2 rounded-lg py-2 pl-2 pr-3 text-sm font-bold ${mapel ? 'bg-[#F2F0EC] text-[#1A1A18]' : 'bg-amber-50 text-amber-700'}`}>
                                   <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-[10px] font-black text-[#6B6B63]">{index + 1}</span>
                                   {mapel || 'Belum diisi'}
                                 </span>
@@ -849,7 +882,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </StandardCard>
         )}
 
-        <button type="button" data-tour-id="beranda-notifications" onClick={() => changeTab('notifications')} className="order-3 w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2">
+        <button type="button" data-tour-id="beranda-notifications" onClick={openNotifications} className="order-3 w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2">
           <StandardCard className="flex items-center gap-3 p-4 transition-colors hover:bg-[#FEFDFB]">
             <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#FFF1EF] text-[#C2522D]">
               <Bell className="h-5 w-5" />
@@ -993,7 +1026,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
     return (
       <motion.div key="notifications" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="portal-tab-panel space-y-5">
         <div>
-          <button type="button" onClick={() => changeTab('beranda')} className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[#6B6B63] hover:bg-[#F2F0EC] hover:text-[#1A1A18]">
+          <button type="button" onClick={returnToBeranda} className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[#6B6B63] hover:bg-[#F2F0EC] hover:text-[#1A1A18]">
             <ArrowLeft className="h-4 w-4" /> Kembali ke Beranda
           </button>
           <PortalPageHeader title="Pusat notifikasi" description="Seluruh pemberitahuan dan pemanggilan sekolah tersusun dalam satu tempat." Icon={Bell} />
@@ -2202,6 +2235,16 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </div>
 
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={refreshPortal}
+              disabled={isRefreshing}
+              aria-label="Muat ulang data portal"
+              title="Muat ulang data"
+              className="grid h-11 w-11 place-items-center rounded-lg text-[#6B6B63] transition-colors hover:bg-[#F2F0EC] hover:text-[#C2522D] disabled:cursor-wait disabled:opacity-60"
+            >
+              <RefreshCw className={`h-5 w-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
             <button
               type="button"
               onClick={startPortalTour}
