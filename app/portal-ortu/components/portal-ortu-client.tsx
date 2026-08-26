@@ -190,6 +190,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [tkaApprovalBusy, setTkaApprovalBusy] = useState(false)
   const [tkaApprovalFeedback, setTkaApprovalFeedback] = useState('')
   const [tkaApprovalError, setTkaApprovalError] = useState(false)
+  const [tkaExpanded, setTkaExpanded] = useState(false)
 
   const {
     profil,
@@ -345,29 +346,29 @@ export function PortalOrtuClient({ data }: { data: any }) {
   }
   const financeTourSteps: PortalTourStep[] = dsptNeedsInput
     ? [
-        { target: 'keuangan-dspt-card', title: 'DSPT belum diinput', description: 'Data tagihan DSPT anak belum tersedia dari bendahara komite, sehingga belum bisa dibayar melalui portal ini.' },
-        { target: 'keuangan-submissions', title: 'Riwayat pengajuan', description: 'Jika nanti ada pengajuan pembayaran DSPT, status dan bukti pembayaran akan tersimpan di bagian ini.' },
-        { target: 'keuangan-receipts', title: 'Kuitansi pembayaran', description: 'Kuitansi baru muncul setelah pembayaran diverifikasi dan dicatat oleh komite.' },
-      ]
+      { target: 'keuangan-dspt-card', title: 'DSPT belum diinput', description: 'Data tagihan DSPT anak belum tersedia dari bendahara komite, sehingga belum bisa dibayar melalui portal ini.' },
+      { target: 'keuangan-submissions', title: 'Riwayat pengajuan', description: 'Jika nanti ada pengajuan pembayaran DSPT, status dan bukti pembayaran akan tersimpan di bagian ini.' },
+      { target: 'keuangan-receipts', title: 'Kuitansi pembayaran', description: 'Kuitansi baru muncul setelah pembayaran diverifikasi dan dicatat oleh komite.' },
+    ]
     : hasDsptBill
       ? [
-          { target: 'keuangan-dspt-card', title: 'Sisa tagihan DSPT', description: 'Lihat sisa DSPT, target, dan pembayaran yang sudah tercatat. Jika sudah lunas, statusnya akan berubah menjadi lunas.' },
-          { target: 'keuangan-pay-button', title: 'Mulai bayar DSPT', description: 'Tekan Bayar DSPT untuk membuka panduan pembayaran. Tour ini akan ikut menunjukkan langkah di dalam modal.' },
-          { target: 'payment-step-amount', title: 'Masukkan nominal', description: 'Isi nominal pembayaran. Boleh membayar sebagian, melunasi sisa, atau membayar lebih besar; jika lebih besar, target DSPT akan disesuaikan setelah bendahara mengonfirmasi.' },
-          { target: 'payment-step-method', title: 'Pilih metode pembayaran', description: 'Pilih QRIS atau Transfer sesuai metode yang tersedia dari pengaturan komite.' },
-          { target: 'payment-qris', title: 'Bayar via QRIS', description: 'Jika memakai QRIS, ketuk gambar untuk memperbesar atau download QRIS lalu bayar dari aplikasi bank/e-wallet.' },
-          { target: 'payment-transfer', title: 'Bayar via transfer', description: 'Jika memakai transfer, gunakan rekening aktif yang tampil di sini dan bayar sesuai nominal yang dimasukkan.' },
-          { target: 'payment-paid-button', title: 'Catat pengajuan', description: 'Setelah benar-benar membayar di luar aplikasi, tekan Saya Sudah Bayar agar pengajuan tercatat. Tombol ini tidak otomatis menarik saldo.' },
-          { target: 'payment-step-proof', title: 'Upload bukti pembayaran', description: 'Pilih foto atau screenshot bukti pembayaran. Gambar akan dikompres otomatis sebelum dikirim.' },
-          { target: 'payment-upload-button', title: 'Kirim bukti', description: 'Tekan Upload Bukti setelah file dipilih. Bukti akan diperiksa bendahara komite sebelum kuitansi diterbitkan.' },
-          { target: 'keuangan-submissions', title: 'Cek status pengajuan', description: 'Pantau status pengajuan: belum upload, menunggu konfirmasi, terkonfirmasi, atau ditolak.' },
-          { target: 'keuangan-receipts', title: 'Kuitansi dan riwayat', description: 'Jika sudah terkonfirmasi, kuitansi bisa dibuka dari riwayat pembayaran atau kartu pengajuan terkait.' },
-        ]
+        { target: 'keuangan-dspt-card', title: 'Sisa tagihan DSPT', description: 'Lihat sisa DSPT, target, dan pembayaran yang sudah tercatat. Jika sudah lunas, statusnya akan berubah menjadi lunas.' },
+        { target: 'keuangan-pay-button', title: 'Mulai bayar DSPT', description: 'Tekan Bayar DSPT untuk membuka panduan pembayaran. Tour ini akan ikut menunjukkan langkah di dalam modal.' },
+        { target: 'payment-step-amount', title: 'Masukkan nominal', description: 'Isi nominal pembayaran. Boleh membayar sebagian, melunasi sisa, atau membayar lebih besar; jika lebih besar, target DSPT akan disesuaikan setelah bendahara mengonfirmasi.' },
+        { target: 'payment-step-method', title: 'Pilih metode pembayaran', description: 'Pilih QRIS atau Transfer sesuai metode yang tersedia dari pengaturan komite.' },
+        { target: 'payment-qris', title: 'Bayar via QRIS', description: 'Jika memakai QRIS, ketuk gambar untuk memperbesar atau download QRIS lalu bayar dari aplikasi bank/e-wallet.' },
+        { target: 'payment-transfer', title: 'Bayar via transfer', description: 'Jika memakai transfer, gunakan rekening aktif yang tampil di sini dan bayar sesuai nominal yang dimasukkan.' },
+        { target: 'payment-paid-button', title: 'Catat pengajuan', description: 'Setelah benar-benar membayar di luar aplikasi, tekan Saya Sudah Bayar agar pengajuan tercatat. Tombol ini tidak otomatis menarik saldo.' },
+        { target: 'payment-step-proof', title: 'Upload bukti pembayaran', description: 'Pilih foto atau screenshot bukti pembayaran. Gambar akan dikompres otomatis sebelum dikirim.' },
+        { target: 'payment-upload-button', title: 'Kirim bukti', description: 'Tekan Upload Bukti setelah file dipilih. Bukti akan diperiksa bendahara komite sebelum kuitansi diterbitkan.' },
+        { target: 'keuangan-submissions', title: 'Cek status pengajuan', description: 'Pantau status pengajuan: belum upload, menunggu konfirmasi, terkonfirmasi, atau ditolak.' },
+        { target: 'keuangan-receipts', title: 'Kuitansi dan riwayat', description: 'Jika sudah terkonfirmasi, kuitansi bisa dibuka dari riwayat pembayaran atau kartu pengajuan terkait.' },
+      ]
       : [
-          { target: 'keuangan-dspt-card', title: 'DSPT sudah lunas', description: 'Kartu DSPT menampilkan status lunas saat tidak ada sisa tagihan yang perlu dibayar.' },
-          { target: 'keuangan-submissions', title: 'Riwayat pengajuan', description: 'Bagian ini menyimpan riwayat pengajuan pembayaran dan bukti yang pernah dikirim.' },
-          { target: 'keuangan-receipts', title: 'Kuitansi pembayaran', description: 'Pembayaran yang sudah diverifikasi bisa dicek di sini, termasuk tombol untuk membuka kuitansi.' },
-        ]
+        { target: 'keuangan-dspt-card', title: 'DSPT sudah lunas', description: 'Kartu DSPT menampilkan status lunas saat tidak ada sisa tagihan yang perlu dibayar.' },
+        { target: 'keuangan-submissions', title: 'Riwayat pengajuan', description: 'Bagian ini menyimpan riwayat pengajuan pembayaran dan bukti yang pernah dikirim.' },
+        { target: 'keuangan-receipts', title: 'Kuitansi pembayaran', description: 'Pembayaran yang sudah diverifikasi bisa dicek di sini, termasuk tombol untuk membuka kuitansi.' },
+      ]
   const activeTourSteps = activeTab === 'keuangan' ? financeTourSteps : (baseTourSteps[activeTab] || [])
 
   const startPortalTour = () => {
@@ -658,7 +659,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             </div>
 
             <div className="flex min-w-0 flex-col justify-end">
-              <p className="mb-2 whitespace-nowrap text-[11px] font-semibold text-[#C2522D] sm:text-xs">{greeting}, orang tua,</p>
+              <p className="mb-2 whitespace-nowrap text-[11px] font-semibold text-[#C2522D] sm:text-xs">{greeting}, orang tua</p>
               <h1 className="line-clamp-3 max-w-2xl text-[clamp(1.2rem,5vw,2.35rem)] font-medium leading-[1.08] tracking-[-0.035em] text-[#1A1A18]">
                 {profil.nama_lengkap}
               </h1>
@@ -679,146 +680,172 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
         {tkaSummary && (
           <StandardCard data-tour-id="beranda-tka" className="order-2 overflow-hidden p-0">
-            <div className="border-b border-[#D8D4CC] bg-[#F2F0EC] px-4 py-4 sm:px-5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#C2522D]">Kelas 12</p>
-                  <h2 className="mt-1 text-lg font-semibold tracking-[-0.02em] text-[#1A1A18]">Pilihan TKA &amp; Pendidikan Lanjutan</h2>
-                  <p className="mt-1 text-xs leading-5 text-[#6B6B63]">Tinjau pilihan yang tercatat pada modul TKA sekolah.</p>
-                </div>
-                <GraduationCap className="h-7 w-7 shrink-0 text-[#C2522D]" />
+            <button
+              type="button"
+              aria-expanded={tkaExpanded}
+              aria-controls="parent-tka-details"
+              onClick={() => setTkaExpanded(value => !value)}
+              className="flex w-full items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors hover:bg-[#FEFDFB] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C2522D] sm:px-5"
+            >
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#FFF1EF] text-[#C2522D]">
+                <GraduationCap className="h-5 w-5" />
               </div>
-            </div>
-
-            <div className="space-y-5 p-4 sm:p-5">
-              {!tkaSummary.hasData || !tkaSummary.selection ? (
-                <div className="rounded-xl border border-dashed border-[#D8D4CC] bg-[#F2F0EC] px-4 py-6 text-center">
-                  <p className="text-sm font-semibold text-[#1A1A18]">Pilihan belum diinput oleh sekolah</p>
-                  <p className="mt-1 text-xs leading-5 text-[#6B6B63]">Silakan hubungi guru BK jika data seharusnya sudah tersedia.</p>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <h2 className="text-sm font-bold text-[#1A1A18]">Rencana TKA &amp; Studi Lanjut</h2>
+                  <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${tkaSummary.approval.isApproved ? 'bg-[#EEF7F1] text-[#246142]' : tkaSummary.approval.needsReapproval ? 'bg-amber-50 text-amber-700' : tkaSummary.isComplete ? 'bg-[#FFF1EF] text-[#C2522D]' : 'bg-[#F2F0EC] text-[#6B6B63]'}`}>
+                    {tkaSummary.approval.isApproved ? 'Disetujui' : tkaSummary.approval.needsReapproval ? 'Perlu ditinjau ulang' : tkaSummary.isComplete ? 'Menunggu persetujuan' : 'Belum lengkap'}
+                  </span>
                 </div>
-              ) : (
-                <>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#6B6B63]">Mata pelajaran TKA</p>
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      {[tkaSummary.selection.mapelPilihan1, tkaSummary.selection.mapelPilihan2].map((mapel: string | null, index: number) => (
-                        <div key={index} className="rounded-xl border border-[#D8D4CC] bg-white p-3">
-                          <p className="text-[10px] font-semibold text-[#6B6B63]">Pilihan {index + 1}</p>
-                          <p className="mt-1 text-sm font-bold text-[#1A1A18]">{mapel || 'Belum diisi'}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                <p className="mt-0.5 text-xs text-[#6B6B63]">Mapel TKA, rencana setelah lulus, dan persetujuan orang tua</p>
+              </div>
+              <ChevronRight className={`h-4 w-4 shrink-0 text-[#A7A299] transition-transform duration-200 ${tkaExpanded ? 'rotate-90' : ''}`} />
+            </button>
 
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#6B6B63]">Rencana setelah lulus</p>
-                    <p className="mt-1 text-sm font-bold text-[#1A1A18]">{categoryLabel(tkaSummary.selection.rencanaKategori)}</p>
-                    {tkaSummary.selection.rencanaKategori === 'KULIAH' ? (
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                        {[1, 2].map((slot) => {
-                          const kampus = tkaSummary.selection[`pilihan${slot}KampusNama`]
-                          const prodi = tkaSummary.selection[`pilihan${slot}Prodi`]
-                          return (
-                            <div key={slot} className="rounded-xl border border-[#D8D4CC] bg-[#FAF9F7] p-3">
-                              <p className="text-[10px] font-semibold text-[#C2522D]">Perguruan Tinggi {slot}</p>
-                              <p className="mt-1 text-sm font-bold leading-5 text-[#1A1A18]">{kampus || 'Belum diisi'}</p>
-                              <p className="mt-1 text-xs leading-5 text-[#6B6B63]">{prodi || 'Jurusan belum diisi'}</p>
+            <AnimatePresence initial={false}>
+              {tkaExpanded && (
+                <motion.div
+                  id="parent-tka-details"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.22, ease: 'easeOut' }}
+                  className="overflow-hidden border-t border-[#D8D4CC]"
+                >
+                  <div className="space-y-5 p-4 sm:p-5">
+                    {!tkaSummary.hasData || !tkaSummary.selection ? (
+                      <div className="rounded-xl border border-dashed border-[#D8D4CC] bg-[#F2F0EC] px-4 py-6 text-center">
+                        <p className="text-sm font-semibold text-[#1A1A18]">Pilihan belum diinput oleh sekolah</p>
+                        <p className="mt-1 text-xs leading-5 text-[#6B6B63]">Silakan hubungi guru BK jika data seharusnya sudah tersedia.</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#6B6B63]">Mata pelajaran TKA</p>
+                          <div className="mt-2 rounded-xl border border-[#D8D4CC] bg-white p-3">
+                            <div className="flex flex-wrap gap-2">
+                              {[tkaSummary.selection.mapelPilihan1, tkaSummary.selection.mapelPilihan2].map((mapel: string | null, index: number) => (
+                                <span key={index} className={`inline-flex items-center gap-2 rounded-lg py-2 pl-2 pr-3 text-sm font-bold ${mapel ? 'bg-[#F2F0EC] text-[#1A1A18]' : 'bg-amber-50 text-amber-700'}`}>
+                                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-[10px] font-black text-[#6B6B63]">{index + 1}</span>
+                                  {mapel || 'Belum diisi'}
+                                </span>
+                              ))}
                             </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#6B6B63]">Rencana setelah lulus</p>
+                          <p className="mt-1 text-sm font-bold text-[#1A1A18]">{categoryLabel(tkaSummary.selection.rencanaKategori)}</p>
+                          {tkaSummary.selection.rencanaKategori === 'KULIAH' ? (
+                            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                              {[1, 2].map((slot) => {
+                                const kampus = tkaSummary.selection[`pilihan${slot}KampusNama`]
+                                const prodi = tkaSummary.selection[`pilihan${slot}Prodi`]
+                                return (
+                                  <div key={slot} className="rounded-xl border border-[#D8D4CC] bg-[#FAF9F7] p-3">
+                                    <p className="text-[10px] font-semibold text-[#C2522D]">Perguruan Tinggi {slot}</p>
+                                    <p className="mt-1 text-sm font-bold leading-5 text-[#1A1A18]">{kampus || 'Belum diisi'}</p>
+                                    <p className="mt-1 text-xs leading-5 text-[#6B6B63]">{prodi || 'Jurusan belum diisi'}</p>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          ) : tkaSummary.selection.rencanaCatatan ? (
+                            <p className="mt-2 rounded-xl border border-[#D8D4CC] bg-[#FAF9F7] p-3 text-sm leading-6 text-[#6B6B63]">{tkaSummary.selection.rencanaCatatan}</p>
+                          ) : null}
+                        </div>
+                      </>
+                    )}
+
+                    <div className="border-t border-[#D8D4CC] pt-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold text-[#6B6B63]">Status persetujuan</p>
+                          <p className={`mt-1 text-sm font-bold ${tkaSummary.approval.isApproved ? 'text-[#246142]' : tkaSummary.approval.needsReapproval ? 'text-amber-700' : 'text-[#1A1A18]'}`}>
+                            {tkaSummary.approval.isApproved
+                              ? `Disetujui ${formatDateTimeWIB(tkaSummary.approval.approvedAt)} WIB`
+                              : tkaSummary.approval.needsReapproval
+                                ? 'Pilihan berubah · perlu persetujuan ulang'
+                                : tkaSummary.isComplete
+                                  ? 'Menunggu persetujuan orang tua'
+                                  : 'Data belum lengkap'}
+                          </p>
+                        </div>
+                        <Dialog open={tkaReviewOpen} onOpenChange={(open) => { setTkaReviewOpen(open); if (!open) setTkaStatementChecked(false) }}>
+                          <DialogTrigger asChild>
+                            <button
+                              type="button"
+                              disabled={!tkaSummary.isComplete || tkaSummary.approval.isApproved}
+                              className="min-h-11 rounded-lg bg-[#C2522D] px-4 text-sm font-bold text-white transition-colors hover:bg-[#A94426] disabled:cursor-not-allowed disabled:bg-[#D8D4CC] disabled:text-[#6B6B63]"
+                            >
+                              {tkaSummary.approval.isApproved ? 'Sudah disetujui' : 'Tinjau & setujui'}
+                            </button>
+                          </DialogTrigger>
+                          <DialogContent className="portal-dialog max-h-[90dvh] overflow-y-auto rounded-2xl border-[#D8D4CC] bg-[#FAF9F7] sm:max-w-lg">
+                            <DialogHeader>
+                              <DialogTitle>Tinjau pilihan anak</DialogTitle>
+                              <DialogDescription>Pastikan seluruh pilihan di bawah sesuai sebelum memberikan persetujuan.</DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-3 rounded-xl border border-[#D8D4CC] bg-white p-4 text-sm">
+                              <p><span className="text-[#6B6B63]">Mapel TKA:</span> <strong>{tkaSummary.selection?.mapelPilihan1} dan {tkaSummary.selection?.mapelPilihan2}</strong></p>
+                              <p><span className="text-[#6B6B63]">Rencana:</span> <strong>{categoryLabel(tkaSummary.selection?.rencanaKategori)}</strong></p>
+                              {tkaSummary.selection?.rencanaKategori === 'KULIAH' && (
+                                <>
+                                  <p><span className="text-[#6B6B63]">Pilihan 1:</span> <strong>{tkaSummary.selection.pilihan1KampusNama} · {tkaSummary.selection.pilihan1Prodi}</strong></p>
+                                  <p><span className="text-[#6B6B63]">Pilihan 2:</span> <strong>{tkaSummary.selection.pilihan2KampusNama} · {tkaSummary.selection.pilihan2Prodi}</strong></p>
+                                </>
+                              )}
+                            </div>
+                            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                              <Checkbox checked={tkaStatementChecked} onCheckedChange={(checked) => setTkaStatementChecked(checked === true)} className="mt-0.5" />
+                              <span className="text-sm leading-6 text-amber-950">Saya telah memeriksa dan menyetujui pilihan anak saya. Saya memahami bahwa pilihan ini menjadi dasar pendampingan sekolah dan tidak akan mempermasalahkannya di kemudian hari.</span>
+                            </label>
+                            <DialogFooter>
+                              <button type="button" onClick={() => setTkaReviewOpen(false)} className="min-h-11 rounded-lg border border-[#D8D4CC] px-4 text-sm font-semibold">Batal</button>
+                              <button type="button" disabled={!tkaStatementChecked} onClick={() => { setTkaReviewOpen(false); setTkaFinalOpen(true) }} className="min-h-11 rounded-lg bg-[#C2522D] px-4 text-sm font-bold text-white disabled:opacity-40">Lanjutkan</button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                        <Dialog open={tkaFinalOpen} onOpenChange={setTkaFinalOpen}>
+                          <DialogContent className="portal-dialog rounded-2xl border-[#D8D4CC] bg-[#FAF9F7] sm:max-w-md">
+                            <DialogHeader>
+                              <DialogTitle>Konfirmasi persetujuan final</DialogTitle>
+                              <DialogDescription>Persetujuan akan dicatat bersama waktu dan snapshot pilihan saat ini.</DialogDescription>
+                            </DialogHeader>
+                            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-950">Apakah Bapak/Ibu benar-benar menyetujui pilihan tersebut?</div>
+                            <DialogFooter>
+                              <button type="button" onClick={() => setTkaFinalOpen(false)} className="min-h-11 rounded-lg border border-[#D8D4CC] px-4 text-sm font-semibold">Kembali</button>
+                              <button type="button" disabled={tkaApprovalBusy} onClick={submitTkaApproval} className="min-h-11 rounded-lg bg-[#C2522D] px-4 text-sm font-bold text-white disabled:opacity-50">{tkaApprovalBusy ? 'Menyimpan...' : 'Ya, saya menyetujui'}</button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                      {tkaApprovalFeedback && <p className={`mt-3 text-xs font-semibold ${tkaApprovalError ? 'text-rose-700' : 'text-[#246142]'}`}>{tkaApprovalFeedback}</p>}
+                    </div>
+
+                    <div className="border-t border-[#D8D4CC] pt-4">
+                      <p className="text-xs font-semibold text-[#6B6B63]">Ada ketidaksesuaian atau permintaan?</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {(tkaSummary.bkContacts || []).length === 0 ? (
+                          <span className="rounded-lg bg-[#F2F0EC] px-3 py-2 text-xs font-semibold text-[#6B6B63]">Guru BK belum ditugaskan</span>
+                        ) : (tkaSummary.bkContacts || []).map((guru: any) => {
+                          const phone = parentWaNumber(guru.nomor_whatsapp)
+                          const message = `Assalamu'alaikum Bapak/Ibu ${guru.nama_lengkap}. Saya orang tua/wali dari ${profil.nama_lengkap} (${kelasLabel}). Saya ingin mengonfirmasi pilihan TKA dan pendidikan lanjutan anak karena ada ketidaksesuaian atau permintaan perubahan. Mohon arahannya.`
+                          return phone ? (
+                            <a key={guru.id} href={`https://wa.me/${phone}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#BFD7C8] bg-[#EEF7F1] px-3 text-xs font-bold text-[#246142] hover:bg-[#E2F1E7]">
+                              <MessageCircle className="h-4 w-4" /> Hubungi {guru.nama_lengkap}
+                            </a>
+                          ) : (
+                            <span key={guru.id} className="inline-flex min-h-11 items-center rounded-lg bg-[#F2F0EC] px-3 text-xs font-semibold text-[#6B6B63]">{guru.nama_lengkap} · kontak belum tersedia</span>
                           )
                         })}
                       </div>
-                    ) : tkaSummary.selection.rencanaCatatan ? (
-                      <p className="mt-2 rounded-xl border border-[#D8D4CC] bg-[#FAF9F7] p-3 text-sm leading-6 text-[#6B6B63]">{tkaSummary.selection.rencanaCatatan}</p>
-                    ) : null}
+                    </div>
                   </div>
-                </>
+                </motion.div>
               )}
-
-              <div className="border-t border-[#D8D4CC] pt-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold text-[#6B6B63]">Status persetujuan</p>
-                    <p className={`mt-1 text-sm font-bold ${tkaSummary.approval.isApproved ? 'text-[#246142]' : tkaSummary.approval.needsReapproval ? 'text-amber-700' : 'text-[#1A1A18]'}`}>
-                      {tkaSummary.approval.isApproved
-                        ? `Disetujui ${formatDateTimeWIB(tkaSummary.approval.approvedAt)} WIB`
-                        : tkaSummary.approval.needsReapproval
-                          ? 'Pilihan berubah · perlu persetujuan ulang'
-                          : tkaSummary.isComplete
-                            ? 'Menunggu persetujuan orang tua'
-                            : 'Data belum lengkap'}
-                    </p>
-                  </div>
-                  <Dialog open={tkaReviewOpen} onOpenChange={(open) => { setTkaReviewOpen(open); if (!open) setTkaStatementChecked(false) }}>
-                    <DialogTrigger asChild>
-                      <button
-                        type="button"
-                        disabled={!tkaSummary.isComplete || tkaSummary.approval.isApproved}
-                        className="min-h-11 rounded-lg bg-[#C2522D] px-4 text-sm font-bold text-white transition-colors hover:bg-[#A94426] disabled:cursor-not-allowed disabled:bg-[#D8D4CC] disabled:text-[#6B6B63]"
-                      >
-                        {tkaSummary.approval.isApproved ? 'Sudah disetujui' : 'Tinjau & setujui'}
-                      </button>
-                    </DialogTrigger>
-                    <DialogContent className="portal-dialog max-h-[90dvh] overflow-y-auto rounded-2xl border-[#D8D4CC] bg-[#FAF9F7] sm:max-w-lg">
-                      <DialogHeader>
-                        <DialogTitle>Tinjau pilihan anak</DialogTitle>
-                        <DialogDescription>Pastikan seluruh pilihan di bawah sesuai sebelum memberikan persetujuan.</DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3 rounded-xl border border-[#D8D4CC] bg-white p-4 text-sm">
-                        <p><span className="text-[#6B6B63]">Mapel TKA:</span> <strong>{tkaSummary.selection?.mapelPilihan1} dan {tkaSummary.selection?.mapelPilihan2}</strong></p>
-                        <p><span className="text-[#6B6B63]">Rencana:</span> <strong>{categoryLabel(tkaSummary.selection?.rencanaKategori)}</strong></p>
-                        {tkaSummary.selection?.rencanaKategori === 'KULIAH' && (
-                          <>
-                            <p><span className="text-[#6B6B63]">Pilihan 1:</span> <strong>{tkaSummary.selection.pilihan1KampusNama} · {tkaSummary.selection.pilihan1Prodi}</strong></p>
-                            <p><span className="text-[#6B6B63]">Pilihan 2:</span> <strong>{tkaSummary.selection.pilihan2KampusNama} · {tkaSummary.selection.pilihan2Prodi}</strong></p>
-                          </>
-                        )}
-                      </div>
-                      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                        <Checkbox checked={tkaStatementChecked} onCheckedChange={(checked) => setTkaStatementChecked(checked === true)} className="mt-0.5" />
-                        <span className="text-sm leading-6 text-amber-950">Saya telah memeriksa dan menyetujui pilihan anak saya. Saya memahami bahwa pilihan ini menjadi dasar pendampingan sekolah dan tidak akan mempermasalahkannya di kemudian hari.</span>
-                      </label>
-                      <DialogFooter>
-                        <button type="button" onClick={() => setTkaReviewOpen(false)} className="min-h-11 rounded-lg border border-[#D8D4CC] px-4 text-sm font-semibold">Batal</button>
-                        <button type="button" disabled={!tkaStatementChecked} onClick={() => { setTkaReviewOpen(false); setTkaFinalOpen(true) }} className="min-h-11 rounded-lg bg-[#C2522D] px-4 text-sm font-bold text-white disabled:opacity-40">Lanjutkan</button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                  <Dialog open={tkaFinalOpen} onOpenChange={setTkaFinalOpen}>
-                    <DialogContent className="portal-dialog rounded-2xl border-[#D8D4CC] bg-[#FAF9F7] sm:max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Konfirmasi persetujuan final</DialogTitle>
-                        <DialogDescription>Persetujuan akan dicatat bersama waktu dan snapshot pilihan saat ini.</DialogDescription>
-                      </DialogHeader>
-                      <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-950">Apakah Bapak/Ibu benar-benar menyetujui pilihan tersebut?</div>
-                      <DialogFooter>
-                        <button type="button" onClick={() => setTkaFinalOpen(false)} className="min-h-11 rounded-lg border border-[#D8D4CC] px-4 text-sm font-semibold">Kembali</button>
-                        <button type="button" disabled={tkaApprovalBusy} onClick={submitTkaApproval} className="min-h-11 rounded-lg bg-[#C2522D] px-4 text-sm font-bold text-white disabled:opacity-50">{tkaApprovalBusy ? 'Menyimpan...' : 'Ya, saya menyetujui'}</button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-                {tkaApprovalFeedback && <p className={`mt-3 text-xs font-semibold ${tkaApprovalError ? 'text-rose-700' : 'text-[#246142]'}`}>{tkaApprovalFeedback}</p>}
-              </div>
-
-              <div className="border-t border-[#D8D4CC] pt-4">
-                <p className="text-xs font-semibold text-[#6B6B63]">Ada ketidaksesuaian atau permintaan?</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(tkaSummary.bkContacts || []).length === 0 ? (
-                    <span className="rounded-lg bg-[#F2F0EC] px-3 py-2 text-xs font-semibold text-[#6B6B63]">Guru BK belum ditugaskan</span>
-                  ) : (tkaSummary.bkContacts || []).map((guru: any) => {
-                    const phone = parentWaNumber(guru.nomor_whatsapp)
-                    const message = `Assalamu'alaikum Bapak/Ibu ${guru.nama_lengkap}. Saya orang tua/wali dari ${profil.nama_lengkap} (${kelasLabel}). Saya ingin mengonfirmasi pilihan TKA dan pendidikan lanjutan anak karena ada ketidaksesuaian atau permintaan perubahan. Mohon arahannya.`
-                    return phone ? (
-                      <a key={guru.id} href={`https://wa.me/${phone}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#BFD7C8] bg-[#EEF7F1] px-3 text-xs font-bold text-[#246142] hover:bg-[#E2F1E7]">
-                        <MessageCircle className="h-4 w-4" /> Hubungi {guru.nama_lengkap}
-                      </a>
-                    ) : (
-                      <span key={guru.id} className="inline-flex min-h-11 items-center rounded-lg bg-[#F2F0EC] px-3 text-xs font-semibold text-[#6B6B63]">{guru.nama_lengkap} · kontak belum tersedia</span>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
+            </AnimatePresence>
           </StandardCard>
         )}
 
@@ -882,7 +909,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
           <div className="flex items-center justify-between mb-3 ml-1">
             <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">Pengumuman Sekolah</h2>
           </div>
-          
+
           <div className="space-y-3">
             {(pengumumanRows.results || []).length === 0 ? (
               <div className="text-center py-8 bg-slate-50 rounded-2xl border border-slate-100 border-dashed">
@@ -935,7 +962,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             <div className="flex items-center justify-between mb-3 ml-1">
               <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">Riwayat Respons Anda</h2>
             </div>
-            
+
             <div className="space-y-3">
               {(notes.results || []).map((note: any) => (
                 <StandardCard key={note.id} className="flex gap-4 items-start">
@@ -972,7 +999,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
           <PortalPageHeader title="Pusat notifikasi" description="Seluruh pemberitahuan dan pemanggilan sekolah tersusun dalam satu tempat." Icon={Bell} />
         </div>
 
-        <div data-tour-id="notifications-actions" className="flex flex-col gap-2 rounded-2xl border border-[#D8D4CC] bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div data-tour-id="notifications-actions" className="flex flex-col gap-2 rounded-xl border border-[#D8D4CC] bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="px-1">
             <p className="text-sm font-bold text-[#1A1A18]">{unreadNotificationCount} belum dibaca</p>
             <p className="mt-0.5 text-xs text-[#6B6B63]">Pemanggilan aktif tidak terpengaruh oleh aksi ini.</p>
@@ -983,9 +1010,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </div>
         </div>
 
-        <div data-tour-id="notifications-list" className="space-y-5">
+        <div data-tour-id="notifications-list" className="space-y-4">
           {activeSummons.length > 0 && (
-            <section className="space-y-3">
+            <section className="space-y-2">
               <div className="flex items-center gap-2 px-1">
                 <AlertOctagon className="h-4 w-4 text-rose-600" />
                 <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-rose-800">Pemanggilan aktif</h2>
@@ -994,13 +1021,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 <Dialog key={summon.id}>
                   <DialogTrigger asChild>
                     <button type="button" className="w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2">
-                      <StandardCard className="border-l-4 border-l-rose-500 transition-shadow hover:shadow-md">
-                        <div className="flex items-center gap-3">
-                          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-600"><AlertOctagon className="h-5 w-5" /></div>
+                      <StandardCard className="border-l-4 border-l-rose-500 p-3 transition-colors hover:bg-[#FEFDFB]">
+                        <div className="flex items-center gap-2.5">
+                          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-600"><AlertOctagon className="h-4 w-4" /></div>
                           <div className="min-w-0 flex-1">
                             <p className="text-[9px] font-bold uppercase tracking-wider text-rose-700">Perlu tanggapan orang tua</p>
-                            <h3 className="mt-1 text-sm font-bold leading-5 text-[#1A1A18]">{summon.reason}</h3>
-                            <p className="mt-1 text-xs text-[#6B6B63]">{summon.event_date || 'Jadwal belum ditentukan'} {summon.event_time || ''}</p>
+                            <h3 className="mt-0.5 text-[13px] font-bold leading-5 text-[#1A1A18]">{summon.reason}</h3>
+                            <p className="mt-0.5 text-[11px] text-[#6B6B63]">{summon.event_date || 'Jadwal belum ditentukan'} {summon.event_time || ''}</p>
                           </div>
                           <ChevronRight className="h-4 w-4 shrink-0 text-[#A7A299]" />
                         </div>
@@ -1027,7 +1054,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             </section>
           )}
 
-          <section className="space-y-3">
+          <section className="space-y-2">
             <div className="flex items-center gap-2 px-1">
               <Bell className="h-4 w-4 text-[#C2522D]" />
               <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-[#6B6B63]">Pemberitahuan</h2>
@@ -1046,18 +1073,18 @@ export function PortalOrtuClient({ data }: { data: any }) {
                   ? 'border-l-amber-500 bg-amber-50 text-amber-700'
                   : 'border-l-sky-500 bg-sky-50 text-sky-700'
               return (
-                <StandardCard key={notification.id} className={`border-l-4 ${isRead ? 'opacity-70' : ''}`}>
-                  <div className="flex items-start gap-3">
-                    <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${tone}`}><Bell className="h-4 w-4" /></div>
+                <StandardCard key={notification.id} className={`border-l-4 p-3 ${isRead ? 'opacity-70' : ''}`}>
+                  <div className="flex items-start gap-2.5">
+                    <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${tone}`}><Bell className="h-3.5 w-3.5" /></div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <h3 className="text-sm font-bold text-[#1A1A18]">{notification.title}</h3>
+                        <h3 className="text-[13px] font-bold leading-5 text-[#1A1A18]">{notification.title}</h3>
                         {!isRead && <span className="rounded-full bg-[#FFF1EF] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#C2522D]">Baru</span>}
                       </div>
-                      <p className="mt-1 text-sm leading-6 text-[#6B6B63]">{notification.message}</p>
-                      <div className="mt-3 flex items-center justify-between gap-3">
+                      <p className="mt-0.5 text-xs leading-5 text-[#6B6B63]">{notification.message}</p>
+                      <div className="mt-2 flex items-center justify-between gap-3">
                         <p className="text-[10px] text-[#A7A299]">{formatDateTimeWIB(notification.created_at)} WIB</p>
-                        {!isRead && <button type="button" onClick={() => readNotification(notification.id)} className="min-h-9 rounded-lg bg-[#F2F0EC] px-3 text-[10px] font-bold text-[#1A1A18] hover:bg-[#E8E5E0]">Tandai dibaca</button>}
+                        {!isRead && <button type="button" onClick={() => readNotification(notification.id)} className="min-h-8 rounded-lg bg-[#F2F0EC] px-2.5 text-[10px] font-bold text-[#1A1A18] hover:bg-[#E8E5E0]">Tandai dibaca</button>}
                       </div>
                     </div>
                   </div>
@@ -1180,7 +1207,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 </div>
               )}
               <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-[10px] font-semibold text-slate-500">
-                {[['bg-teal-500','Hadir'],['bg-amber-400','Sakit'],['bg-sky-400','Izin'],['bg-rose-500','Alfa'],['bg-violet-400','Perlu dicek walas']].map(([color,label]) => <span key={label} className="flex items-center gap-1.5"><i className={`h-2 w-2 rounded-full ${color}`} />{label}</span>)}
+                {[['bg-teal-500', 'Hadir'], ['bg-amber-400', 'Sakit'], ['bg-sky-400', 'Izin'], ['bg-rose-500', 'Alfa'], ['bg-violet-400', 'Perlu dicek walas']].map(([color, label]) => <span key={label} className="flex items-center gap-1.5"><i className={`h-2 w-2 rounded-full ${color}`} />{label}</span>)}
               </div>
             </StandardCard>
 
@@ -1258,11 +1285,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
             const isExpanded = expandedSemester === semesterNumber
             const detail = semesterDetails[semesterNumber]
             return (
-              <div key={s.label} className={`overflow-hidden rounded-2xl border transition-all ${
-                isFilled 
-                  ? 'bg-white border-slate-200 shadow-sm' 
+              <div key={s.label} className={`overflow-hidden rounded-2xl border transition-all ${isFilled
+                  ? 'bg-white border-slate-200 shadow-sm'
                   : 'bg-slate-50 border-slate-100 border-dashed'
-              }`}>
+                }`}>
                 <button
                   type="button"
                   disabled={!isFilled}
@@ -1281,9 +1307,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
                       </span>
                       <span className="block whitespace-nowrap text-[10px] font-medium text-slate-400">rata-rata</span>
                     </div>
-                    <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border transition-colors ${
-                      isFilled ? 'border-indigo-100 bg-indigo-50 text-indigo-600' : 'border-slate-100 bg-white text-slate-300'
-                    }`}>
+                    <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border transition-colors ${isFilled ? 'border-indigo-100 bg-indigo-50 text-indigo-600' : 'border-slate-100 bg-white text-slate-300'
+                      }`}>
                       <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                     </div>
                   </div>
@@ -1364,8 +1389,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
           <div className="relative z-10 flex flex-col h-full justify-between gap-6">
             <div className="flex justify-between items-center gap-3">
               <span className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-                 <span className="p-1.5 bg-slate-100 rounded-md"><Wallet className="w-4 h-4 text-slate-600" /></span>
-                 DSPT
+                <span className="p-1.5 bg-slate-100 rounded-md"><Wallet className="w-4 h-4 text-slate-600" /></span>
+                DSPT
               </span>
               {dsptNeedsInput ? (
                 <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">
@@ -1377,7 +1402,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 </span>
               ) : null}
             </div>
-            
+
             <div>
               <p className="text-slate-500 text-xs font-medium uppercase tracking-wide mb-1">
                 {dsptNeedsInput ? 'Status Tagihan' : 'Sisa Tagihan'}
@@ -1391,7 +1416,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 </p>
               )}
             </div>
-            
+
             <div className="flex justify-between items-end border-t border-slate-100 pt-4 mt-2">
               <div>
                 <p className="text-slate-400 text-[10px] font-medium uppercase tracking-wide">Target</p>
@@ -1538,7 +1563,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                               className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-teal-700 hover:text-teal-900"
                             >
                               <Download className="h-4 w-4" />
-                                Download QRIS
+                              Download QRIS
                             </a>
                           </>
                         )}
@@ -1560,22 +1585,22 @@ export function PortalOrtuClient({ data }: { data: any }) {
                           {paymentMethod === 'transfer' && hasTransferMethod && activePaymentAccounts.map((account: any) => {
                             const isSelected = (selectedBankId || activePaymentAccounts[0]?.id) === account.id
                             return (
-                            <button
-                              type="button"
-                              data-tour-id="payment-transfer"
-                              key={account.id || account.rekening}
-                              onClick={() => setSelectedBankId(account.id)}
-                              className={`w-full rounded-xl border p-4 text-left transition ${isSelected ? 'border-sky-500 ring-2 ring-sky-200 bg-sky-50' : 'border-slate-200'}`}
-                            >
-                              <div className="flex items-start gap-3">
-                                <Landmark className={`mt-0.5 h-5 w-5 ${isSelected ? 'text-sky-600' : 'text-slate-400'}`} />
-                                <div>
-                                  <p className="text-sm font-bold text-slate-800">{account.bankLabel}: {account.rekening}</p>
-                                  <p className="mt-1 text-xs text-slate-500">a.n. {account.atasNama}</p>
-                                  <p className="mt-1 text-xs text-slate-500">Nominal DSPT: Rp {rupiah(paymentAmountNumber)}</p>
+                              <button
+                                type="button"
+                                data-tour-id="payment-transfer"
+                                key={account.id || account.rekening}
+                                onClick={() => setSelectedBankId(account.id)}
+                                className={`w-full rounded-xl border p-4 text-left transition ${isSelected ? 'border-sky-500 ring-2 ring-sky-200 bg-sky-50' : 'border-slate-200'}`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <Landmark className={`mt-0.5 h-5 w-5 ${isSelected ? 'text-sky-600' : 'text-slate-400'}`} />
+                                  <div>
+                                    <p className="text-sm font-bold text-slate-800">{account.bankLabel}: {account.rekening}</p>
+                                    <p className="mt-1 text-xs text-slate-500">a.n. {account.atasNama}</p>
+                                    <p className="mt-1 text-xs text-slate-500">Nominal DSPT: Rp {rupiah(paymentAmountNumber)}</p>
+                                  </div>
                                 </div>
-                              </div>
-                            </button>
+                              </button>
                             )
                           })}
                         </div>
@@ -1671,7 +1696,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                   SPP bulanan sudah tidak diberlakukan. Tunggakan ini hanya berlaku untuk siswa/angkatan sebelum kebijakan penghapusan kewajiban SPP. Penyelesaian dapat dilakukan via WhatsApp komite atau datang langsung ke sekolah.
                 </p>
               </div>
-              
+
               <div className="flex items-end justify-between bg-slate-50 border border-slate-100 p-4 rounded-xl">
                 <div>
                   <p className="text-slate-500 text-[10px] font-medium uppercase tracking-wide mb-1">Total Tagihan Awal</p>
@@ -1974,11 +1999,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 key={article.id}
                 type="button"
                 onClick={() => setSelectedDocId(article.id)}
-                className={`w-full rounded-2xl border p-4 text-left transition-colors ${
-                  active
+                className={`w-full rounded-2xl border p-4 text-left transition-colors ${active
                     ? 'border-teal-200 bg-teal-50 text-teal-950'
                     : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                }`}
+                  }`}
               >
                 <p className="text-sm font-bold leading-snug">{article.title}</p>
                 <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{article.summary}</p>
@@ -2034,7 +2058,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
   return (
     <div className="portal-root relative min-h-[100dvh] overflow-x-hidden bg-[#FAF9F7] text-[#1A1A18] [color-scheme:light]">
       <PushNotificationBanner />
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         .portal-root,
         .portal-dialog {
           font-family: 'Styrene A', 'Styrene B', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -2109,7 +2134,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
           <img src="/logokemenag.png" alt="Kemenag" className="h-8 w-auto object-contain" />
           <h2 className="whitespace-nowrap text-lg font-medium tracking-[-0.025em] text-[#1A1A18]">MANSATAS <span className="text-[#6B6B63]">App</span></h2>
         </div>
-        
+
         <nav className="flex flex-col gap-1 px-4 flex-1">
           <p className="mb-2 mt-4 px-3 text-xs font-semibold text-[#6B6B63]">Menu orang tua</p>
           {[
@@ -2126,11 +2151,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
               <button
                 key={id}
                 onClick={() => changeTab(id)}
-                className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#C2522D] ${
-                  isActive 
+                className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#C2522D] ${isActive
                     ? 'bg-white text-[#C2522D] shadow-sm'
                     : 'text-[#6B6B63] hover:bg-white hover:text-[#1A1A18]'
-                }`}
+                  }`}
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 <span className="truncate whitespace-nowrap">{label}</span>
@@ -2138,17 +2162,16 @@ export function PortalOrtuClient({ data }: { data: any }) {
             )
           })}
         </nav>
-        
+
         <div className="mt-6 space-y-2 border-t border-[#D8D4CC] px-4 pt-6">
           <button
             type="button"
             onClick={() => changeTab('account')}
             aria-current={activeTab === 'account' ? 'page' : undefined}
-            className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${
-              activeTab === 'account'
+            className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors ${activeTab === 'account'
                 ? 'bg-white text-[#C2522D] shadow-sm'
                 : 'text-[#6B6B63] hover:bg-white hover:text-[#1A1A18]'
-            }`}
+              }`}
           >
             <Settings className="h-4 w-4" />
             Pengaturan akun
@@ -2177,7 +2200,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             <img src="/logokemenag.png" alt="Kemenag" className="h-7 w-auto object-contain" />
             <p className="whitespace-nowrap text-base font-medium tracking-[-0.02em] text-[#1A1A18]">MANSATAS <span className="text-[#6B6B63]">App</span></p>
           </div>
-          
+
           <div className="flex items-center gap-1">
             <button
               type="button"
