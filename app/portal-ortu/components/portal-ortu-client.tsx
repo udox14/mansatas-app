@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
+import { twMerge } from 'tailwind-merge'
 import {
   ArrowLeft,
   ArrowsClockwise as RefreshCw,
@@ -95,7 +96,7 @@ type SemesterDetailState = {
 
 function StandardCard({ children, className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={`rounded-2xl border border-[#D8D4CC] bg-white p-5 ${className}`} {...props}>
+    <div className={twMerge('rounded-2xl border border-[#D8D4CC] bg-white p-5', className)} {...props}>
       {children}
     </div>
   )
@@ -159,7 +160,6 @@ async function compressPaymentProofImage(file: File, targetKb = 80): Promise<Fil
 export function PortalOrtuClient({ data }: { data: any }) {
   const router = useRouter()
   const [isRefreshing, startRefreshTransition] = useTransition()
-  const notificationHistoryActive = useRef(false)
   const [activeTab, setActiveTab] = useState('beranda')
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [paymentStep, setPaymentStep] = useState<1 | 2 | 3>(1)
@@ -386,22 +386,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
   }
 
   const changeTab = (id: string) => {
+    if (id === activeTab) return
     setTourOpen(false)
+    window.history.pushState({ ...window.history.state, portalOrtuTab: id }, '')
     setActiveTab(id)
   }
 
-  const openNotifications = () => {
-    if (activeTab === 'notifications') return
-    window.history.pushState({ ...window.history.state, portalOrtuTab: 'notifications' }, '')
-    notificationHistoryActive.current = true
-    changeTab('notifications')
-  }
-
   const returnToBeranda = () => {
-    if (notificationHistoryActive.current) {
-      window.history.back()
-      return
-    }
     changeTab('beranda')
   }
 
@@ -410,11 +401,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
   }
 
   useEffect(() => {
-    const handlePopState = () => {
-      if (!notificationHistoryActive.current) return
-      notificationHistoryActive.current = false
+    window.history.replaceState({ ...window.history.state, portalOrtuTab: 'beranda' }, '')
+
+    const handlePopState = (event: PopStateEvent) => {
+      const tab = event.state?.portalOrtuTab
+      if (typeof tab !== 'string') return
       setTourOpen(false)
-      setActiveTab('beranda')
+      setActiveTab(tab)
     }
 
     window.addEventListener('popstate', handlePopState)
@@ -882,7 +875,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </StandardCard>
         )}
 
-        <button type="button" data-tour-id="beranda-notifications" onClick={openNotifications} className="order-3 w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2">
+        <button type="button" data-tour-id="beranda-notifications" onClick={() => changeTab('notifications')} className="order-3 w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2">
           <StandardCard className="flex items-center gap-3 p-4 transition-colors hover:bg-[#FEFDFB]">
             <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#FFF1EF] text-[#C2522D]">
               <Bell className="h-5 w-5" />
