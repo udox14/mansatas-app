@@ -16,6 +16,16 @@ import { nowWIBISO, todayWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
+import {
+  MAX_HARI_MASSAL,
+  MAX_SISWA_MASSAL,
+  buildTanggalRange,
+  gabungKeterangan,
+  isValidTanggal,
+  normalisasiJamPelajaran,
+  pasanganKunci,
+  rencanaIzinMassal,
+} from '@/lib/izin-massal'
 
 const INPUT_IZIN_ROLES = ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam']
 const DELETE_IZIN_ROLES = ['super_admin', 'admin_tu']
@@ -613,6 +623,95 @@ export async function tambahIzinKelas(prevState: any, formData: FormData) {
   if (result.error) return { error: result.error, success: null }
   revalidateIzinViews()
   return { error: null, success: 'Berhasil mencatat izin tidak masuk kelas!' }
+}
+
+export async function tambahIzinKelasMassal(input: {
+  nama_kegiatan: string
+  siswa_ids: string[]
+  tanggal_mulai: string
+  tanggal_selesai: string
+  alasan: string
+  jam_pelajaran?: number[] | null
+  keterangan?: string | null
+}): Promise<{ error?: string | null; success?: string; dibuat?: number; dilewati?: number }> {
+  const db = await getDB()
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const roles = await getUserRoles(db, user.id)
+  if (!hasAnyRole(roles, INPUT_IZIN_ROLES)) return { error: 'Anda tidak memiliki hak untuk menginput perizinan.' }
+
+  const namaKegiatan = (input.nama_kegiatan || '').trim()
+  if (!namaKegiatan) return { error: 'Nama kegiatan wajib diisi!' }
+  if (namaKegiatan.length > 80) return { error: 'Nama kegiatan maksimal 80 karakter.' }
+
+  const siswaIds = Array.from(new Set(
+    (input.siswa_ids || []).filter(id => typeof id === 'string' && id.trim()).map(id => id.trim())
+  ))
+  if (siswaIds.length === 0) return { error: 'Pilih minimal 1 siswa!' }
+  if (siswaIds.length > MAX_SISWA_MASSAL) return { error: `Maksimal ${MAX_SISWA_MASSAL} siswa per input massal.` }
+
+  if (!isValidTanggal(input.tanggal_mulai) || !isValidTanggal(input.tanggal_selesai)) {
+    return { error: 'Rentang tanggal tidak valid.' }
+  }
+  const tanggalList = buildTanggalRange(input.tanggal_mulai, input.tanggal_selesai)
+  if (tanggalList.length === 0) return { error: 'Rentang tanggal tidak valid. Tanggal mulai harus sebelum atau sama dengan tanggal selesai.' }
+  if (tanggalList.length > MAX_HARI_MASSAL) return { error: `Maksimal ${MAX_HARI_MASSAL} hari per input massal.` }
+
+  const alasan = (input.alasan || '').trim()
+  if (!alasan) return { error: 'Alasan wajib dipilih!' }
+  const invalidAlasan = await validateAlasanIzin(db, alasan)
+  if (invalidAlasan) return { error: invalidAlasan }
+
+  const jamPelajaran = normalisasiJamPelajaran(input.jam_pelajaran ?? null)
+  const keterangan = gabungKeterangan(namaKegiatan, input.keterangan)
+
+  // Pastikan hanya siswa aktif yang valid yang diproses
+  const siswaValid: string[] = []
+  for (let i = 0; i < siswaIds.length; i += 50) {
+    const chunk = siswaIds.slice(i, i + 50)
+    const placeholders = chunk.map(() => '?').join(', ')
+    const res = await db.prepare(
+      `SELECT id FROM siswa WHERE status = 'aktif' AND id IN (${placeholders})`
+    ).bind(...chunk).all<{ id: string }>()
+    for (const row of res.results || []) siswaValid.push(row.id)
+  }
+  if (siswaValid.length === 0) return { error: 'Siswa terpilih tidak ditemukan atau tidak aktif.' }
+
+  // Kumpulkan pasangan siswa+tanggal yang sudah punya izin agar dilewati
+  const existingPairs: string[] = []
+  for (let i = 0; i < siswaValid.length; i += 50) {
+    const chunk = siswaValid.slice(i, i + 50)
+    const placeholders = chunk.map(() => '?').join(', ')
+    const res = await db.prepare(`
+      SELECT siswa_id, tanggal FROM izin_tidak_masuk_kelas
+      WHERE tanggal BETWEEN ? AND ? AND siswa_id IN (${placeholders})
+    `).bind(tanggalList[0], tanggalList[tanggalList.length - 1], ...chunk).all<{ siswa_id: string; tanggal: string }>()
+    for (const row of res.results || []) existingPairs.push(pasanganKunci(row.siswa_id, row.tanggal))
+  }
+
+  const { dibuat } = rencanaIzinMassal({ siswaIds: siswaValid, tanggalList, existingPairs })
+  if (dibuat.length === 0) {
+    return { error: null, success: 'Semua siswa terpilih sudah memiliki izin pada rentang tanggal tersebut. Tidak ada yang dibuat.' }
+  }
+
+  try {
+    const jamJson = jamPelajaran ? JSON.stringify(jamPelajaran) : null
+    const stmts = dibuat.map(({ siswaId, tanggal }) => db.prepare(`
+      INSERT INTO izin_tidak_masuk_kelas (id, siswa_id, tanggal, jam_pelajaran, alasan, keterangan, diinput_oleh)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(crypto.randomUUID(), siswaId, tanggal, jamJson, alasan, keterangan, user.id))
+
+    for (let i = 0; i < stmts.length; i += 100) {
+      await db.batch(stmts.slice(i, i + 100))
+    }
+  } catch (e: any) {
+    return { error: e.message }
+  }
+
+  revalidateIzinViews()
+  const dilewati = siswaValid.length * tanggalList.length - dibuat.length
+  const success = `${dibuat.length} izin dibuat (${siswaValid.length} siswa × ${tanggalList.length} hari)${dilewati > 0 ? `, ${dilewati} dilewati karena sudah ada izin` : ''}.`
+  return { error: null, success, dibuat: dibuat.length, dilewati }
 }
 
 export async function hapusIzinKelas(id: string) {

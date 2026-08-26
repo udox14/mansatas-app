@@ -13,12 +13,13 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Search, Loader2, DoorOpen, UserX, AlertCircle, CheckCircle2, Trash2, LogIn, Clock, CalendarDays, Pencil, Save } from 'lucide-react'
-import { tambahIzinKeluar, tandaiSudahKembali, tambahIzinKelas, editIzinKeluar, editIzinKelas, hapusIzinKeluar, hapusIzinKeluarBatch, hapusIzinKelas, hapusIzinKelasBatch, searchSiswaIzin, type AlasanIzinRow } from '../actions'
+import { Search, Loader2, DoorOpen, UserX, AlertCircle, CheckCircle2, Trash2, LogIn, Clock, CalendarDays, Pencil, Save, CalendarRange, X } from 'lucide-react'
+import { tambahIzinKeluar, tandaiSudahKembali, tambahIzinKelas, editIzinKeluar, editIzinKelas, hapusIzinKeluar, hapusIzinKeluarBatch, hapusIzinKelas, hapusIzinKelasBatch, searchSiswaIzin, tambahIzinKelasMassal, type AlasanIzinRow } from '../actions'
 import { KelolaAlasanModal } from './kelola-alasan-modal'
 import { cn, formatNamaKelas } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { formatTimeWIB } from '@/lib/time'
+import { buildTanggalRange } from '@/lib/izin-massal'
 
 const initialFormState = { error: null as string | null, success: null as string | null }
 
@@ -85,6 +86,92 @@ export function IzinClient({
   const [editKelasItem, setEditKelasItem] = useState<any | null>(null)
   const [editKelasForm, setEditKelasForm] = useState<{ jam_pelajaran: number[]; alasan: string; keterangan: string }>({ jam_pelajaran: [], alasan: '', keterangan: '' })
   const [isSavingEditKelas, setIsSavingEditKelas] = useState(false)
+
+  // Modal Izin Massal / Kegiatan (multi siswa × rentang tanggal)
+  const [isModalMassalOpen, setIsModalMassalOpen] = useState(false)
+  const [massalNamaKegiatan, setMassalNamaKegiatan] = useState('')
+  const [massalSiswa, setMassalSiswa] = useState<any[]>([])
+  const [massalTanggalMulai, setMassalTanggalMulai] = useState('')
+  const [massalTanggalSelesai, setMassalTanggalSelesai] = useState('')
+  const [massalFullDay, setMassalFullDay] = useState(true)
+  const [massalJam, setMassalJam] = useState<number[]>([])
+  const [massalAlasan, setMassalAlasan] = useState('')
+  const [massalKeterangan, setMassalKeterangan] = useState('')
+  const [massalError, setMassalError] = useState<string | null>(null)
+  const [massalSuccess, setMassalSuccess] = useState<string | null>(null)
+  const [isSavingMassal, setIsSavingMassal] = useState(false)
+
+  // Autocomplete multi-siswa untuk modal massal
+  const [searchMassal, setSearchMassal] = useState('')
+  const [showMassalDropdown, setShowMassalDropdown] = useState(false)
+  const [massalResults, setMassalResults] = useState<any[]>([])
+  const [isSearchingMassal, setIsSearchingMassal] = useState(false)
+  const massalDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleMassalSearch = useCallback((val: string) => {
+    setSearchMassal(val)
+    setShowMassalDropdown(true)
+    if (massalDebounceRef.current) clearTimeout(massalDebounceRef.current)
+    if (val.trim().length < 2) { setMassalResults([]); return }
+    massalDebounceRef.current = setTimeout(async () => {
+      setIsSearchingMassal(true)
+      try {
+        const results = await searchSiswaIzin(val)
+        setMassalResults(results)
+      } finally {
+        setIsSearchingMassal(false)
+      }
+    }, 300)
+  }, [])
+
+  const addMassalSiswa = (s: any) => {
+    setMassalSiswa(prev => prev.some(p => p.id === s.id) ? prev : [...prev, s])
+    setSearchMassal('')
+    setMassalResults([])
+    setShowMassalDropdown(false)
+  }
+  const removeMassalSiswa = (id: string) => setMassalSiswa(prev => prev.filter(p => p.id !== id))
+  const toggleMassalJam = (jam: number) => setMassalJam(prev => prev.includes(jam) ? prev.filter(j => j !== jam) : [...prev, jam].sort((a, b) => a - b))
+
+  const massalTanggalList = (() => {
+    if (!massalTanggalMulai || !massalTanggalSelesai) return []
+    return buildTanggalRange(massalTanggalMulai, massalTanggalSelesai)
+  })()
+
+  const massalAlasanTerpilih = alasanList.find(a => a.alasan === massalAlasan)
+
+  const handleMassalSubmit = async () => {
+    setMassalError(null)
+    setMassalSuccess(null)
+    if (!massalNamaKegiatan.trim()) { setMassalError('Nama kegiatan wajib diisi!'); return }
+    if (massalSiswa.length === 0) { setMassalError('Pilih minimal 1 siswa!'); return }
+    if (massalTanggalList.length === 0) { setMassalError('Rentang tanggal tidak valid. Pastikan tanggal mulai ≤ tanggal selesai.'); return }
+    if (!massalAlasan) { setMassalError('Alasan wajib dipilih!'); return }
+    if (!massalFullDay && massalJam.length === 0) { setMassalError('Pilih minimal 1 jam pelajaran, atau pilih Sehari Penuh.'); return }
+    setIsSavingMassal(true)
+    try {
+      const res = await tambahIzinKelasMassal({
+        nama_kegiatan: massalNamaKegiatan,
+        siswa_ids: massalSiswa.map(s => s.id),
+        tanggal_mulai: massalTanggalMulai,
+        tanggal_selesai: massalTanggalSelesai,
+        alasan: massalAlasan,
+        jam_pelajaran: massalFullDay ? null : massalJam,
+        keterangan: massalKeterangan,
+      })
+      if (res.error) {
+        setMassalError(res.error)
+      } else {
+        setMassalSuccess(res.success || 'Berhasil')
+        router.refresh()
+        setTimeout(() => setIsModalMassalOpen(false), 1800)
+      }
+    } catch {
+      setMassalError('Terjadi kesalahan. Silakan coba lagi.')
+    } finally {
+      setIsSavingMassal(false)
+    }
+  }
 
   // Autocomplete siswa — lazy via Server Action (bukan pre-load semua siswa)
   const [searchSiswa, setSearchSiswa] = useState('')
@@ -370,7 +457,7 @@ export function IzinClient({
             </div>
             <div className="bg-blue-50 p-2.5 rounded-lg border border-blue-100 text-xs text-blue-700 flex gap-1.5">
               <Clock className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-              Waktu keluar dicatat otomatis. Status: "BELUM KEMBALI".
+              Waktu keluar dicatat otomatis. Status: &quot;BELUM KEMBALI&quot;.
             </div>
             <SubmitBtn label="Simpan & Izinkan Keluar" />
           </form>
@@ -424,6 +511,168 @@ export function IzinClient({
             </div>
             <SubmitBtn label="Simpan Izin Kelas" />
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 2B: IZIN MASSAL / KEGIATAN */}
+      <Dialog open={isModalMassalOpen} onOpenChange={open => {
+        setIsModalMassalOpen(open)
+        if (!open) {
+          setMassalNamaKegiatan(''); setMassalSiswa([]); setMassalTanggalMulai(''); setMassalTanggalSelesai('')
+          setMassalFullDay(true); setMassalJam([]); setMassalAlasan(''); setMassalKeterangan('')
+          setMassalError(null); setMassalSuccess(null); setSearchMassal(''); setMassalResults([])
+        }
+      }}>
+        <DialogContent className="sm:max-w-lg rounded-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="border-b pb-3">
+            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
+              <CalendarRange className="h-4 w-4 text-indigo-600" /> Izin Kegiatan (Massal)
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            {massalError && <div className="p-2.5 text-xs text-rose-600 bg-rose-50 rounded-lg border border-rose-200 flex gap-1.5"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{massalError}</div>}
+            {massalSuccess && <div className="p-2.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-200 dark:border-emerald-800 flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{massalSuccess}</div>}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Nama Kegiatan <span className="text-rose-500">*</span></Label>
+              <Input value={massalNamaKegiatan} onChange={e => setMassalNamaKegiatan(e.target.value)} placeholder="Contoh: Bimbingan Olimpiade Matematika" className="h-9 text-sm rounded-lg" />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Siswa Peserta <span className="text-rose-500">*</span> <span className="font-normal text-slate-400">({massalSiswa.length} dipilih)</span></Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                <Input
+                  placeholder="Ketik min. 2 huruf nama siswa, klik hasil untuk menambah..."
+                  value={searchMassal}
+                  onChange={e => handleMassalSearch(e.target.value)}
+                  onFocus={() => setShowMassalDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowMassalDropdown(false), 200)}
+                  className="pl-8 h-9 text-sm rounded-lg"
+                />
+                {isSearchingMassal && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-slate-400 dark:text-slate-500" />}
+              </div>
+              {showMassalDropdown && searchMassal.trim().length > 1 && (
+                <div className="absolute z-50 w-full mt-0.5 bg-surface border border-surface rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                  {massalResults.length === 0 && !isSearchingMassal && (
+                    <div className="px-3 py-4 text-center text-xs text-slate-400 dark:text-slate-500">Tidak ditemukan</div>
+                  )}
+                  {massalResults.map(s => {
+                    const sudahDipilih = massalSiswa.some(p => p.id === s.id)
+                    return (
+                      <div
+                        key={s.id}
+                        onMouseDown={e => e.preventDefault()}
+                        onClick={() => !sudahDipilih && addMassalSiswa(s)}
+                        className={cn("px-3 py-2 border-b border-surface-2 last:border-0 flex items-center gap-2.5", sudahDipilih ? "opacity-50 cursor-default bg-surface-2" : "hover:bg-surface-2 cursor-pointer")}
+                      >
+                        <AvatarSiswa fotoUrl={s.foto_url} nama={s.nama_lengkap} />
+                        <span className="text-sm font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 flex-1 min-w-0 truncate">{s.nama_lengkap}</span>
+                        <span className="text-[10px] bg-surface-3 px-1.5 py-0.5 rounded text-slate-500 dark:text-slate-400 shrink-0">{s.kelas ? formatNamaKelas(s.kelas.tingkat, s.kelas.nomor_kelas, s.kelas.kelompok) : ''}</span>
+                        {sudahDipilih && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {massalSiswa.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5 max-h-36 overflow-y-auto">
+                  {massalSiswa.map(s => (
+                    <span key={s.id} className="inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-full pl-2 pr-1 py-0.5 text-[11px] font-medium">
+                      {s.nama_lengkap}
+                      <button type="button" onClick={() => removeMassalSiswa(s.id)} className="p-0.5 rounded-full hover:bg-indigo-100 transition-colors">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Dari Tanggal <span className="text-rose-500">*</span></Label>
+                <Input type="date" value={massalTanggalMulai} onChange={e => setMassalTanggalMulai(e.target.value)} className="h-9 text-sm rounded-lg" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Sampai Tanggal <span className="text-rose-500">*</span></Label>
+                <Input type="date" value={massalTanggalSelesai} onChange={e => setMassalTanggalSelesai(e.target.value)} className="h-9 text-sm rounded-lg" />
+              </div>
+            </div>
+            {massalTanggalList.length > 0 && (
+              <p className="text-[11px] text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg px-2.5 py-1.5">
+                {massalTanggalList.length} hari izin ({massalTanggalList[0]} s/d {massalTanggalList[massalTanggalList.length - 1]})
+              </p>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Cakupan Jam Pelajaran</Label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setMassalFullDay(true)}
+                  className={cn("h-9 rounded-lg border text-xs font-bold transition-all", massalFullDay ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-surface-2 text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-3')}
+                >
+                  Sehari Penuh
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMassalFullDay(false)}
+                  className={cn("h-9 rounded-lg border text-xs font-bold transition-all", !massalFullDay ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-surface-2 text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-3')}
+                >
+                  Pilih Jam...
+                </button>
+              </div>
+              {!massalFullDay && (
+                <div className="grid grid-cols-5 gap-1.5 mt-1.5">
+                  {[1,2,3,4,5,6,7,8,9,10].map(jam => (
+                    <button
+                      key={jam} type="button" onClick={() => toggleMassalJam(jam)}
+                      className={cn("h-9 rounded-lg border text-sm font-bold transition-all", massalJam.includes(jam) ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-surface-2 text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-3')}
+                    >{jam}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Alasan <span className="text-rose-500">*</span></Label>
+              <Select value={massalAlasan} onValueChange={setMassalAlasan}>
+                <SelectTrigger className="h-9 text-xs rounded-lg"><SelectValue placeholder="Pilih alasan..." /></SelectTrigger>
+                <SelectContent>
+                  {alasanList.map(a => (
+                    <SelectItem key={a.id} value={a.alasan}>{a.alasan}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {massalAlasanTerpilih?.hitung_sebagai_hadir && (
+                <p className="text-[11px] text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-lg px-2.5 py-1.5">
+                  Alasan ini dihitung sebagai HADIR di rekap absensi harian.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Keterangan (Opsional)</Label>
+              <Input value={massalKeterangan} onChange={e => setMassalKeterangan(e.target.value)} placeholder="Contoh: Ruang lab, didampingi pembina..." className="h-9 text-sm rounded-lg" />
+            </div>
+
+            {massalSiswa.length > 0 && massalTanggalList.length > 0 && (
+              <div className="bg-indigo-50 p-2.5 rounded-lg border border-indigo-100 text-xs text-indigo-700 flex gap-1.5">
+                <CalendarRange className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                Akan dibuat {massalSiswa.length * massalTanggalList.length} catatan izin ({massalSiswa.length} siswa × {massalTanggalList.length} hari). Tanggal yang sudah punya izin akan dilewati otomatis.
+              </div>
+            )}
+
+            <Button
+              type="button"
+              onClick={handleMassalSubmit}
+              disabled={isSavingMassal}
+              className="w-full h-10 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm"
+            >
+              {isSavingMassal ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CalendarRange className="h-4 w-4 mr-1.5" /> Simpan Izin Massal</>}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -734,6 +983,9 @@ export function IzinClient({
             <Button onClick={() => setIsModalKelasOpen(true)} size="sm" className="h-8 px-3 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shrink-0">
               <UserX className="h-3.5 w-3.5 mr-1" /> Catat Izin Kelas
             </Button>
+            <Button onClick={() => setIsModalMassalOpen(true)} size="sm" className="h-8 px-3 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shrink-0">
+              <CalendarRange className="h-3.5 w-3.5 mr-1" /> Izin Kegiatan
+            </Button>
             {isSuperAdmin && (
               <KelolaAlasanModal alasanList={alasanList} onAlasanChange={setAlasanList} />
             )}
@@ -806,7 +1058,9 @@ export function IzinClient({
                   <span className="text-[9px] font-bold uppercase text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded tracking-wide">
                     {k.alasan}
                   </span>
-                  {k.jam_pelajaran.map((jam: number) => (
+                  {k.jam_pelajaran.length === 0 ? (
+                    <span className="text-[9px] font-bold uppercase text-slate-500 dark:text-slate-400 bg-surface-3 border border-surface px-1.5 py-0.5 rounded tracking-wide">Sehari Penuh</span>
+                  ) : k.jam_pelajaran.map((jam: number) => (
                     <span key={jam} className="text-[9px] h-4 w-4 rounded bg-surface-3 text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 font-bold flex items-center justify-center border border-surface">{jam}</span>
                   ))}
                 </div>
@@ -864,7 +1118,9 @@ export function IzinClient({
                       </TableCell>
                       <TableCell className="py-2.5 text-center">
                         <div className="flex flex-wrap justify-center gap-1">
-                          {k.jam_pelajaran.map((jam: number) => (
+                          {k.jam_pelajaran.length === 0 ? (
+                            <span className="h-6 px-2 rounded bg-indigo-50 text-indigo-500 font-bold text-[9px] uppercase flex items-center justify-center border border-indigo-100">Sehari Penuh</span>
+                          ) : k.jam_pelajaran.map((jam: number) => (
                             <span key={jam} className="h-6 w-6 rounded bg-indigo-100 text-indigo-700 font-bold text-[10px] flex items-center justify-center border border-indigo-200">{jam}</span>
                           ))}
                         </div>

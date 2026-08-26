@@ -63,12 +63,15 @@ async function IzinDataFetcher({
   const filteredKeluar = (keluarResult.results || [])
     .map((k: any) => ({ ...k, siswa: { nama_lengkap: k.siswa_nama, foto_url: k.siswa_foto ?? null, kelas: k.tingkat ? { tingkat: k.tingkat, nomor_kelas: k.nomor_kelas } : null }, pelapor: { nama_lengkap: k.pelapor_nama } }))
 
-  const formattedIzinKelas = (kelasResult.results || []).map((itk: any) => ({
-    ...itk,
-    jam_pelajaran: parseJsonCol(itk.jam_pelajaran, null) ?? itk.jam_pelajaran,
-    siswa: { nama_lengkap: itk.siswa_nama, foto_url: itk.siswa_foto ?? null, kelas: itk.tingkat ? { tingkat: itk.tingkat, nomor_kelas: itk.nomor_kelas } : null },
-    pelapor: { nama_lengkap: itk.pelapor_nama }
-  }))
+  const formattedIzinKelas = (kelasResult.results || []).map((itk: any) => {
+    const parsedJam = parseJsonCol<any>(itk.jam_pelajaran, null)
+    return {
+      ...itk,
+      jam_pelajaran: Array.isArray(parsedJam) ? parsedJam : [],
+      siswa: { nama_lengkap: itk.siswa_nama, foto_url: itk.siswa_foto ?? null, kelas: itk.tingkat ? { tingkat: itk.tingkat, nomor_kelas: itk.nomor_kelas } : null },
+      pelapor: { nama_lengkap: itk.pelapor_nama }
+    }
+  })
 
   return (
     <IzinClient
