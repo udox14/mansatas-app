@@ -405,7 +405,7 @@ export async function enqueueAttendanceAlfaNotifications(
   for (const [phone, rows] of grouped) {
     const names = rows.map(row => row.nama_lengkap).join(', ')
     const kelas = rows.map(row => kelasLabel(row)).filter(Boolean).join(', ')
-    const body = `Ananda ${names} tercatat ALFA pada ${options.tanggal}. Mohon konfirmasi kepada wali kelas atau pihak madrasah.`
+    const body = `Ananda ${names} tercatat ALFA pada ${options.tanggal}.`
     statements.push(db.prepare(`
       INSERT INTO wa_outbox
         (purpose, category, recipient_phone, recipient_name, template_name, language_code, body_text, payload_json, siswa_ids, attendance_date, scheduled_at, created_by)

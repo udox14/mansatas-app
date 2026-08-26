@@ -5,9 +5,7 @@ import React from 'react'
 
 export type TkaJumlahPrintRow = {
   mapel: string
-  pilihan1: number
-  pilihan2: number
-  total: number
+  jumlah: number
 }
 
 export type TkaSiswaPrintRow = {
@@ -15,8 +13,7 @@ export type TkaSiswaPrintRow = {
   nama_lengkap: string
   jenis_kelamin: string
   kelas: string
-  mapel_pilihan1: string
-  mapel_pilihan2: string
+  mapel_tka: string
   rencana: string
   pilihan_pendidikan1: string
   pilihan_pendidikan2: string
@@ -33,9 +30,7 @@ export type TkaSiswaMapelPrintRow = {
 export type TkaJumlahPrintData = {
   tahun_ajaran_label: string
   rows: TkaJumlahPrintRow[]
-  total_p1: number
-  total_p2: number
-  total_all: number
+  total_pemilihan: number
 }
 
 export type TkaKelasPrintData = {
@@ -48,7 +43,6 @@ export type TkaKelasPrintData = {
 
 export type TkaMapelPrintData = {
   group_label: string
-  pilihan: 1 | 2
   tahun_ajaran_label: string
   siswa: TkaSiswaMapelPrintRow[]
 }
@@ -154,17 +148,13 @@ export const TkaRekapJumlahTemplate = React.forwardRef<HTMLDivElement, JumlahPro
           <colgroup>
             <col style={{ width: '30pt' }} />
             <col />
-            <col style={{ width: '75pt' }} />
-            <col style={{ width: '75pt' }} />
-            <col style={{ width: '55pt' }} />
+            <col style={{ width: '90pt' }} />
           </colgroup>
           <thead>
             <tr>
               <th style={thStyle}>No</th>
               <th style={thStyle}>Mata Pelajaran</th>
-              <th style={thStyle}>Jumlah Pilihan 1</th>
-              <th style={thStyle}>Jumlah Pilihan 2</th>
-              <th style={thStyle}>Jumlah</th>
+              <th style={thStyle}>Jumlah Siswa</th>
             </tr>
           </thead>
           <tbody>
@@ -172,18 +162,14 @@ export const TkaRekapJumlahTemplate = React.forwardRef<HTMLDivElement, JumlahPro
               <tr key={r.mapel} style={{ height: '14pt' }}>
                 <td style={{ ...tdStyle, textAlign: 'center' }}>{i + 1}</td>
                 <td style={{ ...tdStyle, paddingLeft: '5pt' }}>{r.mapel}</td>
-                <td style={{ ...tdStyle, textAlign: 'center' }}>{r.pilihan1}</td>
-                <td style={{ ...tdStyle, textAlign: 'center' }}>{r.pilihan2}</td>
-                <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 700 }}>{r.total}</td>
+                <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 700 }}>{r.jumlah}</td>
               </tr>
             ))}
             <tr style={{ height: '16pt', backgroundColor: '#eee' }}>
               <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 700 }} colSpan={2}>
-                Jumlah Siswa
+                Total Pemilihan Mapel
               </td>
-              <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 700 }}>{data.total_p1}</td>
-              <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 700 }}>{data.total_p2}</td>
-              <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 700 }}>{data.total_all}</td>
+              <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 700 }}>{data.total_pemilihan}</td>
             </tr>
           </tbody>
         </table>
@@ -240,8 +226,7 @@ export const TkaRekapKelasTemplate = React.forwardRef<HTMLDivElement, KelasProps
             <col />
             <col style={{ width: '30pt' }} />
             <col style={{ width: '70pt' }} />
-            <col style={{ width: '68pt' }} />
-            <col style={{ width: '68pt' }} />
+            <col style={{ width: '105pt' }} />
             <col style={{ width: '55pt' }} />
             <col style={{ width: '98pt' }} />
             <col style={{ width: '98pt' }} />
@@ -254,8 +239,7 @@ export const TkaRekapKelasTemplate = React.forwardRef<HTMLDivElement, KelasProps
               <th style={thStyle}>Nama Siswa</th>
               <th style={thStyle}>JK</th>
               <th style={thStyle}>Kelas</th>
-              <th style={thStyle}>Mapel Pilihan 1</th>
-              <th style={thStyle}>Mapel Pilihan 2</th>
+              <th style={thStyle}>Mapel TKA</th>
               <th style={thStyle}>Rencana</th>
               <th style={thStyle}>Pilihan Pendidikan 1</th>
               <th style={thStyle}>Pilihan Pendidikan 2</th>
@@ -270,8 +254,7 @@ export const TkaRekapKelasTemplate = React.forwardRef<HTMLDivElement, KelasProps
                 <td style={{ ...tdStyle, fontSize: '9.5pt', paddingLeft: '5pt' }}>{s.nama_lengkap}</td>
                 <td style={{ ...tdStyle, textAlign: 'center' }}>{s.jenis_kelamin}</td>
                 <td style={{ ...tdStyle, textAlign: 'center' }}>{s.kelas}</td>
-                <td style={{ ...tdStyle, paddingLeft: '5pt' }}>{s.mapel_pilihan1}</td>
-                <td style={{ ...tdStyle, paddingLeft: '5pt' }}>{s.mapel_pilihan2}</td>
+                <td style={{ ...tdStyle, paddingLeft: '5pt', whiteSpace: 'normal' }}>{s.mapel_tka}</td>
                 <td style={{ ...tdStyle, paddingLeft: '5pt', fontSize: '7pt' }}>{s.rencana}</td>
                 <td style={{ ...tdStyle, paddingLeft: '5pt', fontSize: '7pt', whiteSpace: 'normal' }}>{s.pilihan_pendidikan1}</td>
                 <td style={{ ...tdStyle, paddingLeft: '5pt', fontSize: '7pt', whiteSpace: 'normal' }}>{s.pilihan_pendidikan2}</td>
@@ -296,7 +279,7 @@ export const TkaRekapKelasTemplate = React.forwardRef<HTMLDivElement, KelasProps
 TkaRekapKelasTemplate.displayName = 'TkaRekapKelasTemplate'
 
 // ============================================================
-// 3. REKAP PER MAPEL (A4 landscape) — header nama mapel
+// 3. REKAP PER MAPEL (A4 portrait) — header nama mapel
 // ============================================================
 interface MapelProps {
   data: TkaMapelPrintData
@@ -309,8 +292,8 @@ export const TkaRekapMapelTemplate = React.forwardRef<HTMLDivElement, MapelProps
       <div
         ref={ref}
         style={{
-          width: '297mm',
-          minHeight: '210mm',
+          width: '210mm',
+          minHeight: '297mm',
           padding: '8mm 9mm 10mm 9mm',
           fontFamily: FONT,
           fontSize: '8pt',
@@ -328,7 +311,7 @@ export const TkaRekapMapelTemplate = React.forwardRef<HTMLDivElement, MapelProps
             MAPEL PILIHAN TKA : {data.group_label.toUpperCase()}
           </div>
           <div style={{ fontFamily: FONT, fontSize: '11pt', fontWeight: 700 }}>
-            PILIHAN {data.pilihan} · TES KEMAMPUAN AKADEMIK (TKA) TAHUN AJARAN {data.tahun_ajaran_label}
+            TES KEMAMPUAN AKADEMIK (TKA) TAHUN AJARAN {data.tahun_ajaran_label}
           </div>
         </div>
 

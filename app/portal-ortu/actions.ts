@@ -11,6 +11,14 @@ import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
 import { getFinalAttendanceForStudent } from '@/lib/wali-kelas-attendance'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
+import { ensureParentPortalEnhancementSchema } from '@/lib/parent-portal-schema'
+import {
+  fingerprintParentTkaSelection,
+  getParentTkaSelection,
+  isParentTkaSelectionComplete,
+  PARENT_TKA_STATEMENT_VERSION,
+  serializeParentTkaSelection,
+} from '@/lib/parent-tka'
 
 type SummonResponse = 'hadir' | 'reschedule'
 const SEMESTER_NILAI_COLUMNS = ['nilai_smt1', 'nilai_smt2', 'nilai_smt3', 'nilai_smt4', 'nilai_smt5', 'nilai_smt6'] as const
@@ -366,15 +374,97 @@ export async function markParentNotificationRead(notificationId: string) {
   const session = await requireParentSession()
   const db = await getDB()
   await ensureSchemaOnce('parent-communication', () => ensureParentCommunicationTables(db))
+  await ensureParentPortalEnhancementSchema(db)
 
   await db.prepare(`
     UPDATE parent_notifications
     SET is_read = 1
-    WHERE id = ? AND siswa_id = ?
+    WHERE id = ? AND siswa_id = ? AND archived_at IS NULL
   `).bind(notificationId, session.user.siswa_id).run()
 
   revalidatePath('/portal-ortu')
   return { success: true }
+}
+
+export async function markAllParentNotificationsRead() {
+  const session = await requireParentSession()
+  const db = await getDB()
+  await ensureSchemaOnce('parent-communication', () => ensureParentCommunicationTables(db))
+  await ensureParentPortalEnhancementSchema(db)
+
+  await db.prepare(`
+    UPDATE parent_notifications
+    SET is_read = 1
+    WHERE siswa_id = ? AND archived_at IS NULL AND is_read = 0
+  `).bind(session.user.siswa_id).run()
+
+  revalidatePath('/portal-ortu')
+  return { success: true }
+}
+
+export async function archiveReadParentNotifications() {
+  const session = await requireParentSession()
+  const db = await getDB()
+  await ensureSchemaOnce('parent-communication', () => ensureParentCommunicationTables(db))
+  await ensureParentPortalEnhancementSchema(db)
+
+  await db.prepare(`
+    UPDATE parent_notifications
+    SET archived_at = datetime('now')
+    WHERE siswa_id = ? AND archived_at IS NULL AND is_read = 1
+  `).bind(session.user.siswa_id).run()
+
+  revalidatePath('/portal-ortu')
+  return { success: true }
+}
+
+export async function approveParentTkaSelection() {
+  const session = await requireParentSession()
+  const db = await getDB()
+  await ensureSchemaOnce('parent-communication', () => ensureParentCommunicationTables(db))
+  await ensureParentPortalEnhancementSchema(db)
+
+  const context = await db.prepare(`
+    SELECT k.tingkat, ta.id AS tahun_ajaran_id
+    FROM siswa s
+    LEFT JOIN kelas k ON k.id = s.kelas_id
+    LEFT JOIN tahun_ajaran ta ON ta.is_active = 1
+    WHERE s.id = ?
+    LIMIT 1
+  `).bind(session.user.siswa_id).first<{ tingkat: number | null; tahun_ajaran_id: string | null }>()
+
+  if (!context?.tahun_ajaran_id || Number(context.tingkat) !== 12) {
+    return { error: 'Persetujuan pilihan TKA hanya tersedia untuk siswa kelas 12 pada tahun ajaran aktif.' }
+  }
+
+  const current = await getParentTkaSelection(db, session.user.siswa_id, context.tahun_ajaran_id)
+  if (!current.hasData || !current.selection || !isParentTkaSelectionComplete(current.selection)) {
+    return { error: 'Pilihan TKA dan pendidikan lanjutan belum lengkap. Silakan hubungi guru BK.' }
+  }
+
+  const fingerprint = await fingerprintParentTkaSelection(current.selection)
+  await db.prepare(`
+    INSERT INTO parent_tka_approvals (
+      id, siswa_id, tahun_ajaran_id, selection_fingerprint, selection_snapshot,
+      statement_version, approved_by_parent_identifier, approved_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(siswa_id, tahun_ajaran_id, selection_fingerprint) DO UPDATE SET
+      selection_snapshot = excluded.selection_snapshot,
+      statement_version = excluded.statement_version,
+      approved_by_parent_identifier = excluded.approved_by_parent_identifier,
+      approved_at = datetime('now')
+  `).bind(
+    crypto.randomUUID(),
+    session.user.siswa_id,
+    context.tahun_ajaran_id,
+    fingerprint,
+    serializeParentTkaSelection(current.selection),
+    PARENT_TKA_STATEMENT_VERSION,
+    session.user.nisn,
+  ).run()
+
+  revalidatePath('/portal-ortu')
+  return { success: 'Persetujuan pilihan anak berhasil disimpan.', fingerprint }
 }
 
 export async function createParentSuggestion(payload: {

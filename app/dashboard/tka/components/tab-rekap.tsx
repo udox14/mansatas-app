@@ -46,7 +46,6 @@ const VIEW_BUTTONS: { key: View; label: string; icon: React.ReactNode }[] = [
 
 export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) {
   const [view, setView] = useState<View>('jumlah')
-  const [pilihan, setPilihan] = useState<1 | 2>(1)
   const [kelasFilter, setKelasFilter] = useState('')
   const [mapelFilter, setMapelFilter] = useState('')
   const [searchInput, setSearchInput] = useState('')
@@ -55,7 +54,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
   const [kampusFilter, setKampusFilter] = useState('')
   const [prodiFilter, setProdiFilter] = useState('')
 
-  const [jumlah, setJumlah] = useState<{ pilihan1: TkaRekapItem[]; pilihan2: TkaRekapItem[] } | null>(null)
+  const [jumlah, setJumlah] = useState<TkaRekapItem[] | null>(null)
   const [rencanaJumlah, setRencanaJumlah] = useState<RencanaRekapItem[]>([])
   const [rows, setRows] = useState<TkaSiswaRekapRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -66,7 +65,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
   const [printSession, setPrintSession] = useState(0)
 
   // Detail dialog (klik baris jumlah)
-  const [detail, setDetail] = useState<{ mapel: string; pilihan: 1 | 2 } | null>(null)
+  const [detail, setDetail] = useState<{ mapel: string } | null>(null)
 
   // Pagination
   const pg = usePagination(50)
@@ -95,7 +94,6 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
     const filter: RekapFilter = {}
     if (view === 'kelas' && kelasFilter) filter.kelas_id = kelasFilter
     if (view === 'mapel') {
-      filter.pilihan = pilihan
       if (mapelFilter) filter.mapel = mapelFilter
     }
     if (view === 'rencana') {
@@ -113,7 +111,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, pilihan, kelasFilter, mapelFilter, rencanaFilter, kampusFilter, prodiFilter, search, tahunAjaranId])
+  }, [view, kelasFilter, mapelFilter, rencanaFilter, kampusFilter, prodiFilter, search, tahunAjaranId])
 
   const applySearch = () => {
     setSearch(searchInput.trim())
@@ -138,27 +136,14 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
   // ============================================================
   const jumlahRows = useMemo(() => {
     if (!jumlah) return []
-    const keys = new Set<string>([...jumlah.pilihan1, ...jumlah.pilihan2].map(i => i.mapel))
-    const map1 = new Map(jumlah.pilihan1.map(i => [i.mapel, i.jumlah]))
-    const map2 = new Map(jumlah.pilihan2.map(i => [i.mapel, i.jumlah]))
-    return naturalSort(Array.from(keys), s => s).map(mapel => ({
-      mapel,
-      pilihan1: map1.get(mapel) ?? 0,
-      pilihan2: map2.get(mapel) ?? 0,
-      total: (map1.get(mapel) ?? 0) + (map2.get(mapel) ?? 0),
-    }))
+    return naturalSort(jumlah, item => item.mapel)
   }, [jumlah])
 
-  const totalP1 = useMemo(() => jumlahRows.reduce((s, r) => s + r.pilihan1, 0), [jumlahRows])
-  const totalP2 = useMemo(() => jumlahRows.reduce((s, r) => s + r.pilihan2, 0), [jumlahRows])
+  const totalSelections = useMemo(() => jumlahRows.reduce((sum, row) => sum + Number(row.jumlah || 0), 0), [jumlahRows])
 
   const sortedRows = useMemo(() => {
-    if (view === 'mapel') {
-      const col = pilihan === 1 ? 'mapel_pilihan1' : 'mapel_pilihan2'
-      return naturalSort(rows, r => `${r[col] ?? ''}|${r.nama_lengkap}`)
-    }
     return naturalSort(rows, r => r.nama_lengkap)
-  }, [rows, view, pilihan])
+  }, [rows])
 
   const paginatedRows = useMemo(() => {
     if (pg.pageSize === 'semua') return sortedRows
@@ -210,7 +195,6 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
                 const filter: RekapFilter = {}
                 if (view === 'kelas' && kelasFilter) filter.kelas_id = kelasFilter
                 if (view === 'mapel') {
-                  filter.pilihan = pilihan
                   if (mapelFilter) filter.mapel = mapelFilter
                 }
                 if (view === 'rencana') {
@@ -238,25 +222,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
           )}
 
           {view === 'mapel' && (
-            <>
-              <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-0.5 w-fit">
-                {([1, 2] as const).map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setPilihan(p)}
-                    className={cn(
-                      'px-3 py-1 rounded-md text-xs font-medium transition-colors',
-                      pilihan === p
-                        ? 'bg-violet-600 text-white shadow-sm'
-                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                    )}
-                  >
-                    Pilihan {p}
-                  </button>
-                ))}
-              </div>
-              <Combobox value={mapelFilter} onValueChange={setMapelFilter} options={MAPEL_PILIHAN_OPTIONS_SORTED.map(m => ({ value: m, label: m }))} placeholder="Semua Mapel" searchPlaceholder="Cari mapel..." className="sm:w-56" clearable />
-            </>
+            <Combobox value={mapelFilter} onValueChange={setMapelFilter} options={MAPEL_PILIHAN_OPTIONS_SORTED.map(m => ({ value: m, label: m }))} placeholder="Semua Mapel" searchPlaceholder="Cari mapel..." className="sm:w-56" clearable />
           )}
 
           {view === 'rencana' && <>
@@ -297,7 +263,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
         {view === 'jumlah' && jumlah && (
           <span>
             <Hash className="inline h-3 w-3 text-violet-500 mr-1" />
-            {totalP1} siswa Pilihan 1 Â· {totalP2} siswa Pilihan 2
+            {totalSelections} total pemilihan mapel dari {jumlahRows.length} mata pelajaran
           </span>
         )}
         {view !== 'jumlah' && (
@@ -329,28 +295,24 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
         ) : (
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[520px]">
+              <table className="w-full text-sm min-w-[420px]">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                     <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5 w-10">#</th>
                     <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Mata Pelajaran</th>
-                    <th className="text-right text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Pilihan 1</th>
-                    <th className="text-right text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Pilihan 2</th>
-                    <th className="text-right text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Total</th>
+                    <th className="text-right text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Jumlah Siswa</th>
                   </tr>
                 </thead>
                 <tbody>
                   {jumlahRows.map((r, idx) => (
                     <tr
                       key={r.mapel}
-                      onClick={() => setDetail({ mapel: r.mapel, pilihan: 1 })}
+                      onClick={() => setDetail({ mapel: r.mapel })}
                       className="border-b border-slate-100 dark:border-slate-800 hover:bg-violet-50/40 dark:hover:bg-violet-950/20 cursor-pointer transition-colors"
                     >
                       <td className="px-4 py-2 text-xs text-slate-400">{idx + 1}</td>
                       <td className="px-4 py-2 font-medium text-slate-800 dark:text-slate-200">{r.mapel}</td>
-                      <td className="px-4 py-2 text-right text-slate-600 dark:text-slate-300">{r.pilihan1}</td>
-                      <td className="px-4 py-2 text-right text-slate-600 dark:text-slate-300">{r.pilihan2}</td>
-                      <td className="px-4 py-2 text-right font-semibold text-slate-800 dark:text-slate-200">{r.total}</td>
+                      <td className="px-4 py-2 text-right font-semibold text-slate-800 dark:text-slate-200">{r.jumlah}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -381,8 +343,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
                       <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Nama Siswa</th>
                       <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">JK</th>
                       <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Kelas</th>
-                      <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Mapel Pilihan 1</th>
-                      <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Mapel Pilihan 2</th>
+                      <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Mapel TKA</th>
                       <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Rencana</th>
                       <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Pilihan Pendidikan 1</th>
                       <th className="text-left text-xs font-semibold text-slate-500 dark:text-slate-400 px-4 py-2.5">Pilihan Pendidikan 2</th>
@@ -396,8 +357,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
                         <td className="px-4 py-2 font-medium text-slate-800 dark:text-slate-200">{r.nama_lengkap}</td>
                         <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{r.jenis_kelamin}</td>
                         <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{rowKelasLabel(r)}</td>
-                        <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">{r.mapel_pilihan1 || '-'}</td>
-                        <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">{r.mapel_pilihan2 || '-'}</td>
+                        <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300"><p>{r.mapel_pilihan1 || '-'}</p><p>{r.mapel_pilihan2 || '-'}</p></td>
                         <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">{RENCANA_LABEL[r.rencana_kategori ?? 'KULIAH']}</td>
                         <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">{r.pilihan1_kampus_nama || '-'}{r.pilihan1_prodi ? ` · ${r.pilihan1_prodi}` : ''}</td>
                         <td className="px-4 py-2 text-xs text-slate-600 dark:text-slate-300">{r.pilihan2_kampus_nama || '-'}{r.pilihan2_prodi ? ` · ${r.pilihan2_prodi}` : ''}</td>
@@ -428,15 +388,9 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
                     </div>
                     <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">{rowKelasLabel(r)}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 p-2">
-                      <p className="text-[10px] text-slate-400 font-semibold uppercase">Pilihan 1</p>
-                      <p className="text-slate-700 dark:text-slate-200 mt-0.5">{r.mapel_pilihan1 || '-'}</p>
-                    </div>
-                    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 p-2">
-                      <p className="text-[10px] text-slate-400 font-semibold uppercase">Pilihan 2</p>
-                      <p className="text-slate-700 dark:text-slate-200 mt-0.5">{r.mapel_pilihan2 || '-'}</p>
-                    </div>
+                  <div className="rounded-lg bg-slate-50 p-2 text-xs dark:bg-slate-800/50">
+                    <p className="text-[10px] font-semibold uppercase text-slate-400">Mapel TKA</p>
+                    <p className="mt-0.5 text-slate-700 dark:text-slate-200">{[r.mapel_pilihan1, r.mapel_pilihan2].filter(Boolean).join(' · ') || '-'}</p>
                   </div>
                 </div>
               ))}
@@ -464,7 +418,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
       ============================================================ */}
       {!loading && view === 'mapel' && (
         rows.length === 0 ? (
-          <EmptyState text={`Belum ada siswa untuk Pilihan ${pilihan}`} />
+          <EmptyState text={mapelFilter ? `Belum ada siswa untuk mapel ${mapelFilter}` : 'Belum ada siswa yang memilih mapel TKA'} />
         ) : (
           <div className="space-y-3">
             <div className="hidden md:block rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900">
@@ -482,7 +436,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
                   </thead>
                   <tbody>
                     {paginatedRows.map((r, idx) => {
-                      const mapelVal = pilihan === 1 ? r.mapel_pilihan1 : r.mapel_pilihan2
+                      const mapelVal = mapelFilter || [r.mapel_pilihan1, r.mapel_pilihan2].filter(Boolean).join(' · ')
                       return (
                         <tr key={r.siswa_id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/30">
                           <td className="px-4 py-2 text-xs text-slate-400">{pageStart + idx + 1}</td>
@@ -511,7 +465,7 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
             {/* Mobile cards */}
             <div className="md:hidden space-y-2">
               {paginatedRows.map((r, idx) => {
-                const mapelVal = pilihan === 1 ? r.mapel_pilihan1 : r.mapel_pilihan2
+                const mapelVal = mapelFilter || [r.mapel_pilihan1, r.mapel_pilihan2].filter(Boolean).join(' · ')
                 return (
                   <div key={r.siswa_id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
                     <div className="flex items-start justify-between gap-2 mb-2">
@@ -582,7 +536,6 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
         tahunAjaranId={tahunAjaranId}
         tahunAjaranLabel={tahunAjaranLabel}
         initialKelas={view === 'kelas' ? kelasFilter : ''}
-        initialPilihan={view === 'mapel' ? pilihan : 1}
       />
     </div>
   )
@@ -609,18 +562,12 @@ function DetailDialog({
   onClose,
 }: {
   tahunAjaranId: string
-  detail: { mapel: string; pilihan: 1 | 2 } | null
+  detail: { mapel: string } | null
   onClose: () => void
 }) {
   const [rows, setRows] = useState<TkaSiswaRekapRow[]>([])
   const [loading, setLoading] = useState(false)
-  const [pilihan, setPilihan] = useState<1 | 2>(1)
   const pg = usePagination(50)
-
-  useEffect(() => {
-    if (!detail) return
-    setPilihan(detail.pilihan)
-  }, [detail])
 
   useEffect(() => {
     if (!detail) return
@@ -628,12 +575,12 @@ function DetailDialog({
     setLoading(true)
     setRows([])
     pg.reset()
-    getSiswaRekapTka(tahunAjaranId, { pilihan, mapel: detail.mapel })
+    getSiswaRekapTka(tahunAjaranId, { mapel: detail.mapel })
       .then(data => { if (!cancelled) setRows(data) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail, pilihan, tahunAjaranId])
+  }, [detail, tahunAjaranId])
 
   const sortedRows = useMemo(() => naturalSort(rows, r => r.nama_lengkap), [rows])
 
@@ -653,23 +600,6 @@ function DetailDialog({
             Siswa Pemilih: {detail?.mapel}
           </DialogTitle>
         </DialogHeader>
-
-        <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 p-0.5 w-fit mb-1">
-          {([1, 2] as const).map(p => (
-            <button
-              key={p}
-              onClick={() => setPilihan(p)}
-              className={cn(
-                'px-3 py-1 rounded-md text-xs font-medium transition-colors',
-                pilihan === p
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-              )}
-            >
-              Pilihan {p}
-            </button>
-          ))}
-        </div>
 
         {loading ? (
           <div className="flex justify-center py-10">

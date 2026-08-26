@@ -29,7 +29,6 @@ interface Props {
   tahunAjaranId: string
   tahunAjaranLabel: string
   initialKelas?: string
-  initialPilihan?: 1 | 2
 }
 
 const kelasLabel = (k: { tingkat: number | null; nomor_kelas: string | null; kelompok: string | null }) =>
@@ -42,20 +41,16 @@ export function CetakRekapModal({
   tahunAjaranId,
   tahunAjaranLabel,
   initialKelas = '',
-  initialPilihan = 1,
 }: Props) {
   const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
 
   const [mode, setMode] = useState<CetakMode>(initialMode)
   const [selKelas, setSelKelas] = useState(initialKelas)
-  const [selPilihan, setSelPilihan] = useState<1 | 2>(initialPilihan)
   const [selMapel, setSelMapel] = useState('')
 
   const [loading, setLoading] = useState(true)
-  const [jumlah, setJumlah] = useState<{ pilihan1: TkaRekapItem[]; pilihan2: TkaRekapItem[] } | null>(null)
+  const [jumlah, setJumlah] = useState<TkaRekapItem[] | null>(null)
   const [siswaSemua, setSiswaSemua] = useState<TkaSiswaRekapRow[]>([])
-  const [siswaP1, setSiswaP1] = useState<TkaSiswaRekapRow[]>([])
-  const [siswaP2, setSiswaP2] = useState<TkaSiswaRekapRow[]>([])
 
   const printRef = useRef<HTMLDivElement>(null)
 
@@ -66,14 +61,10 @@ export function CetakRekapModal({
     Promise.all([
       getRekapMapelPilihan(tahunAjaranId),
       getSiswaRekapTka(tahunAjaranId, {}),
-      getSiswaRekapTka(tahunAjaranId, { pilihan: 1 }),
-      getSiswaRekapTka(tahunAjaranId, { pilihan: 2 }),
-    ]).then(([j, semua, p1, p2]) => {
+    ]).then(([j, semua]) => {
       if (cancelled) return
       setJumlah(j)
       setSiswaSemua(semua)
-      setSiswaP1(p1)
-      setSiswaP2(p2)
     }).finally(() => {
       if (!cancelled) setLoading(false)
     })
@@ -94,36 +85,24 @@ export function CetakRekapModal({
   }, [siswaSemua])
 
   const mapelOptions = useMemo(() => {
-    const col = selPilihan === 1 ? 'mapel_pilihan1' : 'mapel_pilihan2'
-    const rows = selPilihan === 1 ? siswaP1 : siswaP2
     const seen = new Set<string>()
-    for (const r of rows) {
-      const v = r[col]
-      if (v) seen.add(v)
+    for (const row of siswaSemua) {
+      if (row.mapel_pilihan1) seen.add(row.mapel_pilihan1)
+      if (row.mapel_pilihan2) seen.add(row.mapel_pilihan2)
     }
     return naturalSort(Array.from(seen), s => s)
-  }, [selPilihan, siswaP1, siswaP2])
+  }, [siswaSemua])
 
   // ============================================================
   // Bangun data cetak sesuai mode
   // ============================================================
   const jumlahPrintData = useMemo<TkaJumlahPrintData | null>(() => {
     if (!jumlah) return null
-    const keys = new Set<string>([...jumlah.pilihan1, ...jumlah.pilihan2].map(i => i.mapel))
-    const map1 = new Map(jumlah.pilihan1.map(i => [i.mapel, i.jumlah]))
-    const map2 = new Map(jumlah.pilihan2.map(i => [i.mapel, i.jumlah]))
-    const rows = naturalSort(Array.from(keys), s => s).map(mapel => ({
-      mapel,
-      pilihan1: map1.get(mapel) ?? 0,
-      pilihan2: map2.get(mapel) ?? 0,
-      total: (map1.get(mapel) ?? 0) + (map2.get(mapel) ?? 0),
-    }))
+    const rows = naturalSort(jumlah, item => item.mapel)
     return {
       tahun_ajaran_label: tahunAjaranLabel,
       rows,
-      total_p1: rows.reduce((s, r) => s + r.pilihan1, 0),
-      total_p2: rows.reduce((s, r) => s + r.pilihan2, 0),
-      total_all: rows.reduce((s, r) => s + r.total, 0),
+      total_pemilihan: rows.reduce((sum, row) => sum + Number(row.jumlah || 0), 0),
     }
   }, [jumlah, tahunAjaranLabel])
 
@@ -147,8 +126,7 @@ export function CetakRekapModal({
             nama_lengkap: r.nama_lengkap,
             jenis_kelamin: r.jenis_kelamin,
             kelas: key,
-            mapel_pilihan1: r.mapel_pilihan1 || '-',
-            mapel_pilihan2: r.mapel_pilihan2 || '-',
+            mapel_tka: [r.mapel_pilihan1, r.mapel_pilihan2].filter(Boolean).join(' / ') || '-',
             rencana: RENCANA_LABEL[r.rencana_kategori ?? 'KULIAH'],
             pilihan_pendidikan1: [r.pilihan1_kampus_nama, r.pilihan1_prodi].filter(Boolean).join(' · ') || '-',
             pilihan_pendidikan2: [r.pilihan2_kampus_nama, r.pilihan2_prodi].filter(Boolean).join(' · ') || '-',
@@ -162,21 +140,19 @@ export function CetakRekapModal({
   }, [siswaSemua, selKelas, tahunAjaranLabel])
 
   const mapelPrintDataList = useMemo<TkaMapelPrintData[]>(() => {
-    const col = selPilihan === 1 ? 'mapel_pilihan1' : 'mapel_pilihan2'
-    const rows = selPilihan === 1 ? siswaP1 : siswaP2
     const groups = new Map<string, TkaSiswaRekapRow[]>()
-    for (const r of rows) {
-      const v = r[col]
-      if (!v) continue
-      if (!groups.has(v)) groups.set(v, [])
-      groups.get(v)!.push(r)
+    for (const row of siswaSemua) {
+      const mapels = new Set([row.mapel_pilihan1, row.mapel_pilihan2].filter((value): value is string => Boolean(value)))
+      for (const mapel of mapels) {
+        if (!groups.has(mapel)) groups.set(mapel, [])
+        groups.get(mapel)!.push(row)
+      }
     }
     const keys = naturalSort(Array.from(groups.keys()), s => s)
     return keys
       .filter(k => !selMapel || k === selMapel)
       .map(key => ({
         group_label: key,
-        pilihan: selPilihan,
         tahun_ajaran_label: tahunAjaranLabel,
         siswa: naturalSort(groups.get(key)!, r => r.nama_lengkap).map(r => ({
           nisn: r.nisn || '-',
@@ -185,7 +161,7 @@ export function CetakRekapModal({
           kelas: kelasLabel(r),
         })),
       }))
-  }, [selPilihan, siswaP1, siswaP2, selMapel, tahunAjaranLabel])
+  }, [siswaSemua, selMapel, tahunAjaranLabel])
 
   const previewDataList: { label: string; portrait: boolean; node: React.ReactNode }[] = useMemo(() => {
     const out: { label: string; portrait: boolean; node: React.ReactNode }[] = []
@@ -201,8 +177,8 @@ export function CetakRekapModal({
     }
     if (mode === 'mapel') {
       mapelPrintDataList.forEach((d, i) => out.push({
-        label: `Pilihan ${d.pilihan} · ${d.group_label}`,
-        portrait: false,
+        label: d.group_label,
+        portrait: true,
         node: <TkaRekapMapelTemplate data={d} pageBreak={i > 0} />,
       }))
     }
@@ -218,7 +194,7 @@ export function CetakRekapModal({
       : mode === 'kelas' ? `Rekap Per Kelas TKA ${tahunAjaranLabel}`
       : `Rekap Per Mapel TKA ${tahunAjaranLabel}`,
     pageStyle: `
-      @page { size: ${mode === 'jumlah' ? 'A4 portrait' : 'A4 landscape'}; margin: 0; }
+      @page { size: ${mode === 'kelas' ? 'A4 landscape' : 'A4 portrait'}; margin: 0; }
       @media print {
         html, body { margin: 0; padding: 0; background: white; }
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -284,7 +260,7 @@ export function CetakRekapModal({
                   <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Jenis Cetak</p>
                   <div className="space-y-1">
                     {([
-                      { key: 'jumlah', label: 'Rekap Jumlah per Mapel', desc: 'Ringkasan jumlah P1 & P2' },
+                      { key: 'jumlah', label: 'Rekap Jumlah per Mapel', desc: 'Jumlah gabungan pemilih mapel' },
                       { key: 'kelas', label: 'Rekap per Kelas', desc: 'Daftar siswa per kelas' },
                       { key: 'mapel', label: 'Rekap per Mapel', desc: 'Daftar siswa per mapel' },
                     ] as const).map(m => (
@@ -343,22 +319,6 @@ export function CetakRekapModal({
 
                 {mode === 'mapel' && (
                   <div className="mt-1">
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Pilihan</p>
-                    <div className="grid grid-cols-2 gap-1 mb-2">
-                      {([1, 2] as const).map(p => (
-                        <button
-                          key={p}
-                          onClick={() => setSelPilihan(p)}
-                          className={`px-2 py-1.5 rounded text-xs transition-colors ${
-                            selPilihan === p
-                              ? 'bg-violet-600 text-white'
-                              : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-                          }`}
-                        >
-                          Pilihan {p}
-                        </button>
-                      ))}
-                    </div>
                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Pilih Mapel</p>
                     <div className="space-y-0.5 max-h-52 overflow-y-auto pr-0.5">
                       <button
@@ -373,8 +333,7 @@ export function CetakRekapModal({
                         <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500">({mapelOptions.length})</span>
                       </button>
                       {mapelOptions.map(mapel => {
-                        const col = selPilihan === 1 ? 'mapel_pilihan1' : 'mapel_pilihan2'
-                        const count = (selPilihan === 1 ? siswaP1 : siswaP2).filter(r => r[col] === mapel).length
+                        const count = siswaSemua.filter(row => row.mapel_pilihan1 === mapel || row.mapel_pilihan2 === mapel).length
                         return (
                           <button
                             key={mapel}
@@ -406,7 +365,7 @@ export function CetakRekapModal({
                         ? (isMobile ? `Simpan PDF ${previewDataList.length} Halaman` : `Cetak ${previewDataList.length} Halaman`)
                         : (isMobile ? 'Simpan PDF' : 'Cetak Sekarang')}
                   </Button>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center">Kertas A4 {mode === 'jumlah' ? 'Portrait' : 'Landscape'}</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center">Kertas A4 {mode === 'kelas' ? 'Landscape' : 'Portrait'}</p>
                 </div>
               </div>
 

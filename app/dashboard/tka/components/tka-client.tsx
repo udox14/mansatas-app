@@ -3,11 +3,12 @@
 
 import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ClipboardList, BookMarked } from 'lucide-react'
+import { ClipboardList, BookMarked, UserCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { KelasItem } from '../actions'
 import { TabMapelPilihan } from './tab-mapel-pilihan'
 import { TabRekap } from './tab-rekap'
+import { TabPersetujuanOrtu } from './tab-persetujuan-ortu'
 
 interface Props {
   tahunAjaranAktif: { id: string; nama: string; semester: string } | null
@@ -17,6 +18,7 @@ interface Props {
 const TAB_STYLES = {
   mapel: { active: 'data-[state=active]:bg-sky-500 data-[state=active]:text-white data-[state=active]:shadow-sm',   icon: 'text-sky-500' },
   rekap: { active: 'data-[state=active]:bg-violet-500 data-[state=active]:text-white data-[state=active]:shadow-sm', icon: 'text-violet-500' },
+  persetujuan: { active: 'data-[state=active]:bg-emerald-500 data-[state=active]:text-white data-[state=active]:shadow-sm', icon: 'text-emerald-500' },
 }
 
 export function TkaClient({ tahunAjaranAktif, kelasList }: Props) {
@@ -46,7 +48,7 @@ export function TkaClient({ tahunAjaranAktif, kelasList }: Props) {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 h-10 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800/60 p-1">
+        <TabsList className="grid h-10 w-full grid-cols-3 bg-slate-100 p-1 dark:bg-slate-800/60">
           <TabsTrigger
             value="mapel"
             className={cn('flex items-center justify-center gap-1.5 text-xs sm:text-sm transition-all', TAB_STYLES.mapel.active)}
@@ -64,6 +66,15 @@ export function TkaClient({ tahunAjaranAktif, kelasList }: Props) {
             <span className="hidden sm:inline">Rekapitulasi</span>
             <span className="sm:hidden">Rekap</span>
           </TabsTrigger>
+
+          <TabsTrigger
+            value="persetujuan"
+            className={cn('flex items-center justify-center gap-1.5 text-xs sm:text-sm transition-all', TAB_STYLES.persetujuan.active)}
+          >
+            <UserCheck className={cn('h-3.5 w-3.5 shrink-0', activeTab === 'persetujuan' ? 'text-white' : TAB_STYLES.persetujuan.icon)} />
+            <span className="hidden sm:inline">Persetujuan Orang Tua</span>
+            <span className="sm:hidden">Persetujuan</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="mapel" className="mt-4">
@@ -77,6 +88,13 @@ export function TkaClient({ tahunAjaranAktif, kelasList }: Props) {
           <TabRekap
             tahunAjaranId={tahunAjaranAktif.id}
             tahunAjaranLabel={`${tahunAjaranAktif.nama} Semester ${tahunAjaranAktif.semester}`}
+            kelasList={kelasList}
+          />
+        </TabsContent>
+
+        <TabsContent value="persetujuan" className="mt-4">
+          <TabPersetujuanOrtu
+            tahunAjaranId={tahunAjaranAktif.id}
             kelasList={kelasList}
           />
         </TabsContent>

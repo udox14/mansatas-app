@@ -361,7 +361,7 @@ export async function notifyParentsAttendance(
   const insStmts = list.map((r) => {
     const label = STATUS_LABEL[r.status] || r.status
     const title = 'Notifikasi Kehadiran'
-    const message = `Ananda ${r.nama_lengkap} tercatat ${label} pada ${options.tanggal}. Mohon konfirmasi kepada wali kelas.`
+    const message = `Ananda ${r.nama_lengkap} tercatat ${label} pada ${options.tanggal}.`
     const sourceRef = `${options.penugasanId}:${options.tanggal}:${r.status}`
     const level = r.status === 'ALFA' ? 'warning' : 'info'
     return db

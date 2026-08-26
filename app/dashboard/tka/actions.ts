@@ -8,6 +8,14 @@ import { KAMPUS_BY_ID, PRODI_BY_KAMPUS } from '@/lib/pendidikan-lanjutan'
 import type { RencanaKategori } from '@/lib/pendidikan-lanjutan'
 import { assertClassScope, assertStudentScope, isAdministrativeActor, requireActionAccess } from '@/lib/action-security'
 import { publicServerError } from '@/lib/security-log'
+import { ensureParentPortalEnhancementSchema } from '@/lib/parent-portal-schema'
+import {
+  fingerprintParentTkaSelection,
+  isParentTkaSelectionComplete,
+  normalizeParentTkaSelection,
+  resolveParentTkaApprovalStatus,
+} from '@/lib/parent-tka'
+import type { ParentTkaApprovalStatus } from '@/lib/parent-tka'
 
 export type KelasItem = {
   id: string
@@ -62,10 +70,18 @@ export type TkaRekapItem = {
 
 export type RencanaRekapItem = { kategori: RencanaKategori; jumlah: number }
 
+export type TkaParentApprovalStatus = ParentTkaApprovalStatus
+
+export type TkaParentApprovalRow = TkaSiswaRekapRow & {
+  has_data: boolean
+  is_complete: boolean
+  approval_status: TkaParentApprovalStatus
+  approved_at: string | null
+}
+
 export type RekapFilter = {
   kelas_id?: string
   mapel?: string
-  pilihan?: 1 | 2
   search?: string
   rencana?: RencanaKategori
   kampus_id?: string
@@ -105,7 +121,7 @@ const pendidikanJoins = `
 // CACHE KEYS (TKA)
 // ============================================================
 const CACHE_TTL = 60_000 // 60 detik
-const rekapJumlahKey = (taId: string, actorId: string) => `tka:rekap:jumlah:${taId}:${actorId}`
+const rekapJumlahKey = (taId: string, actorId: string) => `tka:rekap:jumlah:v2:${taId}:${actorId}`
 const rekapSiswaKey = (taId: string, actorId: string, filter: RekapFilter) =>
   `tka:rekap:siswa:${taId}:${actorId}:${JSON.stringify(filter)}`
 
@@ -352,13 +368,13 @@ export async function batchSaveMapelPilihan(
 }
 
 // ============================================================
-// REKAP JUMLAH MAPEL PILIHAN (1 & 2) — di-cache per tahun ajaran
+// REKAP JUMLAH MAPEL PILIHAN GABUNGAN — urutan input tidak membedakan prioritas
 // ============================================================
 export async function getRekapMapelPilihan(tahunAjaranId: string) {
   const actor = await requireActionAccess('tka', 'read')
-  if (actor.kind !== 'staff') return { pilihan1: [], pilihan2: [] }
+  if (actor.kind !== 'staff') return []
   const cacheKey = rekapJumlahKey(tahunAjaranId, actor.id)
-  const cached = getMemCache<{ pilihan1: TkaRekapItem[]; pilihan2: TkaRekapItem[] }>(cacheKey)
+  const cached = getMemCache<TkaRekapItem[]>(cacheKey)
   if (cached) return cached
 
   const db = await getDB()
@@ -373,27 +389,24 @@ export async function getRekapMapelPilihan(tahunAjaranId: string) {
   )` : ''
   const scopeParams = restricted ? [actor.id, actor.id, actor.id] : []
 
-  const [rekap1, rekap2] = await Promise.all([
-    db.prepare(`
-      SELECT mapel_pilihan1 as mapel, COUNT(*) as jumlah
+  const rekap = await db.prepare(`
+    SELECT pilihan.mapel, COUNT(DISTINCT pilihan.siswa_id) AS jumlah
+    FROM (
+      SELECT siswa_id, mapel_pilihan1 AS mapel
       FROM tka_mapel_pilihan
       WHERE tahun_ajaran_id = ? AND mapel_pilihan1 IS NOT NULL AND mapel_pilihan1 != ''
       ${scopeSql}
-      GROUP BY mapel_pilihan1
-    `).bind(tahunAjaranId, ...scopeParams).all<TkaRekapItem>(),
-    db.prepare(`
-      SELECT mapel_pilihan2 as mapel, COUNT(*) as jumlah
+      UNION ALL
+      SELECT siswa_id, mapel_pilihan2 AS mapel
       FROM tka_mapel_pilihan
       WHERE tahun_ajaran_id = ? AND mapel_pilihan2 IS NOT NULL AND mapel_pilihan2 != ''
       ${scopeSql}
-      GROUP BY mapel_pilihan2
-    `).bind(tahunAjaranId, ...scopeParams).all<TkaRekapItem>(),
-  ])
+    ) pilihan
+    GROUP BY pilihan.mapel
+    ORDER BY jumlah DESC, pilihan.mapel ASC
+  `).bind(tahunAjaranId, ...scopeParams, tahunAjaranId, ...scopeParams).all<TkaRekapItem>()
 
-  const result = {
-    pilihan1: rekap1.results || [],
-    pilihan2: rekap2.results || [],
-  }
+  const result = rekap.results || []
   setMemCache(cacheKey, result, CACHE_TTL)
   return result
 }
@@ -449,17 +462,11 @@ export async function getSiswaRekapTka(tahunAjaranId: string, filter: RekapFilte
     params.push(actor.id, actor.id, actor.id)
   }
 
-  const { kelas_id, mapel, pilihan, search, rencana, kampus_id, prodi } = filter
+  const { kelas_id, mapel, search, rencana, kampus_id, prodi } = filter
 
-  if (pilihan === 1 || pilihan === 2) {
-    const col = pilihan === 1 ? 'tmp.mapel_pilihan1' : 'tmp.mapel_pilihan2'
-    conditions.push(`${col} IS NOT NULL AND ${col} != ''`)
-    if (mapel) {
-      conditions.push(`${col} = ?`)
-      params.push(mapel)
-    }
-  } else {
-    // Tanpa filter pilihan: tampilkan seluruh siswa yang sudah memiliki baris TKA.
+  if (mapel) {
+    conditions.push('(tmp.mapel_pilihan1 = ? OR tmp.mapel_pilihan2 = ?)')
+    params.push(mapel, mapel)
   }
 
   if (kelas_id) {
@@ -514,4 +521,124 @@ export async function getSiswaRekapTka(tahunAjaranId: string, filter: RekapFilte
   const rows = res.results || []
   setMemCache(cacheKey, rows, CACHE_TTL)
   return rows
+}
+
+export async function getTkaParentApprovalRows(tahunAjaranId: string) {
+  const actor = await requireActionAccess('tka', 'read')
+  if (actor.kind !== 'staff') return []
+  const db = await getDB()
+  await ensureParentPortalEnhancementSchema(db)
+  const restricted = !isAdministrativeActor(actor)
+  const scopeSql = restricted ? `AND (
+    k.wali_kelas_id = ?
+    OR EXISTS (
+      SELECT 1 FROM kelas_binaan_bk kb
+      WHERE kb.kelas_id = k.id AND kb.guru_bk_id = ? AND kb.tahun_ajaran_id = ?
+    )
+    OR EXISTS (
+      SELECT 1 FROM penugasan_mengajar pm
+      WHERE pm.kelas_id = k.id AND pm.guru_id = ? AND pm.tahun_ajaran_id = ?
+    )
+  )` : ''
+
+  const result = await db.prepare(`
+    SELECT
+      s.id AS siswa_id,
+      s.nisn,
+      s.nama_lengkap,
+      s.jenis_kelamin,
+      k.id AS kelas_id,
+      k.tingkat,
+      k.nomor_kelas,
+      k.kelompok,
+      tmp.id AS tka_id,
+      tmp.mapel_pilihan1,
+      tmp.mapel_pilihan2,
+      COALESCE(rpl.kategori, 'KULIAH') AS rencana_kategori,
+      rpl.catatan AS rencana_catatan,
+      pp1.kampus_id AS pilihan1_kampus_id,
+      pp1.kampus_nama AS pilihan1_kampus_nama,
+      pp1.program_studi AS pilihan1_prodi,
+      pp2.kampus_id AS pilihan2_kampus_id,
+      pp2.kampus_nama AS pilihan2_kampus_nama,
+      pp2.program_studi AS pilihan2_prodi,
+      approval.selection_fingerprint AS approval_fingerprint,
+      approval.approved_at
+    FROM siswa s
+    LEFT JOIN riwayat_kelas rk
+      ON rk.siswa_id = s.id AND rk.tahun_ajaran_id = ?
+    JOIN kelas k ON k.id = COALESCE(s.kelas_id, rk.kelas_id)
+    LEFT JOIN tka_mapel_pilihan tmp
+      ON tmp.siswa_id = s.id AND tmp.tahun_ajaran_id = ?
+    LEFT JOIN rencana_pasca_lulus rpl
+      ON rpl.siswa_id = s.id AND rpl.tahun_ajaran_id = ?
+    LEFT JOIN penerimaan_pt pp1
+      ON pp1.siswa_id = s.id AND pp1.tahun_ajaran_id = ?
+      AND pp1.jenis_data = 'PILIHAN_TKA' AND pp1.pilihan_ke = 1
+    LEFT JOIN penerimaan_pt pp2
+      ON pp2.siswa_id = s.id AND pp2.tahun_ajaran_id = ?
+      AND pp2.jenis_data = 'PILIHAN_TKA' AND pp2.pilihan_ke = 2
+    LEFT JOIN parent_tka_approvals approval ON approval.id = (
+      SELECT pta.id
+      FROM parent_tka_approvals pta
+      WHERE pta.siswa_id = s.id AND pta.tahun_ajaran_id = ?
+      ORDER BY datetime(pta.approved_at) DESC
+      LIMIT 1
+    )
+    WHERE s.status = 'aktif' AND k.tingkat = 12
+      ${scopeSql}
+    ORDER BY k.nomor_kelas, k.kelompok, s.nama_lengkap COLLATE NOCASE
+  `).bind(
+    tahunAjaranId,
+    tahunAjaranId,
+    tahunAjaranId,
+    tahunAjaranId,
+    tahunAjaranId,
+    tahunAjaranId,
+    ...(restricted ? [actor.id, actor.id, tahunAjaranId, actor.id, tahunAjaranId] : []),
+  ).all<any>()
+
+  return Promise.all((result.results || []).map(async (row): Promise<TkaParentApprovalRow> => {
+    const selection = normalizeParentTkaSelection({
+      mapelPilihan1: row.mapel_pilihan1,
+      mapelPilihan2: row.mapel_pilihan2,
+      rencanaKategori: row.rencana_kategori,
+      rencanaCatatan: row.rencana_catatan,
+      pilihan1KampusId: row.pilihan1_kampus_id,
+      pilihan1KampusNama: row.pilihan1_kampus_nama,
+      pilihan1Prodi: row.pilihan1_prodi,
+      pilihan2KampusId: row.pilihan2_kampus_id,
+      pilihan2KampusNama: row.pilihan2_kampus_nama,
+      pilihan2Prodi: row.pilihan2_prodi,
+    })
+    const hasData = Boolean(row.tka_id || row.pilihan1_kampus_id || row.pilihan2_kampus_id)
+    const complete = hasData && isParentTkaSelectionComplete(selection)
+    const currentFingerprint = hasData ? await fingerprintParentTkaSelection(selection) : null
+    const status = resolveParentTkaApprovalStatus(complete, currentFingerprint, row.approval_fingerprint || null)
+
+    return {
+      siswa_id: row.siswa_id,
+      nisn: row.nisn,
+      nama_lengkap: row.nama_lengkap,
+      jenis_kelamin: row.jenis_kelamin,
+      kelas_id: row.kelas_id,
+      tingkat: row.tingkat,
+      nomor_kelas: row.nomor_kelas,
+      kelompok: row.kelompok,
+      mapel_pilihan1: selection.mapelPilihan1,
+      mapel_pilihan2: selection.mapelPilihan2,
+      rencana_kategori: selection.rencanaKategori as RencanaKategori,
+      rencana_catatan: selection.rencanaCatatan,
+      pilihan1_kampus_id: selection.pilihan1KampusId,
+      pilihan1_kampus_nama: selection.pilihan1KampusNama,
+      pilihan1_prodi: selection.pilihan1Prodi,
+      pilihan2_kampus_id: selection.pilihan2KampusId,
+      pilihan2_kampus_nama: selection.pilihan2KampusNama,
+      pilihan2_prodi: selection.pilihan2Prodi,
+      has_data: hasData,
+      is_complete: complete,
+      approval_status: status,
+      approved_at: status === 'disetujui' ? row.approved_at : null,
+    }
+  }))
 }

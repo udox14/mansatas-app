@@ -9,6 +9,13 @@ import { getDocumentationArticles } from '@/lib/documentation'
 import { getFinalAttendanceForStudent } from '@/lib/wali-kelas-attendance'
 import { getParentAttendanceByAcademicYear } from './actions'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
+import { ensureParentPortalEnhancementSchema } from '@/lib/parent-portal-schema'
+import {
+  fingerprintParentTkaSelection,
+  getParentTkaSelection,
+  isParentTkaSelectionComplete,
+} from '@/lib/parent-tka'
+import { sanitizeParentAgenda } from '@/lib/parent-schedule'
 
 export const dynamic = 'force-dynamic'
 
@@ -273,6 +280,7 @@ export default async function PortalOrtuPage() {
   const siswaId = session.user.siswa_id
   const db = await getDB()
   await ensureSchemaOnce('parent-communication', () => ensureParentCommunicationTables(db))
+  await ensureParentPortalEnhancementSchema(db)
   await ensureSchemaOnce('fin-payment-submissions', () => ensurePaymentSubmissionTable(db))
   await ensureSchemaOnce('parent-announcements', async () => {
     await db.prepare(`
@@ -450,9 +458,10 @@ export default async function PortalOrtuPage() {
       SELECT id, type, title, message, level, is_read, created_at
       FROM parent_notifications
       WHERE siswa_id = ?
+        AND archived_at IS NULL
         AND NOT (type = 'absensi' AND COALESCE(source_ref, '') LIKE '%:IZIN')
       ORDER BY created_at DESC
-      LIMIT 12
+      LIMIT 100
     `).bind(siswaId).all<any>(),
     db.prepare(`
       SELECT id, reason, event_date, event_time, location, note, status, parent_response, parent_response_note, parent_responded_at, created_at
@@ -472,6 +481,41 @@ export default async function PortalOrtuPage() {
     getKomitePaymentSettings(),
     getDocumentationArticles(db, { audience: 'parent' }),
   ])
+
+  let tkaSummary: any = null
+  if (Number(profil.tingkat) === 12 && taAktif?.id) {
+    const current = await getParentTkaSelection(db, siswaId, taAktif.id)
+    const selection = current.selection
+    const fingerprint = selection ? await fingerprintParentTkaSelection(selection) : null
+    const latestApproval = await db.prepare(`
+      SELECT selection_fingerprint, approved_at
+      FROM parent_tka_approvals
+      WHERE siswa_id = ? AND tahun_ajaran_id = ?
+      ORDER BY datetime(approved_at) DESC
+      LIMIT 1
+    `).bind(siswaId, taAktif.id).first<{ selection_fingerprint: string; approved_at: string }>()
+    const bkRows = profil.kelas_id
+      ? await db.prepare(`
+          SELECT DISTINCT u.id, u.nama_lengkap, u.nomor_whatsapp
+          FROM kelas_binaan_bk kb
+          JOIN "user" u ON u.id = kb.guru_bk_id
+          WHERE kb.kelas_id = ? AND kb.tahun_ajaran_id = ?
+          ORDER BY u.nama_lengkap COLLATE NOCASE
+        `).bind(profil.kelas_id, taAktif.id).all<any>()
+      : { results: [] as any[] }
+
+    tkaSummary = {
+      hasData: current.hasData,
+      selection,
+      isComplete: Boolean(selection && isParentTkaSelectionComplete(selection)),
+      approval: {
+        isApproved: Boolean(fingerprint && latestApproval?.selection_fingerprint === fingerprint),
+        approvedAt: fingerprint && latestApproval?.selection_fingerprint === fingerprint ? latestApproval.approved_at : null,
+        needsReapproval: Boolean(latestApproval && fingerprint && latestApproval.selection_fingerprint !== fingerprint),
+      },
+      bkContacts: bkRows.results || [],
+    }
+  }
 
   const kelasLabel = profil.tingkat
     ? `${profil.tingkat}-${profil.nomor_kelas}${String(profil.tingkat) !== '10' && profil.kelompok ? ` ${profil.kelompok}` : ''}`
@@ -707,6 +751,8 @@ export default async function PortalOrtuPage() {
       previous.absensiRows.push(absensi)
     } else {
       const agendaDate = shiftDate(weekStart, hari - 1)
+      const agendaForDate = agendaMap.get(`${row.penugasan_id}__${agendaDate}`) || null
+      const safeAgenda = sanitizeParentAgenda(agendaForDate, agendaDate, todayRaw)
       dayBlocks.push({
         penugasan_id: row.penugasan_id,
         jam_ke_mulai: jamKe,
@@ -716,7 +762,7 @@ export default async function PortalOrtuPage() {
         mapel: row.nama_mapel,
         guru: row.guru_nama || '-',
         absensiRows: [absensi],
-        agenda: agendaMap.get(`${row.penugasan_id}__${agendaDate}`) || null,
+        agenda: safeAgenda,
         guruTidakHadir: guruTidakHadirMap.get(`${row.penugasan_id}__${agendaDate}`) || null,
         agendaDate,
         isToday: hari === todayDay,
@@ -782,6 +828,7 @@ export default async function PortalOrtuPage() {
     notes,
     jadwalObject,
     documentationArticles,
+    tkaSummary,
   }
 
   return <PortalOrtuClient data={data} />

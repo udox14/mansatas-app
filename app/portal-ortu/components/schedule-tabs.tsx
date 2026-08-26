@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpenText,
   CalendarCheck,
-  Camera,
   CaretRight,
   CheckCircle,
   Clock,
@@ -179,11 +178,6 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
                           Guru {guruIzin ? 'izin' : 'sakit'}
                         </span>
                       )}
-                      {item.agenda?.foto_url && (
-                        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-[#F2F0EC] px-2.5 py-1 text-xs font-semibold text-[#6B6B63]">
-                          <Camera className="h-3.5 w-3.5" /> Foto kegiatan
-                        </span>
-                      )}
                     </div>
                     {item.isToday && item.absensi?.catatan && (
                       <p className="mt-3 border-l-2 border-[#D8D4CC] pl-3 text-xs leading-5 text-[#6B6B63]">{item.absensi.catatan}</p>
@@ -218,16 +212,8 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
                       </div>
                     </div>
                   )}
-                  {item.agenda?.foto_url ? (
+                  {item.isToday && item.agenda?.foto_url && (
                     <img src={item.agenda.foto_url} alt={`Kegiatan ${item.mapel}`} className="max-h-[62dvh] w-full rounded-xl bg-[#F2F0EC] object-contain" />
-                  ) : (
-                    <div className="grid min-h-44 place-items-center rounded-xl border border-dashed border-[#D8D4CC] bg-[#F2F0EC] px-6 text-center">
-                      <div>
-                        <Camera className="mx-auto h-7 w-7 text-[#A7A299]" />
-                        <p className="mt-2 text-sm font-semibold text-[#1A1A18]">Foto kegiatan belum tersedia</p>
-                        <p className="mt-1 text-xs leading-5 text-[#6B6B63]">Foto akan muncul setelah guru mengisi agenda pada {item.agendaDate}.</p>
-                      </div>
-                    </div>
                   )}
                   {item.agenda?.materi && (
                     <div className="flex items-start gap-3 rounded-xl border border-[#D8D4CC] bg-white p-4">

@@ -39,9 +39,20 @@ import { ChangePasswordForm } from './change-password-form'
 import { ParentWhatsAppForm } from './parent-whatsapp-form'
 import { SummonResponseForm } from './summon-response-form'
 import { PortalTour, type PortalTourStep } from './portal-tour'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { createParentDsptPaymentSubmission, createParentSuggestion, getParentAttendanceByAcademicYear, getParentSemesterGrades, markParentNotificationRead, uploadParentPaymentProof } from '../actions'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  approveParentTkaSelection,
+  archiveReadParentNotifications,
+  createParentDsptPaymentSubmission,
+  createParentSuggestion,
+  getParentAttendanceByAcademicYear,
+  getParentSemesterGrades,
+  markAllParentNotificationsRead,
+  markParentNotificationRead,
+  uploadParentPaymentProof,
+} from '../actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
+import { Checkbox } from '@/components/ui/checkbox'
 import { PARENT_SUGGESTION_CATEGORIES } from '@/lib/parent-suggestions'
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
 import { MarkdownViewer } from '@/components/documentation/markdown-viewer'
@@ -50,6 +61,28 @@ import { attendanceSourceLabel, attendanceStatusLabel } from '@/lib/attendance-s
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
+}
+
+function parentWaNumber(raw: string | null | undefined) {
+  let value = String(raw || '').replace(/\D/g, '')
+  if (value.startsWith('0')) value = `62${value.slice(1)}`
+  if (value.startsWith('8')) value = `62${value}`
+  return value
+}
+
+function categoryLabel(value: string | null | undefined) {
+  const labels: Record<string, string> = {
+    KULIAH: 'Kuliah / Melanjutkan Pendidikan',
+    BEKERJA: 'Bekerja',
+    WIRAUSAHA: 'Wirausaha',
+    TNI_POLRI: 'TNI / Polri',
+    MENIKAH: 'Menikah',
+    PESANTREN: 'Pesantren',
+    KURSUS_PELATIHAN: 'Kursus / Pelatihan',
+    BELUM_MENENTUKAN: 'Belum Menentukan',
+    LAINNYA: 'Lainnya',
+  }
+  return labels[String(value || '')] || String(value || '-').replaceAll('_', ' ')
 }
 
 type SemesterGrade = { mapel: string; nilai: number }
@@ -126,7 +159,6 @@ async function compressPaymentProofImage(file: File, targetKb = 80): Promise<Fil
 export function PortalOrtuClient({ data }: { data: any }) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState('beranda')
-  const [hiddenNotifications, setHiddenNotifications] = useState<Set<string>>(new Set())
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [paymentStep, setPaymentStep] = useState<1 | 2 | 3>(1)
   const [paymentAmount, setPaymentAmount] = useState('')
@@ -149,6 +181,15 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [selectedAttendanceYearId, setSelectedAttendanceYearId] = useState(data.attendanceInitial?.tahunAjaran?.id || '')
   const [attendanceDetail, setAttendanceDetail] = useState<any>(data.attendanceInitial || null)
   const [attendanceLoading, setAttendanceLoading] = useState(false)
+  const [notificationBusy, setNotificationBusy] = useState(false)
+  const [locallyReadNotifications, setLocallyReadNotifications] = useState<Set<string>>(new Set())
+  const [locallyArchivedNotifications, setLocallyArchivedNotifications] = useState<Set<string>>(new Set())
+  const [tkaReviewOpen, setTkaReviewOpen] = useState(false)
+  const [tkaFinalOpen, setTkaFinalOpen] = useState(false)
+  const [tkaStatementChecked, setTkaStatementChecked] = useState(false)
+  const [tkaApprovalBusy, setTkaApprovalBusy] = useState(false)
+  const [tkaApprovalFeedback, setTkaApprovalFeedback] = useState('')
+  const [tkaApprovalError, setTkaApprovalError] = useState(false)
 
   const {
     profil,
@@ -183,6 +224,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
     notes,
     jadwalObject,
     documentationArticles,
+    tkaSummary,
   } = data
 
   const initialLetter = String(profil.nama_lengkap || 'S').slice(0, 1)
@@ -203,6 +245,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const komiteQrisUrl = komitePaymentSettings?.qrisUrl || '/QRISkomite.jpeg'
   const hasQrisMethod = qrisEnabled && Boolean(komiteQrisUrl)
   const hasTransferMethod = activePaymentAccounts.length > 0
+  const visibleNotifications = (notifications.results || []).filter((notification: any) => !locallyArchivedNotifications.has(notification.id))
+  const unreadNotificationCount = visibleNotifications.filter((notification: any) => !notification.is_read && !locallyReadNotifications.has(notification.id)).length
   const getDefaultPaymentMethod = (): 'qris' | 'transfer' => hasQrisMethod ? 'qris' : 'transfer'
 
   const resetPaymentWizard = () => {
@@ -260,7 +304,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
       { target: 'beranda-profile', title: 'Profil siswa', description: 'Bagian ini menampilkan identitas anak, kelas, dan NISN yang sedang dipantau di portal orang tua.' },
       { target: 'beranda-wali', title: 'Kontak wali kelas', description: 'Gunakan tombol WhatsApp di kartu ini untuk menghubungi wali kelas jika perlu koordinasi cepat.' },
       { target: 'beranda-stats', title: 'Ringkasan cepat', description: 'Angka-angka ini memberi gambaran singkat tentang kehadiran dan status pendampingan anak.' },
-      { target: 'beranda-alerts', title: 'Peringatan penting', description: 'Jika ada panggilan, notifikasi penting, atau tindak lanjut dari sekolah, informasinya muncul di sini.' },
+      { target: 'beranda-tka', title: 'Pilihan TKA', description: 'Untuk siswa kelas 12, bagian ini menampilkan pilihan TKA dan pendidikan lanjutan yang dapat ditinjau serta disetujui orang tua.' },
+      { target: 'beranda-notifications', title: 'Pusat notifikasi', description: 'Buka seluruh pemberitahuan dan pemanggilan sekolah dari satu halaman yang lebih rapi.' },
       { target: 'beranda-announcements', title: 'Pengumuman sekolah', description: 'Pengumuman resmi yang ditujukan untuk orang tua dapat dibuka dari daftar ini.' },
     ],
     jadwal: [
@@ -292,6 +337,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
     account: [
       { target: 'account-contact', title: 'Nomor WhatsApp', description: 'Perbarui nomor WhatsApp yang dapat dipakai sekolah untuk menghubungi orang tua atau wali.' },
       { target: 'account-security', title: 'Keamanan akun', description: 'Ganti password portal secara berkala untuk menjaga kerahasiaan data anak.' },
+    ],
+    notifications: [
+      { target: 'notifications-actions', title: 'Kelola notifikasi', description: 'Tandai semua pemberitahuan sebagai dibaca atau kosongkan pemberitahuan yang sudah dibaca.' },
+      { target: 'notifications-list', title: 'Daftar notifikasi', description: 'Pemberitahuan terbaru tersusun berdasarkan waktu, dengan pemanggilan aktif ditempatkan paling atas.' },
     ],
   }
   const financeTourSteps: PortalTourStep[] = dsptNeedsInput
@@ -536,9 +585,54 @@ export function PortalOrtuClient({ data }: { data: any }) {
     setAttendanceLoading(false)
   }
 
+  const readNotification = async (notificationId: string) => {
+    setLocallyReadNotifications(previous => new Set(previous).add(notificationId))
+    await markParentNotificationRead(notificationId)
+  }
+
+  const readAllNotifications = async () => {
+    if (notificationBusy) return
+    setNotificationBusy(true)
+    setLocallyReadNotifications(new Set(visibleNotifications.map((notification: any) => notification.id)))
+    await markAllParentNotificationsRead()
+    setNotificationBusy(false)
+    router.refresh()
+  }
+
+  const archiveReadNotifications = async () => {
+    if (notificationBusy) return
+    setNotificationBusy(true)
+    const readIds = visibleNotifications
+      .filter((notification: any) => notification.is_read || locallyReadNotifications.has(notification.id))
+      .map((notification: any) => notification.id)
+    setLocallyArchivedNotifications(previous => new Set([...previous, ...readIds]))
+    await archiveReadParentNotifications()
+    setNotificationBusy(false)
+    router.refresh()
+  }
+
+  const submitTkaApproval = async () => {
+    if (tkaApprovalBusy) return
+    setTkaApprovalBusy(true)
+    setTkaApprovalFeedback('')
+    setTkaApprovalError(false)
+    const result = await approveParentTkaSelection()
+    setTkaApprovalBusy(false)
+    if (result.error) {
+      setTkaApprovalError(true)
+      setTkaApprovalFeedback(result.error)
+      setTkaFinalOpen(false)
+      return
+    }
+    setTkaApprovalFeedback(result.success || 'Persetujuan berhasil disimpan.')
+    setTkaFinalOpen(false)
+    setTkaReviewOpen(false)
+    setTkaStatementChecked(false)
+    router.refresh()
+  }
+
   const renderBeranda = () => {
     const activeSummons = (summons.results || []).filter((s: any) => s.status === 'terkirim' && !s.parent_response)
-    const activeNotifications = (notifications.results || []).filter((n: any) => !n.is_read && !hiddenNotifications.has(n.id))
 
     return (
       <motion.div
@@ -583,7 +677,166 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </div>
         </section>
 
-        <StandardCard data-tour-id="beranda-stats" className="order-3 overflow-hidden p-0">
+        {tkaSummary && (
+          <StandardCard data-tour-id="beranda-tka" className="order-2 overflow-hidden p-0">
+            <div className="border-b border-[#D8D4CC] bg-[#F2F0EC] px-4 py-4 sm:px-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#C2522D]">Kelas 12</p>
+                  <h2 className="mt-1 text-lg font-semibold tracking-[-0.02em] text-[#1A1A18]">Pilihan TKA &amp; Pendidikan Lanjutan</h2>
+                  <p className="mt-1 text-xs leading-5 text-[#6B6B63]">Tinjau pilihan yang tercatat pada modul TKA sekolah.</p>
+                </div>
+                <GraduationCap className="h-7 w-7 shrink-0 text-[#C2522D]" />
+              </div>
+            </div>
+
+            <div className="space-y-5 p-4 sm:p-5">
+              {!tkaSummary.hasData || !tkaSummary.selection ? (
+                <div className="rounded-xl border border-dashed border-[#D8D4CC] bg-[#F2F0EC] px-4 py-6 text-center">
+                  <p className="text-sm font-semibold text-[#1A1A18]">Pilihan belum diinput oleh sekolah</p>
+                  <p className="mt-1 text-xs leading-5 text-[#6B6B63]">Silakan hubungi guru BK jika data seharusnya sudah tersedia.</p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#6B6B63]">Mata pelajaran TKA</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {[tkaSummary.selection.mapelPilihan1, tkaSummary.selection.mapelPilihan2].map((mapel: string | null, index: number) => (
+                        <div key={index} className="rounded-xl border border-[#D8D4CC] bg-white p-3">
+                          <p className="text-[10px] font-semibold text-[#6B6B63]">Pilihan {index + 1}</p>
+                          <p className="mt-1 text-sm font-bold text-[#1A1A18]">{mapel || 'Belum diisi'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#6B6B63]">Rencana setelah lulus</p>
+                    <p className="mt-1 text-sm font-bold text-[#1A1A18]">{categoryLabel(tkaSummary.selection.rencanaKategori)}</p>
+                    {tkaSummary.selection.rencanaKategori === 'KULIAH' ? (
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {[1, 2].map((slot) => {
+                          const kampus = tkaSummary.selection[`pilihan${slot}KampusNama`]
+                          const prodi = tkaSummary.selection[`pilihan${slot}Prodi`]
+                          return (
+                            <div key={slot} className="rounded-xl border border-[#D8D4CC] bg-[#FAF9F7] p-3">
+                              <p className="text-[10px] font-semibold text-[#C2522D]">Perguruan Tinggi {slot}</p>
+                              <p className="mt-1 text-sm font-bold leading-5 text-[#1A1A18]">{kampus || 'Belum diisi'}</p>
+                              <p className="mt-1 text-xs leading-5 text-[#6B6B63]">{prodi || 'Jurusan belum diisi'}</p>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : tkaSummary.selection.rencanaCatatan ? (
+                      <p className="mt-2 rounded-xl border border-[#D8D4CC] bg-[#FAF9F7] p-3 text-sm leading-6 text-[#6B6B63]">{tkaSummary.selection.rencanaCatatan}</p>
+                    ) : null}
+                  </div>
+                </>
+              )}
+
+              <div className="border-t border-[#D8D4CC] pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold text-[#6B6B63]">Status persetujuan</p>
+                    <p className={`mt-1 text-sm font-bold ${tkaSummary.approval.isApproved ? 'text-[#246142]' : tkaSummary.approval.needsReapproval ? 'text-amber-700' : 'text-[#1A1A18]'}`}>
+                      {tkaSummary.approval.isApproved
+                        ? `Disetujui ${formatDateTimeWIB(tkaSummary.approval.approvedAt)} WIB`
+                        : tkaSummary.approval.needsReapproval
+                          ? 'Pilihan berubah · perlu persetujuan ulang'
+                          : tkaSummary.isComplete
+                            ? 'Menunggu persetujuan orang tua'
+                            : 'Data belum lengkap'}
+                    </p>
+                  </div>
+                  <Dialog open={tkaReviewOpen} onOpenChange={(open) => { setTkaReviewOpen(open); if (!open) setTkaStatementChecked(false) }}>
+                    <DialogTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={!tkaSummary.isComplete || tkaSummary.approval.isApproved}
+                        className="min-h-11 rounded-lg bg-[#C2522D] px-4 text-sm font-bold text-white transition-colors hover:bg-[#A94426] disabled:cursor-not-allowed disabled:bg-[#D8D4CC] disabled:text-[#6B6B63]"
+                      >
+                        {tkaSummary.approval.isApproved ? 'Sudah disetujui' : 'Tinjau & setujui'}
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent className="portal-dialog max-h-[90dvh] overflow-y-auto rounded-2xl border-[#D8D4CC] bg-[#FAF9F7] sm:max-w-lg">
+                      <DialogHeader>
+                        <DialogTitle>Tinjau pilihan anak</DialogTitle>
+                        <DialogDescription>Pastikan seluruh pilihan di bawah sesuai sebelum memberikan persetujuan.</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3 rounded-xl border border-[#D8D4CC] bg-white p-4 text-sm">
+                        <p><span className="text-[#6B6B63]">Mapel TKA:</span> <strong>{tkaSummary.selection?.mapelPilihan1} dan {tkaSummary.selection?.mapelPilihan2}</strong></p>
+                        <p><span className="text-[#6B6B63]">Rencana:</span> <strong>{categoryLabel(tkaSummary.selection?.rencanaKategori)}</strong></p>
+                        {tkaSummary.selection?.rencanaKategori === 'KULIAH' && (
+                          <>
+                            <p><span className="text-[#6B6B63]">Pilihan 1:</span> <strong>{tkaSummary.selection.pilihan1KampusNama} · {tkaSummary.selection.pilihan1Prodi}</strong></p>
+                            <p><span className="text-[#6B6B63]">Pilihan 2:</span> <strong>{tkaSummary.selection.pilihan2KampusNama} · {tkaSummary.selection.pilihan2Prodi}</strong></p>
+                          </>
+                        )}
+                      </div>
+                      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <Checkbox checked={tkaStatementChecked} onCheckedChange={(checked) => setTkaStatementChecked(checked === true)} className="mt-0.5" />
+                        <span className="text-sm leading-6 text-amber-950">Saya telah memeriksa dan menyetujui pilihan anak saya. Saya memahami bahwa pilihan ini menjadi dasar pendampingan sekolah dan tidak akan mempermasalahkannya di kemudian hari.</span>
+                      </label>
+                      <DialogFooter>
+                        <button type="button" onClick={() => setTkaReviewOpen(false)} className="min-h-11 rounded-lg border border-[#D8D4CC] px-4 text-sm font-semibold">Batal</button>
+                        <button type="button" disabled={!tkaStatementChecked} onClick={() => { setTkaReviewOpen(false); setTkaFinalOpen(true) }} className="min-h-11 rounded-lg bg-[#C2522D] px-4 text-sm font-bold text-white disabled:opacity-40">Lanjutkan</button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                  <Dialog open={tkaFinalOpen} onOpenChange={setTkaFinalOpen}>
+                    <DialogContent className="portal-dialog rounded-2xl border-[#D8D4CC] bg-[#FAF9F7] sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Konfirmasi persetujuan final</DialogTitle>
+                        <DialogDescription>Persetujuan akan dicatat bersama waktu dan snapshot pilihan saat ini.</DialogDescription>
+                      </DialogHeader>
+                      <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm leading-6 text-rose-950">Apakah Bapak/Ibu benar-benar menyetujui pilihan tersebut?</div>
+                      <DialogFooter>
+                        <button type="button" onClick={() => setTkaFinalOpen(false)} className="min-h-11 rounded-lg border border-[#D8D4CC] px-4 text-sm font-semibold">Kembali</button>
+                        <button type="button" disabled={tkaApprovalBusy} onClick={submitTkaApproval} className="min-h-11 rounded-lg bg-[#C2522D] px-4 text-sm font-bold text-white disabled:opacity-50">{tkaApprovalBusy ? 'Menyimpan...' : 'Ya, saya menyetujui'}</button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+                {tkaApprovalFeedback && <p className={`mt-3 text-xs font-semibold ${tkaApprovalError ? 'text-rose-700' : 'text-[#246142]'}`}>{tkaApprovalFeedback}</p>}
+              </div>
+
+              <div className="border-t border-[#D8D4CC] pt-4">
+                <p className="text-xs font-semibold text-[#6B6B63]">Ada ketidaksesuaian atau permintaan?</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(tkaSummary.bkContacts || []).length === 0 ? (
+                    <span className="rounded-lg bg-[#F2F0EC] px-3 py-2 text-xs font-semibold text-[#6B6B63]">Guru BK belum ditugaskan</span>
+                  ) : (tkaSummary.bkContacts || []).map((guru: any) => {
+                    const phone = parentWaNumber(guru.nomor_whatsapp)
+                    const message = `Assalamu'alaikum Bapak/Ibu ${guru.nama_lengkap}. Saya orang tua/wali dari ${profil.nama_lengkap} (${kelasLabel}). Saya ingin mengonfirmasi pilihan TKA dan pendidikan lanjutan anak karena ada ketidaksesuaian atau permintaan perubahan. Mohon arahannya.`
+                    return phone ? (
+                      <a key={guru.id} href={`https://wa.me/${phone}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#BFD7C8] bg-[#EEF7F1] px-3 text-xs font-bold text-[#246142] hover:bg-[#E2F1E7]">
+                        <MessageCircle className="h-4 w-4" /> Hubungi {guru.nama_lengkap}
+                      </a>
+                    ) : (
+                      <span key={guru.id} className="inline-flex min-h-11 items-center rounded-lg bg-[#F2F0EC] px-3 text-xs font-semibold text-[#6B6B63]">{guru.nama_lengkap} · kontak belum tersedia</span>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </StandardCard>
+        )}
+
+        <button type="button" data-tour-id="beranda-notifications" onClick={() => changeTab('notifications')} className="order-3 w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2">
+          <StandardCard className="flex items-center gap-3 p-4 transition-colors hover:bg-[#FEFDFB]">
+            <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#FFF1EF] text-[#C2522D]">
+              <Bell className="h-5 w-5" />
+              {unreadNotificationCount > 0 && <span className="absolute -right-1.5 -top-1.5 grid min-h-5 min-w-5 place-items-center rounded-full bg-[#C2522D] px-1 text-[10px] font-bold text-white">{unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}</span>}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-[#1A1A18]">Pusat notifikasi</p>
+              <p className="mt-0.5 text-xs text-[#6B6B63]">{activeSummons.length > 0 ? `${activeSummons.length} pemanggilan menunggu respons` : unreadNotificationCount > 0 ? `${unreadNotificationCount} pemberitahuan belum dibaca` : 'Semua pemberitahuan sudah dibaca'}</p>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-[#A7A299]" />
+          </StandardCard>
+        </button>
+
+        <StandardCard data-tour-id="beranda-stats" className="order-4 overflow-hidden p-0">
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5">
             <div>
               <p className="text-sm font-bold text-slate-900">Kehadiran minggu ini</p>
@@ -606,7 +859,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </div>
         </StandardCard>
 
-        <div className="order-4 grid gap-3 sm:grid-cols-2">
+        <div className="order-5 grid gap-3 sm:grid-cols-2">
           <StandardCard data-tour-id="beranda-wali" className="flex items-center gap-3 p-4">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700"><ShieldAlert className="h-5 w-5" /></div>
             <div className="min-w-0 flex-1">
@@ -624,92 +877,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </StandardCard>
         </div>
 
-        {/* Critical Notifications / Summons */}
-        {(activeSummons.length > 0 || activeNotifications.length > 0) && (
-          <div data-tour-id="beranda-alerts" className="order-2 space-y-3">
-            <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1">Peringatan Penting</h2>
-            
-            {activeSummons.map((s: any) => (
-              <Dialog key={s.id}>
-                <DialogTrigger asChild>
-                  <button className="w-full text-left outline-none">
-                    <StandardCard className="border-l-4 border-l-rose-500 hover:shadow-md transition-shadow">
-                      <div className="flex gap-4 items-center">
-                        <div className="p-2 rounded-lg bg-rose-50 text-rose-600 shrink-0">
-                          <AlertOctagon className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="bg-rose-100 text-rose-700 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded">Panggilan Wali</span>
-                          </div>
-                          <h3 className="text-sm font-semibold text-slate-800 leading-tight">{s.reason}</h3>
-                          <p className="text-xs text-slate-500 mt-1">{s.event_date} {s.event_time}</p>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-400" />
-                      </div>
-                    </StandardCard>
-                  </button>
-                </DialogTrigger>
-                <DialogContent className="portal-dialog overflow-hidden rounded-2xl border border-[#D8D4CC] bg-[#FAF9F7] p-0 sm:max-w-md">
-                  <DialogHeader className="p-6 pb-4 border-b border-slate-100 bg-rose-50/30">
-                    <DialogTitle className="text-lg font-semibold text-rose-900 flex items-center gap-2">
-                      <AlertOctagon className="w-5 h-5 text-rose-600" /> Panggilan Orang Tua
-                    </DialogTitle>
-                  </DialogHeader>
-                  <div className="p-6 space-y-4">
-                    <div>
-                      <h4 className="text-sm font-semibold text-slate-800 mb-1">Alasan Pemanggilan</h4>
-                      <p className="text-sm text-slate-600 leading-relaxed">{s.reason}</p>
-                    </div>
-                    <div className="bg-slate-50 rounded-xl p-3 text-sm text-slate-700 border border-slate-100">
-                      <p className="flex items-center gap-2"><CalendarDays className="w-4 h-4 text-slate-400"/> {s.event_date || '-'} {s.event_time || ''}</p>
-                      {s.location && <p className="flex items-center gap-2 mt-1"><House className="w-4 h-4 text-slate-400"/> {s.location}</p>}
-                    </div>
-                    {s.note && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-slate-800 mb-1">Catatan Sekolah</h4>
-                        <p className="text-sm text-slate-600 leading-relaxed">{s.note}</p>
-                      </div>
-                    )}
-                    <div className="pt-4 border-t border-slate-100 mt-4">
-                      <h4 className="text-sm font-semibold text-slate-800 mb-3">Formulir Tanggapan Anda</h4>
-                      <SummonResponseForm summonId={s.id} status={s.status} />
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            ))}
-
-            {activeNotifications.map((n: any) => (
-               <StandardCard key={n.id} className={`border-l-4 ${n.level === 'critical' ? 'border-l-rose-500' : n.level === 'warning' ? 'border-l-amber-500' : 'border-l-sky-500'}`}>
-                 <div className="flex gap-4">
-                   <div className={`mt-0.5 shrink-0 p-2 rounded-lg ${
-                     n.level === 'critical' ? 'bg-rose-50 text-rose-600' : n.level === 'warning' ? 'bg-amber-50 text-amber-600' : 'bg-sky-50 text-sky-600'
-                   }`}>
-                     <Bell className="h-4 w-4" />
-                   </div>
-                   <div className="min-w-0 flex-1 pr-2">
-                     <h3 className="text-sm font-semibold text-slate-800">{n.title}</h3>
-                     <p className="text-sm text-slate-600 mt-1">{n.message}</p>
-                   </div>
-                   <button 
-                     type="button"
-                     onClick={() => {
-                       setHiddenNotifications(prev => new Set(prev).add(n.id))
-                       markParentNotificationRead(n.id)
-                     }}
-                     className="shrink-0 whitespace-nowrap rounded-lg bg-slate-100 px-3 py-1.5 text-[10px] font-bold text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-800"
-                   >
-                     Tandai Selesai
-                   </button>
-                 </div>
-               </StandardCard>
-            ))}
-          </div>
-        )}
-
         {/* Announcements */}
-        <div data-tour-id="beranda-announcements" className="order-5 pt-2">
+        <div data-tour-id="beranda-announcements" className="order-6 pt-2">
           <div className="flex items-center justify-between mb-3 ml-1">
             <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">Pengumuman Sekolah</h2>
           </div>
@@ -762,7 +931,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
         {/* Riwayat Respons Orang Tua */}
         {(notes.results || []).length > 0 && (
-          <div className="order-6 pt-2">
+          <div className="order-7 pt-2">
             <div className="flex items-center justify-between mb-3 ml-1">
               <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">Riwayat Respons Anda</h2>
             </div>
@@ -786,6 +955,117 @@ export function PortalOrtuClient({ data }: { data: any }) {
             </div>
           </div>
         )}
+      </motion.div>
+    )
+  }
+
+  const renderNotifications = () => {
+    const activeSummons = (summons.results || []).filter((summon: any) => summon.status === 'terkirim' && !summon.parent_response)
+    const hasReadNotifications = visibleNotifications.some((notification: any) => notification.is_read || locallyReadNotifications.has(notification.id))
+
+    return (
+      <motion.div key="notifications" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="portal-tab-panel space-y-5">
+        <div>
+          <button type="button" onClick={() => changeTab('beranda')} className="mb-4 inline-flex min-h-10 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[#6B6B63] hover:bg-[#F2F0EC] hover:text-[#1A1A18]">
+            <ArrowLeft className="h-4 w-4" /> Kembali ke Beranda
+          </button>
+          <PortalPageHeader title="Pusat notifikasi" description="Seluruh pemberitahuan dan pemanggilan sekolah tersusun dalam satu tempat." Icon={Bell} />
+        </div>
+
+        <div data-tour-id="notifications-actions" className="flex flex-col gap-2 rounded-2xl border border-[#D8D4CC] bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="px-1">
+            <p className="text-sm font-bold text-[#1A1A18]">{unreadNotificationCount} belum dibaca</p>
+            <p className="mt-0.5 text-xs text-[#6B6B63]">Pemanggilan aktif tidak terpengaruh oleh aksi ini.</p>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" disabled={notificationBusy || unreadNotificationCount === 0} onClick={readAllNotifications} className="min-h-10 flex-1 rounded-lg border border-[#D8D4CC] px-3 text-xs font-bold text-[#1A1A18] hover:bg-[#F2F0EC] disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none">Tandai semua dibaca</button>
+            <button type="button" disabled={notificationBusy || !hasReadNotifications} onClick={archiveReadNotifications} className="min-h-10 flex-1 rounded-lg bg-[#1A1A18] px-3 text-xs font-bold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none">Kosongkan yang dibaca</button>
+          </div>
+        </div>
+
+        <div data-tour-id="notifications-list" className="space-y-5">
+          {activeSummons.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex items-center gap-2 px-1">
+                <AlertOctagon className="h-4 w-4 text-rose-600" />
+                <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-rose-800">Pemanggilan aktif</h2>
+              </div>
+              {activeSummons.map((summon: any) => (
+                <Dialog key={summon.id}>
+                  <DialogTrigger asChild>
+                    <button type="button" className="w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2">
+                      <StandardCard className="border-l-4 border-l-rose-500 transition-shadow hover:shadow-md">
+                        <div className="flex items-center gap-3">
+                          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-600"><AlertOctagon className="h-5 w-5" /></div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[9px] font-bold uppercase tracking-wider text-rose-700">Perlu tanggapan orang tua</p>
+                            <h3 className="mt-1 text-sm font-bold leading-5 text-[#1A1A18]">{summon.reason}</h3>
+                            <p className="mt-1 text-xs text-[#6B6B63]">{summon.event_date || 'Jadwal belum ditentukan'} {summon.event_time || ''}</p>
+                          </div>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-[#A7A299]" />
+                        </div>
+                      </StandardCard>
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="portal-dialog max-h-[92dvh] overflow-y-auto rounded-2xl border-[#D8D4CC] bg-[#FAF9F7] sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2 text-rose-900"><AlertOctagon className="h-5 w-5 text-rose-600" /> Panggilan Orang Tua</DialogTitle>
+                      <DialogDescription>Mohon periksa rincian dan kirim tanggapan ke sekolah.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div><p className="text-xs font-bold text-[#6B6B63]">Alasan pemanggilan</p><p className="mt-1 text-sm leading-6 text-[#1A1A18]">{summon.reason}</p></div>
+                      <div className="rounded-xl border border-[#D8D4CC] bg-white p-3 text-sm text-[#1A1A18]">
+                        <p className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-[#6B6B63]" /> {summon.event_date || '-'} {summon.event_time || ''}</p>
+                        {summon.location && <p className="mt-2 flex items-center gap-2"><House className="h-4 w-4 text-[#6B6B63]" /> {summon.location}</p>}
+                      </div>
+                      {summon.note && <div><p className="text-xs font-bold text-[#6B6B63]">Catatan sekolah</p><p className="mt-1 text-sm leading-6 text-[#1A1A18]">{summon.note}</p></div>}
+                      <div className="border-t border-[#D8D4CC] pt-4"><SummonResponseForm summonId={summon.id} status={summon.status} /></div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              ))}
+            </section>
+          )}
+
+          <section className="space-y-3">
+            <div className="flex items-center gap-2 px-1">
+              <Bell className="h-4 w-4 text-[#C2522D]" />
+              <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-[#6B6B63]">Pemberitahuan</h2>
+            </div>
+            {visibleNotifications.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[#D8D4CC] bg-white px-5 py-10 text-center">
+                <CheckCircle2 className="mx-auto h-7 w-7 text-[#246142]" />
+                <p className="mt-2 text-sm font-bold text-[#1A1A18]">Tidak ada pemberitahuan</p>
+                <p className="mt-1 text-xs text-[#6B6B63]">Pemberitahuan baru dari sekolah akan muncul di sini.</p>
+              </div>
+            ) : visibleNotifications.map((notification: any) => {
+              const isRead = Boolean(notification.is_read || locallyReadNotifications.has(notification.id))
+              const tone = notification.level === 'critical'
+                ? 'border-l-rose-500 bg-rose-50 text-rose-700'
+                : notification.level === 'warning'
+                  ? 'border-l-amber-500 bg-amber-50 text-amber-700'
+                  : 'border-l-sky-500 bg-sky-50 text-sky-700'
+              return (
+                <StandardCard key={notification.id} className={`border-l-4 ${isRead ? 'opacity-70' : ''}`}>
+                  <div className="flex items-start gap-3">
+                    <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${tone}`}><Bell className="h-4 w-4" /></div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <h3 className="text-sm font-bold text-[#1A1A18]">{notification.title}</h3>
+                        {!isRead && <span className="rounded-full bg-[#FFF1EF] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#C2522D]">Baru</span>}
+                      </div>
+                      <p className="mt-1 text-sm leading-6 text-[#6B6B63]">{notification.message}</p>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <p className="text-[10px] text-[#A7A299]">{formatDateTimeWIB(notification.created_at)} WIB</p>
+                        {!isRead && <button type="button" onClick={() => readNotification(notification.id)} className="min-h-9 rounded-lg bg-[#F2F0EC] px-3 text-[10px] font-bold text-[#1A1A18] hover:bg-[#E8E5E0]">Tandai dibaca</button>}
+                      </div>
+                    </div>
+                  </div>
+                </StandardCard>
+              )
+            })}
+          </section>
+        </div>
       </motion.div>
     )
   }
@@ -1919,6 +2199,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         <div className="mx-auto w-full max-w-[1100px] flex-1 px-4 pb-4 pt-5 sm:px-6 sm:pt-7 lg:px-8 lg:py-8">
           <AnimatePresence mode="wait">
             {activeTab === 'beranda' && renderBeranda()}
+            {activeTab === 'notifications' && renderNotifications()}
             {activeTab === 'jadwal' && renderJadwal()}
             {activeTab === 'kehadiran' && renderKehadiran()}
             {activeTab === 'nilai' && renderNilai()}
