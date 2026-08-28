@@ -5,6 +5,9 @@ import { formatNamaKelas } from '@/lib/utils'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
+import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
+import { currentTimeWIB, nowWIB, todayWIB } from '@/lib/time'
+import type { PolaJam } from '@/app/dashboard/settings/types'
 
 export type TeacherAttendanceStatus = 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'
 
@@ -62,6 +65,7 @@ export type TeacherAttendanceReport = {
   start_date: string
   end_date: string
   selected_penugasan_id: string | null
+  suggested_penugasan_id: string | null
   assignments: TeacherAttendanceAssignment[]
   sessions: TeacherAttendanceSession[]
   rows: TeacherAttendanceStudentRow[]
@@ -94,6 +98,7 @@ function emptyReport(startDate: string, endDate: string, error: string | null = 
     start_date: startDate,
     end_date: endDate,
     selected_penugasan_id: null,
+    suggested_penugasan_id: null,
     assignments: [],
     sessions: [],
     rows: [],
@@ -110,6 +115,53 @@ function dayNumber(value: string) {
   return day === 0 ? 7 : day
 }
 
+async function getCurrentAssignmentId(
+  db: D1Database,
+  guruId: string,
+  assignments: TeacherAttendanceAssignment[],
+): Promise<string | null> {
+  if (assignments.length === 0) return null
+  const now = nowWIB()
+  const rawDay = now.getUTCDay()
+  const hari = rawDay === 0 ? 7 : rawDay
+  if (hari === 7) return null
+
+  const tanggal = todayWIB()
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) return null
+
+  const ta = await db.prepare(`
+    SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1
+  `).first<{ id: string; jam_pelajaran: string | null }>()
+  if (!ta) return null
+
+  let patterns: PolaJam[] = []
+  try { patterns = JSON.parse(ta.jam_pelajaran || '[]') } catch { return null }
+  const currentTime = currentTimeWIB().hhmm
+  const activeSlotIds = (patterns.find(pattern => pattern.hari.includes(hari))?.slots || [])
+    .filter(slot => currentTime >= slot.mulai && currentTime < slot.selesai)
+    .map(slot => slot.id)
+  if (activeSlotIds.length === 0) return null
+
+  const allowedIds = new Set(assignments.map(item => item.id))
+  const placeholders = activeSlotIds.map(() => '?').join(',')
+  const rows = await db.prepare(`
+    SELECT DISTINCT jm.penugasan_id, jm.jam_ke
+    FROM jadwal_mengajar jm
+    JOIN penugasan_mengajar pm ON pm.id = jm.penugasan_id
+    JOIN kelas k ON k.id = pm.kelas_id
+    WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
+      AND jm.jam_ke IN (${placeholders})
+      AND (pm.guru_id = ? OR jm.id IN (
+        SELECT jadwal_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
+      ))
+      AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
+    ORDER BY jm.jam_ke ASC
+  `).bind(ta.id, hari, ...activeSlotIds, guruId, guruId, tanggal).all<{ penugasan_id: string; jam_ke: number }>()
+
+  return (rows.results || []).find(row => allowedIds.has(row.penugasan_id))?.penugasan_id || null
+}
+
 export async function getTeacherAttendanceReport(input: {
   startDate: string
   endDate: string
@@ -117,7 +169,7 @@ export async function getTeacherAttendanceReport(input: {
 }): Promise<TeacherAttendanceReport> {
   const startDate = String(input.startDate || '')
   const endDate = String(input.endDate || '')
-  const selectedPenugasanId = String(input.penugasanId || '').trim() || null
+  const requestedPenugasanId = String(input.penugasanId || '').trim() || null
 
   const user = await getCurrentUser()
   if (!user) return emptyReport(startDate, endDate, 'Unauthorized')
@@ -165,18 +217,22 @@ export async function getTeacherAttendanceReport(input: {
     semester: Number(row.semester),
   }))
 
-  if (selectedPenugasanId && !assignments.some(item => item.id === selectedPenugasanId)) {
+  if (requestedPenugasanId && !assignments.some(item => item.id === requestedPenugasanId)) {
     return { ...emptyReport(startDate, endDate, 'Penugasan tidak ditemukan atau bukan milik guru ini.'), guru: guru || null, assignments }
   }
 
+  const suggestedPenugasanId = await getCurrentAssignmentId(db, guruId, assignments)
+  const selectedPenugasanId = requestedPenugasanId || suggestedPenugasanId
+
   const scopedAssignments = selectedPenugasanId
     ? assignmentRaw.filter(item => item.id === selectedPenugasanId)
-    : assignmentRaw
+    : []
   if (scopedAssignments.length === 0) {
     return {
       ...emptyReport(startDate, endDate),
       guru: guru || null,
       selected_penugasan_id: selectedPenugasanId,
+      suggested_penugasan_id: suggestedPenugasanId,
       assignments,
     }
   }
@@ -415,6 +471,7 @@ export async function getTeacherAttendanceReport(input: {
     start_date: startDate,
     end_date: endDate,
     selected_penugasan_id: selectedPenugasanId,
+    suggested_penugasan_id: suggestedPenugasanId,
     assignments,
     sessions,
     rows,

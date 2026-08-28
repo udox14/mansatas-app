@@ -15,7 +15,7 @@ import {
 } from '../actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import type { KbmException } from '@/lib/kalender-pendidikan'
-import { TeacherAttendanceReportPanel } from './teacher-attendance-report'
+import { TeacherAttendanceReportPanel } from './teacher-attendance-grid-report'
 
 interface Props {
   ownerId: string

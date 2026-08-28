@@ -2,7 +2,7 @@ import puppeteer from '@cloudflare/puppeteer'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getTeacherAttendanceReport } from '@/app/dashboard/kehadiran/report-actions'
-import { buildTeacherAttendanceHtml } from '@/lib/pdf/absensi-guru-template'
+import { buildTeacherAttendanceGridHtml } from '@/lib/pdf/absensi-guru-grid-template'
 import { renderPdfWithCache } from '@/lib/pdf-cache'
 
 export const dynamic = 'force-dynamic'
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
   if (report.error) return new Response(report.error, { status: report.error === 'Unauthorized' ? 401 : 400 })
   if (report.sessions.length === 0) return new Response('Belum ada sesi absensi pada periode ini.', { status: 404 })
 
-  const html = buildTeacherAttendanceHtml({
+  const html = buildTeacherAttendanceGridHtml({
     report,
     kopUrl: `${url.origin}/kopsurat.png`,
     baseUrl: url.origin,
