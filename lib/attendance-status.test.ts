@@ -25,7 +25,6 @@ describe('deriveDailyTeacherStatus', () => {
 
   it.each([
     [['HADIR', 'SAKIT']],
-    [['HADIR', 'IZIN']],
     [['SAKIT', 'IZIN']],
     [['ALFA', 'SAKIT']],
     [['ALFA', 'IZIN']],
@@ -40,8 +39,14 @@ describe('deriveDailyTeacherStatus', () => {
     expect(derive(['HADIR', 'ALFA']).status).toBe('PARSIAL')
   })
 
-  it('menandai alfa seragam sebagai status yang tetap perlu dikonfirmasi wali', () => {
-    expect(derive(['ALFA', 'ALFA'])).toMatchObject({ status: 'ALFA', requiresWaliDecision: true })
+  it('menghitung hadir dengan catatan izin untuk izin sebagian jam dari guru', () => {
+    const result = derive(['HADIR', 'IZIN'])
+    expect(result).toMatchObject({ status: 'HADIR', requiresWaliDecision: false })
+    expect(result.reason).toContain('izin pada sebagian blok KBM')
+  })
+
+  it('menetapkan alfa seragam tanpa keputusan wali', () => {
+    expect(derive(['ALFA', 'ALFA'])).toMatchObject({ status: 'ALFA', requiresWaliDecision: false })
   })
 
   it('membedakan belum ada input dari belum lengkap', () => {
@@ -101,9 +106,9 @@ describe('deriveDailyTeacherStatus', () => {
     expect(result).toMatchObject({ status: 'SAKIT', requiresWaliDecision: false })
   })
 
-  it('tidak menganggap hadir+sakit atau hadir+izin sebagai hadir meski blok belum lengkap diabaikan', () => {
+  it('tetap meminta wali untuk hadir+sakit, tetapi hadir+izin tetap hadir saat blok belum lengkap diabaikan', () => {
     expect(derive(['HADIR', 'SAKIT'], 5, true).status).toBe('PERLU_KONFIRMASI_WALI')
-    expect(derive(['HADIR', 'IZIN'], 5, true).status).toBe('PERLU_KONFIRMASI_WALI')
+    expect(derive(['HADIR', 'IZIN'], 5, true)).toMatchObject({ status: 'HADIR', requiresWaliDecision: false })
   })
 })
 
@@ -152,11 +157,11 @@ describe('resolveFinalAttendanceStatus', () => {
 })
 
 describe('isWaliDecisionPendingStatus', () => {
-  it.each(['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'ALFA'])('menandai %s sebagai tertunda', status => {
+  it.each(['PERLU_KONFIRMASI_WALI', 'PARSIAL'])('menandai %s sebagai tertunda', status => {
     expect(isWaliDecisionPendingStatus(status)).toBe(true)
   })
 
-  it.each(['HADIR', 'SAKIT', 'IZIN', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA', null, undefined])('tidak menandai %s sebagai tertunda', status => {
+  it.each(['HADIR', 'SAKIT', 'IZIN', 'ALFA', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA', null, undefined])('tidak menandai %s sebagai tertunda', status => {
     expect(isWaliDecisionPendingStatus(status)).toBe(false)
   })
 })
@@ -164,12 +169,12 @@ describe('isWaliDecisionPendingStatus', () => {
 describe('summarizePendingWaliDecisionDates', () => {
   it('mengelompokkan siswa tertunda per tanggal dan menghapus duplikasi siswa', () => {
     expect(summarizePendingWaliDecisionDates([
-      { siswa_id: 's1', tanggal: '2026-08-12', status_akhir: 'ALFA', wali_status: null },
-      { siswa_id: 's1', tanggal: '2026-08-12', status_akhir: 'ALFA', wali_status: null },
+      { siswa_id: 's1', tanggal: '2026-08-12', status_akhir: 'PARSIAL', wali_status: null },
+      { siswa_id: 's1', tanggal: '2026-08-12', status_akhir: 'PARSIAL', wali_status: null },
       { siswa_id: 's2', tanggal: '2026-08-12', status_akhir: 'PARSIAL', wali_status: null },
       { siswa_id: 's3', tanggal: '2026-08-13', status_akhir: 'BELUM_ADA_DATA', wali_status: null },
       { siswa_id: 's5', tanggal: '2026-08-13', status_akhir: 'BELUM_ADA_INPUT', wali_status: null },
-      { siswa_id: 's4', tanggal: '2026-08-13', status_akhir: 'ALFA', wali_status: 'HADIR' },
+      { siswa_id: 's4', tanggal: '2026-08-13', status_akhir: 'PARSIAL', wali_status: 'HADIR' },
     ])).toEqual([
       { tanggal: '2026-08-12', pendingStudents: 2 },
     ])
@@ -178,7 +183,7 @@ describe('summarizePendingWaliDecisionDates', () => {
   it('mengembalikan daftar kosong jika semua status sudah diputuskan atau tidak membutuhkan keputusan', () => {
     expect(summarizePendingWaliDecisionDates([
       { siswa_id: 's1', tanggal: '2026-08-12', status_akhir: 'HADIR', wali_status: null },
-      { siswa_id: 's2', tanggal: '2026-08-12', status_akhir: 'ALFA', wali_status: 'ALFA' },
+      { siswa_id: 's2', tanggal: '2026-08-12', status_akhir: 'PARSIAL', wali_status: 'ALFA' },
     ])).toEqual([])
   })
 })

@@ -19,9 +19,15 @@ const complete = normalizeParentTkaSelection({
 })
 
 describe('parent TKA selection', () => {
-  it('requires both subjects and both university choices for college plans', () => {
+  it('requires both subjects and only the first university choice for college plans', () => {
     expect(isParentTkaSelectionComplete(complete)).toBe(true)
-    expect(isParentTkaSelectionComplete({ ...complete, pilihan2Prodi: null })).toBe(false)
+    expect(isParentTkaSelectionComplete({
+      ...complete,
+      pilihan2KampusId: null,
+      pilihan2KampusNama: null,
+      pilihan2Prodi: null,
+    })).toBe(true)
+    expect(isParentTkaSelectionComplete({ ...complete, pilihan1Prodi: null })).toBe(false)
     expect(isParentTkaSelectionComplete({ ...complete, mapelPilihan1: null })).toBe(false)
   })
 

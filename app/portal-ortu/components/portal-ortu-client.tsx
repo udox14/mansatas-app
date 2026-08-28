@@ -765,7 +765,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                           <p className="mt-1 text-sm font-bold text-[#1A1A18]">{categoryLabel(tkaSummary.selection.rencanaKategori)}</p>
                           {tkaSummary.selection.rencanaKategori === 'KULIAH' ? (
                             <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                              {[1, 2].map((slot) => {
+                              {[1, 2].filter((slot) => slot === 1 || Boolean(tkaSummary.selection[`pilihan${slot}KampusNama`] || tkaSummary.selection[`pilihan${slot}Prodi`])).map((slot) => {
                                 const kampus = tkaSummary.selection[`pilihan${slot}KampusNama`]
                                 const prodi = tkaSummary.selection[`pilihan${slot}Prodi`]
                                 return (
@@ -819,7 +819,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                               {tkaSummary.selection?.rencanaKategori === 'KULIAH' && (
                                 <>
                                   <p><span className="text-[#6B6B63]">Pilihan 1:</span> <strong>{tkaSummary.selection.pilihan1KampusNama} · {tkaSummary.selection.pilihan1Prodi}</strong></p>
-                                  <p><span className="text-[#6B6B63]">Pilihan 2:</span> <strong>{tkaSummary.selection.pilihan2KampusNama} · {tkaSummary.selection.pilihan2Prodi}</strong></p>
+                                  {(tkaSummary.selection.pilihan2KampusNama || tkaSummary.selection.pilihan2Prodi) && <p><span className="text-[#6B6B63]">Pilihan 2:</span> <strong>{tkaSummary.selection.pilihan2KampusNama} · {tkaSummary.selection.pilihan2Prodi}</strong></p>}
                                 </>
                               )}
                             </div>

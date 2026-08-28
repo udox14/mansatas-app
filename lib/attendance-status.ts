@@ -69,7 +69,7 @@ export function isWaliDecisionPendingStatus(status: string | null | undefined) {
         : status === 'BELUM ADA DATA'
           ? 'BELUM_ADA_DATA'
           : status
-  return ['PERLU_KONFIRMASI_WALI', 'PARSIAL', 'ALFA'].includes(normalized)
+  return ['PERLU_KONFIRMASI_WALI', 'PARSIAL'].includes(normalized)
 }
 
 /**
@@ -229,6 +229,10 @@ export function deriveDailyTeacherStatus(input: {
 
   if (unique.length === 1) {
     status = unique[0]
+  } else if (unique.length === 2 && unique.includes('HADIR') && unique.includes('IZIN')) {
+    // Izin pada sebagian jam tidak mengubah kehadiran harian. Rinciannya tetap
+    // tersimpan di detail absensi/catatan guru, tanpa membebani wali kelas.
+    status = 'HADIR'
   } else if (unique.length === 2 && unique.includes('HADIR') && unique.includes('ALFA')) {
     status = 'PARSIAL'
   } else {
@@ -242,13 +246,15 @@ export function deriveDailyTeacherStatus(input: {
     ? `Terdapat perbedaan status ${statusNames(considered)}; perlu keputusan wali kelas.${suffix}`
     : status === 'PARSIAL'
       ? `Terdapat kombinasi Hadir dan Alfa dalam satu hari.${suffix}`
+      : unique.length === 2 && unique.includes('HADIR') && unique.includes('IZIN')
+        ? `Terdapat izin pada sebagian blok KBM; kehadiran harian dihitung Hadir dan rincian izin tetap dicatat.${suffix}`
       : `Semua blok yang diperhitungkan berstatus ${ATTENDANCE_STATUS_META[status].label}.${suffix}`
 
   return {
     status,
     submittedBlocks,
     pendingBlocks,
-    requiresWaliDecision: status === 'PARSIAL' || status === 'PERLU_KONFIRMASI_WALI' || status === 'ALFA',
+    requiresWaliDecision: status === 'PARSIAL' || status === 'PERLU_KONFIRMASI_WALI',
     reason,
   }
 }

@@ -38,9 +38,6 @@ export function isParentTkaSelectionComplete(selection: ParentTkaSelection) {
     selection.pilihan1KampusId
     && selection.pilihan1KampusNama
     && selection.pilihan1Prodi
-    && selection.pilihan2KampusId
-    && selection.pilihan2KampusNama
-    && selection.pilihan2Prodi
   )
 }
 
