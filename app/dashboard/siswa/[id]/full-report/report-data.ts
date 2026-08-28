@@ -264,7 +264,7 @@ export async function loadFullStudentReport(
       JOIN nilai_harian_header nh ON nh.id = nd.header_id
       JOIN penugasan_mengajar pm ON pm.id = nh.penugasan_id
       JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
-      WHERE nd.siswa_id = ?${taFilter('nh.tahun_ajaran_id').sql}
+      WHERE nd.siswa_id = ? AND COALESCE(nh.tipe_nilai, 'angka') = 'angka'${taFilter('nh.tahun_ajaran_id').sql}
       GROUP BY mp.id, mp.nama_mapel ORDER BY mp.nama_mapel`, [studentId, ...taBinds]),
     (() => { const f = dateFilter('pht.tanggal'); return safeAll<any>(db, `SELECT pht.status, pht.nilai, COUNT(*) AS jumlah
       FROM pu_hasil_tes pht WHERE pht.siswa_id = ?${f.sql}

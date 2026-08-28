@@ -26,6 +26,7 @@ export type NilaiHeader = {
   tanggal: string
   keterangan: string | null
   kkm: number
+  tipe_nilai: 'angka' | 'huruf'
   jumlah_siswa: number
   rata_rata: number | null
   created_at: string
@@ -35,7 +36,7 @@ export type NilaiDetail = {
   siswa_id: string
   nama_lengkap: string
   nisn: string
-  nilai: number | null
+  nilai: number | 'A' | 'B' | 'C' | 'D' | 'E' | null
   catatan: string | null
 }
 
@@ -95,9 +96,9 @@ export async function getNilaiHeaders(penugasanId: string): Promise<NilaiHeader[
   const db = await getDB()
   const { results } = await db.prepare(`
     SELECT
-      h.id, h.penugasan_id, h.judul, h.tanggal, h.keterangan, h.kkm, h.created_at,
+      h.id, h.penugasan_id, h.judul, h.tanggal, h.keterangan, h.kkm, h.tipe_nilai, h.created_at,
       COUNT(d.id) as jumlah_siswa,
-      ROUND(AVG(d.nilai), 1) as rata_rata
+      ROUND(AVG(CASE WHEN h.tipe_nilai = 'angka' THEN d.nilai END), 1) as rata_rata
     FROM nilai_harian_header h
     LEFT JOIN nilai_harian_detail d ON d.header_id = h.id
     WHERE h.penugasan_id = ? AND h.created_by = ?
@@ -146,6 +147,7 @@ export async function buatSesiNilai(data: {
   tanggal: string
   keterangan?: string
   kkm: number
+  tipe_nilai: 'angka' | 'huruf'
 }): Promise<{ error?: string; success?: string; id?: string }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
@@ -156,6 +158,8 @@ export async function buatSesiNilai(data: {
   const db = await getDB()
   const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
   if (!ta) return { error: 'Tahun ajaran aktif belum diatur.' }
+  if (!['angka', 'huruf'].includes(data.tipe_nilai)) return { error: 'Jenis nilai tidak valid.' }
+  if (!Number.isFinite(data.kkm) || data.kkm < 0 || data.kkm > 100) return { error: 'KKM harus antara 0 dan 100.' }
 
   // Verify penugasan milik guru ini
   const pm = await db.prepare(
@@ -170,6 +174,7 @@ export async function buatSesiNilai(data: {
     tanggal: data.tanggal,
     keterangan: data.keterangan?.trim() || null,
     kkm: data.kkm,
+    tipe_nilai: data.tipe_nilai,
     created_by: guruId,
   })
   if (res.error) return { error: res.error }
@@ -230,7 +235,7 @@ export async function hapusSesiNilai(id: string): Promise<{ error?: string; succ
 // ============================================================
 export async function simpanNilaiSiswa(
   headerId: string,
-  data: Array<{ siswa_id: string; nilai: number | null; catatan?: string }>
+  data: Array<{ siswa_id: string; nilai: number | 'A' | 'B' | 'C' | 'D' | 'E' | null; catatan?: string }>
 ): Promise<{ error?: string; success?: string }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
@@ -240,13 +245,17 @@ export async function simpanNilaiSiswa(
 
   const db = await getDB()
   const header = await db.prepare(
-    'SELECT id FROM nilai_harian_header WHERE id = ? AND created_by = ?'
+    'SELECT id, judul, tanggal, tipe_nilai FROM nilai_harian_header WHERE id = ? AND created_by = ?'
   ).bind(headerId, guruId).first<any>()
   if (!header) return { error: 'Sesi tidak ditemukan atau anda bukan pemiliknya.' }
 
   if (data.length === 0) return { error: 'Tidak ada perubahan nilai.' }
   if (data.length > 100) return { error: 'Terlalu banyak perubahan dalam satu batch.' }
-  if (data.some(d => d.nilai !== null && (!Number.isFinite(d.nilai) || d.nilai < 0 || d.nilai > 100))) {
+  if (header.tipe_nilai === 'huruf') {
+    if (data.some(d => d.nilai !== null && !['A', 'B', 'C', 'D', 'E'].includes(String(d.nilai)))) {
+      return { error: 'Nilai huruf hanya boleh A, B, C, D, atau E.' }
+    }
+  } else if (data.some(d => d.nilai !== null && (typeof d.nilai !== 'number' || !Number.isFinite(d.nilai) || d.nilai < 0 || d.nilai > 100))) {
     return { error: 'Nilai harus berupa angka antara 0 dan 100.' }
   }
 
@@ -292,7 +301,7 @@ export async function simpanNilaiSiswa(
 // ============================================================
 export async function getRekapNilai(penugasanId: string): Promise<{
   headers: NilaiHeader[]
-  rows: Array<{ siswa_id: string; nama_lengkap: string; nisn: string; nilai: Record<string, number | null>; rata_rata: number | null }>
+  rows: Array<{ siswa_id: string; nama_lengkap: string; nisn: string; nilai: Record<string, number | string | null>; rata_rata: number | null }>
   kkm: number
 }> {
   const user = await getCurrentUser()
@@ -313,8 +322,9 @@ export async function getRekapNilai(penugasanId: string): Promise<{
 
   const [headersRes, siswaRes, detailRes] = await Promise.all([
     db.prepare(`
-      SELECT h.id, h.judul, h.tanggal, h.keterangan, h.kkm, h.created_at,
-             COUNT(d.id) as jumlah_siswa, ROUND(AVG(d.nilai), 1) as rata_rata
+      SELECT h.id, h.judul, h.tanggal, h.keterangan, h.kkm, h.tipe_nilai, h.created_at,
+             COUNT(d.id) as jumlah_siswa,
+             ROUND(AVG(CASE WHEN h.tipe_nilai = 'angka' THEN d.nilai END), 1) as rata_rata
       FROM nilai_harian_header h
       LEFT JOIN nilai_harian_detail d ON d.header_id = h.id
       WHERE h.penugasan_id = ? AND h.created_by = ?
@@ -333,7 +343,7 @@ export async function getRekapNilai(penugasanId: string): Promise<{
   const detailList = detailRes.results || []
 
   // Build nilai map
-  const nilaiMap = new Map<string, Record<string, number | null>>()
+  const nilaiMap = new Map<string, Record<string, number | string | null>>()
   for (const s of siswaList) nilaiMap.set(s.siswa_id, {})
   for (const d of detailList) {
     const obj = nilaiMap.get(d.siswa_id)
@@ -342,7 +352,10 @@ export async function getRekapNilai(penugasanId: string): Promise<{
 
   const rows = siswaList.map((s: any) => {
     const nilaiObj = nilaiMap.get(s.siswa_id) || {}
-    const vals = headers.map(h => nilaiObj[h.id] ?? null).filter(v => v !== null) as number[]
+    const vals = headers
+      .filter(h => h.tipe_nilai === 'angka')
+      .map(h => nilaiObj[h.id] ?? null)
+      .filter((v): v is number => typeof v === 'number')
     const rata_rata = vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : null
     return { ...s, nilai: nilaiObj, rata_rata }
   })

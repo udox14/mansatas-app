@@ -47,31 +47,35 @@ export async function getAuthenticatedActor(): Promise<AuthenticatedActor | null
 }
 
 export async function requireActionAccess(
-  featureId: string,
+  featureId: string | readonly string[],
   action: CrudAction,
   options: { allowedRoles?: readonly string[]; allowParent?: boolean } = {}
 ): Promise<AuthenticatedActor> {
+  const featureIds = typeof featureId === 'string' ? [featureId] : [...featureId]
+  const auditFeatureId = featureIds.join('|')
   const session = await getAppSession()
   if (!session) {
-    logSecurityEvent('warning', 'server_action_unauthenticated', { featureId, action })
+    logSecurityEvent('warning', 'server_action_unauthenticated', { featureId: auditFeatureId, action })
     throw new ActionAccessError('UNAUTHENTICATED')
   }
 
   if (session.kind === 'parent') {
     if (options.allowParent && action === 'read') return toActor(session)
-    logSecurityEvent('warning', 'server_action_parent_forbidden', { featureId, action, siswaId: session.user.siswa_id })
+    logSecurityEvent('warning', 'server_action_parent_forbidden', { featureId: auditFeatureId, action, siswaId: session.user.siswa_id })
     throw new ActionAccessError('FORBIDDEN')
   }
 
   const { env } = await getCloudflareContext({ async: true })
   const roles = await getUserRoles(env.DB, session.user.id)
   const actor = toActor(session, roles)
-  const allowed = await checkFeatureCrudAccess(env.DB, session.user.id, featureId, action)
+  const allowed = (await Promise.all(
+    featureIds.map(id => checkFeatureCrudAccess(env.DB, session.user.id, id, action))
+  )).some(Boolean)
   const hasRequiredRole = !options.allowedRoles?.length || roles.some(role => options.allowedRoles!.includes(role))
 
   if (!allowed || !hasRequiredRole) {
     logSecurityEvent('warning', 'server_action_forbidden', {
-      featureId,
+      featureId: auditFeatureId,
       action,
       actorId: session.user.id,
       roles,

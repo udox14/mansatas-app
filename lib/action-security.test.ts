@@ -46,6 +46,33 @@ describe('Server Action authorization', () => {
       .rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 
+  it('accepts access through any explicitly listed feature', async () => {
+    mocks.getAppSession.mockResolvedValue({
+      kind: 'staff', user: { id: 'staff-1' }, session: { id: 'session-1' },
+    })
+    mocks.checkFeatureCrudAccess.mockImplementation(
+      async (_db, _userId, featureId) => featureId === 'monitoring-kedisiplinan'
+    )
+
+    await expect(requireActionAccess(
+      ['kedisiplinan', 'monitoring-kedisiplinan'],
+      'read'
+    )).resolves.toMatchObject({ kind: 'staff', id: 'staff-1' })
+
+    expect(mocks.checkFeatureCrudAccess).toHaveBeenCalledWith(
+      mocks.db,
+      'staff-1',
+      'kedisiplinan',
+      'read'
+    )
+    expect(mocks.checkFeatureCrudAccess).toHaveBeenCalledWith(
+      mocks.db,
+      'staff-1',
+      'monitoring-kedisiplinan',
+      'read'
+    )
+  })
+
   it('allows a parent only for explicitly enabled reads and scopes them to their child', async () => {
     mocks.getAppSession.mockResolvedValue({
       kind: 'parent', user: { siswa_id: 'student-1' }, session: { id: 'parent-session-1' },

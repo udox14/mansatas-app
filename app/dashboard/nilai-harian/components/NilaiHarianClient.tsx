@@ -35,6 +35,16 @@ const gradeColor = (n: number, kkm: number) => {
   return 'text-rose-600'
 }
 const today = todayWIB
+const NILAI_HURUF = ['A', 'B', 'C', 'D', 'E'] as const
+type NilaiHuruf = typeof NILAI_HURUF[number]
+
+const letterColor = (nilai: string) => ({
+  A: 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-950/50 dark:border-emerald-800',
+  B: 'text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-950/50 dark:border-blue-800',
+  C: 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-950/50 dark:border-amber-800',
+  D: 'text-orange-700 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-950/50 dark:border-orange-800',
+  E: 'text-rose-700 bg-rose-50 border-rose-200 dark:text-rose-300 dark:bg-rose-950/50 dark:border-rose-800',
+}[nilai] || 'text-slate-400 bg-slate-50 border-slate-200 dark:bg-slate-900 dark:border-slate-700')
 
 type AutosaveEntry = {
   version: number
@@ -45,6 +55,31 @@ type AutosaveEntry = {
 type AutosaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
 const AUTOSAVE_DELAY_MS = 1000
 const AUTOSAVE_STORAGE_PREFIX = 'nilai-harian-autosave:'
+
+function LetterGradeControl({ value, onCycle, onClear, compact = false, studentName }: {
+  value: string
+  onCycle: () => void
+  onClear: () => void
+  compact?: boolean
+  studentName: string
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <button type="button" onClick={onCycle}
+        className={cn(compact ? 'h-7' : 'h-9', 'min-w-0 flex-1 rounded-lg border text-xs font-black transition-colors', letterColor(value))}
+        aria-label={`Nilai ${studentName}: ${value || 'belum diisi'}`}>
+        {value || 'Klik'}
+      </button>
+      {value && (
+        <button type="button" onClick={onClear}
+          className={cn(compact ? 'h-7 w-6' : 'h-9 w-7', 'shrink-0 rounded-lg border border-slate-200 text-slate-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600')}
+          aria-label={`Kosongkan nilai ${studentName}`} title="Kosongkan nilai">
+          <X className="h-3 w-3 mx-auto" />
+        </button>
+      )}
+    </div>
+  )
+}
 
 // ============================================================
 // TOAST
@@ -92,6 +127,7 @@ function FormSesiDialog({ open, onClose, existing, penugasanId, kkmDefault }: {
   const [tanggal, setTanggal] = useState(existing?.tanggal || today())
   const [ket, setKet] = useState(existing?.keterangan || '')
   const [kkm, setKkm] = useState(existing?.kkm ?? kkmDefault)
+  const [tipeNilai, setTipeNilai] = useState<'angka' | 'huruf'>(existing?.tipe_nilai || 'angka')
   const { msg, show } = useToast()
 
   const handleSubmit = () => {
@@ -99,7 +135,7 @@ function FormSesiDialog({ open, onClose, existing, penugasanId, kkmDefault }: {
     startTransition(async () => {
       const res = existing
         ? await editSesiNilai(existing.id, { judul, tanggal, keterangan: ket, kkm })
-        : await buatSesiNilai({ penugasan_id: penugasanId, judul, tanggal, keterangan: ket, kkm })
+        : await buatSesiNilai({ penugasan_id: penugasanId, judul, tanggal, keterangan: ket, kkm, tipe_nilai: tipeNilai })
       if (res.error) { show(false, res.error); return }
       onClose(true)
     })
@@ -116,13 +152,24 @@ function FormSesiDialog({ open, onClose, existing, penugasanId, kkmDefault }: {
           <div className="space-y-1"><Label className="text-xs">Judul <span className="text-rose-500">*</span></Label>
             <Input value={judul} onChange={e => setJudul(e.target.value)} placeholder="cth: Ulangan Harian 1" className="h-8 text-xs rounded-lg" />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs">Jenis Nilai</Label>
+            <Select value={tipeNilai} onValueChange={value => setTipeNilai(value as 'angka' | 'huruf')} disabled={!!existing}>
+              <SelectTrigger className="h-8 text-xs rounded-lg"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="angka" className="text-xs">Angka (0–100)</SelectItem>
+                <SelectItem value="huruf" className="text-xs">Huruf (A–E)</SelectItem>
+              </SelectContent>
+            </Select>
+            {existing && <p className="text-[10px] text-slate-400">Jenis nilai tidak dapat diubah setelah sesi dibuat.</p>}
+          </div>
+          <div className={cn('grid gap-2', tipeNilai === 'angka' ? 'grid-cols-2' : 'grid-cols-1')}>
             <div className="space-y-1"><Label className="text-xs">Tanggal</Label>
               <Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="h-8 text-xs rounded-lg" />
             </div>
-            <div className="space-y-1"><Label className="text-xs">KKM</Label>
+            {tipeNilai === 'angka' && <div className="space-y-1"><Label className="text-xs">KKM</Label>
               <Input type="number" min={0} max={100} value={kkm} onChange={e => setKkm(Number(e.target.value))} className="h-8 text-xs rounded-lg" />
-            </div>
+            </div>}
           </div>
           <div className="space-y-1"><Label className="text-xs">Keterangan (opsional)</Label>
             <Textarea value={ket} onChange={e => setKet(e.target.value)} rows={2} placeholder="Catatan sesi..." className="text-xs rounded-lg resize-none" />
@@ -193,6 +240,7 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
     const snapshot = [...entries.entries()]
     const invalid = snapshot.find(([, entry]) => {
       if (entry.nilai.trim() === '') return false
+      if (NILAI_HURUF.includes(entry.nilai as NilaiHuruf)) return false
       const nilai = Number(entry.nilai)
       return !Number.isFinite(nilai) || nilai < 0 || nilai > 100
     })
@@ -208,7 +256,11 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
     try {
       const res = await simpanNilaiSiswa(headerId, snapshot.map(([siswa_id, entry]) => ({
         siswa_id,
-        nilai: entry.nilai.trim() === '' ? null : Number(entry.nilai),
+        nilai: entry.nilai.trim() === ''
+          ? null
+          : NILAI_HURUF.includes(entry.nilai as NilaiHuruf)
+            ? entry.nilai as NilaiHuruf
+            : Number(entry.nilai),
         catatan: entry.catatan,
       })))
       if (res.error) throw new Error(res.error)
@@ -317,6 +369,12 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
     queueAutosave(selectedHeader.id, siswaId, value, catatanDraft[siswaId] || '')
   }
 
+  const cycleNilaiHuruf = (siswaId: string) => {
+    const current = nilaiDraft[siswaId] || ''
+    const currentIndex = NILAI_HURUF.indexOf(current as NilaiHuruf)
+    changeNilai(siswaId, NILAI_HURUF[(currentIndex + 1) % NILAI_HURUF.length])
+  }
+
   const changeCatatan = (siswaId: string, value: string) => {
     if (!selectedHeader) return
     setCatatanDraft(prev => ({ ...prev, [siswaId]: value }))
@@ -352,12 +410,18 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
         const newCat = { ...catatanDraft }
         for (const row of rows) {
           const nisn = String(row['NISN'] || row['nisn'] || '').trim()
-          const nilai = parseFloat(String(row['NILAI'] || row['nilai'] || ''))
+          const rawNilai = String(row['NILAI'] || row['nilai'] || '').trim().toUpperCase()
           const cat = String(row['CATATAN'] || row['catatan'] || '').trim()
           const siswa = detail.find(s => String(s.nisn).trim() === nisn)
           if (!siswa) { logs.push(`NISN ${nisn} tidak ditemukan`); continue }
-          if (isNaN(nilai) || nilai < 0 || nilai > 100) { logs.push(`NISN ${nisn}: nilai tidak valid (${row['NILAI']})`); continue }
-          newDraft[siswa.siswa_id] = String(nilai)
+          if (selectedHeader.tipe_nilai === 'huruf') {
+            if (!NILAI_HURUF.includes(rawNilai as NilaiHuruf)) { logs.push(`NISN ${nisn}: nilai huruf tidak valid (${row['NILAI']})`); continue }
+            newDraft[siswa.siswa_id] = rawNilai
+          } else {
+            const nilai = parseFloat(rawNilai)
+            if (isNaN(nilai) || nilai < 0 || nilai > 100) { logs.push(`NISN ${nisn}: nilai tidak valid (${row['NILAI']})`); continue }
+            newDraft[siswa.siswa_id] = String(nilai)
+          }
           if (cat) newCat[siswa.siswa_id] = cat
         }
         setNilaiDraft(newDraft); setCatatanDraft(newCat); setImportLogs(logs)
@@ -414,7 +478,7 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-semibold text-sm text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{h.judul}</p>
-                  <p className="text-[10px] text-slate-400">{fmtTanggal(h.tanggal)} · KKM {h.kkm}</p>
+                  <p className="text-[10px] text-slate-400">{fmtTanggal(h.tanggal)} · {h.tipe_nilai === 'huruf' ? 'Nilai Huruf A–E' : `KKM ${h.kkm}`}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button onClick={e => { e.stopPropagation(); setEditTarget(h); setShowForm(true) }}
@@ -425,7 +489,9 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
               </div>
               <div className="flex items-center gap-3 text-[11px]">
                 <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400"><Users className="h-3 w-3" />{h.jumlah_siswa} siswa</span>
-                {h.rata_rata != null && <span className={cn('font-bold', gradeColor(h.rata_rata, h.kkm))}>Rata-rata: {h.rata_rata}</span>}
+                {h.tipe_nilai === 'huruf'
+                  ? <span className="font-bold text-violet-600">Mode klik A–E</span>
+                  : h.rata_rata != null && <span className={cn('font-bold', gradeColor(h.rata_rata, h.kkm))}>Rata-rata: {h.rata_rata}</span>}
               </div>
             </div>
           )
@@ -438,7 +504,7 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
           <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex items-center justify-between flex-wrap gap-2">
             <div>
               <p className="font-bold text-sm text-blue-900">{selectedHeader.judul}</p>
-              <p className="text-[10px] text-blue-600">{fmtTanggal(selectedHeader.tanggal)} · KKM {selectedHeader.kkm}</p>
+              <p className="text-[10px] text-blue-600">{fmtTanggal(selectedHeader.tanggal)} · {selectedHeader.tipe_nilai === 'huruf' ? 'Klik nilai untuk mengganti A → B → C → D → E' : `KKM ${selectedHeader.kkm}`}</p>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={handleDownloadTemplate} className="h-7 px-2 text-[10px] flex items-center gap-1 border border-slate-200 dark:border-slate-800 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400">
@@ -482,7 +548,8 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
               {/* ── MOBILE: Card per siswa (no horizontal scroll) ── */}
               <div className="block md:hidden divide-y divide-slate-100">
                 {detail.map((s, i) => {
-                  const n = parseFloat(nilaiDraft[s.siswa_id] || '')
+                  const nilai = nilaiDraft[s.siswa_id] || ''
+                  const n = parseFloat(nilai)
                   const color = isNaN(n) ? 'text-slate-700 dark:text-slate-300' : gradeColor(n, selectedHeader.kkm)
                   const bgColor = isNaN(n) ? '' : n >= selectedHeader.kkm ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800' : n >= selectedHeader.kkm * 0.8 ? 'bg-amber-50 border-amber-200' : 'bg-rose-50 border-rose-200'
                   return (
@@ -497,20 +564,22 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
                           </div>
                         </div>
                         {/* Nilai badge (preview) */}
-                        {!isNaN(n) && (
-                          <span className={`text-sm font-black shrink-0 ${color}`}>{n}</span>
-                        )}
+                        {selectedHeader.tipe_nilai === 'huruf' && nilai && <span className={cn('text-sm font-black shrink-0 px-2 py-0.5 rounded-md border', letterColor(nilai))}>{nilai}</span>}
+                        {selectedHeader.tipe_nilai === 'angka' && !isNaN(n) && <span className={`text-sm font-black shrink-0 ${color}`}>{n}</span>}
                       </div>
                       {/* Input row */}
                       <div className="flex gap-2 pl-7">
                         <div className="w-24 shrink-0">
-                          <Input
-                            type="number" min={0} max={100} step={0.5}
-                            value={nilaiDraft[s.siswa_id] || ''}
-                            onChange={e => changeNilai(s.siswa_id, e.target.value)}
-                            placeholder="Nilai"
-                            className={`h-9 text-sm text-center rounded-lg font-bold ${color}`}
-                          />
+                          {selectedHeader.tipe_nilai === 'huruf' ? (
+                            <LetterGradeControl value={nilai} studentName={s.nama_lengkap}
+                              onCycle={() => cycleNilaiHuruf(s.siswa_id)} onClear={() => changeNilai(s.siswa_id, '')} />
+                          ) : <Input
+                              type="number" min={0} max={100} step={0.5}
+                              value={nilai}
+                              onChange={e => changeNilai(s.siswa_id, e.target.value)}
+                              placeholder="Nilai"
+                              className={`h-9 text-sm text-center rounded-lg font-bold ${color}`}
+                            />}
                         </div>
                         <Input
                           value={catatanDraft[s.siswa_id] || ''}
@@ -538,7 +607,8 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {detail.map((s, i) => {
-                      const n = parseFloat(nilaiDraft[s.siswa_id] || '')
+                      const nilai = nilaiDraft[s.siswa_id] || ''
+                      const n = parseFloat(nilai)
                       const color = isNaN(n) ? '' : gradeColor(n, selectedHeader.kkm)
                       return (
                         <tr key={s.siswa_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
@@ -546,12 +616,15 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
                           <td className="px-3 py-1.5 font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100">{s.nama_lengkap}</td>
                           <td className="px-3 py-1.5 text-slate-400 font-mono">{s.nisn}</td>
                           <td className="px-3 py-1.5">
-                            <Input
-                              type="number" min={0} max={100} step={0.5}
-                              value={nilaiDraft[s.siswa_id] || ''}
-                              onChange={e => changeNilai(s.siswa_id, e.target.value)}
-                              className={cn('h-7 text-xs text-center rounded w-full', color)}
-                            />
+                            {selectedHeader.tipe_nilai === 'huruf' ? (
+                              <LetterGradeControl compact value={nilai} studentName={s.nama_lengkap}
+                                onCycle={() => cycleNilaiHuruf(s.siswa_id)} onClear={() => changeNilai(s.siswa_id, '')} />
+                            ) : <Input
+                                type="number" min={0} max={100} step={0.5}
+                                value={nilai}
+                                onChange={e => changeNilai(s.siswa_id, e.target.value)}
+                                className={cn('h-7 text-xs text-center rounded w-full', color)}
+                              />}
                           </td>
                           <td className="px-3 py-1.5">
                             <Input
@@ -663,10 +736,14 @@ function TabRekap({ penugasanId, mapelNama, kelasLabel }: { penugasanId: string;
                 <td className="px-3 py-2 text-slate-400">{i + 1}</td>
                 <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200 dark:text-slate-100 whitespace-nowrap">{r.nama_lengkap}</td>
                 {headers.map(h => {
-                  const n = r.nilai[h.id]
+                  const nilai = r.nilai[h.id]
+                  const isAngka = h.tipe_nilai === 'angka' && typeof nilai === 'number'
                   return (
-                    <td key={h.id} className={cn('px-3 py-2 text-center font-semibold', n != null ? gradeColor(n, kkm) : 'text-slate-300')}>
-                      {n != null ? n : '-'}
+                    <td key={h.id} className={cn(
+                      'px-3 py-2 text-center font-semibold',
+                      isAngka ? gradeColor(nilai, kkm) : typeof nilai === 'string' ? letterColor(nilai) : 'text-slate-300'
+                    )}>
+                      {nilai ?? '-'}
                     </td>
                   )
                 })}
@@ -714,7 +791,8 @@ function TabAnalitik({ penugasanId }: { penugasanId: string }) {
   if (!data || data.headers.length === 0) return <div className="py-10 text-center text-slate-400 text-sm">Belum ada data nilai untuk dianalisis.</div>
 
   const { headers, rows } = data
-  const allValues = rows.flatMap(r => headers.map(h => r.nilai[h.id]).filter(v => v != null) as number[])
+  const numericHeaders = headers.filter(h => h.tipe_nilai === 'angka')
+  const allValues = rows.flatMap(r => numericHeaders.map(h => r.nilai[h.id]).filter((v): v is number => typeof v === 'number'))
 
   return (
     <div className="space-y-4">
@@ -736,7 +814,7 @@ function TabAnalitik({ penugasanId }: { penugasanId: string }) {
           { label: 'Total Siswa', val: rows.length, icon: Users, color: 'bg-blue-50 text-blue-700' },
           { label: 'Total Sesi', val: headers.length, icon: BookOpen, color: 'bg-violet-50 text-violet-700' },
           { label: 'Rata-rata Kelas', val: allValues.length ? (allValues.reduce((a, b) => a + b, 0) / allValues.length).toFixed(1) : '-', icon: TrendingUp, color: 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400' },
-          { label: 'Di Bawah KKM', val: rows.filter(r => { const vals = headers.map(h => r.nilai[h.id]).filter(v => v != null) as number[]; return vals.length > 0 && (vals.reduce((a, b) => a + b, 0) / vals.length) < kkm }).length, icon: TrendingDown, color: 'bg-rose-50 text-rose-700' },
+          { label: 'Di Bawah KKM', val: rows.filter(r => { const vals = numericHeaders.map(h => r.nilai[h.id]).filter((v): v is number => typeof v === 'number'); return vals.length > 0 && (vals.reduce((a, b) => a + b, 0) / vals.length) < kkm }).length, icon: TrendingDown, color: 'bg-rose-50 text-rose-700' },
         ].map(card => (
           <div key={card.label} className="bg-surface border border-surface rounded-xl p-3 flex items-center gap-3">
             <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center shrink-0', card.color)}>
@@ -753,7 +831,26 @@ function TabAnalitik({ penugasanId }: { penugasanId: string }) {
       {/* Per Sesi Analitik */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {headers.map(h => {
-          const vals = rows.map(r => r.nilai[h.id]).filter(v => v != null) as number[]
+          if (h.tipe_nilai === 'huruf') {
+            const letters = rows.map(r => r.nilai[h.id]).filter((v): v is string => typeof v === 'string')
+            return (
+              <div key={h.id} className="bg-surface border border-surface rounded-xl p-3 space-y-3">
+                <div>
+                  <p className="font-bold text-sm text-slate-800 dark:text-slate-100">{h.judul}</p>
+                  <p className="text-[10px] text-slate-400">{fmtTanggal(h.tanggal)} · {letters.length} nilai huruf</p>
+                </div>
+                <div className="grid grid-cols-5 gap-1">
+                  {NILAI_HURUF.map(letter => (
+                    <div key={letter} className={cn('rounded-lg border py-2 text-center', letterColor(letter))}>
+                      <p className="text-sm font-black">{letter}</p>
+                      <p className="text-[10px] font-semibold">{letters.filter(value => value === letter).length}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          }
+          const vals = rows.map(r => r.nilai[h.id]).filter((v): v is number => typeof v === 'number')
           const avg = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) : '-'
           const min = vals.length ? Math.min(...vals) : null
           const max = vals.length ? Math.max(...vals) : null

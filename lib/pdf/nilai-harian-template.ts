@@ -2,11 +2,11 @@
 // HTML builder untuk PDF Rekap Nilai Harian (server-side, Browser Rendering).
 // Markup & style mirror persis blok cetak lama di NilaiHarianClient (react-to-print).
 
-type RekapHeader = { id: string; judul: string; tanggal: string }
+type RekapHeader = { id: string; judul: string; tanggal: string; tipe_nilai: 'angka' | 'huruf' }
 type RekapRow = {
   siswa_id: string
   nama_lengkap: string
-  nilai: Record<string, number | null>
+  nilai: Record<string, number | string | null>
   rata_rata: number | null
 }
 

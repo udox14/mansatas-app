@@ -6,7 +6,10 @@ import { getDB as getRawDB } from '@/utils/db-server'
 import { requireActionAccess } from '@/lib/action-security'
 
 async function getDB() {
-  await requireActionAccess('kedisiplinan', 'read')
+  // Komponen input dan analitik juga dipakai dari halaman Monitoring
+  // Kedisiplinan. Terima user yang memiliki akses baca ke salah satu modul;
+  // pemeriksaan role khusus tetap dilakukan oleh setiap aksi mutasi.
+  await requireActionAccess(['kedisiplinan', 'monitoring-kedisiplinan'], 'read')
   return getRawDB()
 }
 import { uploadBuktiFoto, deleteFromR2, validateImageFile } from '@/utils/r2'
