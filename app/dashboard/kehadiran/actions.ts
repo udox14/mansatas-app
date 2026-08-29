@@ -10,7 +10,7 @@ import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { currentTimeWIB, todayWIB, nowWIB } from '@/lib/time'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
-import { notifyParentsAttendanceConfigured } from '@/lib/notification-engine'
+import { notifyParentsAttendanceConfigured, notifyParentsDailyAttendanceFinal } from '@/lib/notification-engine'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import {
@@ -507,6 +507,7 @@ export async function simpanAbsensi(
   if (toSave.length === 0) {
     try { await db.batch([delStmt, delSnapshotStmt, ...snapshotStmts, upsertSesiStmt]) } catch (e: any) { return { error: e.message } }
     invalidateAttendanceCache()
+    try { await notifyParentsDailyAttendanceFinal(db, { penugasanId, tanggal }) } catch (fcmError) { console.error('Gagal kirim rekap FCM absensi ke ortu:', fcmError) }
     revalidatePath('/dashboard/kehadiran')
     revalidatePath('/dashboard/rekap-absensi')
     return { success: 'Absensi disimpan! Semua siswa HADIR.' }
@@ -543,6 +544,8 @@ export async function simpanAbsensi(
       console.error('Gagal kirim notifikasi FCM absensi ke ortu:', fcmError)
     }
   }
+
+  try { await notifyParentsDailyAttendanceFinal(db, { penugasanId, tanggal }) } catch (fcmError) { console.error('Gagal kirim rekap FCM absensi ke ortu:', fcmError) }
 
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/rekap-absensi')

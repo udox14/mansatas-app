@@ -7,6 +7,7 @@ import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import { ensureActivityLogTables, logActivity } from '@/lib/activity-log'
+import { notifyParentsDailyAttendanceFinal } from '@/lib/notification-engine'
 
 type WaliStatus = 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'
 
@@ -115,6 +116,19 @@ export async function simpanKeputusanAbsensiWaliBatch(
             updated_at = datetime('now')
         `).bind(crypto.randomUUID(), item.siswa_id, tanggal, item.status, item.keterangan || null, user.id)
       )
+
+      // Notifikasi sesi ALFA adalah informasi awal dari guru. Begitu wali kelas
+      // menetapkan status final selain ALFA, jangan lagi tampilkan informasi lama
+      // tersebut sebagai kondisi yang masih berlaku di portal orang tua.
+      stmts.push(
+        db.prepare(`
+          UPDATE parent_notifications
+          SET archived_at = CASE WHEN ? = 'ALFA' THEN NULL ELSE datetime('now') END
+          WHERE siswa_id = ?
+            AND type = 'absensi'
+            AND source_ref LIKE '%:' || ? || ':ALFA'
+        `).bind(item.status, item.siswa_id, tanggal)
+      )
     }
 
     for (let i = 0; i < stmts.length; i += 100) {
@@ -145,6 +159,12 @@ export async function simpanKeputusanAbsensiWaliBatch(
         },
       })),
     })
+
+    try {
+      await notifyParentsDailyAttendanceFinal(db, { kelasId, tanggal })
+    } catch (notificationError) {
+      console.error('Gagal kirim rekap FCM setelah keputusan wali:', notificationError)
+    }
 
     revalidateAttendanceViews()
 

@@ -540,9 +540,16 @@ async function attendanceStillAlfa(db: D1Database, row: WaOutboxRow) {
   if (!row.attendance_date || siswaIds.length === 0) return false
   const result = await db.prepare(`
     SELECT COUNT(*) AS cnt
-    FROM absensi_siswa
-    WHERE tanggal = ? AND status = 'ALFA'
-      AND siswa_id IN (${siswaIds.map(() => '?').join(',')})
+    FROM absensi_siswa ab
+    WHERE ab.tanggal = ? AND ab.status = 'ALFA'
+      AND ab.siswa_id IN (${siswaIds.map(() => '?').join(',')})
+      AND NOT EXISTS (
+        SELECT 1
+        FROM keterangan_absensi_wali_kelas kawk
+        WHERE kawk.siswa_id = ab.siswa_id
+          AND kawk.tanggal = ab.tanggal
+          AND kawk.status <> 'ALFA'
+      )
   `).bind(row.attendance_date, ...siswaIds).first<any>()
   return Number(result?.cnt || 0) > 0
 }

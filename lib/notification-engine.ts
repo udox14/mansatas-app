@@ -13,6 +13,7 @@ import {
 } from '@/lib/notification-catalog'
 import { sendFcmNotification, type FcmRuntimeOptions, type FcmTarget, type FcmNotif } from '@/lib/fcm'
 import { sendPushNotification } from '@/lib/web-push'
+import { getFinalAttendanceForClass } from '@/lib/wali-kelas-attendance'
 
 export const NOTIFICATION_DIRECT_RECIPIENT_LIMIT = 25
 
@@ -47,6 +48,11 @@ export type NotificationQueueMessage = {
   }
   parentType: string
   level: string
+  validation?: {
+    kind: 'attendance_status'
+    tanggal: string
+    status: 'ALFA' | 'SAKIT'
+  }
 }
 
 export type EmitConfiguredNotificationInput = {
@@ -57,6 +63,8 @@ export type EmitConfiguredNotificationInput = {
   db?: D1Database
   runtimeEnv?: FcmRuntimeOptions['env']
   parentType?: string
+  delaySeconds?: number
+  validation?: NotificationQueueMessage['validation']
 }
 
 export type NotificationDispatchResult = {
@@ -569,7 +577,7 @@ export async function notifyParentsAttendanceConfigured(
     FROM absensi_siswa ab
     JOIN siswa s ON s.id = ab.siswa_id
     WHERE ab.penugasan_id = ? AND ab.tanggal = ?
-      AND ab.status IN ('ALFA', 'SAKIT')
+      AND ab.status = 'ALFA'
       AND s.status = 'aktif'
       ${siswaFilter}
     ORDER BY s.nama_lengkap
@@ -578,55 +586,100 @@ export async function notifyParentsAttendanceConfigured(
   const attendanceRows = rows.results || []
   let notified = 0
 
-  // Bila admin memilih target multi-siswa, gabungkan fan-out besar per status.
-  // Target per-siswa tetap dipertahankan untuk konfigurasi parent_student agar
-  // redaksi personal dan pilihan target admin tidak berubah.
-  const configuredTarget = normalizeTarget(setting.target_json, { kind: 'parent_students' })
-  if (attendanceRows.length > NOTIFICATION_DIRECT_RECIPIENT_LIMIT && configuredTarget.kind === 'parent_students') {
-    const grouped = new Map<string, typeof attendanceRows>()
-    for (const row of attendanceRows) {
-      const bucket = grouped.get(row.status) || []
-      bucket.push(row)
-      grouped.set(row.status, bucket)
-    }
-    for (const [status, group] of grouped) {
-      const label = status === 'ALFA' ? 'ALFA (tanpa keterangan)' : 'SAKIT'
-      const result = await emitConfiguredNotification({
-        eventKey: 'attendance_parent_alert',
-        sourceRef: `${options.penugasanId}:${options.tanggal}:${status}`,
-        context: {
-          siswaIds: group.map((row) => row.siswa_id),
-          nama_siswa: 'siswa',
-          status_kehadiran: label,
-          tanggal: options.tanggal,
-        },
-        targetOverride: { kind: 'parent_students' },
-        db,
-        parentType: 'absensi',
-      })
-      notified += result.sent
-    }
-    return { notified, students: attendanceRows.length }
-  }
-
   for (const row of attendanceRows) {
-    const label = row.status === 'ALFA' ? 'ALFA (tanpa keterangan)' : 'SAKIT'
     const result = await emitConfiguredNotification({
       eventKey: 'attendance_parent_alert',
-      sourceRef: `${options.penugasanId}:${options.tanggal}:${row.status}`,
+      // Deduplikasi lintas mapel: orang tua hanya menerima satu laporan awal
+      // ALFA untuk anak yang sama pada satu tanggal.
+      sourceRef: `attendance-initial:${row.siswa_id}:${options.tanggal}`,
       context: {
         siswaId: row.siswa_id,
         siswaIds: [row.siswa_id],
         nama_siswa: row.nama_lengkap,
-        status_kehadiran: label,
+        status_kehadiran: 'ALFA',
         tanggal: options.tanggal,
       },
       db,
       parentType: 'absensi',
+      validation: {
+        kind: 'attendance_status',
+        tanggal: options.tanggal,
+        status: 'ALFA',
+      },
     })
     notified += result.sent
   }
   return { notified, students: attendanceRows.length }
+}
+
+const FINAL_DAILY_ATTENDANCE_STATUSES = new Set(['HADIR', 'SAKIT', 'IZIN', 'ALFA'])
+
+/**
+ * Kirim satu penutup resmi untuk orang tua yang sebelumnya menerima laporan
+ * awal ALFA. Hanya status harian yang telah final yang boleh dikirim.
+ */
+export async function notifyParentsDailyAttendanceFinal(
+  db: D1Database,
+  options: { tanggal: string; penugasanId?: string; kelasId?: string },
+) {
+  const setting = await getNotificationSetting('attendance_daily_final', db)
+  if (!setting || Number(setting.enabled) !== 1) return { notified: 0, students: 0, disabled: true }
+
+  const kelasId = options.kelasId || (options.penugasanId
+    ? (await db.prepare(`SELECT kelas_id FROM penugasan_mengajar WHERE id = ? LIMIT 1`)
+      .bind(options.penugasanId).first<{ kelas_id: string }>())?.kelas_id
+    : null)
+  if (!kelasId) return { notified: 0, students: 0 }
+
+  const students = await db.prepare(`
+    SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif'
+  `).bind(kelasId).all<{ id: string }>()
+  const studentIds = (students.results || []).map(row => row.id)
+  if (studentIds.length === 0) return { notified: 0, students: 0 }
+
+  const initialRefs = new Map(studentIds.map(id => [id, `attendance-initial:${id}:${options.tanggal}`]))
+  const refs = Array.from(initialRefs.values())
+  const initialDispatches = await db.prepare(`
+    SELECT source_ref
+    FROM notification_dispatches
+    WHERE event_key = 'attendance_parent_alert'
+      AND source_ref IN (${refs.map(() => '?').join(',')})
+      AND status IN ('queued', 'processing', 'sent')
+  `).bind(...refs).all<{ source_ref: string }>()
+  const alertedRefs = new Set((initialDispatches.results || []).map(row => row.source_ref))
+  if (alertedRefs.size === 0) return { notified: 0, students: 0 }
+
+  const finalData = await getFinalAttendanceForClass(db, kelasId, options.tanggal, options.tanggal)
+  if (!finalData) return { notified: 0, students: 0 }
+
+  let notified = 0
+  let processed = 0
+  for (const siswa of finalData.siswa) {
+    const initialRef = initialRefs.get(siswa.id)
+    if (!initialRef || !alertedRefs.has(initialRef)) continue
+    const detail = finalData.statusByStudent.get(siswa.id)?.[0]
+    if (!detail || detail.requires_wali_decision || !FINAL_DAILY_ATTENDANCE_STATUSES.has(detail.status_akhir)) continue
+
+    const result = await emitConfiguredNotification({
+      eventKey: 'attendance_daily_final',
+      sourceRef: `attendance-final:${siswa.id}:${options.tanggal}`,
+      context: {
+        siswaId: siswa.id,
+        siswaIds: [siswa.id],
+        nama_siswa: siswa.nama_lengkap,
+        kelas: finalData.kelas.label,
+        status_kehadiran: detail.status_akhir,
+        tanggal: options.tanggal,
+      },
+      targetOverride: { kind: 'parent_students' },
+      db,
+      parentType: 'absensi_rekap',
+    })
+    notified += result.sent
+    processed += 1
+  }
+
+  return { notified, students: processed }
 }
 
 export async function notifyParentsGradeAvailable(
@@ -778,6 +831,53 @@ async function deliverNotification(
   return { ok: successfulChannels > 0 || attemptedChannels === 0, retryable, sent, errors }
 }
 
+async function validatedQueueRecipientIds(db: D1Database, message: NotificationQueueMessage) {
+  if (!message.validation || message.validation.kind !== 'attendance_status') {
+    return message.target.ids
+  }
+
+  const ids = [...new Set(message.target.ids.map(String).filter(Boolean))]
+  if (ids.length === 0) return []
+  const placeholders = ids.map(() => '?').join(',')
+  const rows = await db.prepare(`
+    SELECT s.id
+    FROM siswa s
+    WHERE s.id IN (${placeholders})
+      AND s.status = 'aktif'
+      AND (
+        EXISTS (
+          SELECT 1
+          FROM keterangan_absensi_wali_kelas kawk
+          WHERE kawk.siswa_id = s.id
+            AND kawk.tanggal = ?
+            AND kawk.status = ?
+        )
+        OR (
+          NOT EXISTS (
+            SELECT 1
+            FROM keterangan_absensi_wali_kelas kawk
+            WHERE kawk.siswa_id = s.id AND kawk.tanggal = ?
+          )
+          AND EXISTS (
+            SELECT 1
+            FROM absensi_siswa ab
+            WHERE ab.siswa_id = s.id
+              AND ab.tanggal = ?
+              AND ab.status = ?
+          )
+        )
+      )
+  `).bind(
+    ...ids,
+    message.validation.tanggal,
+    message.validation.status,
+    message.validation.tanggal,
+    message.validation.tanggal,
+    message.validation.status,
+  ).all<{ id: string }>()
+  return (rows.results || []).map(row => row.id)
+}
+
 export async function emitConfiguredNotification(input: EmitConfiguredNotificationInput): Promise<NotificationDispatchResult> {
   const definition = getNotificationDefinition(input.eventKey)
   if (!definition) return { status: 'skipped', sent: 0, queued: 0, dispatchIds: [], error: 'Event notifikasi tidak dikenal.' }
@@ -807,7 +907,8 @@ export async function emitConfiguredNotification(input: EmitConfiguredNotificati
   const ids = [...new Set(expanded.ids)]
   const chunks = chunk(ids, NOTIFICATION_DIRECT_RECIPIENT_LIMIT)
   const queue = await getQueue()
-  const shouldQueue = chunks.length > 1
+  const delaySeconds = Math.max(0, Math.floor(Number(input.delaySeconds || 0)))
+  const shouldQueue = delaySeconds > 0 || chunks.length > 1
   const dispatchIds: string[] = []
   let sent = 0
   let queued = 0
@@ -832,11 +933,15 @@ export async function emitConfiguredNotification(input: EmitConfiguredNotificati
       target: queueTarget(expanded.audience, idsChunk),
       parentType: input.parentType || input.eventKey,
       level: setting.level || definition.defaultLevel,
+      validation: input.validation,
     }
 
     if (shouldQueue && queue) {
       try {
-        await queue.send(message, { contentType: 'json' })
+        await queue.send(message, {
+          contentType: 'json',
+          ...(delaySeconds > 0 ? { delaySeconds } : {}),
+        })
         queued += 1
         continue
       } catch (error) {
@@ -845,6 +950,14 @@ export async function emitConfiguredNotification(input: EmitConfiguredNotificati
         firstError ||= error instanceof Error ? error.message : String(error)
         continue
       }
+    }
+
+    if (delaySeconds > 0 && !queue) {
+      const error = 'Antrean notifikasi tidak tersedia; pengiriman tertunda tidak boleh dikirim langsung.'
+      await markDispatch(db, claimed.id, 'failed', error)
+      failed = true
+      firstError ||= error
+      continue
     }
 
     await markDispatch(db, claimed.id, 'processing')
@@ -948,9 +1061,15 @@ export async function processNotificationQueueMessage(
   const row = await db.prepare('SELECT status FROM notification_dispatches WHERE id = ?').bind(message.dispatchId).first<{ status: string }>()
   if (!row || row.status === 'sent') return { retry: false, sent: 0 }
 
+  const validRecipientIds = await validatedQueueRecipientIds(db, message)
+  if (validRecipientIds.length === 0) {
+    await markDispatch(db, message.dispatchId, 'sent', 'Dibatalkan: status kehadiran sudah berubah atau dikoreksi wali kelas.')
+    return { retry: false, sent: 0, skipped: true }
+  }
+
   await markDispatch(db, message.dispatchId, 'processing')
   const audience: ExpandedAudience = message.target.kind === 'staff_users' ? 'staff' : 'parent'
-  const delivered = await deliverNotification(db, env, message, audience, message.target.ids, message.sourceRef)
+  const delivered = await deliverNotification(db, env, message, audience, validRecipientIds, message.sourceRef)
   if (delivered.ok) {
     await markDispatch(db, message.dispatchId, 'sent')
     return { retry: false, sent: delivered.sent }

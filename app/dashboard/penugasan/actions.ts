@@ -8,7 +8,7 @@ import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import { nowWIBISO, todayWIB } from '@/lib/time'
 import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
-import { emitConfiguredNotification, notifyParentsAttendanceConfigured } from '@/lib/notification-engine'
+import { emitConfiguredNotification, notifyParentsAttendanceConfigured, notifyParentsDailyAttendanceFinal } from '@/lib/notification-engine'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
@@ -829,6 +829,12 @@ export async function simpanAbsensiDelegasi(
     } catch (fcmError) {
       console.error('Gagal kirim notifikasi FCM absensi delegasi ke ortu:', fcmError)
     }
+  }
+
+  try {
+    await notifyParentsDailyAttendanceFinal(db, { penugasanId: penugasanMengajarId, tanggal })
+  } catch (fcmError) {
+    console.error('Gagal kirim rekap FCM absensi delegasi ke ortu:', fcmError)
   }
 
   revalidatePath('/dashboard/penugasan')

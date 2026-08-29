@@ -225,16 +225,18 @@ export function deriveDailyTeacherStatus(input: {
 
   const considered = input.submittedStatuses.slice(0, submittedBlocks)
   const unique = Array.from(new Set(considered))
+  const statusCounts = new Map<SubmittedBlockStatus, number>()
+  for (const item of considered) {
+    statusCounts.set(item, (statusCounts.get(item) || 0) + 1)
+  }
+  const highestCount = Math.max(...statusCounts.values())
+  const dominantStatuses = Array.from(statusCounts.entries())
+    .filter(([, count]) => count === highestCount)
+    .map(([status]) => status)
   let status: FinalAttendanceStatus
 
-  if (unique.length === 1) {
-    status = unique[0]
-  } else if (unique.length === 2 && unique.includes('HADIR') && unique.includes('IZIN')) {
-    // Izin pada sebagian jam tidak mengubah kehadiran harian. Rinciannya tetap
-    // tersimpan di detail absensi/catatan guru, tanpa membebani wali kelas.
-    status = 'HADIR'
-  } else if (unique.length === 2 && unique.includes('HADIR') && unique.includes('ALFA')) {
-    status = 'PARSIAL'
+  if (dominantStatuses.length === 1) {
+    status = dominantStatuses[0]
   } else {
     status = 'PERLU_KONFIRMASI_WALI'
   }
@@ -244,17 +246,15 @@ export function deriveDailyTeacherStatus(input: {
     : ''
   const reason = status === 'PERLU_KONFIRMASI_WALI'
     ? `Terdapat perbedaan status ${statusNames(considered)}; perlu keputusan wali kelas.${suffix}`
-    : status === 'PARSIAL'
-      ? `Terdapat kombinasi Hadir dan Alfa dalam satu hari.${suffix}`
-      : unique.length === 2 && unique.includes('HADIR') && unique.includes('IZIN')
-        ? `Terdapat izin pada sebagian blok KBM; kehadiran harian dihitung Hadir dan rincian izin tetap dicatat.${suffix}`
+    : unique.length > 1
+      ? `Status ${ATTENDANCE_STATUS_META[status].label} paling banyak (${highestCount}/${submittedBlocks} blok) sehingga menjadi status harian.${suffix}`
       : `Semua blok yang diperhitungkan berstatus ${ATTENDANCE_STATUS_META[status].label}.${suffix}`
 
   return {
     status,
     submittedBlocks,
     pendingBlocks,
-    requiresWaliDecision: status === 'PARSIAL' || status === 'PERLU_KONFIRMASI_WALI',
+    requiresWaliDecision: status === 'PERLU_KONFIRMASI_WALI',
     reason,
   }
 }

@@ -1135,7 +1135,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       <PortalPageHeader
         tourId="jadwal-header"
         title="Jadwal pelajaran"
-        description="Lihat jadwal kelas dan status absensi anak per jam pelajaran berdasarkan input guru."
+        description="Lihat jadwal kelas dan status absensi anak per jam berdasarkan input guru serta keputusan final wali kelas."
         Icon={CalendarDays}
       />
 

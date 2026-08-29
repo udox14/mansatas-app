@@ -63,6 +63,10 @@ type TodayIzinRow = {
   alasan: string
   keterangan: string | null
 }
+type TodayWaliDecisionRow = {
+  status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'
+  keterangan: string | null
+}
 type GuruTidakHadir = {
   status: 'SAKIT' | 'IZIN'
   keterangan: string | null
@@ -456,11 +460,31 @@ export default async function PortalOrtuPage() {
     }),
     db.prepare(`
       SELECT id, type, title, message, level, is_read, created_at
-      FROM parent_notifications
-      WHERE siswa_id = ?
-        AND archived_at IS NULL
-        AND NOT (type = 'absensi' AND COALESCE(source_ref, '') LIKE '%:IZIN')
-      ORDER BY created_at DESC
+      FROM parent_notifications pn
+      WHERE pn.siswa_id = ?
+        AND pn.archived_at IS NULL
+        AND NOT (pn.type = 'absensi' AND COALESCE(pn.source_ref, '') LIKE '%:IZIN')
+        AND NOT (
+          pn.type = 'absensi'
+          AND COALESCE(pn.source_ref, '') LIKE '%:ALFA'
+          AND (
+            EXISTS (
+              SELECT 1
+              FROM keterangan_absensi_wali_kelas kawk
+              WHERE kawk.siswa_id = pn.siswa_id
+                AND pn.source_ref LIKE '%:' || kawk.tanggal || ':ALFA'
+                AND kawk.status <> 'ALFA'
+            )
+            OR NOT EXISTS (
+              SELECT 1
+              FROM absensi_siswa ab
+              WHERE ab.siswa_id = pn.siswa_id
+                AND ab.status = 'ALFA'
+                AND pn.source_ref = ab.penugasan_id || ':' || ab.tanggal || ':ALFA'
+            )
+          )
+        )
+      ORDER BY pn.created_at DESC
       LIMIT 100
     `).bind(siswaId).all<any>(),
     db.prepare(`
@@ -632,6 +656,13 @@ export default async function PortalOrtuPage() {
     ORDER BY created_at ASC
   `).bind(siswaId, todayRaw).all<TodayIzinRow>()
 
+  const todayWaliDecision = await db.prepare(`
+    SELECT status, keterangan
+    FROM keterangan_absensi_wali_kelas
+    WHERE siswa_id = ? AND tanggal = ?
+    LIMIT 1
+  `).bind(siswaId, todayRaw).first<TodayWaliDecisionRow>()
+
   const todayAbsensiMap = new Map<string, { status: string; catatan: string | null }>()
   for (const row of todayAbsensiRows.results || []) {
     const start = Number(row.jam_ke_mulai || 0)
@@ -729,6 +760,13 @@ export default async function PortalOrtuPage() {
         absensi = { status: 'LIBUR', catatan: calendarStatus.reason || 'Hari libur' }
       } else if (exception) {
         absensi = { status: 'KBM_EXCEPTION', catatan: exception.description || exception.judul }
+      } else if (todayWaliDecision) {
+        absensi = {
+          status: todayWaliDecision.status,
+          catatan: todayWaliDecision.keterangan
+            ? `Keputusan wali kelas: ${todayWaliDecision.keterangan}`
+            : 'Status final telah ditetapkan oleh wali kelas.',
+        }
       } else if (izinNotes.length > 0) {
         absensi = { status: 'IZIN', catatan: Array.from(new Set(izinNotes)).join(' | ') }
       } else if (absRecord) {

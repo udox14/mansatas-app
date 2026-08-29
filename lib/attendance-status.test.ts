@@ -25,24 +25,27 @@ describe('deriveDailyTeacherStatus', () => {
 
   it.each([
     [['HADIR', 'SAKIT']],
+    [['HADIR', 'IZIN']],
+    [['HADIR', 'ALFA']],
     [['SAKIT', 'IZIN']],
     [['ALFA', 'SAKIT']],
     [['ALFA', 'IZIN']],
     [['HADIR', 'SAKIT', 'IZIN']],
-  ] as const)('meminta keputusan wali untuk status campuran %j', (statuses) => {
+  ] as const)('meminta keputusan wali untuk status campuran yang seri %j', (statuses) => {
     const result = derive([...statuses])
     expect(result.status).toBe('PERLU_KONFIRMASI_WALI')
     expect(result.requiresWaliDecision).toBe(true)
   })
 
-  it('menetapkan hadir dan alfa sebagai parsial', () => {
-    expect(derive(['HADIR', 'ALFA']).status).toBe('PARSIAL')
-  })
-
-  it('menghitung hadir dengan catatan izin untuk izin sebagian jam dari guru', () => {
-    const result = derive(['HADIR', 'IZIN'])
-    expect(result).toMatchObject({ status: 'HADIR', requiresWaliDecision: false })
-    expect(result.reason).toContain('izin pada sebagian blok KBM')
+  it.each([
+    [['ALFA', 'ALFA', 'ALFA', 'HADIR'], 'ALFA'],
+    [['HADIR', 'HADIR', 'HADIR', 'SAKIT'], 'HADIR'],
+    [['SAKIT', 'SAKIT', 'SAKIT', 'ALFA'], 'SAKIT'],
+    [['IZIN', 'IZIN', 'IZIN', 'HADIR'], 'IZIN'],
+  ] as const)('menetapkan status mayoritas %j menjadi %s tanpa keputusan wali', (statuses, expected) => {
+    const result = derive([...statuses])
+    expect(result).toMatchObject({ status: expected, requiresWaliDecision: false })
+    expect(result.reason).toContain('paling banyak')
   })
 
   it('menetapkan alfa seragam tanpa keputusan wali', () => {
@@ -106,9 +109,9 @@ describe('deriveDailyTeacherStatus', () => {
     expect(result).toMatchObject({ status: 'SAKIT', requiresWaliDecision: false })
   })
 
-  it('tetap meminta wali untuk hadir+sakit, tetapi hadir+izin tetap hadir saat blok belum lengkap diabaikan', () => {
+  it('menggunakan aturan mayoritas dari blok tersubmit saat blok belum lengkap diabaikan', () => {
     expect(derive(['HADIR', 'SAKIT'], 5, true).status).toBe('PERLU_KONFIRMASI_WALI')
-    expect(derive(['HADIR', 'IZIN'], 5, true)).toMatchObject({ status: 'HADIR', requiresWaliDecision: false })
+    expect(derive(['HADIR', 'HADIR', 'IZIN'], 5, true)).toMatchObject({ status: 'HADIR', requiresWaliDecision: false })
   })
 })
 
