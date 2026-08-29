@@ -21,6 +21,14 @@ import {
   editAgendaStatus, batchEditAgendaStatus, getDataCetakLaporan,
   getMonitoringPiketHarian, editAgendaPiketStatus,
 } from '../actions'
+import {
+  PERFORMANCE_POLICY_LABELS,
+  aggregateAttendanceTotal,
+  aggregateTeacherAttendance,
+  type AgendaPrintSession,
+  type PerformancePolicy,
+  type TeacherAttendanceSummary,
+} from '../print-summary'
 import { todayWIB, nowWIB, formatTimeWIB } from '@/lib/time'
 
 // ============================================================
@@ -841,7 +849,8 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
   const [tglSelesai, setTglSelesai] = useState(todayStr())
   const [guruId, setGuruId] = useState('')
   const [kelasId, setKelasId] = useState('')
-  const [data, setData] = useState<any[]>([])
+  const [performancePolicy, setPerformancePolicy] = useState<PerformancePolicy | ''>('')
+  const [data, setData] = useState<AgendaPrintSession[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [pesan, setPesan] = useState<{ tipe: 'error'; teks: string } | null>(null)
   const printRef = useRef<HTMLDivElement>(null)
@@ -850,6 +859,7 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
     tanggal, bulan, tahun, tahunAjaran, semester, mulai: tglMulai, selesai: tglSelesai,
   }), [bulan, periodMode, semester, tahun, tahunAjaran, tanggal, tglMulai, tglSelesai])
   const periodLabel = agendaPeriodLabel(periodMode, range, bulan, tahunAjaran, semester)
+  const isMonthlyPackage = scope === 'semua_guru' && periodMode === 'bulan'
   const selectedGuru = filterOptions.guru.find(guru => guru.id === guruId)?.nama || ''
   const selectedKelas = filterOptions.kelas.find(kelas => kelas.id === kelasId)?.label || ''
   const guruNamaMap = new Map(filterOptions.guru.map(guru => [guru.id, guru.nama]))
@@ -860,6 +870,10 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
   }
 
   const handleLoad = async () => {
+    if (isMonthlyPackage && !performancePolicy) {
+      setPesan({ tipe: 'error', teks: 'Pilih cara penghitungan performa terlebih dahulu.' })
+      return
+    }
     if (scope === 'per_guru' && !guruId) {
       setPesan({ tipe: 'error', teks: 'Pilih guru yang akan dicetak.' })
       return
@@ -877,7 +891,7 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
         scope === 'per_guru' ? guruId : undefined,
         scope === 'per_kelas' ? kelasId : undefined,
       )
-      setData(result)
+      setData(result as AgendaPrintSession[])
       if (result.length === 0) setPesan({ tipe: 'error', teks: 'Tidak ada data agenda pada cakupan dan periode tersebut.' })
     } catch (error) {
       console.error('Gagal memuat data cetak laporan:', error)
@@ -896,12 +910,15 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
       alert('Popup diblokir browser. Izinkan popup untuk mencetak.')
       return
     }
-    printWindow.document.write(`<!DOCTYPE html><html><head><base href="${window.location.origin}/"><title>Laporan Agenda Guru</title>
+    printWindow.document.write(`<!DOCTYPE html><html><head><base href="${window.location.origin}/"><title>REKAP KEHADIRAN GURU</title>
 <style>
 @page { size: 215mm 330mm; margin: 8mm 8mm 10mm; }
 html, body { margin: 0; padding: 0; background: #fff; }
 * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 .agenda-print-document { width: auto !important; min-height: 0 !important; padding: 0 !important; }
+.agenda-print-page { width: auto !important; min-height: 312mm !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+.agenda-cover-page { break-after: page; page-break-after: always; }
+.agenda-teacher-page { break-before: page; page-break-before: always; }
 thead { display: table-header-group; }
 tr { break-inside: avoid; page-break-inside: avoid; }
 </style></head><body>${el.innerHTML}</body></html>`)
@@ -979,7 +996,17 @@ tr { break-inside: avoid; page-break-inside: avoid; }
             <div><Label className="text-xs text-slate-500">Dari Tanggal</Label><Input type="date" value={tglMulai} onChange={e => { setTglMulai(e.target.value); resetData() }} className="mt-1 h-9 w-[155px] text-sm" /></div>
             <div><Label className="text-xs text-slate-500">Sampai Tanggal</Label><Input type="date" value={tglSelesai} onChange={e => { setTglSelesai(e.target.value); resetData() }} className="mt-1 h-9 w-[155px] text-sm" /></div>
           </>}
-          <Button onClick={handleLoad} disabled={isLoading} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
+          {isMonthlyPackage && <div className="min-w-[280px] flex-1">
+            <Label className="text-xs text-slate-500 dark:text-slate-400">Penghitungan Performa</Label>
+            <Select value={performancePolicy} onValueChange={(value) => { setPerformancePolicy(value as PerformancePolicy); resetData() }}>
+              <SelectTrigger className="mt-1 h-9 w-full text-sm"><SelectValue placeholder="Pilih cara penghitungan" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="excused_not_penalized">Sakit dan izin tidak mengurangi</SelectItem>
+                <SelectItem value="excused_penalized">Sakit dan izin mengurangi</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>}
+          <Button onClick={handleLoad} disabled={isLoading || (isMonthlyPackage && !performancePolicy)} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-1.5" />}
             Muat Data
           </Button>
@@ -1006,6 +1033,8 @@ tr { break-inside: avoid; page-break-inside: avoid; }
                 scope={scope}
                 scopeLabel={scope === 'per_guru' ? selectedGuru : scope === 'per_kelas' ? selectedKelas : 'Semua Guru'}
                 periodLabel={periodLabel}
+                isMonthlyPackage={isMonthlyPackage}
+                performancePolicy={performancePolicy || undefined}
               />
               {false && (
               <div>
@@ -1077,8 +1106,23 @@ const agendaPrintCell = {
   lineHeight: 1.2,
 }
 
-function AgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
-  data: any[]
+function AgendaPrintDocument({ data, scope, scopeLabel, periodLabel, isMonthlyPackage, performancePolicy }: {
+  data: AgendaPrintSession[]
+  scope: PrintScope
+  scopeLabel: string
+  periodLabel: string
+  isMonthlyPackage: boolean
+  performancePolicy?: PerformancePolicy
+}) {
+  if (isMonthlyPackage && performancePolicy) {
+    return <MonthlyAttendancePrintDocument data={data} periodLabel={periodLabel} performancePolicy={performancePolicy} />
+  }
+
+  return <LegacyAgendaPrintDocument data={data} scope={scope} scopeLabel={scopeLabel} periodLabel={periodLabel} />
+}
+
+function LegacyAgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
+  data: AgendaPrintSession[]
   scope: PrintScope
   scopeLabel: string
   periodLabel: string
@@ -1090,7 +1134,7 @@ function AgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
     <div className="agenda-print-document" style={{ width: '215mm', minHeight: '330mm', padding: '8mm 8mm 10mm', background: '#fff', color: '#000', fontFamily: AGENDA_PRINT_FONT, fontSize: '8pt' }}>
       <img src="/kopsurat.png" alt="Kop Surat" style={{ width: '100%', display: 'block', marginBottom: '8pt' }} />
       <div style={{ textAlign: 'center', marginBottom: '9pt', lineHeight: 1.35 }}>
-        <div style={{ fontSize: '13pt', fontWeight: 700 }}>LAPORAN MONITORING AGENDA GURU</div>
+        <div style={{ fontSize: '13pt', fontWeight: 700 }}>REKAP KEHADIRAN GURU</div>
         <div style={{ fontSize: '10pt', fontWeight: 600 }}>Periode: {periodLabel}</div>
       </div>
       <table style={{ marginBottom: '8pt', borderCollapse: 'collapse', fontSize: '9pt' }}>
@@ -1139,6 +1183,173 @@ function AgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
         <span>Sistem Informasi Manajemen MAN 1 Tasikmalaya</span>
       </div>
     </div>
+  )
+}
+
+const agendaPrintPageStyle = {
+  width: '215mm',
+  minHeight: '330mm',
+  padding: '8mm 8mm 10mm',
+  marginBottom: '5mm',
+  background: '#fff',
+  color: '#111827',
+  fontFamily: AGENDA_PRINT_FONT,
+  boxShadow: '0 1px 4px rgba(15, 23, 42, 0.14)',
+} as const
+
+function PrintFooter() {
+  return (
+    <div style={{ marginTop: '8pt', display: 'flex', justifyContent: 'space-between', gap: '8pt', fontSize: '7pt', color: '#475569' }}>
+      <span>Dicetak pada {formatTimeWIB(new Date().toISOString())}</span>
+      <span>Sistem Informasi Manajemen MAN 1 Tasikmalaya</span>
+    </div>
+  )
+}
+
+function SummaryMetric({ label, value, accent = '#166534' }: { label: string; value: string | number; accent?: string }) {
+  return (
+    <div style={{ flex: '1 1 0', minWidth: 0, border: '0.7pt solid #cbd5e1', borderTop: `3pt solid ${accent}`, borderRadius: '4pt', padding: '5pt 4pt', textAlign: 'center', background: '#fff' }}>
+      <div style={{ fontSize: '7pt', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.25pt' }}>{label}</div>
+      <div style={{ marginTop: '2pt', fontSize: '12pt', lineHeight: 1, fontWeight: 700, color: accent }}>{value}</div>
+    </div>
+  )
+}
+
+function MonthlyAttendancePrintDocument({ data, periodLabel, performancePolicy }: {
+  data: AgendaPrintSession[]
+  periodLabel: string
+  performancePolicy: PerformancePolicy
+}) {
+  const teachers = aggregateTeacherAttendance(data, performancePolicy)
+  const total = aggregateAttendanceTotal(teachers, performancePolicy)
+
+  return (
+    <div className="agenda-print-document" style={{ width: '215mm', background: '#e2e8f0', color: '#111827', fontFamily: AGENDA_PRINT_FONT }}>
+      <section className="agenda-print-page agenda-cover-page" style={agendaPrintPageStyle}>
+        <div className="agenda-cover-frame" style={{ minHeight: '312mm', border: '1.7pt solid #b38b2e', outline: '0.7pt solid #166534', outlineOffset: '-5pt', padding: '20mm 15mm', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', textAlign: 'center', background: 'linear-gradient(180deg, #f8faf7 0%, #ffffff 50%, #f7f2e5 100%)' }}>
+          <div style={{ width: '100%', height: '7pt', background: '#166534', borderBottom: '2pt solid #d4af37' }} />
+          <div>
+            {/* Raw img is required because this node is cloned into a standalone print window. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logokemenag.png" alt="Logo Kementerian Agama" style={{ width: '42mm', height: '42mm', objectFit: 'contain', display: 'block', margin: '0 auto 16mm' }} />
+            <div style={{ color: '#166534', fontSize: '10pt', fontWeight: 700, letterSpacing: '2pt' }}>DOKUMEN RESMI</div>
+            <div style={{ width: '42mm', borderTop: '1.2pt solid #d4af37', margin: '6mm auto 9mm' }} />
+            <h1 style={{ margin: 0, fontSize: '21pt', lineHeight: 1.45, fontWeight: 700, color: '#163b2d', textTransform: 'uppercase' }}>
+              Rekap Kehadiran Guru<br />MAN 1 Tasikmalaya<br />Bulan {periodLabel}
+            </h1>
+          </div>
+          <div style={{ width: '100%' }}>
+            <div style={{ fontSize: '13pt', fontWeight: 700, color: '#163b2d' }}>MADRASAH ALIYAH NEGERI 1 TASIKMALAYA</div>
+            <div style={{ marginTop: '4pt', fontSize: '9pt', color: '#475569' }}>Kementerian Agama Republik Indonesia</div>
+            <div style={{ width: '100%', height: '7pt', marginTop: '12mm', background: '#166534', borderTop: '2pt solid #d4af37' }} />
+          </div>
+        </div>
+      </section>
+
+      <section className="agenda-print-page agenda-summary-page" style={agendaPrintPageStyle}>
+        {/* Raw img keeps the official letterhead reliable in the standalone print window. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/kopsurat.png" alt="Kop Surat" style={{ width: '100%', display: 'block', marginBottom: '8pt' }} />
+        <div style={{ textAlign: 'center', marginBottom: '8pt', lineHeight: 1.35 }}>
+          <div style={{ fontSize: '14pt', fontWeight: 700 }}>REKAP KEHADIRAN GURU</div>
+          <div style={{ fontSize: '10pt', fontWeight: 600 }}>Bulan {periodLabel}</div>
+          <div style={{ marginTop: '3pt', fontSize: '7.5pt', color: '#475569' }}>Performa: {PERFORMANCE_POLICY_LABELS[performancePolicy]}</div>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '8pt' }}>
+          <colgroup>
+            <col style={{ width: '9mm' }} /><col /><col style={{ width: '20mm' }} /><col style={{ width: '17mm' }} />
+            <col style={{ width: '15mm' }} /><col style={{ width: '15mm' }} /><col style={{ width: '15mm' }} /><col style={{ width: '19mm' }} />
+          </colgroup>
+          <thead>
+            <tr style={{ background: '#e8f1ec' }}>
+              {['No', 'Nama Guru', 'Total Blok', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Performa'].map(label => (
+                <th key={label} style={{ ...agendaPrintCell, padding: '4pt 2pt', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700 }}>{label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {teachers.map((teacher, index) => (
+              <tr key={teacher.guruId}>
+                <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{index + 1}</td>
+                <td style={{ ...agendaPrintCell, fontWeight: 600 }}>{teacher.guruNama}</td>
+                <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.totalBlok}</td>
+                <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.hadir}</td>
+                <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.sakit}</td>
+                <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.izin}</td>
+                <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.alfa}</td>
+                <td style={{ ...agendaPrintCell, textAlign: 'center', fontWeight: 700 }}>{teacher.performa}%</td>
+              </tr>
+            ))}
+            <tr style={{ background: '#f1f5f9', fontWeight: 700 }}>
+              <td colSpan={2} style={{ ...agendaPrintCell, textAlign: 'center' }}>TOTAL KESELURUHAN</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.totalBlok}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.hadir}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.sakit}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.izin}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.alfa}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.performa}%</td>
+            </tr>
+          </tbody>
+        </table>
+        <PrintFooter />
+      </section>
+
+      {teachers.map(teacher => (
+        <TeacherAttendanceAttachment key={teacher.guruId} teacher={teacher} periodLabel={periodLabel} performancePolicy={performancePolicy} />
+      ))}
+    </div>
+  )
+}
+
+function TeacherAttendanceAttachment({ teacher, periodLabel, performancePolicy }: {
+  teacher: TeacherAttendanceSummary
+  periodLabel: string
+  performancePolicy: PerformancePolicy
+}) {
+  return (
+    <section className="agenda-print-page agenda-teacher-page" style={agendaPrintPageStyle}>
+      <div style={{ borderBottom: '1.5pt solid #166534', paddingBottom: '6pt', marginBottom: '7pt' }}>
+        <div style={{ fontSize: '8pt', color: '#64748b', fontWeight: 700, letterSpacing: '0.6pt' }}>LAMPIRAN REKAP KEHADIRAN GURU · {periodLabel.toUpperCase()}</div>
+        <div style={{ marginTop: '3pt', fontSize: '15pt', lineHeight: 1.2, fontWeight: 700, color: '#163b2d' }}>{teacher.guruNama}</div>
+        <div style={{ marginTop: '2pt', fontSize: '7pt', color: '#64748b' }}>{PERFORMANCE_POLICY_LABELS[performancePolicy]}</div>
+      </div>
+      <div style={{ display: 'flex', gap: '4pt', marginBottom: '8pt' }}>
+        <SummaryMetric label="Total Blok" value={teacher.totalBlok} />
+        <SummaryMetric label="Hadir" value={teacher.hadir} accent="#047857" />
+        <SummaryMetric label="Sakit" value={teacher.sakit} accent="#1d4ed8" />
+        <SummaryMetric label="Izin" value={teacher.izin} accent="#0369a1" />
+        <SummaryMetric label="Alfa" value={teacher.alfa} accent="#b91c1c" />
+        <SummaryMetric label="Performa" value={`${teacher.performa}%`} accent="#854d0e" />
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '7.2pt' }}>
+        <colgroup>
+          <col style={{ width: '7mm' }} /><col style={{ width: '19mm' }} /><col style={{ width: '27mm' }} /><col style={{ width: '17mm' }} />
+          <col style={{ width: '11mm' }} /><col /><col style={{ width: '19mm' }} /><col style={{ width: '29mm' }} />
+        </colgroup>
+        <thead>
+          <tr style={{ background: '#e8f1ec' }}>
+            {['No', 'Tanggal', 'Mata Pelajaran', 'Kelas', 'Jam', 'Materi', 'Status', 'Keterangan'].map(label => (
+              <th key={label} style={{ ...agendaPrintCell, padding: '3pt 2pt', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700 }}>{label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {teacher.sessions.map((item, index) => (
+            <tr key={`${item.penugasan_id}-${item.tanggal}-${index}`}>
+              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{index + 1}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{new Date(`${item.tanggal}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
+              <td style={agendaPrintCell}>{item.nama_mapel}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.tingkat}-{item.nomor_kelas}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}</td>
+              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.materi || '-'}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{STATUS_STYLE[item.status]?.label || item.status}</td>
+              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.keterangan || '-'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <PrintFooter />
+    </section>
   )
 }
 

@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { MonitoringClient } from './components/monitoring-client'
 import { getFilterOptions } from './actions'
 
-export const metadata = { title: 'Monitoring Agenda - MANSATAS App' }
+export const metadata = { title: 'Rekap Kehadiran Guru - MANSATAS App' }
 
 async function MonitoringDataFetcher({ userId, role }: { userId: string; role: string }) {
   const filterOptions = await getFilterOptions()
@@ -31,7 +31,7 @@ export default async function MonitoringAgendaPage() {
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
-        title="Monitoring Agenda Guru"
+        title="Rekap Kehadiran Guru"
         description="Pantau kepatuhan guru mengisi agenda, rekap kehadiran, dan cetak laporan."
       />
       <Suspense fallback={<PageLoading text="Menyiapkan monitoring..." />}>
