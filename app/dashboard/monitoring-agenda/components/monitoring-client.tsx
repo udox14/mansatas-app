@@ -1165,11 +1165,11 @@ function LegacyAgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
       </table>
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontFamily: AGENDA_PRINT_FONT, fontSize: '10pt' }}>
         <colgroup>
-          <col style={{ width: '7mm' }} /><col style={{ width: '20mm' }} />
+          <col style={{ width: '7mm' }} /><col style={{ width: '25mm' }} />
           {showGuru && <col style={{ width: '35mm' }} />}
           <col style={{ width: '25mm' }} />
           {showKelas && <col style={{ width: '17mm' }} />}
-          <col style={{ width: '11mm' }} /><col /><col style={{ width: '20mm' }} /><col style={{ width: '30mm' }} />
+          <col style={{ width: '11mm' }} /><col /><col style={{ width: '24mm' }} /><col style={{ width: '25mm' }} />
         </colgroup>
         <thead>
           <tr>
@@ -1188,7 +1188,7 @@ function LegacyAgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
               {showKelas && <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.tingkat}-{item.nomor_kelas}</td>}
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}</td>
               <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.materi || '-'}</td>
-              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{STATUS_STYLE[item.status]?.label || item.status}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{STATUS_STYLE[item.status]?.label || item.status}</td>
               <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.keterangan || '-'}</td>
             </tr>
           ))}
@@ -1224,7 +1224,7 @@ function PrintFooter() {
 
 function SummaryMetric({ label, value, accent = '#166534', background = '#ecfdf5' }: { label: string; value: string | number; accent?: string; background?: string }) {
   return (
-    <div style={{ flex: '1 1 0', minWidth: 0, borderRadius: '5pt', padding: '6pt 4pt', textAlign: 'center', background }}>
+    <div style={{ flex: '1 1 0', minWidth: 0, border: '0.8pt solid #000', borderRadius: '5pt', padding: '6pt 4pt', textAlign: 'center', background }}>
       <div style={{ fontSize: '7pt', color: accent, textTransform: 'uppercase', letterSpacing: '0.25pt', fontWeight: 700 }}>{label}</div>
       <div style={{ marginTop: '2pt', fontSize: '12pt', lineHeight: 1, fontWeight: 700, color: accent }}>{value}</div>
     </div>
@@ -1340,8 +1340,8 @@ function TeacherAttendanceAttachment({ teacher, periodLabel }: {
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '10pt' }}>
         <colgroup>
-          <col style={{ width: '7mm' }} /><col style={{ width: '19mm' }} /><col style={{ width: '27mm' }} /><col style={{ width: '17mm' }} />
-          <col style={{ width: '11mm' }} /><col /><col style={{ width: '19mm' }} /><col style={{ width: '29mm' }} />
+          <col style={{ width: '7mm' }} /><col style={{ width: '25mm' }} /><col style={{ width: '25mm' }} /><col style={{ width: '15mm' }} />
+          <col style={{ width: '10mm' }} /><col /><col style={{ width: '24mm' }} /><col style={{ width: '25mm' }} />
         </colgroup>
         <thead>
           <tr style={{ background: '#e8f1ec' }}>
@@ -1359,7 +1359,7 @@ function TeacherAttendanceAttachment({ teacher, periodLabel }: {
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.tingkat}-{item.nomor_kelas}</td>
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}</td>
               <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.materi || '-'}</td>
-              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{STATUS_STYLE[item.status]?.label || item.status}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{STATUS_STYLE[item.status]?.label || item.status}</td>
               <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.keterangan || '-'}</td>
             </tr>
           ))}
