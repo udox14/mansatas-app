@@ -13,6 +13,7 @@ import {
   Student,
   Wallet,
   CheckSquareOffset,
+  ShieldWarning,
 } from '@phosphor-icons/react'
 import {
   Sheet,
@@ -22,14 +23,14 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 
-const PRIMARY_ITEMS = [
+const BASE_PRIMARY_ITEMS = [
   { id: 'beranda', label: 'Beranda', Icon: House },
   { id: 'jadwal', label: 'Jadwal', Icon: CalendarBlank },
   { id: 'kehadiran', label: 'Kehadiran', Icon: CheckSquareOffset },
-  { id: 'nilai', label: 'Akademik', Icon: Student },
 ]
 
 const SECONDARY_ITEMS = [
+  { id: 'nilai', label: 'Akademik', description: 'Nilai rapor dan rincian mata pelajaran', Icon: Student },
   { id: 'keuangan', label: 'Keuangan', description: 'Tagihan, pembayaran, dan kuitansi', Icon: Wallet },
   { id: 'saran', label: 'Kotak Saran', description: 'Sampaikan masukan kepada madrasah', Icon: ChatText },
   { id: 'dokumentasi', label: 'Dokumentasi', description: 'Panduan penggunaan portal', Icon: BookOpenText },
@@ -39,12 +40,17 @@ export function MobileBottomNav({
   activeTab,
   onChange,
   onStartTour,
+  disciplineEnabled,
 }: {
   activeTab: string
   onChange: (id: string) => void
   onStartTour: () => void
+  disciplineEnabled: boolean
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const primaryItems = disciplineEnabled
+    ? [...BASE_PRIMARY_ITEMS, { id: 'kedisiplinan', label: 'Kedisiplinan', Icon: ShieldWarning }]
+    : [...BASE_PRIMARY_ITEMS, { id: 'nilai', label: 'Akademik', Icon: Student }]
   const menuIsActive = activeTab === 'account' || SECONDARY_ITEMS.some((item) => item.id === activeTab)
 
   const chooseSecondary = (id: string) => {
@@ -59,7 +65,7 @@ export function MobileBottomNav({
         className="portal-bottom-nav fixed inset-x-0 bottom-0 z-50 border-t border-[#D8D4CC] bg-[#FAF9F7]/95 pb-safe backdrop-blur-md"
       >
         <div className="mx-auto grid max-w-md grid-cols-5 px-1.5 pb-1 pt-1.5">
-          {PRIMARY_ITEMS.map(({ id, label, Icon }) => {
+          {primaryItems.map(({ id, label, Icon }) => {
             const isActive = activeTab === id
             return (
               <button

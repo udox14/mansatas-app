@@ -24,6 +24,8 @@ import {
   previewImportPelanggaranMassal,
   commitImportPelanggaranMassal,
   type ImportPelanggaranPreviewRow,
+  reviewPelanggaran,
+  updateDisciplineClarification,
 } from '../actions'
 import type { SanksiConfig } from '@/lib/sanksi-service'
 import { cn } from '@/lib/utils'
@@ -222,7 +224,7 @@ function DetailKasusModal({
                     </p>
                     {k.keterangan && (
                       <p className="text-[11px] italic text-slate-500 dark:text-slate-400 mt-1.5 bg-slate-50 dark:bg-slate-800 px-2 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800 dark:border-slate-700">
-                        "{k.keterangan}"
+                        &quot;{k.keterangan}&quot;
                       </p>
                     )}
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -269,7 +271,7 @@ function DetailKasusModal({
 
 // ─── Main Component ──────────────────────────────────────────
 export function KedisiplinanClient({
-  currentUser, kasusList, masterList, taAktifId, sanksiList = [], lifetimePoin = {}, tingkatList = []
+  currentUser, kasusList, masterList, taAktifId, sanksiList = [], lifetimePoin = {}, tingkatList = [], reviewableRecordIds = [], clarifications = []
 }: {
   currentUser: { id: string, role: string, roles?: string[], nama: string }
   kasusList: any[]
@@ -278,11 +280,15 @@ export function KedisiplinanClient({
   sanksiList?: SanksiConfig[]
   lifetimePoin?: Record<string, number>
   tingkatList?: string[]
+  reviewableRecordIds?: string[]
+  clarifications?: any[]
 }) {
   const userRoles = currentUser.roles?.length ? currentUser.roles : [currentUser.role]
   const isSuperAdmin = userRoles.includes('super_admin')
   const canInput = userRoles.some(role => ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru'].includes(role))
   const canManageMaster = userRoles.some(role => ['super_admin', 'wakamad', 'guru_bk'].includes(role))
+  const canReviewAny = userRoles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'wali_kelas'].includes(role))
+  const reviewableSet = useMemo(() => new Set(reviewableRecordIds), [reviewableRecordIds])
 
   const [allKasus, setAllKasus] = useState(kasusList)
   const [isPending, setIsPending] = useState(false)
@@ -291,6 +297,7 @@ export function KedisiplinanClient({
   const [search, setSearch] = useState('')
   const [filterTingkat, setFilterTingkat] = useState('ALL')
   const [filterLevel, setFilterLevel] = useState('ALL')
+  const [filterPublication, setFilterPublication] = useState('ALL')
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
 
@@ -312,6 +319,8 @@ export function KedisiplinanClient({
   const [importSummary, setImportSummary] = useState<ImportPelanggaranPreviewResult['summary'] | null>(null)
   const [previewProgress, setPreviewProgress] = useState(0)
   const [commitProgress, setCommitProgress] = useState(0)
+  const [clarificationRows, setClarificationRows] = useState(clarifications)
+  const [clarificationResponses, setClarificationResponses] = useState<Record<string, string>>({})
 
   // ── Group kasus per siswa ─────────────────────────────────
   const tingkatOptions = useMemo(() => {
@@ -335,6 +344,7 @@ export function KedisiplinanClient({
       )
     }
     if (filterTingkat !== 'ALL') result = result.filter(k => k.siswa.kelas?.tingkat?.toString() === filterTingkat)
+    if (filterPublication !== 'ALL') result = result.filter(k => (k.publication_status || 'published') === filterPublication)
     if (filterLevel !== 'ALL') {
       result = result.filter(k => {
         const lt = lifetimePoin[k.siswa_id] ?? (k.master_pelanggaran?.poin || 0)
@@ -345,7 +355,7 @@ export function KedisiplinanClient({
     }
     result.sort((a, b) => getTanggalTimestamp(b.tanggal) - getTanggalTimestamp(a.tanggal))
     return result
-  }, [allKasus, search, filterTingkat, filterLevel, sanksiList, lifetimePoin])
+  }, [allKasus, search, filterTingkat, filterLevel, filterPublication, sanksiList, lifetimePoin])
 
   const totalPages = Math.max(1, Math.ceil(filteredKasus.length / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -380,6 +390,31 @@ export function KedisiplinanClient({
     const res = await hapusMasterPelanggaran(id)
     if (res.error) alert(res.error)
     setIsPending(false)
+  }
+
+  const handleReview = async (id: string, decision: 'published' | 'rejected') => {
+    const note = decision === 'rejected' ? (prompt('Tuliskan alasan penolakan publikasi:') || '') : ''
+    if (decision === 'rejected' && !note.trim()) return
+    setIsPending(true)
+    const result = await reviewPelanggaran(id, decision, note)
+    if (result.error) alert(result.error)
+    else {
+      setAllKasus(prev => prev.map(row => row.id === id ? { ...row, publication_status: decision, review_note: note || null } : row))
+      alert(result.success)
+    }
+    setIsPending(false)
+  }
+
+  const handleClarification = async (id: string, status: 'diproses' | 'selesai' | 'ditolak') => {
+    const response = clarificationResponses[id] || ''
+    const result = await updateDisciplineClarification(id, status, response)
+    if (result.error) return alert(result.error)
+    setClarificationRows(prev => prev.map(row => row.id === id ? {
+      ...row,
+      status,
+      response_message: response || row.response_message,
+    } : row))
+    alert(result.success)
   }
 
   // ── Import Kamus ─────────────────────────────────────────
@@ -522,13 +557,18 @@ export function KedisiplinanClient({
       <Script src="/vendor/xlsx-0.20.3.full.min.js" strategy="lazyOnload" />
       <div className="space-y-3">
         <Tabs defaultValue="riwayat" className="space-y-3">
-          <TabsList className={cn("bg-surface border border-surface rounded-lg w-full grid p-0.5 gap-0.5 h-auto", canManageMaster ? 'grid-cols-2' : 'grid-cols-1')}>
+          <TabsList className={cn("bg-surface border border-surface rounded-lg w-full grid p-0.5 gap-0.5 h-auto", canManageMaster && canReviewAny ? 'grid-cols-3' : (canManageMaster || canReviewAny) ? 'grid-cols-2' : 'grid-cols-1')}>
             <TabsTrigger value="riwayat" className="py-2 rounded-md data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
               Riwayat Pelanggaran
             </TabsTrigger>
             {canManageMaster && (
               <TabsTrigger value="kamus" className="py-2 rounded-md data-[state=active]:bg-slate-800 data-[state=active]:text-white text-xs sm:text-sm font-medium">
                 Kamus &amp; Poin
+              </TabsTrigger>
+            )}
+            {canReviewAny && (
+              <TabsTrigger value="klarifikasi" className="py-2 rounded-md data-[state=active]:bg-sky-700 data-[state=active]:text-white text-xs sm:text-sm font-medium">
+                Klarifikasi Ortu{clarificationRows.some(row => row.status === 'baru') ? ` (${clarificationRows.filter(row => row.status === 'baru').length})` : ''}
               </TabsTrigger>
             )}
           </TabsList>
@@ -717,6 +757,15 @@ export function KedisiplinanClient({
                     ))}
                   </SelectContent>
                 </Select>
+                <Select value={filterPublication} onValueChange={v => { setFilterPublication(v); resetPage() }}>
+                  <SelectTrigger className="h-7 text-xs rounded flex-1 min-w-[110px]"><SelectValue placeholder="Publikasi" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Semua Publikasi</SelectItem>
+                    <SelectItem value="published">Terbit</SelectItem>
+                    <SelectItem value="pending">Menunggu</SelectItem>
+                    <SelectItem value="rejected">Ditolak</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); resetPage() }}>
                   <SelectTrigger className="h-7 text-xs rounded w-[70px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -763,6 +812,14 @@ export function KedisiplinanClient({
                             <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full border', badgeStyle)}>
                               {sanksi?.nama || 'Baik'}
                             </span>
+                            <span className={cn(
+                              'text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full border',
+                              kasus.publication_status === 'pending' && 'bg-amber-50 text-amber-700 border-amber-200',
+                              kasus.publication_status === 'rejected' && 'bg-slate-100 text-slate-600 border-slate-200',
+                              (!kasus.publication_status || kasus.publication_status === 'published') && 'bg-sky-50 text-sky-700 border-sky-200',
+                            )}>
+                              {kasus.publication_status === 'pending' ? 'Menunggu verifikasi' : kasus.publication_status === 'rejected' ? 'Tidak diterbitkan' : 'Tampil di portal'}
+                            </span>
                           </div>
                           <p className="text-[11px] text-slate-400 dark:text-slate-500">
                             Kelas {kelas} · {formatTanggalDisplay(kasus.tanggal, { day: 'numeric', month: 'short', year: 'numeric' })}{kasus.jam_input ? ` • ${kasus.jam_input}` : ''}
@@ -785,6 +842,12 @@ export function KedisiplinanClient({
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0">
+                          {reviewableSet.has(kasus.id) && kasus.publication_status === 'pending' && (
+                            <>
+                              <button type="button" onClick={() => handleReview(kasus.id, 'published')} disabled={isPending} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50" title="Terbitkan ke portal"><ShieldCheck className="h-3.5 w-3.5" /></button>
+                              <button type="button" onClick={() => handleReview(kasus.id, 'rejected')} disabled={isPending} className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50" title="Tolak publikasi"><X className="h-3.5 w-3.5" /></button>
+                            </>
+                          )}
                           {(kasus.diinput_oleh === currentUser.id || isSuperAdmin) && (
                             <button
                               type="button"
@@ -942,6 +1005,45 @@ export function KedisiplinanClient({
                   </div>
                 ))}
               </div>
+            </TabsContent>
+          )}
+
+          {canReviewAny && (
+            <TabsContent value="klarifikasi" className="space-y-3 m-0">
+              {clarificationRows.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-surface py-12 text-center">
+                  <ShieldCheck className="mx-auto h-8 w-8 text-emerald-400" />
+                  <p className="mt-2 text-sm text-slate-500">Belum ada klarifikasi orang tua.</p>
+                </div>
+              ) : clarificationRows.map(row => (
+                <div key={row.id} className="rounded-xl border border-surface bg-surface p-4 shadow-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{row.siswa_nama}</p>
+                      <p className="mt-0.5 text-xs font-semibold text-rose-700">{row.pelanggaran_nama_snapshot} · {row.pelanggaran_tanggal_snapshot}</p>
+                    </div>
+                    <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold uppercase text-sky-700">{row.status}</span>
+                  </div>
+                  <p className="mt-3 rounded-lg bg-surface-2 p-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{row.request_message}</p>
+                  {row.response_message && <p className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-sm leading-6 text-emerald-800"><strong>Jawaban:</strong> {row.response_message}</p>}
+                  {!['selesai', 'ditolak'].includes(row.status) && (
+                    <div className="mt-3 space-y-2">
+                      <textarea
+                        value={clarificationResponses[row.id] || ''}
+                        onChange={event => setClarificationResponses(prev => ({ ...prev, [row.id]: event.target.value.slice(0, 2000) }))}
+                        rows={3}
+                        placeholder="Jawaban akhir kepada orang tua..."
+                        className="w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm outline-none focus:border-sky-300"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {row.status === 'baru' && <Button type="button" variant="outline" size="sm" onClick={() => handleClarification(row.id, 'diproses')}>Tandai diproses</Button>}
+                        <Button type="button" size="sm" onClick={() => handleClarification(row.id, 'selesai')} className="bg-emerald-600 text-white hover:bg-emerald-700">Selesaikan</Button>
+                        <Button type="button" variant="outline" size="sm" onClick={() => handleClarification(row.id, 'ditolak')} className="text-rose-600">Tolak</Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </TabsContent>
           )}
         </Tabs>

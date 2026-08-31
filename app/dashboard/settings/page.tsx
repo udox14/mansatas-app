@@ -92,6 +92,9 @@ export default async function SettingsPage() {
   const parentLoginBlockEnabled = await getSystemSettingBoolean(SYSTEM_SETTING_KEYS.parentLoginBlockEnabled, false)
   const parentLoginBlockTingkat = parseBlockedTingkat(await getSystemSetting(SYSTEM_SETTING_KEYS.parentLoginBlockTingkat, '[]'))
   const parentLoginBlockMessage = await getSystemSetting(SYSTEM_SETTING_KEYS.parentLoginBlockMessage, DEFAULT_PARENT_LOGIN_BLOCK_MESSAGE)
+  const parentPortalDisciplineEnabled = await getSystemSettingBoolean(SYSTEM_SETTING_KEYS.parentPortalDisciplineEnabled, true)
+  const parentPortalDisciplinePublishMode = await getSystemSetting(SYSTEM_SETTING_KEYS.parentPortalDisciplinePublishMode, 'immediate')
+  const parentPortalDisciplineClarificationMode = await getSystemSetting(SYSTEM_SETTING_KEYS.parentPortalDisciplineClarificationMode, 'whatsapp')
   const dashboardVisibility = parseVisibility(await getSystemSetting(DASHBOARD_VISIBILITY_KEY, ''))
   const dashboardExtraWidgets = parseWidgetsConfig(await getSystemSetting(DASHBOARD_WIDGETS_CONFIG_KEY, ''))
 
@@ -120,6 +123,9 @@ export default async function SettingsPage() {
         parentLoginBlockEnabled={parentLoginBlockEnabled}
         parentLoginBlockTingkat={parentLoginBlockTingkat}
         parentLoginBlockMessage={parentLoginBlockMessage}
+        parentPortalDisciplineEnabled={parentPortalDisciplineEnabled}
+        parentPortalDisciplinePublishMode={parentPortalDisciplinePublishMode === 'verified' ? 'verified' : 'immediate'}
+        parentPortalDisciplineClarificationMode={['whatsapp', 'form', 'disabled'].includes(parentPortalDisciplineClarificationMode) ? parentPortalDisciplineClarificationMode as 'whatsapp' | 'form' | 'disabled' : 'whatsapp'}
         dashboardVisibility={dashboardVisibility}
         dashboardExtraWidgets={dashboardExtraWidgets}
       />

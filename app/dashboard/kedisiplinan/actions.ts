@@ -25,6 +25,15 @@ import {
 // import { formatNamaKelas } from '@/lib/utils'
 import { revalidatePath } from 'next/cache'
 import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
+import {
+  canReviewDisciplineRecord,
+  DISCIPLINE_CLARIFICATION_MAX_LENGTH,
+  ensureParentDisciplineSchema,
+  getParentDisciplineSettings,
+  type DisciplineClarificationStatus,
+  type DisciplinePublicationStatus,
+} from '@/lib/parent-discipline'
+import { logActivity } from '@/lib/activity-log'
 
 const INPUT_PELANGGARAN_ROLES = ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru']
 const MANAGE_KEDISIPLINAN_ROLES = ['super_admin', 'wakamad', 'guru_bk']
@@ -82,6 +91,46 @@ export type ImportPelanggaranCommitPayload = {
 function revalidateKedisiplinanPaths() {
   revalidatePath('/dashboard/kedisiplinan')
   revalidatePath('/dashboard/monitoring-kedisiplinan')
+  revalidatePath('/portal-ortu')
+}
+
+async function publishedDisciplineTotal(db: D1Database, siswaId: string) {
+  const row = await db.prepare(`
+    SELECT COALESCE(SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)), 0) AS total
+    FROM siswa_pelanggaran sp
+    LEFT JOIN master_pelanggaran mp ON mp.id = sp.master_pelanggaran_id
+    WHERE sp.siswa_id = ? AND sp.publication_status = 'published'
+  `).bind(siswaId).first<{ total: number }>()
+  return Number(row?.total || 0)
+}
+
+async function emitPublishedDisciplineNotification(db: D1Database, recordId: string) {
+  const settings = await getParentDisciplineSettings()
+  if (!settings.enabled) return
+  const record = await db.prepare(`
+    SELECT sp.id, sp.siswa_id, sp.tanggal, sp.keterangan,
+      COALESCE(sp.nama_pelanggaran_snapshot, mp.nama_pelanggaran) AS nama_pelanggaran,
+      COALESCE(sp.poin_snapshot, mp.poin, 0) AS poin
+    FROM siswa_pelanggaran sp
+    LEFT JOIN master_pelanggaran mp ON mp.id = sp.master_pelanggaran_id
+    WHERE sp.id = ? AND sp.publication_status = 'published' LIMIT 1
+  `).bind(recordId).first<any>()
+  if (!record) return
+  const student = await getStudentNotificationContext(db, record.siswa_id)
+  if (!student) return
+  await emitConfiguredNotification({
+    eventKey: 'discipline_violation_created',
+    sourceRef: `discipline:${record.id}`,
+    context: {
+      ...student,
+      nama_pelanggaran: record.nama_pelanggaran,
+      poin: Number(record.poin || 0),
+      tanggal: record.tanggal,
+      keterangan: record.keterangan || '-',
+    },
+    db,
+    parentType: 'kedisiplinan',
+  })
 }
 
 async function hasAnyRole(db: D1Database, userId: string, allowedRoles: string[]) {
@@ -360,6 +409,7 @@ export async function searchSiswa(query: string) {
 // ============================================================
 export async function simpanPelanggaran(prevState: any, formData: FormData) {
   const db = await getDB()
+  await ensureParentDisciplineSchema(db)
   const user = await getCurrentUser()
   if (!user) return { error: 'Anda belum login', success: null }
   const canInput = await hasAnyRole(db, user.id, INPUT_PELANGGARAN_ROLES)
@@ -407,6 +457,14 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
     foto_url = url
   }
 
+  const [masterSnapshot, portalSettings] = await Promise.all([
+    db.prepare('SELECT nama_pelanggaran, kategori, poin FROM master_pelanggaran WHERE id = ? LIMIT 1')
+      .bind(master_pelanggaran_id).first<{ nama_pelanggaran: string; kategori: string; poin: number }>(),
+    getParentDisciplineSettings(),
+  ])
+  if (!masterSnapshot) return { error: 'Jenis pelanggaran tidak ditemukan.', success: null }
+
+  const publicationStatus: DisciplinePublicationStatus = portalSettings.publishMode === 'verified' ? 'pending' : 'published'
   const payload = {
     siswa_id,
     master_pelanggaran_id,
@@ -416,6 +474,13 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
     foto_url,
     tahun_ajaran_id: ta.id,
     diinput_oleh: user.id,
+    nama_pelanggaran_snapshot: masterSnapshot.nama_pelanggaran,
+    kategori_snapshot: masterSnapshot.kategori,
+    poin_snapshot: Number(masterSnapshot.poin || 0),
+    publication_status: publicationStatus,
+    reviewed_by: null,
+    reviewed_at: publicationStatus === 'published' ? new Date().toISOString() : null,
+    review_note: null,
     updated_at: new Date().toISOString(),
   }
 
@@ -423,6 +488,10 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
   if (id) {
     const result = await dbUpdate(db, 'siswa_pelanggaran', payload, { id })
     if (result.error) return { error: 'Gagal mengedit: ' + result.error, success: null }
+    await db.prepare(`
+      UPDATE parent_notifications SET archived_at = COALESCE(archived_at, datetime('now'))
+      WHERE siswa_id = ? AND source_ref = ?
+    `).bind(siswa_id, `discipline:${id}`).run().catch(() => undefined)
   } else {
     const result = await dbInsert(db, 'siswa_pelanggaran', payload)
     if (result.error) return { error: 'Gagal merekam data: ' + result.error, success: null }
@@ -432,17 +501,8 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
   // Cek apakah siswa naik level sanksi (hanya saat tambah baru, bukan edit)
   let naik_sanksi: { nama: string; deskripsi: string | null; total_poin: number } | null = null
   if (!id) {
-    const totalRes = await db.prepare(`
-      SELECT SUM(mp.poin) as total FROM siswa_pelanggaran sp
-      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
-      WHERE sp.siswa_id = ?
-    `).bind(siswa_id).first<{ total: number }>()
-
-    const masterData = await db.prepare(`SELECT poin, nama_pelanggaran FROM master_pelanggaran WHERE id = ?`)
-      .bind(master_pelanggaran_id).first<{ poin: number }>()
-
-    const poinSesudah = totalRes?.total || 0
-    const poinSebelum = poinSesudah - (masterData?.poin || 0)
+    const poinSesudah = await publishedDisciplineTotal(db, siswa_id)
+    const poinSebelum = publicationStatus === 'published' ? poinSesudah - Number(masterSnapshot.poin || 0) : poinSesudah
 
     const sanksiList = await loadSanksiList(db)
     const getForPoin = (p: number) =>
@@ -456,26 +516,12 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
     }
   }
 
-  if (!id) {
+  if (!id && publicationStatus === 'published') {
     try {
       const student = await getStudentNotificationContext(db, siswa_id)
-      const master = await db.prepare('SELECT nama_pelanggaran, poin FROM master_pelanggaran WHERE id = ? LIMIT 1').bind(master_pelanggaran_id).first<{ nama_pelanggaran: string; poin: number }>()
-      if (student && master) {
-        await emitConfiguredNotification({
-          eventKey: 'discipline_violation_created',
-          sourceRef: `discipline:${savedId || `${siswa_id}:${tanggal}:${master_pelanggaran_id}`}`,
-          context: {
-            ...student,
-            nama_pelanggaran: master.nama_pelanggaran,
-            poin: master.poin,
-            tanggal,
-            keterangan: keterangan || '-',
-          },
-          db,
-          parentType: 'kedisiplinan',
-        })
-
-        if (naik_sanksi) {
+      await emitPublishedDisciplineNotification(db, savedId)
+      if (student) {
+        if (naik_sanksi && portalSettings.enabled) {
           await emitConfiguredNotification({
             eventKey: 'discipline_sanction_reached',
             sourceRef: `sanksi:${naik_sanksi.nama}`,
@@ -496,7 +542,13 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
   }
 
   revalidateKedisiplinanPaths()
-  return { error: null, success: 'Data pelanggaran berhasil disimpan!', naik_sanksi }
+  return {
+    error: null,
+    success: publicationStatus === 'pending'
+      ? 'Data pelanggaran berhasil disimpan dan menunggu verifikasi.'
+      : 'Data pelanggaran berhasil disimpan!',
+    naik_sanksi,
+  }
 }
 
 // ============================================================
@@ -504,14 +556,15 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
 // ============================================================
 export async function hapusPelanggaran(id: string) {
   const db = await getDB()
+  await ensureParentDisciplineSchema(db)
   const user = await getCurrentUser()
   if (!user) return { error: 'Anda belum login' }
 
   // Ambil foto_url sebelum dihapus
   const record = await db
-    .prepare('SELECT foto_url, diinput_oleh FROM siswa_pelanggaran WHERE id = ?')
+    .prepare('SELECT foto_url, diinput_oleh, siswa_id FROM siswa_pelanggaran WHERE id = ?')
     .bind(id)
-    .first<{ foto_url: string | null; diinput_oleh: string | null }>()
+    .first<{ foto_url: string | null; diinput_oleh: string | null; siswa_id: string }>()
 
   const isSuperAdmin = await hasAnyRole(db, user.id, ['super_admin'])
   if (!record || (!isSuperAdmin && record.diinput_oleh !== user.id)) {
@@ -526,8 +579,127 @@ export async function hapusPelanggaran(id: string) {
   const result = await dbDelete(db, 'siswa_pelanggaran', { id })
   if (result.error) return { error: 'Akses ditolak atau gagal menghapus: ' + result.error }
 
+  await db.prepare(`
+    UPDATE parent_notifications SET archived_at = COALESCE(archived_at, datetime('now'))
+    WHERE siswa_id = ? AND source_ref = ?
+  `).bind(record.siswa_id, `discipline:${id}`).run().catch(() => undefined)
+
   revalidateKedisiplinanPaths()
   return { success: 'Catatan pelanggaran berhasil dihapus permanen.' }
+}
+
+export async function reviewPelanggaran(recordId: string, decision: 'published' | 'rejected', note = '') {
+  const db = await getDB()
+  await ensureParentDisciplineSchema(db)
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Anda belum login.' }
+  if (!['published', 'rejected'].includes(decision)) return { error: 'Keputusan tidak valid.' }
+
+  const record = await db.prepare(`
+    SELECT sp.id, sp.siswa_id, sp.publication_status, sp.tanggal,
+           COALESCE(sp.poin_snapshot, mp.poin, 0) AS poin
+    FROM siswa_pelanggaran sp LEFT JOIN master_pelanggaran mp ON mp.id = sp.master_pelanggaran_id
+    WHERE sp.id = ? LIMIT 1
+  `).bind(recordId).first<{ id: string; siswa_id: string; publication_status: DisciplinePublicationStatus; tanggal: string; poin: number }>()
+  if (!record || !(await canReviewDisciplineRecord(db, user.id, record.siswa_id))) return { error: 'Akses verifikasi ditolak.' }
+  const cleanNote = String(note || '').trim().slice(0, 2000)
+  if (decision === 'rejected' && !cleanNote) return { error: 'Alasan penolakan wajib diisi.' }
+
+  await db.prepare(`
+    UPDATE siswa_pelanggaran
+    SET publication_status = ?, reviewed_by = ?, reviewed_at = datetime('now'), review_note = ?, updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(decision, user.id, cleanNote || null, recordId).run()
+
+  if (decision === 'published' && record.publication_status !== 'published') {
+    await emitPublishedDisciplineNotification(db, recordId)
+    const totalAfter = await publishedDisciplineTotal(db, record.siswa_id)
+    const totalBefore = Math.max(0, totalAfter - Number(record.poin || 0))
+    const sanctionRows = await loadSanksiList(db)
+    const findSanction = (total: number) => [...sanctionRows].sort((a, b) => b.poin_minimal - a.poin_minimal).find(row => total >= row.poin_minimal)
+    const before = findSanction(totalBefore)
+    const after = findSanction(totalAfter)
+    const portalSettings = await getParentDisciplineSettings()
+    if (portalSettings.enabled && after && after.id !== before?.id) {
+      const student = await getStudentNotificationContext(db, record.siswa_id)
+      if (student) await emitConfiguredNotification({
+        eventKey: 'discipline_sanction_reached',
+        sourceRef: `sanksi:${after.nama}`,
+        context: { ...student, level_sanksi: after.nama, total_poin: totalAfter, tanggal: record.tanggal },
+        db,
+        parentType: 'sanksi',
+      })
+    }
+  } else if (decision === 'rejected') {
+    await db.prepare(`
+      UPDATE parent_notifications SET archived_at = COALESCE(archived_at, datetime('now'))
+      WHERE siswa_id = ? AND source_ref = ?
+    `).bind(record.siswa_id, `discipline:${recordId}`).run().catch(() => undefined)
+  }
+
+  await logActivity({
+    db,
+    module: 'kedisiplinan',
+    action: decision === 'published' ? 'publish' : 'reject',
+    summary: decision === 'published' ? 'Menerbitkan catatan kedisiplinan ke portal orang tua' : 'Menolak publikasi catatan kedisiplinan',
+    entityType: 'siswa_pelanggaran',
+    entityId: recordId,
+    metadata: { siswa_id: record.siswa_id, note: cleanNote || null },
+  })
+  revalidateKedisiplinanPaths()
+  return { success: decision === 'published' ? 'Catatan diterbitkan ke portal orang tua.' : 'Publikasi catatan ditolak.' }
+}
+
+export async function updateDisciplineClarification(
+  clarificationId: string,
+  status: DisciplineClarificationStatus,
+  responseMessage = '',
+) {
+  const db = await getDB()
+  await ensureParentDisciplineSchema(db)
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Anda belum login.' }
+  if (!['diproses', 'selesai', 'ditolak'].includes(status)) return { error: 'Status tidak valid.' }
+  const clarification = await db.prepare(`
+    SELECT id, siswa_id, request_message FROM parent_discipline_clarifications WHERE id = ? LIMIT 1
+  `).bind(clarificationId).first<{ id: string; siswa_id: string; request_message: string }>()
+  if (!clarification || !(await canReviewDisciplineRecord(db, user.id, clarification.siswa_id))) return { error: 'Akses ditolak.' }
+  const response = String(responseMessage || '').trim()
+  if (['selesai', 'ditolak'].includes(status) && !response) return { error: 'Jawaban akhir wajib diisi.' }
+  if (response.length > DISCIPLINE_CLARIFICATION_MAX_LENGTH) return { error: `Jawaban maksimal ${DISCIPLINE_CLARIFICATION_MAX_LENGTH} karakter.` }
+
+  await db.prepare(`
+    UPDATE parent_discipline_clarifications
+    SET status = ?, response_message = ?, handled_by = ?,
+        handled_at = CASE WHEN ? IN ('selesai','ditolak') THEN datetime('now') ELSE handled_at END,
+        updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(status, response || null, user.id, status, clarificationId).run()
+
+  if (status === 'selesai' || status === 'ditolak') {
+    await db.prepare(`
+      INSERT INTO parent_notifications (siswa_id, type, title, message, source_ref, level)
+      VALUES (?, 'klarifikasi_kedisiplinan', ?, ?, ?, 'info')
+      ON CONFLICT(siswa_id, type, source_ref) DO UPDATE SET
+        title = excluded.title, message = excluded.message, archived_at = NULL, is_read = 0, created_at = datetime('now')
+    `).bind(
+      clarification.siswa_id,
+      status === 'selesai' ? 'Klarifikasi kedisiplinan selesai' : 'Klarifikasi kedisiplinan ditanggapi',
+      response,
+      `discipline-clarification:${clarificationId}`,
+    ).run().catch(() => undefined)
+  }
+  await logActivity({
+    db,
+    module: 'kedisiplinan',
+    action: 'handle_parent_clarification',
+    summary: `Memperbarui klarifikasi orang tua menjadi ${status}`,
+    entityType: 'parent_discipline_clarification',
+    entityId: clarificationId,
+    metadata: { siswa_id: clarification.siswa_id, status },
+  })
+  revalidateKedisiplinanPaths()
+  return { success: status === 'diproses' ? 'Klarifikasi ditandai sedang diproses.' : 'Jawaban klarifikasi berhasil disimpan.' }
 }
 
 // ============================================================
@@ -681,6 +853,7 @@ export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggara
 
 export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCommitPayload) {
   const db = await getDB()
+  await ensureParentDisciplineSchema(db)
   const user = await getCurrentUser()
   if (!user) return { error: 'Anda belum login.' }
   const canInput = await hasAnyRole(db, user.id, INPUT_PELANGGARAN_ROLES)
@@ -740,6 +913,8 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
   }
 
   const stmts: D1PreparedStatement[] = []
+  const portalSettings = await getParentDisciplineSettings()
+  const importPublicationStatus: DisciplinePublicationStatus = portalSettings.publishMode === 'verified' ? 'pending' : 'published'
   let successCount = 0
   const skipped: string[] = []
 
@@ -755,8 +930,8 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
       continue
     }
     const siswaValid = siswaList.some((s: any) => s.id === selectedSiswaId)
-    const masterValid = masterList.some((m: any) => m.id === selectedMasterId)
-    if (!siswaValid || !masterValid) {
+    const selectedMaster = masterList.find((m: any) => m.id === selectedMasterId)
+    if (!siswaValid || !selectedMaster) {
       skipped.push(`baris ${previewRow.rowNumber}`)
       continue
     }
@@ -774,14 +949,22 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
       db.prepare(`
         INSERT INTO siswa_pelanggaran (
           id, siswa_id, master_pelanggaran_id, tahun_ajaran_id, tanggal, jam_input,
-          source_signature, keterangan, foto_url, diinput_oleh, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          source_signature, keterangan, foto_url, diinput_oleh, created_at, updated_at,
+          nama_pelanggaran_snapshot, kategori_snapshot, poin_snapshot, publication_status, reviewed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(source_signature) DO UPDATE SET
           siswa_id = excluded.siswa_id,
           master_pelanggaran_id = excluded.master_pelanggaran_id,
           tanggal = excluded.tanggal,
           jam_input = excluded.jam_input,
           keterangan = excluded.keterangan,
+          nama_pelanggaran_snapshot = excluded.nama_pelanggaran_snapshot,
+          kategori_snapshot = excluded.kategori_snapshot,
+          poin_snapshot = excluded.poin_snapshot,
+          publication_status = excluded.publication_status,
+          reviewed_by = NULL,
+          reviewed_at = excluded.reviewed_at,
+          review_note = NULL,
           diinput_oleh = excluded.diinput_oleh,
           updated_at = excluded.updated_at
       `).bind(
@@ -797,6 +980,11 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
         user.id,
         createdAt,
         createdAt,
+        selectedMaster.nama_pelanggaran,
+        selectedMaster.kategori,
+        Number(selectedMaster.poin || 0),
+        importPublicationStatus,
+        importPublicationStatus === 'published' ? createdAt : null,
       )
     )
     successCount++
@@ -819,13 +1007,15 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
 // ============================================================
 export async function loadMoreKasus(taAktifId: string, offset: number) {
   const db = await getDB()
+  await ensureParentDisciplineSchema(db)
   const PAGE_SIZE = 50
 
   const result = await db
     .prepare(
       `SELECT sp.id, sp.tanggal, sp.jam_input, sp.keterangan, sp.foto_url, sp.siswa_id, sp.master_pelanggaran_id, sp.diinput_oleh,
         s.nama_lengkap as siswa_nama, k.tingkat, k.nomor_kelas, k.kelompok,
-        mp.nama_pelanggaran, mp.poin, u.nama_lengkap as pelapor_nama
+        COALESCE(sp.nama_pelanggaran_snapshot, mp.nama_pelanggaran) AS nama_pelanggaran,
+        COALESCE(sp.poin_snapshot, mp.poin) AS poin, sp.publication_status, u.nama_lengkap as pelapor_nama
       FROM siswa_pelanggaran sp
       JOIN siswa s ON sp.siswa_id = s.id
       LEFT JOIN kelas k ON s.kelas_id = k.id
@@ -847,6 +1037,7 @@ export async function loadMoreKasus(taAktifId: string, offset: number) {
     siswa_id: p.siswa_id,
     master_pelanggaran_id: p.master_pelanggaran_id,
     diinput_oleh: p.diinput_oleh,
+    publication_status: p.publication_status || 'published',
     siswa: {
       nama_lengkap: p.siswa_nama,
       kelas: p.tingkat
@@ -863,28 +1054,29 @@ export async function loadMoreKasus(taAktifId: string, offset: number) {
 // ============================================================
 export async function getAnalitikKedisiplinan(taAktifId: string) {
   const db = await getDB()
+  await ensureParentDisciplineSchema(db)
 
   const [
     totalKasusRes, perKategoriRes, perBulanRes, topPelanggaranRes,
     siswaRisikoRes, perKelasRes, sanksiListRes,
   ] = await Promise.all([
     db.prepare(`
-      SELECT COUNT(*) as total_kasus, SUM(mp.poin) as total_poin
+      SELECT COUNT(*) as total_kasus, SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)) as total_poin
       FROM siswa_pelanggaran sp
       JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
       WHERE sp.tahun_ajaran_id = ?
     `).bind(taAktifId).first<any>(),
 
     db.prepare(`
-      SELECT mp.kategori, COUNT(*) as jumlah, SUM(mp.poin) as total_poin
+      SELECT COALESCE(sp.kategori_snapshot, mp.kategori) AS kategori, COUNT(*) as jumlah, SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)) as total_poin
       FROM siswa_pelanggaran sp
       JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
       WHERE sp.tahun_ajaran_id = ?
-      GROUP BY mp.kategori ORDER BY total_poin DESC
+      GROUP BY COALESCE(sp.kategori_snapshot, mp.kategori) ORDER BY total_poin DESC
     `).bind(taAktifId).all<any>(),
 
     db.prepare(`
-      SELECT strftime('%Y-%m', sp.tanggal) as bulan, COUNT(*) as jumlah, SUM(mp.poin) as total_poin
+      SELECT strftime('%Y-%m', sp.tanggal) as bulan, COUNT(*) as jumlah, SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)) as total_poin
       FROM siswa_pelanggaran sp
       JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
       WHERE sp.tahun_ajaran_id = ? AND strftime('%Y-%m', sp.tanggal) IS NOT NULL
@@ -892,17 +1084,20 @@ export async function getAnalitikKedisiplinan(taAktifId: string) {
     `).bind(taAktifId).all<any>(),
 
     db.prepare(`
-      SELECT mp.nama_pelanggaran, mp.kategori, mp.poin, COUNT(*) as frekuensi, COUNT(*)*mp.poin as total_beban
+      SELECT COALESCE(sp.nama_pelanggaran_snapshot, mp.nama_pelanggaran) AS nama_pelanggaran,
+        COALESCE(sp.kategori_snapshot, mp.kategori) AS kategori,
+        COALESCE(sp.poin_snapshot, mp.poin, 0) AS poin,
+        COUNT(*) as frekuensi, SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)) as total_beban
       FROM siswa_pelanggaran sp
       JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
       WHERE sp.tahun_ajaran_id = ?
-      GROUP BY sp.master_pelanggaran_id ORDER BY frekuensi DESC LIMIT 10
+      GROUP BY COALESCE(sp.nama_pelanggaran_snapshot, mp.nama_pelanggaran), COALESCE(sp.kategori_snapshot, mp.kategori), COALESCE(sp.poin_snapshot, mp.poin, 0) ORDER BY frekuensi DESC LIMIT 10
     `).bind(taAktifId).all<any>(),
 
     // Poin seumur hidup siswa (tidak difilter per TA)
     db.prepare(`
       SELECT s.id, s.nama_lengkap, k.tingkat, k.nomor_kelas, k.kelompok,
-        COUNT(sp.id) as jumlah_kasus, SUM(mp.poin) as total_poin
+        COUNT(sp.id) as jumlah_kasus, SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)) as total_poin
       FROM siswa_pelanggaran sp
       JOIN siswa s ON sp.siswa_id = s.id
       LEFT JOIN kelas k ON s.kelas_id = k.id
@@ -914,7 +1109,7 @@ export async function getAnalitikKedisiplinan(taAktifId: string) {
       SELECT k.tingkat, k.nomor_kelas, k.kelompok,
         COUNT(DISTINCT sp.siswa_id) as siswa_terlibat,
         COUNT(sp.id) as total_kasus,
-        SUM(mp.poin) as total_poin
+        SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)) as total_poin
       FROM siswa_pelanggaran sp
       JOIN siswa s ON sp.siswa_id = s.id
       LEFT JOIN kelas k ON s.kelas_id = k.id

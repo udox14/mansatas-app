@@ -16,6 +16,7 @@ import {
   isParentTkaSelectionComplete,
 } from '@/lib/parent-tka'
 import { sanitizeParentAgenda } from '@/lib/parent-schedule'
+import { ensureParentDisciplineSchema, getParentDisciplineData, getParentDisciplineSettings } from '@/lib/parent-discipline'
 
 export const dynamic = 'force-dynamic'
 
@@ -187,13 +188,13 @@ async function ensurePaymentSubmissionTable(db: D1Database) {
   `).run()
 }
 
-async function seedParentCommunication(db: D1Database, siswaId: string) {
+async function seedParentCommunication(db: D1Database, siswaId: string, disciplineEnabled = true) {
   const [disiplin, sanksiRows, bkRows] = await Promise.all([
     db.prepare(`
-      SELECT COALESCE(SUM(mp.poin), 0) AS total_poin
+      SELECT COALESCE(SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)), 0) AS total_poin
       FROM siswa_pelanggaran sp
-      JOIN master_pelanggaran mp ON mp.id = sp.master_pelanggaran_id
-      WHERE sp.siswa_id = ?
+      LEFT JOIN master_pelanggaran mp ON mp.id = sp.master_pelanggaran_id
+      WHERE sp.siswa_id = ? AND sp.publication_status = 'published'
     `).bind(siswaId).first<{ total_poin: number }>(),
     db.prepare(`SELECT nama, deskripsi, poin_minimal FROM sanksi_config ORDER BY poin_minimal DESC`).all<any>(),
     db.prepare(`
@@ -209,7 +210,7 @@ async function seedParentCommunication(db: D1Database, siswaId: string) {
   const totalPoin = Number(disiplin?.total_poin || 0)
   const sanksi = (sanksiRows.results || []).find((s: any) => totalPoin >= Number(s.poin_minimal || 0))
 
-  if (sanksi) {
+  if (sanksi && disciplineEnabled) {
     await db.prepare(`
       INSERT OR IGNORE INTO parent_notifications (siswa_id, type, title, message, source_ref, level)
       VALUES (?, 'sanksi', ?, ?, ?, 'warning')
@@ -276,7 +277,8 @@ function parseJamPelajaran(raw: string | null | undefined): Map<number, Map<numb
   return byDay
 }
 
-export default async function PortalOrtuPage() {
+export default async function PortalOrtuPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const requestedTab = (await searchParams).tab
   const session = await getAppSession()
   if (!session) redirect('/portal-ortu/login')
   if (session.kind === 'staff') redirect('/dashboard')
@@ -285,6 +287,7 @@ export default async function PortalOrtuPage() {
   const db = await getDB()
   await ensureSchemaOnce('parent-communication', () => ensureParentCommunicationTables(db))
   await ensureParentPortalEnhancementSchema(db)
+  await ensureParentDisciplineSchema(db)
   await ensureSchemaOnce('fin-payment-submissions', () => ensurePaymentSubmissionTable(db))
   await ensureSchemaOnce('parent-announcements', async () => {
     await db.prepare(`
@@ -314,7 +317,8 @@ export default async function PortalOrtuPage() {
     `).run()
   })
   await ensureParentSuggestionTable(db)
-  await seedParentCommunication(db, siswaId)
+  const disciplineSettings = await getParentDisciplineSettings()
+  await seedParentCommunication(db, siswaId, disciplineSettings.enabled)
 
   const profil = await db.prepare(`
     SELECT s.id, s.nisn, s.nama_lengkap, s.status, s.foto_url, s.kelas_id, s.tahun_masuk, s.nomor_whatsapp, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
@@ -386,15 +390,15 @@ export default async function PortalOrtuPage() {
       LIMIT 1
     `).bind(siswaId).first<any>(),
     db.prepare(`
-      SELECT COUNT(sp.id) AS total_kasus, COALESCE(SUM(mp.poin), 0) AS total_poin
+      SELECT COUNT(sp.id) AS total_kasus, COALESCE(SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)), 0) AS total_poin
       FROM siswa_pelanggaran sp
-      JOIN master_pelanggaran mp ON mp.id = sp.master_pelanggaran_id
-      WHERE sp.siswa_id = ?
+      LEFT JOIN master_pelanggaran mp ON mp.id = sp.master_pelanggaran_id
+      WHERE sp.siswa_id = ? AND sp.publication_status = 'published'
     `).bind(siswaId).first<any>(),
     db.prepare(`
       SELECT MAX(sp.tanggal) AS tanggal_terakhir
       FROM siswa_pelanggaran sp
-      WHERE sp.siswa_id = ?
+      WHERE sp.siswa_id = ? AND sp.publication_status = 'published'
     `).bind(siswaId).all<any>(),
     db.prepare(`SELECT nama, poin_minimal FROM sanksi_config ORDER BY poin_minimal DESC`).all<any>(),
     db.prepare(`
@@ -463,6 +467,7 @@ export default async function PortalOrtuPage() {
       FROM parent_notifications pn
       WHERE pn.siswa_id = ?
         AND pn.archived_at IS NULL
+        AND (? = 1 OR pn.type NOT IN ('kedisiplinan', 'sanksi', 'klarifikasi_kedisiplinan'))
         AND NOT (pn.type = 'absensi' AND COALESCE(pn.source_ref, '') LIKE '%:IZIN')
         AND NOT (
           pn.type = 'absensi'
@@ -486,7 +491,7 @@ export default async function PortalOrtuPage() {
         )
       ORDER BY pn.created_at DESC
       LIMIT 100
-    `).bind(siswaId).all<any>(),
+    `).bind(siswaId, disciplineSettings.enabled ? 1 : 0).all<any>(),
     db.prepare(`
       SELECT id, reason, event_date, event_time, location, note, status, parent_response, parent_response_note, parent_responded_at, created_at
       FROM parent_summons
@@ -505,6 +510,10 @@ export default async function PortalOrtuPage() {
     getKomitePaymentSettings(),
     getDocumentationArticles(db, { audience: 'parent' }),
   ])
+
+  const disciplineInitial = disciplineSettings.enabled && taAktif?.id
+    ? await getParentDisciplineData(db, siswaId, taAktif.id)
+    : null
 
   let tkaSummary: any = null
   if (Number(profil.tingkat) === 12 && taAktif?.id) {
@@ -555,16 +564,16 @@ export default async function PortalOrtuPage() {
   const sppNominal = Number(sppSummary?.total_nominal || 0) + Number(sppSaldoAwal?.jumlah || 0)
   const sppBayar = Number(sppSummary?.total_dibayar || 0) + Number(sppSaldoAwal?.total_dibayar || 0)
   const sppSisa = Math.max(0, sppNominal - sppBayar)
-  const totalDisiplinPoin = Number(disiplinRekap?.total_poin || 0)
-  const totalDisiplinKasus = Number(disiplinRekap?.total_kasus || 0)
+  const totalDisiplinPoin = Number(disciplineInitial?.lifetimeSummary.totalPoin ?? disiplinRekap?.total_poin ?? 0)
+  const totalDisiplinKasus = Number(disciplineInitial?.lifetimeSummary.totalKasus ?? disiplinRekap?.total_kasus ?? 0)
   const activeSanksi = totalDisiplinPoin > 0
     ? (sanksiConfig.results || []).find((s: any) => totalDisiplinPoin >= Math.max(1, Number(s.poin_minimal || 0)))
     : null
   const disciplineSummary = {
     totalPoin: totalDisiplinPoin,
     totalKasus: totalDisiplinKasus,
-    levelLabel: activeSanksi?.nama || (totalDisiplinKasus > 0 ? 'Perlu dipantau' : 'Baik'),
-    lastDate: disiplinTerakhir.results?.[0]?.tanggal_terakhir || null,
+    levelLabel: disciplineInitial?.lifetimeSummary.levelLabel || activeSanksi?.nama || (totalDisiplinKasus > 0 ? 'Perlu dipantau' : 'Baik'),
+    lastDate: disciplineInitial?.lifetimeSummary.lastDate || disiplinTerakhir.results?.[0]?.tanggal_terakhir || null,
     needsFollowUp: Boolean(activeSanksi) || totalDisiplinKasus > 0,
   }
 
@@ -834,6 +843,7 @@ export default async function PortalOrtuPage() {
   const jadwalObject = Object.fromEntries(Array.from(jadwalByDay.entries()))
 
   const data = {
+    initialPortalTab: requestedTab === 'kedisiplinan' && disciplineSettings.enabled ? 'kedisiplinan' : 'beranda',
     profil,
     kelasLabel,
     waliKelasRow,
@@ -844,6 +854,8 @@ export default async function PortalOrtuPage() {
     attendanceYears: attendanceYears.results || [],
     attendanceInitial,
     disciplineSummary,
+    disciplineSettings,
+    disciplineInitial,
     semesters,
     semesterAvg,
     dsptTarget,

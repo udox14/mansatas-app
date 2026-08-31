@@ -250,6 +250,14 @@ CREATE TABLE IF NOT EXISTS siswa_pelanggaran (
   keterangan             TEXT,
   foto_url               TEXT,
   diinput_oleh           TEXT NOT NULL REFERENCES "user"(id),
+  nama_pelanggaran_snapshot TEXT,
+  kategori_snapshot      TEXT,
+  poin_snapshot          INTEGER,
+  publication_status     TEXT NOT NULL DEFAULT 'published'
+                         CHECK(publication_status IN ('pending','published','rejected')),
+  reviewed_by            TEXT REFERENCES "user"(id) ON DELETE SET NULL,
+  reviewed_at            TEXT,
+  review_note            TEXT,
   created_at             TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at             TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -320,6 +328,33 @@ CREATE INDEX IF NOT EXISTS idx_pelanggaran_siswa       ON siswa_pelanggaran(sisw
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pelanggaran_source_signature
   ON siswa_pelanggaran(source_signature)
   WHERE source_signature IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_siswa_pelanggaran_parent_portal
+  ON siswa_pelanggaran(siswa_id, publication_status, tahun_ajaran_id, tanggal DESC);
+
+CREATE TABLE IF NOT EXISTS parent_discipline_clarifications (
+  id TEXT PRIMARY KEY,
+  siswa_pelanggaran_id TEXT REFERENCES siswa_pelanggaran(id) ON DELETE SET NULL,
+  siswa_id TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
+  parent_session_id TEXT,
+  pelanggaran_nama_snapshot TEXT NOT NULL,
+  pelanggaran_kategori_snapshot TEXT NOT NULL,
+  pelanggaran_poin_snapshot INTEGER NOT NULL,
+  pelanggaran_tanggal_snapshot TEXT NOT NULL,
+  request_message TEXT NOT NULL CHECK(length(trim(request_message)) BETWEEN 1 AND 2000),
+  status TEXT NOT NULL DEFAULT 'baru' CHECK(status IN ('baru','diproses','selesai','ditolak')),
+  response_message TEXT CHECK(response_message IS NULL OR length(trim(response_message)) BETWEEN 1 AND 2000),
+  handled_by TEXT REFERENCES "user"(id) ON DELETE SET NULL,
+  handled_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_parent_discipline_clarification_once
+  ON parent_discipline_clarifications(siswa_pelanggaran_id)
+  WHERE siswa_pelanggaran_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_parent_discipline_clarification_student
+  ON parent_discipline_clarifications(siswa_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_parent_discipline_clarification_status
+  ON parent_discipline_clarifications(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_izin_keluar_siswa       ON izin_keluar_komplek(siswa_id, status);
 CREATE INDEX IF NOT EXISTS idx_session_token           ON session(token);
 CREATE INDEX IF NOT EXISTS idx_session_userId          ON session(userId);

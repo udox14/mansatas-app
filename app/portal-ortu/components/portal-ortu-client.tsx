@@ -47,10 +47,12 @@ import {
   createParentDsptPaymentSubmission,
   createParentSuggestion,
   getParentAttendanceByAcademicYear,
+  getParentDisciplineByAcademicYear,
   getParentSemesterGrades,
   markAllParentNotificationsRead,
   markParentNotificationRead,
   uploadParentPaymentProof,
+  submitDisciplineClarification,
 } from '../actions'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -179,7 +181,7 @@ async function compressPaymentProofImage(file: File, targetKb = 80): Promise<Fil
 export function PortalOrtuClient({ data }: { data: any }) {
   const router = useRouter()
   const [isRefreshing, startRefreshTransition] = useTransition()
-  const [activeTab, setActiveTab] = useState('beranda')
+  const [activeTab, setActiveTab] = useState(data.initialPortalTab || 'beranda')
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [paymentStep, setPaymentStep] = useState<1 | 2 | 3>(1)
   const [paymentAmount, setPaymentAmount] = useState('')
@@ -204,6 +206,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [attendanceMonth, setAttendanceMonth] = useState(() => getLatestAttendanceMonth(data.attendanceInitial))
   const [selectedAttendanceDate, setSelectedAttendanceDate] = useState<string | null>(null)
   const [attendanceLoading, setAttendanceLoading] = useState(false)
+  const [selectedDisciplineYearId, setSelectedDisciplineYearId] = useState(data.disciplineInitial?.tahunAjaran?.id || '')
+  const [disciplineDetail, setDisciplineDetail] = useState<any>(data.disciplineInitial || null)
+  const [disciplineLoading, setDisciplineLoading] = useState(false)
+  const [clarificationRecordId, setClarificationRecordId] = useState('')
+  const [clarificationMessage, setClarificationMessage] = useState('')
+  const [clarificationBusy, setClarificationBusy] = useState(false)
+  const [clarificationFeedback, setClarificationFeedback] = useState('')
   const [notificationBusy, setNotificationBusy] = useState(false)
   const [locallyReadNotifications, setLocallyReadNotifications] = useState<Set<string>>(new Set())
   const [locallyArchivedNotifications, setLocallyArchivedNotifications] = useState<Set<string>>(new Set())
@@ -226,6 +235,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
     attendanceYears,
     attendanceInitial,
     disciplineSummary,
+    disciplineSettings,
+    disciplineInitial,
     semesters,
     semesterAvg,
     dsptTarget,
@@ -306,7 +317,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
     { label: 'Rp 500.000', value: 500000 },
     { label: 'Rp 1.000.000', value: 1000000 },
   ].filter((item) => item.value > 0 && item.value <= Number(dsptSisa || 0))
-  const needsDisciplineAttention = Boolean(disciplineSummary?.needsFollowUp)
+  const disciplineEnabled = Boolean(disciplineSettings?.enabled)
+  const needsDisciplineAttention = disciplineEnabled && Boolean(disciplineSummary?.needsFollowUp)
   const disciplineLevelLabel = disciplineSummary?.levelLabel || 'Baik'
   const suggestionRows = parentSuggestions?.results || []
   const docsRows = documentationArticles || []
@@ -341,6 +353,11 @@ export function PortalOrtuClient({ data }: { data: any }) {
       { target: 'kehadiran-recent', title: 'Catatan terbaru', description: 'Daftar ini menampilkan catatan kehadiran terbaru beserta catatan guru jika ada.' },
       { target: 'kehadiran-discipline', title: 'Status pendampingan', description: 'Bagian ini memberi sinyal apakah ada catatan yang perlu didampingi bersama wali kelas atau BK.' },
       { target: 'kehadiran-contact', title: 'Koordinasi sekolah', description: 'Jika butuh penjelasan lanjutan, gunakan tombol ini untuk menghubungi wali kelas.' },
+    ],
+    kedisiplinan: [
+      { target: 'discipline-summary', title: 'Ringkasan kedisiplinan', description: 'Lihat poin tahun ajaran terpilih, poin kumulatif, dan level pendampingan anak.' },
+      { target: 'discipline-year', title: 'Filter tahun ajaran', description: 'Pilih tahun ajaran untuk melihat catatan pada periode tersebut.' },
+      { target: 'discipline-records', title: 'Riwayat resmi', description: 'Daftar ini hanya menampilkan catatan kedisiplinan yang sudah dipublikasikan sekolah.' },
     ],
     nilai: [
       { target: 'nilai-average', title: 'Rata-rata akademik', description: 'Bagian ini menampilkan rata-rata nilai keseluruhan yang sudah tersedia di portal.' },
@@ -406,6 +423,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   }
 
   const changeTab = (id: string) => {
+    if (id === 'kedisiplinan' && !disciplineEnabled) return
     if (id === activeTab) return
     setTourOpen(false)
     window.history.pushState({ ...window.history.state, portalOrtuTab: id }, '')
@@ -421,7 +439,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   }
 
   useEffect(() => {
-    window.history.replaceState({ ...window.history.state, portalOrtuTab: 'beranda' }, '')
+    window.history.replaceState({ ...window.history.state, portalOrtuTab: data.initialPortalTab || 'beranda' }, '')
 
     const handlePopState = (event: PopStateEvent) => {
       const tab = event.state?.portalOrtuTab
@@ -432,7 +450,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
-  }, [])
+  }, [data.initialPortalTab])
 
   useEffect(() => {
     const resetScroll = () => {
@@ -634,6 +652,28 @@ export function PortalOrtuClient({ data }: { data: any }) {
       setSelectedAttendanceDate(null)
     }
     setAttendanceLoading(false)
+  }
+
+  const changeDisciplineYear = async (tahunAjaranId: string) => {
+    setSelectedDisciplineYearId(tahunAjaranId)
+    setDisciplineLoading(true)
+    const result = await getParentDisciplineByAcademicYear(tahunAjaranId)
+    if (!(result as any).error) setDisciplineDetail(result)
+    setDisciplineLoading(false)
+  }
+
+  const submitClarification = async () => {
+    if (!clarificationRecordId || clarificationBusy) return
+    setClarificationBusy(true)
+    setClarificationFeedback('')
+    const result = await submitDisciplineClarification(clarificationRecordId, clarificationMessage)
+    setClarificationBusy(false)
+    if (result.error) return setClarificationFeedback(result.error)
+    setClarificationFeedback(result.success || 'Klarifikasi berhasil dikirim.')
+    setClarificationMessage('')
+    const refreshed = await getParentDisciplineByAcademicYear(selectedDisciplineYearId)
+    if (!(refreshed as any).error) setDisciplineDetail(refreshed)
+    setClarificationRecordId('')
   }
 
   const readNotification = async (notificationId: string) => {
@@ -945,13 +985,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
             </div>
             {waUrl && <a href={waUrl} target="_blank" aria-label="Hubungi wali kelas" className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-100"><MessageCircle className="h-4 w-4" /></a>}
           </StandardCard>
-          <StandardCard className="flex items-center gap-3 p-4">
+          {disciplineEnabled && <button type="button" onClick={() => changeTab('kedisiplinan')} className="w-full text-left"><StandardCard className="flex items-center gap-3 p-4 transition-colors hover:bg-slate-50">
             <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${needsDisciplineAttention ? 'bg-amber-50 text-amber-700' : 'bg-teal-50 text-teal-700'}`}><ShieldAlert className="h-5 w-5" /></div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Pendampingan</p>
-              <p className={`truncate text-sm font-bold ${needsDisciplineAttention ? 'text-amber-800' : 'text-teal-800'}`}>{disciplineLevelLabel}</p>
-            </div>
-          </StandardCard>
+            <div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Pendampingan</p><p className={`truncate text-sm font-bold ${needsDisciplineAttention ? 'text-amber-800' : 'text-teal-800'}`}>{disciplineLevelLabel}</p></div><ChevronRight className="h-4 w-4 text-slate-400" />
+          </StandardCard></button>}
         </div>
 
         {/* Announcements */}
@@ -1361,13 +1398,71 @@ export function PortalOrtuClient({ data }: { data: any }) {
               </StandardCard>
             </section>
 
-            <StandardCard data-tour-id="kehadiran-discipline" className={`flex items-center gap-4 p-4 ${needsDisciplineAttention ? 'border-amber-200' : 'border-teal-100'}`}>
+            {disciplineEnabled && <button type="button" onClick={() => changeTab('kedisiplinan')} className="w-full text-left"><StandardCard data-tour-id="kehadiran-discipline" className={`flex items-center gap-4 p-4 ${needsDisciplineAttention ? 'border-amber-200' : 'border-teal-100'}`}>
               <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${needsDisciplineAttention ? 'bg-amber-50 text-amber-700' : 'bg-teal-50 text-teal-700'}`}><ShieldAlert className="h-5 w-5" /></div>
               <div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Status pendampingan</p><p className="text-sm font-bold text-slate-900">{disciplineLevelLabel}</p><p className="mt-0.5 text-xs text-slate-500">{disciplineSummary?.totalKasus || 0} catatan kedisiplinan tercatat.</p></div>
-              {needsDisciplineAttention && waUrl && <a href={waUrl} target="_blank" aria-label="Hubungi wali kelas" className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-sky-50 text-sky-700"><MessageCircle className="h-4 w-4" /></a>}
-            </StandardCard>
+              <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+            </StandardCard></button>}
           </>
         )}
+      </motion.div>
+    )
+  }
+
+  const renderKedisiplinan = () => {
+    const detail = disciplineDetail
+    const selected = detail?.selectedSummary || { totalKasus: 0, totalPoin: 0, lastDate: null }
+    const lifetime = detail?.lifetimeSummary || { totalKasus: 0, totalPoin: 0, levelLabel: 'Baik', lastDate: null }
+    const clarificationByRecord = new Map((detail?.clarifications || []).map((row: any) => [row.siswa_pelanggaran_id, row]))
+    const waliPhone = parentWaNumber(waliKelasRow?.nomor_kontak)
+    return (
+      <motion.div key="kedisiplinan" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="portal-tab-panel space-y-5">
+        <PortalPageHeader title="Kedisiplinan" description="Pantau catatan resmi, poin, dan tindak lanjut pendampingan anak bersama sekolah." Icon={ShieldAlert} />
+
+        <section data-tour-id="discipline-summary" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: 'Kasus periode', value: selected.totalKasus, tone: 'text-slate-800' },
+            { label: 'Poin periode', value: selected.totalPoin, tone: 'text-rose-700' },
+            { label: 'Poin kumulatif', value: lifetime.totalPoin, tone: 'text-amber-700' },
+            { label: 'Status', value: lifetime.levelLabel, tone: 'text-teal-700' },
+          ].map(item => <StandardCard key={item.label} className="p-4"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{item.label}</p><p className={`mt-1 text-xl font-bold ${item.tone}`}>{item.value}</p></StandardCard>)}
+        </section>
+
+        <StandardCard data-tour-id="discipline-year" className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div><p className="text-sm font-bold text-slate-900">Periode catatan</p><p className="mt-0.5 text-xs text-slate-500">Poin kumulatif tetap dihitung sepanjang masa sekolah.</p></div>
+          <select value={selectedDisciplineYearId} onChange={event => changeDisciplineYear(event.target.value)} disabled={disciplineLoading} className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-[#C2522D]">
+            {(attendanceYears || []).map((year: any) => <option key={year.id} value={year.id}>{year.nama} · Semester {year.semester}</option>)}
+          </select>
+        </StandardCard>
+
+        <section data-tour-id="discipline-records" className="space-y-3">
+          <div className="ml-1"><h2 className="text-sm font-bold text-slate-900">Riwayat pelanggaran resmi</h2><p className="mt-0.5 text-xs text-slate-500">Identitas pelapor dan bukti internal tidak ditampilkan di portal.</p></div>
+          {disciplineLoading ? (
+            <StandardCard className="grid min-h-32 place-items-center"><Loader2 className="h-5 w-5 animate-spin text-[#C2522D]" /></StandardCard>
+          ) : (detail?.records || []).length === 0 ? (
+            <StandardCard className="py-10 text-center"><ShieldAlert className="mx-auto h-9 w-9 text-teal-400" /><p className="mt-3 text-sm font-bold text-slate-700">Tidak ada catatan pada periode ini</p><p className="mt-1 text-xs text-slate-500">Semoga kebiasaan baik ini terus dipertahankan.</p></StandardCard>
+          ) : (detail.records || []).map((record: any) => {
+            const clarification: any = clarificationByRecord.get(record.id)
+            const waMessage = `Assalamu'alaikum Bapak/Ibu ${waliKelasRow?.nama_lengkap || 'Wali Kelas'}. Saya orang tua/wali dari ${profil.nama_lengkap} (${kelasLabel}) ingin mengklarifikasi catatan kedisiplinan tanggal ${formatDateWIB(record.tanggal)}: ${record.nama_pelanggaran}. Mohon arahannya.`
+            return (
+              <StandardCard key={record.id} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0"><p className="text-sm font-bold text-slate-900">{record.nama_pelanggaran}</p><p className="mt-1 text-xs text-slate-500">{formatDateWIB(record.tanggal)}{record.jam_input ? ` · ${record.jam_input}` : ''} · {record.kategori || 'Tanpa kategori'}</p></div>
+                  <span className="shrink-0 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700">+{Number(record.poin || 0)} poin</span>
+                </div>
+                {record.keterangan && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">{record.keterangan}</p>}
+                {clarification && <div className="mt-3 rounded-lg border border-sky-100 bg-sky-50 p-3 text-xs leading-5 text-sky-800"><p className="font-bold uppercase tracking-wide">Klarifikasi: {clarification.status}</p><p className="mt-1">{clarification.request_message}</p>{clarification.response_message && <p className="mt-2 border-t border-sky-200 pt-2"><strong>Jawaban sekolah:</strong> {clarification.response_message}</p>}</div>}
+                {!clarification && disciplineSettings?.clarificationMode === 'whatsapp' && waliPhone && <a href={`https://wa.me/${waliPhone}?text=${encodeURIComponent(waMessage)}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-700"><MessageCircle className="h-4 w-4" /> Klarifikasi ke wali kelas</a>}
+                {!clarification && disciplineSettings?.clarificationMode === 'form' && (
+                  <Dialog open={clarificationRecordId === record.id} onOpenChange={open => { setClarificationRecordId(open ? record.id : ''); setClarificationMessage(''); setClarificationFeedback('') }}>
+                    <DialogTrigger asChild><button type="button" className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-700"><MessageSquareText className="h-4 w-4" /> Ajukan klarifikasi</button></DialogTrigger>
+                    <DialogContent className="portal-dialog max-w-lg rounded-2xl"><DialogHeader><DialogTitle>Klarifikasi catatan kedisiplinan</DialogTitle><DialogDescription>{record.nama_pelanggaran} · {formatDateWIB(record.tanggal)}</DialogDescription></DialogHeader><textarea value={clarificationMessage} onChange={event => setClarificationMessage(event.target.value.slice(0, 2000))} rows={6} placeholder="Jelaskan hal yang ingin diklarifikasi..." className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400" /><div className="flex items-center justify-between text-[11px] text-slate-500"><span>{clarificationFeedback}</span><span>{clarificationMessage.length}/2000</span></div><DialogFooter><button type="button" onClick={submitClarification} disabled={clarificationBusy || !clarificationMessage.trim()} className="min-h-11 rounded-lg bg-sky-700 px-4 text-sm font-bold text-white disabled:opacity-50">{clarificationBusy ? 'Mengirim...' : 'Kirim klarifikasi'}</button></DialogFooter></DialogContent>
+                  </Dialog>
+                )}
+              </StandardCard>
+            )
+          })}
+        </section>
       </motion.div>
     )
   }
@@ -2267,6 +2362,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             { id: 'beranda', label: 'Beranda', Icon: House },
             { id: 'jadwal', label: 'Jadwal Kelas', Icon: CalendarDays },
             { id: 'kehadiran', label: 'Kehadiran', Icon: BookOpenCheck },
+            ...(disciplineEnabled ? [{ id: 'kedisiplinan', label: 'Kedisiplinan', Icon: ShieldAlert }] : []),
             { id: 'nilai', label: 'Akademik', Icon: GraduationCap },
             { id: 'keuangan', label: 'Keuangan', Icon: Wallet },
             { id: 'saran', label: 'Kotak Saran', Icon: MessageSquareText },
@@ -2361,6 +2457,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             {activeTab === 'notifications' && renderNotifications()}
             {activeTab === 'jadwal' && renderJadwal()}
             {activeTab === 'kehadiran' && renderKehadiran()}
+            {activeTab === 'kedisiplinan' && disciplineEnabled && renderKedisiplinan()}
             {activeTab === 'nilai' && renderNilai()}
             {activeTab === 'keuangan' && renderKeuangan()}
             {activeTab === 'saran' && renderSaran()}
@@ -2374,6 +2471,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
         activeTab={activeTab}
         onChange={changeTab}
         onStartTour={startPortalTour}
+        disciplineEnabled={disciplineEnabled}
       />
       <PortalTour
         open={tourOpen}

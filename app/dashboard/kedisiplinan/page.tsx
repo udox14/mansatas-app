@@ -9,6 +9,7 @@ import { PageLoading } from '@/components/layout/page-loading'
 import { KedisiplinanClient } from './components/kedisiplinan-client'
 import { PageHeader } from '@/components/layout/page-header'
 import { loadSanksiList, type SanksiConfig } from '@/lib/sanksi-service'
+import { canReviewDisciplineRecord, ensureParentDisciplineSchema } from '@/lib/parent-discipline'
 
 export const metadata = { title: 'Kedisiplinan & Tata Tertib - MANSATAS App' }
 
@@ -19,12 +20,16 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
   lifetimePoin: Record<string, number>
 }) {
   const db = await getDB()
+  await ensureParentDisciplineSchema(db)
 
-  const [kasusResult, masterResult, tingkatResult] = await Promise.all([
+  const [kasusResult, masterResult, tingkatResult, clarificationResult] = await Promise.all([
     db.prepare(`
       SELECT sp.id, sp.tanggal, sp.jam_input, sp.keterangan, sp.foto_url, sp.siswa_id, sp.master_pelanggaran_id, sp.diinput_oleh,
+        sp.publication_status, sp.review_note, sp.reviewed_at,
         s.nama_lengkap as siswa_nama, s.foto_url as siswa_foto, k.tingkat, k.nomor_kelas, k.kelompok,
-        mp.nama_pelanggaran, mp.poin, u.nama_lengkap as pelapor_nama
+        COALESCE(sp.nama_pelanggaran_snapshot, mp.nama_pelanggaran) AS nama_pelanggaran,
+        COALESCE(sp.kategori_snapshot, mp.kategori) AS kategori,
+        COALESCE(sp.poin_snapshot, mp.poin) AS poin, u.nama_lengkap as pelapor_nama
       FROM siswa_pelanggaran sp
       JOIN siswa s ON sp.siswa_id = s.id
       LEFT JOIN kelas k ON s.kelas_id = k.id
@@ -34,30 +39,50 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
       ORDER BY sp.tanggal DESC, sp.created_at DESC
     `).bind(taAktifId).all<any>(),
     db.prepare(`SELECT id, kategori, nama_pelanggaran, poin FROM master_pelanggaran ORDER BY poin ASC`).all<any>(),
-    db.prepare(`SELECT DISTINCT tingkat FROM kelas WHERE tingkat IS NOT NULL`).all<{ tingkat: string | number }>()
+    db.prepare(`SELECT DISTINCT tingkat FROM kelas WHERE tingkat IS NOT NULL`).all<{ tingkat: string | number }>(),
+    db.prepare(`
+      SELECT pdc.*, s.nama_lengkap AS siswa_nama
+      FROM parent_discipline_clarifications pdc
+      JOIN siswa s ON s.id = pdc.siswa_id
+      ORDER BY CASE pdc.status WHEN 'baru' THEN 0 WHEN 'diproses' THEN 1 ELSE 2 END, pdc.created_at DESC
+      LIMIT 100
+    `).all<any>(),
   ])
 
   const formattedKasus = (kasusResult.results || []).map((p: any) => ({
     id: p.id, tanggal: p.tanggal, jam_input: p.jam_input ?? '', keterangan: p.keterangan, foto_url: p.foto_url,
+    publication_status: p.publication_status || 'published', review_note: p.review_note, reviewed_at: p.reviewed_at,
     siswa_id: p.siswa_id, master_pelanggaran_id: p.master_pelanggaran_id, diinput_oleh: p.diinput_oleh,
     siswa: { nama_lengkap: p.siswa_nama, foto_url: p.siswa_foto ?? null, kelas: p.tingkat ? { tingkat: p.tingkat, nomor_kelas: p.nomor_kelas, kelompok: p.kelompok } : null },
-    master_pelanggaran: { nama_pelanggaran: p.nama_pelanggaran, poin: p.poin },
+    master_pelanggaran: { nama_pelanggaran: p.nama_pelanggaran, kategori: p.kategori, poin: p.poin },
     pelapor: { nama_lengkap: p.pelapor_nama }
   }))
 
   const tingkatList = (tingkatResult.results || []).map(row => String(row.tingkat))
+  const reviewableStudentIds = new Set<string>()
+  const studentIds = Array.from(new Set([
+    ...(kasusResult.results || []).map((row: any) => String(row.siswa_id)),
+    ...(clarificationResult.results || []).map((row: any) => String(row.siswa_id)),
+  ]))
+  await Promise.all(studentIds.map(async siswaId => {
+    if (await canReviewDisciplineRecord(db, currentUser.id, siswaId)) reviewableStudentIds.add(siswaId)
+  }))
+  const reviewableRecordIds = formattedKasus.filter(row => reviewableStudentIds.has(row.siswa_id)).map(row => row.id)
+  const clarifications = (clarificationResult.results || []).filter((row: any) => reviewableStudentIds.has(String(row.siswa_id)))
 
-  return <KedisiplinanClient currentUser={currentUser} kasusList={formattedKasus} masterList={masterResult.results || []} taAktifId={taAktifId} sanksiList={sanksiList} lifetimePoin={lifetimePoin} tingkatList={tingkatList} />
+  return <KedisiplinanClient currentUser={currentUser} kasusList={formattedKasus} masterList={masterResult.results || []} taAktifId={taAktifId} sanksiList={sanksiList} lifetimePoin={lifetimePoin} tingkatList={tingkatList} reviewableRecordIds={reviewableRecordIds} clarifications={clarifications} />
 }
 
 async function KedisiplinanFetcher({ currentUser, taAktifId }: { currentUser: any; taAktifId: string }) {
   const db = await getDB()
+  await ensureParentDisciplineSchema(db)
   const [sanksiList, lifetimePoinRes] = await Promise.all([
     loadSanksiList(db),
     db.prepare(`
-      SELECT sp.siswa_id, SUM(mp.poin) as total_poin
+      SELECT sp.siswa_id, SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)) as total_poin
       FROM siswa_pelanggaran sp
-      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
+      LEFT JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
+      WHERE sp.publication_status = 'published'
       GROUP BY sp.siswa_id
     `).all<any>(),
   ])

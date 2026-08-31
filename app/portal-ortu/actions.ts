@@ -19,6 +19,12 @@ import {
   PARENT_TKA_STATEMENT_VERSION,
   serializeParentTkaSelection,
 } from '@/lib/parent-tka'
+import {
+  DISCIPLINE_CLARIFICATION_MAX_LENGTH,
+  ensureParentDisciplineSchema,
+  getParentDisciplineData,
+  getParentDisciplineSettings,
+} from '@/lib/parent-discipline'
 
 type SummonResponse = 'hadir' | 'reschedule'
 const SEMESTER_NILAI_COLUMNS = ['nilai_smt1', 'nilai_smt2', 'nilai_smt3', 'nilai_smt4', 'nilai_smt5', 'nilai_smt6'] as const
@@ -156,6 +162,80 @@ export async function getParentAttendanceByAcademicYear(tahunAjaranId: string) {
     ...aggregates,
     calendarDays: statuses,
   }
+}
+
+export async function getParentDisciplineByAcademicYear(tahunAjaranId: string) {
+  const session = await requireParentSession()
+  const db = await getDB()
+  const settings = await getParentDisciplineSettings()
+  if (!settings.enabled) return { error: 'Fitur kedisiplinan sedang dinonaktifkan.' }
+  const result = await getParentDisciplineData(db, session.user.siswa_id, String(tahunAjaranId || '').trim())
+  return result || { error: 'Tahun ajaran tidak ditemukan.' }
+}
+
+export async function submitDisciplineClarification(recordId: string, message: string) {
+  const session = await requireParentSession()
+  const db = await getDB()
+  await ensureParentDisciplineSchema(db)
+  const settings = await getParentDisciplineSettings()
+  if (!settings.enabled || settings.clarificationMode !== 'form') return { error: 'Form klarifikasi sedang tidak tersedia.' }
+  const cleanMessage = String(message || '').trim()
+  if (!cleanMessage) return { error: 'Isi klarifikasi wajib diisi.' }
+  if (cleanMessage.length > DISCIPLINE_CLARIFICATION_MAX_LENGTH) return { error: `Klarifikasi maksimal ${DISCIPLINE_CLARIFICATION_MAX_LENGTH} karakter.` }
+
+  const record = await db.prepare(`
+    SELECT sp.id, sp.siswa_id, sp.tanggal,
+      COALESCE(sp.nama_pelanggaran_snapshot, mp.nama_pelanggaran) AS nama_pelanggaran,
+      COALESCE(sp.kategori_snapshot, mp.kategori) AS kategori,
+      COALESCE(sp.poin_snapshot, mp.poin, 0) AS poin
+    FROM siswa_pelanggaran sp
+    LEFT JOIN master_pelanggaran mp ON mp.id = sp.master_pelanggaran_id
+    WHERE sp.id = ? AND sp.siswa_id = ? AND sp.publication_status = 'published' LIMIT 1
+  `).bind(recordId, session.user.siswa_id).first<any>()
+  if (!record) return { error: 'Catatan kedisiplinan tidak ditemukan.' }
+  const existing = await db.prepare('SELECT id FROM parent_discipline_clarifications WHERE siswa_pelanggaran_id = ? LIMIT 1').bind(recordId).first()
+  if (existing) return { error: 'Klarifikasi untuk catatan ini sudah pernah dikirim.' }
+
+  const id = generateId()
+  await db.prepare(`
+    INSERT INTO parent_discipline_clarifications (
+      id, siswa_pelanggaran_id, siswa_id, parent_session_id,
+      pelanggaran_nama_snapshot, pelanggaran_kategori_snapshot,
+      pelanggaran_poin_snapshot, pelanggaran_tanggal_snapshot, request_message
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    id, record.id, record.siswa_id, session.session.id,
+    record.nama_pelanggaran, record.kategori, Number(record.poin || 0), record.tanggal, cleanMessage,
+  ).run()
+
+  const reviewerRows = await db.prepare(`
+    SELECT DISTINCT u.id
+    FROM "user" u
+    LEFT JOIN siswa s ON s.id = ?
+    LEFT JOIN kelas k ON k.id = s.kelas_id
+    WHERE u.banned = 0 AND (
+      u.role IN ('super_admin','admin_tu','kepsek','wakamad')
+      OR u.id IN (SELECT ur.user_id FROM user_roles ur WHERE ur.role IN ('super_admin','admin_tu','kepsek','wakamad'))
+      OR u.id = k.wali_kelas_id
+      OR EXISTS (
+        SELECT 1 FROM kelas_binaan_bk kb JOIN tahun_ajaran ta ON ta.id = kb.tahun_ajaran_id AND ta.is_active = 1
+        WHERE kb.kelas_id = s.kelas_id AND kb.guru_bk_id = u.id
+      )
+    )
+  `).bind(record.siswa_id).all<{ id: string }>()
+  const userIds = (reviewerRows.results || []).map(row => row.id)
+  if (userIds.length) {
+    await emitConfiguredNotification({
+      eventKey: 'discipline_parent_clarification_submitted',
+      sourceRef: `discipline-clarification:${id}`,
+      context: { userIds, nama_pelanggaran: record.nama_pelanggaran, tanggal: record.tanggal },
+      targetOverride: { kind: 'staff_users', ids: userIds },
+      db,
+    }).catch(() => undefined)
+  }
+  revalidatePath('/portal-ortu')
+  revalidatePath('/dashboard/kedisiplinan')
+  return { success: 'Klarifikasi berhasil dikirim.', id }
 }
 
 function isDsptZeroUninput(

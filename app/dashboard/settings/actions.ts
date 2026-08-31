@@ -21,6 +21,7 @@ import { DASHBOARD_WIDGETS_CONFIG_KEY, WIDGET_CATALOG_META, type WidgetsConfigMa
 import { ensureRiwayatKelasSnapshotColumns, formatKelasSnapshot } from '@/lib/riwayat-kelas'
 import { uploadToR2 } from '@/utils/r2'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
+import { ensureParentDisciplineSchema, type DisciplineClarificationMode, type DisciplinePublishMode } from '@/lib/parent-discipline'
 
 // ============================================================
 // TAMBAH TAHUN AJARAN
@@ -609,6 +610,51 @@ export async function setParentLoginBlockSettings(enabled: boolean, tingkat: num
   })
 
   revalidatePath('/dashboard/settings')
+  return { success: true }
+}
+
+export async function setParentPortalDisciplineSettings(
+  enabled: boolean,
+  publishMode: DisciplinePublishMode,
+  clarificationMode: DisciplineClarificationMode,
+) {
+  await requireSettingsMutation('update')
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<{ role: string }>()
+  if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengubah pengaturan ini.' }
+  if (!['immediate', 'verified'].includes(publishMode)) return { error: 'Mode publikasi tidak valid.' }
+  if (!['whatsapp', 'form', 'disabled'].includes(clarificationMode)) return { error: 'Mode klarifikasi tidak valid.' }
+
+  await ensureParentDisciplineSchema(db)
+  await Promise.all([
+    setSystemSetting(SYSTEM_SETTING_KEYS.parentPortalDisciplineEnabled, enabled ? '1' : '0'),
+    setSystemSetting(SYSTEM_SETTING_KEYS.parentPortalDisciplinePublishMode, publishMode),
+    setSystemSetting(SYSTEM_SETTING_KEYS.parentPortalDisciplineClarificationMode, clarificationMode),
+  ])
+  if (publishMode === 'immediate') {
+    await db.prepare(`
+      UPDATE siswa_pelanggaran
+      SET publication_status = 'published', reviewed_by = NULL,
+          reviewed_at = COALESCE(reviewed_at, datetime('now')), review_note = NULL, updated_at = datetime('now')
+      WHERE publication_status = 'pending'
+    `).run()
+  }
+  await logActivity({
+    db,
+    module: 'pengaturan',
+    action: 'set_parent_portal_discipline',
+    severity: enabled ? undefined : 'warning',
+    summary: `${enabled ? 'Mengaktifkan' : 'Menonaktifkan'} kedisiplinan di portal orang tua`,
+    entityType: 'system_setting',
+    entityId: SYSTEM_SETTING_KEYS.parentPortalDisciplineEnabled,
+    entityLabel: 'Kedisiplinan portal orang tua',
+    after: { enabled, publishMode, clarificationMode },
+  })
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/kedisiplinan')
+  revalidatePath('/portal-ortu')
   return { success: true }
 }
 

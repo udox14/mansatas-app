@@ -23,7 +23,8 @@ import {
   simpanDaftarJurusan, simpanJamPelajaran,
   setAgendaTimeRestrictionEnabled, setAgendaLateSetting, setAttendanceTimeRestrictionEnabled,
   setAttendanceSkipIncompleteForDailyStatusEnabled, setHeroSettings, uploadHeroImageAction,
-  setDashboardItemVisibility, setDashboardExtraWidgets, setParentLoginHelpSettings, setParentLoginBlockSettings
+  setDashboardItemVisibility, setDashboardExtraWidgets, setParentLoginHelpSettings, setParentLoginBlockSettings,
+  setParentPortalDisciplineSettings,
 } from '../actions'
 import { PARENT_LOGIN_TINGKAT_OPTIONS } from '@/lib/system-setting-constants'
 import { DASHBOARD_GROUPS, isVisible, type VisibilityMap } from '@/lib/dashboard-visibility'
@@ -397,6 +398,9 @@ export function SettingsClient({
   parentLoginBlockEnabled,
   parentLoginBlockTingkat,
   parentLoginBlockMessage,
+  parentPortalDisciplineEnabled,
+  parentPortalDisciplinePublishMode,
+  parentPortalDisciplineClarificationMode,
   dashboardVisibility,
   dashboardExtraWidgets,
 }: {
@@ -418,6 +422,9 @@ export function SettingsClient({
   parentLoginBlockEnabled: boolean
   parentLoginBlockTingkat: number[]
   parentLoginBlockMessage: string
+  parentPortalDisciplineEnabled: boolean
+  parentPortalDisciplinePublishMode: 'immediate' | 'verified'
+  parentPortalDisciplineClarificationMode: 'whatsapp' | 'form' | 'disabled'
   dashboardVisibility: VisibilityMap
   dashboardExtraWidgets: WidgetsConfigMap
 }) {
@@ -442,6 +449,10 @@ export function SettingsClient({
   const [blockTingkat, setBlockTingkat] = useState<number[]>(parentLoginBlockTingkat || [])
   const [blockMessage, setBlockMessage] = useState(parentLoginBlockMessage)
   const [isSavingBlock, setIsSavingBlock] = useState(false)
+  const [disciplineEnabled, setDisciplineEnabled] = useState(parentPortalDisciplineEnabled)
+  const [disciplinePublishMode, setDisciplinePublishMode] = useState<'immediate' | 'verified'>(parentPortalDisciplinePublishMode)
+  const [disciplineClarificationMode, setDisciplineClarificationMode] = useState<'whatsapp' | 'form' | 'disabled'>(parentPortalDisciplineClarificationMode)
+  const [isSavingDiscipline, setIsSavingDiscipline] = useState(false)
 
   const toggleBlockTingkat = (t: number) => {
     setBlockTingkat(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t].sort((a, b) => a - b))
@@ -722,6 +733,18 @@ export function SettingsClient({
       setBlockMessage(msg)
       alert('Pengaturan pembatasan login berhasil disimpan.')
     }
+  }
+
+  const handleSaveDiscipline = async () => {
+    setIsSavingDiscipline(true)
+    const res = await setParentPortalDisciplineSettings(
+      disciplineEnabled,
+      disciplinePublishMode,
+      disciplineClarificationMode,
+    )
+    setIsSavingDiscipline(false)
+    if (res?.error) alert(res.error)
+    else alert('Pengaturan kedisiplinan portal orang tua berhasil disimpan.')
   }
 
   // Summary jam untuk card TA
@@ -1417,6 +1440,41 @@ export function SettingsClient({
         </TabsContent>
 
         <TabsContent value="portal-ortu" className="mt-0">
+          <div className="mb-4 overflow-hidden rounded-xl border border-surface bg-surface shadow-sm">
+            <div className="border-b border-surface-2 px-5 py-4">
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Kedisiplinan Siswa</p>
+              <p className="mt-0.5 text-xs text-slate-400">Atur visibilitas, verifikasi sebelum publikasi, dan jalur klarifikasi orang tua.</p>
+            </div>
+            <div className="flex items-start justify-between gap-4 border-b border-surface-2 px-5 py-4">
+              <div><p className="text-sm font-medium text-slate-700 dark:text-slate-300">Tampilkan menu Kedisiplinan</p><p className="mt-1 text-xs text-slate-500">Saat nonaktif, data dan notifikasi kedisiplinan disembunyikan dari portal tanpa menghapus riwayat.</p></div>
+              <button type="button" onClick={() => setDisciplineEnabled(value => !value)} disabled={isSavingDiscipline} aria-pressed={disciplineEnabled} className={cn('relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors', disciplineEnabled ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300 bg-slate-200')}>
+                <span className={cn('inline-block h-5 w-5 rounded-full bg-white transition-transform', disciplineEnabled ? 'translate-x-6' : 'translate-x-1')} />
+              </button>
+            </div>
+            <div className="grid gap-4 border-b border-surface-2 px-5 py-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Mode publikasi</Label>
+                <Select value={disciplinePublishMode} onValueChange={value => setDisciplinePublishMode(value as 'immediate' | 'verified')} disabled={isSavingDiscipline}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="immediate">Langsung tampil</SelectItem><SelectItem value="verified">Setelah diverifikasi</SelectItem></SelectContent>
+                </Select>
+                <p className="text-[11px] text-slate-500">Mode langsung akan menerbitkan semua catatan yang masih menunggu tanpa notifikasi massal.</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Jalur klarifikasi</Label>
+                <Select value={disciplineClarificationMode} onValueChange={value => setDisciplineClarificationMode(value as 'whatsapp' | 'form' | 'disabled')} disabled={isSavingDiscipline}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="whatsapp">WhatsApp wali kelas</SelectItem><SelectItem value="form">Form portal</SelectItem><SelectItem value="disabled">Nonaktif</SelectItem></SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="bg-surface-2/30 px-5 py-4">
+              <Button type="button" onClick={handleSaveDiscipline} disabled={isSavingDiscipline} className="h-9 rounded-lg bg-slate-900 text-xs text-white hover:bg-slate-800">
+                {isSavingDiscipline ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Menyimpan...</> : 'Simpan Pengaturan Kedisiplinan'}
+              </Button>
+            </div>
+          </div>
+
           <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
             <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-surface-2">
               <div>
