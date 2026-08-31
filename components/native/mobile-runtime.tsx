@@ -7,11 +7,13 @@ import { downloadAndOpenNativeFile } from '@/lib/pdf/download'
 import { createNativePrintWindow, printDocumentNative } from '@/lib/native-print'
 
 export type MobileBackMode = 'history' | 'confirm-exit' | 'exit'
+export type DisplayScale = 'small' | 'normal' | 'large' | 'xlarge'
 
 export type MobileRuntimeSettings = {
   backMode: MobileBackMode
   haptics: boolean
   externalLinksInApp: boolean
+  displayScale: DisplayScale
 }
 
 export const MOBILE_SETTINGS_KEY = 'mansatas_mobile_runtime_settings'
@@ -22,6 +24,20 @@ export const DEFAULT_MOBILE_SETTINGS: MobileRuntimeSettings = {
   backMode: 'history',
   haptics: true,
   externalLinksInApp: true,
+  displayScale: 'normal',
+}
+
+const DISPLAY_SCALE_PERCENT: Record<DisplayScale, number> = {
+  small: 90,
+  normal: 100,
+  large: 112,
+  xlarge: 125,
+}
+
+export function applyDisplayScale(scale: DisplayScale) {
+  if (typeof document === 'undefined') return
+  document.documentElement.style.fontSize = `${DISPLAY_SCALE_PERCENT[scale] || 100}%`
+  document.documentElement.dataset.displayScale = scale
 }
 
 export function readMobileRuntimeSettings(): MobileRuntimeSettings {
@@ -67,6 +83,13 @@ export function MobileRuntime() {
   const isAuthenticatedArea =
     pathname.startsWith('/dashboard') ||
     (pathname.startsWith('/portal-ortu') && !pathname.startsWith('/portal-ortu/login'))
+
+  useEffect(() => {
+    const apply = () => applyDisplayScale(readMobileRuntimeSettings().displayScale)
+    apply()
+    window.addEventListener('mansatas-mobile-settings-change', apply)
+    return () => window.removeEventListener('mansatas-mobile-settings-change', apply)
+  }, [])
 
   // Status jaringan native dengan fallback browser.
   useEffect(() => {

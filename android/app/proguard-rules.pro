@@ -19,3 +19,13 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Capacitor discovers plugins and their annotated methods at runtime. Keep that
+# bridge surface while allowing R8 to optimize the rest of the application.
+-keep class com.getcapacitor.** { *; }
+-keep @com.getcapacitor.annotation.CapacitorPlugin class * { *; }
+-keepclassmembers class * {
+    @com.getcapacitor.annotation.PluginMethod <methods>;
+}
+-keep class com.mansatas.app.FileSaverPlugin { *; }
+-keep class com.mansatas.app.NativePrintPlugin { *; }

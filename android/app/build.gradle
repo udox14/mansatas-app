@@ -13,8 +13,8 @@ android {
         applicationId "com.mansatas.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.0.2"
+        versionCode 5
+        versionName "1.0.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -34,11 +34,14 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
+            // Run R8 for the production bundle so unused code/resources are
+            // removed and application classes are obfuscated.
+            minifyEnabled true
+            shrinkResources true
             if (keystorePropertiesFile.exists()) {
                 signingConfig signingConfigs.release
             }
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

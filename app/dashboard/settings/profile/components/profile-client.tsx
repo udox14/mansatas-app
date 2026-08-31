@@ -1,18 +1,25 @@
 // Lokasi: app/dashboard/settings/profile/components/profile-client.tsx
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useActionState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Camera, Loader2, Save, KeyRound, User, CheckCircle2, AlertCircle, BellRing, PenLine, Phone } from 'lucide-react'
+import { Camera, Loader2, Save, KeyRound, User, CheckCircle2, AlertCircle, BellRing, PenLine, Phone, Type } from 'lucide-react'
 import { updateProfileInfo, updatePassword, uploadAvatarAction, uploadSignatureAction, saveBottomNavOverride } from '../actions'
 import { PushNotificationManager } from '@/components/shared/PushNotificationManager'
 import { BottomNavConfig } from './bottom-nav-config'
+import { applyDisplayScale, DEFAULT_MOBILE_SETTINGS, readMobileRuntimeSettings, writeMobileRuntimeSettings, type DisplayScale } from '@/components/native/mobile-runtime'
 
 const initialState = { error: null as string | null, success: null as string | null }
+const DISPLAY_SCALE_OPTIONS: Array<{ value: DisplayScale; label: string; desc: string }> = [
+  { value: 'small', label: 'Kecil', desc: 'Lebih banyak konten terlihat.' },
+  { value: 'normal', label: 'Normal', desc: 'Ukuran bawaan aplikasi.' },
+  { value: 'large', label: 'Besar', desc: 'Teks dan tombol diperbesar.' },
+  { value: 'xlarge', label: 'Ekstra besar', desc: 'Keterbacaan maksimal.' },
+]
 
 const compressImage = async (file: File): Promise<File> => {
   return new Promise((resolve, reject) => {
@@ -94,8 +101,22 @@ export function ProfileClient({ profile, email, allowedFeatures }: { profile: an
   const [signatureUrl, setSignatureUrl] = useState(profile?.signature_url || '')
   const [isUploading, setIsUploading] = useState(false)
   const [isUploadingSignature, setIsUploadingSignature] = useState(false)
+  const [displayScale, setDisplayScale] = useState<DisplayScale>(DEFAULT_MOBILE_SETTINGS.displayScale)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const signatureInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const current = readMobileRuntimeSettings().displayScale
+    setDisplayScale(current)
+    applyDisplayScale(current)
+  }, [])
+
+  const updateDisplayScale = (value: DisplayScale) => {
+    setDisplayScale(value)
+    const current = readMobileRuntimeSettings()
+    writeMobileRuntimeSettings({ ...current, displayScale: value })
+    applyDisplayScale(value)
+  }
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -249,6 +270,19 @@ export function ProfileClient({ profile, email, allowedFeatures }: { profile: an
             </div>
             <SubmitProfileBtn />
           </form>
+        </div>
+
+        <div className="rounded-xl border border-surface bg-surface p-5 shadow-sm">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-100"><Type className="h-4 w-4 text-emerald-600" /> Skala Tampilan</p>
+          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Atur ukuran tampilan khusus untuk akun/perangkat Anda.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {DISPLAY_SCALE_OPTIONS.map(option => (
+              <button key={option.value} type="button" onClick={() => updateDisplayScale(option.value)} className={`rounded-lg border p-3 text-left transition ${displayScale === option.value ? 'border-emerald-500 bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-100' : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900'}`}>
+                <p className="text-sm font-semibold">{option.label}</p>
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{option.desc}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Form ubah password */}

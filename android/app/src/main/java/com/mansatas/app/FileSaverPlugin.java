@@ -2,12 +2,15 @@ package com.mansatas.app;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.widget.Toast;
+
+import androidx.core.content.FileProvider;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -83,16 +86,16 @@ public class FileSaverPlugin extends Plugin {
                 try (OutputStream output = new FileOutputStream(file)) {
                     output.write(bytes);
                 }
-                uri = Uri.fromFile(file);
+                uri = FileProvider.getUriForFile(
+                    getContext(),
+                    getContext().getPackageName() + ".fileprovider",
+                    file
+                );
                 publicDownloads = false;
             }
 
             String destination = isImage ? "Galeri/Pictures/MANSATAS" : "Download/MANSATAS";
-            getActivity().runOnUiThread(() -> Toast.makeText(
-                getContext(),
-                "Tersimpan di " + destination,
-                Toast.LENGTH_LONG
-            ).show());
+            getActivity().runOnUiThread(() -> showFileActions(uri, mimeType, filename, destination));
 
             JSObject result = new JSObject();
             result.put("uri", uri.toString());
@@ -102,6 +105,35 @@ public class FileSaverPlugin extends Plugin {
         } catch (Exception error) {
             call.reject("Gagal menyimpan file: " + error.getMessage(), error);
         }
+    }
+
+    private void showFileActions(Uri uri, String mimeType, String filename, String destination) {
+        Intent viewIntent = new Intent(Intent.ACTION_VIEW);
+        viewIntent.setDataAndType(uri, mimeType);
+        viewIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+        shareIntent.setType(mimeType);
+        shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
+        shareIntent.putExtra(Intent.EXTRA_TITLE, filename);
+        shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+        new android.app.AlertDialog.Builder(getActivity())
+            .setTitle("File tersimpan")
+            .setMessage(filename + "\n\nLokasi: " + destination)
+            .setPositiveButton("Buka", (dialog, which) -> {
+                try {
+                    getActivity().startActivity(viewIntent);
+                } catch (Exception error) {
+                    Toast.makeText(getContext(), "Tidak ada aplikasi untuk membuka file ini.", Toast.LENGTH_LONG).show();
+                }
+            })
+            .setNeutralButton("Bagikan", (dialog, which) -> {
+                Intent chooser = Intent.createChooser(shareIntent, "Bagikan " + filename);
+                getActivity().startActivity(chooser);
+            })
+            .setNegativeButton("Selesai", null)
+            .show();
     }
 
     private static String sanitizeFilename(String raw) {

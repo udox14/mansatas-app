@@ -29,7 +29,7 @@
     "@block65/webcrypto-web-push": "^1.0.2",
     "@capacitor/app": "^8.1.0",
     "@capacitor/browser": "^8.0.3",
-    "@capacitor/camera": "^8.2.0",
+    "@capacitor/camera": "^8.2.3",
     "@capacitor/device": "^8.0.2",
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/haptics": "^8.0.2",

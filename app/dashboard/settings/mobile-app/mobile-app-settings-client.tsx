@@ -32,6 +32,7 @@ import {
   DEFAULT_MOBILE_SETTINGS,
   type MobileBackMode,
   type MobileRuntimeSettings,
+  type DisplayScale,
   readMobileRuntimeSettings,
   writeMobileRuntimeSettings,
 } from '@/components/native/mobile-runtime'
@@ -53,6 +54,13 @@ const BACK_OPTIONS: Array<{ value: MobileBackMode; label: string; desc: string }
   { value: 'history', label: 'Balik halaman', desc: 'Back mengikuti riwayat halaman, lalu keluar saat sudah di awal.' },
   { value: 'confirm-exit', label: 'Konfirmasi keluar', desc: 'Back mengikuti riwayat, lalu tanya sebelum menutup aplikasi.' },
   { value: 'exit', label: 'Langsung keluar', desc: 'Tombol back Android langsung menutup aplikasi.' },
+]
+
+const DISPLAY_SCALE_OPTIONS: Array<{ value: DisplayScale; label: string; desc: string }> = [
+  { value: 'small', label: 'Kecil', desc: 'Lebih banyak konten terlihat di layar.' },
+  { value: 'normal', label: 'Normal', desc: 'Ukuran tampilan bawaan aplikasi.' },
+  { value: 'large', label: 'Besar', desc: 'Teks dan tombol diperbesar.' },
+  { value: 'xlarge', label: 'Ekstra besar', desc: 'Untuk keterbacaan maksimal.' },
 ]
 
 const CAPABILITY_GROUPS = [
