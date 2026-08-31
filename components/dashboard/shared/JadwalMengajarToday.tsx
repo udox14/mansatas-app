@@ -166,8 +166,8 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
             const delegated = !!j.delegasi_status
             const delegationPending = j.delegasi_status === 'DIKIRIM'
             return (
-              <div key={i} className={`grid grid-cols-[2rem_max-content] sm:grid-cols-[2rem_max-content_auto] items-start gap-x-3 gap-y-1 overflow-x-auto px-4 py-2.5 ${j.is_fully_excepted ? 'bg-slate-50/80 dark:bg-slate-900/40' : filled || delegated ? '' : 'bg-amber-50/30 dark:bg-amber-900/10'}`}>
-                <div className={`h-8 w-8 shrink-0 rounded-lg flex items-center justify-center row-start-1 col-start-1 ${j.is_fully_excepted ? 'bg-slate-100 dark:bg-slate-800' : filled || delegated ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-amber-50 dark:bg-amber-900/30'}`}>
+              <div key={i} className={`flex items-start gap-3 px-4 py-2.5 ${j.is_fully_excepted ? 'bg-slate-50/80 dark:bg-slate-900/40' : filled || delegated ? '' : 'bg-amber-50/30 dark:bg-amber-900/10'}`}>
+                <div className={`h-8 w-8 shrink-0 rounded-lg flex items-center justify-center ${j.is_fully_excepted ? 'bg-slate-100 dark:bg-slate-800' : filled || delegated ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-amber-50 dark:bg-amber-900/30'}`}>
                   {j.is_fully_excepted
                     ? <Ban className="h-4 w-4 text-slate-400" />
                     : filled
@@ -177,7 +177,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
                     : <AlertCircle className="h-4 w-4 text-amber-500" />
                   }
                 </div>
-                <div className="w-max max-w-none row-start-1 col-start-2">
+                <div className="flex-1 min-w-0">
                   <div className="flex flex-col gap-0.5 mb-1 min-w-0">
                     <span className="text-sm font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap" title={`Kelas ${formatNamaKelas(j.tingkat, j.nomor_kelas, j.kelompok)}`}>Kelas {formatNamaKelas(j.tingkat, j.nomor_kelas, j.kelompok)}</span>
                     <span className="text-xs font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap" title={j.nama_mapel}>{j.nama_mapel}</span>
@@ -188,7 +188,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
                     </p>
                   ))}
                 </div>
-                <div className="text-right shrink-0 min-w-0 justify-self-end row-start-2 col-start-2 sm:row-start-1 sm:col-start-3">
+                <div className="text-right shrink-0 min-w-0 w-[112px] sm:w-auto">
                   <p className="text-[10px] font-medium text-slate-600 dark:text-slate-300">{j.is_fully_excepted ? `Jam ke-${j.jam_mulai}-${j.jam_selesai}` : `${slotMulai}–${slotSelesai}`}</p>
                   <p
                     className={`text-[9px] font-medium whitespace-nowrap truncate ${j.is_fully_excepted ? 'text-slate-400' : filled || delegated ? 'text-emerald-500' : 'text-amber-500'}`}

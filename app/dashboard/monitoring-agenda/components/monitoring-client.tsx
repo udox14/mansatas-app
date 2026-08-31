@@ -853,6 +853,9 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
   const [kelasId, setKelasId] = useState('')
   const [performancePolicy, setPerformancePolicy] = useState<PerformancePolicy | ''>('')
   const [teacherSort, setTeacherSort] = useState<TeacherAttendanceSort>('name_asc')
+  const [excludedTeacherIds, setExcludedTeacherIds] = useState<string[]>([])
+  const [excludeDialogOpen, setExcludeDialogOpen] = useState(false)
+  const [excludeSearch, setExcludeSearch] = useState('')
   const [data, setData] = useState<AgendaPrintSession[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [pesan, setPesan] = useState<{ tipe: 'error'; teks: string } | null>(null)
@@ -866,6 +869,20 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
   const selectedGuru = filterOptions.guru.find(guru => guru.id === guruId)?.nama || ''
   const selectedKelas = filterOptions.kelas.find(kelas => kelas.id === kelasId)?.label || ''
   const guruNamaMap = new Map(filterOptions.guru.map(guru => [guru.id, guru.nama]))
+  const excludedTeacherIdSet = useMemo(() => new Set(excludedTeacherIds), [excludedTeacherIds])
+  const excludeOptions = useMemo(() => {
+    const query = excludeSearch.trim().toLocaleLowerCase('id-ID')
+    return filterOptions.guru.filter(guru => !query || (guru.nama || guru.label || '').toLocaleLowerCase('id-ID').includes(query))
+  }, [excludeSearch, filterOptions.guru])
+  const printableData = useMemo(() => scope === 'semua_guru'
+    ? data.filter(item => !excludedTeacherIdSet.has(item.guru_id))
+    : data, [data, excludedTeacherIdSet, scope])
+
+  const toggleExcludedTeacher = (teacherId: string, checked: boolean) => {
+    setExcludedTeacherIds(current => checked
+      ? current.includes(teacherId) ? current : [...current, teacherId]
+      : current.filter(id => id !== teacherId))
+  }
 
   const resetData = () => {
     setData([])
@@ -1020,11 +1037,17 @@ tr { break-inside: avoid; page-break-inside: avoid; }
               </SelectContent>
             </Select>
           </div>}
+          {scope === 'semua_guru' && <div>
+            <Label className="text-xs text-slate-500 dark:text-slate-400">Pengecualian Guru</Label>
+            <Button type="button" variant="outline" size="sm" className="mt-1 h-9" onClick={() => setExcludeDialogOpen(true)}>
+              Kecualikan Guru{excludedTeacherIds.length > 0 ? ` (${excludedTeacherIds.length})` : ''}
+            </Button>
+          </div>}
           <Button onClick={handleLoad} disabled={isLoading || (isMonthlyPackage && !performancePolicy)} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-1.5" />}
             Muat Data
           </Button>
-          {data.length > 0 && (
+          {printableData.length > 0 && (
             <Button onClick={() => handlePrint()} size="sm" variant="outline">
               <Printer className="h-4 w-4 mr-1.5" /> {isMobile ? 'Simpan PDF' : 'Cetak'}
             </Button>
@@ -1038,12 +1061,41 @@ tr { break-inside: avoid; page-break-inside: avoid; }
         </div>
       )}
 
+      <Dialog open={excludeDialogOpen} onOpenChange={setExcludeDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">Kecualikan Guru dari Rekap</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Guru yang dicentang tidak akan masuk rekap maupun lampiran cetak Semua Guru. Data kehadiran tidak diubah.</p>
+            <Input value={excludeSearch} onChange={event => setExcludeSearch(event.target.value)} placeholder="Cari nama guru..." className="h-9" />
+            <div className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2">
+              {excludeOptions.map(guru => {
+                const checked = excludedTeacherIdSet.has(guru.id)
+                const name = guru.nama || guru.label || 'Tanpa nama'
+                return (
+                  <label key={guru.id} htmlFor={`exclude-guru-${guru.id}`} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <Checkbox id={`exclude-guru-${guru.id}`} checked={checked} onCheckedChange={value => toggleExcludedTeacher(guru.id, value === true)} />
+                    <span>{name}</span>
+                  </label>
+                )
+              })}
+              {excludeOptions.length === 0 && <p className="px-2 py-4 text-center text-xs text-slate-500">Guru tidak ditemukan.</p>}
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <Button type="button" variant="ghost" size="sm" disabled={excludedTeacherIds.length === 0} onClick={() => setExcludedTeacherIds([])}>Kosongkan Pilihan</Button>
+              <Button type="button" size="sm" onClick={() => setExcludeDialogOpen(false)}>Selesai</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Preview */}
-      {data.length > 0 && (
+      {printableData.length > 0 && (
         <div className="rounded-lg border bg-slate-100 dark:bg-slate-900 p-3 overflow-x-auto">
             <div ref={printRef} className="mx-auto w-[215mm] min-w-[215mm] bg-white shadow-sm">
               <AgendaPrintDocument
-                data={data}
+                data={printableData}
                 scope={scope}
                 scopeLabel={scope === 'per_guru' ? selectedGuru : scope === 'per_kelas' ? selectedKelas : 'Semua Guru'}
                 periodLabel={periodLabel}
@@ -1100,6 +1152,12 @@ tr { break-inside: avoid; page-break-inside: avoid; }
               </div>
               )}
           </div>
+        </div>
+      )}
+
+      {data.length > 0 && printableData.length === 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-center text-sm text-amber-800">
+          Semua guru pada data ini sedang dikecualikan. Ubah pilihan pengecualian untuk menampilkan rekap.
         </div>
       )}
 
