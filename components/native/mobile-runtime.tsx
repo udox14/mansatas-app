@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
+import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 import { OfflineBanner } from './offline-banner'
-import { downloadAndOpenNativeFile } from '@/lib/pdf/download'
+import {
+  downloadAndOpenNativeFile,
+  NATIVE_DOWNLOAD_EVENT,
+  type NativeDownloadEventDetail,
+} from '@/lib/pdf/download'
 import { createNativePrintWindow, printDocumentNative } from '@/lib/native-print'
 
 export type MobileBackMode = 'history' | 'confirm-exit' | 'exit'
@@ -19,6 +24,19 @@ export type MobileRuntimeSettings = {
 export const MOBILE_SETTINGS_KEY = 'mansatas_mobile_runtime_settings'
 const PENDING_FCM_TOKEN_KEY = 'mansatas_pending_fcm_token'
 const CURRENT_FCM_TOKEN_KEY = 'mansatas_current_fcm_token'
+
+function isLikelyFileUrl(rawUrl: string, anchor?: HTMLAnchorElement | null) {
+  if (!rawUrl) return false
+  if (rawUrl.startsWith('blob:') || rawUrl.startsWith('data:')) return true
+  if (anchor?.hasAttribute('download')) return true
+
+  const url = new URL(rawUrl, window.location.origin)
+  const pathAndQuery = `${url.pathname}${url.search}`.toLowerCase()
+  if (/\.(?:pdf|docx?|xlsx?|csv|zip|rar|7z|odt|ods|pptx?|txt|rtf|jpe?g|png|webp)(?:$|[?#])/i.test(rawUrl)) return true
+  if (/(?:^|[\/_-])(download|unduh|export|lampiran|attachment|berkas|spb)(?:$|[\/_?&=-])/i.test(pathAndQuery)) return true
+  if (url.origin === window.location.origin && url.pathname.startsWith('/api/') && anchor?.target === '_blank') return true
+  return false
+}
 
 export const DEFAULT_MOBILE_SETTINGS: MobileRuntimeSettings = {
   backMode: 'history',
@@ -80,6 +98,11 @@ export function MobileRuntime() {
   const pathname = usePathname()
   const [isOffline, setIsOffline] = useState(false)
   const [hasSwUpdate, setHasSwUpdate] = useState(false)
+  const [downloadState, setDownloadState] = useState<{
+    phase: 'idle' | 'loading' | 'success' | 'error'
+    filename?: string
+    message?: string
+  }>({ phase: 'idle' })
   const isAuthenticatedArea =
     pathname.startsWith('/dashboard') ||
     (pathname.startsWith('/portal-ortu') && !pathname.startsWith('/portal-ortu/login'))
@@ -89,6 +112,28 @@ export function MobileRuntime() {
     apply()
     window.addEventListener('mansatas-mobile-settings-change', apply)
     return () => window.removeEventListener('mansatas-mobile-settings-change', apply)
+  }, [])
+
+  useEffect(() => {
+    let dismissTimer: ReturnType<typeof setTimeout> | undefined
+    const handleDownload = (event: Event) => {
+      const detail = (event as CustomEvent<NativeDownloadEventDetail>).detail
+      if (!detail) return
+      if (dismissTimer) clearTimeout(dismissTimer)
+      setDownloadState({
+        phase: detail.phase === 'start' ? 'loading' : detail.phase,
+        filename: detail.filename,
+        message: detail.message,
+      })
+      if (detail.phase !== 'start') {
+        dismissTimer = setTimeout(() => setDownloadState({ phase: 'idle' }), detail.phase === 'error' ? 6000 : 2500)
+      }
+    }
+    window.addEventListener(NATIVE_DOWNLOAD_EVENT, handleDownload)
+    return () => {
+      if (dismissTimer) clearTimeout(dismissTimer)
+      window.removeEventListener(NATIVE_DOWNLOAD_EVENT, handleDownload)
+    }
   }, [])
 
   // Status jaringan native dengan fallback browser.
@@ -279,12 +324,7 @@ export function MobileRuntime() {
 
         if (rawUrl) {
           const fullUrl = rawUrl.startsWith('/') ? `${window.location.origin}${rawUrl}` : rawUrl
-          const isFile =
-            /\.pdf(?:$|\?)/i.test(fullUrl) ||
-            fullUrl.includes('/api/pdf/') ||
-            fullUrl.includes('/files/') ||
-            fullUrl.includes('download') ||
-            fullUrl.includes('/spb')
+          const isFile = isLikelyFileUrl(fullUrl)
 
           if (isFile) {
             downloadAndOpenNativeFile(fullUrl).catch(console.error)
@@ -376,13 +416,7 @@ export function MobileRuntime() {
         if (!anchor?.href) return
 
         const href = anchor.href
-        const isFile =
-          /\.pdf(?:$|\?)/i.test(href) ||
-          href.includes('/api/pdf/') ||
-          href.includes('/files/') ||
-          href.includes('download') ||
-          href.includes('/spb') ||
-          anchor.hasAttribute('download')
+        const isFile = isLikelyFileUrl(href, anchor)
         const isPrintRoute = href.includes('/print') || href.includes('print-ckh')
 
         if (isFile) {
@@ -418,5 +452,42 @@ export function MobileRuntime() {
     }
   }, [])
 
-  return <OfflineBanner isOffline={isOffline} hasSwUpdate={hasSwUpdate} />
+  return (
+    <>
+      <OfflineBanner isOffline={isOffline} hasSwUpdate={hasSwUpdate} />
+      {downloadState.phase !== 'idle' && (
+        <div
+          className={`fixed left-1/2 top-5 z-[10000] flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-start gap-3 rounded-2xl border px-4 py-3 shadow-xl backdrop-blur-xl ${
+            downloadState.phase === 'error'
+              ? 'border-rose-200 bg-rose-50/95 text-rose-800'
+              : downloadState.phase === 'success'
+                ? 'border-emerald-200 bg-emerald-50/95 text-emerald-800'
+                : 'border-blue-200 bg-blue-50/95 text-blue-800'
+          }`}
+          role={downloadState.phase === 'error' ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          {downloadState.phase === 'loading' && <Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin" />}
+          {downloadState.phase === 'success' && <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />}
+          {downloadState.phase === 'error' && <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />}
+          <div className="min-w-0">
+            <p className="text-sm font-bold">
+              {downloadState.phase === 'loading'
+                ? 'Menyiapkan file…'
+                : downloadState.phase === 'success'
+                  ? 'File siap'
+                  : 'Unduhan gagal'}
+            </p>
+            <p className="mt-0.5 break-words text-xs font-medium opacity-90">
+              {downloadState.phase === 'error'
+                ? downloadState.message || 'Silakan coba lagi.'
+                : downloadState.filename || (downloadState.phase === 'success'
+                    ? 'File sudah disimpan atau diteruskan ke aplikasi pilihan.'
+                    : 'Mohon tunggu, jangan tutup halaman ini.')}
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  )
 }

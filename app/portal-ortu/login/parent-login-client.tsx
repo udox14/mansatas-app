@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { AlertCircle, Eye, EyeOff, Info, Loader2, LockKeyhole, MessageCircle, UserSquare2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+
+const REMEMBERED_PARENT_USERNAME = 'mansatas_remembered_parent_username'
 
 export default function ParentLoginClient({
   helpEnabled = true,
@@ -18,10 +20,18 @@ export default function ParentLoginClient({
   const [nisn, setNisn] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const helpNumber = String(helpWhatsapp || '').replace(/\D/g, '')
   const infoText = String(helpInfo || '').trim()
+
+  useEffect(() => {
+    const remembered = window.localStorage.getItem(REMEMBERED_PARENT_USERNAME)
+    if (!remembered) return
+    const timer = window.setTimeout(() => setNisn(remembered), 0)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,6 +55,8 @@ export default function ParentLoginClient({
         setPending(false)
         return
       }
+      if (rememberMe) window.localStorage.setItem(REMEMBERED_PARENT_USERNAME, nisn.trim())
+      else window.localStorage.removeItem(REMEMBERED_PARENT_USERNAME)
       window.location.href = '/portal-ortu'
     } catch {
       setError('Terjadi kesalahan jaringan. Silakan coba lagi.')
@@ -102,7 +114,7 @@ export default function ParentLoginClient({
             </span>
           </div>
 
-          <form onSubmit={onSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} autoComplete="on" className="space-y-4">
             {error && (
               <div className="flex items-start gap-2 rounded-xl border border-rose-100 bg-rose-50 p-2.5 text-[11px] text-rose-600">
                 <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -116,6 +128,7 @@ export default function ParentLoginClient({
                 <UserSquare2 className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                 <input
                   id="nisn"
+                  name="username"
                   inputMode="numeric"
                   autoComplete="username"
                   value={nisn}
@@ -133,6 +146,7 @@ export default function ParentLoginClient({
                 <LockKeyhole className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                 <input
                   id="password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
                   inputMode="numeric"
                   autoComplete="current-password"
@@ -152,6 +166,17 @@ export default function ParentLoginClient({
                 </button>
               </div>
             </div>
+
+            <label className="flex cursor-pointer select-none items-center gap-2 px-0.5">
+              <input
+                name="remember"
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-slate-300 accent-teal-700"
+              />
+              <span className="text-[11px] font-medium text-slate-500">Ingat akun di perangkat ini</span>
+            </label>
 
             <button
               type="submit"

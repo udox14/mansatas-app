@@ -1,22 +1,34 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Mail, Lock, Loader2, ArrowRight, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react'
+
+const REMEMBERED_STAFF_USERNAME = 'mansatas_remembered_staff_username'
 
 export default function LoginClient() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+
+  useEffect(() => {
+    const remembered = window.localStorage.getItem(REMEMBERED_STAFF_USERNAME)
+    if (!remembered) return
+    const timer = window.setTimeout(() => setEmail(remembered), 0)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setPending(true)
     try {
       const res = await fetch('/api/auth/sign-in/email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }), credentials: 'include' })
       if (!res.ok) { setError('Email atau password salah.'); setPending(false); return }
+      if (rememberMe) window.localStorage.setItem(REMEMBERED_STAFF_USERNAME, email.trim())
+      else window.localStorage.removeItem(REMEMBERED_STAFF_USERNAME)
       window.location.href = '/dashboard'
     } catch { setError('Terjadi kesalahan jaringan. Coba lagi.'); setPending(false) }
   }
@@ -42,7 +54,7 @@ export default function LoginClient() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-3.5">
+          <form onSubmit={handleSubmit} autoComplete="on" className="space-y-3.5">
             {error && (
               <div className="flex items-start gap-2 p-2.5 text-[11px] text-rose-600 bg-rose-50 rounded-lg border border-rose-100">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {error}
@@ -53,7 +65,7 @@ export default function LoginClient() {
               <label htmlFor="email" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Email</label>
               <div className="relative">
                 <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                <input id="email" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)}
+                <input id="email" name="username" type="email" autoComplete="username" autoCapitalize="none" spellCheck={false} required value={email} onChange={e => setEmail(e.target.value)}
                   className="w-full h-9 pl-8 pr-3 rounded-md border border-slate-200 bg-slate-50 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                   placeholder="nama@man1tasikmalaya.sch.id" />
               </div>
@@ -63,7 +75,7 @@ export default function LoginClient() {
               <label htmlFor="password" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Kata Sandi</label>
               <div className="relative">
                 <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                <input id="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)}
+                <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)}
                   className="w-full h-9 pl-8 pr-9 rounded-md border border-slate-200 bg-slate-50 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white transition-colors"
                   placeholder="••••••••" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
@@ -75,7 +87,13 @@ export default function LoginClient() {
 
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                <input type="checkbox" className="h-3 w-3 rounded border-slate-300 accent-emerald-600" />
+                <input
+                  name="remember"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={e => setRememberMe(e.target.checked)}
+                  className="h-3 w-3 rounded border-slate-300 accent-emerald-600"
+                />
                 <span className="text-[11px] text-slate-500">Ingat saya</span>
               </label>
               <button type="button" onClick={handleLupaSandi} className="text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 transition-colors">

@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { isS36RequiredForRoles, monthLabel, type TpgUserStatus } from '@/lib/tpg'
+import { downloadAndOpenNativeFile } from '@/lib/pdf/download'
 import { uploadS36Action } from './actions'
 
 const MONTHS = [
@@ -98,8 +99,11 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
   const pageSelected = paginatedUsers.length > 0 && paginatedUsers.every(user => selected.includes(user.id))
 
   useEffect(() => {
-    setPage(1)
-    setSelected([])
+    const timer = window.setTimeout(() => {
+      setPage(1)
+      setSelected([])
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [data.s36Year, data.s36Month, data.ckhYear, data.ckhMonth, pageSize])
 
   const applyFilters = () => {
@@ -131,13 +135,18 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
     setSelected(prev => checked ? Array.from(new Set([...prev, id])) : prev.filter(item => item !== id))
   }
 
-  const openS36Download = (mode: 'selected' | 'all') => {
+  const openS36Download = async (mode: 'selected' | 'all') => {
     const ids = mode === 'all' ? data.users.filter(hasS36).map(row => row.id) : s36Selected.map(row => row.id)
     if (ids.length === 0) {
       setMessage({ type: 'error', text: 'Belum ada S36 yang bisa didownload.' })
       return
     }
-    window.location.href = `/api/tpg/s36/download?year=${data.s36Year}&month=${data.s36Month}&users=${ids.join(',')}`
+    setMessage(null)
+    try {
+      await downloadAndOpenNativeFile(`/api/tpg/s36/download?year=${data.s36Year}&month=${data.s36Month}&users=${ids.join(',')}`)
+    } catch (cause) {
+      setMessage({ type: 'error', text: cause instanceof Error ? cause.message : 'Gagal mengunduh S36.' })
+    }
   }
 
   const openCkhPrint = (mode: 'selected' | 'all') => {

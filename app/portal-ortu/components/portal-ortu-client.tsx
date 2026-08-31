@@ -58,7 +58,7 @@ import { PARENT_SUGGESTION_CATEGORIES } from '@/lib/parent-suggestions'
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
 import { MarkdownViewer } from '@/components/documentation/markdown-viewer'
 import { currentTimeWIB, formatDateTimeWIB, formatDateWIB } from '@/lib/time'
-import { attendanceSourceLabel, attendanceStatusLabel } from '@/lib/attendance-status'
+import { attendanceStatusLabel } from '@/lib/attendance-status'
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
@@ -287,7 +287,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
   ].filter((item) => item.value > 0 && item.value <= Number(dsptSisa || 0))
   const needsDisciplineAttention = Boolean(disciplineSummary?.needsFollowUp)
   const disciplineLevelLabel = disciplineSummary?.levelLabel || 'Baik'
-  const recentAttendanceRows = attendanceDetail?.recent || []
+  // Portal orang tua hanya menampilkan catatan kehadiran yang sudah layak
+  // dikomunikasikan, bukan status proses input internal sekolah.
+  const recentAttendanceRows = (attendanceDetail?.recent || []).filter((row: any) => {
+    const status = String(row.status_akhir || '').replace(/\s+/g, '_').toUpperCase()
+    return status !== 'BELUM_ADA_INPUT'
+  })
   const suggestionRows = parentSuggestions?.results || []
   const docsRows = documentationArticles || []
   const selectedDoc = docsRows.find((article: any) => article.id === selectedDocId) || docsRows[0]
@@ -1243,15 +1248,16 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 {recentAttendanceRows.length === 0 ? <p className="p-6 text-center text-sm text-slate-500">Tidak ada catatan khusus pada periode ini.</p> : (
                   <div className="divide-y divide-slate-100">
                     {recentAttendanceRows.map((row: any, index: number) => {
-                      const meta = statusMeta[row.status_akhir] || statusMeta.BELUM_ADA_DATA
+                      const normalizedStatus = String(row.status_akhir || '').replace(/\s+/g, '_').toUpperCase()
+                      const meta = statusMeta[normalizedStatus] || statusMeta.BELUM_ADA_DATA
                       const note = row.keterangan_wali_kelas || row.detail_guru?.find((detail: any) => detail.catatan)?.catatan
+                      const statusLabel = normalizedStatus === 'PERLU_KONFIRMASI_WALI'
+                        ? 'Menunggu verifikasi'
+                        : attendanceStatusLabel(row.status_akhir)
                       return <div key={`${row.tanggal}-${index}`} className="flex items-start gap-3 p-4">
-                        <span className={`mt-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.className}`}>{attendanceStatusLabel(row.status_akhir)}</span>
+                        <span className={`mt-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.className}`}>{statusLabel}</span>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-bold text-slate-800">{formatDateWIB(row.tanggal)}</p>
-                          <p className="mt-0.5 text-[10px] font-semibold text-slate-400">Status final harian · {attendanceSourceLabel(row.sumber_status)} · {row.submitted_blok || 0}/{row.total_blok || 0} blok disubmit</p>
-                          {row.status_reason && <p className="mt-1 text-xs leading-5 text-slate-600">{row.status_reason}</p>}
-                          {row.detail_guru?.length > 0 && <p className="mt-1 text-[10px] leading-4 text-slate-400">Status per jam: {row.detail_guru.map((detail: any) => `${detail.nama_mapel || 'Pelajaran'} ${detail.status}`).join(' · ')}</p>}
                           {note && <p className="mt-1 text-xs leading-5 text-slate-500">{note}</p>}
                         </div>
                       </div>
