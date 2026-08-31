@@ -1,4 +1,12 @@
 export type PerformancePolicy = 'excused_not_penalized' | 'excused_penalized'
+export type TeacherAttendanceSort =
+  | 'name_asc'
+  | 'performance_asc'
+  | 'performance_desc'
+  | 'hadir_desc'
+  | 'izin_desc'
+  | 'sakit_desc'
+  | 'alfa_desc'
 
 export type AgendaPrintSession = {
   penugasan_id: string
@@ -37,6 +45,16 @@ export const PERFORMANCE_POLICY_LABELS: Record<PerformancePolicy, string> = {
   excused_penalized: 'Sakit dan izin mengurangi performa',
 }
 
+export const TEACHER_ATTENDANCE_SORT_LABELS: Record<TeacherAttendanceSort, string> = {
+  name_asc: 'Nama Guru A–Z',
+  performance_asc: 'Performa Terendah ke Tertinggi',
+  performance_desc: 'Performa Tertinggi ke Terendah',
+  hadir_desc: 'Hadir Terbanyak ke Tersedikit',
+  izin_desc: 'Izin Terbanyak ke Tersedikit',
+  sakit_desc: 'Sakit Terbanyak ke Tersedikit',
+  alfa_desc: 'Alfa Terbanyak ke Tersedikit',
+}
+
 export function calculatePerformance(
   counts: Pick<AttendanceCounts, 'totalBlok' | 'hadir' | 'sakit' | 'izin'>,
   policy: PerformancePolicy,
@@ -56,9 +74,31 @@ function compareSessions(a: AgendaPrintSession, b: AgendaPrintSession) {
     || a.nomor_kelas - b.nomor_kelas
 }
 
+function compareTeacherName(a: TeacherAttendanceSummary, b: TeacherAttendanceSummary) {
+  return a.guruNama.localeCompare(b.guruNama, 'id-ID')
+}
+
+export function sortTeacherAttendance(
+  teachers: TeacherAttendanceSummary[],
+  sort: TeacherAttendanceSort,
+) {
+  const compareBy = (key: 'performa' | 'hadir' | 'izin' | 'sakit' | 'alfa', direction: 1 | -1) =>
+    (a: TeacherAttendanceSummary, b: TeacherAttendanceSummary) => direction * (a[key] - b[key]) || compareTeacherName(a, b)
+
+  const comparator = sort === 'performance_asc' ? compareBy('performa', 1)
+    : sort === 'performance_desc' ? compareBy('performa', -1)
+      : sort === 'hadir_desc' ? compareBy('hadir', -1)
+        : sort === 'izin_desc' ? compareBy('izin', -1)
+          : sort === 'sakit_desc' ? compareBy('sakit', -1)
+            : sort === 'alfa_desc' ? compareBy('alfa', -1)
+              : compareTeacherName
+  return [...teachers].sort(comparator)
+}
+
 export function aggregateTeacherAttendance(
   sessions: AgendaPrintSession[],
   policy: PerformancePolicy,
+  sort: TeacherAttendanceSort = 'name_asc',
 ): TeacherAttendanceSummary[] {
   const grouped = new Map<string, Omit<TeacherAttendanceSummary, 'performa'>>()
 
@@ -85,13 +125,12 @@ export function aggregateTeacherAttendance(
     else row.alfa += 1
   }
 
-  return Array.from(grouped.values())
+  return sortTeacherAttendance(Array.from(grouped.values())
     .map(row => ({
       ...row,
       sessions: [...row.sessions].sort(compareSessions),
       performa: calculatePerformance(row, policy),
-    }))
-    .sort((a, b) => a.guruNama.localeCompare(b.guruNama, 'id-ID'))
+    })), sort)
 }
 
 export function aggregateAttendanceTotal(

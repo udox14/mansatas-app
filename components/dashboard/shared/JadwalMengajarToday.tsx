@@ -52,7 +52,20 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
       jm.penugasan_id,
       mp.nama_mapel,
       k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok,
-      ag.id as agenda_id
+      ag.id as agenda_id,
+      (
+        SELECT CASE
+          WHEN dtk.absen_selesai = 1 OR dt.status = 'SELESAI' THEN 'SELESAI'
+          ELSE 'DIKIRIM'
+        END
+        FROM delegasi_tugas_kelas dtk
+        JOIN delegasi_tugas dt ON dt.id = dtk.delegasi_id
+        WHERE dtk.penugasan_mengajar_id = jm.penugasan_id
+          AND dt.dari_user_id = pm.guru_id
+          AND dt.tanggal = ?
+        ORDER BY dt.created_at DESC
+        LIMIT 1
+      ) as delegasi_status
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
     JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
@@ -62,7 +75,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     GROUP BY jm.penugasan_id, mp.nama_mapel, k.id, k.tingkat, k.nomor_kelas, k.kelompok, ag.id
     ORDER BY jam_mulai ASC
-  `).bind(today, taAktif.id, hariIni, userId, today).all<any>().then(r => r.results ?? [])
+  `).bind(today, today, taAktif.id, hariIni, userId, today).all<any>().then(r => r.results ?? [])
 
   // Parse jam dari pola jam pelajaran
   let slotsMap: Record<number, { mulai: string; selesai: string }> = {}
@@ -94,7 +107,9 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
   const activeJadwalRows = displayJadwalRows.filter((j: any) => !j.is_fully_excepted)
   const totalJadwal = activeJadwalRows.length
   const sudahIsiAgenda = activeJadwalRows.filter((j: any) => !!j.agenda_id).length
-  const belumIsi = totalJadwal - sudahIsiAgenda
+  const sudahMenugaskan = activeJadwalRows.filter((j: any) => !!j.delegasi_status).length
+  const belumDilaksanakan = activeJadwalRows.filter((j: any) => j.delegasi_status === 'DIKIRIM').length
+  const belumIsi = activeJadwalRows.filter((j: any) => !j.agenda_id && !j.delegasi_status).length
 
   return (
     <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden mb-3">
@@ -105,8 +120,13 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
           </div>
           <div className="min-w-0">
             <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Jadwal Mengajar Hari Ini</p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500">
-              {totalJadwal === 0 ? 'Tidak ada jadwal wajib hari ini' : `${totalJadwal} kelas · ${sudahIsiAgenda} agenda terisi`}
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 whitespace-nowrap truncate">
+              <span className="sm:hidden">
+                {totalJadwal === 0 ? 'Tidak ada jadwal wajib hari ini' : `${totalJadwal} kelas · ${sudahIsiAgenda} agenda · ${sudahMenugaskan} tugas${belumDilaksanakan > 0 ? ` · ${belumDilaksanakan} belum` : ''}`}
+              </span>
+              <span className="hidden sm:inline">
+                {totalJadwal === 0 ? 'Tidak ada jadwal wajib hari ini' : `${totalJadwal} kelas · ${sudahIsiAgenda} agenda · ${sudahMenugaskan} ditugaskan${belumDilaksanakan > 0 ? ` (${belumDilaksanakan} belum dilaksanakan)` : ''}`}
+              </span>
             </p>
           </div>
         </div>
@@ -143,20 +163,24 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
             const slotMulai = slotsMap[activeMulai]?.mulai ?? '-'
             const slotSelesai = slotsMap[activeSelesai]?.selesai ?? '-'
             const filled = !!j.agenda_id
+            const delegated = !!j.delegasi_status
+            const delegationPending = j.delegasi_status === 'DIKIRIM'
             return (
-              <div key={i} className={`flex items-start gap-3 px-4 py-2.5 ${j.is_fully_excepted ? 'bg-slate-50/80 dark:bg-slate-900/40' : filled ? '' : 'bg-amber-50/30 dark:bg-amber-900/10'}`}>
-                <div className={`h-8 w-8 shrink-0 rounded-lg flex items-center justify-center ${j.is_fully_excepted ? 'bg-slate-100 dark:bg-slate-800' : filled ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-amber-50 dark:bg-amber-900/30'}`}>
+              <div key={i} className={`grid grid-cols-[2rem_max-content] sm:grid-cols-[2rem_max-content_auto] items-start gap-x-3 gap-y-1 overflow-x-auto px-4 py-2.5 ${j.is_fully_excepted ? 'bg-slate-50/80 dark:bg-slate-900/40' : filled || delegated ? '' : 'bg-amber-50/30 dark:bg-amber-900/10'}`}>
+                <div className={`h-8 w-8 shrink-0 rounded-lg flex items-center justify-center row-start-1 col-start-1 ${j.is_fully_excepted ? 'bg-slate-100 dark:bg-slate-800' : filled || delegated ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-amber-50 dark:bg-amber-900/30'}`}>
                   {j.is_fully_excepted
                     ? <Ban className="h-4 w-4 text-slate-400" />
                     : filled
                     ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    : delegated
+                    ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     : <AlertCircle className="h-4 w-4 text-amber-500" />
                   }
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col gap-0.5 mb-1">
-                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100">Kelas {formatNamaKelas(j.tingkat, j.nomor_kelas, j.kelompok)}</span>
-                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{j.nama_mapel}</span>
+                <div className="w-max max-w-none row-start-1 col-start-2">
+                  <div className="flex flex-col gap-0.5 mb-1 min-w-0">
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap" title={`Kelas ${formatNamaKelas(j.tingkat, j.nomor_kelas, j.kelompok)}`}>Kelas {formatNamaKelas(j.tingkat, j.nomor_kelas, j.kelompok)}</span>
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap" title={j.nama_mapel}>{j.nama_mapel}</span>
                   </div>
                   {j.exception_segments.map((segment: any) => (
                     <p key={`${segment.exception_id}-${segment.jam_ke_mulai}`} className="mt-1 text-[9px] font-medium text-sky-600">
@@ -164,10 +188,18 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
                     </p>
                   ))}
                 </div>
-                <div className="text-right shrink-0">
+                <div className="text-right shrink-0 min-w-0 justify-self-end row-start-2 col-start-2 sm:row-start-1 sm:col-start-3">
                   <p className="text-[10px] font-medium text-slate-600 dark:text-slate-300">{j.is_fully_excepted ? `Jam ke-${j.jam_mulai}-${j.jam_selesai}` : `${slotMulai}–${slotSelesai}`}</p>
-                  <p className={`text-[9px] font-medium ${j.is_fully_excepted ? 'text-slate-400' : filled ? 'text-emerald-500' : 'text-amber-500'}`}>
-                    {j.is_fully_excepted ? 'Tidak wajib' : filled ? 'Terisi' : 'Belum isi'}
+                  <p
+                    className={`text-[9px] font-medium whitespace-nowrap truncate ${j.is_fully_excepted ? 'text-slate-400' : filled || delegated ? 'text-emerald-500' : 'text-amber-500'}`}
+                    title={j.is_fully_excepted ? 'Tidak wajib' : filled ? 'Terisi' : delegationPending ? 'Tugas disampaikan — belum dilaksanakan' : delegated ? 'Tugas disampaikan — sudah dilaksanakan' : 'Belum isi'}
+                  >
+                    <span className="sm:hidden">
+                      {j.is_fully_excepted ? 'Tidak wajib' : filled ? 'Terisi' : delegationPending ? 'Ditugaskan · belum selesai' : delegated ? 'Ditugaskan · selesai' : 'Belum isi'}
+                    </span>
+                    <span className="hidden sm:inline">
+                      {j.is_fully_excepted ? 'Tidak wajib' : filled ? 'Terisi' : delegationPending ? 'Tugas disampaikan — belum dilaksanakan' : delegated ? 'Tugas disampaikan — sudah dilaksanakan' : 'Belum isi'}
+                    </span>
                   </p>
                 </div>
               </div>
@@ -178,7 +210,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
 
       {belumIsi > 0 && (
         <div className="px-4 py-2 border-t border-amber-100 bg-amber-50/60 dark:bg-amber-900/10">
-          <p className="text-[10px] text-amber-700 dark:text-amber-400">
+          <p className="text-[10px] text-amber-700 dark:text-amber-400 whitespace-nowrap truncate">
             ⚠ {belumIsi} agenda belum terisi — segera isi sebelum berakhir hari ini!
           </p>
         </div>

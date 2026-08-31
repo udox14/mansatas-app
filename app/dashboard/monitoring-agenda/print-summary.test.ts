@@ -75,4 +75,18 @@ describe('aggregateTeacherAttendance', () => {
       performa: 50,
     })
   })
+
+  it('sorts the printed teacher summary by the chosen metric with names as a stable tie-breaker', () => {
+    const sessions = [
+      session({ guru_id: 'guru-1', guru_nama: 'Budi', status: 'TEPAT_WAKTU' }),
+      session({ guru_id: 'guru-1', guru_nama: 'Budi', penugasan_id: 'assignment-2', status: 'ALFA' }),
+      session({ guru_id: 'guru-2', guru_nama: 'Ani', status: 'ALFA' }),
+      session({ guru_id: 'guru-3', guru_nama: 'Citra', status: 'IZIN' }),
+      session({ guru_id: 'guru-3', guru_nama: 'Citra', penugasan_id: 'assignment-3', status: 'SAKIT' }),
+    ]
+
+    expect(aggregateTeacherAttendance(sessions, 'excused_not_penalized', 'performance_asc').map(row => row.guruNama)).toEqual(['Ani', 'Budi', 'Citra'])
+    expect(aggregateTeacherAttendance(sessions, 'excused_not_penalized', 'alfa_desc').map(row => row.guruNama)).toEqual(['Ani', 'Budi', 'Citra'])
+    expect(aggregateTeacherAttendance(sessions, 'excused_not_penalized', 'izin_desc').map(row => row.guruNama)).toEqual(['Citra', 'Ani', 'Budi'])
+  })
 })

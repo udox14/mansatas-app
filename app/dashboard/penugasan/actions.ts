@@ -423,6 +423,7 @@ export async function kirimDelegasiTugas(
   }
 
   revalidatePath('/dashboard/penugasan')
+  revalidatePath('/dashboard')
   revalidatePath('/dashboard/monitoring-agenda')
   revalidatePath('/dashboard/monitoring-penugasan')
   return { success: `Tugas berhasil dikirim ke ${guruPiket.length} guru piket yang bertugas hari ini.` }

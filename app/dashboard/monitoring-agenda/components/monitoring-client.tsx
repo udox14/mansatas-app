@@ -23,10 +23,12 @@ import {
 } from '../actions'
 import {
   PERFORMANCE_POLICY_LABELS,
+  TEACHER_ATTENDANCE_SORT_LABELS,
   aggregateAttendanceTotal,
   aggregateTeacherAttendance,
   type AgendaPrintSession,
   type PerformancePolicy,
+  type TeacherAttendanceSort,
   type TeacherAttendanceSummary,
 } from '../print-summary'
 import { todayWIB, nowWIB, formatTimeWIB } from '@/lib/time'
@@ -850,6 +852,7 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
   const [guruId, setGuruId] = useState('')
   const [kelasId, setKelasId] = useState('')
   const [performancePolicy, setPerformancePolicy] = useState<PerformancePolicy | ''>('')
+  const [teacherSort, setTeacherSort] = useState<TeacherAttendanceSort>('name_asc')
   const [data, setData] = useState<AgendaPrintSession[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [pesan, setPesan] = useState<{ tipe: 'error'; teks: string } | null>(null)
@@ -1006,6 +1009,17 @@ tr { break-inside: avoid; page-break-inside: avoid; }
               </SelectContent>
             </Select>
           </div>}
+          {isMonthlyPackage && <div className="min-w-[250px] flex-1">
+            <Label className="text-xs text-slate-500 dark:text-slate-400">Urutan Rekap</Label>
+            <Select value={teacherSort} onValueChange={(value) => setTeacherSort(value as TeacherAttendanceSort)}>
+              <SelectTrigger className="mt-1 h-9 w-full text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {Object.entries(TEACHER_ATTENDANCE_SORT_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>}
           <Button onClick={handleLoad} disabled={isLoading || (isMonthlyPackage && !performancePolicy)} size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white">
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-1.5" />}
             Muat Data
@@ -1035,6 +1049,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
                 periodLabel={periodLabel}
                 isMonthlyPackage={isMonthlyPackage}
                 performancePolicy={performancePolicy || undefined}
+                teacherSort={teacherSort}
               />
               {false && (
               <div>
@@ -1098,7 +1113,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
   )
 }
 
-const AGENDA_PRINT_FONT = '"Book Antiqua", "Palatino Linotype", Palatino, "Times New Roman", serif'
+const AGENDA_PRINT_FONT = 'Tahoma, Arial, sans-serif'
 const agendaPrintCell = {
   border: '0.6pt solid #000',
   padding: '2.5pt 3pt',
@@ -1106,16 +1121,17 @@ const agendaPrintCell = {
   lineHeight: 1.2,
 }
 
-function AgendaPrintDocument({ data, scope, scopeLabel, periodLabel, isMonthlyPackage, performancePolicy }: {
+function AgendaPrintDocument({ data, scope, scopeLabel, periodLabel, isMonthlyPackage, performancePolicy, teacherSort }: {
   data: AgendaPrintSession[]
   scope: PrintScope
   scopeLabel: string
   periodLabel: string
   isMonthlyPackage: boolean
   performancePolicy?: PerformancePolicy
+  teacherSort: TeacherAttendanceSort
 }) {
   if (isMonthlyPackage && performancePolicy) {
-    return <MonthlyAttendancePrintDocument data={data} periodLabel={periodLabel} performancePolicy={performancePolicy} />
+    return <MonthlyAttendancePrintDocument data={data} periodLabel={periodLabel} performancePolicy={performancePolicy} teacherSort={teacherSort} />
   }
 
   return <LegacyAgendaPrintDocument data={data} scope={scope} scopeLabel={scopeLabel} periodLabel={periodLabel} />
@@ -1131,13 +1147,13 @@ function LegacyAgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
   const showKelas = scope !== 'per_kelas'
 
   return (
-    <div className="agenda-print-document" style={{ width: '215mm', minHeight: '330mm', padding: '8mm 8mm 10mm', background: '#fff', color: '#000', fontFamily: AGENDA_PRINT_FONT, fontSize: '8pt' }}>
+    <div className="agenda-print-document" style={{ width: '215mm', minHeight: '330mm', padding: '8mm 8mm 10mm', background: '#fff', color: '#000', fontFamily: AGENDA_PRINT_FONT, fontSize: '10pt' }}>
       <img src="/kopsurat.png" alt="Kop Surat" style={{ width: '100%', display: 'block', marginBottom: '8pt' }} />
       <div style={{ textAlign: 'center', marginBottom: '9pt', lineHeight: 1.35 }}>
         <div style={{ fontSize: '13pt', fontWeight: 700 }}>REKAP KEHADIRAN GURU</div>
         <div style={{ fontSize: '10pt', fontWeight: 600 }}>Periode: {periodLabel}</div>
       </div>
-      <table style={{ marginBottom: '8pt', borderCollapse: 'collapse', fontSize: '9pt' }}>
+      <table style={{ marginBottom: '8pt', borderCollapse: 'collapse', fontSize: '10pt' }}>
         <tbody>
           <tr>
             <td style={{ paddingRight: '10pt', whiteSpace: 'nowrap' }}>{scope === 'per_guru' ? 'Nama Guru' : scope === 'per_kelas' ? 'Kelas' : 'Cakupan'}</td>
@@ -1147,7 +1163,7 @@ function LegacyAgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
           <tr><td style={{ paddingRight: '10pt' }}>Jumlah Agenda</td><td style={{ paddingRight: '5pt' }}>:</td><td>{data.length} sesi</td></tr>
         </tbody>
       </table>
-      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontFamily: AGENDA_PRINT_FONT, fontSize: '7.5pt' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontFamily: AGENDA_PRINT_FONT, fontSize: '10pt' }}>
         <colgroup>
           <col style={{ width: '7mm' }} /><col style={{ width: '20mm' }} />
           {showGuru && <col style={{ width: '35mm' }} />}
@@ -1167,7 +1183,7 @@ function LegacyAgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
             <tr key={`${item.penugasan_id}-${item.tanggal}-${index}`}>
               <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{index + 1}</td>
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{new Date(`${item.tanggal}T00:00:00`).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
-              {showGuru && <td style={{ ...agendaPrintCell, whiteSpace: 'nowrap', fontSize: '7pt' }}>{item.guru_nama}</td>}
+              {showGuru && <td style={{ ...agendaPrintCell, whiteSpace: 'nowrap' }}>{item.guru_nama}</td>}
               <td style={agendaPrintCell}>{item.nama_mapel}</td>
               {showKelas && <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.tingkat}-{item.nomor_kelas}</td>}
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}</td>
@@ -1180,7 +1196,7 @@ function LegacyAgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
       </table>
       <div style={{ marginTop: '8pt', display: 'flex', justifyContent: 'space-between', fontSize: '7pt' }}>
         <span>Dicetak pada {formatTimeWIB(new Date().toISOString())}</span>
-        <span>Sistem Informasi Manajemen MAN 1 Tasikmalaya</span>
+        <span>MANSATAS App {nowWIB().getUTCFullYear()}</span>
       </div>
     </div>
   )
@@ -1201,26 +1217,27 @@ function PrintFooter() {
   return (
     <div style={{ marginTop: '8pt', display: 'flex', justifyContent: 'space-between', gap: '8pt', fontSize: '7pt', color: '#475569' }}>
       <span>Dicetak pada {formatTimeWIB(new Date().toISOString())}</span>
-      <span>Sistem Informasi Manajemen MAN 1 Tasikmalaya</span>
+      <span>MANSATAS App {nowWIB().getUTCFullYear()}</span>
     </div>
   )
 }
 
-function SummaryMetric({ label, value, accent = '#166534' }: { label: string; value: string | number; accent?: string }) {
+function SummaryMetric({ label, value, accent = '#166534', background = '#ecfdf5' }: { label: string; value: string | number; accent?: string; background?: string }) {
   return (
-    <div style={{ flex: '1 1 0', minWidth: 0, border: '0.7pt solid #cbd5e1', borderTop: `3pt solid ${accent}`, borderRadius: '4pt', padding: '5pt 4pt', textAlign: 'center', background: '#fff' }}>
-      <div style={{ fontSize: '7pt', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.25pt' }}>{label}</div>
+    <div style={{ flex: '1 1 0', minWidth: 0, borderRadius: '5pt', padding: '6pt 4pt', textAlign: 'center', background }}>
+      <div style={{ fontSize: '7pt', color: accent, textTransform: 'uppercase', letterSpacing: '0.25pt', fontWeight: 700 }}>{label}</div>
       <div style={{ marginTop: '2pt', fontSize: '12pt', lineHeight: 1, fontWeight: 700, color: accent }}>{value}</div>
     </div>
   )
 }
 
-function MonthlyAttendancePrintDocument({ data, periodLabel, performancePolicy }: {
+function MonthlyAttendancePrintDocument({ data, periodLabel, performancePolicy, teacherSort }: {
   data: AgendaPrintSession[]
   periodLabel: string
   performancePolicy: PerformancePolicy
+  teacherSort: TeacherAttendanceSort
 }) {
-  const teachers = aggregateTeacherAttendance(data, performancePolicy)
+  const teachers = aggregateTeacherAttendance(data, performancePolicy, teacherSort)
   const total = aggregateAttendanceTotal(teachers, performancePolicy)
 
   return (
@@ -1253,9 +1270,8 @@ function MonthlyAttendancePrintDocument({ data, periodLabel, performancePolicy }
         <div style={{ textAlign: 'center', marginBottom: '8pt', lineHeight: 1.35 }}>
           <div style={{ fontSize: '14pt', fontWeight: 700 }}>REKAP KEHADIRAN GURU</div>
           <div style={{ fontSize: '10pt', fontWeight: 600 }}>Bulan {periodLabel}</div>
-          <div style={{ marginTop: '3pt', fontSize: '7.5pt', color: '#475569' }}>Performa: {PERFORMANCE_POLICY_LABELS[performancePolicy]}</div>
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '8pt' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '10pt' }}>
           <colgroup>
             <col style={{ width: '9mm' }} /><col /><col style={{ width: '20mm' }} /><col style={{ width: '17mm' }} />
             <col style={{ width: '15mm' }} /><col style={{ width: '15mm' }} /><col style={{ width: '15mm' }} /><col style={{ width: '19mm' }} />
@@ -1271,7 +1287,7 @@ function MonthlyAttendancePrintDocument({ data, periodLabel, performancePolicy }
             {teachers.map((teacher, index) => (
               <tr key={teacher.guruId}>
                 <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{index + 1}</td>
-                <td style={{ ...agendaPrintCell, fontWeight: 600 }}>{teacher.guruNama}</td>
+                <td style={agendaPrintCell}>{teacher.guruNama}</td>
                 <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.totalBlok}</td>
                 <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.hadir}</td>
                 <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.sakit}</td>
@@ -1291,37 +1307,38 @@ function MonthlyAttendancePrintDocument({ data, periodLabel, performancePolicy }
             </tr>
           </tbody>
         </table>
+        <div style={{ marginTop: '5pt', fontSize: '8pt', color: '#475569' }}>
+          <strong>Catatan performa:</strong> {PERFORMANCE_POLICY_LABELS[performancePolicy]}.
+        </div>
         <PrintFooter />
       </section>
 
       {teachers.map(teacher => (
-        <TeacherAttendanceAttachment key={teacher.guruId} teacher={teacher} periodLabel={periodLabel} performancePolicy={performancePolicy} />
+        <TeacherAttendanceAttachment key={teacher.guruId} teacher={teacher} periodLabel={periodLabel} />
       ))}
     </div>
   )
 }
 
-function TeacherAttendanceAttachment({ teacher, periodLabel, performancePolicy }: {
+function TeacherAttendanceAttachment({ teacher, periodLabel }: {
   teacher: TeacherAttendanceSummary
   periodLabel: string
-  performancePolicy: PerformancePolicy
 }) {
   return (
     <section className="agenda-print-page agenda-teacher-page" style={agendaPrintPageStyle}>
       <div style={{ borderBottom: '1.5pt solid #166534', paddingBottom: '6pt', marginBottom: '7pt' }}>
         <div style={{ fontSize: '8pt', color: '#64748b', fontWeight: 700, letterSpacing: '0.6pt' }}>LAMPIRAN REKAP KEHADIRAN GURU · {periodLabel.toUpperCase()}</div>
         <div style={{ marginTop: '3pt', fontSize: '15pt', lineHeight: 1.2, fontWeight: 700, color: '#163b2d' }}>{teacher.guruNama}</div>
-        <div style={{ marginTop: '2pt', fontSize: '7pt', color: '#64748b' }}>{PERFORMANCE_POLICY_LABELS[performancePolicy]}</div>
       </div>
       <div style={{ display: 'flex', gap: '4pt', marginBottom: '8pt' }}>
-        <SummaryMetric label="Total Blok" value={teacher.totalBlok} />
-        <SummaryMetric label="Hadir" value={teacher.hadir} accent="#047857" />
-        <SummaryMetric label="Sakit" value={teacher.sakit} accent="#1d4ed8" />
-        <SummaryMetric label="Izin" value={teacher.izin} accent="#0369a1" />
-        <SummaryMetric label="Alfa" value={teacher.alfa} accent="#b91c1c" />
-        <SummaryMetric label="Performa" value={`${teacher.performa}%`} accent="#854d0e" />
+        <SummaryMetric label="Total Blok" value={teacher.totalBlok} accent="#475569" background="#f1f5f9" />
+        <SummaryMetric label="Hadir" value={teacher.hadir} accent="#047857" background="#ecfdf5" />
+        <SummaryMetric label="Sakit" value={teacher.sakit} accent="#1d4ed8" background="#eff6ff" />
+        <SummaryMetric label="Izin" value={teacher.izin} accent="#0369a1" background="#f0f9ff" />
+        <SummaryMetric label="Alfa" value={teacher.alfa} accent="#b91c1c" background="#fef2f2" />
+        <SummaryMetric label="Performa" value={`${teacher.performa}%`} accent="#854d0e" background="#fffbeb" />
       </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '7.2pt' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '10pt' }}>
         <colgroup>
           <col style={{ width: '7mm' }} /><col style={{ width: '19mm' }} /><col style={{ width: '27mm' }} /><col style={{ width: '17mm' }} />
           <col style={{ width: '11mm' }} /><col /><col style={{ width: '19mm' }} /><col style={{ width: '29mm' }} />
