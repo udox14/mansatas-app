@@ -35,6 +35,7 @@ import type { JalurPT, StatusPenerimaan, PenerimaanRow } from '../types'
 import { JALUR_LIST, STATUS_LIST } from '../types'
 import { cn } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
+import { downloadBlobFile } from '@/lib/pdf/download'
 import {
   KAMPUS_LIST, PRODI_BY_KAMPUS, RENCANA_OPTIONS,
 } from '@/lib/pendidikan-lanjutan'
@@ -1135,7 +1136,7 @@ function TabAnalitik({ taId, dynamicJalurList }: {
 }
 
 // ── Export Utilities ────────────────────────────────────────────────────
-function exportCSV(rows: PenerimaanRow[], taName: string, dynamicJalurList: typeof JALUR_LIST) {
+async function exportCSV(rows: PenerimaanRow[], taName: string, dynamicJalurList: typeof JALUR_LIST) {
   const headers = ['Nama Lengkap', 'NISN', 'Kelas', 'Jalur', 'Perguruan Tinggi', 'Program Studi', 'Status', 'Catatan']
   const csvRows = rows.map(r => [
     r.nama_lengkap ?? '',
@@ -1150,11 +1151,7 @@ function exportCSV(rows: PenerimaanRow[], taName: string, dynamicJalurList: type
 
   const csv = [headers.join(','), ...csvRows].join('\n')
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = `penerimaan-pt-${taName.replace(/\//g, '-')}.csv`
-  a.click()
-  URL.revokeObjectURL(a.href)
+  await downloadBlobFile(blob, `penerimaan-pt-${taName.replace(/\//g, '-')}.csv`)
 }
 
 function exportPDF(rows: PenerimaanRow[], taName: string, dynamicJalurList: typeof JALUR_LIST) {
@@ -1590,9 +1587,12 @@ export function PenerimaanPTClient({
   const handleExportCSV = async () => {
     if (!taAktif) return
     setIsExporting(true)
-    const rows = await getSemuaPenerimaan(taAktif.id)
-    exportCSV(rows, taAktif.nama, dynamicJalurList)
-    setIsExporting(false)
+    try {
+      const rows = await getSemuaPenerimaan(taAktif.id)
+      await exportCSV(rows, taAktif.nama, dynamicJalurList)
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   const handleExportPDF = async () => {

@@ -39,6 +39,7 @@ import {
   type RppmTemplateType,
 } from '@/lib/rppm'
 import { buildRppmDocxBlob, buildRppmDocxFilename } from '@/lib/rppm-docx'
+import { downloadBlobFile } from '@/lib/pdf/download'
 import { saveRppmDocument, type RppmMapelOption, type RppmSavedDocument, type RppmSigner } from '../actions'
 import { RppmPrintDocument } from './rppm-print-document'
 
@@ -182,21 +183,19 @@ export function RppmGeneratorClient({
     })
   }
 
-  const downloadDocx = () => {
+  const downloadDocx = async () => {
     if (!canPrint) {
       setMessage({ type: 'error', text: 'Lengkapi field wajib sebelum mengunduh Word.' })
       return
     }
 
-    const blob = buildRppmDocxBlob(templateType, content, printSettings, user, kepsek)
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = buildRppmDocxFilename(content)
-    document.body.appendChild(anchor)
-    anchor.click()
-    anchor.remove()
-    URL.revokeObjectURL(url)
+    try {
+      const blob = buildRppmDocxBlob(templateType, content, printSettings, user, kepsek)
+      await downloadBlobFile(blob, buildRppmDocxFilename(content))
+      setMessage({ type: 'success', text: 'Dokumen Word berhasil disiapkan.' })
+    } catch (cause) {
+      setMessage({ type: 'error', text: cause instanceof Error ? cause.message : 'Gagal mengunduh Word.' })
+    }
   }
 
   return (

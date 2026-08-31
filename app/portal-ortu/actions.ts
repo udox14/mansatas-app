@@ -149,17 +149,12 @@ export async function getParentAttendanceByAcademicYear(tahunAjaranId: string) {
     : null
   const statuses = result?.statuses || []
   const aggregates = summarizeParentAttendance(statuses)
-  const recent = statuses
-    .filter((row: any) => row.status_akhir !== 'HADIR' || row.keterangan_wali_kelas || row.detail_guru?.some((detail: any) => detail.catatan))
-    .slice()
-    .sort((a: any, b: any) => String(b.tanggal).localeCompare(String(a.tanggal)))
-    .slice(0, 12)
 
   return {
     tahunAjaran: { id: ta.id, nama: ta.nama, semester: Number(ta.semester), isActive: Number(ta.is_active) === 1 },
     range: { startDate: range.startDate, endDate },
     ...aggregates,
-    recent,
+    calendarDays: statuses,
   }
 }
 

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { FileSpreadsheet, Archive, Download, Loader2 } from 'lucide-react'
 import type { Pendaftar } from './pmb-client'
 import { getExportData } from '../actions'
+import { downloadBlobFile } from '@/lib/pdf/download'
 
 const EXCEL_COLS = [
   { key: 'no_pendaftaran', label: 'No. Pendaftaran' },
@@ -101,12 +102,7 @@ export function ExportPanel({ pendaftar, pengaturan, onFlash }: {
         return
       }
       const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `Berkas_PMB_${tahun}.zip`
-      a.click()
-      URL.revokeObjectURL(url)
+      await downloadBlobFile(blob, `Berkas_PMB_${tahun}.zip`)
       onFlash({ success: 'ZIP berhasil diunduh' })
     } catch (e) {
       onFlash({ error: 'Gagal membuat ZIP' })

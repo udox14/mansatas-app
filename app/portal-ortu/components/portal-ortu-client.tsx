@@ -58,10 +58,29 @@ import { PARENT_SUGGESTION_CATEGORIES } from '@/lib/parent-suggestions'
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
 import { MarkdownViewer } from '@/components/documentation/markdown-viewer'
 import { currentTimeWIB, formatDateTimeWIB, formatDateWIB } from '@/lib/time'
-import { attendanceStatusLabel } from '@/lib/attendance-status'
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
+}
+
+const ATTENDANCE_WEEKDAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
+
+function attendanceMonthKey(date: string | null | undefined) {
+  return String(date || '').slice(0, 7)
+}
+
+function getLatestAttendanceMonth(detail: any) {
+  const latestDay = (detail?.calendarDays || [])
+    .map((day: any) => String(day.tanggal || ''))
+    .sort()
+    .at(-1)
+  return attendanceMonthKey(latestDay || detail?.range?.endDate)
+}
+
+function attendanceMonthLabel(monthKey: string) {
+  const [year, month] = monthKey.split('-').map(Number)
+  return new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' })
+    .format(new Date(year, month - 1, 1))
 }
 
 function parentWaNumber(raw: string | null | undefined) {
@@ -182,6 +201,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [selectedDocId, setSelectedDocId] = useState('')
   const [selectedAttendanceYearId, setSelectedAttendanceYearId] = useState(data.attendanceInitial?.tahunAjaran?.id || '')
   const [attendanceDetail, setAttendanceDetail] = useState<any>(data.attendanceInitial || null)
+  const [attendanceMonth, setAttendanceMonth] = useState(() => getLatestAttendanceMonth(data.attendanceInitial))
+  const [selectedAttendanceDate, setSelectedAttendanceDate] = useState<string | null>(null)
   const [attendanceLoading, setAttendanceLoading] = useState(false)
   const [notificationBusy, setNotificationBusy] = useState(false)
   const [locallyReadNotifications, setLocallyReadNotifications] = useState<Set<string>>(new Set())
@@ -287,12 +308,6 @@ export function PortalOrtuClient({ data }: { data: any }) {
   ].filter((item) => item.value > 0 && item.value <= Number(dsptSisa || 0))
   const needsDisciplineAttention = Boolean(disciplineSummary?.needsFollowUp)
   const disciplineLevelLabel = disciplineSummary?.levelLabel || 'Baik'
-  // Portal orang tua hanya menampilkan catatan kehadiran yang sudah layak
-  // dikomunikasikan, bukan status proses input internal sekolah.
-  const recentAttendanceRows = (attendanceDetail?.recent || []).filter((row: any) => {
-    const status = String(row.status_akhir || '').replace(/\s+/g, '_').toUpperCase()
-    return status !== 'BELUM_ADA_INPUT'
-  })
   const suggestionRows = parentSuggestions?.results || []
   const docsRows = documentationArticles || []
   const selectedDoc = docsRows.find((article: any) => article.id === selectedDocId) || docsRows[0]
@@ -613,7 +628,11 @@ export function PortalOrtuClient({ data }: { data: any }) {
     setSelectedAttendanceYearId(tahunAjaranId)
     setAttendanceLoading(true)
     const result = await getParentAttendanceByAcademicYear(tahunAjaranId)
-    if (!(result as any).error) setAttendanceDetail(result)
+    if (!(result as any).error) {
+      setAttendanceDetail(result)
+      setAttendanceMonth(getLatestAttendanceMonth(result))
+      setSelectedAttendanceDate(null)
+    }
     setAttendanceLoading(false)
   }
 
@@ -1157,12 +1176,41 @@ export function PortalOrtuClient({ data }: { data: any }) {
       HADIR: { label: 'Hadir', className: 'bg-[#EEF7F1] text-[#246142]' },
       SAKIT: { label: 'Sakit', className: 'bg-amber-50 text-amber-700' },
       IZIN: { label: 'Izin', className: 'bg-sky-50 text-sky-700' },
-      ALFA: { label: 'Tanpa keterangan', className: 'bg-rose-50 text-rose-700' },
+      ALFA: { label: 'Alfa', className: 'bg-rose-50 text-rose-700' },
       PARSIAL: { label: 'Bolos', className: 'bg-violet-50 text-violet-700' },
-      PERLU_KONFIRMASI_WALI: { label: 'Perlu dicek walas', className: 'bg-violet-50 text-violet-700' },
-      BELUM_ADA_INPUT: { label: 'Belum diinput', className: 'bg-slate-100 text-slate-600' },
-      BELUM_ADA_DATA: { label: 'Data belum lengkap', className: 'bg-slate-100 text-slate-600' },
+      PERLU_KONFIRMASI_WALI: { label: 'Menunggu verifikasi', className: 'bg-indigo-50 text-indigo-700' },
     }
+    const calendarDays = attendanceDetail?.calendarDays || []
+    const calendarDaysByDate = new Map<string, any>(calendarDays.map((day: any) => [String(day.tanggal), day]))
+    const startMonth = attendanceMonthKey(attendanceDetail?.range?.startDate)
+    const endMonth = attendanceMonthKey(attendanceDetail?.range?.endDate)
+    const calendarMonths: string[] = []
+    if (/^\d{4}-\d{2}$/.test(startMonth) && /^\d{4}-\d{2}$/.test(endMonth)) {
+      const [startYear, startMonthNumber] = startMonth.split('-').map(Number)
+      const [endYear, endMonthNumber] = endMonth.split('-').map(Number)
+      const cursor = new Date(startYear, startMonthNumber - 1, 1)
+      const end = new Date(endYear, endMonthNumber - 1, 1)
+      while (cursor <= end) {
+        calendarMonths.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`)
+        cursor.setMonth(cursor.getMonth() + 1)
+      }
+    }
+    const visibleMonthIndex = Math.max(0, calendarMonths.indexOf(attendanceMonth))
+    const visibleMonth = calendarMonths[visibleMonthIndex] || getLatestAttendanceMonth(attendanceDetail)
+    const [visibleYear, visibleMonthNumber] = visibleMonth.split('-').map(Number)
+    const firstDayOffset = Number.isFinite(visibleYear) ? (new Date(visibleYear, visibleMonthNumber - 1, 1).getDay() + 6) % 7 : 0
+    const daysInVisibleMonth = Number.isFinite(visibleYear) ? new Date(visibleYear, visibleMonthNumber, 0).getDate() : 0
+    const calendarCells: Array<{ date: string | null; day: number | null }> = []
+    for (let index = 0; index < firstDayOffset; index++) calendarCells.push({ date: null, day: null })
+    for (let day = 1; day <= daysInVisibleMonth; day++) {
+      calendarCells.push({ date: `${visibleMonth}-${String(day).padStart(2, '0')}`, day })
+    }
+    while (calendarCells.length > 0 && calendarCells.length % 7 !== 0) calendarCells.push({ date: null, day: null })
+    const selectedCalendarDay = selectedAttendanceDate ? calendarDaysByDate.get(selectedAttendanceDate) : null
+    const selectedBlockDetails = (selectedCalendarDay?.detail_guru || []).filter((detail: any) => (
+      String(detail.status || '').toUpperCase() !== 'HADIR' || Boolean(detail.catatan)
+    ))
+    const calendarLegend = ['HADIR', 'SAKIT', 'IZIN', 'ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI']
 
     return (
       <motion.div key="kehadiran" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="portal-tab-panel space-y-5">
@@ -1238,34 +1286,80 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 </div>
               )}
               <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-[10px] font-semibold text-slate-500">
-                {[['bg-teal-500', 'Hadir'], ['bg-amber-400', 'Sakit'], ['bg-sky-400', 'Izin'], ['bg-rose-500', 'Alfa'], ['bg-violet-400', 'Perlu dicek walas']].map(([color, label]) => <span key={label} className="flex items-center gap-1.5"><i className={`h-2 w-2 rounded-full ${color}`} />{label}</span>)}
+                {[['bg-teal-500', 'Hadir'], ['bg-amber-400', 'Sakit'], ['bg-sky-400', 'Izin'], ['bg-rose-500', 'Alfa'], ['bg-violet-400', 'Menunggu verifikasi']].map(([color, label]) => <span key={label} className="flex items-center gap-1.5"><i className={`h-2 w-2 rounded-full ${color}`} />{label}</span>)}
               </div>
             </StandardCard>
 
-            <div data-tour-id="kehadiran-recent" className="space-y-3">
-              <div className="ml-1"><h2 className="text-sm font-bold text-slate-900">Catatan yang perlu diketahui</h2><p className="mt-0.5 text-xs text-slate-500">Ketidakhadiran dan catatan khusus terbaru.</p></div>
-              <StandardCard className="overflow-hidden p-0">
-                {recentAttendanceRows.length === 0 ? <p className="p-6 text-center text-sm text-slate-500">Tidak ada catatan khusus pada periode ini.</p> : (
-                  <div className="divide-y divide-slate-100">
-                    {recentAttendanceRows.map((row: any, index: number) => {
-                      const normalizedStatus = String(row.status_akhir || '').replace(/\s+/g, '_').toUpperCase()
-                      const meta = statusMeta[normalizedStatus] || statusMeta.BELUM_ADA_DATA
-                      const note = row.keterangan_wali_kelas || row.detail_guru?.find((detail: any) => detail.catatan)?.catatan
-                      const statusLabel = normalizedStatus === 'PERLU_KONFIRMASI_WALI'
-                        ? 'Menunggu verifikasi'
-                        : attendanceStatusLabel(row.status_akhir)
-                      return <div key={`${row.tanggal}-${index}`} className="flex items-start gap-3 p-4">
-                        <span className={`mt-0.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.className}`}>{statusLabel}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold text-slate-800">{formatDateWIB(row.tanggal)}</p>
-                          {note && <p className="mt-1 text-xs leading-5 text-slate-500">{note}</p>}
-                        </div>
-                      </div>
-                    })}
-                  </div>
-                )}
+            <section data-tour-id="kehadiran-calendar" className="space-y-3">
+              <div className="ml-1"><h2 className="text-sm font-bold text-slate-900">Kalender kehadiran</h2><p className="mt-0.5 text-xs text-slate-500">Pilih tanggal untuk melihat keterangan kehadiran anak.</p></div>
+              <StandardCard className="space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    aria-label="Bulan sebelumnya"
+                    disabled={visibleMonthIndex === 0}
+                    onClick={() => { setAttendanceMonth(calendarMonths[visibleMonthIndex - 1]); setSelectedAttendanceDate(null) }}
+                    className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  ><ChevronRight className="h-4 w-4 rotate-180" /></button>
+                  <p className="text-sm font-bold capitalize text-slate-900">{visibleMonth ? attendanceMonthLabel(visibleMonth) : '-'}</p>
+                  <button
+                    type="button"
+                    aria-label="Bulan berikutnya"
+                    disabled={visibleMonthIndex >= calendarMonths.length - 1}
+                    onClick={() => { setAttendanceMonth(calendarMonths[visibleMonthIndex + 1]); setSelectedAttendanceDate(null) }}
+                    className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  ><ChevronRight className="h-4 w-4" /></button>
+                </div>
+
+                <div className="grid grid-cols-7 gap-1" aria-label={`Kalender kehadiran ${visibleMonth}`}>
+                  {ATTENDANCE_WEEKDAYS.map(day => <div key={day} className="py-1 text-center text-[10px] font-bold text-slate-400">{day}</div>)}
+                  {calendarCells.map((cell, index) => {
+                    const dayData = cell.date ? calendarDaysByDate.get(cell.date) : null
+                    const normalizedStatus = String(dayData?.status_akhir || '').replace(/\s+/g, '_').toUpperCase()
+                    const meta = statusMeta[normalizedStatus]
+                    return cell.date ? (
+                      <button
+                        key={cell.date}
+                        type="button"
+                        onClick={() => setSelectedAttendanceDate(cell.date)}
+                        aria-label={meta ? `${formatDateWIB(cell.date)}: ${meta.label}` : formatDateWIB(cell.date)}
+                        className={`min-h-12 rounded-lg p-1.5 text-left transition-colors hover:ring-1 hover:ring-slate-300 ${meta?.className || 'bg-slate-50 text-slate-600'} ${selectedAttendanceDate === cell.date ? 'ring-2 ring-inset ring-[#C2522D]' : ''}`}
+                      ><span className="text-xs font-bold">{cell.day}</span></button>
+                    ) : <div key={`blank-${index}`} aria-hidden="true" />
+                  })}
+                </div>
+
+                <div className="flex flex-wrap gap-x-3 gap-y-2 border-t border-slate-100 pt-3 text-[10px] font-semibold text-slate-500">
+                  {calendarLegend.map(status => <span key={status} className="flex items-center gap-1.5"><i className={`h-2.5 w-2.5 rounded-sm ${statusMeta[status].className.split(' ')[0]}`} />{statusMeta[status].label}</span>)}
+                </div>
               </StandardCard>
-            </div>
+
+              <StandardCard className="space-y-3">
+                {!selectedAttendanceDate ? <p className="text-sm text-slate-500">Pilih tanggal pada kalender untuk melihat keterangan.</p> : <>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{formatDateWIB(selectedAttendanceDate)}</p>
+                    {(() => {
+                      const status = String(selectedCalendarDay?.status_akhir || '').replace(/\s+/g, '_').toUpperCase()
+                      const meta = statusMeta[status]
+                      return meta ? <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.className}`}>{meta.label}</span> : null
+                    })()}
+                  </div>
+                  {selectedCalendarDay?.keterangan_wali_kelas && <p className="rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">{selectedCalendarDay.keterangan_wali_kelas}</p>}
+                  {selectedBlockDetails.length === 0 ? <p className="text-sm text-slate-500">Tidak ada keterangan khusus pada tanggal ini.</p> : (
+                    <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">
+                      {selectedBlockDetails.map((detail: any, index: number) => {
+                        const detailStatus = String(detail.status || '').replace(/\s+/g, '_').toUpperCase()
+                        const detailMeta = statusMeta[detailStatus]
+                        return <div key={`${detail.nama_mapel}-${detail.jam_ke_mulai}-${index}`} className="p-3">
+                          <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-slate-800">{detail.nama_mapel || 'Pelajaran'}</p><p className="mt-0.5 text-[10px] font-semibold text-slate-400">Jam ke-{detail.jam_ke_mulai}-{detail.jam_ke_selesai}</p></div>{detailMeta && <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${detailMeta.className}`}>{detailMeta.label}</span>}</div>
+                          {detail.catatan && <p className="mt-2 text-xs leading-5 text-slate-500">{detail.catatan}</p>}
+                        </div>
+                      })}
+                    </div>
+                  )}
+                </>}
+              </StandardCard>
+            </section>
 
             <StandardCard data-tour-id="kehadiran-discipline" className={`flex items-center gap-4 p-4 ${needsDisciplineAttention ? 'border-amber-200' : 'border-teal-100'}`}>
               <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${needsDisciplineAttention ? 'bg-amber-50 text-amber-700' : 'bg-teal-50 text-teal-700'}`}><ShieldAlert className="h-5 w-5" /></div>

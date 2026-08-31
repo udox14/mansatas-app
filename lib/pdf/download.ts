@@ -136,8 +136,11 @@ export async function openPdfFromUrl(
   init?: RequestInit,
 ): Promise<void> {
   return withDownloadFeedback(filename, async () => {
-    const { Capacitor, registerPlugin } = await import('@capacitor/core')
+    // Mulai membaca blob URL sebelum dynamic import. Beberapa generator dokumen
+    // mencabut object URL segera setelah klik; jika import didahulukan, URL sudah
+    // hilang saat fetch dimulai dan Android hanya menampilkan "Failed to fetch".
     const file = await fetchFile(fetchUrl, filename, init)
+    const { Capacitor, registerPlugin } = await import('@capacitor/core')
 
     if (Capacitor.isNativePlatform()) {
       const base64 = await blobToBase64(file.blob)

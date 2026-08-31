@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
-import { openPdfFromUrl } from '@/lib/pdf/download'
+import { downloadBlobFile, openPdfFromUrl } from '@/lib/pdf/download'
 import { buildCkhDocx, type CkhDocxSignatureImage } from '@/lib/docx/ckh-template'
 import {
   AlertTriangle, CalendarDays, Check, ChevronLeft, ChevronRight, FileText, Loader2, Plus, Printer,
@@ -452,14 +452,7 @@ function PrintDialog({
         paper,
         margins,
       })
-      const url = URL.createObjectURL(blob)
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = `CKH_${year}_${String(month).padStart(2, '0')}.docx`
-      document.body.appendChild(anchor)
-      anchor.click()
-      anchor.remove()
-      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+      await downloadBlobFile(blob, `CKH_${year}_${String(month).padStart(2, '0')}.docx`)
     } catch (e) {
       setPrintError(e instanceof Error ? e.message : 'Gagal membuat file Word.')
     } finally {
