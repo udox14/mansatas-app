@@ -499,8 +499,6 @@ export async function simpanAbsensi(
     INSERT INTO absensi_sesi_guru (penugasan_id, tanggal, submitted_at, diinput_oleh, updated_at)
     VALUES (?, ?, datetime('now'), ?, datetime('now'))
     ON CONFLICT(penugasan_id, tanggal) DO UPDATE SET
-      submitted_at = excluded.submitted_at,
-      diinput_oleh = excluded.diinput_oleh,
       updated_at = excluded.updated_at
   `).bind(penugasanId, tanggal, diinputOleh)
 
@@ -550,4 +548,94 @@ export async function simpanAbsensi(
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/rekap-absensi')
   return { success: `Absensi disimpan! ${toSave.length} siswa tidak hadir.` }
+}
+
+// Koreksi dari rekap hanya mengubah status siswa. Identitas dan waktu submit
+// pertama pada absensi_sesi_guru sengaja tidak disentuh agar audit tidak tertukar.
+export async function koreksiAbsensiDariRekap(
+  penugasanId: string,
+  tanggal: string,
+  changes: Array<{ siswa_id: string; status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' }>,
+): Promise<{ error?: string; success?: string }> {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal) || changes.length === 0) return { error: 'Data koreksi tidak valid.' }
+  const date = new Date(`${tanggal}T00:00:00`)
+  const hari = date.getDay() === 0 ? 7 : date.getDay()
+
+  const effective = await getEffectiveUser()
+  const guruId = effective?.effectiveUserId || user.id
+  const db = await getDB()
+  await ensureSchemaOnce('absensi-session', () => ensureAbsensiSessionTable(db))
+
+  const penugasan = await getAccessiblePenugasan(db, penugasanId, guruId)
+  if (!penugasan) return { error: 'Penugasan tidak ditemukan atau bukan sesi mengajar Anda.' }
+  const session = await db.prepare(`
+    SELECT 1 FROM absensi_sesi_guru WHERE penugasan_id = ? AND tanggal = ?
+  `).bind(penugasanId, tanggal).first()
+  if (!session) return { error: 'Sesi absensi belum ditemukan.' }
+
+  const validStatuses = new Set(['HADIR', 'SAKIT', 'IZIN', 'ALFA'])
+  const unique = new Map(changes.map(change => [change.siswa_id, change]))
+  if ([...unique.values()].some(change => !change.siswa_id || !validStatuses.has(change.status))) {
+    return { error: 'Status absensi tidak valid.' }
+  }
+  const studentIds = [...unique.keys()]
+  const placeholders = studentIds.map(() => '?').join(',')
+  const students = await db.prepare(`
+    SELECT id FROM siswa WHERE kelas_id = ? AND id IN (${placeholders})
+  `).bind(penugasan.kelas_id, ...studentIds).all<{ id: string }>()
+  if ((students.results || []).length !== studentIds.length) return { error: 'Ada siswa yang tidak berada di kelas sesi ini.' }
+
+  const existing = await db.prepare(`
+    SELECT siswa_id, jam_ke_mulai, jam_ke_selesai, jumlah_jam, catatan
+    FROM absensi_sesi_siswa WHERE penugasan_id = ? AND tanggal = ?
+  `).bind(penugasanId, tanggal).all<any>()
+  const existingMap = new Map((existing.results || []).map(row => [row.siswa_id, row]))
+  const scheduledSlots = await db.prepare(`
+    SELECT MIN(jam_ke) AS jam_ke_mulai, MAX(jam_ke) AS jam_ke_selesai
+    FROM jadwal_mengajar
+    WHERE penugasan_id = ? AND hari = ?
+  `).bind(penugasanId, hari).first<{ jam_ke_mulai: number | null; jam_ke_selesai: number | null }>()
+  const fallback = (existing.results || [])[0] || (scheduledSlots?.jam_ke_mulai && scheduledSlots.jam_ke_selesai
+    ? {
+        jam_ke_mulai: scheduledSlots.jam_ke_mulai,
+        jam_ke_selesai: scheduledSlots.jam_ke_selesai,
+        jumlah_jam: Number(scheduledSlots.jam_ke_selesai) - Number(scheduledSlots.jam_ke_mulai) + 1,
+        catatan: null,
+      }
+    : null)
+  if (!fallback) return { error: 'Jam mengajar sesi ini tidak ditemukan.' }
+
+  const statements: D1PreparedStatement[] = []
+  for (const change of unique.values()) {
+    const previous = existingMap.get(change.siswa_id) || fallback
+    const jamMulai = Number(previous.jam_ke_mulai)
+    const jamSelesai = Number(previous.jam_ke_selesai)
+    const jumlahJam = Number(previous.jumlah_jam)
+    const catatan = previous.catatan || null
+    statements.push(db.prepare(`
+      INSERT INTO absensi_sesi_siswa
+        (penugasan_id, siswa_id, tanggal, jam_ke_mulai, jam_ke_selesai, jumlah_jam, status, catatan, diinput_oleh, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(penugasan_id, siswa_id, tanggal) DO UPDATE SET
+        status = excluded.status, updated_at = excluded.updated_at
+    `).bind(penugasanId, change.siswa_id, tanggal, jamMulai, jamSelesai, jumlahJam, change.status, catatan, user.id))
+    if (change.status === 'HADIR') {
+      statements.push(db.prepare('DELETE FROM absensi_siswa WHERE penugasan_id = ? AND siswa_id = ? AND tanggal = ?').bind(penugasanId, change.siswa_id, tanggal))
+    } else {
+      statements.push(db.prepare(`
+        INSERT INTO absensi_siswa
+          (penugasan_id, siswa_id, tanggal, jam_ke_mulai, jam_ke_selesai, jumlah_jam, status, catatan, diinput_oleh)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(penugasan_id, siswa_id, tanggal) DO UPDATE SET
+          status = excluded.status, updated_at = datetime('now')
+      `).bind(penugasanId, change.siswa_id, tanggal, jamMulai, jamSelesai, jumlahJam, change.status, catatan, user.id))
+    }
+  }
+  try { await db.batch(statements) } catch (error: any) { return { error: error.message || 'Koreksi absensi gagal disimpan.' } }
+  invalidateAttendanceCache()
+  revalidatePath('/dashboard/kehadiran')
+  revalidatePath('/dashboard/rekap-absensi')
+  return { success: `${unique.size} status absensi diperbarui.` }
 }

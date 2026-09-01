@@ -7,6 +7,7 @@ import { Combobox } from '@/components/ui/combobox'
 import { openPdfFromUrl } from '@/lib/pdf/download'
 import { attendanceStatusCode, orderedAttendanceSessions, studentStatusBySession } from '@/lib/teacher-attendance-grid'
 import { getTeacherAttendanceReport, type TeacherAttendanceReport, type TeacherAttendanceStatus } from '../report-actions'
+import { koreksiAbsensiDariRekap } from '../actions'
 
 function localDate(date: Date) {
   const year = date.getFullYear()
@@ -181,7 +182,7 @@ export function TeacherAttendanceReportPanel() {
           </div>
           {sessions.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50">Belum ada sesi absensi yang disimpan untuk kelas ini pada rentang tanggal tersebut.</div>
-          ) : viewMode === 'kelas' ? <ClassAttendanceGrid report={report} sessions={sessions} /> : (
+          ) : viewMode === 'kelas' ? <ClassAttendanceGrid report={report} sessions={sessions} onSaved={() => load()} /> : (
             <div className="space-y-4">
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <label className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-300">Cari dan pilih siswa</label>
@@ -202,9 +203,48 @@ function SummaryCards({ report }: { report: TeacherAttendanceReport }) {
   ].map(([label, value, tone]) => <div key={String(label)} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900"><p className="text-[11px] text-slate-500">{label}</p><p className={`mt-1 text-xl font-bold ${tone}`}>{value}</p></div>)}</div>
 }
 
-function ClassAttendanceGrid({ report, sessions }: { report: TeacherAttendanceReport; sessions: TeacherAttendanceReport['sessions'] }) {
+const EDIT_STATUS_CYCLE: TeacherAttendanceStatus[] = ['HADIR', 'SAKIT', 'IZIN', 'ALFA']
+
+function ClassAttendanceGrid({ report, sessions, onSaved }: {
+  report: TeacherAttendanceReport
+  sessions: TeacherAttendanceReport['sessions']
+  onSaved: () => Promise<void>
+}) {
+  const [draft, setDraft] = useState<Record<string, TeacherAttendanceStatus>>({})
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const changeCount = Object.keys(draft).length
+
+  const nextStatus = (current: TeacherAttendanceStatus) => EDIT_STATUS_CYCLE[(EDIT_STATUS_CYCLE.indexOf(current) + 1) % EDIT_STATUS_CYCLE.length]
+  const toggleStatus = (sessionKey: string, siswaId: string, current: TeacherAttendanceStatus) => {
+    const key = `${sessionKey}__${siswaId}`
+    const next = nextStatus(draft[key] || current)
+    setDraft(previous => ({ ...previous, [key]: next }))
+  }
+  const save = async () => {
+    if (!changeCount) return
+    setSaving(true); setError('')
+    const grouped = new Map<string, { penugasanId: string; tanggal: string; changes: Array<{ siswa_id: string; status: TeacherAttendanceStatus }> }>()
+    for (const [key, status] of Object.entries(draft)) {
+      const [penugasanId, tanggal, siswaId] = key.split('__')
+      const groupKey = `${penugasanId}__${tanggal}`
+      const group = grouped.get(groupKey) || { penugasanId, tanggal, changes: [] }
+      group.changes.push({ siswa_id: siswaId, status })
+      grouped.set(groupKey, group)
+    }
+    try {
+      for (const group of grouped.values()) {
+        const result = await koreksiAbsensiDariRekap(group.penugasanId, group.tanggal, group.changes)
+        if (result.error) throw new Error(result.error)
+      }
+      setDraft({})
+      await onSaved()
+    } catch (cause: any) { setError(cause?.message || 'Koreksi absensi gagal disimpan.') }
+    finally { setSaving(false) }
+  }
+
   return <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-    <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-800"><p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Rekap per kelas</p><p className="text-[11px] text-slate-500">Geser tabel ke samping untuk melihat seluruh tanggal dan jumlah status.</p></div>
+    <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-800"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Rekap per kelas</p><p className="text-[11px] text-slate-500">Klik kode status untuk mengubahnya (Hadir → Sakit → Izin → Alfa). Nama penginput pertama tetap tersimpan.</p></div><Button size="sm" onClick={save} disabled={!changeCount || saving} className="bg-blue-600 text-white hover:bg-blue-700">{saving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}Simpan koreksi{changeCount ? ` (${changeCount})` : ''}</Button></div>{error && <p className="mt-2 text-xs text-rose-600">{error}</p>}</div>
     <div className="overflow-x-auto"><table className="w-max min-w-full border-separate border-spacing-0 text-xs">
       <thead className="bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-slate-300"><tr>
         <th className="sticky left-0 z-30 w-[52px] min-w-[52px] border-b border-r border-slate-200 bg-slate-50 px-2 py-3 text-center font-semibold dark:border-slate-800 dark:bg-slate-950">No</th>
@@ -215,7 +255,7 @@ function ClassAttendanceGrid({ report, sessions }: { report: TeacherAttendanceRe
       <tbody>{report.rows.map((row, index) => { const statuses = studentStatusBySession(row); return <tr key={row.key} className="group">
         <td className="sticky left-0 z-20 w-[52px] min-w-[52px] border-b border-r border-slate-100 bg-white px-2 py-2.5 text-center text-slate-500 group-hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:group-hover:bg-slate-950">{index + 1}</td>
         <td className="min-w-[220px] border-b border-r border-slate-100 bg-white px-3 py-2.5 font-semibold text-slate-800 group-hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:group-hover:bg-slate-950">{row.nama_lengkap}</td>
-        {sessions.map(session => { const status = statuses.get(session.key); return <td key={session.key} className="border-b border-r border-slate-100 px-2 py-2 text-center dark:border-slate-800">{status ? <span title={status} className={`inline-flex h-7 w-7 items-center justify-center rounded-md border text-[11px] font-bold ${statusClass(status)}`}>{attendanceStatusCode(status)}</span> : <span className="text-slate-300">-</span>}</td> })}
+        {sessions.map(session => { const status = statuses.get(session.key); const draftStatus = status ? draft[`${session.key}__${row.siswa_id}`] : undefined; const shownStatus = draftStatus || status; return <td key={session.key} className="border-b border-r border-slate-100 px-2 py-2 text-center dark:border-slate-800">{shownStatus ? <button type="button" onClick={() => toggleStatus(session.key, row.siswa_id, status!)} title={`Ubah status: ${shownStatus}`} className={`inline-flex h-7 w-7 items-center justify-center rounded-md border text-[11px] font-bold transition-transform hover:scale-110 ${statusClass(shownStatus)}`}>{attendanceStatusCode(shownStatus)}</button> : <span className="text-slate-300">-</span>}</td> })}
         <td className="border-b border-r border-slate-100 px-2 py-2 text-center font-bold text-emerald-700 dark:border-slate-800 dark:text-emerald-300">{row.hadir}</td><td className="border-b border-r border-slate-100 px-2 py-2 text-center font-bold text-amber-700 dark:border-slate-800 dark:text-amber-300">{row.sakit}</td><td className="border-b border-r border-slate-100 px-2 py-2 text-center font-bold text-blue-700 dark:border-slate-800 dark:text-blue-300">{row.izin}</td><td className="border-b border-slate-100 px-2 py-2 text-center font-bold text-rose-700 dark:border-slate-800 dark:text-rose-300">{row.alfa}</td>
       </tr> })}</tbody>
     </table></div>
