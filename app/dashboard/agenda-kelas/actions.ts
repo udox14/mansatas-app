@@ -78,6 +78,7 @@ export type AgendaKelasRow = {
 export type AgendaKelasAbsensiRow = {
   no: number
   nama: string
+  nis: string | null
   status: FinalAttendanceStatus | 'HADIR'
   sakit: boolean
   izin: boolean
@@ -277,6 +278,7 @@ async function getNonHadirRowsForAgenda(db: D1Database, kelasId: string, tanggal
     rows.push({
       no: rows.length + 1,
       nama: abbreviateStudentName(siswa.nama_lengkap),
+      nis: siswa.nis_lokal || null,
       status,
       sakit: status === 'SAKIT',
       izin: status === 'IZIN',
@@ -1029,6 +1031,7 @@ function buildAgendaKelasAttendanceRows(
     rows.push({
       no: rows.length + 1,
       nama: abbreviateStudentName(siswa.nama_lengkap),
+      nis: siswa.nis_lokal || null,
       status,
       sakit: status === 'SAKIT',
       izin: status === 'IZIN',

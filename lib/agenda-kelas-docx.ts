@@ -277,7 +277,7 @@ function attendanceTable(rows: AgendaKelasPageData['absensiRows'], offset: numbe
     const row = rows[index + offset]
     const values = [
       textRuns(offset + index + 1, { size: 8, bold: true }),
-      textRuns(wrapTwoLines(row?.nama, 22), { size: 7.8 }),
+      textRuns(`${wrapTwoLines(row?.nama, 22)}${row ? `\nNIS: ${row.nis || '-'}` : ''}`, { size: 7.8 }),
       textRuns(row?.sakit ? '✓' : '', { size: 9, bold: true }),
       textRuns(row?.izin ? '✓' : '', { size: 9, bold: true }),
       textRuns(row?.alfa ? '✓' : '', { size: 9, bold: true }),

@@ -111,8 +111,8 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Pusat Akademik',
     href: '/dashboard/akademik',
     icon: BookOpen,
-    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad'],
-    desc: 'Mengatur data mata pelajaran, penugasan guru pengajar, dan distribusi jadwal KBM'
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_ppl'],
+    desc: 'Mengatur data mata pelajaran, penugasan guru pengajar, dan distribusi jadwal KBM; Guru PPL dapat melihat jadwal pelajaran.'
   },
   {
     id: 'akademik-nilai',

@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import {
@@ -436,25 +437,25 @@ function MapelSelect({ value, options, onChange }: { value: string; options: Rpp
   return (
     <div>
       <Label className="text-xs font-medium">Mata Pelajaran</Label>
-      <Select value={selectedValue} onValueChange={onChange} disabled={options.length === 0}>
-        <SelectTrigger className="mt-1">
-          <SelectValue placeholder={options.length === 0 ? 'Belum ada penugasan mapel' : 'Pilih mata pelajaran'} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map(option => (
-            <SelectItem key={option.id} value={option.nama_mapel}>{option.nama_mapel}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Combobox
+        value={selectedValue}
+        onValueChange={onChange}
+        options={options.map(option => ({ value: option.nama_mapel, label: option.nama_mapel }))}
+        placeholder={options.length === 0 ? 'Mapel belum tersedia' : 'Pilih mata pelajaran'}
+        searchPlaceholder="Cari mata pelajaran..."
+        emptyText="Mata pelajaran tidak ditemukan"
+        disabled={options.length === 0}
+        className="mt-1"
+      />
       <p className="mt-1 text-xs text-slate-500">
         {options.length === 0
-          ? 'Mapel diambil dari penugasan mengajar tahun ajaran aktif. Hubungi admin akademik jika belum muncul.'
+          ? 'Belum ada mata pelajaran yang tersedia. Hubungi admin akademik.'
           : options.length === 1
             ? 'Mapel otomatis mengikuti penugasan mengajar Anda.'
-            : 'Pilihan mapel dibatasi sesuai penugasan mengajar Anda.'}
+            : 'Ketik untuk mencari dan memilih mata pelajaran.'}
       </p>
       {value && !selectedValue && (
-        <p className="mt-1 text-xs text-amber-600">Mapel tersimpan "{value}" tidak ada di penugasan aktif. Pilih mapel yang tersedia sebelum menyimpan.</p>
+        <p className="mt-1 text-xs text-amber-600">Mapel tersimpan &quot;{value}&quot; sudah tidak tersedia. Pilih mapel yang tersedia sebelum menyimpan.</p>
       )}
     </div>
   )

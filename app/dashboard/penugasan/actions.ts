@@ -168,6 +168,16 @@ async function isGuruPiketPadaHari(db: D1Database, userId: string, hari: number)
   return !!ppl
 }
 
+// PPL dapat bertugas sebagai piket melalui mapping jadwal piket, tanpa perlu
+// memiliki role guru_piket secara permanen.
+export async function hasJadwalPiketHariIni(tanggal: string): Promise<boolean> {
+  const user = await getCurrentUser()
+  if (!user || !/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return false
+
+  const db = await getDB()
+  return isGuruPiketPadaHari(db, user.id, getHariFromDate(tanggal))
+}
+
 type AlasanKetidakhadiran = 'SAKIT' | 'IZIN'
 
 async function ensureAbsensiSessionTable(db: D1Database) {

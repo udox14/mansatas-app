@@ -9,6 +9,12 @@ async function getDB() {
   await requireActionAccess('akademik', 'read')
   return getRawDB()
 }
+
+async function getManagedDB() {
+  const db = await getDB()
+  await requireAcademicManager(db)
+  return db
+}
 import { requireUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
@@ -243,7 +249,7 @@ export async function getJadwalExportData(tahunAjaranId: string) {
 // 1. MAPEL ACTIONS
 // ============================================================
 export async function tambahMapel(prevState: any, formData: FormData) {
-  const db = await getDB()
+  const db = await getManagedDB()
   const payload = {
     nama_mapel: formData.get('nama_mapel') as string,
     kode_mapel: (formData.get('kode_mapel') as string) || null,
@@ -258,7 +264,7 @@ export async function tambahMapel(prevState: any, formData: FormData) {
 }
 
 export async function editMapel(prevState: any, formData: FormData) {
-  const db = await getDB()
+  const db = await getManagedDB()
   const id = formData.get('id') as string
   const payload = {
     nama_mapel: formData.get('nama_mapel') as string,
@@ -274,7 +280,7 @@ export async function editMapel(prevState: any, formData: FormData) {
 }
 
 export async function hapusMapel(id: string) {
-  const db = await getDB()
+  const db = await getManagedDB()
   const result = await dbDelete(db, 'mata_pelajaran', { id })
   if (result.error) return { error: result.error }
   revalidatePath('/dashboard/akademik')
@@ -282,7 +288,7 @@ export async function hapusMapel(id: string) {
 }
 
 export async function importMapelMassal(dataExcel: any[]) {
-  const db = await getDB()
+  const db = await getManagedDB()
   const toInsert = dataExcel
     .map((row) => ({
       nama_mapel: String(row.NAMA_MAPEL).trim(),
@@ -305,7 +311,7 @@ export async function importMapelMassal(dataExcel: any[]) {
 // 2. PENUGASAN ACTIONS
 // ============================================================
 export async function tambahPenugasan(prevState: any, formData: FormData) {
-  const db = await getDB()
+  const db = await getManagedDB()
   const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
   if (!ta) return { error: 'Tahun Ajaran aktif belum diatur.' }
 
@@ -326,7 +332,7 @@ export async function tambahPenugasan(prevState: any, formData: FormData) {
 }
 
 export async function hapusPenugasan(id: string) {
-  const db = await getDB()
+  const db = await getManagedDB()
   // Jadwal ikut terhapus via CASCADE
   const result = await dbDelete(db, 'penugasan_mengajar', { id })
   if (result.error) return { error: result.error }
@@ -335,7 +341,7 @@ export async function hapusPenugasan(id: string) {
 }
 
 export async function resetPenugasanSemesterIni(tahun_ajaran_id: string) {
-  const db = await getDB()
+  const db = await getManagedDB()
   try {
     // Jadwal ikut terhapus via CASCADE
     await db.prepare('DELETE FROM penugasan_mengajar WHERE tahun_ajaran_id = ?').bind(tahun_ajaran_id).run()
@@ -360,7 +366,7 @@ export async function importJadwalASC(xmlText: string): Promise<{
   const emptyStats = { mapel: 0, penugasan: 0, jadwal: 0 }
 
   try {
-    const db = await getDB()
+    const db = await getManagedDB()
     const activeTa = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
     if (!activeTa) return { success: null, error: 'Tahun Ajaran aktif belum diatur.', logs: [], stats: emptyStats }
 
@@ -454,7 +460,7 @@ export async function editSlotJadwal(
   jadwal_id: string,
   penugasan_id_baru: string
 ) {
-  const db = await getDB()
+  const db = await getManagedDB()
   const before = await db.prepare(`
     SELECT jm.id, jm.hari, jm.jam_ke, pm.guru_id, mp.nama_mapel,
            k.tingkat, k.nomor_kelas, k.kelompok
@@ -489,7 +495,7 @@ export async function editSlotJadwal(
 
 // Hapus satu slot jadwal
 export async function hapusSlotJadwal(jadwal_id: string) {
-  const db = await getDB()
+  const db = await getManagedDB()
   const before = await db.prepare(`
     SELECT jm.hari, jm.jam_ke, pm.guru_id, mp.nama_mapel,
            k.tingkat, k.nomor_kelas, k.kelompok
@@ -520,7 +526,7 @@ export async function tambahSlotJadwal(
   hari: number,
   jam_ke: number
 ) {
-  const db = await getDB()
+  const db = await getManagedDB()
   const result = await dbInsert(db, 'jadwal_mengajar', { penugasan_id, tahun_ajaran_id, hari, jam_ke })
   if (result.error) {
     return { error: result.error.includes('UNIQUE') ? 'Slot hari & jam ini sudah terisi.' : result.error }
@@ -549,7 +555,7 @@ export async function tambahSlotJadwal(
 
 // Reset jadwal satu kelas
 export async function resetJadwalKelas(kelas_id: string, tahun_ajaran_id: string) {
-  const db = await getDB()
+  const db = await getManagedDB()
   try {
     const teachers = await db.prepare(`
       SELECT DISTINCT pm.guru_id
@@ -684,6 +690,7 @@ async function importPenugasanASCUnsafe(dataExcel: any[]) {
 
 export async function importPenugasanASC(dataExcel: any[]) {
   try {
+    await getManagedDB()
     if (!Array.isArray(dataExcel) || dataExcel.length === 0) {
       return { error: 'File Excel ASC kosong atau tidak dapat dibaca.', success: null, logs: [] }
     }
@@ -907,7 +914,7 @@ async function validateRows(db: D1Database, sessionId: string, stepKey: Academic
 }
 
 export async function createAkademikInputSession(tahunAjaranId?: string) {
-  const db = await getDB()
+  const db = await getManagedDB()
   const user = await requireUser()
   await ensureAkademikInputSchema(db)
 
@@ -957,7 +964,7 @@ export async function getAkademikInputSession(sessionId: string) {
 }
 
 export async function saveAkademikInputRows(sessionId: string, stepKeyRaw: string, rows: any[]) {
-  const db = await getDB()
+  const db = await getManagedDB()
   await ensureAkademikInputSchema(db)
   const stepKey = normalizeWizardStep(stepKeyRaw)
   const session = await db.prepare('SELECT id, status FROM akademik_input_sessions WHERE id = ?').bind(sessionId).first<any>()
@@ -983,7 +990,7 @@ export async function saveAkademikInputRows(sessionId: string, stepKeyRaw: strin
 }
 
 export async function validateAkademikInputStep(sessionId: string, stepKeyRaw: string) {
-  const db = await getDB()
+  const db = await getManagedDB()
   await ensureAkademikInputSchema(db)
   return validateRows(db, sessionId, normalizeWizardStep(stepKeyRaw))
 }
@@ -1010,7 +1017,7 @@ async function createAcademicApplyBackup(db: D1Database, sessionId: string, tahu
 }
 
 export async function applyAkademikInputSession(sessionId: string) {
-  const db = await getDB()
+  const db = await getManagedDB()
   await ensureAkademikInputSchema(db)
   const session = await db.prepare('SELECT * FROM akademik_input_sessions WHERE id = ?').bind(sessionId).first<any>()
   if (!session) return { error: 'Draft tidak ditemukan.', success: null, logs: [] }
@@ -1051,7 +1058,7 @@ export async function applyAkademikInputSession(sessionId: string) {
 }
 
 export async function discardAkademikInputSession(sessionId: string) {
-  const db = await getDB()
+  const db = await getManagedDB()
   await ensureAkademikInputSchema(db)
   await db.prepare(`
     UPDATE akademik_input_sessions

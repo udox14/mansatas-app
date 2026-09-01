@@ -8,14 +8,14 @@ import { Send } from 'lucide-react'
 import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
 import { PenugasanClient } from './components/penugasan-client'
-import { getJadwalUntukDelegasi, getDaftarUser, getTugasMasuk, getDelegasiTerkirim } from './actions'
+import { getJadwalUntukDelegasi, getDaftarUser, getTugasMasuk, getDelegasiTerkirim, hasJadwalPiketHariIni } from './actions'
 import { todayWIB } from '@/lib/time'
 
 export const metadata = { title: 'Penugasan - MANSATAS App' }
 
 export const dynamic = 'force-dynamic'
 
-async function PenugasanDataFetcher({ isGuruPiket }: { isGuruPiket: boolean }) {
+async function PenugasanDataFetcher({ canExecutePiket }: { canExecutePiket: boolean }) {
   const tanggal = todayWIB()
   const [jadwal, users, tugasMasuk, terkirim] = await Promise.all([
     getJadwalUntukDelegasi(tanggal),
@@ -30,7 +30,7 @@ async function PenugasanDataFetcher({ isGuruPiket }: { isGuruPiket: boolean }) {
       initialUsers={users}
       initialTugasMasuk={tugasMasuk}
       initialTerkirim={terkirim}
-      isGuruPiket={isGuruPiket}
+      isGuruPiket={canExecutePiket}
       tanggalHariIni={tanggal}
     />
   )
@@ -44,8 +44,11 @@ export default async function PenugasanPage() {
   const allowed = await checkFeatureAccess(db, user.id, 'penugasan')
   if (!allowed) redirect('/dashboard')
 
-  const allRoles = await getUserRoles(db, user.id)
-  const isGuruPiket = allRoles.includes('guru_piket')
+  const [allRoles, canExecutePiketFromSchedule] = await Promise.all([
+    getUserRoles(db, user.id),
+    hasJadwalPiketHariIni(todayWIB()),
+  ])
+  const canExecutePiket = allRoles.includes('guru_piket') || canExecutePiketFromSchedule
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -55,7 +58,7 @@ export default async function PenugasanPage() {
       />
 
       <Suspense fallback={<PageLoading text="Memuat data penugasan..." />}>
-        <PenugasanDataFetcher isGuruPiket={isGuruPiket} />
+        <PenugasanDataFetcher canExecutePiket={canExecutePiket} />
       </Suspense>
     </div>
   )

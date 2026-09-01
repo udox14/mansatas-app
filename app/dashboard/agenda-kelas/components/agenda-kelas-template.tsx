@@ -43,6 +43,11 @@ function Check({ active }: { active: boolean }) {
   return <span style={{ fontFamily: FONT, fontSize: '9pt', fontWeight: 'bold' }}>{active ? '✓' : ''}</span>
 }
 
+function StudentName({ row }: { row: AgendaKelasPageData['absensiRows'][number] | undefined }) {
+  if (!row) return null
+  return <><div>{row.nama}</div><div style={{ fontSize: '6.5pt', lineHeight: 1.1 }}>NIS: {row.nis || '-'}</div></>
+}
+
 export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
   ({ data, signatureSettings, pageBreak = false, paperSize = 'F4' }, ref) => {
     const absensiList = data.absensiRows.slice(0, 20)
@@ -172,7 +177,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                     return (
                       <tr key={index} style={{ height: '8.1mm' }}>
                         <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{index + 1}</td>
-                        <td style={tdName}>{row?.nama || ''}</td>
+                        <td style={tdName}><StudentName row={row} /></td>
                         <td style={tdCenter}>{row?.sakit ? <Check active={true} /> : ''}</td>
                         <td style={tdCenter}>{row?.izin ? <Check active={true} /> : ''}</td>
                         <td style={tdCenter}>{row?.alfa ? <Check active={true} /> : ''}</td>
@@ -209,7 +214,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                     return (
                       <tr key={index} style={{ height: '8.1mm' }}>
                         <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold' }}>{index + 11}</td>
-                        <td style={tdName}>{row?.nama || ''}</td>
+                        <td style={tdName}><StudentName row={row} /></td>
                         <td style={tdCenter}>{row?.sakit ? <Check active={true} /> : ''}</td>
                         <td style={tdCenter}>{row?.izin ? <Check active={true} /> : ''}</td>
                         <td style={tdCenter}>{row?.alfa ? <Check active={true} /> : ''}</td>
@@ -418,7 +423,7 @@ const tdStyle: React.CSSProperties = {
 const tdName: React.CSSProperties = {
   ...tdStyle,
   fontSize: '7.8pt',
-  whiteSpace: 'nowrap',
+  whiteSpace: 'normal',
   textOverflow: 'clip',
 }
 

@@ -73,7 +73,9 @@ async function requireRppmAccess(db: D1Database, userId: string) {
 
 async function getAllowedRppmMapelOptions(db: D1Database, userId: string): Promise<RppmMapelOption[]> {
   const roles = await getUserRoles(db, userId)
-  const canSeeAllMapel = roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
+  // Guru PPL diberi kebebasan memilih mapel saat menyusun RPPM. Ini tidak
+  // mengubah penugasan mengajarnya; pembatasan itu tetap berlaku di modul KBM.
+  const canSeeAllMapel = roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_ppl'].includes(role))
 
   if (canSeeAllMapel) {
     const { results } = await db.prepare(`
