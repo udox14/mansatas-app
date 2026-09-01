@@ -56,6 +56,7 @@ export type AgendaKelasOption = {
   wali_kelas_nip: string | null
   wali_kelas_signature_url: string | null
   km_nama: string
+  km_nis: string | null
 }
 
 export type AgendaKelasSigner = {
@@ -78,7 +79,6 @@ export type AgendaKelasRow = {
 export type AgendaKelasAbsensiRow = {
   no: number
   nama: string
-  nis: string | null
   status: FinalAttendanceStatus | 'HADIR'
   sakit: boolean
   izin: boolean
@@ -94,6 +94,7 @@ export type AgendaKelasPageData = {
     wali_kelas_nip: string | null
     wali_kelas_signature_url: string | null
     km_nama: string
+    km_nis: string | null
   }
   kepala: {
     nama: string
@@ -278,7 +279,6 @@ async function getNonHadirRowsForAgenda(db: D1Database, kelasId: string, tanggal
     rows.push({
       no: rows.length + 1,
       nama: abbreviateStudentName(siswa.nama_lengkap),
-      nis: siswa.nis_lokal || null,
       status,
       sakit: status === 'SAKIT',
       izin: status === 'IZIN',
@@ -329,12 +329,13 @@ export async function getAgendaKelasOptions() {
         wali.nama_lengkap AS wali_kelas_nama,
         wali.nip AS wali_kelas_nip,
         wali.signature_url AS wali_kelas_signature_url,
-        km.nama_lengkap AS km_nama
+        km.nama_lengkap AS km_nama,
+        km.nis_lokal AS km_nis
       FROM kelas k
       LEFT JOIN siswa s ON s.kelas_id = k.id
       LEFT JOIN "user" wali ON k.wali_kelas_id = wali.id
       LEFT JOIN siswa km ON k.km_siswa_id = km.id AND km.kelas_id = k.id AND km.status = 'aktif'
-      GROUP BY k.id, k.tingkat, k.nomor_kelas, k.kelompok, wali.nama_lengkap, wali.nip, wali.signature_url, km.nama_lengkap
+      GROUP BY k.id, k.tingkat, k.nomor_kelas, k.kelompok, wali.nama_lengkap, wali.nip, wali.signature_url, km.nama_lengkap, km.nis_lokal
       ORDER BY CAST(k.tingkat AS INTEGER) ASC, CAST(k.nomor_kelas AS INTEGER) ASC, k.kelompok ASC
     `).all<any>(),
     access.db.prepare(`
@@ -368,6 +369,7 @@ export async function getAgendaKelasOptions() {
         ? await createSignedMediaUrl(row.wali_kelas_signature_url || null, audience, secret)
         : row.wali_kelas_signature_url || null,
       km_nama: row.km_nama || 'Belum diatur',
+      km_nis: row.km_nis || null,
     }))),
   }
 }
@@ -387,7 +389,8 @@ async function buildAgendaKelasHari(
         wali.nama_lengkap as wali_kelas_nama,
         wali.nip as wali_kelas_nip,
         wali.signature_url as wali_kelas_signature_url,
-        km.nama_lengkap as km_nama
+        km.nama_lengkap as km_nama,
+        km.nis_lokal as km_nis
       FROM kelas k
       LEFT JOIN "user" wali ON k.wali_kelas_id = wali.id
       LEFT JOIN siswa km ON k.km_siswa_id = km.id AND km.kelas_id = k.id AND km.status = 'aktif'
@@ -426,6 +429,7 @@ async function buildAgendaKelasHari(
       wali_kelas_nip: kelas.wali_kelas_nip || null,
       wali_kelas_signature_url: kelas.wali_kelas_signature_url || null,
       km_nama: kelas.km_nama || '..................................................',
+      km_nis: kelas.km_nis || null,
     },
     kepala: {
       nama: kepala?.nama || 'Kepala Madrasah Belum Diatur',
@@ -653,7 +657,8 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
       wali.nama_lengkap as wali_kelas_nama,
       wali.nip as wali_kelas_nip,
       wali.signature_url as wali_kelas_signature_url,
-      km.nama_lengkap as km_nama
+        km.nama_lengkap as km_nama,
+        km.nis_lokal as km_nis
     FROM kelas k
     LEFT JOIN "user" wali ON k.wali_kelas_id = wali.id
     LEFT JOIN siswa km ON k.km_siswa_id = km.id AND km.kelas_id = k.id AND km.status = 'aktif'
@@ -756,6 +761,7 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
         wali_kelas_nip: kelas.wali_kelas_nip || null,
         wali_kelas_signature_url: kelas.wali_kelas_signature_url || null,
         km_nama: kelas.km_nama || '..................................................',
+        km_nis: kelas.km_nis || null,
       },
       kepala: {
         nama: kepala?.nama || 'Kepala Madrasah Belum Diatur',
@@ -924,6 +930,7 @@ type BulkKelasRow = {
   wali_kelas_nip: string | null
   wali_kelas_signature_url: string | null
   km_nama: string | null
+  km_nis: string | null
 }
 
 type BulkSiswaRow = { id: string; nama_lengkap: string; kelas_id: string }
@@ -1031,7 +1038,6 @@ function buildAgendaKelasAttendanceRows(
     rows.push({
       no: rows.length + 1,
       nama: abbreviateStudentName(siswa.nama_lengkap),
-      nis: siswa.nis_lokal || null,
       status,
       sakit: status === 'SAKIT',
       izin: status === 'IZIN',
@@ -1086,6 +1092,7 @@ function buildAgendaKelasExportPage(input: {
       wali_kelas_nip: kelas.wali_kelas_nip || null,
       wali_kelas_signature_url: kelas.wali_kelas_signature_url || null,
       km_nama: kelas.km_nama || '..................................................',
+      km_nis: kelas.km_nis || null,
     },
     kepala: {
       nama: kepala?.nama || 'Kepala Madrasah Belum Diatur',
@@ -1249,7 +1256,8 @@ export async function getAgendaKelasCetakExportData(
           wali.nama_lengkap as wali_kelas_nama,
           wali.nip as wali_kelas_nip,
           wali.signature_url as wali_kelas_signature_url,
-          km.nama_lengkap as km_nama
+          km.nama_lengkap as km_nama,
+          km.nis_lokal as km_nis
         FROM kelas k
         LEFT JOIN "user" wali ON k.wali_kelas_id = wali.id
         LEFT JOIN siswa km ON k.km_siswa_id = km.id AND km.kelas_id = k.id AND km.status = 'aktif'

@@ -225,7 +225,7 @@ function addPage(sheet: SheetBuilder, page: AgendaKelasPageData, index: number, 
       const attendanceStyles = indexRow === 0 ? [18, 10, 10, 10, 10, 11] : indexRow === 9 ? [20, 14, 14, 14, 14, 15] : [19, 12, 12, 12, 12, 13]
       const attendanceValues: CellValue[] = [
         indexRow + 1 + side * 10,
-        attendance ? `${attendance.nama}\nNIS: ${attendance.nis || '-'}` : null,
+        attendance?.nama || null,
         attendance?.sakit ? '\u2713' : null,
         attendance?.izin ? '\u2713' : null,
         attendance?.alfa ? '\u2713' : null,
@@ -253,7 +253,7 @@ function addPage(sheet: SheetBuilder, page: AgendaKelasPageData, index: number, 
   sheet.set(start + 26, 13, '................................................', 17)
   sheet.set(start + 27, 1, 'Kepala MAN 1 Tasikmalaya,', 1)
   sheet.set(start + 27, 5, 'Wali Kelas, ', 1)
-  sheet.set(start + 27, 13, 'NIS', 1)
+  sheet.set(start + 27, 13, `NIS: ${page.kelas.km_nis || '................................................'}`, 1)
   sheet.set(start + 31, 1, page.kepala.nama || '..................................................', 3)
   sheet.set(start + 31, 5, page.kelas.wali_kelas_nama || '..................................................', 17)
   sheet.set(start + 32, 1, `NIP. ${page.kepala.nip || '..................................................'}`, 1)
@@ -284,10 +284,7 @@ function addPage(sheet: SheetBuilder, page: AgendaKelasPageData, index: number, 
   }
 }
 
-function styleXml() {
-  // Attendance names now include a second NIS line; wrapping also preserves it in Excel's print view.
-  return TEMPLATE_STYLE_XML.replaceAll('<alignment vertical="center"/>', '<alignment vertical="center" wrapText="1"/>')
-}
+function styleXml() { return TEMPLATE_STYLE_XML }
 
 function cellXml(ref: string, cell: Cell) {
   if (cell.value === null) return `<c r="${ref}" s="${cell.style}"/>`

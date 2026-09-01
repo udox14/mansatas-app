@@ -277,7 +277,7 @@ function attendanceTable(rows: AgendaKelasPageData['absensiRows'], offset: numbe
     const row = rows[index + offset]
     const values = [
       textRuns(offset + index + 1, { size: 8, bold: true }),
-      textRuns(`${wrapTwoLines(row?.nama, 22)}${row ? `\nNIS: ${row.nis || '-'}` : ''}`, { size: 7.8 }),
+      textRuns(wrapTwoLines(row?.nama, 22), { size: 7.8 }),
       textRuns(row?.sakit ? '✓' : '', { size: 9, bold: true }),
       textRuns(row?.izin ? '✓' : '', { size: 9, bold: true }),
       textRuns(row?.alfa ? '✓' : '', { size: 9, bold: true }),
@@ -345,7 +345,7 @@ function footerTable(
     rowXml([cell(recapLine(2, 'Tugas', page.rekap.tugas, widths[0]) + emptyParagraph(), 0), cell('', 1), cell('', 2)], 5),
     rowXml([cell(recapLine(3, 'Kosong', page.rekap.kosong, widths[0]) + emptyParagraph(), 0), cell('', 1), cell('', 2)], 5),
     rowXml([cell('', 0), cell(paragraph(textRuns('Mengetahui :', { size: 8.5 })), 1), cell(paragraph(name(page.kelas.km_nama, '...........................................................')), 2)], 5),
-    rowXml([cell(paragraph(textRuns('Kepala MAN 1 Tasikmalaya,', { size: 8.5 }) + kepalaSignature), 0), cell(paragraph(textRuns('Wali Kelas,', { size: 8.5 }) + waliSignature), 1), cell(paragraph(textRuns('NIS', { size: 8.5 })), 2)], 15),
+    rowXml([cell(paragraph(textRuns('Kepala MAN 1 Tasikmalaya,', { size: 8.5 }) + kepalaSignature), 0), cell(paragraph(textRuns('Wali Kelas,', { size: 8.5 }) + waliSignature), 1), cell(paragraph(textRuns(`NIS: ${page.kelas.km_nis || '...........................................................'}`, { size: 8.5 })), 2)], 15),
     rowXml([cell('', 0), cell('', 1), cell('', 2)], 14),
     rowXml([cell(textRuns(page.kepala.nama, { size: 8.5, bold: true }), 0), cell(name(page.kelas.wali_kelas_nama, '...........................................................'), 1), cell('', 2)], 5),
     rowXml([cell(textRuns(`NIP. ${page.kepala.nip || '...........................................................'}`, { size: 8.5 }), 0), cell(textRuns(`NIP. ${page.kelas.wali_kelas_nip || '...........................................................'}`, { size: 8.5 }), 1), cell('', 2)], 5),
