@@ -1,6 +1,6 @@
 'use server'
 
-import { dbInsert, dbUpdate, dbDelete } from '@/utils/db'
+import { dbInsert, dbUpdate, dbDelete, dbBatchInsert } from '@/utils/db'
 import { getDB as getRawDB } from '@/utils/db-server'
 import { requireActionAccess } from '@/lib/action-security'
 
@@ -130,12 +130,150 @@ export async function getJadwalPiketData(): Promise<{
   }
 }
 
-export async function getDaftarGuruDropdown(): Promise<Array<{ id: string; nama: string }>> {
+export async function getDaftarGuruDropdown(): Promise<Array<{ id: string; nama: string; isGuruPpl: boolean }>> {
   const db = await getDB()
   const res = await db.prepare(
-    `SELECT id, nama_lengkap FROM "user" WHERE banned = 0 ORDER BY nama_lengkap ASC`
+    `SELECT u.id, u.nama_lengkap,
+      CASE WHEN u.role = 'guru_ppl' OR EXISTS (
+        SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role = 'guru_ppl'
+      ) THEN 1 ELSE 0 END AS is_guru_ppl
+    FROM "user" u
+    WHERE u.banned = 0
+    ORDER BY u.nama_lengkap ASC`
   ).all<any>()
-  return (res.results || []).map(u => ({ id: u.id, nama: u.nama_lengkap || 'Tanpa Nama' }))
+  return (res.results || []).map(u => ({
+    id: u.id,
+    nama: u.nama_lengkap || 'Tanpa Nama',
+    isGuruPpl: Boolean(u.is_guru_ppl),
+  }))
+}
+
+async function authorizeJadwalPiketMutation() {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' as const }
+  const db = await getDB()
+  if (!(await checkFeatureAccess(db, user.id, 'jadwal-piket'))) {
+    return { error: 'Tidak memiliki akses' as const }
+  }
+  return { db, user }
+}
+
+/** Menambahkan beberapa guru untuk beberapa hari dalam satu proses. */
+export async function tambahJadwalPiketMassal(
+  userIds: string[],
+  hariList: number[],
+  shiftId: number,
+): Promise<{ error?: string; success?: string; added?: number; skipped?: number }> {
+  const access = await authorizeJadwalPiketMutation()
+  if ('error' in access) return access
+  const { db } = access
+
+  const uniqueUserIds = [...new Set(userIds.filter(Boolean))]
+  const uniqueHari = [...new Set(hariList)].filter(hari => Number.isInteger(hari) && hari >= 1 && hari <= 6)
+  if (!uniqueUserIds.length) return { error: 'Pilih minimal satu guru.' }
+  if (!uniqueHari.length) return { error: 'Pilih minimal satu hari (Senin–Sabtu).' }
+  if (!Number.isInteger(shiftId) || shiftId < 1) return { error: 'Shift piket tidak valid.' }
+  if (uniqueHari.includes(5) && shiftId !== 1) return { error: 'Jumat hanya dapat menggunakan Shift 1.' }
+
+  const total = uniqueUserIds.length * uniqueHari.length
+  if (total > 1000) return { error: 'Maksimal 1.000 jadwal dalam sekali proses.' }
+
+  await ensureDefaultShiftPiket(db)
+  const [guruRes, shiftExists] = await Promise.all([
+    db.prepare(`SELECT id FROM "user" WHERE id IN (${uniqueUserIds.map(() => '?').join(', ')})`)
+      .bind(...uniqueUserIds).all<{ id: string }>(),
+    db.prepare('SELECT id FROM pengaturan_shift_piket WHERE id = ?').bind(shiftId).first<{ id: number }>(),
+  ])
+  if (!shiftExists) return { error: 'Shift piket belum tersedia. Coba simpan pengaturan shift dulu.' }
+  if ((guruRes.results || []).length !== uniqueUserIds.length) return { error: 'Satu atau lebih guru tidak ditemukan. Coba muat ulang halaman.' }
+
+  const existingRes = await db.prepare(`
+    SELECT user_id, hari FROM jadwal_guru_piket
+    WHERE shift_id = ?
+      AND user_id IN (${uniqueUserIds.map(() => '?').join(', ')})
+      AND hari IN (${uniqueHari.map(() => '?').join(', ')})
+  `).bind(shiftId, ...uniqueUserIds, ...uniqueHari).all<{ user_id: string; hari: number }>()
+  const existing = new Set((existingRes.results || []).map(row => `${row.user_id}:${row.hari}`))
+  const rows = uniqueUserIds.flatMap(user_id => uniqueHari
+    .filter(hari => !existing.has(`${user_id}:${hari}`))
+    .map(hari => ({ user_id, hari, shift_id: shiftId })))
+
+  if (!rows.length) return { success: 'Semua kombinasi yang dipilih sudah ada.', added: 0, skipped: total }
+  const result = await dbBatchInsert(db, 'jadwal_guru_piket', rows)
+  if (result.error) return { error: result.error }
+
+  await syncGuruPiketRoles(db)
+  await logActivity({
+    db,
+    module: 'jadwal-piket',
+    action: 'create_jadwal_massal',
+    summary: `Menambahkan ${rows.length} jadwal piket secara massal`,
+    entityType: 'jadwal_guru_piket',
+    entityId: 'bulk',
+    entityLabel: `${uniqueUserIds.length} guru, ${uniqueHari.length} hari`,
+    after: { userIds: uniqueUserIds, hariList: uniqueHari, shiftId, added: rows.length },
+  })
+  revalidatePath('/dashboard/jadwal-piket')
+  revalidatePath('/dashboard/guru')
+  revalidatePath('/dashboard/penugasan')
+  return { success: `${rows.length} jadwal berhasil ditambahkan${existing.size ? `; ${existing.size} jadwal yang sudah ada dilewati.` : '.'}`, added: rows.length, skipped: existing.size }
+}
+
+/** Menghapus beberapa jadwal sekaligus, beserta relasi turunannya yang relevan. */
+export async function hapusJadwalPiketMassal(ids: string[]): Promise<{ error?: string; success?: string; deleted?: number }> {
+  const access = await authorizeJadwalPiketMutation()
+  if ('error' in access) return access
+  const { db } = access
+  const uniqueIds = [...new Set(ids.filter(Boolean))]
+  if (!uniqueIds.length) return { error: 'Pilih jadwal yang akan dihapus.' }
+  if (uniqueIds.length > 1000) return { error: 'Maksimal 1.000 jadwal dalam sekali proses.' }
+
+  // D1/SQLite memiliki batas jumlah parameter per query. Chunk menjaga hapus
+  // massal tetap andal untuk jadwal besar.
+  const idChunks = Array.from({ length: Math.ceil(uniqueIds.length / 100) }, (_, index) => uniqueIds.slice(index * 100, (index + 1) * 100))
+  const before: any[] = []
+  for (const idChunk of idChunks) {
+    const placeholders = idChunk.map(() => '?').join(', ')
+    const beforeRes = await db.prepare(`
+      SELECT j.*, u.nama_lengkap FROM jadwal_guru_piket j
+      LEFT JOIN "user" u ON u.id = j.user_id
+      WHERE j.id IN (${placeholders})
+    `).bind(...idChunk).all<any>()
+    before.push(...(beforeRes.results || []))
+  }
+  if (!before.length) return { error: 'Jadwal yang dipilih tidak ditemukan.' }
+
+  const [hasAgendaPiket, hasGuruPplMapping] = await Promise.all([
+    tableExists(db, 'agenda_piket'),
+    tableExists(db, 'guru_ppl_mapping'),
+  ])
+  for (const idChunk of idChunks) {
+    const placeholders = idChunk.map(() => '?').join(', ')
+    const statements = []
+    if (hasAgendaPiket) statements.push(db.prepare(`DELETE FROM agenda_piket WHERE jadwal_id IN (${placeholders})`).bind(...idChunk))
+    if (hasGuruPplMapping) statements.push(db.prepare(`DELETE FROM guru_ppl_mapping WHERE jadwal_piket_id IN (${placeholders})`).bind(...idChunk))
+    statements.push(db.prepare(`DELETE FROM jadwal_guru_piket WHERE id IN (${placeholders})`).bind(...idChunk))
+    await db.batch(statements)
+  }
+
+  await syncGuruPiketRoles(db)
+  await logActivity({
+    db,
+    module: 'jadwal-piket',
+    action: 'delete_jadwal_massal',
+    severity: 'danger',
+    summary: `Menghapus ${before.length} jadwal piket secara massal`,
+    entityType: 'jadwal_guru_piket',
+    entityId: 'bulk',
+    entityLabel: `${before.length} jadwal`,
+    before,
+  })
+  revalidatePath('/dashboard/jadwal-piket')
+  revalidatePath('/dashboard/guru')
+  revalidatePath('/dashboard/penugasan')
+  revalidatePath('/dashboard/kelola-ppl')
+  revalidatePath('/dashboard/agenda')
+  return { success: `${before.length} jadwal berhasil dihapus.`, deleted: before.length }
 }
 
 export async function tambahJadwalPiket(user_id: string, hari: number, shift_id: number): Promise<{ error?: string, success?: string }> {
