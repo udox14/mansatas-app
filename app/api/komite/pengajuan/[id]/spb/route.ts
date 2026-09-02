@@ -6,7 +6,6 @@ import { getUserRoles } from '@/lib/features'
 import { canViewKomitePengajuan, ensureKomitePengajuanSchema } from '@/lib/komite-pengajuan'
 import { terbilang } from '@/lib/terbilang'
 import { renderPdfWithCache } from '@/lib/pdf-cache'
-import { createSignedMediaUrl } from '@/lib/media-security'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,10 +22,9 @@ function tanggal(value?: string | null) {
     : value.length === 10 ? `${value}T00:00:00Z` : value
   return new Intl.DateTimeFormat('id-ID',{ day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Jakarta' }).format(new Date(normalized.endsWith('Z') ? normalized : `${normalized}Z`))
 }
-function absolute(url: string | null, origin: string) {
-  return url ? (url.startsWith('http') ? url : `${origin}${url.startsWith('/') ? '' : '/'}${url}`) : ''
+function todayIso() {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Jakarta' }).format(new Date())
 }
-
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) return new Response('Unauthorized',{ status:401 })
@@ -39,34 +37,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (row.status !== 'disetujui') return new Response('SPB belum tersedia',{ status:409 })
   const roles = await getUserRoles(db,user.id)
   if (!(await canViewKomitePengajuan(db,user.id,row,roles))) return new Response('Forbidden',{ status:403 })
+  const { env } = await getCloudflareContext({ async: true })
 
   const [reviewRows, detailRows, delegatedChairman] = await Promise.all([
     db.prepare(`SELECT * FROM komite_pengajuan_reviews
       WHERE pengajuan_id=? AND version_number=? AND action='setujui' ORDER BY created_at`).bind(id,row.current_version).all<any>(),
     db.prepare(`SELECT * FROM komite_pengajuan_rincian WHERE pengajuan_id=? ORDER BY urutan`).bind(id).all<any>(),
     row.ketua_delegated_by
-      ? db.prepare(`SELECT COALESCE(nama_lengkap,name,email) AS name,signature_url FROM "user" WHERE id=?`).bind(row.ketua_delegated_by).first<any>()
+      ? db.prepare(`SELECT COALESCE(nama_lengkap,name,email) AS name FROM "user" WHERE id=?`).bind(row.ketua_delegated_by).first<any>()
       : Promise.resolve(null),
   ])
-  const { env } = await getCloudflareContext({ async: true })
-  const signedReviews = await Promise.all((reviewRows.results || []).map(async review => ({
-    ...review,
-    actor_signature_url: await createSignedMediaUrl(
-      review.actor_signature_url,
-      `browser-rendering:komite-spb:${id}`,
-      env.MEDIA_SIGNING_SECRET || ''
-    ),
-  })))
-  const signedDelegatedChairman = delegatedChairman ? {
-    ...delegatedChairman,
-    signature_url: await createSignedMediaUrl(
-      delegatedChairman.signature_url,
-      `browser-rendering:komite-spb:${id}`,
-      env.MEDIA_SIGNING_SECRET || ''
-    ),
-  } : null
   const latest = new Map<string,any>()
-  for (const review of signedReviews) latest.set(review.stage,review)
+  for (const review of reviewRows.results || []) latest.set(review.stage,review)
   if (!latest.get('bendahara') || !latest.get('ketua') || !latest.get('kepala')) return new Response('Data persetujuan SPB belum lengkap',{ status:409 })
 
   const rincian = (detailRows.results || []).length ? detailRows.results || [] : [{
@@ -79,18 +61,22 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const origin = new URL(request.url).origin
   const signer = (stage: string, label: string, title: string) => {
     const review = latest.get(stage)
-    const useChairmanIdentity = stage === 'ketua' && review.actor_role === 'anggota_komite' && signedDelegatedChairman
-    const signerName = useChairmanIdentity ? signedDelegatedChairman.name : review.actor_name
-    const signerSignature = useChairmanIdentity ? signedDelegatedChairman.signature_url : review.actor_signature_url
-    const signature = absolute(signerSignature,origin)
+    const useChairmanIdentity = stage === 'ketua' && review.actor_role === 'anggota_komite' && delegatedChairman
+    const signerName = useChairmanIdentity ? delegatedChairman.name : review.actor_name
     return `<div class="sign">
       <div class="sign-label">${esc(label)}</div>
       <div class="sign-title">${esc(title)}</div>
-      <div class="signature">${signature ? `<img src="${esc(signature)}" alt="">` : ''}</div>
+      <div class="signature"></div>
       <strong>${esc(signerName)}</strong>
       <small>${esc(tanggal(review.created_at))}${review.is_super_admin_bypass ? ' - Bypass Super Admin' : ''}</small>
     </div>`
   }
+  const receiptDate = row.realisasi_status === 'sudah' ? row.realisasi_tanggal : todayIso()
+  const receiptStatus = row.realisasi_status === 'sudah' ? 'REALISASI FINAL' : 'DRAFT - BELUM DIREALISASIKAN'
+  const receiptText = row.realisasi_status === 'sudah'
+    ? `Telah diterima dana ${esc(row.realisasi_metode || 'Tunai')} dari Bendahara Komite Sekolah sebesar <strong>${esc(rupiah(total))}</strong> (${esc(terbilang(total))} Rupiah) untuk keperluan pembayaran di atas pada tanggal ${esc(tanggal(row.realisasi_tanggal))}.`
+    : `Telah disiapkan blanko tanda terima dana dari Bendahara Komite Sekolah sebesar <strong>${esc(rupiah(total))}</strong> (${esc(terbilang(total))} Rupiah) untuk keperluan pembayaran di atas. Halaman ini menjadi bukti final setelah realisasi pencairan dicatat dan ditandatangani.`
+
   const detailHtml = rincian.map((item: any, index: number) => `<tr>
     <td class="center">${index + 1}</td>
     <td>${esc(item.uraian)}</td>
@@ -129,10 +115,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .sign{text-align:center;font-size:9pt}
     .sign-label{min-height:9mm}
     .sign-title{font-weight:700}
-    .signature{height:18mm;display:flex;align-items:center;justify-content:center}
-    .signature img{max-width:32mm;max-height:17mm;object-fit:contain}
+    .signature{height:18mm}
     .sign strong{display:block;border-top:1px solid #111;padding-top:1mm}
     .sign small{display:block;color:#555;font-size:7.5pt;margin-top:1mm}
+    .receipt-box{border:1px solid #111;padding:4mm;margin-top:4mm;min-height:36mm}
+    .status{display:inline-block;border:1px solid #111;padding:1mm 2mm;font-size:8pt;font-weight:700;margin-bottom:3mm}
+    .receipt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10mm;margin-top:18mm}
+    .receipt-sign{text-align:center}
+    .blank-sign{height:28mm}
+    .receipt-sign strong{display:block;border-top:1px solid #111;padding-top:1mm}
     .footer{position:absolute;left:0;right:0;bottom:0;border-top:1px solid #aaa;padding-top:2mm;color:#666;font-size:7.5pt}
   </style></head><body>
   <section class="page">
@@ -168,6 +159,37 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       ${signer('bendahara','Diverifikasi/dibayarkan oleh,','Bendahara Komite')}
     </div>
     <div class="footer">Dokumen elektronik MANSATAS App - ID Pengajuan: ${esc(row.id)} - Versi: ${esc(row.current_version)}</div>
+  </section>
+  <section class="page">
+    <img class="kop" src="${origin}/kopkomite.png" alt="Kop Komite"><div class="rule"></div>
+    <h2>Bukti Tanda Terima/Realisasi Pencairan</h2>
+    <span class="status">${esc(receiptStatus)}</span>
+    <div class="receipt-box">
+      <p>${receiptText}</p>
+      <table class="meta">
+        <tr><td>Nomor SPB</td><td>:</td><td>${esc(row.nomor_spb)}</td></tr>
+        <tr><td>Judul Kegiatan</td><td>:</td><td>${esc(row.judul)}</td></tr>
+        <tr><td>Penerima Dana/Penyedia</td><td>:</td><td>${esc(row.penerima_pembayaran || '-')}</td></tr>
+        <tr><td>Metode</td><td>:</td><td>${esc(row.realisasi_status === 'sudah' ? row.realisasi_metode || '-' : 'Tunai/Transfer')}</td></tr>
+        <tr><td>Tanggal</td><td>:</td><td>${esc(tanggal(receiptDate))}</td></tr>
+      </table>
+      ${row.realisasi_catatan ? `<p><strong>Catatan:</strong> ${esc(row.realisasi_catatan).replace(/\n/g,'<br>')}</p>` : ''}
+    </div>
+    <div class="receipt-grid">
+      <div class="receipt-sign">
+        <div>Diserahkan Oleh:</div>
+        <div>Bendahara Komite</div>
+        <div class="blank-sign"></div>
+        <strong>${esc(row.realisasi_petugas || latest.get('bendahara')?.actor_name || 'Bendahara Komite')}</strong>
+      </div>
+      <div class="receipt-sign">
+        <div>Penerima Dana/Penyedia:</div>
+        <div>Penerima Pembayaran</div>
+        <div class="blank-sign"></div>
+        <strong>${esc(row.penerima_pembayaran || '(................................)')}</strong>
+      </div>
+    </div>
+    <div class="footer">Halaman bukti tanda terima ini merupakan bagian dari SPB ${esc(row.nomor_spb)}.</div>
   </section>
   </body></html>`
   const pdf = await renderPdfWithCache({
