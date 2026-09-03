@@ -1022,7 +1022,7 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
   const [loading, setLoading] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
   const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
-  const resolvedOrientation: PrintOrientation = printKind === 'monitoring' && monitoringMode === 'bulanan' ? 'landscape' : orientation
+  const resolvedOrientation: PrintOrientation = printKind === 'monitoring' && monitoringMode === 'bulanan' ? 'portrait' : orientation
 
   useEffect(() => {
     try {
@@ -1428,7 +1428,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
               <SelectTrigger className="mt-1 h-9 w-[135px] text-sm"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="portrait">Portrait</SelectItem><SelectItem value="landscape">Landscape</SelectItem></SelectContent>
             </Select>
-            {printKind === 'monitoring' && monitoringMode === 'bulanan' && <p className="mt-1 text-[10px] text-slate-500">Landscape otomatis agar hingga 27 tanggal tetap satu halaman.</p>}
+            {printKind === 'monitoring' && monitoringMode === 'bulanan' && <p className="mt-1 text-[10px] text-slate-500">Portrait otomatis; kolom nama dipadatkan agar hingga 27 tanggal tetap satu halaman.</p>}
           </div>
         </div>
         <Dialog open={showPrintStatusOptions} onOpenChange={setShowPrintStatusOptions}>
@@ -1555,8 +1555,8 @@ function PrintMonitoringSiswa({ data, paper, orientation, selectedStatusCodes }:
     return <div style={{ color: '#b91c1c', fontSize: 12 }}>{data.error}</div>
   }
   const sections = data.sections || []
-  // Rekap bulanan selalu landscape dan maksimal 27 tanggal per halaman.
-  const maxDates = orientation === 'landscape' ? 27 : 14
+  // Rekap bulanan memakai portrait dan maksimal 27 tanggal per halaman.
+  const maxDates = 27
   const pages = sections.flatMap((section: any) => {
     if (section.mode !== 'bulanan' || (section.dates || []).length <= maxDates) return [section]
     const dates = section.dates || []
@@ -1604,7 +1604,10 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedS
   const subtitle = mode === 'bulanan'
     ? `BULAN ${String(section.labelPeriode || '').toUpperCase()}`
     : String(section.labelPeriode || '').toUpperCase()
-  const dateColWidth = paper === 'F4' ? '3.6mm' : '3mm'
+  const dateColWidth = orientation === 'portrait'
+    ? (paper === 'F4' ? '3.5mm' : '3.3mm')
+    : (paper === 'F4' ? '3.6mm' : '3mm')
+  const nameColWidth = orientation === 'portrait' ? '60mm' : '90mm'
 
   return (
     <div
@@ -1616,9 +1619,7 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedS
         pageBreakBefore: pageBreak ? 'always' : 'auto',
       }}
     >
-      <div style={orientation === 'landscape'
-        ? { width: '165mm', maxWidth: '100%', margin: '0 auto 5pt' }
-        : { marginLeft: '-7mm', marginRight: '-7mm', marginBottom: '5pt' }}>
+      <div style={{ width: '165mm', maxWidth: '100%', margin: '0 auto 5pt' }}>
         <img src="/kopsurat.png" alt="Kop Surat" style={{ width: '100%', display: 'block' }} />
       </div>
 
@@ -1632,7 +1633,7 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedS
           <colgroup>
             <col style={{ width: '18pt' }} />
             <col style={{ width: '42pt' }} />
-            <col />
+            <col style={{ width: nameColWidth }} />
             <col style={{ width: '18pt' }} />
             {dates.map((tanggal: string) => <col key={tanggal} style={{ width: dateColWidth }} />)}
             {selectedStatusOptions.length > 0
