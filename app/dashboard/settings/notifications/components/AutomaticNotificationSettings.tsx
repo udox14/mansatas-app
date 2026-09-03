@@ -97,6 +97,9 @@ const SAMPLE_VALUES: Record<string, string> = {
   nomor_surat: 'SP/2026/0001',
   jumlah_sesi: '2',
   status: 'belum selesai',
+  mata_pelajaran: 'Matematika',
+  jam_ke: '1-3',
+  waktu_mulai: '07:15',
 }
 
 function parseJson<T>(value: string | undefined, fallback: T): T {

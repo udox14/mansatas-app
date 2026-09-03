@@ -14,6 +14,9 @@ import {
 import { sendFcmNotification, type FcmRuntimeOptions, type FcmTarget, type FcmNotif } from '@/lib/fcm'
 import { sendPushNotification } from '@/lib/web-push'
 import { getFinalAttendanceForClass } from '@/lib/wali-kelas-attendance'
+import { getKalenderDateStatus, getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
+import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
+import { formatNamaKelas } from '@/lib/utils'
 
 export const NOTIFICATION_DIRECT_RECIPIENT_LIMIT = 25
 
@@ -1279,6 +1282,175 @@ export async function dispatchConfiguredReminders(db: D1Database, runtimeEnv?: F
       }
     } catch (error) {
       console.error('[notification] meeting_reminder cron gagal:', error)
+    }
+  }
+
+  try {
+    const kbmReminderResult = await dispatchTeachingSessionReminders(db, runtimeEnv)
+    processed += kbmReminderResult.processed
+  } catch (error) {
+    console.error('[notification] kbm_teaching_reminder cron gagal:', error)
+  }
+
+  return { processed, checkedAt: `${today} ${currentTimeWIB().hhmm}` }
+}
+
+export async function dispatchTeachingSessionReminders(
+  db: D1Database,
+  runtimeEnv?: FcmRuntimeOptions['env'],
+): Promise<{ processed: number; checkedAt?: string }> {
+  const eventKey = 'kbm_teaching_reminder'
+  const definition = getNotificationDefinition(eventKey)
+  const setting = await getNotificationSetting(eventKey, db)
+  if (!definition || !setting || Number(setting.enabled) !== 1) {
+    return { processed: 0 }
+  }
+
+  const now = nowWIB()
+  const today = todayWIB()
+  const weekday = now.getUTCDay() || 7
+  if (weekday > 6) return { processed: 0 } // Hari Minggu tidak ada KBM
+
+  // Cek kalender pendidikan (libur / non-efektif KBM)
+  try {
+    const calendarStatus = await getKalenderDateStatus(db, today)
+    if (!calendarStatus.isEffective) return { processed: 0 }
+  } catch (err) {
+    console.error('[notification] getKalenderDateStatus error:', err)
+  }
+
+  // Ambil tahun ajaran aktif & jam pelajaran
+  const ta = await db.prepare(
+    'SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1'
+  ).first<{ id: string; jam_pelajaran: string | null }>()
+  if (!ta) return { processed: 0 }
+
+  let polaList: PolaJam[] = []
+  try {
+    const parsed = JSON.parse(ta.jam_pelajaran || '[]')
+    polaList = Array.isArray(parsed) ? parsed : []
+  } catch {
+    polaList = []
+  }
+  const pola = polaList.find(p => p && Array.isArray(p.hari) && p.hari.includes(weekday))
+  const slots: SlotJam[] = pola?.slots ?? []
+  if (slots.length === 0) return { processed: 0 }
+
+  // Hitung waktu sekarang WIB dalam menit dari jam 00:00
+  const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes()
+
+  // Cari slot yang mulai 10 - 25 menit yang lalu
+  const eligibleSlotIds = new Set<number>()
+  for (const slot of slots) {
+    if (!slot.mulai) continue
+    const parts = slot.mulai.split(':').map(Number)
+    if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) continue
+    const slotStartMinutes = parts[0] * 60 + parts[1]
+    const elapsed = currentMinutes - slotStartMinutes
+    if (elapsed >= 10 && elapsed <= 25) {
+      eligibleSlotIds.add(Number(slot.id))
+    }
+  }
+
+  if (eligibleSlotIds.size === 0) {
+    return { processed: 0 }
+  }
+
+  const kbmExceptions = await getKbmExceptionsForDate(db, today)
+
+  // Ambil blok jadwal hari ini
+  const { results: rows } = await db.prepare(`
+    SELECT
+      jm.penugasan_id,
+      MIN(jm.jam_ke) as jam_ke_mulai,
+      MAX(jm.jam_ke) as jam_ke_selesai,
+      pm.guru_id,
+      u.nama_lengkap as guru_nama,
+      mp.nama_mapel,
+      k.id as kelas_id,
+      k.tingkat, k.nomor_kelas, k.kelompok,
+      MAX(ag.id) as agenda_id,
+      MAX(asg.id) as absensi_sesi_id,
+      MAX(dtk.pelaksana_user_id) as pelaksana_user_id,
+      MAX(up.nama_lengkap) as pelaksana_nama,
+      MAX(dt.id) as delegasi_id
+    FROM jadwal_mengajar jm
+    JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
+    JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
+    JOIN kelas k ON pm.kelas_id = k.id
+    JOIN "user" u ON pm.guru_id = u.id
+    LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
+    LEFT JOIN absensi_sesi_guru asg ON asg.penugasan_id = jm.penugasan_id AND asg.tanggal = ?
+    LEFT JOIN delegasi_tugas_kelas dtk ON dtk.penugasan_mengajar_id = jm.penugasan_id
+    LEFT JOIN delegasi_tugas dt ON dt.id = dtk.delegasi_id AND dt.tanggal = ? AND dt.status = 'DIKIRIM'
+    LEFT JOIN "user" up ON up.id = dtk.pelaksana_user_id
+    WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
+      AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
+    GROUP BY jm.penugasan_id, pm.guru_id, u.nama_lengkap, mp.nama_mapel, k.id, k.tingkat, k.nomor_kelas, k.kelompok
+  `).bind(today, today, today, ta.id, weekday, today).all<any>()
+
+  if (!rows || rows.length === 0) return { processed: 0 }
+
+  let processed = 0
+
+  for (const r of rows) {
+    const jamKeMulai = Number(r.jam_ke_mulai)
+    const jamKeSelesai = Number(r.jam_ke_selesai)
+
+    // Cek apakah jam awal blok mengajar ini termasuk slot yang dipicu saat ini
+    if (!eligibleSlotIds.has(jamKeMulai)) continue
+
+    // Cek pengecualian KBM di kalender
+    const isActive = hasActiveTeachingSlotsInRange(
+      kbmExceptions,
+      { id: r.kelas_id, tingkat: Number(r.tingkat) },
+      jamKeMulai,
+      jamKeSelesai,
+    )
+    if (!isActive) continue
+
+    // Jika agenda dan absensi siswa SUDAH diisi dua-duanya, lewati
+    if (r.agenda_id && r.absensi_sesi_id) continue
+
+    // Penentuan penerima: jika didelegasikan ke guru lain
+    let targetUserId = r.guru_id
+    let targetGuruNama = r.guru_nama
+    if (r.delegasi_id) {
+      if (r.pelaksana_user_id) {
+        targetUserId = r.pelaksana_user_id
+        targetGuruNama = r.pelaksana_nama || 'Guru Pengganti'
+      } else {
+        continue
+      }
+    }
+
+    const slot = slots.find(s => Number(s.id) === jamKeMulai)
+    const kelas = formatNamaKelas(r.tingkat, r.nomor_kelas, r.kelompok)
+    const jamKeText = jamKeSelesai > jamKeMulai ? `${jamKeMulai}-${jamKeSelesai}` : `${jamKeMulai}`
+
+    try {
+      const result = await emitConfiguredNotification({
+        eventKey,
+        sourceRef: `kbm-reminder:${today}:${r.penugasan_id}:${jamKeMulai}`,
+        context: {
+          userId: targetUserId,
+          userIds: [targetUserId],
+          nama_guru: targetGuruNama,
+          kelas,
+          mata_pelajaran: r.nama_mapel,
+          jam_ke: jamKeText,
+          waktu_mulai: slot?.mulai || '',
+          tanggal: today,
+        },
+        db,
+        runtimeEnv,
+      })
+
+      if (result.status !== 'skipped' && result.status !== 'disabled' && result.status !== 'failed') {
+        processed += 1
+      }
+    } catch (err) {
+      console.error(`[notification] kbm_teaching_reminder failed for ${r.penugasan_id}:`, err)
     }
   }
 
