@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Avatar siswa demo</title>
+  <desc id="desc">Ilustrasi generik untuk akun tutorial, bukan foto orang sungguhan.</desc>
+  <rect width="512" height="512" fill="#e6f5f2"/>
+  <circle cx="256" cy="205" r="98" fill="#f2c7ab"/>
+  <path d="M120 218c0-123 272-123 272 0v58H120z" fill="#203b63"/>
+  <path d="M160 512c11-121 72-177 96-177s85 56 96 177z" fill="#ffffff"/>
+  <path d="M190 343h132l37 169H153z" fill="#e9eef5"/>
+  <circle cx="218" cy="204" r="9" fill="#243447"/><circle cx="294" cy="204" r="9" fill="#243447"/>
+  <path d="M219 258c22 17 52 17 74 0" fill="none" stroke="#b85e5e" stroke-width="8" stroke-linecap="round"/>
+  <rect x="129" y="438" width="254" height="42" rx="21" fill="#0f766e"/>
+  <text x="256" y="465" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#fff">AVATAR DEMO</text>
+</svg>

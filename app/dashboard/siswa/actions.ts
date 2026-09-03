@@ -90,13 +90,24 @@ export async function hapusSiswa(id: string) {
     .first<any>()
   if (!siswa) return { error: 'Siswa tidak ditemukan.' }
 
+  // Bukti upload berada di R2 dan tidak ikut terhapus oleh foreign key DB.
+  // Ambil URL sebelum baris pengajuan pembayaran dibersihkan.
+  const buktiPembayaran = await db.prepare(`
+    SELECT bukti_url
+    FROM fin_payment_submissions
+    WHERE siswa_id = ? AND bukti_url IS NOT NULL
+  `).bind(id).all<{ bukti_url: string }>()
+
   try {
     await db.batch([
       db.prepare('DELETE FROM fin_dspt_audit_log WHERE siswa_id = ?').bind(id),
       db.prepare('DELETE FROM fin_payment_submissions WHERE siswa_id = ?').bind(id),
+      db.prepare('DELETE FROM fin_transaksi_detail WHERE transaksi_id IN (SELECT id FROM fin_transaksi WHERE siswa_id = ?)').bind(id),
       db.prepare('DELETE FROM fin_transaksi WHERE siswa_id = ?').bind(id),
       db.prepare('DELETE FROM fin_diskon WHERE siswa_id = ?').bind(id),
       db.prepare('DELETE FROM fin_janji_bayar WHERE siswa_id = ?').bind(id),
+      db.prepare('DELETE FROM fin_koperasi_tagihan_item WHERE tagihan_id IN (SELECT id FROM fin_koperasi_tagihan WHERE siswa_id = ?)').bind(id),
+      db.prepare('DELETE FROM fin_koperasi_tagihan WHERE siswa_id = ?').bind(id),
       db.prepare('DELETE FROM fin_spp_tagihan WHERE siswa_id = ?').bind(id),
       db.prepare('DELETE FROM fin_spp_mulai WHERE siswa_id = ?').bind(id),
       db.prepare('DELETE FROM fin_spp_saldo_awal WHERE siswa_id = ?').bind(id),
@@ -110,6 +121,7 @@ export async function hapusSiswa(id: string) {
   if (siswa.foto_url) {
     try { await deleteFromR2(siswa.foto_url) } catch {}
   }
+  await Promise.all((buktiPembayaran.results || []).map(({ bukti_url }) => deleteFromR2(bukti_url).catch(() => undefined)))
 
   await logActivity({
     db,
