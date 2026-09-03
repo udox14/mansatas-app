@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS ekstrakurikuler (
   nama            TEXT NOT NULL,
   deskripsi       TEXT,
   mode_nilai      TEXT NOT NULL DEFAULT 'angka' CHECK(mode_nilai IN ('angka','huruf')),
+  hari_latihan    TEXT,                 -- JSON array hari rutin, contoh: [5,6]
   status          TEXT NOT NULL DEFAULT 'aktif',  -- 'aktif'|'nonaktif'
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
