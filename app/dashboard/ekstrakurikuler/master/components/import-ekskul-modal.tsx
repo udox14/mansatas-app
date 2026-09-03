@@ -18,7 +18,7 @@ export function ImportEkskulModal({ isOpen, onClose }: { isOpen: boolean; onClos
     const XLSX = (window as any).XLSX
     if (!XLSX) return alert('Library Excel sedang dimuat, coba lagi sebentar.')
     const data = [
-      { NAMA: 'Pramuka', MODE_NILAI: 'huruf', HARI_LATIHAN: 'Jumat', DESKRIPSI: 'Wajib kelas 10' },
+      { NAMA: 'Pramuka', MODE_NILAI: 'huruf', HARI_LATIHAN: 'Jumat, Sabtu', DESKRIPSI: 'Wajib kelas 10' },
       { NAMA: 'Futsal', MODE_NILAI: 'angka', HARI_LATIHAN: 'Sabtu', DESKRIPSI: '' },
       { NAMA: 'PMR', MODE_NILAI: 'huruf', HARI_LATIHAN: 'Rabu', DESKRIPSI: '' },
     ]
@@ -88,7 +88,7 @@ export function ImportEkskulModal({ isOpen, onClose }: { isOpen: boolean; onClos
               {[
                 ['NAMA', 'Nama ekskul (wajib)'],
                 ['MODE_NILAI', 'angka / huruf (default angka)'],
-                ['HARI_LATIHAN', 'Senin–Minggu (wajib)'],
+                ['HARI_LATIHAN', 'Senin–Minggu, pisahkan dengan koma untuk beberapa hari (wajib)'],
                 ['DESKRIPSI', 'Keterangan (opsional)'],
               ].map(([col, desc]) => (
                 <div key={col} className="flex items-baseline gap-2">

@@ -13,6 +13,17 @@ import type { EkskulMaster, GuruOption } from '../actions'
 
 const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 
+function formatHariLatihan(value: string | number | null): string | null {
+  if (typeof value === 'number') return HARI_NAMA[value] || null
+  if (!value) return null
+  try {
+    const days = JSON.parse(value)
+    return Array.isArray(days) ? days.map(Number).map(day => HARI_NAMA[day]).filter(Boolean).join(', ') || null : null
+  } catch {
+    return HARI_NAMA[Number(value)] || null
+  }
+}
+
 export function MasterTable({ initialList, guruList }: {
   initialList: EkskulMaster[]
   guruList: GuruOption[]
@@ -99,7 +110,7 @@ export function MasterTable({ initialList, guruList }: {
                   </span>
                 </TableCell>
                 <TableCell className="text-center text-xs text-slate-600 dark:text-slate-400">
-                  {e.hari_latihan ? HARI_NAMA[e.hari_latihan] : <span className="text-amber-600 italic">Belum diatur</span>}
+                  {formatHariLatihan(e.hari_latihan) || <span className="text-amber-600 italic">Belum diatur</span>}
                 </TableCell>
                 <TableCell className="text-center text-sm text-slate-700 dark:text-slate-300">{e.jml_anggota}</TableCell>
                 <TableCell className="text-center">

@@ -18,13 +18,21 @@ const FEATURE = 'ekstrakurikuler-master'
 const MODE_NILAI = ['angka', 'huruf'] as const
 const HARI_LATIHAN = [1, 2, 3, 4, 5, 6, 7] as const
 
-function parseHariLatihan(value: unknown): number | null {
-  const raw = String(value ?? '').trim().toLowerCase()
+function parseHariLatihan(value: unknown): number[] {
+  const input = Array.isArray(value) ? value : (() => {
+    const raw = String(value ?? '').trim()
+    if (!raw) return []
+    try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) return parsed } catch { /* format CSV/nama hari */ }
+    return raw.split(',')
+  })()
   const namaHari: Record<string, number> = {
     senin: 1, selasa: 2, rabu: 3, kamis: 4, jumat: 5, "jum'at": 5, sabtu: 6, minggu: 7,
   }
-  const hari = namaHari[raw] ?? Number(raw)
-  return HARI_LATIHAN.includes(hari as typeof HARI_LATIHAN[number]) ? hari : null
+  return [...new Set(input.map(value => {
+    const raw = String(value ?? '').trim().toLowerCase()
+    return namaHari[raw] ?? Number(raw)
+  }).filter(hari => HARI_LATIHAN.includes(hari as typeof HARI_LATIHAN[number])))]
+    .sort((a, b) => a - b)
 }
 
 // ============================================================
@@ -35,7 +43,7 @@ export type EkskulMaster = {
   nama: string
   deskripsi: string | null
   mode_nilai: 'angka' | 'huruf'
-  hari_latihan: number | null
+  hari_latihan: string | number | null
   status: string
   jml_anggota: number
   pembina_nama: string | null
@@ -179,12 +187,12 @@ export async function tambahEkskul(_prev: any, formData: FormData): Promise<{ er
   const nama = (formData.get('nama') as string)?.trim()
   const deskripsi = (formData.get('deskripsi') as string)?.trim() || null
   const mode_nilai = formData.get('mode_nilai') as string
-  const hari_latihan = parseHariLatihan(formData.get('hari_latihan'))
+  const hari_latihan = parseHariLatihan(formData.getAll('hari_latihan'))
   if (!nama) return { error: 'Nama ekstrakurikuler wajib diisi.' }
   if (!MODE_NILAI.includes(mode_nilai as any)) return { error: 'Mode nilai tidak valid.' }
-  if (!hari_latihan) return { error: 'Hari latihan wajib dipilih.' }
+  if (hari_latihan.length === 0) return { error: 'Minimal satu hari latihan wajib dipilih.' }
 
-  const res = await dbInsert(db, 'ekstrakurikuler', { nama, deskripsi, mode_nilai, hari_latihan })
+  const res = await dbInsert(db, 'ekstrakurikuler', { nama, deskripsi, mode_nilai, hari_latihan: JSON.stringify(hari_latihan) })
   if (res.error) return { error: res.error }
 
   revalidatePath('/dashboard/ekstrakurikuler/master')
@@ -200,15 +208,15 @@ export async function editEkskul(_prev: any, formData: FormData): Promise<{ erro
   const nama = (formData.get('nama') as string)?.trim()
   const deskripsi = (formData.get('deskripsi') as string)?.trim() || null
   const mode_nilai = formData.get('mode_nilai') as string
-  const hari_latihan = parseHariLatihan(formData.get('hari_latihan'))
+  const hari_latihan = parseHariLatihan(formData.getAll('hari_latihan'))
   const status = (formData.get('status') as string) || 'aktif'
   if (!id) return { error: 'ID tidak valid.' }
   if (!nama) return { error: 'Nama ekstrakurikuler wajib diisi.' }
   if (!MODE_NILAI.includes(mode_nilai as any)) return { error: 'Mode nilai tidak valid.' }
-  if (!hari_latihan) return { error: 'Hari latihan wajib dipilih.' }
+  if (hari_latihan.length === 0) return { error: 'Minimal satu hari latihan wajib dipilih.' }
 
   const res = await dbUpdate(db, 'ekstrakurikuler', {
-    nama, deskripsi, mode_nilai, hari_latihan, status, updated_at: new Date().toISOString(),
+    nama, deskripsi, mode_nilai, hari_latihan: JSON.stringify(hari_latihan), status, updated_at: new Date().toISOString(),
   }, { id })
   if (res.error) return { error: res.error }
 
@@ -312,10 +320,10 @@ export async function importEkskulMassal(rows: any[]): Promise<{ error?: string;
     const mode_nilai = MODE_NILAI.includes(rawMode as any) ? rawMode : 'angka'
     const deskripsi = String(r.DESKRIPSI ?? r.deskripsi ?? '').trim() || null
     const hari_latihan = parseHariLatihan(r.HARI_LATIHAN ?? r.hari_latihan)
-    if (!hari_latihan) { skipped++; continue }
+    if (hari_latihan.length === 0) { skipped++; continue }
     stmts.push(
       db.prepare('INSERT INTO ekstrakurikuler (nama, deskripsi, mode_nilai, hari_latihan) VALUES (?, ?, ?, ?)')
-        .bind(nama, deskripsi, mode_nilai, hari_latihan)
+        .bind(nama, deskripsi, mode_nilai, JSON.stringify(hari_latihan))
     )
   }
 

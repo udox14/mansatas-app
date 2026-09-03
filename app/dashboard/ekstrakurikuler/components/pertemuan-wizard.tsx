@@ -35,11 +35,24 @@ function hariDariTanggal(tanggal: string): number | null {
   return Number.isNaN(date.getTime()) ? null : (date.getDay() || 7)
 }
 
-function tanggalJadwalBerikutnya(hariLatihan: number | null): string {
-  if (!hariLatihan) return todayLocal()
+function parseHariLatihan(value: string | number | null): number[] {
+  if (typeof value === 'number') return [value]
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.map(Number).filter(hari => hari >= 1 && hari <= 7) : []
+  } catch {
+    const hari = Number(value)
+    return hari >= 1 && hari <= 7 ? [hari] : []
+  }
+}
+
+function tanggalJadwalBerikutnya(hariLatihan: number[]): string {
+  if (hariLatihan.length === 0) return todayLocal()
   const date = new Date()
   const hariIni = date.getDay() || 7
-  date.setDate(date.getDate() + ((hariLatihan - hariIni + 7) % 7))
+  const selisih = Math.min(...hariLatihan.map(hari => (hari - hariIni + 7) % 7))
+  date.setDate(date.getDate() + selisih)
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
@@ -114,7 +127,8 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (file: File) => void
   )
 }
 
-export function PertemuanWizard({ ekskulId, hariLatihan }: { ekskulId: string; hariLatihan: number | null }) {
+export function PertemuanWizard({ ekskulId, hariLatihan: hariLatihanRaw }: { ekskulId: string; hariLatihan: string | number | null }) {
+  const hariLatihan = parseHariLatihan(hariLatihanRaw)
   const [view, setView] = useState<View>('list')
   const [pertemuanList, setPertemuanList] = useState<PertemuanRow[]>([])
   const [loadingList, setLoadingList] = useState(true)
@@ -174,9 +188,9 @@ export function PertemuanWizard({ ekskulId, hariLatihan }: { ekskulId: string; h
   // Step 1 submit → create pertemuan → go step 2
   const handleCreate = async () => {
     if (!tanggal) { setMsg({ tipe: 'error', teks: 'Tanggal wajib diisi.' }); return }
-    if (!hariLatihan) { setMsg({ tipe: 'error', teks: 'Hari latihan belum diatur oleh admin.' }); return }
-    if (hariDariTanggal(tanggal) !== hariLatihan) {
-      setMsg({ tipe: 'error', teks: `Pertemuan hanya dapat dibuat pada hari ${HARI_NAMA[hariLatihan]}.` }); return
+    if (hariLatihan.length === 0) { setMsg({ tipe: 'error', teks: 'Hari latihan belum diatur oleh admin.' }); return }
+    if (!hariLatihan.includes(hariDariTanggal(tanggal) || 0)) {
+      setMsg({ tipe: 'error', teks: `Pertemuan hanya dapat dibuat pada hari ${hariLatihan.map(hari => HARI_NAMA[hari]).join(' atau ')}.` }); return
     }
     setSubmitting(true); setMsg(null)
     const fd = new FormData()
@@ -280,7 +294,7 @@ export function PertemuanWizard({ ekskulId, hariLatihan }: { ekskulId: string; h
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Tanggal Latihan <span className="text-rose-500">*</span></Label>
               <Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="h-9 text-sm" />
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-400">Jadwal tetap: {hariLatihan ? HARI_NAMA[hariLatihan] : 'belum diatur'}</p>
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400">Jadwal tetap: {hariLatihan.length ? hariLatihan.map(hari => HARI_NAMA[hari]).join(', ') : 'belum diatur'}</p>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Judul / Materi</Label>

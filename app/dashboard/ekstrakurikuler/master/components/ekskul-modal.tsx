@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,18 @@ const HARI_LATIHAN = [
   { value: '4', label: 'Kamis' }, { value: '5', label: 'Jumat' }, { value: '6', label: 'Sabtu' }, { value: '7', label: 'Minggu' },
 ]
 
+function parseHariLatihan(value: string | number | null | undefined): number[] {
+  if (typeof value === 'number') return [value]
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.map(Number).filter(hari => hari >= 1 && hari <= 7) : []
+  } catch {
+    const hari = Number(value)
+    return hari >= 1 && hari <= 7 ? [hari] : []
+  }
+}
+
 function SubmitBtn({ isEdit }: { isEdit: boolean }) {
   const { pending } = useFormStatus()
   return (
@@ -33,6 +45,7 @@ export function EkskulModal({ isOpen, onClose, editData }: {
   editData: EkskulMaster | null
 }) {
   const [state, formAction] = useActionState(editData ? editEkskul : tambahEkskul, initialState)
+  const [hariLatihan, setHariLatihan] = useState(() => parseHariLatihan(editData?.hari_latihan))
 
   useEffect(() => {
     if (state?.success) {
@@ -114,13 +127,25 @@ export function EkskulModal({ isOpen, onClose, editData }: {
 
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold">Hari Latihan Tetap <span className="text-rose-500">*</span></Label>
-            <Select name="hari_latihan" defaultValue={String(editData?.hari_latihan ?? '')} required>
-              <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50 dark:bg-slate-800"><SelectValue placeholder="Pilih hari latihan" /></SelectTrigger>
-              <SelectContent>
-                {HARI_LATIHAN.map(hari => <SelectItem key={hari.value} value={hari.value} className="text-xs">{hari.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <p className="text-[11px] text-slate-400">Pembina hanya dapat membuat pertemuan pada hari ini.</p>
+            <div className="grid grid-cols-2 gap-2 rounded-md border bg-slate-50 p-2 dark:bg-slate-800 sm:grid-cols-4">
+              {HARI_LATIHAN.map(hari => {
+                const value = Number(hari.value)
+                return (
+                  <label key={hari.value} className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      name="hari_latihan"
+                      value={hari.value}
+                      checked={hariLatihan.includes(value)}
+                      onChange={event => setHariLatihan(current => event.target.checked ? [...current, value].sort() : current.filter(item => item !== value))}
+                      className="h-3.5 w-3.5 accent-emerald-600"
+                    />
+                    {hari.label}
+                  </label>
+                )
+              })}
+            </div>
+            <p className="text-[11px] text-slate-400">Pilih satu atau lebih hari. Pembina hanya dapat membuat pertemuan pada hari terpilih.</p>
           </div>
 
           <SubmitBtn isEdit={!!editData} />

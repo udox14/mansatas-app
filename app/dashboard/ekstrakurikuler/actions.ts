@@ -25,7 +25,7 @@ export type EkskulSaya = {
   nama: string
   deskripsi: string | null
   mode_nilai: 'angka' | 'huruf'
-  hari_latihan: number | null
+  hari_latihan: string | number | null
   jml_anggota: number
 }
 
@@ -111,6 +111,18 @@ function getHariDariTanggal(tanggal: string): number | null {
   const date = new Date(`${tanggal}T12:00:00`)
   if (Number.isNaN(date.getTime())) return null
   return date.getDay() || 7
+}
+
+function parseHariLatihan(value: unknown): number[] {
+  if (value === null || value === undefined || value === '') return []
+  if (typeof value === 'number') return value >= 1 && value <= 7 ? [value] : []
+  try {
+    const parsed = JSON.parse(String(value))
+    return Array.isArray(parsed) ? parsed.map(Number).filter(hari => hari >= 1 && hari <= 7) : []
+  } catch {
+    const hari = Number(value)
+    return hari >= 1 && hari <= 7 ? [hari] : []
+  }
 }
 
 // ============================================================
@@ -273,13 +285,14 @@ export async function buatPertemuan(formData: FormData): Promise<{ error?: strin
   if (!ekskulId || !tanggal) return { error: 'Tanggal pertemuan wajib diisi.' }
   if (!(await canManage(db, ekskulId, effectiveUserId, realUserId))) return { error: 'Anda bukan pembina ekstrakurikuler ini.' }
 
-  const ekskul = await db.prepare('SELECT hari_latihan FROM ekstrakurikuler WHERE id = ?').bind(ekskulId).first<{ hari_latihan: number | null }>()
+  const ekskul = await db.prepare('SELECT hari_latihan FROM ekstrakurikuler WHERE id = ?').bind(ekskulId).first<{ hari_latihan: string | number | null }>()
   const hariTanggal = getHariDariTanggal(tanggal)
-  if (!ekskul?.hari_latihan) return { error: 'Hari latihan ekskul belum diatur oleh admin.' }
+  const hariLatihan = parseHariLatihan(ekskul?.hari_latihan)
+  if (hariLatihan.length === 0) return { error: 'Hari latihan ekskul belum diatur oleh admin.' }
   if (!hariTanggal) return { error: 'Tanggal pertemuan tidak valid.' }
-  if (hariTanggal !== ekskul.hari_latihan) {
+  if (!hariLatihan.includes(hariTanggal)) {
     const hariNama = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
-    return { error: `Pertemuan hanya dapat dibuat pada hari ${hariNama[ekskul.hari_latihan]}.` }
+    return { error: `Pertemuan hanya dapat dibuat pada hari ${hariLatihan.map(hari => hariNama[hari]).join(' atau ')}.` }
   }
 
   // Upload foto (opsional)
