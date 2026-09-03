@@ -321,7 +321,7 @@ function buildSignatureTable(data: CkhDocxData, geometry: ReturnType<typeof page
   const imageXml = imageRelId && signatureImage && Number(signatureSettings.signature_enabled) === 1
     ? imageDrawingXml(signatureImage, imageRelId, 1, signatureSettings, rightColumnStartMm)
     : ''
-  const kepalaImageXml = imageRelIdKepala && kepalaSignatureImage && Number(kepalaSignatureSettings?.signature_enabled) === 1
+  const kepalaImageXml = imageRelIdKepala && kepalaSignatureImage && kepalaSignatureSettings && Number(kepalaSignatureSettings.signature_enabled) === 1
     ? imageDrawingXml(kepalaSignatureImage, imageRelIdKepala, 2, kepalaSignatureSettings, 0)
     : ''
   const leftContent = [
