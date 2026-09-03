@@ -1,10 +1,10 @@
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 
 export async function ensureTpgSchema(db: D1Database) {
-  return ensureSchemaOnce('tpg-schema', () => ensureTpgSchemaInner(db))
+  return ensureSchemaOnce('tpg-schema-v2', () => ensureTpgSchemaInner(db))
 }
 
-async function ensureTpgSchemaInner(db: D1Database) {
+export async function ensureTpgSchemaInner(db: D1Database) {
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS tpg_s36_uploads (
       user_id           TEXT PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,

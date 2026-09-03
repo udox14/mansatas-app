@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { isSuperAdmin, getEffectiveUser } from '@/lib/act-as'
-import { ensureTpgSchema } from '@/lib/tpg-schema'
+import { ensureTpgSchema, ensureTpgSchemaInner } from '@/lib/tpg-schema'
 import { getSystemSetting, setSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { uploadCkhKepalaSignature, deleteFromR2, validateImageFile } from '@/utils/r2'
 import {
@@ -131,28 +131,102 @@ async function getFreshUser(db: D1Database, userId: string): Promise<CkhUser> {
 }
 
 async function getOrCreateDocument(db: D1Database, userId: string, year: number, month: number) {
-  let doc = await db.prepare(`
-    SELECT id, user_id, year, month, status
-         , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
-         , COALESCE(kepala_signature_enabled, 0) as kepala_signature_enabled
-         , COALESCE(kepala_signature_x_mm, 14) as kepala_signature_x_mm
-         , COALESCE(kepala_signature_y_mm, 12) as kepala_signature_y_mm
-         , COALESCE(kepala_signature_width_mm, 38) as kepala_signature_width_mm
-    FROM ckh_documents
-    WHERE user_id = ? AND year = ? AND month = ?
-  `).bind(userId, year, month).first<CkhDocument>()
+  let doc: CkhDocument | null = null
+
+  try {
+    doc = await db.prepare(`
+      SELECT id, user_id, year, month, status
+           , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
+           , COALESCE(kepala_signature_enabled, 0) as kepala_signature_enabled
+           , COALESCE(kepala_signature_x_mm, 14) as kepala_signature_x_mm
+           , COALESCE(kepala_signature_y_mm, 12) as kepala_signature_y_mm
+           , COALESCE(kepala_signature_width_mm, 38) as kepala_signature_width_mm
+      FROM ckh_documents
+      WHERE user_id = ? AND year = ? AND month = ?
+    `).bind(userId, year, month).first<CkhDocument>()
+  } catch (err: any) {
+    if (String(err?.message || err).includes('no such column')) {
+      await ensureTpgSchemaInner(db).catch(() => {})
+      try {
+        doc = await db.prepare(`
+          SELECT id, user_id, year, month, status
+               , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
+               , COALESCE(kepala_signature_enabled, 0) as kepala_signature_enabled
+               , COALESCE(kepala_signature_x_mm, 14) as kepala_signature_x_mm
+               , COALESCE(kepala_signature_y_mm, 12) as kepala_signature_y_mm
+               , COALESCE(kepala_signature_width_mm, 38) as kepala_signature_width_mm
+          FROM ckh_documents
+          WHERE user_id = ? AND year = ? AND month = ?
+        `).bind(userId, year, month).first<CkhDocument>()
+      } catch {
+        const fallback = await db.prepare(`
+          SELECT id, user_id, year, month, status
+               , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
+          FROM ckh_documents
+          WHERE user_id = ? AND year = ? AND month = ?
+        `).bind(userId, year, month).first<any>()
+        if (fallback) {
+          doc = {
+            ...fallback,
+            kepala_signature_enabled: 0,
+            kepala_signature_x_mm: 14,
+            kepala_signature_y_mm: 12,
+            kepala_signature_width_mm: 38,
+          }
+        }
+      }
+    } else {
+      throw err
+    }
+  }
 
   if (!doc) {
-    doc = await db.prepare(`
-      INSERT INTO ckh_documents (user_id, year, month)
-      VALUES (?, ?, ?)
-      RETURNING id, user_id, year, month, status
-              , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
-              , COALESCE(kepala_signature_enabled, 0) as kepala_signature_enabled
-              , COALESCE(kepala_signature_x_mm, 14) as kepala_signature_x_mm
-              , COALESCE(kepala_signature_y_mm, 12) as kepala_signature_y_mm
-              , COALESCE(kepala_signature_width_mm, 38) as kepala_signature_width_mm
-    `).bind(userId, year, month).first<CkhDocument>()
+    try {
+      doc = await db.prepare(`
+        INSERT INTO ckh_documents (user_id, year, month)
+        VALUES (?, ?, ?)
+        RETURNING id, user_id, year, month, status
+                , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
+                , COALESCE(kepala_signature_enabled, 0) as kepala_signature_enabled
+                , COALESCE(kepala_signature_x_mm, 14) as kepala_signature_x_mm
+                , COALESCE(kepala_signature_y_mm, 12) as kepala_signature_y_mm
+                , COALESCE(kepala_signature_width_mm, 38) as kepala_signature_width_mm
+      `).bind(userId, year, month).first<CkhDocument>()
+    } catch (err: any) {
+      if (String(err?.message || err).includes('no such column')) {
+        await ensureTpgSchemaInner(db).catch(() => {})
+        try {
+          doc = await db.prepare(`
+            INSERT INTO ckh_documents (user_id, year, month)
+            VALUES (?, ?, ?)
+            RETURNING id, user_id, year, month, status
+                    , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
+                    , COALESCE(kepala_signature_enabled, 0) as kepala_signature_enabled
+                    , COALESCE(kepala_signature_x_mm, 14) as kepala_signature_x_mm
+                    , COALESCE(kepala_signature_y_mm, 12) as kepala_signature_y_mm
+                    , COALESCE(kepala_signature_width_mm, 38) as kepala_signature_width_mm
+          `).bind(userId, year, month).first<CkhDocument>()
+        } catch {
+          const fallback = await db.prepare(`
+            INSERT INTO ckh_documents (user_id, year, month)
+            VALUES (?, ?, ?)
+            RETURNING id, user_id, year, month, status
+                    , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
+          `).bind(userId, year, month).first<any>()
+          if (fallback) {
+            doc = {
+              ...fallback,
+              kepala_signature_enabled: 0,
+              kepala_signature_x_mm: 14,
+              kepala_signature_y_mm: 12,
+              kepala_signature_width_mm: 38,
+            }
+          }
+        }
+      } else {
+        throw err
+      }
+    }
   }
 
   if (!doc) throw new Error('Gagal membuat dokumen CKH.')
@@ -695,12 +769,26 @@ export async function saveCkhKepalaSignatureSettings(documentId: string, payload
   if (!doc) return { error: 'Dokumen CKH tidak ditemukan.' }
 
   await markCkhDocumentDraft(db, documentId)
-  await db.prepare(`
-    UPDATE ckh_documents
-    SET kepala_signature_enabled = ?, kepala_signature_x_mm = ?, kepala_signature_y_mm = ?, kepala_signature_width_mm = ?,
-        updated_at = datetime('now')
-    WHERE id = ?
-  `).bind(payload.enabled ? 1 : 0, xMm, yMm, widthMm, documentId).run()
+  try {
+    await db.prepare(`
+      UPDATE ckh_documents
+      SET kepala_signature_enabled = ?, kepala_signature_x_mm = ?, kepala_signature_y_mm = ?, kepala_signature_width_mm = ?,
+          updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(payload.enabled ? 1 : 0, xMm, yMm, widthMm, documentId).run()
+  } catch (err: any) {
+    if (String(err?.message || err).includes('no such column')) {
+      await ensureTpgSchemaInner(db).catch(() => {})
+      await db.prepare(`
+        UPDATE ckh_documents
+        SET kepala_signature_enabled = ?, kepala_signature_x_mm = ?, kepala_signature_y_mm = ?, kepala_signature_width_mm = ?,
+            updated_at = datetime('now')
+        WHERE id = ?
+      `).bind(payload.enabled ? 1 : 0, xMm, yMm, widthMm, documentId).run()
+    } else {
+      throw err
+    }
+  }
 
   revalidatePath('/dashboard/ckh-generator')
   revalidatePath('/dashboard/tpg-dokumen')

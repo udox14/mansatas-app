@@ -18,7 +18,7 @@
 
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 
-const SCHEMA_VERSION = 'v1'
+const SCHEMA_VERSION = 'v2'
 const KV_FLAG_TTL = 90 * 24 * 60 * 60 // 90 hari
 
 const moduleFlags = new Map<string, Promise<void>>()
