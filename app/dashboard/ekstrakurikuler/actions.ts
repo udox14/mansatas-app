@@ -25,6 +25,7 @@ export type EkskulSaya = {
   nama: string
   deskripsi: string | null
   mode_nilai: 'angka' | 'huruf'
+  hari_latihan: number | null
   jml_anggota: number
 }
 
@@ -105,6 +106,13 @@ async function getActiveTaId(db: D1Database): Promise<string | null> {
   return ta?.id ?? null
 }
 
+function getHariDariTanggal(tanggal: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return null
+  const date = new Date(`${tanggal}T12:00:00`)
+  if (Number.isNaN(date.getTime())) return null
+  return date.getDay() || 7
+}
+
 // ============================================================
 // 1. EKSKUL YANG DIBINA (atau semua, jika admin)
 // ============================================================
@@ -116,12 +124,12 @@ export async function getEkskulSaya(): Promise<EkskulSaya[]> {
   const admin = await isAdmin(db, realUserId)
 
   const sql = admin
-    ? `SELECT e.id, e.nama, e.deskripsi, e.mode_nilai,
+    ? `SELECT e.id, e.nama, e.deskripsi, e.mode_nilai, e.hari_latihan,
          (SELECT COUNT(*) FROM ekstrakurikuler_anggota a WHERE a.ekstrakurikuler_id = e.id AND a.status='aktif') AS jml_anggota
        FROM ekstrakurikuler e
        WHERE e.status = 'aktif'
        ORDER BY e.nama ASC`
-    : `SELECT e.id, e.nama, e.deskripsi, e.mode_nilai,
+    : `SELECT e.id, e.nama, e.deskripsi, e.mode_nilai, e.hari_latihan,
          (SELECT COUNT(*) FROM ekstrakurikuler_anggota a WHERE a.ekstrakurikuler_id = e.id AND a.status='aktif') AS jml_anggota
        FROM ekstrakurikuler e
        JOIN ekstrakurikuler_pembina p ON p.ekstrakurikuler_id = e.id AND p.pembina_id = ?
@@ -264,6 +272,15 @@ export async function buatPertemuan(formData: FormData): Promise<{ error?: strin
 
   if (!ekskulId || !tanggal) return { error: 'Tanggal pertemuan wajib diisi.' }
   if (!(await canManage(db, ekskulId, effectiveUserId, realUserId))) return { error: 'Anda bukan pembina ekstrakurikuler ini.' }
+
+  const ekskul = await db.prepare('SELECT hari_latihan FROM ekstrakurikuler WHERE id = ?').bind(ekskulId).first<{ hari_latihan: number | null }>()
+  const hariTanggal = getHariDariTanggal(tanggal)
+  if (!ekskul?.hari_latihan) return { error: 'Hari latihan ekskul belum diatur oleh admin.' }
+  if (!hariTanggal) return { error: 'Tanggal pertemuan tidak valid.' }
+  if (hariTanggal !== ekskul.hari_latihan) {
+    const hariNama = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+    return { error: `Pertemuan hanya dapat dibuat pada hari ${hariNama[ekskul.hari_latihan]}.` }
+  }
 
   // Upload foto (opsional)
   let fotoUrl: string | null = null

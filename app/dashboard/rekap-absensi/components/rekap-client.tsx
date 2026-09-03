@@ -68,6 +68,28 @@ function getSelectedPrintStatusOptions(selectedCodes: PrintStatusCode[]) {
   return PRINT_STATUS_OPTIONS.filter(option => selectedCodes.includes(option.code))
 }
 
+/** Nama pada laporan dibuat ringkas agar tidak membungkus atau terpotong. */
+function formatNamaCetak(value: unknown) {
+  const words = String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .filter(Boolean)
+    .map(word => /^(muhammad|mohammad|mohamad|muhamad|mochammad)$/i.test(word.replace(/[.,]/g, '')) ? 'M.' : word)
+
+  if (words.length === 0) return '-'
+
+  const name = words.join(' ')
+  // Pertahankan tiga bagian awal nama; bagian sesudahnya cukup memakai inisial.
+  if (name.length <= 28 || words.length <= 3) return name
+
+  const initials = words.slice(3)
+    .map(word => `${word.replace(/[^\p{L}\p{N}]/gu, '').charAt(0).toUpperCase()}.`)
+    .filter(part => part !== '.')
+    .join('')
+  return [...words.slice(0, 3), initials].filter(Boolean).join(' ')
+}
+
 function printDimensions(paper: PrintPaper, orientation: PrintOrientation) {
   const base = paper === 'A4' ? { width: 210, height: 297 } : { width: 215, height: 330 }
   return orientation === 'portrait'
@@ -1000,6 +1022,7 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
   const [loading, setLoading] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
   const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
+  const resolvedOrientation: PrintOrientation = printKind === 'monitoring' && monitoringMode === 'bulanan' ? 'landscape' : orientation
 
   useEffect(() => {
     try {
@@ -1159,13 +1182,13 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
       return
     }
     const title = printKind === 'monitoring'
-      ? `Rekap Absensi ${monitoringMode}`
+      ? (monitoringMode === 'bulanan' ? 'Rekap Bulanan' : 'Rekap Absensi Semester')
       : printKind === 'tidak-hadir'
         ? 'Daftar Siswa Tidak Hadir'
         : printKind === 'catatan-guru' ? 'Catatan Absen oleh Guru' : `Rekap Absensi ${printKind}`
     w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
 <style>
-@page { size: ${printDimensions(paper, orientation).width}mm ${printDimensions(paper, orientation).height}mm; margin: 0; }
+@page { size: ${printDimensions(paper, resolvedOrientation).width}mm ${printDimensions(paper, resolvedOrientation).height}mm; margin: 0; }
 html, body { margin: 0; padding: 0; background: #fff; }
 * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 .page-break { break-before: page; page-break-before: always; }
@@ -1182,7 +1205,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
       w.focus()
       w.print()
     })
-  }, [monitoringMode, orientation, paper, printKind])
+  }, [monitoringMode, paper, printKind, resolvedOrientation])
 
   const handleExcel = async () => {
     if (!printData || printData.error) return
@@ -1232,7 +1255,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
             }}>
               <SelectTrigger className="mt-1 h-9 w-[210px] text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="monitoring">Monitoring Siswa</SelectItem>
+                <SelectItem value="monitoring">Rekap Bulanan</SelectItem>
                 <SelectItem value="kelas">Per Kelas</SelectItem>
                 <SelectItem value="siswa">Per Siswa</SelectItem>
                 <SelectItem value="tidak-hadir">Daftar Tidak Hadir</SelectItem>
@@ -1401,10 +1424,11 @@ tr { break-inside: avoid; page-break-inside: avoid; }
           </div>
           <div>
             <Label className="text-xs text-slate-500">Orientasi</Label>
-            <Select value={orientation} onValueChange={(v) => setOrientation(v as PrintOrientation)}>
+            <Select value={resolvedOrientation} onValueChange={(v) => setOrientation(v as PrintOrientation)} disabled={printKind === 'monitoring' && monitoringMode === 'bulanan'}>
               <SelectTrigger className="mt-1 h-9 w-[135px] text-sm"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="portrait">Portrait</SelectItem><SelectItem value="landscape">Landscape</SelectItem></SelectContent>
             </Select>
+            {printKind === 'monitoring' && monitoringMode === 'bulanan' && <p className="mt-1 text-[10px] text-slate-500">Landscape otomatis agar hingga 27 tanggal tetap satu halaman.</p>}
           </div>
         </div>
         <Dialog open={showPrintStatusOptions} onOpenChange={setShowPrintStatusOptions}>
@@ -1467,15 +1491,15 @@ tr { break-inside: avoid; page-break-inside: avoid; }
         <div className="rounded-lg border bg-white p-4 dark:bg-slate-900">
           <div ref={printRef} className="space-y-6 text-black">
             {printKind === 'monitoring' ? (
-              <PrintMonitoringSiswa data={printData} paper={paper} orientation={orientation} selectedStatusCodes={printStatusCodes} />
+              <PrintMonitoringSiswa data={printData} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
             ) : printKind === 'kelas' ? (
-              <PrintKelas data={printData} mode={mode} tanggal={tanggal} tglMulai={tglMulai} tglSelesai={tglSelesai} paper={paper} orientation={orientation} selectedStatusCodes={printStatusCodes} />
+              <PrintKelas data={printData} mode={mode} tanggal={tanggal} tglMulai={tglMulai} tglSelesai={tglSelesai} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
             ) : printKind === 'tidak-hadir' ? (
-              <PrintTidakHadir data={printData} tglMulai={absenceRange.start} tglSelesai={absenceRange.end} paper={paper} orientation={orientation} selectedStatusCodes={printStatusCodes} />
+              <PrintTidakHadir data={printData} tglMulai={absenceRange.start} tglSelesai={absenceRange.end} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
             ) : printKind === 'catatan-guru' ? (
-              <PrintCatatanAbsenGuru data={printData} tglMulai={absenceRange.start} tglSelesai={absenceRange.end} paper={paper} orientation={orientation} selectedStatusCodes={printStatusCodes} />
+              <PrintCatatanAbsenGuru data={printData} tglMulai={absenceRange.start} tglSelesai={absenceRange.end} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
             ) : (
-              <PrintSiswa data={printData} tglMulai={tglMulai} tglSelesai={tglSelesai} paper={paper} orientation={orientation} selectedStatusCodes={printStatusCodes} />
+              <PrintSiswa data={printData} tglMulai={tglMulai} tglSelesai={tglSelesai} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
             )}
           </div>
         </div>
@@ -1531,9 +1555,8 @@ function PrintMonitoringSiswa({ data, paper, orientation, selectedStatusCodes }:
     return <div style={{ color: '#b91c1c', fontSize: 12 }}>{data.error}</div>
   }
   const sections = data.sections || []
-  const maxDates = orientation === 'landscape'
-    ? (paper === 'F4' ? 28 : 24)
-    : (paper === 'F4' ? 16 : 14)
+  // Rekap bulanan selalu landscape dan maksimal 27 tanggal per halaman.
+  const maxDates = orientation === 'landscape' ? 27 : 14
   const pages = sections.flatMap((section: any) => {
     if (section.mode !== 'bulanan' || (section.dates || []).length <= maxDates) return [section]
     const dates = section.dates || []
@@ -1581,7 +1604,7 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedS
   const subtitle = mode === 'bulanan'
     ? `BULAN ${String(section.labelPeriode || '').toUpperCase()}`
     : String(section.labelPeriode || '').toUpperCase()
-  const dateColWidth = dates.length > 0 ? `${Math.max(3, Math.min(6, 78 / dates.length)).toFixed(1)}mm` : '6mm'
+  const dateColWidth = paper === 'F4' ? '3.6mm' : '3mm'
 
   return (
     <div
@@ -1594,7 +1617,7 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedS
       }}
     >
       <div style={orientation === 'landscape'
-        ? { width: '200mm', maxWidth: '100%', margin: '0 auto 5pt' }
+        ? { width: '165mm', maxWidth: '100%', margin: '0 auto 5pt' }
         : { marginLeft: '-7mm', marginRight: '-7mm', marginBottom: '5pt' }}>
         <img src="/kopsurat.png" alt="Kop Surat" style={{ width: '100%', display: 'block' }} />
       </div>
@@ -1639,7 +1662,7 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedS
               <tr key={row.siswa_id} style={{ height: '16pt' }}>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.urut}</td>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.nis}</td>
-                <td style={{ ...printTd, fontSize: '8.5pt', paddingLeft: '4pt' }}>{row.nama_lengkap}</td>
+                <td style={{ ...printTd, fontSize: '8pt', paddingLeft: '4pt' }}>{formatNamaCetak(row.nama_lengkap)}</td>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.jenis_kelamin}</td>
                 {(row.cells || []).map((cell: any) => <td key={cell.tanggal} style={{ ...printTd, textAlign: 'center' }}>{selectedStatusCodes.includes(cell.mark) ? cell.mark : ''}</td>)}
                 {dates.length === 0 && <td style={printTd} />}
@@ -1675,7 +1698,7 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedS
               <tr key={row.siswa_id} style={{ height: '16pt' }}>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.urut}</td>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.nis}</td>
-                <td style={{ ...printTd, fontSize: '8.5pt', paddingLeft: '4pt' }}>{row.nama_lengkap}</td>
+                <td style={{ ...printTd, fontSize: '8pt', paddingLeft: '4pt' }}>{formatNamaCetak(row.nama_lengkap)}</td>
                 <td style={{ ...printTd, textAlign: 'center' }}>{row.jenis_kelamin}</td>
                 {(row.monthTotals || []).map((item: any) => <td key={item.month} style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal', fontSize: '6.5pt' }}>{compactStatusTotals(item, selectedStatusCodes)}</td>)}
                 <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal', fontSize: '6.5pt' }}>{compactStatusTotals(row.semesterTotal, selectedStatusCodes)}</td>
@@ -1691,7 +1714,7 @@ function MonitoringPrintPage({ section, pageBreak, paper, orientation, selectedS
 
       <div style={{ marginTop: '8pt', display: 'flex', justifyContent: 'space-between', fontSize: '8pt' }}>
         <span>Dicetak pada: {formatTimeWIB(new Date().toISOString())}</span>
-        <span>Wali Kelas: {section.kelas?.wali_kelas_nama || '................................'}</span>
+        <span>Wali Kelas: {section.kelas?.wali_kelas_nama ? formatNamaCetak(section.kelas.wali_kelas_nama) : '................................'}</span>
       </div>
     </div>
   )
@@ -1728,7 +1751,7 @@ function PrintHeader({ title, subtitle, orientation }: { title: string; subtitle
         src="/kopsurat.png"
         alt="Kop Surat"
         style={{
-          width: orientation === 'landscape' ? '200mm' : '100%',
+          width: orientation === 'landscape' ? '165mm' : '100%',
           maxWidth: '100%',
           display: 'block',
           margin: orientation === 'landscape' ? '0 auto 12px' : '0 0 12px',
@@ -1783,7 +1806,7 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai, paper, orientat
                 {(section.rows || []).map((row: any, i: number) => (
                   <tr key={row.siswa_id}>
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{i + 1}</td>
-                    <td style={{ border: '1px solid #000', padding: 4 }}>{row.nama_lengkap}</td>
+                    <td style={{ border: '1px solid #000', padding: 4 }}>{formatNamaCetak(row.nama_lengkap)}</td>
                     <td style={{ border: '1px solid #000', padding: 4 }}>{row.nisn || '-'}</td>
                     {row.cells.map((cell: any) => <td key={cell.jam_ke} style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{isSelectedPrintStatus(cell.status, selectedStatusCodes) ? statusStyle(cell.status).label : ''}</td>)}
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{isSelectedPrintStatus(row.status_harian, selectedStatusCodes) ? attendanceStatusLabel(row.status_harian) : ''}</td>
@@ -1812,7 +1835,7 @@ function PrintKelas({ data, mode, tanggal, tglMulai, tglSelesai, paper, orientat
                 {(section.rows || []).map((row: any, i: number) => (
                   <tr key={row.siswa_id}>
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{i + 1}</td>
-                    <td style={{ border: '1px solid #000', padding: 4 }}>{row.nama_lengkap}</td>
+                    <td style={{ border: '1px solid #000', padding: 4 }}>{formatNamaCetak(row.nama_lengkap)}</td>
                     <td style={{ border: '1px solid #000', padding: 4 }}>{row.nisn || '-'}</td>
                     <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{row.total_hari_efektif}</td>
                     {getSelectedPrintStatusOptions(selectedStatusCodes).map(option => (
@@ -1908,7 +1931,7 @@ function PrintTidakHadir({ data, tglMulai, tglSelesai, paper, orientation, selec
                   <tr key={`${row.siswa_id}-${row.tanggal}`}>
                     <td style={{ ...printTd, textAlign: 'center' }}>{pageIndex * perPage + index + 1}</td>
                     <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal' }}>{fmtTgl(row.tanggal)}<br /><span style={{ fontSize: '7pt' }}>{row.hariNama}</span></td>
-                    <td style={{ ...printTd, whiteSpace: 'normal' }}>{row.nama_lengkap}</td>
+                    <td style={{ ...printTd, whiteSpace: 'normal' }}>{formatNamaCetak(row.nama_lengkap)}</td>
                     <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal' }}>{row.kelas_label}</td>
                     <td style={{ ...printTd, textAlign: 'center' }}>{row.nisn || '-'}</td>
                     <td style={{ ...printTd, textAlign: 'center' }}>{attendanceStatusLabel(row.status)}</td>
@@ -1973,7 +1996,7 @@ function PrintCatatanAbsenGuru({ data, tglMulai, tglSelesai, paper, orientation,
           {isPerSiswa && pageIndex === 0 && (
             <table style={{ marginBottom: '10pt', borderCollapse: 'collapse', fontSize: '9pt' }}>
               <tbody>
-                <tr><td style={{ padding: '1.5pt 10pt 1.5pt 0' }}>Nama Siswa</td><td style={{ padding: '1.5pt 0', fontWeight: 700 }}>: {data.scope.siswa?.nama_lengkap || '-'}</td></tr>
+                <tr><td style={{ padding: '1.5pt 10pt 1.5pt 0' }}>Nama Siswa</td><td style={{ padding: '1.5pt 0', fontWeight: 700 }}>: {formatNamaCetak(data.scope.siswa?.nama_lengkap)}</td></tr>
                 <tr><td style={{ padding: '1.5pt 10pt 1.5pt 0' }}>Kelas</td><td style={{ padding: '1.5pt 0' }}>: {data.scope.kelas_label || '-'}</td></tr>
                 <tr><td style={{ padding: '1.5pt 10pt 1.5pt 0' }}>NISN</td><td style={{ padding: '1.5pt 0' }}>: {data.scope.siswa?.nisn || '-'}</td></tr>
               </tbody>
@@ -2015,13 +2038,13 @@ function PrintCatatanAbsenGuru({ data, tglMulai, tglSelesai, paper, orientation,
                   <tr key={row.id || `${row.siswa_id}-${row.tanggal}-${row.jam_ke_mulai}`}>
                     <td style={{ ...printTd, textAlign: 'center' }}>{pageIndex * perPage + index + 1}</td>
                     <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal' }}>{fmtTgl(row.tanggal)}{!isPerSiswa && <><br /><span style={{ fontSize: '6pt' }}>{row.hariNama}</span></>}</td>
-                    {!isPerSiswa && <td style={{ ...printTd, whiteSpace: 'normal' }}>{row.nama_lengkap}</td>}
+                    {!isPerSiswa && <td style={{ ...printTd, whiteSpace: 'normal' }}>{formatNamaCetak(row.nama_lengkap)}</td>}
                     {!isPerSiswa && <td style={{ ...printTd, textAlign: 'center', whiteSpace: 'normal' }}>{row.kelas_label}</td>}
                     {!isPerSiswa && <td style={{ ...printTd, textAlign: 'center' }}>{row.nisn || '-'}</td>}
                     <td style={{ ...printTd, textAlign: 'center' }}>{attendanceStatusLabel(row.status)}</td>
                     <td style={{ ...printTd, whiteSpace: 'normal' }}>{row.nama_mapel || '-'}</td>
                     <td style={{ ...printTd, textAlign: 'center' }}>{row.jam_ke_mulai === row.jam_ke_selesai ? row.jam_ke_mulai : `${row.jam_ke_mulai}-${row.jam_ke_selesai}`}</td>
-                    <td style={{ ...printTd, whiteSpace: 'normal' }}>{row.guru_nama || '-'}</td>
+                    <td style={{ ...printTd, whiteSpace: 'normal' }}>{formatNamaCetak(row.guru_nama)}</td>
                     <td style={{ ...printTd, whiteSpace: 'normal' }}>{row.catatan}</td>
                   </tr>
                 ))}
@@ -2047,13 +2070,13 @@ function PrintSiswa({ data, tglMulai, tglSelesai, paper, orientation, selectedSt
   const selectedStatusOptions = getSelectedPrintStatusOptions(selectedStatusCodes)
   return (
     <div style={printablePageStyle(paper, orientation)}>
-      <PrintHeader title="Rekap Absensi Siswa" subtitle={`${siswa.nama || '-'} | Kelas ${siswa.kelas || '-'} | ${fmtTgl(tglMulai)} s/d ${fmtTgl(tglSelesai)}`} orientation={orientation} />
+      <PrintHeader title="Rekap Absensi Siswa" subtitle={`${formatNamaCetak(siswa.nama)} | Kelas ${siswa.kelas || '-'} | ${fmtTgl(tglMulai)} s/d ${fmtTgl(tglSelesai)}`} orientation={orientation} />
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12, fontSize: 11 }}>
         <tbody>
-          <tr><td style={{ padding: 3, width: 120 }}>Nama</td><td style={{ padding: 3 }}>: {siswa.nama || '-'}</td></tr>
+          <tr><td style={{ padding: 3, width: 120 }}>Nama</td><td style={{ padding: 3 }}>: {formatNamaCetak(siswa.nama)}</td></tr>
           <tr><td style={{ padding: 3 }}>NISN</td><td style={{ padding: 3 }}>: {siswa.nisn || '-'}</td></tr>
           <tr><td style={{ padding: 3 }}>Kelas</td><td style={{ padding: 3 }}>: {siswa.kelas || '-'}</td></tr>
-          <tr><td style={{ padding: 3 }}>Wali Kelas</td><td style={{ padding: 3 }}>: {data.waliKelas || 'Belum ditentukan'}</td></tr>
+          <tr><td style={{ padding: 3 }}>Wali Kelas</td><td style={{ padding: 3 }}>: {data.waliKelas ? formatNamaCetak(data.waliKelas) : 'Belum ditentukan'}</td></tr>
         </tbody>
       </table>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12, fontSize: 10 }}>

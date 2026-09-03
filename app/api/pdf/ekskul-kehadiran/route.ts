@@ -50,8 +50,8 @@ export async function GET(request: Request) {
         await page.setContent(html, { waitUntil: 'networkidle0' })
         await page.evaluate(() => (document as any).fonts.ready)
         return await page.pdf({
-          width: '330mm',   // F4 landscape
-          height: '215mm',
+          width: '215mm',   // F4 portrait
+          height: '330mm',
           printBackground: true,
           margin: { top: '0', right: '0', bottom: '0', left: '0' },
         })

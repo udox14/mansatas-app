@@ -11,6 +11,8 @@ import { ImportEkskulModal } from './import-ekskul-modal'
 import { hapusEkskul } from '../actions'
 import type { EkskulMaster, GuruOption } from '../actions'
 
+const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+
 export function MasterTable({ initialList, guruList }: {
   initialList: EkskulMaster[]
   guruList: GuruOption[]
@@ -68,6 +70,7 @@ export function MasterTable({ initialList, guruList }: {
               <TableHead className="text-xs">Nama</TableHead>
               <TableHead className="text-xs">Pembina</TableHead>
               <TableHead className="text-xs text-center">Nilai</TableHead>
+              <TableHead className="text-xs text-center">Latihan</TableHead>
               <TableHead className="text-xs text-center">Anggota</TableHead>
               <TableHead className="text-xs text-center">Status</TableHead>
               <TableHead className="text-xs text-right">Aksi</TableHead>
@@ -76,7 +79,7 @@ export function MasterTable({ initialList, guruList }: {
           <TableBody>
             {initialList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-10 text-sm text-slate-400">
+                <TableCell colSpan={7} className="text-center py-10 text-sm text-slate-400">
                   <Trophy className="h-8 w-8 mx-auto mb-2 text-slate-300" />
                   Belum ada ekstrakurikuler. Klik Tambah untuk membuat.
                 </TableCell>
@@ -94,6 +97,9 @@ export function MasterTable({ initialList, guruList }: {
                   <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                     {e.mode_nilai === 'angka' ? 'Angka' : 'Huruf'}
                   </span>
+                </TableCell>
+                <TableCell className="text-center text-xs text-slate-600 dark:text-slate-400">
+                  {e.hari_latihan ? HARI_NAMA[e.hari_latihan] : <span className="text-amber-600 italic">Belum diatur</span>}
                 </TableCell>
                 <TableCell className="text-center text-sm text-slate-700 dark:text-slate-300">{e.jml_anggota}</TableCell>
                 <TableCell className="text-center">

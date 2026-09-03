@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import {
   CalendarPlus, Camera, XCircle, Loader2, ArrowLeft, ArrowRight,
-  CheckCircle2, AlertCircle, ListChecks,
+  CheckCircle2, AlertCircle, ListChecks, SwitchCamera,
 } from 'lucide-react'
 import { compressAgendaImage } from '../../agenda/components/image-compression'
 import { formatDateWIB } from '@/lib/time'
@@ -27,20 +27,107 @@ function todayLocal(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function PertemuanWizard({ ekskulId }: { ekskulId: string }) {
+const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+
+function hariDariTanggal(tanggal: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return null
+  const date = new Date(`${tanggal}T12:00:00`)
+  return Number.isNaN(date.getTime()) ? null : (date.getDay() || 7)
+}
+
+function tanggalJadwalBerikutnya(hariLatihan: number | null): string {
+  if (!hariLatihan) return todayLocal()
+  const date = new Date()
+  const hariIni = date.getDay() || 7
+  date.setDate(date.getDate() + ((hariLatihan - hariIni + 7) % 7))
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function CameraCapture({ onCapture, onClose }: { onCapture: (file: File) => void; onClose: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const [error, setError] = useState('')
+  const [ready, setReady] = useState(false)
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
+
+  useEffect(() => {
+    let active = true
+    streamRef.current?.getTracks().forEach(track => track.stop())
+    navigator.mediaDevices.getUserMedia({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
+      .then(stream => {
+        if (!active) { stream.getTracks().forEach(track => track.stop()); return }
+        streamRef.current = stream
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream
+          videoRef.current.onloadedmetadata = () => setReady(true)
+        }
+      })
+      .catch(() => setError('Tidak dapat mengakses kamera. Pastikan izin kamera sudah diberikan di browser Anda.'))
+    return () => { active = false; streamRef.current?.getTracks().forEach(track => track.stop()) }
+  }, [facingMode])
+
+  const capture = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth || 1280
+    canvas.height = video.videoHeight || 720
+    const context = canvas.getContext('2d')
+    if (!context) return
+    context.drawImage(video, 0, 0)
+    canvas.toBlob(blob => {
+      if (!blob) return
+      streamRef.current?.getTracks().forEach(track => track.stop())
+      onCapture(new File([blob], `capture_${Date.now()}.jpg`, { type: 'image/jpeg' }))
+    }, 'image/jpeg', 0.85)
+  }, [onCapture])
+
+  const handleFallbackCapture = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) onCapture(file)
+  }, [onCapture])
+
+  if (error) return (
+    <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-center">
+      <AlertCircle className="h-7 w-7 mx-auto mb-2 text-rose-500" />
+      <p className="text-xs text-rose-700">{error}</p>
+      <div className="mt-3 flex justify-center gap-2">
+        <Label htmlFor="fallback-camera-ekskul" className="cursor-pointer inline-flex h-9 items-center rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700"><Camera className="h-4 w-4 mr-2" />Buka Aplikasi Kamera</Label>
+        <input id="fallback-camera-ekskul" type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFallbackCapture} />
+        <Button type="button" variant="outline" onClick={onClose}>Batal</Button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="space-y-3">
+      <div className="relative aspect-video overflow-hidden rounded-lg bg-black flex items-center justify-center">
+        {!ready && <Loader2 className="h-8 w-8 animate-spin text-slate-400 absolute" />}
+        <video ref={videoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
+      </div>
+      <div className="flex gap-2">
+        <Button type="button" onClick={capture} disabled={!ready} className="flex-1 bg-emerald-600 hover:bg-emerald-700"><Camera className="h-4 w-4 mr-2" />Ambil Foto</Button>
+        <Button type="button" variant="outline" size="icon" onClick={() => { setReady(false); setFacingMode(mode => mode === 'environment' ? 'user' : 'environment') }} title="Ganti kamera"><SwitchCamera className="h-4 w-4" /></Button>
+        <Button type="button" variant="outline" onClick={onClose}>Batal</Button>
+      </div>
+    </div>
+  )
+}
+
+export function PertemuanWizard({ ekskulId, hariLatihan }: { ekskulId: string; hariLatihan: number | null }) {
   const [view, setView] = useState<View>('list')
   const [pertemuanList, setPertemuanList] = useState<PertemuanRow[]>([])
   const [loadingList, setLoadingList] = useState(true)
   const [msg, setMsg] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null)
 
   // Step 1 form
-  const [tanggal, setTanggal] = useState(todayLocal())
+  const [tanggal, setTanggal] = useState(() => tanggalJadwalBerikutnya(hariLatihan))
   const [judul, setJudul] = useState('')
   const [catatan, setCatatan] = useState('')
   const [fotoFile, setFotoFile] = useState<File | null>(null)
   const [fotoPreview, setFotoPreview] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showCamera, setShowCamera] = useState(false)
 
   // Step 2 absensi
   const [currentPertemuan, setCurrentPertemuan] = useState<{ id: string; label: string } | null>(null)
@@ -48,28 +135,31 @@ export function PertemuanWizard({ ekskulId }: { ekskulId: string }) {
   const [loadingAbsensi, setLoadingAbsensi] = useState(false)
   const [savingAbsensi, setSavingAbsensi] = useState(false)
 
-  const reloadList = async () => {
+  const reloadList = useCallback(async () => {
     setLoadingList(true)
     setPertemuanList(await getPertemuan(ekskulId))
     setLoadingList(false)
-  }
-  useEffect(() => { reloadList() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [ekskulId])
+  }, [ekskulId])
+  useEffect(() => {
+    const requestId = window.setTimeout(() => { void reloadList() }, 0)
+    return () => window.clearTimeout(requestId)
+  }, [reloadList])
 
   const resetStep1 = () => {
-    setTanggal(todayLocal()); setJudul(''); setCatatan('')
-    setFotoFile(null); setFotoPreview(null)
+    setTanggal(tanggalJadwalBerikutnya(hariLatihan)); setJudul(''); setCatatan('')
+    setFotoFile(null); setFotoPreview(null); setShowCamera(false)
   }
 
-  const handleFoto = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleCameraCapture = useCallback(async (file: File) => {
     try {
       const compressed = await compressAgendaImage(file)
       setFotoFile(compressed)
       setFotoPreview(URL.createObjectURL(compressed))
+      setShowCamera(false)
     } catch {
       setMsg({ tipe: 'error', teks: 'Foto gagal diproses. Coba ambil ulang.' })
-    } finally { e.target.value = '' }
+      setShowCamera(false)
+    }
   }, [])
 
   const openStep2 = async (pertemuanId: string, label: string) => {
@@ -84,6 +174,10 @@ export function PertemuanWizard({ ekskulId }: { ekskulId: string }) {
   // Step 1 submit → create pertemuan → go step 2
   const handleCreate = async () => {
     if (!tanggal) { setMsg({ tipe: 'error', teks: 'Tanggal wajib diisi.' }); return }
+    if (!hariLatihan) { setMsg({ tipe: 'error', teks: 'Hari latihan belum diatur oleh admin.' }); return }
+    if (hariDariTanggal(tanggal) !== hariLatihan) {
+      setMsg({ tipe: 'error', teks: `Pertemuan hanya dapat dibuat pada hari ${HARI_NAMA[hariLatihan]}.` }); return
+    }
     setSubmitting(true); setMsg(null)
     const fd = new FormData()
     fd.append('ekstrakurikuler_id', ekskulId)
@@ -186,6 +280,7 @@ export function PertemuanWizard({ ekskulId }: { ekskulId: string }) {
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Tanggal Latihan <span className="text-rose-500">*</span></Label>
               <Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className="h-9 text-sm" />
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400">Jadwal tetap: {hariLatihan ? HARI_NAMA[hariLatihan] : 'belum diatur'}</p>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Judul / Materi</Label>
@@ -200,20 +295,21 @@ export function PertemuanWizard({ ekskulId }: { ekskulId: string }) {
 
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Foto Kegiatan (opsional)</Label>
-            {fotoPreview ? (
+            {showCamera ? (
+              <CameraCapture onCapture={handleCameraCapture} onClose={() => setShowCamera(false)} />
+            ) : fotoPreview ? (
               <div className="relative">
                 <img src={fotoPreview} alt="Preview" className="w-full max-h-56 object-cover rounded-lg border" />
                 <button type="button" onClick={() => { setFotoFile(null); setFotoPreview(null) }}
                   className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 hover:bg-black/70"><XCircle className="h-4 w-4" /></button>
               </div>
             ) : (
-              <button type="button" onClick={() => fileInputRef.current?.click()}
+              <button type="button" onClick={() => setShowCamera(true)}
                 className="w-full flex flex-col items-center justify-center gap-2 py-6 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-400 transition-colors">
                 <Camera className="h-7 w-7 text-slate-400" />
-                <span className="text-sm text-slate-500 dark:text-slate-400">Ketuk untuk ambil foto</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Ketuk untuk membuka kamera</span>
               </button>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFoto} className="hidden" />
           </div>
 
           <Button onClick={handleCreate} disabled={submitting || !tanggal} className="w-full">

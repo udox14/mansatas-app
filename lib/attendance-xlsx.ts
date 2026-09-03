@@ -24,13 +24,31 @@ function safeSheetName(value: string) {
   return value.replace(/[\\/?*:[\]]/g, ' ').slice(0, 31) || 'Rekap'
 }
 
+function formatNamaCetak(value: unknown) {
+  const words = String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .filter(Boolean)
+    .map(word => /^(muhammad|mohammad|mohamad|muhamad|mochammad)$/i.test(word.replace(/[.,]/g, '')) ? 'M.' : word)
+
+  if (words.length === 0) return '-'
+  const name = words.join(' ')
+  if (name.length <= 28 || words.length <= 3) return name
+  const initials = words.slice(3)
+    .map(word => `${word.replace(/[^\p{L}\p{N}]/gu, '').charAt(0).toUpperCase()}.`)
+    .filter(part => part !== '.')
+    .join('')
+  return [...words.slice(0, 3), initials].filter(Boolean).join(' ')
+}
+
 function monitoringRows(section: any, codes: PrintStatusCode[]) {
   if (section.mode === 'bulanan') {
     return (section.rows || []).map((row: any) => {
       const result: Record<string, unknown> = {
         No: row.urut,
         NIS: row.nis,
-        Nama: row.nama_lengkap,
+        Nama: formatNamaCetak(row.nama_lengkap),
         JK: row.jenis_kelamin,
       }
       for (const cell of row.cells || []) result[cell.tanggal] = codes.includes(cell.mark) ? cell.mark : ''
@@ -42,7 +60,7 @@ function monitoringRows(section: any, codes: PrintStatusCode[]) {
     const result: Record<string, unknown> = {
       No: row.urut,
       NIS: row.nis,
-      Nama: row.nama_lengkap,
+      Nama: formatNamaCetak(row.nama_lengkap),
       JK: row.jenis_kelamin,
     }
     for (const month of row.monthTotals || []) {
@@ -57,7 +75,7 @@ function classRows(section: any, mode: 'hari' | 'rentang', codes: PrintStatusCod
   if (mode === 'rentang') {
     return (section.rows || []).map((row: any, index: number) => ({
       No: index + 1,
-      Nama: row.nama_lengkap,
+      Nama: formatNamaCetak(row.nama_lengkap),
       NISN: row.nisn || '',
       'Hari Efektif': row.total_hari_efektif,
       H: codes.includes('H') ? row.hadir : '',
@@ -72,7 +90,7 @@ function classRows(section: any, mode: 'hari' | 'rentang', codes: PrintStatusCod
     }))
   }
   return (section.rows || []).map((row: any, index: number) => {
-    const result: Record<string, unknown> = { No: index + 1, Nama: row.nama_lengkap, NISN: row.nisn || '' }
+    const result: Record<string, unknown> = { No: index + 1, Nama: formatNamaCetak(row.nama_lengkap), NISN: row.nisn || '' }
     for (const cell of row.cells || []) result[`Jam ${cell.jam_ke}`] = codes.includes(statusCode(cell.status)) ? attendanceStatusLabel(cell.status) : ''
     const visible = codes.includes(statusCode(row.status_harian))
     result['Status Harian'] = visible ? attendanceStatusLabel(row.status_harian) : ''
@@ -104,7 +122,7 @@ function absentRows(data: any, codes: PrintStatusCode[]) {
     No: index + 1,
     Tanggal: row.tanggal,
     Hari: row.hariNama,
-    Nama: row.nama_lengkap,
+    Nama: formatNamaCetak(row.nama_lengkap),
     Kelas: row.kelas_label,
     NISN: row.nisn || '',
     Status: attendanceStatusLabel(row.status),
@@ -117,7 +135,7 @@ function teacherNoteRows(data: any, codes: PrintStatusCode[]) {
     No: index + 1,
     Tanggal: row.tanggal,
     Hari: row.hariNama,
-    Nama: row.nama_lengkap,
+    Nama: formatNamaCetak(row.nama_lengkap),
     Kelas: row.kelas_label,
     NISN: row.nisn || '',
     Status: attendanceStatusLabel(row.status),
@@ -125,7 +143,7 @@ function teacherNoteRows(data: any, codes: PrintStatusCode[]) {
     'Jam Pelajaran': row.jam_ke_mulai === row.jam_ke_selesai
       ? row.jam_ke_mulai
       : `${row.jam_ke_mulai}-${row.jam_ke_selesai}`,
-    'Guru Penginput': row.guru_nama || '',
+    'Guru Penginput': formatNamaCetak(row.guru_nama),
     Catatan: row.catatan || '',
   }))
 }
@@ -183,7 +201,7 @@ export async function buildAttendanceWorkbook(input: {
   } else if (input.kind === 'catatan-guru') {
     const scope = input.data?.scope
     const scopeLabel = scope?.mode === 'siswa'
-      ? `Per Siswa: ${scope.siswa?.nama_lengkap || '-'} - Kelas ${scope.kelas_label || '-'}`
+      ? `Per Siswa: ${formatNamaCetak(scope.siswa?.nama_lengkap)} - Kelas ${scope.kelas_label || '-'}`
       : `Per Kelas: ${scope?.kelas_label || '-'}`
     const sheet = createSheet(
       `Catatan Absen oleh Guru - ${scopeLabel}`,
@@ -194,7 +212,7 @@ export async function buildAttendanceWorkbook(input: {
   } else {
     const rekap = input.data.rekap || {}
     const sheet = createSheet(
-      `Rekap Absensi ${rekap.siswa?.nama || 'Siswa'} - ${rekap.siswa?.kelas || ''}`,
+      `Rekap Absensi ${formatNamaCetak(rekap.siswa?.nama || 'Siswa')} - ${rekap.siswa?.kelas || ''}`,
       input.periodLabel || `${rekap.tglMulai || ''} s.d. ${rekap.tglSelesai || ''}`,
       studentRows(input.data, codes),
     )

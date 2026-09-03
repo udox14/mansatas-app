@@ -252,7 +252,7 @@ export async function ubahStatusSiswa(id: string, status: string) {
   return { success: `Status siswa berhasil diubah menjadi ${status}.` }
 }
 
-// Tandai siswa keluar — update status + simpan info keluar + lepas dari kelas
+// Tandai siswa keluar — simpan kelas asal agar dapat dipulihkan saat status keluar dibatalkan.
 export async function tandaiSiswaKeluar(payload: {
   siswa_id: string
   tanggal_keluar: string
@@ -265,6 +265,7 @@ export async function tandaiSiswaKeluar(payload: {
   if (!before) return { error: 'Data siswa tidak ditemukan.' }
   const result = await dbUpdate(db, 'siswa', {
     status: 'keluar',
+    kelas_id_sebelum_keluar: before.kelas_id,
     kelas_id: null,
     tanggal_keluar: payload.tanggal_keluar,
     alasan_keluar: payload.alasan_keluar,
@@ -275,6 +276,7 @@ export async function tandaiSiswaKeluar(payload: {
   const after = {
     ...before,
     status: 'keluar',
+    kelas_id_sebelum_keluar: before.kelas_id,
     kelas_id: null,
     tanggal_keluar: payload.tanggal_keluar,
     alasan_keluar: payload.alasan_keluar,
@@ -299,14 +301,29 @@ export async function tandaiSiswaKeluar(payload: {
   return { success: 'Siswa berhasil ditandai keluar.' }
 }
 
-// Batalkan status keluar — kembalikan ke aktif (tanpa kelas, admin assign manual)
+// Batalkan status keluar — kembalikan ke aktif dan ke kelas asalnya.
 export async function batalkanKeluarSiswa(siswa_id: string) {
   if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
   const before = await dbSelectOne<any>(db, 'siswa', { id: siswa_id })
   if (!before) return { error: 'Data siswa tidak ditemukan.' }
+
+  // Fallback riwayat dibutuhkan untuk siswa yang sudah berstatus keluar sebelum
+  // kolom kelas_id_sebelum_keluar tersedia.
+  const riwayatKelas = before.kelas_id_sebelum_keluar ? null : await db.prepare(`
+    SELECT rk.kelas_id
+    FROM riwayat_kelas rk
+    JOIN kelas k ON k.id = rk.kelas_id
+    LEFT JOIN tahun_ajaran ta ON ta.id = rk.tahun_ajaran_id
+    WHERE rk.siswa_id = ?
+    ORDER BY COALESCE(ta.is_active, 0) DESC, rk.created_at DESC
+    LIMIT 1
+  `).bind(siswa_id).first<{ kelas_id: string }>()
+  const kelasId = before.kelas_id_sebelum_keluar || riwayatKelas?.kelas_id || null
   const result = await dbUpdate(db, 'siswa', {
     status: 'aktif',
+    kelas_id: kelasId,
+    kelas_id_sebelum_keluar: null,
     tanggal_keluar: null,
     alasan_keluar: null,
     keterangan_keluar: null,
@@ -316,6 +333,8 @@ export async function batalkanKeluarSiswa(siswa_id: string) {
   const after = {
     ...before,
     status: 'aktif',
+    kelas_id: kelasId,
+    kelas_id_sebelum_keluar: null,
     tanggal_keluar: null,
     alasan_keluar: null,
     keterangan_keluar: null,
@@ -335,7 +354,11 @@ export async function batalkanKeluarSiswa(siswa_id: string) {
   })
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${siswa_id}`)
-  return { success: 'Status keluar siswa berhasil dibatalkan.' }
+  return {
+    success: kelasId
+      ? 'Status keluar siswa berhasil dibatalkan dan kelas asal dipulihkan.'
+      : 'Status keluar siswa berhasil dibatalkan. Kelas asal tidak ditemukan, silakan assign kelas secara manual.',
+  }
 }
 
 // Ambil daftar siswa keluar — lazy load, dipanggil saat tab Keluar dibuka

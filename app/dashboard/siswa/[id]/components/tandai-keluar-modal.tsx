@@ -147,7 +147,7 @@ export function BatalkanKeluarModal({
   const [isSaving, setIsSaving] = useState(false)
 
   const handleBatalkan = async () => {
-    if (!confirm(`Batalkan status keluar ${namaSiswa}?\nSiswa akan kembali aktif tapi perlu di-assign ke kelas secara manual.`)) return
+    if (!confirm(`Batalkan status keluar ${namaSiswa}?\nSiswa akan kembali aktif dan dikembalikan ke kelas asalnya.`)) return
     setIsSaving(true)
     const res = await batalkanKeluarSiswa(siswaId)
     setIsSaving(false)
@@ -165,7 +165,7 @@ export function BatalkanKeluarModal({
         </DialogHeader>
         <div className="space-y-4 pt-1">
           <p className="text-sm text-slate-600 dark:text-slate-400 dark:text-slate-300">
-            Batalkan status keluar <strong>{namaSiswa}</strong>? Siswa akan kembali berstatus <strong className="text-emerald-600">Aktif</strong> tanpa kelas — perlu di-assign ke kelas secara manual.
+            Batalkan status keluar <strong>{namaSiswa}</strong>? Siswa akan kembali berstatus <strong className="text-emerald-600">Aktif</strong> dan otomatis dikembalikan ke kelas asalnya.
           </p>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose} className="flex-1 h-9 text-sm rounded-lg">Batal</Button>

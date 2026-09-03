@@ -122,7 +122,7 @@ export function EkstrakurikulerClient({ initialEkskul, kelasList }: {
           </div>
 
           {section === 'anggota' && <AnggotaManager ekskulId={selected.id} kelasList={kelasList} />}
-          {section === 'pertemuan' && <PertemuanWizard ekskulId={selected.id} />}
+          {section === 'pertemuan' && <PertemuanWizard ekskulId={selected.id} hariLatihan={selected.hari_latihan} />}
           {section === 'nilai' && <NilaiGrid ekskulId={selected.id} modeNilai={selected.mode_nilai} />}
         </div>
       )}

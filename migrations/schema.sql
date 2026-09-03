@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS siswa (
                         'Pesantren Al-Ma''mur'
                       )),
   kelas_id            TEXT REFERENCES kelas(id) ON DELETE SET NULL,
+  kelas_id_sebelum_keluar TEXT REFERENCES kelas(id) ON DELETE SET NULL,
   wali_murid_id       TEXT REFERENCES "user"(id) ON DELETE SET NULL,
   status              TEXT NOT NULL DEFAULT 'aktif',
   foto_url            TEXT,

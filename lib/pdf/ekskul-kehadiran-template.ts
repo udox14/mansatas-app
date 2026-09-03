@@ -29,12 +29,12 @@ export function buildEkskulKehadiranHtml(data: EkskulKehadiranPdfData): string {
   const tanggalCetak = new Date().toLocaleDateString('id-ID', {
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Jakarta',
   })
-  const cellBorder = 'border:1px solid #000;padding:2px 3px'
+  const cellBorder = 'border:1px solid #000;padding:2px 2px'
 
   // Kolom tanggal pertemuan (tampilkan tanggal hari saja)
   const headCols = pertemuan.map(p => {
     const dd = p.tanggal.slice(8, 10)
-    return `<th style="${cellBorder};text-align:center;width:18px">${esc(dd)}</th>`
+    return `<th style="${cellBorder};text-align:center;width:14px">${esc(dd)}</th>`
   }).join('')
 
   const bodyRows = rows.map((r, i) => {
@@ -42,7 +42,7 @@ export function buildEkskulKehadiranHtml(data: EkskulKehadiranPdfData): string {
       const v = r.status[p.id] || 'H'
       const color = v === 'A' ? '#b91c1c' : v === 'S' ? '#1d4ed8' : v === 'I' ? '#0369a1' : '#000'
       return `<td style="${cellBorder};text-align:center;color:${color}">${esc(v)}</td>`
-    }).join('')
+    }).join('') || `<td style="${cellBorder};text-align:center">-</td>`
     return `<tr>
       <td style="${cellBorder};text-align:center">${i + 1}</td>
       <td style="${cellBorder}">${esc(r.nama_lengkap)}</td>
@@ -69,7 +69,7 @@ export function buildEkskulKehadiranHtml(data: EkskulKehadiranPdfData): string {
   * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { margin: 0; padding: 0; }
   body { font-family: 'Times New Roman', serif; font-size: 10px; color: #000; padding: 12mm 14mm; }
-  table { width: 100%; border-collapse: collapse; font-size: 9px; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8px; }
   thead { display: table-header-group; }
   tr { break-inside: avoid; page-break-inside: avoid; }
 </style>
@@ -84,10 +84,14 @@ export function buildEkskulKehadiranHtml(data: EkskulKehadiranPdfData): string {
   <table>
     <thead>
       <tr>
-        <th style="${cellBorder}">No</th>
-        <th style="${cellBorder};text-align:left">Nama Siswa</th>
-        <th style="${cellBorder}">Kelas</th>
-        ${headCols}
+        <th rowspan="2" style="${cellBorder};width:22px">No</th>
+        <th rowspan="2" style="${cellBorder};text-align:left;width:145px">Nama Siswa</th>
+        <th rowspan="2" style="${cellBorder};width:40px">Kelas</th>
+        <th colspan="${Math.max(pertemuan.length, 1)}" style="${cellBorder};text-align:center">Tanggal</th>
+        <th colspan="4" style="${cellBorder};text-align:center">Rekap</th>
+      </tr>
+      <tr>
+        ${headCols || `<th style="${cellBorder};text-align:center">-</th>`}
         <th style="${cellBorder}">H</th>
         <th style="${cellBorder}">S</th>
         <th style="${cellBorder}">I</th>

@@ -11,10 +11,21 @@ async function getDB() {
 }
 import { getCurrentUser } from '@/utils/auth/server'
 import { checkFeatureAccess } from '@/lib/features'
+import { getEffectiveUser } from '@/lib/act-as'
 import { revalidatePath } from 'next/cache'
 
 const FEATURE = 'ekstrakurikuler-master'
 const MODE_NILAI = ['angka', 'huruf'] as const
+const HARI_LATIHAN = [1, 2, 3, 4, 5, 6, 7] as const
+
+function parseHariLatihan(value: unknown): number | null {
+  const raw = String(value ?? '').trim().toLowerCase()
+  const namaHari: Record<string, number> = {
+    senin: 1, selasa: 2, rabu: 3, kamis: 4, jumat: 5, "jum'at": 5, sabtu: 6, minggu: 7,
+  }
+  const hari = namaHari[raw] ?? Number(raw)
+  return HARI_LATIHAN.includes(hari as typeof HARI_LATIHAN[number]) ? hari : null
+}
 
 // ============================================================
 // TYPES
@@ -24,6 +35,7 @@ export type EkskulMaster = {
   nama: string
   deskripsi: string | null
   mode_nilai: 'angka' | 'huruf'
+  hari_latihan: number | null
   status: string
   jml_anggota: number
   pembina_nama: string | null
@@ -126,7 +138,7 @@ export async function getEkskulList(): Promise<EkskulMaster[]> {
   await syncPembinaRoles(db)
   const { results } = await db.prepare(`
     SELECT
-      e.id, e.nama, e.deskripsi, e.mode_nilai, e.status,
+      e.id, e.nama, e.deskripsi, e.mode_nilai, e.hari_latihan, e.status,
       (SELECT COUNT(*) FROM ekstrakurikuler_anggota a
         WHERE a.ekstrakurikuler_id = e.id AND a.status = 'aktif') AS jml_anggota,
       (SELECT GROUP_CONCAT(u.nama_lengkap, ', ') FROM ekstrakurikuler_pembina p
@@ -167,10 +179,12 @@ export async function tambahEkskul(_prev: any, formData: FormData): Promise<{ er
   const nama = (formData.get('nama') as string)?.trim()
   const deskripsi = (formData.get('deskripsi') as string)?.trim() || null
   const mode_nilai = formData.get('mode_nilai') as string
+  const hari_latihan = parseHariLatihan(formData.get('hari_latihan'))
   if (!nama) return { error: 'Nama ekstrakurikuler wajib diisi.' }
   if (!MODE_NILAI.includes(mode_nilai as any)) return { error: 'Mode nilai tidak valid.' }
+  if (!hari_latihan) return { error: 'Hari latihan wajib dipilih.' }
 
-  const res = await dbInsert(db, 'ekstrakurikuler', { nama, deskripsi, mode_nilai })
+  const res = await dbInsert(db, 'ekstrakurikuler', { nama, deskripsi, mode_nilai, hari_latihan })
   if (res.error) return { error: res.error }
 
   revalidatePath('/dashboard/ekstrakurikuler/master')
@@ -186,13 +200,15 @@ export async function editEkskul(_prev: any, formData: FormData): Promise<{ erro
   const nama = (formData.get('nama') as string)?.trim()
   const deskripsi = (formData.get('deskripsi') as string)?.trim() || null
   const mode_nilai = formData.get('mode_nilai') as string
+  const hari_latihan = parseHariLatihan(formData.get('hari_latihan'))
   const status = (formData.get('status') as string) || 'aktif'
   if (!id) return { error: 'ID tidak valid.' }
   if (!nama) return { error: 'Nama ekstrakurikuler wajib diisi.' }
   if (!MODE_NILAI.includes(mode_nilai as any)) return { error: 'Mode nilai tidak valid.' }
+  if (!hari_latihan) return { error: 'Hari latihan wajib dipilih.' }
 
   const res = await dbUpdate(db, 'ekstrakurikuler', {
-    nama, deskripsi, mode_nilai, status, updated_at: new Date().toISOString(),
+    nama, deskripsi, mode_nilai, hari_latihan, status, updated_at: new Date().toISOString(),
   }, { id })
   if (res.error) return { error: res.error }
 
@@ -295,9 +311,11 @@ export async function importEkskulMassal(rows: any[]): Promise<{ error?: string;
     const rawMode = String(r.MODE_NILAI ?? r.mode_nilai ?? 'angka').trim().toLowerCase()
     const mode_nilai = MODE_NILAI.includes(rawMode as any) ? rawMode : 'angka'
     const deskripsi = String(r.DESKRIPSI ?? r.deskripsi ?? '').trim() || null
+    const hari_latihan = parseHariLatihan(r.HARI_LATIHAN ?? r.hari_latihan)
+    if (!hari_latihan) { skipped++; continue }
     stmts.push(
-      db.prepare('INSERT INTO ekstrakurikuler (nama, deskripsi, mode_nilai) VALUES (?, ?, ?)')
-        .bind(nama, deskripsi, mode_nilai)
+      db.prepare('INSERT INTO ekstrakurikuler (nama, deskripsi, mode_nilai, hari_latihan) VALUES (?, ?, ?, ?)')
+        .bind(nama, deskripsi, mode_nilai, hari_latihan)
     )
   }
 
@@ -331,8 +349,27 @@ export type LaporanKehadiran = {
 }
 
 export async function getLaporanKehadiran(ekskulId: string, bulan: string): Promise<LaporanKehadiran | null> {
-  const db = await getDB()
   if (!/^\d{4}-\d{2}$/.test(bulan)) return null
+
+  // Laporan dapat dicetak oleh admin master atau pembina ekskul terkait.
+  // Jangan memakai getDB() di atas karena helper tersebut khusus akses master.
+  const user = await getCurrentUser()
+  if (!user) return null
+  const db = await getRawDB()
+  const isMaster = await checkFeatureAccess(db, user.id, FEATURE)
+  const hasEkskulAccess = isMaster || await checkFeatureAccess(db, user.id, 'ekstrakurikuler')
+  if (!hasEkskulAccess) return null
+
+  if (!isMaster) {
+    const effective = await getEffectiveUser()
+    const pembinaId = effective?.effectiveUserId || user.id
+    const isAssigned = await db.prepare(`
+      SELECT 1 FROM ekstrakurikuler_pembina
+      WHERE ekstrakurikuler_id = ? AND pembina_id = ?
+      LIMIT 1
+    `).bind(ekskulId, pembinaId).first()
+    if (!isAssigned) return null
+  }
 
   const ek = await db.prepare('SELECT nama FROM ekstrakurikuler WHERE id = ?').bind(ekskulId).first<any>()
   if (!ek) return null

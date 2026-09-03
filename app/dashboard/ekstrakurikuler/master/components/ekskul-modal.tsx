@@ -13,6 +13,10 @@ import { tambahEkskul, editEkskul } from '../actions'
 import type { EkskulMaster } from '../actions'
 
 const initialState = { error: null as string | null, success: null as string | null }
+const HARI_LATIHAN = [
+  { value: '1', label: 'Senin' }, { value: '2', label: 'Selasa' }, { value: '3', label: 'Rabu' },
+  { value: '4', label: 'Kamis' }, { value: '5', label: 'Jumat' }, { value: '6', label: 'Sabtu' }, { value: '7', label: 'Minggu' },
+]
 
 function SubmitBtn({ isEdit }: { isEdit: boolean }) {
   const { pending } = useFormStatus()
@@ -106,6 +110,17 @@ export function EkskulModal({ isOpen, onClose, editData }: {
                 </Select>
               </div>
             )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold">Hari Latihan Tetap <span className="text-rose-500">*</span></Label>
+            <Select name="hari_latihan" defaultValue={String(editData?.hari_latihan ?? '')} required>
+              <SelectTrigger className="h-8 text-xs rounded-md bg-slate-50 dark:bg-slate-800"><SelectValue placeholder="Pilih hari latihan" /></SelectTrigger>
+              <SelectContent>
+                {HARI_LATIHAN.map(hari => <SelectItem key={hari.value} value={hari.value} className="text-xs">{hari.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-slate-400">Pembina hanya dapat membuat pertemuan pada hari ini.</p>
           </div>
 
           <SubmitBtn isEdit={!!editData} />
