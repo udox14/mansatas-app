@@ -4,6 +4,10 @@ import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
+import { isSuperAdmin, getEffectiveUser } from '@/lib/act-as'
+import { ensureTpgSchema } from '@/lib/tpg-schema'
+import { getSystemSetting, setSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { uploadCkhKepalaSignature, deleteFromR2, validateImageFile } from '@/utils/r2'
 import {
   CKH_DEFAULT_SATUAN,
   CKH_DEFAULT_VOL,
@@ -40,6 +44,10 @@ type CkhDocument = {
   signature_x_mm: number
   signature_y_mm: number
   signature_width_mm: number
+  kepala_signature_enabled: number
+  kepala_signature_x_mm: number
+  kepala_signature_y_mm: number
+  kepala_signature_width_mm: number
 }
 
 type CkhRow = {
@@ -64,6 +72,7 @@ type CkhKepsek = {
   nama_lengkap: string
   nip: string | null
   jabatan_cetak: string | null
+  signature_url: string | null
 }
 
 type CkhDayPattern = {
@@ -125,6 +134,10 @@ async function getOrCreateDocument(db: D1Database, userId: string, year: number,
   let doc = await db.prepare(`
     SELECT id, user_id, year, month, status
          , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
+         , COALESCE(kepala_signature_enabled, 0) as kepala_signature_enabled
+         , COALESCE(kepala_signature_x_mm, 14) as kepala_signature_x_mm
+         , COALESCE(kepala_signature_y_mm, 12) as kepala_signature_y_mm
+         , COALESCE(kepala_signature_width_mm, 38) as kepala_signature_width_mm
     FROM ckh_documents
     WHERE user_id = ? AND year = ? AND month = ?
   `).bind(userId, year, month).first<CkhDocument>()
@@ -133,7 +146,12 @@ async function getOrCreateDocument(db: D1Database, userId: string, year: number,
     doc = await db.prepare(`
       INSERT INTO ckh_documents (user_id, year, month)
       VALUES (?, ?, ?)
-      RETURNING id, user_id, year, month, status, signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
+      RETURNING id, user_id, year, month, status
+              , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
+              , COALESCE(kepala_signature_enabled, 0) as kepala_signature_enabled
+              , COALESCE(kepala_signature_x_mm, 14) as kepala_signature_x_mm
+              , COALESCE(kepala_signature_y_mm, 12) as kepala_signature_y_mm
+              , COALESCE(kepala_signature_width_mm, 38) as kepala_signature_width_mm
     `).bind(userId, year, month).first<CkhDocument>()
   }
 
@@ -355,20 +373,34 @@ async function insertInitialRows(db: D1Database, documentId: string, generated: 
   }
 }
 
-export async function getCkhPageData(year: number, month: number) {
+export async function getCkhPageData(year: number, month: number, targetUserIdOverride?: string) {
   assertMonth(year, month)
   const authUser = await getCurrentUser()
   if (!authUser) throw new Error('Unauthorized')
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
+  await ensureTpgSchema(db)
 
-  const [freshUser, roles] = await Promise.all([
-    getFreshUser(db, authUser.id),
-    getUserRoles(db, authUser.id),
+  const authUserRoles = await getUserRoles(db, authUser.id)
+  const isAdmin = authUserRoles.includes('super_admin')
+
+  const effective = await getEffectiveUser()
+  let activeUserId = authUser.id
+  if (isAdmin) {
+    if (targetUserIdOverride) {
+      activeUserId = targetUserIdOverride
+    } else if (effective?.isActingAs && effective.effectiveUserId) {
+      activeUserId = effective.effectiveUserId
+    }
+  }
+
+  const [activeUser, activeUserRoles] = await Promise.all([
+    getFreshUser(db, activeUserId),
+    getUserRoles(db, activeUserId),
   ])
-  const doc = await getOrCreateDocument(db, authUser.id, year, month)
-  const generated = await buildGeneratedRows(db, authUser.id, year, month)
+  const doc = await getOrCreateDocument(db, activeUserId, year, month)
+  const generated = await buildGeneratedRows(db, activeUserId, year, month)
   await insertInitialRows(db, doc.id, generated, year, month)
 
   const [rows, patterns, templates, allTemplatesRes, kepsek, kepalaTu] = await Promise.all([
@@ -378,8 +410,8 @@ export async function getCkhPageData(year: number, month: number) {
       FROM ckh_day_patterns
       WHERE user_id = ?
       ORDER BY weekday ASC
-    `).bind(authUser.id).all<CkhDayPattern>(),
-    getTemplatesForUser(db, authUser.id, roles, freshUser.jabatan_cetak),
+    `).bind(activeUserId).all<CkhDayPattern>(),
+    getTemplatesForUser(db, activeUserId, activeUserRoles, activeUser.jabatan_cetak),
     db.prepare(`
       SELECT t.id, t.user_id, t.role, t.jabatan_cetak, t.title, t.sort_order, t.is_active,
              n.id as note_id, n.note, n.sort_order as note_sort_order, n.is_active as note_active
@@ -387,9 +419,9 @@ export async function getCkhPageData(year: number, month: number) {
       LEFT JOIN ckh_template_notes n ON n.template_id = t.id
       WHERE t.user_id IS NULL OR t.user_id = ?
       ORDER BY t.role ASC, t.jabatan_cetak ASC, t.sort_order ASC, t.title ASC, n.sort_order ASC, n.note ASC
-    `).bind(authUser.id).all<any>(),
+    `).bind(activeUserId).all<any>(),
     db.prepare(`
-      SELECT u.id, COALESCE(u.nama_lengkap, u.name) as nama_lengkap, u.nip, COALESCE(u.jabatan_cetak, 'Kepala Madrasah') as jabatan_cetak
+      SELECT u.id, COALESCE(u.nama_lengkap, u.name) as nama_lengkap, u.nip, COALESCE(u.jabatan_cetak, 'Kepala Madrasah') as jabatan_cetak, u.signature_url
       FROM "user" u
       LEFT JOIN user_roles ur ON ur.user_id = u.id
       WHERE u.role = 'kepsek' OR ur.role = 'kepsek'
@@ -397,7 +429,7 @@ export async function getCkhPageData(year: number, month: number) {
       LIMIT 1
     `).first<CkhKepsek>(),
     db.prepare(`
-      SELECT u.id, COALESCE(u.nama_lengkap, u.name) as nama_lengkap, u.nip, COALESCE(u.jabatan_cetak, 'Kepala TU') as jabatan_cetak
+      SELECT u.id, COALESCE(u.nama_lengkap, u.name) as nama_lengkap, u.nip, COALESCE(u.jabatan_cetak, 'Kepala TU') as jabatan_cetak, u.signature_url
       FROM "user" u
       LEFT JOIN user_roles ur ON ur.user_id = u.id
       LEFT JOIN master_jabatan_struktural mjs ON u.jabatan_struktural_id = mjs.id
@@ -441,10 +473,19 @@ export async function getCkhPageData(year: number, month: number) {
     }
   }
 
+  // Selain Super Admin tidak bisa mengakses / menambahkan tanda tangan kepala madrasah
+  if (!isAdmin) {
+    doc.kepala_signature_enabled = 0
+  }
+
+  const ckhKepalaSignatureUrl = isAdmin
+    ? await getSystemSetting(SYSTEM_SETTING_KEYS.ckhKepalaSignatureUrl, '')
+    : null
+
   return {
-    user: freshUser,
-    userRoles: roles,
-    primaryRole: getPrimaryRoleFromRows(roles, freshUser.role),
+    user: activeUser,
+    userRoles: activeUserRoles,
+    primaryRole: getPrimaryRoleFromRows(activeUserRoles, activeUser.role),
     document: doc,
     rows,
     dayPatterns: patterns.results || [],
@@ -453,6 +494,8 @@ export async function getCkhPageData(year: number, month: number) {
     kepsek: kepsek || null,
     kepalaTu: kepalaTu || null,
     generatedCount: generated.length,
+    ckhKepalaSignatureUrl: ckhKepalaSignatureUrl || null,
+    isSuperAdmin: isAdmin,
   }
 }
 
@@ -474,13 +517,14 @@ export async function saveCkhRow(rowId: string, payload: {
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
+  const isAdmin = await isSuperAdmin(authUser.id)
   const row = await db.prepare(`
     SELECT r.id, d.id as document_id, d.user_id, d.year, d.month
     FROM ckh_rows r
     JOIN ckh_documents d ON r.document_id = d.id
     WHERE r.id = ?
   `).bind(rowId).first<{ id: string; document_id: string; user_id: string; year: number; month: number }>()
-  if (!row || row.user_id !== authUser.id) return { error: 'Baris CKH tidak ditemukan.' }
+  if (!row || (row.user_id !== authUser.id && !isAdmin)) return { error: 'Baris CKH tidak ditemukan.' }
   const { startDate, endDate } = monthRange(row.year, row.month)
   if (payload.tanggal < startDate || payload.tanggal > endDate) return { error: 'Tanggal harus berada dalam bulan dokumen CKH.' }
   const effectiveDates = new Set(await getCkhEffectiveDates(db, row.year, row.month))
@@ -519,8 +563,12 @@ export async function saveCkhDayPattern(payload: {
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
 
+  const effective = await getEffectiveUser()
+  const isAdmin = await isSuperAdmin(authUser.id)
+  const targetUserId = (isAdmin && effective?.isActingAs && effective.effectiveUserId) ? effective.effectiveUserId : authUser.id
+
   if (!kegiatan && !catatan) {
-    await db.prepare('DELETE FROM ckh_day_patterns WHERE user_id = ? AND weekday = ?').bind(authUser.id, weekday).run()
+    await db.prepare('DELETE FROM ckh_day_patterns WHERE user_id = ? AND weekday = ?').bind(targetUserId, weekday).run()
   } else {
     await db.prepare(`
       INSERT INTO ckh_day_patterns (user_id, weekday, kegiatan_bulanan, catatan_harian, vol, satuan)
@@ -531,13 +579,13 @@ export async function saveCkhDayPattern(payload: {
         vol = excluded.vol,
         satuan = excluded.satuan,
         updated_at = datetime('now')
-    `).bind(authUser.id, weekday, kegiatan, catatan, vol, satuan).run()
+    `).bind(targetUserId, weekday, kegiatan, catatan, vol, satuan).run()
   }
 
   revalidatePath('/dashboard/ckh-generator')
   return {
     success: kegiatan || catatan ? 'Pola harian disimpan.' : 'Pola harian dihapus.',
-    pattern: kegiatan || catatan ? { user_id: authUser.id, weekday, kegiatan_bulanan: kegiatan, catatan_harian: catatan, vol, satuan } : null,
+    pattern: kegiatan || catatan ? { user_id: targetUserId, weekday, kegiatan_bulanan: kegiatan, catatan_harian: catatan, vol, satuan } : null,
   }
 }
 
@@ -547,8 +595,9 @@ export async function finalizeCkhDocument(documentId: string) {
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
+  const isAdmin = await isSuperAdmin(authUser.id)
   const doc = await db.prepare('SELECT id, user_id, year, month FROM ckh_documents WHERE id = ?').bind(documentId).first<{ id: string; user_id: string; year: number; month: number }>()
-  if (!doc || doc.user_id !== authUser.id) return { error: 'Dokumen CKH tidak ditemukan.' }
+  if (!doc || (doc.user_id !== authUser.id && !isAdmin)) return { error: 'Dokumen CKH tidak ditemukan.' }
 
   const validation = await db.prepare(`
     SELECT
@@ -597,8 +646,9 @@ export async function saveCkhSignatureSettings(documentId: string, payload: {
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
+  const isAdmin = await isSuperAdmin(authUser.id)
   const doc = await db.prepare('SELECT id, user_id FROM ckh_documents WHERE id = ?').bind(documentId).first<{ id: string; user_id: string }>()
-  if (!doc || doc.user_id !== authUser.id) return { error: 'Dokumen CKH tidak ditemukan.' }
+  if (!doc || (doc.user_id !== authUser.id && !isAdmin)) return { error: 'Dokumen CKH tidak ditemukan.' }
 
   await markCkhDocumentDraft(db, documentId)
   await db.prepare(`
@@ -621,6 +671,90 @@ export async function saveCkhSignatureSettings(documentId: string, payload: {
   }
 }
 
+export async function saveCkhKepalaSignatureSettings(documentId: string, payload: {
+  enabled: boolean
+  xMm: number
+  yMm: number
+  widthMm: number
+}) {
+  const authUser = await getCurrentUser()
+  if (!authUser) return { error: 'Unauthorized' }
+
+  const isAdmin = await isSuperAdmin(authUser.id)
+  if (!isAdmin) return { error: 'Hanya super admin yang dapat mengatur tanda tangan kepala madrasah.' }
+
+  const xMm = Math.max(-20, Math.min(80, Number(payload.xMm) || 0))
+  const yMm = Math.max(-20, Math.min(80, Number(payload.yMm) || 0))
+  const widthMm = Math.max(15, Math.min(120, Number(payload.widthMm) || 38))
+
+  const db = await getDB()
+  await requireCkhAccess(db, authUser.id)
+  await ensureTpgSchema(db)
+
+  const doc = await db.prepare('SELECT id FROM ckh_documents WHERE id = ?').bind(documentId).first<{ id: string }>()
+  if (!doc) return { error: 'Dokumen CKH tidak ditemukan.' }
+
+  await markCkhDocumentDraft(db, documentId)
+  await db.prepare(`
+    UPDATE ckh_documents
+    SET kepala_signature_enabled = ?, kepala_signature_x_mm = ?, kepala_signature_y_mm = ?, kepala_signature_width_mm = ?,
+        updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(payload.enabled ? 1 : 0, xMm, yMm, widthMm, documentId).run()
+
+  revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/tpg-dokumen')
+  return {
+    success: true,
+    settings: {
+      signature_enabled: payload.enabled ? 1 : 0,
+      signature_x_mm: xMm,
+      signature_y_mm: yMm,
+      signature_width_mm: widthMm,
+    },
+  }
+}
+
+export async function uploadCkhKepalaSignatureAction(formData: FormData) {
+  const authUser = await getCurrentUser()
+  if (!authUser) return { error: 'Unauthorized' }
+
+  const isAdmin = await isSuperAdmin(authUser.id)
+  if (!isAdmin) return { error: 'Hanya super admin yang dapat mengupload tanda tangan kepala madrasah.' }
+
+  const file = formData.get('signature') as File
+  if (!file || file.size === 0) return { error: 'Tidak ada file yang dipilih.' }
+
+  const validationError = validateImageFile(file)
+  if (validationError) return { error: validationError }
+
+  const { url, error: uploadError } = await uploadCkhKepalaSignature(file)
+  if (uploadError || !url) return { error: uploadError || 'Upload gagal.' }
+  const versionedUrl = `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`
+
+  await setSystemSetting(SYSTEM_SETTING_KEYS.ckhKepalaSignatureUrl, versionedUrl)
+
+  revalidatePath('/dashboard/ckh-generator')
+  return { success: 'Tanda tangan kepala madrasah berhasil diupload!', url: versionedUrl }
+}
+
+export async function deleteCkhKepalaSignatureAction() {
+  const authUser = await getCurrentUser()
+  if (!authUser) return { error: 'Unauthorized' }
+
+  const isAdmin = await isSuperAdmin(authUser.id)
+  if (!isAdmin) return { error: 'Hanya super admin yang dapat menghapus tanda tangan kepala madrasah.' }
+
+  const oldUrl = await getSystemSetting(SYSTEM_SETTING_KEYS.ckhKepalaSignatureUrl, '')
+  if (oldUrl) {
+    await deleteFromR2(oldUrl).catch(() => null)
+  }
+  await setSystemSetting(SYSTEM_SETTING_KEYS.ckhKepalaSignatureUrl, '')
+
+  revalidatePath('/dashboard/ckh-generator')
+  return { success: 'Tanda tangan kepala madrasah berhasil dihapus!' }
+}
+
 export async function addCkhRow(documentId: string, tanggal: string) {
   const authUser = await getCurrentUser()
   if (!authUser) return { error: 'Unauthorized' }
@@ -628,8 +762,9 @@ export async function addCkhRow(documentId: string, tanggal: string) {
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
+  const isAdmin = await isSuperAdmin(authUser.id)
   const doc = await db.prepare('SELECT id, user_id, year, month FROM ckh_documents WHERE id = ?').bind(documentId).first<{ id: string; user_id: string; year: number; month: number }>()
-  if (!doc || doc.user_id !== authUser.id) return { error: 'Dokumen CKH tidak ditemukan.' }
+  if (!doc || (doc.user_id !== authUser.id && !isAdmin)) return { error: 'Dokumen CKH tidak ditemukan.' }
   const { startDate, endDate } = monthRange(doc.year, doc.month)
   if (tanggal < startDate || tanggal > endDate) return { error: 'Tanggal harus berada dalam bulan dokumen CKH.' }
   const effectiveDates = new Set(await getCkhEffectiveDates(db, doc.year, doc.month))
@@ -657,15 +792,16 @@ export async function copyCkhRowsFromPreviousMonth(documentId: string) {
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
+  const isAdmin = await isSuperAdmin(authUser.id)
   const doc = await db.prepare('SELECT id, user_id, year, month FROM ckh_documents WHERE id = ?')
     .bind(documentId).first<CkhDocument>()
-  if (!doc || doc.user_id !== authUser.id) return { error: 'Dokumen CKH tidak ditemukan.' }
+  if (!doc || (doc.user_id !== authUser.id && !isAdmin)) return { error: 'Dokumen CKH tidak ditemukan.' }
 
   const previous = new Date(doc.year, doc.month - 2, 1)
   const previousDoc = await db.prepare(`
     SELECT id FROM ckh_documents
     WHERE user_id = ? AND year = ? AND month = ?
-  `).bind(authUser.id, previous.getFullYear(), previous.getMonth() + 1).first<{ id: string }>()
+  `).bind(doc.user_id, previous.getFullYear(), previous.getMonth() + 1).first<{ id: string }>()
   if (!previousDoc) return { error: 'Belum ada CKH bulan lalu untuk disalin.' }
 
   const sourceRows = (await db.prepare(`
@@ -748,13 +884,14 @@ export async function deleteCkhRow(rowId: string) {
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
+  const isAdmin = await isSuperAdmin(authUser.id)
   const row = await db.prepare(`
     SELECT r.id, d.id as document_id, d.user_id
     FROM ckh_rows r
     JOIN ckh_documents d ON r.document_id = d.id
     WHERE r.id = ?
   `).bind(rowId).first<{ id: string; document_id: string; user_id: string }>()
-  if (!row || row.user_id !== authUser.id) return { error: 'Baris CKH tidak ditemukan.' }
+  if (!row || (row.user_id !== authUser.id && !isAdmin)) return { error: 'Baris CKH tidak ditemukan.' }
 
   await markCkhDocumentDraft(db, row.document_id)
   await db.prepare('DELETE FROM ckh_rows WHERE id = ?').bind(rowId).run()
@@ -769,12 +906,13 @@ export async function refreshCkhDraft(documentId: string) {
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
+  const isAdmin = await isSuperAdmin(authUser.id)
   const doc = await db.prepare('SELECT id, user_id, year, month FROM ckh_documents WHERE id = ?')
     .bind(documentId).first<CkhDocument>()
-  if (!doc || doc.user_id !== authUser.id) return { error: 'Dokumen CKH tidak ditemukan.' }
+  if (!doc || (doc.user_id !== authUser.id && !isAdmin)) return { error: 'Dokumen CKH tidak ditemukan.' }
 
   await markCkhDocumentDraft(db, documentId)
-  const generated = await buildGeneratedRows(db, authUser.id, doc.year, doc.month)
+  const generated = await buildGeneratedRows(db, doc.user_id, doc.year, doc.month)
   const existing = await getRows(db, documentId)
   const existingBySource = new Map(existing.filter(row => row.source_key).map(row => [row.source_key!, row]))
   const generatedDates = new Set(generated.map(row => row.tanggal))
@@ -857,13 +995,14 @@ export async function acceptCkhSuggestion(rowId: string) {
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
+  const isAdmin = await isSuperAdmin(authUser.id)
   const row = await db.prepare(`
     SELECT r.*, d.id as document_id, d.user_id
     FROM ckh_rows r
     JOIN ckh_documents d ON r.document_id = d.id
     WHERE r.id = ?
   `).bind(rowId).first<CkhRow & { document_id: string; user_id: string }>()
-  if (!row || row.user_id !== authUser.id) return { error: 'Baris CKH tidak ditemukan.' }
+  if (!row || (row.user_id !== authUser.id && !isAdmin)) return { error: 'Baris CKH tidak ditemukan.' }
 
   await markCkhDocumentDraft(db, row.document_id)
   await db.prepare(`

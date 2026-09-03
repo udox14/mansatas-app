@@ -28,6 +28,7 @@ export const SYSTEM_SETTING_KEYS = {
   // Toggle aktif/nonaktif pemrosesan cron per modul (disimpan sebagai '1'/'0')
   cronReminderEnabled: 'cron_reminder_jadwal_enabled',
   cronWhatsappEnabled: 'cron_whatsapp_enabled',
+  ckhKepalaSignatureUrl: 'ckh_kepala_signature_url',
 } as const
 
 // Tingkat kelas yang bisa dibatasi loginnya (MA: 10, 11, 12)

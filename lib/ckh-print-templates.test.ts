@@ -64,4 +64,79 @@ describe('CKH print templates', () => {
     expect(Number(horizontalPosition?.[1])).toBeGreaterThan(4_000_000)
     expect(xml.indexOf('<wp:positionH relativeFrom="column">')).toBeLessThan(xml.indexOf('Tasikmalaya, 20 Agustus 2026'))
   })
+
+  it('menyertakan tanda tangan kepala madrasah pada PDF ketika diaktifkan', () => {
+    const htmlWithKepala = buildCkhHtml({
+      ...baseData,
+      kepsek: {
+        nama_lengkap: 'Kepala Madrasah',
+        nip: '197001012000121001',
+      },
+      ckhKepalaSignatureUrl: '/ckh-kepsek-sig.png',
+      kepalaSignatureSettings: {
+        signature_enabled: 1,
+        signature_x_mm: 10,
+        signature_y_mm: 15,
+        signature_width_mm: 40,
+      },
+      paperCss: '215mm 330mm',
+      baseUrl: 'https://app.mansatas.test',
+    })
+
+    expect(htmlWithKepala).toContain('https://app.mansatas.test/ckh-kepsek-sig.png')
+    expect(htmlWithKepala).toContain('left:10mm;top:15mm;width:40mm')
+
+    const htmlWithoutKepala = buildCkhHtml({
+      ...baseData,
+      kepsek: {
+        nama_lengkap: 'Kepala Madrasah',
+        nip: '197001012000121001',
+      },
+      ckhKepalaSignatureUrl: '/ckh-kepsek-sig.png',
+      kepalaSignatureSettings: {
+        signature_enabled: 0,
+        signature_x_mm: 10,
+        signature_y_mm: 15,
+        signature_width_mm: 40,
+      },
+      paperCss: '215mm 330mm',
+      baseUrl: 'https://app.mansatas.test',
+    })
+
+    expect(htmlWithoutKepala).not.toContain('https://app.mansatas.test/ckh-kepsek-sig.png')
+  })
+
+  it('menyertakan tanda tangan kepala madrasah pada Word (.docx) ketika diaktifkan', async () => {
+    const bytes = await buildCkhDocxBytes({
+      ...baseData,
+      paper: 'f4',
+      margins: { top: 15, right: 12, bottom: 15, left: 12 },
+      signatureImage: {
+        data: new Uint8Array([137, 80, 78, 71]),
+        contentType: 'image/png',
+        widthPx: 400,
+        heightPx: 120,
+      },
+      kepalaSignatureSettings: {
+        signature_enabled: 1,
+        signature_x_mm: 8,
+        signature_y_mm: 10,
+        signature_width_mm: 35,
+      },
+      kepalaSignatureImage: {
+        data: new Uint8Array([137, 80, 78, 71]),
+        contentType: 'image/png',
+        widthPx: 300,
+        heightPx: 100,
+      },
+    })
+    const zip = await JSZip.loadAsync(bytes)
+    const relsXml = await zip.file('word/_rels/document.xml.rels')!.async('string')
+    const docXml = await zip.file('word/document.xml')!.async('string')
+
+    expect(relsXml).toContain('Id="rIdSignature"')
+    expect(relsXml).toContain('Id="rIdKepalaSignature"')
+    expect(docXml).toContain('r:embed="rIdKepalaSignature"')
+    expect(docXml).toContain('r:embed="rIdSignature"')
+  })
 })

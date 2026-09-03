@@ -18,7 +18,7 @@ type CkhRow = {
   satuan?: string | null
 }
 
-type Signer = { nama_lengkap?: string | null; nip?: string | null } | null
+type Signer = { nama_lengkap?: string | null; nip?: string | null; signature_url?: string | null } | null
 
 type SignatureSettings = {
   signature_enabled: number
@@ -34,6 +34,8 @@ export type CkhPdfData = {
   kepalaTu: Signer
   userRoles: string[]
   signatureSettings: SignatureSettings
+  kepalaSignatureSettings?: SignatureSettings
+  ckhKepalaSignatureUrl?: string | null
   year: number
   month: number
   paperCss: string // "210mm 297mm" | "215mm 330mm"
@@ -69,7 +71,7 @@ const SIG_COL = 'width:46%;text-align:left;padding-left:14mm'
 const SIG_ROLE = 'font-weight:700;text-transform:uppercase;margin-bottom:20mm'
 
 export function buildCkhHtml(data: CkhPdfData): string {
-  const { rows, user, kepsek, kepalaTu, userRoles, signatureSettings, year, month, paperCss, baseUrl } = data
+  const { rows, user, kepsek, kepalaTu, userRoles, signatureSettings, kepalaSignatureSettings, ckhKepalaSignatureUrl, year, month, paperCss, baseUrl } = data
   const fontBase = baseUrl.replace(/\/$/, '')
   const useTu = shouldUseKepalaTu(user, userRoles)
   const signer = useTu ? kepalaTu : kepsek
@@ -100,6 +102,12 @@ export function buildCkhHtml(data: CkhPdfData): string {
   const signatureUrl = absoluteAssetUrl(user.signature_url, baseUrl)
   const sigImg = signatureSettings.signature_enabled && signatureUrl
     ? `<img src="${esc(signatureUrl)}" alt="" style="position:absolute;left:${signatureSettings.signature_x_mm}mm;top:${signatureSettings.signature_y_mm}mm;width:${signatureSettings.signature_width_mm}mm;height:auto;max-height:40mm;object-fit:contain;z-index:10;pointer-events:none">`
+    : ''
+
+  const rawKepalaSig = ckhKepalaSignatureUrl || (data as any).kepalaSignatureUrl || ''
+  const kepalaSignatureUrl = rawKepalaSig ? absoluteAssetUrl(rawKepalaSig, baseUrl) : ''
+  const kepalaSigImg = kepalaSignatureSettings?.signature_enabled && kepalaSignatureUrl
+    ? `<img src="${esc(kepalaSignatureUrl)}" alt="" style="position:absolute;left:${kepalaSignatureSettings.signature_x_mm}mm;top:${kepalaSignatureSettings.signature_y_mm}mm;width:${kepalaSignatureSettings.signature_width_mm}mm;height:auto;max-height:40mm;object-fit:contain;z-index:10;pointer-events:none">`
     : ''
 
   return `<!DOCTYPE html>
@@ -150,7 +158,8 @@ export function buildCkhHtml(data: CkhPdfData): string {
   </table>
 
   <div style="display:flex;justify-content:space-between;margin-top:18mm;font-size:10pt">
-    <div style="${SIG_COL}">
+    <div style="${SIG_COL};position:relative">
+      ${kepalaSigImg}
       <div>Mengetahui :</div>
       <div style="${SIG_ROLE}">${esc(signerLabel)}</div>
       <div style="font-weight:700;text-decoration:underline">${signer?.nama_lengkap ? esc(signer.nama_lengkap) : esc(missingSignerLabel)}</div>

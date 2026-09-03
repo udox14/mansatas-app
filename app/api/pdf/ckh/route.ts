@@ -4,6 +4,9 @@
 import puppeteer from '@cloudflare/puppeteer'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getCurrentUser } from '@/utils/auth/server'
+import { getDB } from '@/utils/db-server'
+import { getUserRoles } from '@/lib/features'
+import { getSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { buildCkhHtml, type CkhPdfData } from '@/lib/pdf/ckh-template'
 import { renderPdfWithCache } from '@/lib/pdf-cache'
 import { createSignedMediaUrl } from '@/lib/media-security'
@@ -37,7 +40,22 @@ export async function POST(request: Request) {
   const paperCss = PAPER[body.paper || 'f4'] || PAPER.f4
   const m = body.margins || { top: 15, right: 12, bottom: 15, left: 12 }
 
+  const db = await getDB()
+  const roles = await getUserRoles(db, user.id)
+  const isSuperAdmin = roles.includes('super_admin')
+
   const { env } = await getCloudflareContext({ async: true })
+
+  // Tanda tangan kepala madrasah khusus Super Admin
+  const allowKepalaSig = isSuperAdmin && Boolean(body.kepalaSignatureSettings?.signature_enabled)
+  let rawKepalaSig: string | null = null
+  if (allowKepalaSig) {
+    rawKepalaSig = body.ckhKepalaSignatureUrl || (await getSystemSetting(SYSTEM_SETTING_KEYS.ckhKepalaSignatureUrl, '')) || null
+  }
+  const signedKepalaSigUrl = rawKepalaSig
+    ? await createSignedMediaUrl(rawKepalaSig, 'browser-rendering:ckh', env.MEDIA_SIGNING_SECRET || '')
+    : null
+
   const signedSignatureUrl = await createSignedMediaUrl(
     body.user.signature_url,
     'browser-rendering:ckh',
@@ -50,6 +68,8 @@ export async function POST(request: Request) {
     kepalaTu: body.kepalaTu,
     userRoles: body.userRoles || [],
     signatureSettings: body.signatureSettings,
+    kepalaSignatureSettings: allowKepalaSig ? body.kepalaSignatureSettings : undefined,
+    ckhKepalaSignatureUrl: signedKepalaSigUrl,
     year: body.year,
     month: body.month,
     paperCss,

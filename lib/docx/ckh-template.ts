@@ -41,6 +41,8 @@ export type CkhDocxData = {
   userRoles: string[]
   signatureSettings: CkhDocxSignatureSettings
   signatureImage?: CkhDocxSignatureImage | null
+  kepalaSignatureSettings?: CkhDocxSignatureSettings
+  kepalaSignatureImage?: CkhDocxSignatureImage | null
   year: number
   month: number
   paper?: 'a4' | 'f4'
@@ -302,8 +304,8 @@ function buildDataTable(rows: CkhDocxRow[], available: number) {
   return tableXml(widths, [header, ...body], { bordered: true, cellMargins: { top: 70, right: 60, bottom: 70, left: 60 } })
 }
 
-function buildSignatureTable(data: CkhDocxData, geometry: ReturnType<typeof pageGeometry>, imageRelId?: string) {
-  const { rows, user, kepsek, kepalaTu, userRoles, signatureSettings, signatureImage, year, month } = data
+function buildSignatureTable(data: CkhDocxData, geometry: ReturnType<typeof pageGeometry>, imageRelId?: string, imageRelIdKepala?: string) {
+  const { rows, user, kepsek, kepalaTu, userRoles, signatureSettings, signatureImage, kepalaSignatureSettings, kepalaSignatureImage, year, month } = data
   const useTu = shouldUseKepalaTu(user, userRoles)
   const signer = useTu ? kepalaTu : kepsek
   const signerLabel = useTu ? 'KEPALA TU' : 'KEPALA MAN 1 TASIKMALAYA'
@@ -319,8 +321,11 @@ function buildSignatureTable(data: CkhDocxData, geometry: ReturnType<typeof page
   const imageXml = imageRelId && signatureImage && Number(signatureSettings.signature_enabled) === 1
     ? imageDrawingXml(signatureImage, imageRelId, 1, signatureSettings, rightColumnStartMm)
     : ''
+  const kepalaImageXml = imageRelIdKepala && kepalaSignatureImage && Number(kepalaSignatureSettings?.signature_enabled) === 1
+    ? imageDrawingXml(kepalaSignatureImage, imageRelIdKepala, 2, kepalaSignatureSettings, 0)
+    : ''
   const leftContent = [
-    paragraph(textRuns('Mengetahui :', { size: 10 })),
+    paragraph(kepalaImageXml + textRuns('Mengetahui :', { size: 10 })),
     paragraph(textRuns(signerLabel, { size: 10, bold: true, allCaps: true }), { after: mmToTwips(20) }),
     paragraph(signer?.nama_lengkap ? textRuns(signer.nama_lengkap, { size: 10, bold: true, underline: true }) : runXml(missingSignerLabel, { size: 10, bold: true, underline: true })),
     paragraph(textRuns('NIP. ', { size: 10 }) + (signer?.nip ? textRuns(signer.nip, { size: 10 }) : runXml('Silakan isi dulu di Profil', { size: 10, italic: true }))),
@@ -363,7 +368,7 @@ function corePropertiesXml(year: number, month: number) {
 </cp:coreProperties>`
 }
 
-function documentXml(data: CkhDocxData, geometry: ReturnType<typeof pageGeometry>, imageRelId?: string) {
+function documentXml(data: CkhDocxData, geometry: ReturnType<typeof pageGeometry>, imageRelId?: string, imageRelIdKepala?: string) {
   const paperKey = data.paper === 'a4' ? 'a4' : 'f4'
   const monthLabel = formatCkhMonth(data.year, data.month)
   const title = [
@@ -375,7 +380,7 @@ function documentXml(data: CkhDocxData, geometry: ReturnType<typeof pageGeometry
   const profileGap = emptyParagraph({ after: 120, line: 1, lineRule: 'exact' })
   const table = buildDataTable(data.rows, geometry.available)
   const signatureGap = emptyParagraph({ before: mmToTwips(18), line: 1, lineRule: 'exact' })
-  const signature = buildSignatureTable(data, geometry, imageRelId)
+  const signature = buildSignatureTable(data, geometry, imageRelId, imageRelIdKepala)
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="${XML_NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
   <w:body>${title}${profile}${profileGap}${table}${signatureGap}${signature}
@@ -389,15 +394,15 @@ function documentXml(data: CkhDocxData, geometry: ReturnType<typeof pageGeometry
 </w:document>`
 }
 
-function documentRelationships(imageRelId?: string, imageTarget?: string) {
-  const imageRelationship = imageRelId && imageTarget
-    ? `<Relationship Id="${imageRelId}" Type="${REL_IMAGE}" Target="${imageTarget}"/>`
-    : ''
+function documentRelationships(relationships: Array<{ relId: string; target: string }> = []) {
+  const imageRelationships = relationships
+    .map(rel => `<Relationship Id="${rel.relId}" Type="${REL_IMAGE}" Target="${rel.target}"/>`)
+    .join('')
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="${REL_NS}">
   <Relationship Id="rIdStyles" Type="${REL_STYLES}" Target="styles.xml"/>
   <Relationship Id="rIdSettings" Type="${REL_SETTINGS}" Target="settings.xml"/>
-  ${imageRelationship}
+  ${imageRelationships}
 </Relationships>`
 }
 
@@ -409,10 +414,12 @@ function rootRelationships() {
 </Relationships>`
 }
 
-function contentTypesXml(image?: ImageMeta) {
-  const imageDefaults = image
-    ? `<Default Extension="${image.extension}" ContentType="${image.contentType}"/>`
-    : ''
+function contentTypesXml(images: ImageMeta[] = []) {
+  const extensions = Array.from(new Set(images.map(img => img.extension)))
+  const imageDefaults = extensions.map(ext => {
+    const ct = images.find(img => img.extension === ext)?.contentType
+    return ct ? `<Default Extension="${ext}" ContentType="${ct}"/>` : ''
+  }).join('')
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -428,20 +435,37 @@ function contentTypesXml(image?: ImageMeta) {
 export async function buildCkhDocxBytes(data: CkhDocxData) {
   const paperKey = data.paper === 'a4' ? 'a4' : 'f4'
   const geometry = pageGeometry(paperKey, data.margins)
-  const image = data.signatureImage ? imageMeta(data.signatureImage.contentType) : null
+  const image = data.signatureImage && Number(data.signatureSettings?.signature_enabled) === 1
+    ? imageMeta(data.signatureImage.contentType)
+    : null
   const imageRelId = image ? 'rIdSignature' : undefined
   const imageTarget = image ? `media/signature.${image.extension}` : undefined
+
+  const kepalaImage = data.kepalaSignatureImage && Number(data.kepalaSignatureSettings?.signature_enabled) === 1
+    ? imageMeta(data.kepalaSignatureImage.contentType)
+    : null
+  const kepalaImageRelId = kepalaImage ? 'rIdKepalaSignature' : undefined
+  const kepalaImageTarget = kepalaImage ? `media/kepala_signature.${kepalaImage.extension}` : undefined
+
+  const imagesMeta = [image, kepalaImage].filter(Boolean) as ImageMeta[]
+  const relationships: Array<{ relId: string; target: string }> = []
+  if (imageRelId && imageTarget) relationships.push({ relId: imageRelId, target: imageTarget })
+  if (kepalaImageRelId && kepalaImageTarget) relationships.push({ relId: kepalaImageRelId, target: kepalaImageTarget })
+
   const entries: Array<{ name: string; bytes: Uint8Array }> = [
-    { name: '[Content_Types].xml', bytes: new TextEncoder().encode(contentTypesXml(image || undefined)) },
+    { name: '[Content_Types].xml', bytes: new TextEncoder().encode(contentTypesXml(imagesMeta)) },
     { name: '_rels/.rels', bytes: new TextEncoder().encode(rootRelationships()) },
-    { name: 'word/document.xml', bytes: new TextEncoder().encode(documentXml(data, geometry, imageRelId)) },
-    { name: 'word/_rels/document.xml.rels', bytes: new TextEncoder().encode(documentRelationships(imageRelId, imageTarget)) },
+    { name: 'word/document.xml', bytes: new TextEncoder().encode(documentXml(data, geometry, imageRelId, kepalaImageRelId)) },
+    { name: 'word/_rels/document.xml.rels', bytes: new TextEncoder().encode(documentRelationships(relationships)) },
     { name: 'word/styles.xml', bytes: new TextEncoder().encode(stylesXml()) },
     { name: 'word/settings.xml', bytes: new TextEncoder().encode(settingsXml()) },
     { name: 'docProps/core.xml', bytes: new TextEncoder().encode(corePropertiesXml(data.year, data.month)) },
   ]
   if (image && data.signatureImage) {
     entries.push({ name: `word/${imageTarget}`, bytes: data.signatureImage.data })
+  }
+  if (kepalaImage && data.kepalaSignatureImage) {
+    entries.push({ name: `word/${kepalaImageTarget}`, bytes: data.kepalaSignatureImage.data })
   }
   return createZip(entries)
 }

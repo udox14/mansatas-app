@@ -199,6 +199,15 @@ export async function uploadSignature(userId: string, file: File) {
   return uploadToR2(file, 'signatures', fileName)
 }
 
+export async function uploadCkhKepalaSignature(file: File) {
+  const validationError = validateImageFile(file)
+  if (validationError) return { url: null, error: validationError }
+
+  const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+  const fileName = `ckh_kepala_signature.${ext}`
+  return uploadToR2(file, 'signatures', fileName)
+}
+
 export async function uploadS36Pdf(userId: string, file: File) {
   await assertR2WriteAllowed()
   const validationError = validatePdfFile(file)

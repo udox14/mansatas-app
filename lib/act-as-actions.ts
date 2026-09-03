@@ -26,6 +26,7 @@ export async function setActAsUser(targetUserId: string): Promise<{ error?: stri
 
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/ckh-generator')
 
   return {}
 }
@@ -40,6 +41,7 @@ export async function clearActAs(): Promise<{ error?: string }> {
 
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/ckh-generator')
 
   return {}
 }

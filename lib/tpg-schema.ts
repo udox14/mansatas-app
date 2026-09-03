@@ -26,6 +26,10 @@ async function ensureTpgSchemaInner(db: D1Database) {
     'ALTER TABLE ckh_documents ADD COLUMN signature_x_mm REAL NOT NULL DEFAULT 14',
     'ALTER TABLE ckh_documents ADD COLUMN signature_y_mm REAL NOT NULL DEFAULT 12',
     'ALTER TABLE ckh_documents ADD COLUMN signature_width_mm REAL NOT NULL DEFAULT 38',
+    'ALTER TABLE ckh_documents ADD COLUMN kepala_signature_enabled INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE ckh_documents ADD COLUMN kepala_signature_x_mm REAL NOT NULL DEFAULT 14',
+    'ALTER TABLE ckh_documents ADD COLUMN kepala_signature_y_mm REAL NOT NULL DEFAULT 12',
+    'ALTER TABLE ckh_documents ADD COLUMN kepala_signature_width_mm REAL NOT NULL DEFAULT 38',
   ]) {
     try {
       await db.prepare(statement).run()

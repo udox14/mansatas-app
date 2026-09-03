@@ -1,8 +1,11 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { todayWIB } from '@/lib/time'
+import { getEffectiveUser, getActAsUserList } from '@/lib/act-as'
+import { ActAsBanner } from '@/components/layout/act-as-banner'
 import { PageHeader } from '@/components/layout/page-header'
 import { getCkhPageData } from './actions'
 import { CkhGeneratorClient } from './components/ckh-generator-client'
@@ -36,11 +39,17 @@ export default async function CkhGeneratorPage({
   const allowed = await checkFeatureAccess(db, user.id, 'ckh-generator')
   if (!allowed) redirect('/dashboard')
 
+  const roles = await getUserRoles(db, user.id)
+  const isSuperAdmin = roles.includes('super_admin')
+
+  const effective = await getEffectiveUser()
+  const effectiveUserId = (isSuperAdmin && effective?.isActingAs) ? effective.effectiveUserId : user.id
+  const actAsUsers = isSuperAdmin ? await getActAsUserList() : []
+
   const params = await searchParams
   const today = todayWIB()
   const { year, month } = parsePeriod(params, today)
-  const data = await getCkhPageData(year, month)
-  const roles = await getUserRoles(db, user.id)
+  const data = await getCkhPageData(year, month, effectiveUserId)
   const canManageTemplates = roles.includes('super_admin') || roles.includes('admin_tu')
 
   return (
@@ -49,7 +58,27 @@ export default async function CkhGeneratorPage({
         title="CKH Generator"
         description="Buat, edit, sinkronkan agenda, dan cetak Capaian Kinerja Harian bulanan."
       />
-      <CkhGeneratorClient initialData={data} year={year} month={month} canManageTemplates={canManageTemplates} />
+
+      {/* Act As Banner — hanya untuk super admin */}
+      {isSuperAdmin && (
+        <Suspense fallback={null}>
+          <ActAsBanner
+            isActingAs={effective?.isActingAs || false}
+            actAsName={effective?.actAsName || null}
+            userList={actAsUsers}
+            adminName={effective?.realUserName || 'Admin'}
+            showDatePicker={false}
+          />
+        </Suspense>
+      )}
+
+      <CkhGeneratorClient
+        initialData={data}
+        year={year}
+        month={month}
+        canManageTemplates={canManageTemplates}
+        isSuperAdmin={isSuperAdmin}
+      />
     </div>
   )
 }
