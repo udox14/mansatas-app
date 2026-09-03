@@ -101,13 +101,13 @@ export function buildCkhHtml(data: CkhPdfData): string {
 
   const signatureUrl = absoluteAssetUrl(user.signature_url, baseUrl)
   const sigImg = signatureSettings.signature_enabled && signatureUrl
-    ? `<img src="${esc(signatureUrl)}" alt="" style="position:absolute;left:${signatureSettings.signature_x_mm}mm;top:${signatureSettings.signature_y_mm}mm;width:${signatureSettings.signature_width_mm}mm;height:auto;max-height:40mm;object-fit:contain;z-index:10;pointer-events:none">`
+    ? `<img src="${esc(signatureUrl)}" alt="" style="position:absolute;left:${signatureSettings.signature_x_mm}mm;top:${signatureSettings.signature_y_mm}mm;width:${signatureSettings.signature_width_mm}mm;max-width:none;height:auto;max-height:none;object-fit:contain;z-index:10;pointer-events:none">`
     : ''
 
   const rawKepalaSig = ckhKepalaSignatureUrl || (data as any).kepalaSignatureUrl || ''
   const kepalaSignatureUrl = rawKepalaSig ? absoluteAssetUrl(rawKepalaSig, baseUrl) : ''
   const kepalaSigImg = kepalaSignatureSettings?.signature_enabled && kepalaSignatureUrl
-    ? `<img src="${esc(kepalaSignatureUrl)}" alt="" style="position:absolute;left:${kepalaSignatureSettings.signature_x_mm}mm;top:${kepalaSignatureSettings.signature_y_mm}mm;width:${kepalaSignatureSettings.signature_width_mm}mm;height:auto;max-height:40mm;object-fit:contain;z-index:10;pointer-events:none">`
+    ? `<img src="${esc(kepalaSignatureUrl)}" alt="" style="position:absolute;left:${kepalaSignatureSettings.signature_x_mm}mm;top:${kepalaSignatureSettings.signature_y_mm}mm;width:${kepalaSignatureSettings.signature_width_mm}mm;max-width:none;height:auto;max-height:none;object-fit:contain;z-index:10;pointer-events:none">`
     : ''
 
   return `<!DOCTYPE html>

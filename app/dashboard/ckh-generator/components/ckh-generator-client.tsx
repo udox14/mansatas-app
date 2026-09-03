@@ -179,8 +179,9 @@ function signatureImageStyle(settings: SignatureSettings): CSSProperties {
     left: `${settings.signature_x_mm}mm`,
     top: `${settings.signature_y_mm}mm`,
     width: `${settings.signature_width_mm}mm`,
+    maxWidth: 'none',
     height: 'auto',
-    maxHeight: '40mm',
+    maxHeight: 'none',
     objectFit: 'contain',
     zIndex: 10,
     pointerEvents: 'none',
@@ -672,8 +673,8 @@ function SignatureSettingsDialog({
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-xs">Ukuran tanda tangan (mm)</Label>
-              <Input type="number" value={draft.signature_width_mm} min={15} max={120} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} />
-              <input type="range" min={15} max={120} value={draft.signature_width_mm} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} className="w-full" />
+              <Input type="number" value={draft.signature_width_mm} min={10} max={150} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} />
+              <input type="range" min={10} max={150} value={draft.signature_width_mm} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} className="w-full" />
             </div>
           </div>
 
@@ -907,8 +908,8 @@ function KepalaSignatureSettingsDialog({
             </div>
             <div className="space-y-1.5 sm:col-span-2">
               <Label className="text-xs">Ukuran tanda tangan (mm)</Label>
-              <Input type="number" value={draft.signature_width_mm} min={15} max={120} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} />
-              <input type="range" min={15} max={120} value={draft.signature_width_mm} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} className="w-full" />
+              <Input type="number" value={draft.signature_width_mm} min={10} max={150} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} />
+              <input type="range" min={10} max={150} value={draft.signature_width_mm} onChange={e => updateNumber('signature_width_mm', e.target.value)} disabled={!signatureUrl} className="w-full" />
             </div>
           </div>
 

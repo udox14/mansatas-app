@@ -216,7 +216,7 @@ function imageDrawingXml(image: CkhDocxSignatureImage, relId: string, drawingId:
   const requestedWidthMm = Math.max(1, cleanNumber(Number(settings.signature_width_mm), 38))
   const aspect = image.widthPx > 0 && image.heightPx > 0 ? image.heightPx / image.widthPx : 0.28
   const naturalHeightMm = Math.max(1, requestedWidthMm * aspect)
-  const scale = naturalHeightMm > 40 ? 40 / naturalHeightMm : 1
+  const scale = naturalHeightMm > 120 ? 120 / naturalHeightMm : 1
   const widthMm = requestedWidthMm * scale
   const heightMm = naturalHeightMm * scale
   const cx = mmToEmu(widthMm)

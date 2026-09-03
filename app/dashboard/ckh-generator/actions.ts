@@ -716,7 +716,7 @@ export async function saveCkhSignatureSettings(documentId: string, payload: {
 
   const xMm = Math.max(-20, Math.min(80, Number(payload.xMm) || 0))
   const yMm = Math.max(-20, Math.min(80, Number(payload.yMm) || 0))
-  const widthMm = Math.max(15, Math.min(120, Number(payload.widthMm) || 38))
+  const widthMm = Math.max(10, Math.min(150, Number(payload.widthMm) || 38))
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
@@ -759,7 +759,7 @@ export async function saveCkhKepalaSignatureSettings(documentId: string, payload
 
   const xMm = Math.max(-20, Math.min(80, Number(payload.xMm) || 0))
   const yMm = Math.max(-20, Math.min(80, Number(payload.yMm) || 0))
-  const widthMm = Math.max(15, Math.min(120, Number(payload.widthMm) || 38))
+  const widthMm = Math.max(10, Math.min(150, Number(payload.widthMm) || 38))
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)

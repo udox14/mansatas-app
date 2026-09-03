@@ -91,14 +91,15 @@ function shouldUseKepalaTu(user: PrintUser) {
     jabatan.includes('pramubakti')
 }
 
-function signatureStyle(user: PrintUser): CSSProperties {
+function signatureStyle(user: PrintUser): React.CSSProperties {
   return {
     position: 'absolute',
     left: `${Number(user.signature_x_mm ?? 14)}mm`,
     top: `${Number(user.signature_y_mm ?? 12)}mm`,
     width: `${Number(user.signature_width_mm ?? 38)}mm`,
+    maxWidth: 'none',
     height: 'auto',
-    maxHeight: '40mm',
+    maxHeight: 'none',
     objectFit: 'contain',
     zIndex: 10,
     pointerEvents: 'none',
