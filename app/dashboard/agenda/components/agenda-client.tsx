@@ -362,8 +362,8 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
 
         return (
           <div key={block.penugasan_id} className="rounded-lg border bg-white dark:bg-slate-900 overflow-hidden">
-            <div className="px-4 py-3 flex items-center justify-between gap-3">
-              <div className="min-w-0 flex-1">
+            <div className="grid grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+              <div className="min-w-0 [overflow-wrap:anywhere]">
                 <div className="flex flex-col gap-0.5 mb-1">
                   <span className="text-base font-bold text-slate-800 dark:text-slate-100">{block.kelas_label}</span>
                   <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{block.mapel_nama}</span>
@@ -387,36 +387,44 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                 )}
               </div>
 
-              {block.is_fully_excepted ? (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">
-                  <Ban className="h-3.5 w-3.5" /> Tidak wajib
-                </span>
-              ) : block.sudah_didelegasi && !block.sudah_isi ? (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">
-                  <Send className="h-3.5 w-3.5" /> {block.alasan_ketidakhadiran === 'SAKIT' ? 'Sakit' : 'Izin'} — tugas terkirim <TeacherLeaveBadge data={block} />
-                </span>
-              ) : block.sudah_isi ? (
-                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${style.bg} ${style.text}`}>
-                  <StatusIcon className="h-3.5 w-3.5" />
-                  {style.label}<TeacherLeaveBadge data={block} />
-                </div>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setExpandedBlock(isExpanded ? null : block.penugasan_id)
-                    setMateri('')
-                    setFotoFile(null)
-                    setFotoPreview(null)
-                    setPesan(null)
-                    setShowCamera(false)
-                  }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-                >
-                  <ClipboardPen className="h-3.5 w-3.5 mr-1" />
-                  Isi Agenda
-                </Button>
-              )}
+              <div className="flex min-w-0 flex-wrap items-center gap-2 [overflow-wrap:anywhere] sm:max-w-xs sm:justify-end">
+                {block.is_fully_excepted ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">
+                    <Ban className="h-3.5 w-3.5" /> Tidak wajib
+                  </span>
+                ) : block.sudah_didelegasi && !block.sudah_isi ? (
+                  <>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">
+                      <Send className="h-3.5 w-3.5 shrink-0" /> {block.alasan_ketidakhadiran === 'SAKIT' ? 'Sakit' : 'Izin'} — tugas terkirim
+                    </span>
+                    <TeacherLeaveBadge data={block} />
+                  </>
+                ) : block.sudah_isi ? (
+                  <>
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${style.bg} ${style.text}`}>
+                      <StatusIcon className="h-3.5 w-3.5 shrink-0" />
+                      {style.label}
+                    </div>
+                    <TeacherLeaveBadge data={block} />
+                  </>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setExpandedBlock(isExpanded ? null : block.penugasan_id)
+                      setMateri('')
+                      setFotoFile(null)
+                      setFotoPreview(null)
+                      setPesan(null)
+                      setShowCamera(false)
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                  >
+                    <ClipboardPen className="h-3.5 w-3.5 mr-1" />
+                    Isi Agenda
+                  </Button>
+                )}
+              </div>
             </div>
 
             {isExpanded && !block.sudah_isi && !block.sudah_didelegasi && (
