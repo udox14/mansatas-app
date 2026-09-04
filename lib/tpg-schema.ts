@@ -1,7 +1,8 @@
 import { ensureSchemaOnce } from '@/lib/schema-guard'
+import { CKH_SIGNATURE_PREFERENCE_SCHEMA } from '@/lib/ckh-signature-preference'
 
 export async function ensureTpgSchema(db: D1Database) {
-  return ensureSchemaOnce('tpg-schema-v2', () => ensureTpgSchemaInner(db))
+  return ensureSchemaOnce('tpg-schema-v3', () => ensureTpgSchemaInner(db))
 }
 
 export async function ensureTpgSchemaInner(db: D1Database) {
@@ -22,7 +23,7 @@ export async function ensureTpgSchemaInner(db: D1Database) {
 
   for (const statement of [
     'ALTER TABLE "user" ADD COLUMN signature_url TEXT',
-    'ALTER TABLE ckh_documents ADD COLUMN signature_enabled INTEGER NOT NULL DEFAULT 0',
+    'ALTER TABLE ckh_documents ADD COLUMN signature_enabled INTEGER NOT NULL DEFAULT 1',
     'ALTER TABLE ckh_documents ADD COLUMN signature_x_mm REAL NOT NULL DEFAULT 14',
     'ALTER TABLE ckh_documents ADD COLUMN signature_y_mm REAL NOT NULL DEFAULT 12',
     'ALTER TABLE ckh_documents ADD COLUMN signature_width_mm REAL NOT NULL DEFAULT 38',
@@ -37,6 +38,8 @@ export async function ensureTpgSchemaInner(db: D1Database) {
       // Column already exists, keep going.
     }
   }
+
+  await db.batch(CKH_SIGNATURE_PREFERENCE_SCHEMA.map(statement => db.prepare(statement)))
 
   const roles = [
     'super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas',

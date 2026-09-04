@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { isS36RequiredForRoles, monthLabel, type TpgUserStatus } from '@/lib/tpg'
 import { downloadAndOpenNativeFile } from '@/lib/pdf/download'
@@ -72,6 +73,8 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
   const data = initialData
   const [s36Year, setS36Year] = useState(String(initialData.s36Year))
   const [s36Month, setS36Month] = useState(String(initialData.s36Month))
+  const [uploadYear, setUploadYear] = useState(String(initialData.s36Year))
+  const [uploadMonth, setUploadMonth] = useState(String(initialData.s36Month))
   const [ckhYear, setCkhYear] = useState(String(initialData.ckhYear))
   const [ckhMonth, setCkhMonth] = useState(String(initialData.ckhMonth))
   const [selected, setSelected] = useState<string[]>([])
@@ -79,7 +82,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
   const [pageSize, setPageSize] = useState('20')
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
-  const currentUser = data.users.find(user => user.id === data.currentUserId) || data.users[0]
+  const currentUser = data.users.find(user => user.id === data.currentUserId)
   const yearOptions = useMemo(() => {
     const current = new Date().getFullYear()
     return Array.from({ length: 6 }, (_, index) => current - 3 + index)
@@ -158,6 +161,43 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
     window.open(`/dashboard/tpg-dokumen/print-ckh?year=${data.ckhYear}&month=${data.ckhMonth}&users=${ids.join(',')}`, '_blank', 'noopener,noreferrer')
   }
 
+  const periodFilters = (
+    <div className="rounded-xl border border-surface bg-surface p-4">
+      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{data.canManage ? 'Periode Monitoring' : 'Periode Dokumen Saya'}</p>
+      <div className="mt-3 grid grid-cols-2 items-end gap-3 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
+        <div className="min-w-0 space-y-1.5">
+          <Label htmlFor="period-s36Month" className="text-xs">Bulan S36</Label>
+          <Select value={s36Month} onValueChange={setS36Month}>
+            <SelectTrigger id="period-s36Month"><SelectValue /></SelectTrigger>
+            <SelectContent>{MONTHS.map((month, index) => <SelectItem key={month} value={String(index + 1)}>{month}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="min-w-0 space-y-1.5">
+          <Label htmlFor="period-s36Year" className="text-xs">Tahun S36</Label>
+          <Select value={s36Year} onValueChange={setS36Year}>
+            <SelectTrigger id="period-s36Year"><SelectValue /></SelectTrigger>
+            <SelectContent>{yearOptions.map(year => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="min-w-0 space-y-1.5">
+          <Label htmlFor="period-ckhMonth" className="text-xs">Bulan CKH</Label>
+          <Select value={ckhMonth} onValueChange={setCkhMonth}>
+            <SelectTrigger id="period-ckhMonth"><SelectValue /></SelectTrigger>
+            <SelectContent>{MONTHS.map((month, index) => <SelectItem key={month} value={String(index + 1)}>{month}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="min-w-0 space-y-1.5">
+          <Label htmlFor="period-ckhYear" className="text-xs">Tahun CKH</Label>
+          <Select value={ckhYear} onValueChange={setCkhYear}>
+            <SelectTrigger id="period-ckhYear"><SelectValue /></SelectTrigger>
+            <SelectContent>{yearOptions.map(year => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <Button type="button" variant="outline" onClick={applyFilters} className="col-span-2 lg:col-span-1">Terapkan Periode</Button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="space-y-4">
       {message && (
@@ -169,19 +209,23 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
         </div>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="space-y-4">
+      <Tabs defaultValue={data.canManage ? 'monitoring' : 'upload'} className="space-y-4">
+        <TabsList aria-label="Dokumen TPG" className="h-auto w-full justify-start gap-1 border border-surface bg-surface-2 p-1 sm:w-auto">
+          {data.canManage && <TabsTrigger value="monitoring" className="flex-1 gap-2 px-4 py-2"><FileText className="h-4 w-4" />Monitoring</TabsTrigger>}
+          <TabsTrigger value="upload" className="flex-1 gap-2 px-4 py-2"><Upload className="h-4 w-4" />Upload S36</TabsTrigger>
+        </TabsList>
+        <TabsContent value="upload" className="space-y-4">
           <div className="rounded-xl border border-surface bg-surface p-4">
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Upload S36</p>
             <p className="mt-1 text-xs text-slate-500">S36 hanya wajib untuk guru, guru BK, wali kelas, dan guru tahfidz.</p>
             {userS36Required ? (
               <form action={uploadS36} className="mt-4 space-y-3">
-                <input type="hidden" name="period_year" value={s36Year} />
-                <input type="hidden" name="period_month" value={s36Month} />
+                <input type="hidden" name="period_year" value={uploadYear} />
+                <input type="hidden" name="period_month" value={uploadMonth} />
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Bulan S36</Label>
-                    <Select value={s36Month} onValueChange={setS36Month}>
+                    <Select value={uploadMonth} onValueChange={setUploadMonth}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {MONTHS.map((month, index) => <SelectItem key={month} value={String(index + 1)}>{month}</SelectItem>)}
@@ -190,7 +234,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Tahun</Label>
-                    <Select value={s36Year} onValueChange={setS36Year}>
+                    <Select value={uploadYear} onValueChange={setUploadYear}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {yearOptions.map(year => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}
@@ -217,32 +261,8 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
               </div>
             ) : null}
           </div>
-
-          <div className="rounded-xl border border-surface bg-surface p-4">
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Periode Monitoring</p>
-            <div className="mt-4 space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Bulan CKH</Label>
-                  <Select value={ckhMonth} onValueChange={setCkhMonth}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{MONTHS.map((month, index) => <SelectItem key={month} value={String(index + 1)}>{month}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Tahun CKH</Label>
-                  <Select value={ckhYear} onValueChange={setCkhYear}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{yearOptions.map(year => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <Button type="button" variant="outline" onClick={applyFilters} className="w-full">Terapkan Periode</Button>
-            </div>
-          </div>
-        </div>
-
-        {!data.canManage && currentUser ? (
+          {!data.canManage && periodFilters}
+        {currentUser && (
           <div className="rounded-xl border border-surface bg-surface">
             <div className="border-b border-surface-2 px-4 py-3">
               <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
@@ -265,7 +285,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                     ? 'S36 hanya diwajibkan untuk role guru.'
                     : hasS36(currentUser)
                     ? `${currentUser.s36_original_filename} | ${formatDateTime(currentUser.s36_uploaded_at)}`
-                    : 'Upload PDF S36 melalui form di sebelah kiri.'}
+                    : 'Upload PDF S36 melalui form di atas.'}
                 </p>
               </div>
               <div className="rounded-lg border border-surface-2 bg-surface-2 p-3">
@@ -286,7 +306,11 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
               </div>
             </div>
           </div>
-        ) : (
+        )}
+        </TabsContent>
+        {data.canManage && (
+          <TabsContent value="monitoring" className="min-w-0 space-y-4">
+            {periodFilters}
           <div className="rounded-xl border border-surface bg-surface">
           <div className="flex flex-col gap-3 border-b border-surface-2 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -394,16 +418,10 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
               </div>
             </div>
           )}
-
-          {!data.canManage && (
-            <div className="border-t border-surface-2 px-4 py-3 text-xs text-slate-500">
-              <FileText className="mr-1 inline h-3.5 w-3.5" />
-              CKH akan terlihat oleh TU setelah Anda klik Kirim CKH di CKH Generator.
-            </div>
-          )}
         </div>
+          </TabsContent>
         )}
-      </div>
+      </Tabs>
     </div>
   )
 }

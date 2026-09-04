@@ -183,36 +183,36 @@ async function getOrCreateDocument(db: D1Database, userId: string, year: number,
   if (!doc) {
     try {
       doc = await db.prepare(`
-        INSERT INTO ckh_documents (user_id, year, month)
-        VALUES (?, ?, ?)
+        INSERT INTO ckh_documents (user_id, year, month, signature_enabled)
+        VALUES (?, ?, ?, COALESCE((SELECT enabled FROM ckh_signature_preferences WHERE user_id = ?), 1))
         RETURNING id, user_id, year, month, status
                 , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
                 , COALESCE(kepala_signature_enabled, 0) as kepala_signature_enabled
                 , COALESCE(kepala_signature_x_mm, 14) as kepala_signature_x_mm
                 , COALESCE(kepala_signature_y_mm, 12) as kepala_signature_y_mm
                 , COALESCE(kepala_signature_width_mm, 38) as kepala_signature_width_mm
-      `).bind(userId, year, month).first<CkhDocument>()
+      `).bind(userId, year, month, userId).first<CkhDocument>()
     } catch (err: any) {
       if (String(err?.message || err).includes('no such column')) {
         await ensureTpgSchemaInner(db).catch(() => {})
         try {
           doc = await db.prepare(`
-            INSERT INTO ckh_documents (user_id, year, month)
-            VALUES (?, ?, ?)
+            INSERT INTO ckh_documents (user_id, year, month, signature_enabled)
+            VALUES (?, ?, ?, COALESCE((SELECT enabled FROM ckh_signature_preferences WHERE user_id = ?), 1))
             RETURNING id, user_id, year, month, status
                     , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
                     , COALESCE(kepala_signature_enabled, 0) as kepala_signature_enabled
                     , COALESCE(kepala_signature_x_mm, 14) as kepala_signature_x_mm
                     , COALESCE(kepala_signature_y_mm, 12) as kepala_signature_y_mm
                     , COALESCE(kepala_signature_width_mm, 38) as kepala_signature_width_mm
-          `).bind(userId, year, month).first<CkhDocument>()
+          `).bind(userId, year, month, userId).first<CkhDocument>()
         } catch {
           const fallback = await db.prepare(`
-            INSERT INTO ckh_documents (user_id, year, month)
-            VALUES (?, ?, ?)
+            INSERT INTO ckh_documents (user_id, year, month, signature_enabled)
+            VALUES (?, ?, ?, COALESCE((SELECT enabled FROM ckh_signature_preferences WHERE user_id = ?), 1))
             RETURNING id, user_id, year, month, status
                     , signature_enabled, signature_x_mm, signature_y_mm, signature_width_mm
-          `).bind(userId, year, month).first<any>()
+          `).bind(userId, year, month, userId).first<any>()
           if (fallback) {
             doc = {
               ...fallback,
@@ -720,17 +720,27 @@ export async function saveCkhSignatureSettings(documentId: string, payload: {
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
+  await ensureTpgSchema(db)
   const isAdmin = await isSuperAdmin(authUser.id)
   const doc = await db.prepare('SELECT id, user_id FROM ckh_documents WHERE id = ?').bind(documentId).first<{ id: string; user_id: string }>()
   if (!doc || (doc.user_id !== authUser.id && !isAdmin)) return { error: 'Dokumen CKH tidak ditemukan.' }
 
-  await markCkhDocumentDraft(db, documentId)
-  await db.prepare(`
-    UPDATE ckh_documents
-    SET signature_enabled = ?, signature_x_mm = ?, signature_y_mm = ?, signature_width_mm = ?,
-        updated_at = datetime('now')
-    WHERE id = ?
-  `).bind(payload.enabled ? 1 : 0, xMm, yMm, widthMm, documentId).run()
+  await db.batch([
+    db.prepare(`
+      INSERT INTO ckh_signature_preferences (user_id, enabled) VALUES (?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET enabled = excluded.enabled
+    `).bind(doc.user_id, payload.enabled ? 1 : 0),
+    db.prepare(`
+      UPDATE ckh_documents SET signature_enabled = ?, updated_at = datetime('now')
+      WHERE user_id = ? AND signature_enabled <> ?
+    `).bind(payload.enabled ? 1 : 0, doc.user_id, payload.enabled ? 1 : 0),
+    db.prepare(`
+      UPDATE ckh_documents
+      SET signature_enabled = ?, signature_x_mm = ?, signature_y_mm = ?, signature_width_mm = ?,
+          status = 'DRAFT', updated_at = datetime('now')
+      WHERE id = ?
+    `).bind(payload.enabled ? 1 : 0, xMm, yMm, widthMm, documentId),
+  ])
 
   revalidatePath('/dashboard/ckh-generator')
   revalidatePath('/dashboard/tpg-dokumen')

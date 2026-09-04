@@ -157,7 +157,7 @@ function shouldUseKepalaTu(user: any, userRoles: string[] = []) {
 
 function normalizeSignatureSettings(document: any): SignatureSettings {
   return {
-    signature_enabled: Number(document?.signature_enabled || 0),
+    signature_enabled: Number(document?.signature_enabled ?? 1),
     signature_x_mm: Number(document?.signature_x_mm ?? 14),
     signature_y_mm: Number(document?.signature_y_mm ?? 12),
     signature_width_mm: Number(document?.signature_width_mm ?? 38),
@@ -639,8 +639,10 @@ function SignatureSettingsDialog({
               disabled={!signatureUrl}
               className="h-4 w-4"
             />
-            Pakai tanda tangan pada dokumen CKH ini
+            Pakai tanda tangan pada dokumen CKH saya
           </label>
+
+          <p className="text-xs text-slate-500">Aktif secara default. Klik Apply untuk menyimpan pilihan aktif/nonaktif untuk semua bulan sampai Anda mengubahnya kembali.</p>
 
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-4">
             <div style={signaturePreviewColumnStyle}>
