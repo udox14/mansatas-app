@@ -1,0 +1,6 @@
+<id>
+Perbaikan tampilan aplikasi Android:
+- Konten tidak lagi bertumpuk dengan status bar (baterai, Wi-Fi, dan jam) serta navigasi bawaan HP.
+- Penyesuaian area tampilan untuk perangkat berponi, navigasi gestur, dan navigasi tiga tombol.
+- Penyesuaian ruang konten saat keyboard dibuka dan orientasi layar berubah.
+</id>

@@ -9,6 +9,11 @@ const config: CapacitorConfig = {
     cleartext: false,
   },
   plugins: {
+    // MainActivity owns native insets for every Android/WebView version.
+    SystemBars: {
+      insetsHandling: 'disable',
+      hidden: false,
+    },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
