@@ -29,7 +29,7 @@ export default async function LandingPage() {
   const PrimaryIcon = isParent || isStaff ? LayoutDashboard : LogIn
 
   return (
-    <div className="h-[100dvh] w-screen overflow-hidden bg-[#fafcfa] text-slate-800 relative flex flex-col justify-between font-sans selection:bg-teal-100 selection:text-teal-900">
+    <div className="min-h-[100dvh] w-full overflow-x-clip bg-[#fafcfa] text-slate-800 relative flex flex-col justify-between font-sans selection:bg-teal-100 selection:text-teal-900">
       
       {/* Custom Floating Animation Styles & Dot Grid Background */}
       <style dangerouslySetInnerHTML={{ __html: `
@@ -66,7 +66,7 @@ export default async function LandingPage() {
       <div className="absolute left-1/3 top-1/2 -translate-y-1/2 w-80 h-80 rounded-full bg-teal-500/5 blur-[100px] pointer-events-none z-0" />
 
       {/* Main Container */}
-      <main className="relative z-20 flex-1 min-h-0 w-full max-w-7xl mx-auto px-5 sm:px-6 md:px-10 lg:px-12 flex items-center justify-center overflow-hidden py-3 sm:py-4 lg:py-0">
+      <main className="relative z-20 flex-1 w-full max-w-7xl mx-auto px-5 sm:px-6 md:px-10 lg:px-12 flex items-center justify-center py-6 sm:py-8 lg:py-10">
         
         {/* Responsive Grid */}
         <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-10 items-center">
@@ -145,6 +145,30 @@ export default async function LandingPage() {
                   </Link>
                 </>
               )}
+            </div>
+
+            {/* Android download: secondary to login, visible on every screen size. */}
+            <div className="flex w-full max-w-md flex-col items-center gap-3 rounded-2xl border border-teal-100 bg-teal-50/60 p-4 sm:flex-row sm:justify-between sm:gap-4">
+              <div className="text-center sm:text-left">
+                <p className="text-sm font-bold text-teal-950">Lebih praktis lewat aplikasi</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600">Download MANSATAS App untuk Android.</p>
+              </div>
+              <a
+                href="https://play.google.com/store/apps/details?id=com.mansatas.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Download MANSATAS App di Google Play (buka tab baru)"
+                className="inline-flex shrink-0 rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-4"
+              >
+                <Image
+                  src="/google-play-badge.png"
+                  alt="Get it on Google Play"
+                  width={3840}
+                  height={1138}
+                  sizes="(min-width: 640px) 152px, 176px"
+                  className="h-auto w-44 sm:w-[152px]"
+                />
+              </a>
             </div>
 
             {/* Footer Features Link & Security badges */}
