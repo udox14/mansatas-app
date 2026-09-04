@@ -241,9 +241,9 @@ function agendaTable(rows: AgendaKelasRow[], widthMm: number) {
   const fixedTotal = fixedColumns.reduce((sum, value) => sum + value, 0)
   const scale = Math.max(0.7, widthMm / fixedTotal)
   const widths = fixedColumns.map(value => mmToTwips(value * scale))
-  const headers = ['JAM\nKE', 'MATA PELAJARAN', 'POKOK\nBAHASAN', 'TUGAS', 'KEHADIRAN\nGURU']
+  const headers = ['JAM\nKE', 'MATA PELAJARAN', 'POKOK\nBAHASAN', 'TUGAS', 'KEHADIRAN\nGURU\nIS: Izin Sekolah']
   const header = rowXml(headers.map((label, index) => cellXml(
-    paragraph(textRuns(label, { size: 8.5, bold: true }), { align: 'center', line: 180, lineRule: 'exact' }),
+    paragraph(textRuns(label, { size: index === 4 ? 6.5 : 8.5, bold: true }), { align: 'center', line: index === 4 ? 140 : 180, lineRule: 'exact' }),
     widths[index],
     { align: 'center', vertical: 'center' },
   )), 9)

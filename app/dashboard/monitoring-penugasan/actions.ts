@@ -1,11 +1,13 @@
 'use server'
 
+import { enrichTeacherDelegations } from '@/lib/teacher-leave-db'
+import type { TeacherLeaveMetadata } from '@/lib/teacher-leave'
 import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
 import { checkFeatureAccess } from '@/lib/features'
 import { formatNamaKelas } from '@/lib/utils'
 
-export type MonitoringDelegasi = {
+export type MonitoringDelegasi = TeacherLeaveMetadata & {
   delegasi_id: string
   dari_nama: string
   kepada_nama: string
@@ -132,5 +134,5 @@ export async function getMonitoringData(tanggal: string): Promise<{ error: strin
     })
   }
 
-  return { error: null, data: Array.from(grouped.values()) }
+  return { error: null, data: await enrichTeacherDelegations(db, Array.from(grouped.values())) }
 }

@@ -1,6 +1,8 @@
 // Lokasi: app/dashboard/penugasan/components/penugasan-client.tsx
 'use client'
 
+import { TeacherLeaveSelect, TeacherLeaveBadge } from '@/components/teacher-leave-controls'
+import type { TeacherLeaveMetadata } from '@/lib/teacher-leave'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -37,7 +39,7 @@ interface PenugasanClientProps {
   }
   initialTerkirim: {
     error: string | null
-    data: Array<{
+    data: Array<TeacherLeaveMetadata & {
       delegasi_id: string
       kepada_user_nama: string
       status: string
@@ -141,6 +143,7 @@ function TabKirimTugas({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [tugasMap, setTugasMap] = useState<Record<string, string>>({})
   const [alasanKetidakhadiran, setAlasanKetidakhadiran] = useState<'SAKIT' | 'IZIN' | ''>('')
+  const [alasanIzinGuruId, setAlasanIzinGuruId] = useState('')
   const [deskripsiKetidakhadiran, setDeskripsiKetidakhadiran] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [pesan, setPesan] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null)
@@ -177,11 +180,12 @@ function TabKirimTugas({
     const empty = items.find(i => !i.tugas.trim())
     if (empty) return setPesan({ tipe: 'error', teks: 'Tugas untuk setiap kelas wajib diisi.' })
     if (!alasanKetidakhadiran) return setPesan({ tipe: 'error', teks: 'Pilih alasan ketidakhadiran: SAKIT atau IZIN.' })
+    if (alasanKetidakhadiran === 'IZIN' && !alasanIzinGuruId) return setPesan({ tipe: 'error', teks: 'Pilih alasan izin guru.' })
     if (!deskripsiKetidakhadiran.trim()) return setPesan({ tipe: 'error', teks: 'Deskripsi singkat alasan ketidakhadiran wajib diisi.' })
 
     setIsSubmitting(true)
     setPesan(null)
-    const result = await kirimDelegasiTugas(tanggalHariIni, items, alasanKetidakhadiran, deskripsiKetidakhadiran)
+    const result = await kirimDelegasiTugas(tanggalHariIni, items, alasanKetidakhadiran, deskripsiKetidakhadiran, alasanIzinGuruId)
     setIsSubmitting(false)
 
     if (result.error) {
@@ -319,6 +323,7 @@ function TabKirimTugas({
                     )
                   })}
                 </div>
+                {alasanKetidakhadiran === 'IZIN' && <TeacherLeaveSelect value={alasanIzinGuruId} onChange={setAlasanIzinGuruId} />}
                 <textarea
                   className="w-full text-sm border rounded-lg p-2.5 resize-none focus:ring-2 focus:ring-violet-200 focus:border-violet-400 outline-none"
                   rows={2}
@@ -444,7 +449,7 @@ function DelegasiTerkirimCard({
             }`}>
               {isSelesai ? 'Selesai' : 'Dikirim'}
             </span>
-            <AlasanBadge alasan={data.alasan_ketidakhadiran} />
+            <AlasanBadge alasan={data.alasan_ketidakhadiran} /><TeacherLeaveBadge data={data} />
           </div>
           <p className="text-[11px] text-gray-400 mt-0.5">{data.items.length} kelas</p>
           <p className="text-[11px] text-gray-500 mt-0.5 truncate">{data.deskripsi_ketidakhadiran}</p>
@@ -548,7 +553,7 @@ function TabTugasMasuk({
                   <span className="font-semibold">Alasan {ALASAN_STYLE[items[0].alasan_ketidakhadiran].label}:</span> {items[0].deskripsi_ketidakhadiran}
                 </p>
               </div>
-              <AlasanBadge alasan={items[0].alasan_ketidakhadiran} />
+              <AlasanBadge alasan={items[0].alasan_ketidakhadiran} /><TeacherLeaveBadge data={items[0]} />
             </div>
           </div>
 

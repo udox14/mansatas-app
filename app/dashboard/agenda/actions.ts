@@ -1,6 +1,8 @@
 // Lokasi: app/dashboard/agenda/actions.ts
 'use server'
 
+import { enrichTeacherLeaveSessions } from '@/lib/teacher-leave-db'
+import type { TeacherLeaveMetadata } from '@/lib/teacher-leave'
 import { dbInsert, dbUpdate } from '@/utils/db'
 import { getDB as getRawDB } from '@/utils/db-server'
 import { requireActionAccess } from '@/lib/action-security'
@@ -28,7 +30,7 @@ import {
 // ============================================================
 // TYPES
 // ============================================================
-type JadwalBlock = {
+type JadwalBlock = TeacherLeaveMetadata & {
   penugasan_id: string
   mapel_nama: string
   kelas_label: string
@@ -47,6 +49,7 @@ type JadwalBlock = {
   sudah_isi: boolean
   sudah_didelegasi: boolean
   alasan_ketidakhadiran?: 'SAKIT' | 'IZIN'
+  deskripsi_ketidakhadiran?: string | null
   agenda_id?: string
   status?: string
 }
@@ -153,7 +156,8 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       ag.id as agenda_id,
       ag.status as agenda_status,
       dtk.id as delegasi_kelas_id,
-      dt.alasan_ketidakhadiran
+      dt.alasan_ketidakhadiran,
+      COALESCE(ag.catatan_admin, dt.deskripsi_ketidakhadiran) AS deskripsi_ketidakhadiran
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
     JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
@@ -217,13 +221,14 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       sudah_isi: !!first.agenda_id,
       sudah_didelegasi: !!first.delegasi_kelas_id,
       alasan_ketidakhadiran: first.alasan_ketidakhadiran || undefined,
+      deskripsi_ketidakhadiran: first.deskripsi_ketidakhadiran || null,
       agenda_id: first.agenda_id ?? undefined,
       status: first.agenda_status ?? undefined,
     })
   }
 
   blocks.sort((a, b) => a.jam_ke_mulai - b.jam_ke_mulai)
-  return { error: null, blocks, slots, tanggal, hari, kbmExceptions }
+  return { error: null, blocks: await enrichTeacherLeaveSessions(db, blocks.map(block => ({ ...block, tanggal, status: block.status || block.alasan_ketidakhadiran || '' }))), slots, tanggal, hari, kbmExceptions }
 }
 
 function parseAgendaLateThresholdByJam(raw: string): Record<string, number> {

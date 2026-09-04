@@ -1,3 +1,4 @@
+import { getTeacherAgendaObligations } from '@/lib/teacher-agenda-obligations'
 import Link from 'next/link'
 import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
@@ -43,6 +44,7 @@ type Props = {
 type AgendaStats = {
   total: number
   filled: number
+  izinSekolah: number
   percent: number
 }
 
@@ -65,27 +67,12 @@ function formatWaktuLog(iso: string) {
 }
 
 async function getAgendaStats(db: D1Database, today: string, taId?: string): Promise<AgendaStats> {
-  if (!taId) return { total: 0, filled: 0, percent: 0 }
-
-  const d = new Date(today + 'T00:00:00')
-  const hariIni = d.getDay() === 0 ? 7 : d.getDay()
-
-  const row = await db.prepare(`
-    SELECT
-      COUNT(DISTINCT jm.penugasan_id) as total,
-      COUNT(DISTINCT CASE WHEN ag.id IS NOT NULL THEN jm.penugasan_id END) as filled
-    FROM jadwal_mengajar jm
-    JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
-    JOIN kelas k ON pm.kelas_id = k.id
-    LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
-    WHERE jm.tahun_ajaran_id = ?
-      AND jm.hari = ?
-      AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
-  `).bind(today, taId, hariIni, today).first<{ total: number; filled: number }>()
-
-  const total = row?.total ?? 0
-  const filled = row?.filled ?? 0
-  return { total, filled, percent: pct(filled, total) }
+  if (!taId) return { total: 0, filled: 0, izinSekolah: 0, percent: 0 }
+  const rows = await getTeacherAgendaObligations(db, today, taId)
+  const total = rows.length
+  const izinSekolah = rows.filter(row => row.kepentingan_sekolah).length
+  const filled = rows.filter(row => row.agenda_id && !row.kepentingan_sekolah).length
+  return { total, filled, izinSekolah, percent: pct(filled + izinSekolah, total) }
 }
 
 export async function SuperAdminDashboard({
@@ -192,7 +179,7 @@ export async function SuperAdminDashboard({
         <StatCard
           title="Agenda Guru"
           value={`${agenda.percent}%`}
-          sub={`${agenda.filled} dari ${agenda.total} terisi`}
+          sub={`${agenda.filled} terisi · ${agenda.izinSekolah} izin sekolah · ${agenda.total} sesi`}
           icon={<BookOpen className="h-6 w-6" weight="duotone" />}
           iconBg="bg-amber-50 dark:bg-amber-900/20"
           iconColor="text-amber-600 dark:text-amber-400"

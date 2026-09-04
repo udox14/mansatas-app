@@ -1,10 +1,10 @@
+import { getTeacherAgendaObligations } from '@/lib/teacher-agenda-obligations'
 // components/dashboard/widgets/RekapKehadiranGuruWidget.tsx
 // Widget katalog: rekap kehadiran mengajar guru hari ini (pengisian agenda KBM).
 // Bisa ditambahkan ke dashboard manapun lewat pengaturan.
 import Link from 'next/link'
 import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
-import { getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
 import { ClipboardText as ClipboardCheck, ArrowRight, CheckCircle as CheckCircle2, Warning as AlertTriangle } from '@phosphor-icons/react/dist/ssr'
 import type { WidgetProps } from '@/lib/dashboard-widgets-meta'
 
@@ -16,40 +16,16 @@ export async function RekapKehadiranGuruWidget({ taAktif }: WidgetProps) {
 
   const taId = taAktif?.id ?? (await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>())?.id
 
-  const rows = taId ? await db.prepare(`
-    SELECT
-      pm.guru_id,
-      u.nama_lengkap,
-      MIN(jm.jam_ke) AS jam_mulai,
-      MAX(jm.jam_ke) AS jam_selesai,
-      k.id AS kelas_id,
-      k.tingkat,
-      jm.penugasan_id,
-      MAX(CASE WHEN ag.id IS NOT NULL THEN 1 ELSE 0 END) AS terisi
-    FROM jadwal_mengajar jm
-    JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
-    JOIN "user" u ON pm.guru_id = u.id
-    JOIN kelas k ON pm.kelas_id = k.id
-    LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
-    WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
-      AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
-    GROUP BY jm.penugasan_id, pm.guru_id, u.nama_lengkap, k.id, k.tingkat
-  `).bind(today, taId, hariIni, today).all<any>().then(r => r.results ?? []) : []
-
-  const kbmExceptions = await getKbmExceptionsForDate(db, today)
-  const active = rows.filter((row: any) => hasActiveTeachingSlotsInRange(
-    kbmExceptions,
-    { id: row.kelas_id, tingkat: Number(row.tingkat) },
-    Number(row.jam_mulai),
-    Number(row.jam_selesai)
-  ))
+  const active = taId ? await getTeacherAgendaObligations(db, today, taId) : []
+  const izinSekolah = active.filter(row => row.kepentingan_sekolah).length
+  const agendaTerisi = active.filter(row => row.agenda_id && !row.kepentingan_sekolah).length
 
   // Agregasi per guru
   const perGuru = new Map<string, { nama: string; total: number; terisi: number }>()
   for (const row of active) {
     const g = perGuru.get(row.guru_id) ?? { nama: row.nama_lengkap, total: 0, terisi: 0 }
     g.total += 1
-    if (Number(row.terisi) === 1) g.terisi += 1
+    if (row.agenda_id || row.kepentingan_sekolah) g.terisi += 1
     perGuru.set(row.guru_id, g)
   }
 
@@ -69,7 +45,7 @@ export async function RekapKehadiranGuruWidget({ taAktif }: WidgetProps) {
         </div>
         <div className="flex-1">
           <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Rekap Kehadiran Guru</p>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500">Pengisian agenda mengajar hari ini</p>
+          <p className="text-[10px] text-slate-400 dark:text-slate-500">{agendaTerisi} agenda terisi · {izinSekolah} izin sekolah</p>
         </div>
         <Link href="/dashboard/monitoring-agenda" className="text-[11px] text-slate-400 hover:text-slate-600 flex items-center gap-1">
           Detail <ArrowRight className="h-3 w-3" />
@@ -98,7 +74,7 @@ export async function RekapKehadiranGuruWidget({ taAktif }: WidgetProps) {
             </div>
             <div className="flex flex-col gap-1">
               <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500">
-                <span>Guru sudah lengkap mengisi</span>
+                <span>Guru telah memenuhi kewajiban</span>
                 <span className="font-medium">{pct}%</span>
               </div>
               <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">

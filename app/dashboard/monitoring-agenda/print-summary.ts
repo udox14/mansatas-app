@@ -1,3 +1,5 @@
+import { teacherPerformance, isSchoolLeave, type TeacherLeaveMetadata } from '@/lib/teacher-leave'
+
 export type PerformancePolicy = 'excused_not_penalized' | 'excused_penalized'
 export type TeacherAttendanceSort =
   | 'name_asc'
@@ -8,7 +10,7 @@ export type TeacherAttendanceSort =
   | 'sakit_desc'
   | 'alfa_desc'
 
-export type AgendaPrintSession = {
+export type AgendaPrintSession = TeacherLeaveMetadata & {
   penugasan_id: string
   tanggal: string
   guru_id: string
@@ -30,6 +32,7 @@ export type AttendanceCounts = {
   hadir: number
   sakit: number
   izin: number
+  izinSekolah: number
   alfa: number
   performa: number
 }
@@ -41,8 +44,8 @@ export type TeacherAttendanceSummary = AttendanceCounts & {
 }
 
 export const PERFORMANCE_POLICY_LABELS: Record<PerformancePolicy, string> = {
-  excused_not_penalized: 'Sakit dan izin tidak mengurangi performa',
-  excused_penalized: 'Sakit dan izin mengurangi performa',
+  excused_not_penalized: 'Sakit dan izin biasa tidak mengurangi performa; izin sekolah selalu mendapat kredit',
+  excused_penalized: 'Sakit dan izin biasa mengurangi performa; izin sekolah selalu mendapat kredit',
 }
 
 export const TEACHER_ATTENDANCE_SORT_LABELS: Record<TeacherAttendanceSort, string> = {
@@ -56,14 +59,10 @@ export const TEACHER_ATTENDANCE_SORT_LABELS: Record<TeacherAttendanceSort, strin
 }
 
 export function calculatePerformance(
-  counts: Pick<AttendanceCounts, 'totalBlok' | 'hadir' | 'sakit' | 'izin'>,
+  counts: Pick<AttendanceCounts, 'totalBlok' | 'hadir' | 'sakit' | 'izin'> & { izinSekolah?: number },
   policy: PerformancePolicy,
 ) {
-  if (counts.totalBlok <= 0) return 0
-  const credited = policy === 'excused_not_penalized'
-    ? counts.hadir + counts.sakit + counts.izin
-    : counts.hadir
-  return Math.min(100, Math.max(0, Math.round((credited / counts.totalBlok) * 100)))
+  return teacherPerformance({ ...counts, total: counts.totalBlok }, policy === 'excused_not_penalized')
 }
 
 function compareSessions(a: AgendaPrintSession, b: AgendaPrintSession) {
@@ -111,6 +110,7 @@ export function aggregateTeacherAttendance(
         hadir: 0,
         sakit: 0,
         izin: 0,
+        izinSekolah: 0,
         alfa: 0,
         sessions: [],
       })
@@ -119,6 +119,7 @@ export function aggregateTeacherAttendance(
     const row = grouped.get(session.guru_id)!
     row.totalBlok += 1
     row.sessions.push(session)
+    if (isSchoolLeave(session.status, session)) row.izinSekolah += 1
     if (session.status === 'TEPAT_WAKTU' || session.status === 'TELAT' || session.status === 'HADIR') row.hadir += 1
     else if (session.status === 'SAKIT') row.sakit += 1
     else if (session.status === 'IZIN') row.izin += 1
@@ -142,9 +143,10 @@ export function aggregateAttendanceTotal(
     hadir: result.hadir + teacher.hadir,
     sakit: result.sakit + teacher.sakit,
     izin: result.izin + teacher.izin,
+    izinSekolah: result.izinSekolah + teacher.izinSekolah,
     alfa: result.alfa + teacher.alfa,
     performa: 0,
-  }), { totalBlok: 0, hadir: 0, sakit: 0, izin: 0, alfa: 0, performa: 0 })
+  }), { totalBlok: 0, hadir: 0, sakit: 0, izin: 0, izinSekolah: 0, alfa: 0, performa: 0 })
 
   total.performa = calculatePerformance(total, policy)
   return total

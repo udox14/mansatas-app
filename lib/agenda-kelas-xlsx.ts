@@ -193,8 +193,8 @@ function addPage(sheet: SheetBuilder, page: AgendaKelasPageData, index: number, 
   sheet.setMergedWithStyles(start + 8, 0, start + 8, 4, 'AGENDA KELAS', [21, 22, 22, 22, 23])
   sheet.setMergedWithStyles(start + 8, 6, start + 8, 18, 'ABSENSI SISWA', [21, ...Array.from({ length: 11 }, () => 22), 23])
 
-  const agendaHeaders = ['JAM KE', 'MATA PELAJARAN', 'POKOK BAHASAN', 'TUGAS', 'PARAF GURU']
-  const agendaHeaderStyles = [4, 5, 5, 6, 7]
+  const agendaHeaders = ['JAM KE', 'MATA PELAJARAN', 'POKOK BAHASAN', 'TUGAS', 'KEHADIRAN\nGURU\nIS: Izin Sekolah']
+  const agendaHeaderStyles = [4, 5, 5, 6, 28]
   for (let col = 0; col < agendaHeaders.length; col++) sheet.set(start + 10, col, agendaHeaders[col], agendaHeaderStyles[col])
   sheet.set(start + 10, 5, null, 3)
   const attendanceHeaders = ['NO', 'NAMA ', 'S', 'I', 'A', 'KET']
@@ -284,7 +284,14 @@ function addPage(sheet: SheetBuilder, page: AgendaKelasPageData, index: number, 
   }
 }
 
-function styleXml() { return TEMPLATE_STYLE_XML }
+function styleXml() {
+  // Smaller three-line legend fits the existing fixed-height teacher header.
+  return TEMPLATE_STYLE_XML
+    .replace('<fonts count="8"', '<fonts count="9"')
+    .replace('</fonts>', '<font><b/><sz val="7.5"/><name val="Book Antiqua"/><family val="1"/></font></fonts>')
+    .replace('<cellXfs count="28"', '<cellXfs count="29"')
+    .replace('</cellXfs>', '<xf numFmtId="0" fontId="8" fillId="0" borderId="3" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf></cellXfs>')
+}
 
 function cellXml(ref: string, cell: Cell) {
   if (cell.value === null) return `<c r="${ref}" s="${cell.style}"/>`

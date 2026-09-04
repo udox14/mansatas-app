@@ -160,18 +160,19 @@ function resolveGuruStatus(opts: {
   hasDelegasi: boolean
   delegasiAlasan?: string | null
   ended: boolean
+  izinSekolah?: boolean
 }): string {
   const { agendaStatus, hasDelegasi, delegasiAlasan, ended } = opts
   if (agendaStatus) {
     if (agendaStatus === 'SAKIT') return 'SAKIT'
-    if (agendaStatus === 'IZIN') return 'IZIN'
+    if (agendaStatus === 'IZIN') return opts.izinSekolah ? 'IS' : 'IZIN'
     if (agendaStatus === 'ALFA') return 'ALFA'
     // TEPAT_WAKTU, TELAT, HADIR, dll → guru hadir mengajar
     return 'HADIR'
   }
   if (hasDelegasi) {
     if (delegasiAlasan === 'SAKIT') return 'SAKIT'
-    return 'IZIN'
+    return opts.izinSekolah ? 'IS' : 'IZIN'
   }
   return ended ? 'ALFA' : ''
 }
@@ -467,6 +468,7 @@ async function buildAgendaKelasHari(
         ag.status as agenda_status,
         dtk.id as delegasi_kelas_id,
         dt_info.alasan_ketidakhadiran as delegasi_alasan,
+        (SELECT kepentingan_sekolah FROM alasan_izin_guru WHERE id = COALESCE(ag.alasan_izin_guru_id, dt_info.alasan_izin_guru_id)) AS izin_sekolah,
         dtk.tugas
       FROM jadwal_mengajar jm
       JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
@@ -514,6 +516,7 @@ async function buildAgendaKelasHari(
     const slotSelesai = slots.find(s => s.id === slotState.activeJamKe[slotState.activeJamKe.length - 1])
     const guruStatus = resolveGuruStatus({
       agendaStatus: first.agenda_status,
+      izinSekolah: first.izin_sekolah === 1,
       hasDelegasi: !!first.delegasi_kelas_id,
       delegasiAlasan: first.delegasi_alasan,
       ended: isTeachingBlockEnded(tanggal, slotSelesai),
@@ -801,6 +804,7 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
           ag.status as agenda_status,
           dtk.id as delegasi_kelas_id,
           dt.alasan_ketidakhadiran as delegasi_alasan,
+          (SELECT kepentingan_sekolah FROM alasan_izin_guru WHERE id = COALESCE(ag.alasan_izin_guru_id, dt.alasan_izin_guru_id)) AS izin_sekolah,
           dtk.tugas
         FROM jadwal_mengajar jm
         JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
@@ -849,6 +853,7 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
       const slotSelesai = slots.find(s => s.id === slotState.activeJamKe[slotState.activeJamKe.length - 1])
       const guruStatus = resolveGuruStatus({
         agendaStatus: first.agenda_status,
+        izinSekolah: first.izin_sekolah === 1,
         hasDelegasi: !!first.delegasi_kelas_id,
         delegasiAlasan: first.delegasi_alasan,
         ended: isTeachingBlockEnded(tanggal, slotSelesai),
@@ -950,6 +955,8 @@ type BulkAgendaRow = {
   tanggal: string
   materi: string | null
   agenda_status: string | null
+  alasan_izin_guru_id: string | null
+  izin_sekolah: number | null
 }
 
 type BulkDelegationRow = {
@@ -957,6 +964,7 @@ type BulkDelegationRow = {
   tanggal: string
   delegasi_kelas_id: string
   delegasi_alasan: string | null
+  izin_sekolah: number | null
   tugas: string | null
 }
 
@@ -1157,6 +1165,7 @@ function buildAgendaKelasExportPage(input: {
     const slotSelesai = slots.find(s => s.id === slotState.activeJamKe[slotState.activeJamKe.length - 1])
     const guruStatus = resolveGuruStatus({
       agendaStatus: agenda?.agenda_status,
+      izinSekolah: (agenda?.alasan_izin_guru_id ? agenda.izin_sekolah : delegation?.izin_sekolah) === 1,
       hasDelegasi: !!delegation?.delegasi_kelas_id,
       delegasiAlasan: delegation?.delegasi_alasan,
       ended: isTeachingBlockEnded(tanggal, slotSelesai),
@@ -1274,7 +1283,9 @@ export async function getAgendaKelasCetakExportData(
         ORDER BY pm.kelas_id ASC, jm.hari ASC, jm.jam_ke ASC
       `).bind(...ids, ta.id).all<BulkScheduleRow>(),
       db.prepare(`
-        SELECT ag.penugasan_id, ag.tanggal, ag.materi, ag.status as agenda_status
+        SELECT ag.penugasan_id, ag.tanggal, ag.materi, ag.status as agenda_status,
+          ag.alasan_izin_guru_id,
+          (SELECT kepentingan_sekolah FROM alasan_izin_guru WHERE id = ag.alasan_izin_guru_id) AS izin_sekolah
         FROM agenda_guru ag
         JOIN penugasan_mengajar pm ON ag.penugasan_id = pm.id
         WHERE pm.kelas_id IN (${placeholders}) AND ag.tanggal BETWEEN ? AND ?
@@ -1285,6 +1296,7 @@ export async function getAgendaKelasCetakExportData(
           dt.tanggal,
           dtk.id as delegasi_kelas_id,
           dt.alasan_ketidakhadiran as delegasi_alasan,
+          (SELECT kepentingan_sekolah FROM alasan_izin_guru WHERE id = dt.alasan_izin_guru_id) AS izin_sekolah,
           dtk.tugas
         FROM delegasi_tugas_kelas dtk
         JOIN delegasi_tugas dt ON dtk.delegasi_id = dt.id

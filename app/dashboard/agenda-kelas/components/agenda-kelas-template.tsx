@@ -114,7 +114,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                   <th style={thStyle}>MATA PELAJARAN</th>
                   <th style={thStyle}>POKOK<br />BAHASAN</th>
                   <th style={thStyle}>TUGAS</th>
-                  <th style={thStyle}>KEHADIRAN<br />GURU</th>
+                  <th style={thStyle}>KEHADIRAN<br />GURU<br /><span style={{ fontSize: '6pt' }}>IS: Izin Sekolah</span></th>
                 </tr>
               </thead>
               <tbody>

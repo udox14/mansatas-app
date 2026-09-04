@@ -24,6 +24,7 @@
 /.wrangler/
 /scratch/
 /security-reports/
+/downloads/
 *.zip
 *.7z
 *.tar.gz

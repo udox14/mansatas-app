@@ -1,5 +1,6 @@
 'use client'
 
+import { TeacherLeaveManager, TeacherLeaveMapping, TeacherLeaveBadge } from '@/components/teacher-leave-controls'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
@@ -45,14 +46,16 @@ function getAvatarInitials(name: string) {
 }
 
 export function MonitoringClient({
-  initialData, initialTanggal, petugasPiket
+  initialData, initialTanggal, petugasPiket, canManageReasons
 }: {
   initialData: MonitoringDelegasi[]
   initialTanggal: string
   petugasPiket: MonitoringPetugasPiket[]
+  canManageReasons: boolean
 }) {
   const router = useRouter()
   const [tanggal, setTanggal] = useState(initialTanggal)
+  const [selected, setSelected] = useState<string[]>([])
   const [search, setSearch] = useState('')
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set(initialData.map(d => d.delegasi_id)))
 
@@ -104,6 +107,10 @@ export function MonitoringClient({
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <TeacherLeaveManager onChanged={() => router.refresh()} />
+        <TeacherLeaveMapping targets={filteredData.filter(row => row.alasan_ketidakhadiran === 'IZIN' && selected.includes(row.delegasi_id)).map(row => ({ delegasi_id: row.delegasi_id }))} onChanged={() => { setSelected([]); router.refresh() }} />
+      </div>
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="rounded-xl border bg-white dark:bg-slate-900 p-3.5 shadow-sm space-y-1">
@@ -112,7 +119,7 @@ export function MonitoringClient({
             <Users className="h-4 w-4 text-violet-500" />
           </div>
           <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{totalDelegasi} <span className="text-xs font-normal text-slate-400">Guru</span></p>
-          <p className="text-[11px] text-slate-400 truncate">{totalSakit} Sakit • {totalIzin} Izin</p>
+          <p className="text-[11px] text-slate-400 truncate">{totalSakit} Sakit • {totalIzin - filteredData.filter(row => row.kepentingan_sekolah).length} Izin biasa • {filteredData.filter(row => row.kepentingan_sekolah).length} Izin sekolah</p>
         </div>
 
         <div className="rounded-xl border bg-white dark:bg-slate-900 p-3.5 shadow-sm space-y-1">
@@ -279,7 +286,8 @@ export function MonitoringClient({
                           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
                             {dt.dari_nama}
                           </h3>
-                          <AlasanBadge alasan={dt.alasan_ketidakhadiran} />
+                          <AlasanBadge alasan={dt.alasan_ketidakhadiran} /><TeacherLeaveBadge data={dt} />
+                          {canManageReasons && dt.alasan_ketidakhadiran === 'IZIN' && <label className="inline-flex items-center gap-1 text-xs" onClick={e => e.stopPropagation()}><input type="checkbox" aria-label={`Pilih izin ${dt.dari_nama}`} checked={selected.includes(dt.delegasi_id)} onChange={e => setSelected(current => e.target.checked ? [...current, dt.delegasi_id] : current.filter(id => id !== dt.delegasi_id))} />Pilih izin</label>}
                         </div>
                         {dt.deskripsi_ketidakhadiran && (
                           <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 italic">

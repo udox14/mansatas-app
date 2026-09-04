@@ -1,3 +1,4 @@
+import { enrichTeacherLeaveSessions } from './teacher-leave-db'
 import { currentTimeWIB, todayWIB } from './time'
 import {
   getEffectiveDatesInRange,
@@ -225,17 +226,18 @@ export async function getTeacherAttendance(
         slotSelesai,
         materi: agenda?.materi || null,
         waktuInput: agenda?.waktu_input || null,
-        catatan: delegation?.deskripsi_ketidakhadiran || agenda?.catatan_admin || null,
+        catatan: agenda?.catatan_admin || delegation?.deskripsi_ketidakhadiran || null,
       })
     }
   }
 
-  items.sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.jamKeMulai - a.jamKeMulai)
+  const enriched = await enrichTeacherLeaveSessions(db, items.map(item => ({ ...item, penugasan_id: item.penugasanId })))
+  enriched.sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.jamKeMulai - a.jamKeMulai)
   return {
     month,
     rangeStart: range.start,
     rangeEnd: range.end,
-    summary: summarizeTeacherAttendance(items),
-    items,
+    summary: summarizeTeacherAttendance(enriched),
+    items: enriched,
   }
 }

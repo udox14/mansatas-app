@@ -1,6 +1,7 @@
 // Lokasi: app/dashboard/monitoring-agenda/components/monitoring-client.tsx
 'use client'
 
+import { TeacherLeaveManager, TeacherLeaveMapping, TeacherLeaveSelect, TeacherLeaveBadge } from '@/components/teacher-leave-controls'
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -49,6 +50,7 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label:
   TELAT:       { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700', icon: Clock, label: 'Telat', dot: 'bg-amber-500' },
   ALFA:        { bg: 'bg-red-50 border-red-200', text: 'text-red-700', icon: XCircle, label: 'Alfa', dot: 'bg-red-500' },
   SAKIT:       { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', icon: AlertTriangle, label: 'Sakit', dot: 'bg-blue-500' },
+  IZIN_SEKOLAH: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', icon: ShieldCheck, label: 'Izin sekolah', dot: 'bg-emerald-500' },
   IZIN:        { bg: 'bg-sky-50 border-sky-200', text: 'text-sky-700', icon: AlertTriangle, label: 'Izin', dot: 'bg-sky-500' },
 }
 
@@ -125,6 +127,7 @@ function StatusBadge({ status }: { status: string }) {
 export function MonitoringClient({ filterOptions, userRole }: MonitoringClientProps) {
   return (
     <Tabs defaultValue="harian" className="space-y-3">
+      <TeacherLeaveManager />
       <TabsList className="grid w-full grid-cols-4 max-w-2xl h-auto p-1">
         <TabsTrigger value="harian" className="text-xs sm:text-sm"><Calendar className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Harian</TabsTrigger>
         <TabsTrigger value="rekap" className="text-xs sm:text-sm"><BarChart3 className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Rekap</TabsTrigger>
@@ -159,6 +162,8 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
   // Edit modal
   const [editItem, setEditItem] = useState<any>(null)
   const [editStatus, setEditStatus] = useState('')
+  const [editReason, setEditReason] = useState('')
+  const [batchReason, setBatchReason] = useState('')
   const [editCatatan, setEditCatatan] = useState('')
   const [isEditing, setIsEditing] = useState(false)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
@@ -229,6 +234,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
         editItem.jam_ke_selesai,
         editStatus,
         editCatatan,
+        editReason,
       )
       if (result.error) setPesan({ tipe: 'error', teks: result.error })
       else {
@@ -283,6 +289,12 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
     })
   }
 
+  useEffect(() => {
+    const reload = () => { void handleSearch() }
+    window.addEventListener('teacher-leave-changed', reload)
+    return () => window.removeEventListener('teacher-leave-changed', reload)
+  })
+
   const handleBatchEdit = async () => {
     if (selectedItems.length === 0) return
     const statusLabel = STATUS_STYLE[batchStatus]?.label || batchStatus
@@ -296,6 +308,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
         selectedItems.map(item => ({ penugasan_id: item.penugasan_id, guru_id: item.guru_id })),
         batchStatus,
         batchCatatan,
+        batchReason,
       )
       if (result.error) setPesan({ tipe: 'error', teks: result.error })
       else {
@@ -316,7 +329,8 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
   const selectedSlot = slots.find(slot => String(slot.id) === jamFilter)
 
   const summary = filteredData.reduce((acc, item) => {
-    acc[item.status] = (acc[item.status] || 0) + 1
+    const key = item.status === 'IZIN' && item.kepentingan_sekolah ? 'IZIN_SEKOLAH' : item.status
+    acc[key] = (acc[key] || 0) + 1
     return acc
   }, {} as Record<string, number>)
 
@@ -415,7 +429,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
           </span>
           {Object.entries(summary).map(([status, count]) => {
             const s = STATUS_STYLE[status]
-            return s ? <span key={status} className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium border ${s.bg} ${s.text}`}>{s.label}: {count as number}</span> : null
+            return s ? <span key={status} className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium border ${s.bg} ${s.text}`}>{status === 'IZIN' ? 'Izin biasa' : s.label}: {count as number}</span> : null
           })}
         </div>
       )}
@@ -431,6 +445,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
               />
               <div>
                 <p className="text-xs font-semibold text-indigo-900 dark:text-indigo-200">Batch status agenda</p>
+                <TeacherLeaveMapping targets={selectedItems.filter(item => item.status === 'IZIN').map(item => ({ penugasan_id: item.penugasan_id, tanggal }))} onChanged={handleSearch} />
                 <p className="text-[10px] text-indigo-600 dark:text-indigo-400">{selectedItems.length} dipilih · maksimal 100 sesi</p>
               </div>
             </div>
@@ -444,7 +459,8 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
               </Select>
             </div>
             <div className="flex-1">
-              <Label className="text-[10px] text-indigo-700 dark:text-indigo-300">Catatan admin (opsional)</Label>
+              {batchStatus === 'IZIN' && <TeacherLeaveSelect value={batchReason} onChange={setBatchReason} />}
+              <Label className="text-[10px] text-indigo-700 dark:text-indigo-300">{batchStatus === 'IZIN' ? 'Deskripsi izin (wajib)' : 'Catatan admin (opsional)'}</Label>
               <Input
                 value={batchCatatan}
                 onChange={event => setBatchCatatan(event.target.value)}
@@ -504,7 +520,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                     <TableCell className="text-xs text-slate-600 dark:text-slate-400">{item.kelas_label}</TableCell>
                     <TableCell className="text-xs text-slate-500 dark:text-slate-400">{item.jam_label}<br /><span className="text-[10px]">{item.slot_mulai}-{item.slot_selesai}</span></TableCell>
                     <TableCell>
-                      <StatusBadge status={item.status} />
+                      <StatusBadge status={item.kepentingan_sekolah ? 'IZIN_SEKOLAH' : item.status} /><TeacherLeaveBadge data={item} />
                       {item.alasan_ketidakhadiran && item.pelaksana_nama && (
                         <p className="text-[10px] text-violet-500 mt-0.5">Pelaksana: {item.pelaksana_nama}</p>
                       )}
@@ -522,7 +538,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                         </Button>
                       )}
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => {
-                        setEditItem(item); setEditStatus(STATUS_OPTIONS.includes(item.status) ? item.status : 'ALFA'); setEditCatatan(item.catatan_admin || '')
+                        setEditItem(item); setEditStatus(STATUS_OPTIONS.includes(item.status) ? item.status : 'ALFA'); setEditCatatan(item.catatan_admin || item.deskripsi_ketidakhadiran || ''); setEditReason(item.alasan_izin_guru_id || '')
                       }} title="Edit Status">
                         <Edit3 className="h-3.5 w-3.5 text-indigo-500" />
                       </Button>
@@ -553,7 +569,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                   </div>
                   <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{item.mapel_nama}</p>
                 </div>
-                <StatusBadge status={item.status} />
+                <StatusBadge status={item.kepentingan_sekolah ? 'IZIN_SEKOLAH' : item.status} /><TeacherLeaveBadge data={item} />
               </div>
 
               <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
@@ -578,7 +594,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                     </Button>
                   )}
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => {
-                    setEditItem(item); setEditStatus(STATUS_OPTIONS.includes(item.status) ? item.status : 'ALFA'); setEditCatatan(item.catatan_admin || '')
+                    setEditItem(item); setEditStatus(STATUS_OPTIONS.includes(item.status) ? item.status : 'ALFA'); setEditCatatan(item.catatan_admin || item.deskripsi_ketidakhadiran || ''); setEditReason(item.alasan_izin_guru_id || '')
                   }} title="Edit Status">
                     <Edit3 className="h-3.5 w-3.5 text-indigo-500" />
                   </Button>
@@ -618,6 +634,8 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                   })()}
                 </div>
               </div>
+              <TeacherLeaveBadge data={detailItem} />
+              {detailItem.deskripsi_ketidakhadiran && <p className="text-sm">{detailItem.deskripsi_ketidakhadiran}</p>}
               {detailItem.materi && (
                 <div>
                   <span className="text-slate-500 dark:text-slate-400 text-xs">Materi</span>
@@ -674,6 +692,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                   className="mt-1 w-full rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm placeholder:text-slate-400 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none resize-none"
                 />
               </div>
+              {editStatus === 'IZIN' && <TeacherLeaveSelect value={editReason} onChange={setEditReason} />}
               <Button onClick={handleEdit} disabled={isEditing} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
                 {isEditing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Edit3 className="h-4 w-4 mr-2" />}
                 Simpan Perubahan
@@ -715,6 +734,12 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    const reload = () => { if (data.length) void handleSearch() }
+    window.addEventListener('teacher-leave-changed', reload)
+    return () => window.removeEventListener('teacher-leave-changed', reload)
+  })
 
   const filteredData = statusFilter === 'semua' ? data : data.filter(d => {
     if (statusFilter === 'patuh') return d.kepatuhan >= 80
@@ -788,7 +813,9 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
                 <TableHead className="text-xs text-center">Telat</TableHead>
                 <TableHead className="text-xs text-center">Alfa</TableHead>
                 <TableHead className="text-xs text-center">Sakit</TableHead>
-                <TableHead className="text-xs text-center">Izin</TableHead>
+                <TableHead className="text-xs text-center">Izin biasa</TableHead>
+                <TableHead className="text-xs text-center">Izin sekolah</TableHead>
+                <TableHead className="text-xs text-center">Performa</TableHead>
                 <TableHead className="text-xs text-center">Kepatuhan</TableHead>
               </TableRow>
             </TableHeader>
@@ -806,7 +833,9 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
                     <TableCell className="text-xs text-center text-amber-600 font-medium">{item.telat}</TableCell>
                     <TableCell className="text-xs text-center text-red-600 font-medium">{item.alfa}</TableCell>
                     <TableCell className="text-xs text-center text-blue-600 font-medium">{item.sakit}</TableCell>
-                    <TableCell className="text-xs text-center text-sky-600 font-medium">{item.izin}</TableCell>
+                    <TableCell className="text-xs text-center text-sky-600 font-medium">{item.izin - item.izinSekolah}</TableCell>
+                    <TableCell className="text-xs text-center text-emerald-700">{item.izinSekolah}</TableCell>
+                    <TableCell className="text-xs text-center font-semibold">{item.performa}%</TableCell>
                     <TableCell className="text-center min-w-[100px]">
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-full overflow-hidden">
@@ -888,6 +917,11 @@ function TabCetak({ filterOptions }: { filterOptions: MonitoringClientProps['fil
     setData([])
     setPesan(null)
   }
+
+  useEffect(() => {
+    window.addEventListener('teacher-leave-changed', resetData)
+    return () => window.removeEventListener('teacher-leave-changed', resetData)
+  }, [])
 
   const handleLoad = async () => {
     if (isMonthlyPackage && !performancePolicy) {
@@ -1021,8 +1055,8 @@ tr { break-inside: avoid; page-break-inside: avoid; }
             <Select value={performancePolicy} onValueChange={(value) => { setPerformancePolicy(value as PerformancePolicy); resetData() }}>
               <SelectTrigger className="mt-1 h-9 w-full text-sm"><SelectValue placeholder="Pilih cara penghitungan" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="excused_not_penalized">Sakit dan izin tidak mengurangi</SelectItem>
-                <SelectItem value="excused_penalized">Sakit dan izin mengurangi</SelectItem>
+                <SelectItem value="excused_not_penalized">Sakit dan izin biasa tidak mengurangi</SelectItem>
+                <SelectItem value="excused_penalized">Sakit dan izin biasa mengurangi</SelectItem>
               </SelectContent>
             </Select>
           </div>}
@@ -1141,9 +1175,9 @@ tr { break-inside: avoid; page-break-inside: avoid; }
                       </td>
                       <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{item.materi || '-'}</td>
                       <td style={{ border: '1px solid #000', padding: '4px 6px' }} className={statusClass}>
-                        {STATUS_STYLE[item.status]?.label || item.status}
+                        {item.kepentingan_sekolah ? 'IS' : STATUS_STYLE[item.status]?.label || item.status}
                       </td>
-                      <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{item.keterangan || '-'}</td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{[item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
                     </tr>
                   )
                 })}
@@ -1246,8 +1280,8 @@ function LegacyAgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
               {showKelas && <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.tingkat}-{item.nomor_kelas}</td>}
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}</td>
               <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.materi || '-'}</td>
-              <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{STATUS_STYLE[item.status]?.label || item.status}</td>
-              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.keterangan || '-'}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.kepentingan_sekolah ? 'IS' : STATUS_STYLE[item.status]?.label || item.status}</td>
+              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{[item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
             </tr>
           ))}
         </tbody>
@@ -1332,11 +1366,11 @@ function MonthlyAttendancePrintDocument({ data, periodLabel, performancePolicy, 
         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '10pt' }}>
           <colgroup>
             <col style={{ width: '9mm' }} /><col /><col style={{ width: '20mm' }} /><col style={{ width: '17mm' }} />
-            <col style={{ width: '15mm' }} /><col style={{ width: '15mm' }} /><col style={{ width: '15mm' }} /><col style={{ width: '19mm' }} />
+            <col style={{ width: '12mm' }} /><col style={{ width: '14mm' }} /><col style={{ width: '12mm' }} /><col style={{ width: '12mm' }} /><col style={{ width: '19mm' }} />
           </colgroup>
           <thead>
             <tr style={{ background: '#e8f1ec' }}>
-              {['No', 'Nama Guru', 'Total Blok', 'Hadir', 'Sakit', 'Izin', 'Alfa', 'Performa'].map(label => (
+              {['No', 'Nama Guru', 'Total Blok', 'Hadir', 'Sakit', 'Izin biasa', 'IS', 'Alfa', 'Performa'].map(label => (
                 <th key={label} style={{ ...agendaPrintCell, padding: '4pt 2pt', textAlign: 'center', verticalAlign: 'middle', fontWeight: 700 }}>{label}</th>
               ))}
             </tr>
@@ -1349,7 +1383,8 @@ function MonthlyAttendancePrintDocument({ data, periodLabel, performancePolicy, 
                 <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.totalBlok}</td>
                 <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.hadir}</td>
                 <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.sakit}</td>
-                <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.izin}</td>
+                <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.izin - teacher.izinSekolah}</td>
+                <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.izinSekolah}</td>
                 <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{teacher.alfa}</td>
                 <td style={{ ...agendaPrintCell, textAlign: 'center', fontWeight: 700 }}>{teacher.performa}%</td>
               </tr>
@@ -1359,14 +1394,15 @@ function MonthlyAttendancePrintDocument({ data, periodLabel, performancePolicy, 
               <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.totalBlok}</td>
               <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.hadir}</td>
               <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.sakit}</td>
-              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.izin}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.izin - total.izinSekolah}</td>
+                <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.izinSekolah}</td>
               <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.alfa}</td>
               <td style={{ ...agendaPrintCell, textAlign: 'center' }}>{total.performa}%</td>
             </tr>
           </tbody>
         </table>
         <div style={{ marginTop: '5pt', fontSize: '8pt', color: '#475569' }}>
-          <strong>Catatan performa:</strong> {PERFORMANCE_POLICY_LABELS[performancePolicy]}.
+          <strong>IS = Izin Kepentingan Sekolah. Total izin = izin biasa + IS.</strong><br /><strong>Catatan performa:</strong> {PERFORMANCE_POLICY_LABELS[performancePolicy]}.
         </div>
         <PrintFooter />
       </section>
@@ -1392,7 +1428,8 @@ function TeacherAttendanceAttachment({ teacher, periodLabel }: {
         <SummaryMetric label="Total Blok" value={teacher.totalBlok} accent="#475569" background="#f1f5f9" />
         <SummaryMetric label="Hadir" value={teacher.hadir} accent="#047857" background="#ecfdf5" />
         <SummaryMetric label="Sakit" value={teacher.sakit} accent="#1d4ed8" background="#eff6ff" />
-        <SummaryMetric label="Izin" value={teacher.izin} accent="#0369a1" background="#f0f9ff" />
+        <SummaryMetric label="Izin sekolah" value={teacher.izinSekolah} accent="#047857" background="#ecfdf5" />
+        <SummaryMetric label="Izin biasa" value={teacher.izin - teacher.izinSekolah} accent="#0369a1" background="#f0f9ff" />
         <SummaryMetric label="Alfa" value={teacher.alfa} accent="#b91c1c" background="#fef2f2" />
         <SummaryMetric label="Performa" value={`${teacher.performa}%`} accent="#854d0e" background="#fffbeb" />
       </div>
@@ -1417,8 +1454,8 @@ function TeacherAttendanceAttachment({ teacher, periodLabel }: {
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.tingkat}-{item.nomor_kelas}</td>
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}</td>
               <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.materi || '-'}</td>
-              <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{STATUS_STYLE[item.status]?.label || item.status}</td>
-              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.keterangan || '-'}</td>
+              <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.kepentingan_sekolah ? 'IS' : STATUS_STYLE[item.status]?.label || item.status}</td>
+              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{[item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
             </tr>
           ))}
         </tbody>

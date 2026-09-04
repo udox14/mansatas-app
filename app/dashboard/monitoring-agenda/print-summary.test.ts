@@ -71,6 +71,7 @@ describe('aggregateTeacherAttendance', () => {
       hadir: 2,
       sakit: 0,
       izin: 0,
+      izinSekolah: 0,
       alfa: 2,
       performa: 50,
     })

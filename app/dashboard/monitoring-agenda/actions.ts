@@ -1,6 +1,8 @@
 // Lokasi: app/dashboard/monitoring-agenda/actions.ts
 'use server'
 
+import { enrichTeacherLeaveSessions, validateTeacherLeaveReason } from '@/lib/teacher-leave-db'
+import { isSchoolLeave, teacherPerformance, type TeacherLeaveMetadata } from '@/lib/teacher-leave'
 import { dbUpdate, dbInsert } from '@/utils/db'
 import { getDB as getRawDB } from '@/utils/db-server'
 import { requireActionAccess } from '@/lib/action-security'
@@ -234,7 +236,7 @@ export async function getMonitoringHarian(
     )
   }
 
-  return { error: null, data, hariNama: HARI_NAMA[hari] || '', slots }
+  return { error: null, data: await enrichTeacherLeaveSessions(db, data.map(row => ({ ...row, tanggal }))), hariNama: HARI_NAMA[hari] || '', slots }
 }
 
 export async function getMonitoringHarianSlots(tanggal: string) {
@@ -300,7 +302,7 @@ export async function getFilterOptions() {
 // 3. REKAP KEHADIRAN GURU (rentang tanggal)
 //    Hitung total: TEPAT_WAKTU, TELAT, ALFA, SAKIT, IZIN per guru
 // ============================================================
-type CanonicalTeacherSession = {
+type CanonicalTeacherSession = TeacherLeaveMetadata & {
   penugasan_id: string
   tanggal: string
   guru_id: string
@@ -489,7 +491,7 @@ async function getCanonicalTeacherSessions(
     }
   }
 
-  return sessions.sort((a, b) =>
+  return (await enrichTeacherLeaveSessions(db, sessions)).sort((a, b) =>
     a.tanggal.localeCompare(b.tanggal) ||
     a.guru_nama.localeCompare(b.guru_nama) ||
     a.jam_ke_mulai - b.jam_ke_mulai
@@ -509,11 +511,12 @@ async function buildRekapKehadiranGuru(
     if (!rows.has(session.guru_id)) {
       rows.set(session.guru_id, {
         guru_id: session.guru_id, guru_nama: session.guru_nama,
-        total_blok: 0, tepat_waktu: 0, telat: 0, alfa: 0, sakit: 0, izin: 0,
+        total_blok: 0, tepat_waktu: 0, telat: 0, alfa: 0, sakit: 0, izin: 0, izinSekolah: 0,
       })
     }
     const row = rows.get(session.guru_id)!
     row.total_blok++
+    if (isSchoolLeave(session.status, session)) row.izinSekolah++
     if (session.status === 'TEPAT_WAKTU') row.tepat_waktu++
     else if (session.status === 'TELAT') row.telat++
     else if (session.status === 'SAKIT') row.sakit++
@@ -523,6 +526,7 @@ async function buildRekapKehadiranGuru(
 
   const data = Array.from(rows.values()).map(row => ({
     ...row,
+    performa: teacherPerformance({ total: row.total_blok, hadir: row.tepat_waktu + row.telat, sakit: row.sakit, izin: row.izin, izinSekolah: row.izinSekolah }),
     kepatuhan: row.total_blok > 0
       ? Math.min(100, Math.max(0, Math.round(((row.total_blok - row.alfa) / row.total_blok) * 100)))
       : 0,
@@ -697,53 +701,12 @@ export async function getRekapKehadiranGuru(
 //    Jika belum ada record (ALFA), buat baru
 // ============================================================
 export async function editAgendaStatus(
-  agendaId: string | null,
-  penugasanId: string,
-  tanggal: string,
-  guruId: string,
-  jamKeMulai: number,
-  jamKeSelesai: number,
-  newStatus: string,
-  catatanAdmin: string
+  agendaId: string | null, penugasanId: string, tanggal: string, guruId: string,
+  jamKeMulai: number, jamKeSelesai: number, newStatus: string, catatanAdmin: string,
+  alasanIzinGuruId?: string
 ): Promise<{ error?: string; success?: string }> {
-  const user = await getCurrentUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const isAdmin = ['super_admin', 'admin_tu', 'kepsek'].includes(user.role)
-  if (!isAdmin) return { error: 'Hanya admin yang bisa mengubah status.' }
-  if (!EDITABLE_AGENDA_STATUSES.has(newStatus)) return { error: 'Status agenda tidak valid.' }
-
-  const db = await getDB()
-
-  if (agendaId) {
-    // Update existing record
-    const result = await dbUpdate(db, 'agenda_guru', {
-      status: newStatus,
-      catatan_admin: catatanAdmin || null,
-      diubah_oleh: user.id,
-      updated_at: nowWIBISO(),
-    }, { id: agendaId })
-    if (result.error) return { error: result.error }
-  } else {
-    // ALFA → create new record (guru tidak mengisi, admin override)
-    const result = await dbInsert(db, 'agenda_guru', {
-      guru_id: guruId,
-      penugasan_id: penugasanId,
-      tanggal,
-      jam_ke_mulai: jamKeMulai,
-      jam_ke_selesai: jamKeSelesai,
-      materi: null,
-      foto_url: null,
-      status: newStatus,
-      waktu_input: null,
-      catatan_admin: catatanAdmin || null,
-      diubah_oleh: user.id,
-    })
-    if (result.error) return { error: result.error }
-  }
-
-  revalidatePath('/dashboard/monitoring-agenda')
-  return { success: `Status berhasil diubah menjadi ${newStatus}.` }
+  await requireActionAccess('monitoring-agenda', 'update', { allowedRoles: ['super_admin', 'admin_tu', 'kepsek'] })
+  return batchEditAgendaStatus(tanggal, [{ penugasan_id: penugasanId, guru_id: guruId }], newStatus, catatanAdmin, alasanIzinGuruId)
 }
 
 export type BatchAgendaStatusItem = {
@@ -755,12 +718,14 @@ export async function batchEditAgendaStatus(
   tanggal: string,
   items: BatchAgendaStatusItem[],
   newStatus: string,
-  catatanAdmin: string
+  catatanAdmin: string,
+  alasanIzinGuruId?: string
 ): Promise<{ error?: string; success?: string; updated?: number; skipped?: number }> {
+  const actor = await requireActionAccess('monitoring-agenda', 'update', { allowedRoles: ['super_admin', 'admin_tu', 'kepsek'] })
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
-  const isAdmin = ['super_admin', 'admin_tu', 'kepsek'].includes(user.role)
+  const isAdmin = actor.kind === 'staff' && ['super_admin', 'admin_tu', 'kepsek'].some(role => actor.roles.includes(role))
   if (!isAdmin) return { error: 'Hanya admin yang bisa mengubah status.' }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return { error: 'Tanggal tidak valid.' }
   if (!EDITABLE_AGENDA_STATUSES.has(newStatus)) return { error: 'Status agenda tidak valid.' }
@@ -774,6 +739,9 @@ export async function batchEditAgendaStatus(
   if (uniqueItems.length > 100) return { error: 'Maksimal 100 sesi dalam satu batch.' }
 
   const db = await getDB()
+  let reasonId: string | null
+  try { reasonId = await validateTeacherLeaveReason(db, newStatus, alasanIzinGuruId) } catch { return { error: 'Pilih alasan izin guru yang masih aktif.' } }
+  if (newStatus === 'IZIN' && !catatanAdmin.trim()) return { error: 'Deskripsi izin wajib diisi.' }
   const calendarStatus = await getKalenderDateStatus(db, tanggal)
   if (!calendarStatus.isEffective) {
     return { error: `Tanggal ini tidak efektif pembelajaran${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}.` }
@@ -784,27 +752,42 @@ export async function batchEditAgendaStatus(
 
   const hari = getHariFromDate(tanggal)
   const penugasanIds = Array.from(new Set(uniqueItems.map(item => item.penugasan_id)))
-  const placeholders = penugasanIds.map(() => '?').join(',')
-  const scheduleRows = await db.prepare(`
+  const scheduleRows: any[] = []
+  for (let offset = 0; offset < penugasanIds.length; offset += 80) {
+    const chunk = penugasanIds.slice(offset, offset + 80)
+    const result = await db.prepare(`
     SELECT
       pm.id as penugasan_id,
       pm.guru_id,
       k.id as kelas_id,
       k.tingkat,
       k.kbm_nonaktif_mulai,
+      COALESCE(ag.status, dt.alasan_ketidakhadiran) AS current_status,
+      COALESCE(ag.alasan_izin_guru_id, dt.alasan_izin_guru_id) AS current_reason_id,
       GROUP_CONCAT(jm.jam_ke) as jam_list
     FROM penugasan_mengajar pm
     JOIN jadwal_mengajar jm ON jm.penugasan_id = pm.id
       AND jm.tahun_ajaran_id = ? AND jm.hari = ?
     JOIN kelas k ON pm.kelas_id = k.id
-    WHERE pm.id IN (${placeholders})
+    LEFT JOIN agenda_guru ag ON ag.penugasan_id = pm.id AND ag.tanggal = ?
+    LEFT JOIN delegasi_tugas dt ON dt.id = (
+      SELECT d.id FROM delegasi_tugas d JOIN delegasi_tugas_kelas dk ON dk.delegasi_id = d.id
+      WHERE dk.penugasan_mengajar_id = pm.id AND d.dari_user_id = pm.guru_id AND d.tanggal = ?
+      ORDER BY d.created_at DESC, d.id DESC LIMIT 1)
+    WHERE pm.id IN (${chunk.map(() => '?').join(',')})
     GROUP BY pm.id, pm.guru_id, k.id, k.tingkat, k.kbm_nonaktif_mulai
-  `).bind(ta.id, hari, ...penugasanIds).all<any>()
+  `).bind(ta.id, hari, tanggal, tanggal, ...chunk).all<any>()
+    scheduleRows.push(...(result.results || []))
+  }
 
-  const scheduleMap = new Map((scheduleRows.results || []).map(row => [row.penugasan_id, row]))
+  const scheduleMap = new Map(scheduleRows.map(row => [row.penugasan_id, row]))
+  if (!actor.roles.includes('super_admin') && newStatus === 'IZIN' && scheduleRows.some(row => row.current_status === 'IZIN' && row.current_reason_id !== reasonId)) {
+    return { error: 'Hanya super admin yang dapat memetakan ulang alasan pada izin yang sudah tercatat.' }
+  }
   const exceptions = await getKbmExceptionsForDate(db, tanggal)
   const statements: D1PreparedStatement[] = []
   let skipped = 0
+  let updated = 0
   const catatan = catatanAdmin.trim().slice(0, 1000) || null
   const updatedAt = nowWIBISO()
 
@@ -828,12 +811,18 @@ export async function batchEditAgendaStatus(
 
     const jamKeMulai = slotState.activeJamKe[0]
     const jamKeSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1]
+    statements.push(db.prepare(`INSERT INTO izin_guru_audit (id, actor_id, action, target_id, before_json, after_json)
+      VALUES (?, ?, 'AGENDA_STATUS', ?, (SELECT json_object('status', status, 'alasan_izin_guru_id', alasan_izin_guru_id) FROM agenda_guru WHERE penugasan_id = ? AND tanggal = ?), ?)`)
+      .bind(crypto.randomUUID(), actor.id, `${item.penugasan_id}:${tanggal}`, item.penugasan_id, tanggal,
+        JSON.stringify({ status: newStatus, alasan_izin_guru_id: reasonId })))
+    updated++
     statements.push(db.prepare(`
       INSERT INTO agenda_guru (
         guru_id, penugasan_id, tanggal, jam_ke_mulai, jam_ke_selesai,
-        materi, foto_url, status, waktu_input, catatan_admin, diubah_oleh, updated_at
-      ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, NULL, ?, ?, ?)
+        materi, foto_url, status, waktu_input, catatan_admin, diubah_oleh, updated_at, alasan_izin_guru_id
+      ) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, NULL, ?, ?, ?, ?)
       ON CONFLICT(penugasan_id, tanggal) DO UPDATE SET
+        alasan_izin_guru_id = excluded.alasan_izin_guru_id,
         status = excluded.status,
         catatan_admin = excluded.catatan_admin,
         diubah_oleh = excluded.diubah_oleh,
@@ -847,7 +836,8 @@ export async function batchEditAgendaStatus(
       newStatus,
       catatan,
       user.id,
-      updatedAt
+      updatedAt,
+      reasonId
     ))
   }
 
@@ -861,9 +851,9 @@ export async function batchEditAgendaStatus(
     return { error: error?.message || 'Batch perubahan status gagal disimpan.' }
   }
 
-  revalidatePath('/dashboard/monitoring-agenda')
-  const success = `${statements.length} status agenda berhasil diubah menjadi ${newStatus}${skipped > 0 ? `; ${skipped} sesi dilewati karena tidak valid/non-KBM` : ''}.`
-  return { success, updated: statements.length, skipped }
+  revalidatePath('/dashboard', 'layout')
+  const success = `${updated} status agenda berhasil diubah menjadi ${newStatus}${skipped > 0 ? `; ${skipped} sesi dilewati karena tidak valid/non-KBM` : ''}.`
+  return { success, updated, skipped }
 }
 
 // ============================================================

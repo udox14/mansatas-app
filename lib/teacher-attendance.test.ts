@@ -62,7 +62,7 @@ describe('summarizeTeacherAttendance', () => {
       item('ALFA', '5'),
     ])
 
-    expect(summary).toEqual({ total: 5, hadir: 2, telat: 1, sakit: 1, izin: 1, alfa: 1 })
+    expect(summary).toEqual({ total: 5, hadir: 2, telat: 1, sakit: 1, izin: 1, izinSekolah: 0, alfa: 1 })
   })
 })
 
