@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ExternalLink, Loader2, Smartphone } from 'lucide-react'
 import { OfflineBanner } from './offline-banner'
 import {
   downloadAndOpenNativeFile,
@@ -94,8 +94,22 @@ export async function unregisterNativePushToken() {
   window.localStorage.removeItem(PENDING_FCM_TOKEN_KEY)
 }
 
-export function MobileRuntime() {
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mansatas.app'
+
+type AndroidAccessState = 'allowed' | 'checking' | 'blocked'
+
+export function MobileRuntime({
+  androidPlayStoreRequired = false,
+  isAndroidRequest = false,
+}: {
+  androidPlayStoreRequired?: boolean
+  isAndroidRequest?: boolean
+}) {
   const pathname = usePathname()
+  const [playStoreRequired, setPlayStoreRequired] = useState(androidPlayStoreRequired)
+  const [androidAccess, setAndroidAccess] = useState<AndroidAccessState>(
+    androidPlayStoreRequired && isAndroidRequest ? 'checking' : 'allowed'
+  )
   const [isOffline, setIsOffline] = useState(false)
   const [hasSwUpdate, setHasSwUpdate] = useState(false)
   const [downloadState, setDownloadState] = useState<{
@@ -106,6 +120,61 @@ export function MobileRuntime() {
   const isAuthenticatedArea =
     pathname.startsWith('/dashboard') ||
     (pathname.startsWith('/portal-ortu') && !pathname.startsWith('/portal-ortu/login'))
+
+  useEffect(() => {
+    setPlayStoreRequired(androidPlayStoreRequired)
+  }, [androidPlayStoreRequired])
+
+  useEffect(() => {
+    if (!isAndroidRequest) return
+
+    let cancelled = false
+    const refreshRequirement = () => {
+      fetch('/api/public/mobile-access', { cache: 'no-store' })
+        .then(response => response.ok ? response.json() : null)
+        .then(data => {
+          if (!cancelled && typeof data?.androidPlayStoreRequired === 'boolean') {
+            setPlayStoreRequired(data.androidPlayStoreRequired)
+          }
+        })
+        .catch(() => {})
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refreshRequirement()
+    }
+    refreshRequirement()
+    const interval = window.setInterval(refreshRequirement, 60_000)
+    window.addEventListener('focus', refreshRequirement)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refreshRequirement)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [isAndroidRequest])
+
+  useEffect(() => {
+    if (!playStoreRequired || !isAndroidRequest) {
+      setAndroidAccess('allowed')
+      return
+    }
+
+    let cancelled = false
+    import('@capacitor/core')
+      .then(({ Capacitor }) => {
+        if (cancelled) return
+        const isAndroidApp = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
+        setAndroidAccess(isAndroidApp ? 'allowed' : 'blocked')
+      })
+      .catch(() => {
+        if (!cancelled) setAndroidAccess('blocked')
+      })
+
+    return () => { cancelled = true }
+  }, [playStoreRequired, isAndroidRequest])
 
   useEffect(() => {
     const apply = () => applyDisplayScale(readMobileRuntimeSettings().displayScale)
@@ -454,6 +523,44 @@ export function MobileRuntime() {
 
   return (
     <>
+      {androidAccess !== 'allowed' && (
+        <div
+          className="fixed inset-0 z-[2147483647] flex min-h-[100dvh] items-center justify-center bg-slate-950 px-5 py-8 text-white"
+          role={androidAccess === 'blocked' ? 'dialog' : 'status'}
+          aria-modal={androidAccess === 'blocked' ? true : undefined}
+          aria-live="polite"
+        >
+          <div className="w-full max-w-sm text-center">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-500 shadow-2xl shadow-emerald-500/25">
+              {androidAccess === 'checking'
+                ? <Loader2 className="h-9 w-9 animate-spin" />
+                : <Smartphone className="h-9 w-9" />}
+            </div>
+            {androidAccess === 'checking' ? (
+              <>
+                <h1 className="mt-6 text-xl font-bold">Memeriksa aplikasi…</h1>
+                <p className="mt-2 text-sm text-slate-300">Mohon tunggu sebentar.</p>
+              </>
+            ) : (
+              <>
+                <h1 className="mt-6 text-2xl font-bold tracking-tight">Gunakan MANSATAS App</h1>
+                <p className="mt-3 text-sm leading-6 text-slate-300">
+                  Akses melalui browser Android telah dialihkan ke aplikasi resmi MANSATAS. Instal atau buka aplikasinya melalui Google Play untuk melanjutkan.
+                </p>
+                <a
+                  href={PLAY_STORE_URL}
+                  className="mt-7 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2 focus:ring-offset-slate-950"
+                  rel="noreferrer"
+                >
+                  Buka di Google Play
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+                <p className="mt-4 text-xs text-slate-500">Pengguna komputer dan iPhone tetap dapat memakai versi web.</p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <OfflineBanner isOffline={isOffline} hasSwUpdate={hasSwUpdate} />
       {downloadState.phase !== 'idle' && (
         <div

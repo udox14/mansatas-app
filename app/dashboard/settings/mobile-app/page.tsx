@@ -1,9 +1,10 @@
 import { PageHeader } from '@/components/layout/page-header'
-import { checkFeatureAccess } from '@/lib/features'
+import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
 import { redirect } from 'next/navigation'
 import { MobileAppSettingsClient } from './mobile-app-settings-client'
+import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
 export const metadata = { title: 'Mobile App - MANSATAS App' }
 export const dynamic = 'force-dynamic'
@@ -13,11 +14,17 @@ export default async function MobileAppSettingsPage() {
   if (!user) redirect('/login')
 
   const db = await getDB()
-  const [allowed, userRow] = await Promise.all([
+  const [allowed, userRow, userRoles] = await Promise.all([
     checkFeatureAccess(db, user.id, 'settings-mobile-app'),
     db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<{ role: string }>(),
+    getUserRoles(db, user.id),
   ])
   if (!allowed && userRow?.role !== 'super_admin') redirect('/dashboard')
+
+  const androidPlayStoreRequired = await getSystemSettingBoolean(
+    SYSTEM_SETTING_KEYS.androidPlayStoreRequired,
+    false
+  )
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -25,7 +32,10 @@ export default async function MobileAppSettingsPage() {
         title="Mobile App"
         description="Pusat kontrol fitur native APK MANSATAS: permission, kamera, notifikasi, gesture, dan diagnosa perangkat."
       />
-      <MobileAppSettingsClient />
+      <MobileAppSettingsClient
+        androidPlayStoreRequired={androidPlayStoreRequired}
+        canManagePlayStoreRequirement={userRoles.includes('super_admin')}
+      />
     </div>
   )
 }

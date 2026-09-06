@@ -25,6 +25,7 @@ export const SYSTEM_SETTING_KEYS = {
   parentPortalDisciplineEnabled: 'parent_portal_discipline_enabled',
   parentPortalDisciplinePublishMode: 'parent_portal_discipline_publish_mode',
   parentPortalDisciplineClarificationMode: 'parent_portal_discipline_clarification_mode',
+  androidPlayStoreRequired: 'android_play_store_required',
   // Toggle aktif/nonaktif pemrosesan cron per modul (disimpan sebagai '1'/'0')
   cronReminderEnabled: 'cron_reminder_jadwal_enabled',
   cronWhatsappEnabled: 'cron_whatsapp_enabled',

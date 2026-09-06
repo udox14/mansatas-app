@@ -378,6 +378,7 @@ export async function reviewKomiteAction(formData: FormData) {
   const catatan = cleanMultiline(formData.get('catatan'), 3000)
   if (!['setujui','minta_revisi','tolak'].includes(action)) return { error: 'Aksi review tidak valid.' }
   if (action !== 'setujui' && !catatan) return { error: 'Catatan wajib diisi untuk revisi atau penolakan.' }
+  if (action === 'tolak' && formData.get('reject_confirmation') !== 'TOLAK') return { error: 'Ketik TOLAK untuk mengonfirmasi penolakan.' }
   const row = await db.prepare('SELECT * FROM komite_pengajuan WHERE id=?').bind(id).first<any>()
   if (!row) return { error: 'Pengajuan tidak ditemukan.' }
   const permission = await canReviewKomite(db, user.id, row, roles)

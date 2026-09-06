@@ -4,6 +4,7 @@ import "./globals.css"
 import { GlobalAlertProvider } from '@/components/ui/global-alert'
 import { MobileRuntime } from '@/components/native/mobile-runtime'
 import { headers } from 'next/headers'
+import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 
 export const metadata: Metadata = {
   title: "MANSATAS App",
@@ -42,7 +43,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const nonce = (await headers()).get('x-nonce') || undefined
+  const requestHeaders = await headers()
+  const nonce = requestHeaders.get('x-nonce') || undefined
+  const isAndroidRequest = /android/i.test(requestHeaders.get('user-agent') || '')
+  const androidPlayStoreRequired = await getSystemSettingBoolean(
+    SYSTEM_SETTING_KEYS.androidPlayStoreRequired,
+    false
+  ).catch(() => false)
   return (
     <html lang="id" suppressHydrationWarning>
       <head>
@@ -100,7 +107,10 @@ export default async function RootLayout({
       </head>
       <body style={{ fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif" }}>
         <GlobalAlertProvider />
-        <MobileRuntime />
+        <MobileRuntime
+          androidPlayStoreRequired={androidPlayStoreRequired}
+          isAndroidRequest={isAndroidRequest}
+        />
         {children}
       </body>
     </html>

@@ -373,7 +373,7 @@ function OwnerActions({ item, pending, hideDelete = false, onEdit, onRun }: { it
   </div>
 }
 function ReviewActions({ onReview }: { item: Item; onReview: (action: string) => void }) {
-  return <div className="grid grid-cols-1 gap-2 sm:grid-cols-3"><Button variant="outline" onClick={() => onReview('minta_revisi')}><RotateCcw className="mr-2 h-4 w-4" />Minta Revisi</Button><Button variant="destructive" onClick={() => onReview('tolak')}><XCircle className="mr-2 h-4 w-4" />Tolak</Button><Button onClick={() => onReview('setujui')}><CheckCircle2 className="mr-2 h-4 w-4" />Setujui</Button></div>
+  return <div className="grid grid-cols-1 gap-2 sm:grid-cols-3"><Button onClick={() => onReview('setujui')}><CheckCircle2 className="mr-2 h-4 w-4" />Setujui</Button><Button variant="outline" onClick={() => onReview('minta_revisi')}><RotateCcw className="mr-2 h-4 w-4" />Minta Revisi</Button><Button variant="destructive" onClick={() => onReview('tolak')}><XCircle className="mr-2 h-4 w-4" />Tolak</Button></div>
 }
 
 function DetailRowsEditor({ rows, setRows }: { rows: RincianRow[]; setRows: (rows: RincianRow[]) => void }) {
@@ -429,11 +429,19 @@ function DraftDialog({ open, item, pending, message, onClose, onSubmit }: { open
 function ReviewDialog({ value, nextNomorSpb, pending, onClose, onSubmit }: { value: { item: Item; action: string } | null; nextNomorSpb?: string; pending: boolean; onClose: () => void; onSubmit: (data: FormData) => void }) {
   const isTreasurerApprove = value?.action === 'setujui' && value.item.status === 'menunggu_bendahara'
   const [rows, setRows] = useState<RincianRow[]>(rowsFromItem(value?.item))
+  const [rejectConfirmation, setRejectConfirmation] = useState('')
   useEffect(() => {
     if (value) setRows(rowsFromItem(value.item))
   }, [value])
-  return <Dialog open={!!value} onOpenChange={open => !open && onClose()}><DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>{value ? actionLabel[value.action] : 'Review'} pengajuan</DialogTitle></DialogHeader>{value && <form action={onSubmit} className="space-y-4"><input type="hidden" name="id" value={value.item.id} /><input type="hidden" name="action" value={value.action} />
+  function closeDialog() {
+    setRejectConfirmation('')
+    onClose()
+  }
+  return <Dialog open={!!value} onOpenChange={open => !open && closeDialog()}><DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>{value ? actionLabel[value.action] : 'Review'} pengajuan</DialogTitle></DialogHeader>{value && <form action={formData => { setRejectConfirmation(''); onSubmit(formData) }} className="space-y-4"><input type="hidden" name="id" value={value.item.id} /><input type="hidden" name="action" value={value.action} />
     <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800"><p className="text-sm font-semibold">{value.item.judul}</p><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{money(detailTotal(rows) || value.item.nominal)}</p></div>
+    <div className={`rounded-lg border p-3 text-sm ${value.action === 'tolak' ? 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200' : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200'}`}>
+      Pastikan keputusan sudah benar. Anda akan <strong>{actionLabel[value.action].toLowerCase()}</strong> pengajuan ini setelah menekan tombol konfirmasi.
+    </div>
     {isTreasurerApprove && <>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
@@ -463,7 +471,8 @@ function ReviewDialog({ value, nextNomorSpb, pending, onClose, onSubmit }: { val
       <DetailRowsEditor rows={rows} setRows={setRows} />
     </>}
     <div className="space-y-1.5"><Label htmlFor="catatan">Catatan {value.action === 'setujui' ? '(opsional)' : '(wajib)'}</Label><Textarea id="catatan" name="catatan" rows={4} required={value.action !== 'setujui'} placeholder={value.action === 'minta_revisi' ? 'Jelaskan bagian yang harus diperbaiki...' : value.action === 'tolak' ? 'Tuliskan alasan penolakan final...' : 'Catatan persetujuan...'} /></div>
-    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={onClose}>Batal</Button><Button type="submit" variant={value.action === 'tolak' ? 'destructive' : 'default'} disabled={pending || (isTreasurerApprove && detailTotal(rows) <= 0)}>{pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Konfirmasi</Button></div>
+    {value.action === 'tolak' && <div className="space-y-1.5"><Label htmlFor="reject_confirmation">Ketik <strong>TOLAK</strong> untuk mengonfirmasi</Label><Input id="reject_confirmation" name="reject_confirmation" value={rejectConfirmation} onChange={event => setRejectConfirmation(event.target.value)} autoComplete="off" placeholder="TOLAK" required /></div>}
+    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={closeDialog}>Batal</Button><Button type="submit" variant={value.action === 'tolak' ? 'destructive' : 'default'} disabled={pending || (isTreasurerApprove && detailTotal(rows) <= 0) || (value.action === 'tolak' && rejectConfirmation !== 'TOLAK')}>{pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Konfirmasi {value.action === 'setujui' ? 'Setujui' : value.action === 'minta_revisi' ? 'Revisi' : 'Tolak'}</Button></div>
   </form>}</DialogContent></Dialog>
 }
 

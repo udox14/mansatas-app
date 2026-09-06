@@ -25,6 +25,7 @@ import {
   Zap,
   Play,
   FolderOpen,
+  LockKeyhole,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,7 +37,8 @@ import {
   readMobileRuntimeSettings,
   writeMobileRuntimeSettings,
 } from '@/components/native/mobile-runtime'
-import { sendTestFcmToSelf } from './actions'
+import { sendTestFcmToSelf, setAndroidPlayStoreRequired } from './actions'
+import { useRouter } from 'next/navigation'
 
 type NativeStatus = {
   native: boolean
@@ -109,8 +111,16 @@ function StatusBadge({ ok, label }: { ok: boolean; label: string }) {
   )
 }
 
-export function MobileAppSettingsClient() {
+export function MobileAppSettingsClient({
+  androidPlayStoreRequired,
+  canManagePlayStoreRequirement,
+}: {
+  androidPlayStoreRequired: boolean
+  canManagePlayStoreRequirement: boolean
+}) {
+  const router = useRouter()
   const [settings, setSettings] = useState<MobileRuntimeSettings>(DEFAULT_MOBILE_SETTINGS)
+  const [playStoreRequired, setPlayStoreRequired] = useState(androidPlayStoreRequired)
   const [status, setStatus] = useState<NativeStatus>({ native: false, platform: 'web' })
   const [log, setLog] = useState<TestLog>({ tone: 'info', text: 'Belum ada test dijalankan.' })
   const [busy, setBusy] = useState<string | null>(null)
@@ -180,6 +190,37 @@ export function MobileAppSettingsClient() {
 
   return (
     <div className="space-y-4">
+      {canManagePlayStoreRequirement && <Card className="rounded-lg border-emerald-200 shadow-sm dark:border-emerald-900">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <LockKeyhole className="h-4 w-4 text-emerald-600" />
+            Wajib Aplikasi untuk Android
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <ToggleRow
+            label="Paksa browser Android membuka aplikasi Google Play"
+            description="Saat aktif, pengguna browser Android tidak dapat memakai versi web dan diarahkan ke aplikasi resmi. Aplikasi Android native, komputer, dan iPhone tetap dapat mengakses seperti biasa."
+            checked={playStoreRequired}
+            disabled={busy === 'play-store-gate'}
+            onChange={enabled => {
+              void runTest('play-store-gate', async () => {
+                const result = await setAndroidPlayStoreRequired(enabled)
+                if ('error' in result && result.error) throw new Error(result.error)
+                setPlayStoreRequired(enabled)
+                router.refresh()
+                return ('success' in result && result.success) || 'Pengaturan berhasil disimpan.'
+              })
+            }}
+          />
+          {playStoreRequired && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+              Penguncian sedang aktif. Untuk menonaktifkannya dari perangkat Android, gunakan aplikasi MANSATAS; admin juga dapat memakai komputer atau iPhone.
+            </div>
+          )}
+        </CardContent>
+      </Card>}
+
       {/* ── 1-Click APK Builder & Provisioner Card ────────────────────────────────────── */}
       <Card className="rounded-lg border-emerald-500/30 bg-gradient-to-r from-emerald-950/20 via-slate-900 to-slate-950 shadow-sm">
         <CardHeader className="pb-3">
@@ -500,14 +541,14 @@ export function MobileAppSettingsClient() {
   )
 }
 
-function ToggleRow({ label, description, checked, onChange }: { label: string; description: string; checked: boolean; onChange: (checked: boolean) => void }) {
+function ToggleRow({ label, description, checked, disabled = false, onChange }: { label: string; description: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
+    <label className={`flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950 ${disabled ? 'cursor-wait opacity-60' : 'cursor-pointer'}`}>
       <span>
         <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">{label}</span>
         <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{description}</span>
       </span>
-      <input className="h-5 w-5 accent-emerald-600" type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} />
+      <input className="h-5 w-5 accent-emerald-600" type="checkbox" checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked)} />
     </label>
   )
 }
