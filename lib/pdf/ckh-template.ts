@@ -8,6 +8,7 @@ import {
   formatCkhMonth,
   shouldUseKepalaTu,
 } from '@/lib/ckh'
+import { formatCkhDocumentVerification } from '@/lib/ckh-document-verification'
 
 type CkhRow = {
   id: string
@@ -28,6 +29,7 @@ type SignatureSettings = {
 }
 
 export type CkhPdfData = {
+  documentId: string
   rows: CkhRow[]
   user: any
   kepsek: Signer
@@ -71,7 +73,7 @@ const SIG_COL = 'width:46%;text-align:left;padding-left:14mm'
 const SIG_ROLE = 'font-weight:700;text-transform:uppercase;margin-bottom:20mm'
 
 export function buildCkhHtml(data: CkhPdfData): string {
-  const { rows, user, kepsek, kepalaTu, userRoles, signatureSettings, kepalaSignatureSettings, ckhKepalaSignatureUrl, year, month, paperCss, baseUrl } = data
+  const { documentId, rows, user, kepsek, kepalaTu, userRoles, signatureSettings, kepalaSignatureSettings, ckhKepalaSignatureUrl, year, month, paperCss, baseUrl } = data
   const fontBase = baseUrl.replace(/\/$/, '')
   const useTu = shouldUseKepalaTu(user, userRoles)
   const signer = useTu ? kepalaTu : kepsek
@@ -83,6 +85,7 @@ export function buildCkhHtml(data: CkhPdfData): string {
   const tanggalCetak = lastRow?.tanggal
     ? new Date(lastRow.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
     : new Date(year, month, 0).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+  const verificationText = formatCkhDocumentVerification(documentId)
 
   const bodyRows = rows.map(row => {
     const span = dateSpans.get(row)
@@ -122,6 +125,7 @@ export function buildCkhHtml(data: CkhPdfData): string {
   body { font-family: Tahoma, sans-serif; color: #000; background: #fff; font-size: 10.5pt; }
   thead { display: table-header-group; }
   .ckh-print-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .document-verification { position: fixed; right: 0; bottom: -8mm; width: 100%; text-align: right; font-size: 7pt; color: #555; }
   @page { size: ${paperCss}; }
 </style>
 </head>
@@ -173,6 +177,7 @@ export function buildCkhHtml(data: CkhPdfData): string {
       <div>NIP. ${user.nip ? esc(user.nip) : MISSING}</div>
     </div>
   </div>
+  <div class="document-verification">${esc(verificationText)}</div>
 </body>
 </html>`
 }

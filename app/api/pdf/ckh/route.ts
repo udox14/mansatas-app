@@ -43,6 +43,18 @@ export async function POST(request: Request) {
   const db = await getDB()
   const roles = await getUserRoles(db, user.id)
   const isSuperAdmin = roles.includes('super_admin')
+  const documentId = String(body.documentId || '').trim()
+  const document = documentId
+    ? await db.prepare('SELECT id, user_id, year, month FROM ckh_documents WHERE id = ?')
+      .bind(documentId)
+      .first<{ id: string; user_id: string; year: number; month: number }>()
+    : null
+  if (!document || (!isSuperAdmin && document.user_id !== user.id)) {
+    return new Response('Dokumen CKH tidak ditemukan', { status: 404 })
+  }
+  if (document.year !== body.year || document.month !== body.month) {
+    return new Response('Periode dokumen CKH tidak sesuai', { status: 400 })
+  }
 
   const { env } = await getCloudflareContext({ async: true })
 
@@ -62,6 +74,7 @@ export async function POST(request: Request) {
     env.MEDIA_SIGNING_SECRET || ''
   )
   const html = buildCkhHtml({
+    documentId: document.id,
     rows: body.rows,
     user: { ...body.user, signature_url: signedSignatureUrl },
     kepsek: body.kepsek,
@@ -104,7 +117,7 @@ export async function POST(request: Request) {
           margin: {
             top: `${m.top}mm`,
             right: `${m.right}mm`,
-            bottom: `${m.bottom}mm`,
+            bottom: `${Math.max(m.bottom, 10)}mm`,
             left: `${m.left}mm`,
           },
         })

@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { CKH_DEFAULT_SATUAN, CKH_DEFAULT_VOL, CKH_SATUAN_OPTIONS, buildCkhDateRowSpans, countCkhItems, formatCkhDate, formatCkhMonth } from '@/lib/ckh'
+import { formatCkhDocumentVerification } from '@/lib/ckh-document-verification'
 import {
   acceptCkhSuggestion,
   addCkhRow,
@@ -412,6 +413,7 @@ function getMonthUrl(year: number, month: number) {
 }
 
 function PrintDialog({
+  documentId,
   rows,
   user,
   kepsek,
@@ -424,6 +426,7 @@ function PrintDialog({
   year,
   month,
 }: {
+  documentId: string
   rows: Row[]
   user: any
   kepsek: any
@@ -452,6 +455,7 @@ function PrintDialog({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          documentId,
           rows,
           user,
           kepsek,
@@ -484,6 +488,7 @@ function PrintDialog({
         ? await loadCkhSignatureImage(ckhKepalaSignatureUrl)
         : null
       const blob = await buildCkhDocx({
+        documentId,
         rows,
         user,
         kepsek,
@@ -1195,6 +1200,7 @@ export function CkhGeneratorClient({
               />
             )}
             <PrintDialog
+              documentId={initialData.document.id}
               rows={rows}
               user={initialData.user}
               kepsek={initialData.kepsek}
@@ -1410,6 +1416,9 @@ export function CkhGeneratorClient({
                 <p>NIP. {initialData.user.nip || <MissingProfileInline />}</p>
               </div>
             </div>
+            <p className="mt-8 text-right text-[9px] text-slate-500">
+              {formatCkhDocumentVerification(initialData.document.id)}
+            </p>
           </div>
         </div>
       </TabsContent>

@@ -7,6 +7,7 @@ import {
   formatCkhMonth,
   shouldUseKepalaTu,
 } from '@/lib/ckh'
+import { formatCkhDocumentVerification } from '@/lib/ckh-document-verification'
 
 export type CkhDocxRow = {
   id: string
@@ -34,6 +35,7 @@ export type CkhDocxSignatureImage = {
 }
 
 export type CkhDocxData = {
+  documentId: string
   rows: CkhDocxRow[]
   user: any
   kepsek: Signer
@@ -59,6 +61,7 @@ const REL_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/rela
 const REL_STYLES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles'
 const REL_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings'
 const REL_IMAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image'
+const REL_FOOTER = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer'
 
 const PAPERS = {
   a4: { widthMm: 210, heightMm: 297 },
@@ -359,6 +362,14 @@ function settingsXml() {
 <w:settings xmlns:w="${XML_NS}"><w:zoom w:percent="100"/><w:compat/></w:settings>`
 }
 
+function footerXml(documentId: string) {
+  const text = formatCkhDocumentVerification(documentId)
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:ftr xmlns:w="${XML_NS}">
+  ${paragraph(textRuns(text, { size: 7, color: '666666' }), { align: 'right' })}
+</w:ftr>`
+}
+
 function corePropertiesXml(year: number, month: number) {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
@@ -385,8 +396,9 @@ function documentXml(data: CkhDocxData, geometry: ReturnType<typeof pageGeometry
 <w:document xmlns:w="${XML_NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
   <w:body>${title}${profile}${profileGap}${table}${signatureGap}${signature}
     <w:sectPr>
+      <w:footerReference w:type="default" r:id="rIdFooter"/>
       <w:pgSz w:w="${geometry.pageWidth}" w:h="${geometry.pageHeight}"/>
-      <w:pgMar w:top="${geometry.marginTwips.top}" w:right="${geometry.marginTwips.right}" w:bottom="${geometry.marginTwips.bottom}" w:left="${geometry.marginTwips.left}" w:header="0" w:footer="0" w:gutter="0"/>
+      <w:pgMar w:top="${geometry.marginTwips.top}" w:right="${geometry.marginTwips.right}" w:bottom="${Math.max(geometry.marginTwips.bottom, mmToTwips(10))}" w:left="${geometry.marginTwips.left}" w:header="0" w:footer="${mmToTwips(5)}" w:gutter="0"/>
       <w:cols w:space="0"/>
       <w:docGrid w:linePitch="240"/>
     </w:sectPr>
@@ -402,6 +414,7 @@ function documentRelationships(relationships: Array<{ relId: string; target: str
 <Relationships xmlns="${REL_NS}">
   <Relationship Id="rIdStyles" Type="${REL_STYLES}" Target="styles.xml"/>
   <Relationship Id="rIdSettings" Type="${REL_SETTINGS}" Target="settings.xml"/>
+  <Relationship Id="rIdFooter" Type="${REL_FOOTER}" Target="footer1.xml"/>
   ${imageRelationships}
 </Relationships>`
 }
@@ -428,6 +441,7 @@ function contentTypesXml(images: ImageMeta[] = []) {
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
 </Types>`
 }
@@ -459,6 +473,7 @@ export async function buildCkhDocxBytes(data: CkhDocxData) {
     { name: 'word/_rels/document.xml.rels', bytes: new TextEncoder().encode(documentRelationships(relationships)) },
     { name: 'word/styles.xml', bytes: new TextEncoder().encode(stylesXml()) },
     { name: 'word/settings.xml', bytes: new TextEncoder().encode(settingsXml()) },
+    { name: 'word/footer1.xml', bytes: new TextEncoder().encode(footerXml(data.documentId)) },
     { name: 'docProps/core.xml', bytes: new TextEncoder().encode(corePropertiesXml(data.year, data.month)) },
   ]
   if (image && data.signatureImage) {

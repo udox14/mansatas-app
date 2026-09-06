@@ -4,6 +4,7 @@ import { buildCkhDocxBytes } from './docx/ckh-template'
 import { buildCkhHtml } from './pdf/ckh-template'
 
 const baseData = {
+  documentId: 'ckh-doc-2026-08-unique',
   rows: [{
     id: 'row-1',
     tanggal: '2026-08-20',
@@ -42,6 +43,24 @@ describe('CKH print templates', () => {
     })
 
     expect(html).toContain('width:48mm">KEGIATAN BULANAN')
+    expect(html).toContain('Dokumen ini dicetak dari MANSATAS App • ID Dokumen: ckh-doc-2026-08-unique')
+  })
+
+  it('menambahkan footer verifikasi kanan bawah pada Word (.docx)', async () => {
+    const bytes = await buildCkhDocxBytes({
+      ...baseData,
+      paper: 'f4',
+    })
+    const zip = await JSZip.loadAsync(bytes)
+    const footerXml = await zip.file('word/footer1.xml')!.async('string')
+    const documentXml = await zip.file('word/document.xml')!.async('string')
+    const relsXml = await zip.file('word/_rels/document.xml.rels')!.async('string')
+
+    expect(footerXml).toContain('Dokumen ini dicetak dari MANSATAS App • ID Dokumen: ckh-doc-2026-08-unique')
+    expect(footerXml).toContain('<w:jc w:val="right"/>')
+    expect(footerXml).toContain('<w:sz w:val="14"/>')
+    expect(documentXml).toContain('<w:footerReference w:type="default" r:id="rIdFooter"/>')
+    expect(relsXml).toContain('Id="rIdFooter"')
   })
 
   it('menahan tanda tangan Word relatif terhadap blok guru di kanan', async () => {
