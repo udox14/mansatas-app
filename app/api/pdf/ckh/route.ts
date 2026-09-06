@@ -44,15 +44,15 @@ export async function POST(request: Request) {
   const roles = await getUserRoles(db, user.id)
   const isSuperAdmin = roles.includes('super_admin')
   const documentId = String(body.documentId || '').trim()
-  const document = documentId
+  const ckhDocument = documentId
     ? await db.prepare('SELECT id, user_id, year, month FROM ckh_documents WHERE id = ?')
       .bind(documentId)
       .first<{ id: string; user_id: string; year: number; month: number }>()
     : null
-  if (!document || (!isSuperAdmin && document.user_id !== user.id)) {
+  if (!ckhDocument || (!isSuperAdmin && ckhDocument.user_id !== user.id)) {
     return new Response('Dokumen CKH tidak ditemukan', { status: 404 })
   }
-  if (document.year !== body.year || document.month !== body.month) {
+  if (ckhDocument.year !== body.year || ckhDocument.month !== body.month) {
     return new Response('Periode dokumen CKH tidak sesuai', { status: 400 })
   }
 
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     env.MEDIA_SIGNING_SECRET || ''
   )
   const html = buildCkhHtml({
-    documentId: document.id,
+    documentId: ckhDocument.id,
     rows: body.rows,
     user: { ...body.user, signature_url: signedSignatureUrl },
     kepsek: body.kepsek,
