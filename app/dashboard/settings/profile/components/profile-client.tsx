@@ -268,6 +268,29 @@ export function ProfileClient({ profile, email, allowedFeatures }: { profile: an
                 <Input name="jabatan_cetak" defaultValue={profile.jabatan_cetak || ''} className="h-9 rounded-lg bg-surface-2 text-sm" placeholder="Contoh: GURU BAHASA ARAB" />
               </div>
             </div>
+            {/* Field Khusus Dokumen TPG */}
+            <div className="rounded-lg border border-surface-2 bg-surface-2/40 p-3 space-y-2.5">
+              <div>
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">Kelengkapan Berkas TPG</p>
+                <p className="text-[11px] text-slate-400">Data untuk cetak Lembar Ceklis Pencairan TPG.</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-slate-600 dark:text-slate-400">No. Urut TPG</Label>
+                  <Input name="no_urut" defaultValue={profile.no_urut || ''} className="h-9 rounded-lg bg-surface text-sm" placeholder="Contoh: 199" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-slate-600 dark:text-slate-400">NRG</Label>
+                  <Input name="nrg" defaultValue={profile.nrg || ''} className="h-9 rounded-lg bg-surface text-sm" placeholder="Nomor Registrasi Guru" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                    NUPTK <span className="text-[10px] text-slate-400 font-normal">(Opsional)</span>
+                  </Label>
+                  <Input name="nuptk" defaultValue={profile.nuptk || ''} className="h-9 rounded-lg bg-surface text-sm" placeholder="Kosongkan jika belum ada" />
+                </div>
+              </div>
+            </div>
             <SubmitProfileBtn />
           </form>
         </div>

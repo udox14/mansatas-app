@@ -101,7 +101,12 @@ export async function getTpgDokumenData(s36Year: number, s36Month: number, ckhYe
       u.role,
       GROUP_CONCAT(DISTINCT ur.role) as roles,
       u.nip,
+      u.pangkat_golongan,
       u.jabatan_cetak,
+      u.nomor_whatsapp,
+      u.nuptk,
+      u.nrg,
+      u.no_urut,
       u.signature_url,
       s.period_year as s36_period_year,
       s.period_month as s36_period_month,
@@ -130,14 +135,58 @@ export async function getTpgDokumenData(s36Year: number, s36Month: number, ckhYe
     ORDER BY u.nama_lengkap ASC, u.name ASC
   `).bind(...params).all<TpgUserStatus>()
 
+  const users = result.results || []
+  let currentUser: TpgUserStatus | null = users.find(u => u.id === authUser.id) || null
+  if (!currentUser) {
+    currentUser = await db.prepare(`
+      SELECT
+        u.id,
+        COALESCE(u.nama_lengkap, u.name) as nama_lengkap,
+        u.role,
+        GROUP_CONCAT(DISTINCT ur.role) as roles,
+        u.nip,
+        u.pangkat_golongan,
+        u.jabatan_cetak,
+        u.nomor_whatsapp,
+        u.nuptk,
+        u.nrg,
+        u.no_urut,
+        u.signature_url,
+        s.period_year as s36_period_year,
+        s.period_month as s36_period_month,
+        s.original_filename as s36_original_filename,
+        s.file_size as s36_file_size,
+        s.uploaded_at as s36_uploaded_at,
+        d.id as ckh_document_id,
+        d.status as ckh_status,
+        d.updated_at as ckh_updated_at,
+        d.signature_enabled,
+        COALESCE((
+          SELECT COUNT(*)
+          FROM ckh_rows r
+          WHERE r.document_id = d.id
+            AND (TRIM(r.kegiatan_bulanan) <> '' OR TRIM(r.catatan_harian) <> '')
+        ), 0) as ckh_row_count
+      FROM "user" u
+      LEFT JOIN user_roles ur ON ur.user_id = u.id
+      LEFT JOIN tpg_s36_uploads s
+        ON s.user_id = u.id AND s.period_year = ? AND s.period_month = ?
+      LEFT JOIN ckh_documents d
+        ON d.user_id = u.id AND d.year = ? AND d.month = ?
+      WHERE u.id = ?
+      GROUP BY u.id
+    `).bind(s36Year, s36Month, ckhYear, ckhMonth, authUser.id).first<TpgUserStatus>()
+  }
+
   return {
     currentUserId: authUser.id,
+    currentUser,
     canManage,
     roles,
     s36Year,
     s36Month,
     ckhYear,
     ckhMonth,
-    users: result.results || [],
+    users,
   }
 }

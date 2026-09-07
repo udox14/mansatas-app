@@ -18,7 +18,7 @@ export default async function ProfilePage() {
   const db = await getDB()
   const [freshUser, allowedFeatures] = await Promise.all([
     db.prepare(
-      'SELECT id, name, nama_lengkap, role, avatar_url, signature_url, nip, pangkat_golongan, jabatan_cetak, nomor_whatsapp, bottom_nav_override FROM "user" WHERE id = ?'
+      'SELECT id, name, nama_lengkap, role, avatar_url, signature_url, nip, pangkat_golongan, jabatan_cetak, nomor_whatsapp, nuptk, nrg, no_urut, bottom_nav_override FROM "user" WHERE id = ?'
     ).bind(user.id).first<any>(),
     getUserAllowedFeatures(db, user.id)
   ])
@@ -33,6 +33,9 @@ export default async function ProfilePage() {
     pangkat_golongan: freshUser?.pangkat_golongan ?? '',
     jabatan_cetak: freshUser?.jabatan_cetak ?? '',
     nomor_whatsapp: freshUser?.nomor_whatsapp ?? '',
+    nuptk: freshUser?.nuptk ?? '',
+    nrg: freshUser?.nrg ?? '',
+    no_urut: freshUser?.no_urut ?? '',
     bottom_nav_override: freshUser?.bottom_nav_override ? JSON.parse(freshUser.bottom_nav_override) : null,
   }
 

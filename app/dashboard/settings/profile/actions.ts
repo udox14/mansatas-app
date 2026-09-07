@@ -26,13 +26,16 @@ export async function updateProfileInfo(prevState: any, formData: FormData) {
   const pangkat_golongan = (formData.get('pangkat_golongan') as string)?.trim() || null
   const jabatan_cetak = (formData.get('jabatan_cetak') as string)?.trim() || null
   const nomor_whatsapp = (formData.get('nomor_whatsapp') as string)?.trim() || null
+  const nuptk = (formData.get('nuptk') as string)?.trim() || null
+  const nrg = (formData.get('nrg') as string)?.trim() || null
+  const no_urut = (formData.get('no_urut') as string)?.trim() || null
   if (!nama_lengkap) return { error: 'Nama lengkap tidak boleh kosong', success: null }
 
   const db = await getDB()
   const result = await dbUpdate(
     db,
     '"user"',
-    { nama_lengkap, name: nama_lengkap, nip, pangkat_golongan, jabatan_cetak, nomor_whatsapp, updatedAt: new Date().toISOString() },
+    { nama_lengkap, name: nama_lengkap, nip, pangkat_golongan, jabatan_cetak, nomor_whatsapp, nuptk, nrg, no_urut, updatedAt: new Date().toISOString() },
     { id: user.id }
   )
 

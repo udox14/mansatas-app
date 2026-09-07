@@ -2,7 +2,7 @@ import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { CKH_SIGNATURE_PREFERENCE_SCHEMA } from '@/lib/ckh-signature-preference'
 
 export async function ensureTpgSchema(db: D1Database) {
-  return ensureSchemaOnce('tpg-schema-v3', () => ensureTpgSchemaInner(db))
+  return ensureSchemaOnce('tpg-schema-v4', () => ensureTpgSchemaInner(db))
 }
 
 export async function ensureTpgSchemaInner(db: D1Database) {
@@ -23,6 +23,9 @@ export async function ensureTpgSchemaInner(db: D1Database) {
 
   for (const statement of [
     'ALTER TABLE "user" ADD COLUMN signature_url TEXT',
+    'ALTER TABLE "user" ADD COLUMN nuptk TEXT',
+    'ALTER TABLE "user" ADD COLUMN nrg TEXT',
+    'ALTER TABLE "user" ADD COLUMN no_urut TEXT',
     'ALTER TABLE ckh_documents ADD COLUMN signature_enabled INTEGER NOT NULL DEFAULT 1',
     'ALTER TABLE ckh_documents ADD COLUMN signature_x_mm REAL NOT NULL DEFAULT 14',
     'ALTER TABLE ckh_documents ADD COLUMN signature_y_mm REAL NOT NULL DEFAULT 12',
