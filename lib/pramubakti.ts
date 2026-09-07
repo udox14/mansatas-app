@@ -5,6 +5,30 @@ export const PB_DAILY = 'Melaksanakan pekerjaan {pekerjaan} di {tempat}.'
 export const PB_DAYS = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 export type PbSlot = { id: string; weekday: number; start: string; end: string }
 export type PbVersion = { id: string; effective_date: string; slots: PbSlot[] }
+
+export const DEFAULT_PB_SLOT_TIMES = [
+  { start: '06:45', end: '08:00' },
+  { start: '08:00', end: '10:00' },
+  { start: '10:00', end: '12:00' },
+  { start: '12:00', end: '15:00' },
+]
+
+export function getDefaultPbSlots(): PbSlot[] {
+  const slots: PbSlot[] = []
+  for (let weekday = 1; weekday <= 6; weekday++) {
+    DEFAULT_PB_SLOT_TIMES.forEach((t, i) => {
+      slots.push({
+        id: `slot_${weekday}_${i + 1}`,
+        weekday,
+        start: t.start,
+        end: t.end,
+      })
+    })
+  }
+  return slots
+}
+
+export const DEFAULT_PB_SLOTS: PbSlot[] = getDefaultPbSlots()
 export type PbMember = { id: string; user_id: string; nama_lengkap: string; start_date: string; end_date: string | null }
 export type PbHoliday = { id: string; start_date: string; end_date: string; reason: string }
 export type PbJob = { id: string; name: string; sort_order: number; active: number }

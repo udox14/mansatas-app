@@ -4,7 +4,7 @@ import { requireActionAccess } from '@/lib/action-security'
 import { getUserRoles } from '@/lib/features'
 import { currentTimeWIB, todayWIB } from '@/lib/time'
 import { getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
-import { buildPbItems, pbDates, PB_DAILY, PB_MONTHLY, type PbHoliday, type PbJob, type PbLeave, type PbMember, type PbReport, type PbVersion } from './pramubakti'
+import { buildPbItems, pbDates, PB_DAILY, PB_MONTHLY, DEFAULT_PB_SLOTS, type PbHoliday, type PbJob, type PbLeave, type PbMember, type PbReport, type PbVersion } from './pramubakti'
 
 export async function requirePbAccess(mode: 'self' | 'monitor' | 'settings', write = false) {
   const feature = mode === 'self' ? 'pelaporan-pramubakti' : mode === 'monitor' ? 'monitoring-pramubakti' : 'settings-pramubakti'
@@ -30,7 +30,11 @@ export async function getPbConfig(db: D1Database) {
     db.prepare('SELECT * FROM pb_jobs ORDER BY sort_order,name').all<PbJob>(),
     db.prepare('SELECT monthly,daily FROM pb_templates WHERE id=1').first<{ monthly: string; daily: string }>(),
   ])
-  return { versions: versions.results.map(v => ({ id: v.id, effective_date: v.effective_date, slots: JSON.parse(v.slots_json) })) as PbVersion[], holidays: holidays.results, jobs: jobs.results, templates: templates || { monthly: PB_MONTHLY, daily: PB_DAILY } }
+  let parsedVersions = versions.results.map(v => ({ id: v.id, effective_date: v.effective_date, slots: JSON.parse(v.slots_json) })) as PbVersion[]
+  if (parsedVersions.length === 0) {
+    parsedVersions = [{ id: 'default_pb_v1', effective_date: '2026-01-01', slots: DEFAULT_PB_SLOTS }]
+  }
+  return { versions: parsedVersions, holidays: holidays.results, jobs: jobs.results, templates: templates || { monthly: PB_MONTHLY, daily: PB_DAILY } }
 }
 
 export async function getPbRules() {

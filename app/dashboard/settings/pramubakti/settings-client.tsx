@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -15,7 +14,14 @@ import {
   Clock, CalendarOff, CheckSquare, FileText, Plus, Edit3, Trash2,
   AlertTriangle, CheckCircle2, Copy, ExternalLink, RefreshCw, Sparkles, Check
 } from 'lucide-react'
-import { PB_DAYS, type PbSlot, type PbJob, type PbHoliday } from '@/lib/pramubakti'
+import {
+  PB_DAYS,
+  DEFAULT_PB_SLOTS,
+  getDefaultPbSlots,
+  type PbSlot,
+  type PbJob,
+  type PbHoliday
+} from '@/lib/pramubakti'
 import { getPramubaktiSettings, savePramubaktiSettings } from './actions'
 
 type SettingsData = Awaited<ReturnType<typeof getPramubaktiSettings>>
@@ -25,10 +31,13 @@ export function PramubaktiSettingsClient({ initialData }: { initialData: Setting
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  // ── Tab 1: Jadwal Modal States ──
-  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
+  // ── Tab 1: Jadwal Langsung di Tabel (Direct In-Table Schedule Editor) ──
   const [scheduleDate, setScheduleDate] = useState(initialData.tomorrow)
-  const [slots, setSlots] = useState<PbSlot[]>(initialData.versions.at(-1)?.slots || [])
+  const [slots, setSlots] = useState<PbSlot[]>(() => {
+    const latest = initialData.versions.at(-1)?.slots
+    if (latest && latest.length > 0) return latest
+    return DEFAULT_PB_SLOTS
+  })
 
   // ── Tab 2: Libur Modal States ──
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false)
@@ -66,6 +75,12 @@ export function PramubaktiSettingsClient({ initialData }: { initialData: Setting
         setData(fresh)
         setJobs(fresh.jobs)
         setTemplates(fresh.templates)
+        if (payload.type === 'schedule') {
+          const updatedSlots = fresh.versions.at(-1)?.slots
+          if (updatedSlots && updatedSlots.length > 0) {
+            setSlots(updatedSlots)
+          }
+        }
       }
     } catch {
       setMessage({ type: 'error', text: 'Gagal menyimpan pengaturan. Silakan coba lagi.' })
@@ -74,31 +89,71 @@ export function PramubaktiSettingsClient({ initialData }: { initialData: Setting
     }
   }
 
-  // Helper untuk membuka modal jadwal baru
-  const openScheduleModal = (presetSlots?: PbSlot[]) => {
-    if (presetSlots) {
-      setSlots(presetSlots)
-    } else {
-      setSlots(data.versions.at(-1)?.slots || [])
+  // ── Helper Slot Jadwal Langsung ──
+  const updateSlotTime = (slotId: string, field: 'start' | 'end', val: string) => {
+    setSlots(old => old.map(s => (s.id === slotId ? { ...s, [field]: val } : s)))
+  }
+
+  const addSlotToDay = (weekday: number) => {
+    const daySlots = slots.filter(s => s.weekday === weekday)
+    const lastSlot = daySlots.at(-1)
+    const start = lastSlot ? lastSlot.end : '07:00'
+    const end =
+      start < '22:00'
+        ? `${String(Math.min(23, Number(start.slice(0, 2)) + 1)).padStart(2, '0')}:${start.slice(3, 5)}`
+        : '23:00'
+
+    setSlots(old => [...old, { id: crypto.randomUUID(), weekday, start, end }])
+  }
+
+  const removeSlot = (slotId: string) => {
+    setSlots(old => old.filter(s => s.id !== slotId))
+  }
+
+  const resetToDefaultSlots = () => {
+    setSlots(getDefaultPbSlots())
+    setMessage({
+      type: 'success',
+      text: 'Slot jadwal berhasil di-reset ke default (Senin–Sabtu: 06:45–08:00, 08:00–10:00, 10:00–12:00, 12:00–15:00). Klik "Simpan Versi Jadwal" untuk menerapkan.',
+    })
+  }
+
+  const copyMondayToAllWorkdays = () => {
+    const mondaySlots = slots.filter(s => s.weekday === 1)
+    if (mondaySlots.length === 0) {
+      setMessage({ type: 'error', text: 'Hari Senin belum memiliki slot untuk disalin.' })
+      return
     }
-    setScheduleDate(data.tomorrow)
-    setIsScheduleModalOpen(true)
+
+    const newSlots: PbSlot[] = [...mondaySlots]
+    for (let weekday = 2; weekday <= 6; weekday++) {
+      mondaySlots.forEach(s => {
+        newSlots.push({
+          id: crypto.randomUUID(),
+          weekday,
+          start: s.start,
+          end: s.end,
+        })
+      })
+    }
+    // Pertahankan slot hari Minggu jika ada
+    const sundaySlots = slots.filter(s => s.weekday === 7)
+    setSlots([...newSlots, ...sundaySlots])
+    setMessage({
+      type: 'success',
+      text: 'Slot hari Senin berhasil disalin ke hari Selasa s/d Sabtu. Klik "Simpan Versi Jadwal" untuk menerapkan.',
+    })
   }
 
-  // Helper untuk menambah baris slot baru di modal
-  const addSlotRow = () => {
-    setSlots(old => [
-      ...old,
-      { id: crypto.randomUUID(), weekday: 1, start: '07:00', end: '08:00' },
-    ])
+  const saveCurrentSchedule = async () => {
+    await handleSave({
+      type: 'schedule',
+      effective_date: scheduleDate,
+      slots,
+    })
   }
 
-  // Helper untuk menghapus baris slot
-  const removeSlotRow = (index: number) => {
-    setSlots(old => old.filter((_, i) => i !== index))
-  }
-
-  // Helper untuk membuka modal pekerjaan
+  // ── Helper Modal Pekerjaan ──
   const openJobModal = (job?: PbJob) => {
     if (job) {
       setEditingJob({ ...job })
@@ -170,68 +225,191 @@ export function PramubaktiSettingsClient({ initialData }: { initialData: Setting
         </TabsList>
 
         {/* ══════════════════════════════════════════════════════════ */}
-        {/* TAB 1: JADWAL BERSAMA (SLOTS) */}
+        {/* TAB 1: JADWAL BERSAMA (DIRECT IN-TABLE EDITOR) */}
         {/* ══════════════════════════════════════════════════════════ */}
         <TabsContent value="jadwal" className="space-y-4 mt-2">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border bg-white dark:bg-slate-900 p-4 shadow-sm">
-            <div>
-              <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                <Clock className="h-4 w-4 text-emerald-600" />
-                Versi Jadwal Aktif
+          {/* Top Control Toolbar */}
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 rounded-lg border bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm">
+            <div className="space-y-1">
+              <h3 className="font-bold text-base text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Clock className="h-5 w-5 text-emerald-600" />
+                Pengaturan Slot Kerja Pramubakti
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {latestVersion
-                  ? `Mulai berlaku sejak ${latestVersion.effective_date} (${latestVersion.slots.length} slot per minggu)`
-                  : 'Belum ada jadwal yang dikonfigurasi.'}
+              <p className="text-xs text-slate-500">
+                Atur slot kerja per hari langsung pada tabel di bawah tanpa modal dialog.
+                {latestVersion && (
+                  <span className="ml-1 text-emerald-700 dark:text-emerald-400 font-medium">
+                    (Versi aktif: {latestVersion.effective_date} &middot; {latestVersion.slots.length} slot)
+                  </span>
+                )}
               </p>
             </div>
-            <Button
-              onClick={() => openScheduleModal()}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium shadow-sm transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              Perbarui Versi Jadwal
-            </Button>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex items-center gap-2">
+                <Label className="text-xs font-semibold whitespace-nowrap text-slate-700 dark:text-slate-300">
+                  Mulai Berlaku:
+                </Label>
+                <Input
+                  type="date"
+                  min={data.tomorrow}
+                  value={scheduleDate}
+                  onChange={e => setScheduleDate(e.target.value)}
+                  className="h-9 w-36 text-xs font-medium"
+                />
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={resetToDefaultSlots}
+                disabled={busy}
+                className="h-9 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100"
+                title="Kembalikan ke 4 slot default untuk Senin–Sabtu"
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1 text-slate-500" />
+                Reset Default
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={copyMondayToAllWorkdays}
+                disabled={busy}
+                className="h-9 text-xs font-medium text-indigo-700 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50"
+                title="Salin slot hari Senin ke hari Selasa s/d Sabtu"
+              >
+                <Copy className="h-3.5 w-3.5 mr-1" />
+                Salin Senin ke Sel–Sab
+              </Button>
+
+              <Button
+                disabled={busy}
+                onClick={saveCurrentSchedule}
+                className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium shadow-sm transition-colors"
+              >
+                {busy ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1.5" />}
+                Simpan Jadwal Baru
+              </Button>
+            </div>
           </div>
 
-          {/* Grid Slot Aktif Berdasarkan Hari */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {/* Grid Tabel Per Hari (Senin s/d Minggu) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {PB_DAYS.slice(1).map((hari, dayIdx) => {
-              const daySlots = (latestVersion?.slots || []).filter(s => s.weekday === dayIdx + 1)
+              const weekday = dayIdx + 1
+              const daySlots = slots.filter(s => s.weekday === weekday)
+
               return (
                 <div
                   key={hari}
-                  className="rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm space-y-2"
+                  className="rounded-lg border bg-white dark:bg-slate-900 shadow-sm overflow-hidden flex flex-col justify-between"
                 >
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
-                      {hari}
-                    </span>
-                    <span className="text-[11px] text-slate-500">
-                      {daySlots.length} slot
-                    </span>
+                  {/* Card Header Hari */}
+                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50/80 dark:bg-slate-800/60 border-b">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-slate-800 dark:text-slate-100">
+                        {hari}
+                      </span>
+                      <span
+                        className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                          daySlots.length > 0
+                            ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                        }`}
+                      >
+                        {daySlots.length} Slot
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addSlotToDay(weekday)}
+                      className="h-7 px-2 text-[11px] font-medium"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Tambah Slot
+                    </Button>
                   </div>
 
-                  {daySlots.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic py-2">Tidak ada kewajiban slot</p>
-                  ) : (
-                    <div className="space-y-1.5 pt-1">
-                      {daySlots.map(s => (
-                        <div
-                          key={s.id}
-                          className="flex items-center justify-between p-2 rounded bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300"
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <Clock className="h-3 w-3 text-emerald-600" />
-                            {s.start} – {s.end} WIB
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {/* Tabel Slot Langsung Edit */}
+                  <div className="p-3 flex-1">
+                    {daySlots.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-400 italic">
+                        {weekday === 7
+                          ? 'Hari libur rutin (tidak ada kewajiban slot).'
+                          : 'Belum ada slot untuk hari ini.'}
+                      </div>
+                    ) : (
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-slate-400 border-b border-slate-100 dark:border-slate-800 text-[11px]">
+                            <th className="text-left py-1.5 w-12 font-medium">Slot</th>
+                            <th className="text-left py-1.5 font-medium">Jam Mulai</th>
+                            <th className="text-left py-1.5 font-medium">Jam Selesai</th>
+                            <th className="text-right py-1.5 w-8 font-medium"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {daySlots.map((slot, index) => (
+                            <tr key={slot.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                              <td className="py-2 text-slate-500 font-medium">#{index + 1}</td>
+                              <td className="py-2 pr-1.5">
+                                <Input
+                                  type="time"
+                                  value={slot.start}
+                                  onChange={e => updateSlotTime(slot.id, 'start', e.target.value)}
+                                  className="h-8 text-xs w-24 font-mono font-medium"
+                                />
+                              </td>
+                              <td className="py-2 pr-1.5">
+                                <Input
+                                  type="time"
+                                  value={slot.end}
+                                  onChange={e => updateSlotTime(slot.id, 'end', e.target.value)}
+                                  className="h-8 text-xs w-24 font-mono font-medium"
+                                />
+                              </td>
+                              <td className="py-2 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => removeSlot(slot.id)}
+                                  className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                  title="Hapus slot ini"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
                 </div>
               )
             })}
+          </div>
+
+          {/* Bottom Summary Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg border bg-white dark:bg-slate-900 shadow-sm">
+            <div className="text-xs text-slate-600 dark:text-slate-400">
+              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                Total {slots.length} slot kerja aktif
+              </span>{' '}
+              akan diberlakukan mulai tanggal <strong>{scheduleDate}</strong>.
+            </div>
+            <Button
+              disabled={busy}
+              onClick={saveCurrentSchedule}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium shadow-sm transition-colors"
+            >
+              {busy ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1.5" />}
+              Simpan Versi Jadwal ({scheduleDate})
+            </Button>
           </div>
 
           {/* Riwayat Versi Jadwal */}
@@ -263,11 +441,18 @@ export function PramubaktiSettingsClient({ initialData }: { initialData: Setting
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => openScheduleModal(v.slots)}
+                      onClick={() => {
+                        setSlots(v.slots)
+                        setScheduleDate(data.tomorrow)
+                        setMessage({
+                          type: 'success',
+                          text: `Slot dari versi ${v.effective_date} telah disalin ke formulir tabel di atas. Klik "Simpan Versi Jadwal" untuk menerapkan.`,
+                        })
+                      }}
                       className="h-8 text-xs shrink-0 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"
                     >
                       <Copy className="h-3.5 w-3.5 mr-1" />
-                      Salin Slot ke Versi Baru
+                      Salin ke Formulir Tabel
                     </Button>
                   </div>
                 ))}
@@ -519,146 +704,7 @@ export function PramubaktiSettingsClient({ initialData }: { initialData: Setting
       </Tabs>
 
       {/* ══════════════════════════════════════════════════════════ */}
-      {/* MODAL 1: ATUR / PERBARUI VERSI JADWAL */}
-      {/* ══════════════════════════════════════════════════════════ */}
-      <Dialog open={isScheduleModalOpen} onOpenChange={open => !open && setIsScheduleModalOpen(false)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="text-base font-semibold flex items-center gap-2">
-              <Clock className="h-4 w-4 text-emerald-600" />
-              Perbarui Versi Jadwal Bersama
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Jadwal baru berlaku paling cepat mulai besok. Mengosongkan semua slot menghentikan kewajiban sejak tanggal berlaku.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2 overflow-y-auto pr-1 flex-1">
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Tanggal Mulai Berlaku *</Label>
-              <Input
-                type="date"
-                min={data.tomorrow}
-                value={scheduleDate}
-                onChange={e => setScheduleDate(e.target.value)}
-                className="h-9 text-sm max-w-xs"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold">Daftar Slot Wajib ({slots.length} slot)</Label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addSlotRow}
-                  className="h-7 text-xs"
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Tambah Slot
-                </Button>
-              </div>
-
-              {slots.length === 0 ? (
-                <div className="p-4 rounded-lg border border-dashed text-center text-xs text-slate-500">
-                  Tidak ada slot. Versi ini akan menonaktifkan seluruh kewajiban mulai tanggal berlaku.
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-60 overflow-y-auto p-1">
-                  {slots.map((slot, index) => (
-                    <div
-                      key={slot.id || index}
-                      className="flex items-center gap-2 p-2 rounded-lg border bg-slate-50/60 dark:bg-slate-800/40 text-xs"
-                    >
-                      <div className="w-28 shrink-0">
-                        <Select
-                          value={String(slot.weekday)}
-                          onValueChange={v =>
-                            setSlots(old =>
-                              old.map((s, i) => (i === index ? { ...s, weekday: Number(v) } : s))
-                            )
-                          }
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PB_DAYS.slice(1).map((day, i) => (
-                              <SelectItem key={day} value={String(i + 1)}>
-                                {day}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 flex-1">
-                        <Input
-                          type="time"
-                          value={slot.start}
-                          onChange={e =>
-                            setSlots(old =>
-                              old.map((s, i) => (i === index ? { ...s, start: e.target.value } : s))
-                            )
-                          }
-                          className="h-8 text-xs"
-                        />
-                        <span>s/d</span>
-                        <Input
-                          type="time"
-                          value={slot.end}
-                          onChange={e =>
-                            setSlots(old =>
-                              old.map((s, i) => (i === index ? { ...s, end: e.target.value } : s))
-                            )
-                          }
-                          className="h-8 text-xs"
-                        />
-                      </div>
-
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeSlotRow(index)}
-                        className="h-8 w-8 p-0 text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t">
-            <Button variant="outline" size="sm" onClick={() => setIsScheduleModalOpen(false)}>
-              Batal
-            </Button>
-            <Button
-              size="sm"
-              disabled={busy}
-              onClick={async () => {
-                await handleSave({
-                  type: 'schedule',
-                  effective_date: scheduleDate,
-                  slots,
-                })
-                setIsScheduleModalOpen(false)
-              }}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-            >
-              {busy ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
-              Simpan Versi Jadwal
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ══════════════════════════════════════════════════════════ */}
-      {/* MODAL 2: TAMBAH LIBUR KERJA */}
+      {/* MODAL 1: TAMBAH LIBUR KERJA */}
       {/* ══════════════════════════════════════════════════════════ */}
       <Dialog open={isHolidayModalOpen} onOpenChange={open => !open && setIsHolidayModalOpen(false)}>
         <DialogContent className="max-w-md">
@@ -729,7 +775,7 @@ export function PramubaktiSettingsClient({ initialData }: { initialData: Setting
       </Dialog>
 
       {/* ══════════════════════════════════════════════════════════ */}
-      {/* MODAL 3: BATALKAN LIBUR KERJA (Ganti window.prompt) */}
+      {/* MODAL 2: BATALKAN LIBUR KERJA (Ganti window.prompt) */}
       {/* ══════════════════════════════════════════════════════════ */}
       <Dialog open={!!cancellingHoliday} onOpenChange={open => !open && setCancellingHoliday(null)}>
         <DialogContent className="max-w-md">
@@ -793,7 +839,7 @@ export function PramubaktiSettingsClient({ initialData }: { initialData: Setting
       </Dialog>
 
       {/* ══════════════════════════════════════════════════════════ */}
-      {/* MODAL 4: TAMBAH / EDIT PEKERJAAN */}
+      {/* MODAL 3: TAMBAH / EDIT PEKERJAAN */}
       {/* ══════════════════════════════════════════════════════════ */}
       <Dialog open={isJobModalOpen} onOpenChange={open => !open && setIsJobModalOpen(false)}>
         <DialogContent className="max-w-md">
