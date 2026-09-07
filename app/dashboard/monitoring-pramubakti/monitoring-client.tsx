@@ -40,6 +40,7 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
   const [status, setStatus] = useState('')
   const [slotId, setSlotId] = useState('')
   const [kind, setKind] = useState('')
+  const [attentionOnly, setAttentionOnly] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -75,10 +76,11 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
   const allSlots = data.versions.flatMap(v => v.slots.map(s => ({ ...s, effective_date: v.effective_date })))
 
   const filtered = data.items.filter(
-    i => (!userId || i.user_id === userId) &&
-         (!status || i.status === status) &&
-         (!slotId || i.slot?.id === slotId) &&
-         (!kind || (kind === 'tambahan' ? i.status === 'TAMBAHAN' : i.status !== 'TAMBAHAN'))
+    i => (!userId || userId === 'ALL_USERS' || i.user_id === userId) &&
+         (!status || status === 'ALL_STATUS' || i.status === status) &&
+         (!slotId || slotId === 'ALL_SLOTS' || i.slot?.id === slotId) &&
+         (!kind || kind === 'ALL_KINDS' || (kind === 'tambahan' ? i.status === 'TAMBAHAN' : i.status !== 'TAMBAHAN')) &&
+         (!attentionOnly || (i.status === 'BELUM' || i.status === 'TELAT' || i.status === 'ALFA'))
   )
   const printed = filtered.filter(i => !excluded.includes(i.user_id))
   const stale = start !== loaded.start || end !== loaded.end
@@ -447,6 +449,21 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
           >
             {busy ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Search className="h-4 w-4 mr-1.5" />}
             Tampilkan
+          </Button>
+
+          <Button
+            type="button"
+            variant={attentionOnly ? 'destructive' : 'outline'}
+            size="sm"
+            onClick={() => setAttentionOnly(prev => !prev)}
+            className={`h-9 px-3 text-xs font-medium transition-all ${
+              attentionOnly
+                ? 'bg-rose-600 hover:bg-rose-700 text-white shadow-sm'
+                : 'text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+            }`}
+          >
+            <AlertTriangle className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+            {attentionOnly ? 'Perlu Perhatian (Aktif)' : 'Perlu Perhatian'}
           </Button>
         </div>
 

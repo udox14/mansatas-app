@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- Camera previews use temporary blob URLs. */
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,12 +12,13 @@ import { CameraCapture } from '@/components/shared/camera-capture'
 import { compressAgendaImage } from '@/app/dashboard/agenda/components/image-compression'
 import {
   Camera, CheckCircle2, Clock, Plus, RefreshCw, ClipboardPen,
-  BookOpen, Send, AlertTriangle, Check, ExternalLink, Sparkles, X
+  BookOpen, Send, AlertTriangle, Check, ExternalLink, Sparkles, X,
+  Calendar, Maximize2
 } from 'lucide-react'
 import { getPramubaktiReports, submitPramubaktiReport } from './actions'
-import { PbDetails, PbStatus } from '@/components/pramubakti/report-details'
+import { PbStatus } from '@/components/pramubakti/report-details'
 import { todayWIB, currentTimeWIB } from '@/lib/time'
-import { minutes, type PbItem } from '@/lib/pramubakti'
+import { minutes, getWeekRangePb, type PbItem } from '@/lib/pramubakti'
 
 export function PramubaktiClient({
   initialData,
@@ -38,11 +39,13 @@ export function PramubaktiClient({
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [requestId, setRequestId] = useState('')
 
-  // Riwayat State
-  const [start, setStart] = useState(data.today.slice(0, 7) + '-01')
-  const [end, setEnd] = useState(data.today)
+  // Riwayat State (Default Mingguan)
+  const defaultWeek = getWeekRangePb(data.today)
+  const [start, setStart] = useState((data as any).defaultStart || defaultWeek.start)
+  const [end, setEnd] = useState((data as any).defaultEnd || defaultWeek.end)
   const [history, setHistory] = useState(data.items)
   const [clock, setClock] = useState(() => currentTimeWIB().hhmm)
+  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; title: string } | null>(null)
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(currentTimeWIB().hhmm), 15000)
@@ -70,6 +73,61 @@ export function PramubaktiClient({
 
   const slots = data.items.filter(i => i.tanggal === data.today && i.slot && i.status !== 'TAMBAHAN')
   const completed = slots.filter(i => i.report || i.leave).length
+
+  const groupedHistory = useMemo(() => {
+    const map = new Map<string, PbItem[]>()
+    const sorted = [...history].sort((a, b) => {
+      if (a.tanggal !== b.tanggal) return b.tanggal.localeCompare(a.tanggal)
+      const timeA = a.slot?.start || a.report?.waktu_input?.slice(11, 16) || '99:99'
+      const timeB = b.slot?.start || b.report?.waktu_input?.slice(11, 16) || '99:99'
+      return timeA.localeCompare(timeB)
+    })
+
+    for (const item of sorted) {
+      if (!map.has(item.tanggal)) {
+        map.set(item.tanggal, [])
+      }
+      map.get(item.tanggal)!.push(item)
+    }
+
+    return Array.from(map.entries()).map(([tanggal, items]) => ({
+      tanggal,
+      items,
+    }))
+  }, [history])
+
+  const fetchRiwayat = async (startDate: string, endDate: string) => {
+    setBusy(true)
+    try {
+      const res = await getPramubaktiReports(startDate, endDate)
+      setHistory(res.items)
+    } catch (e) {
+      setMessage({
+        type: 'error',
+        text: e instanceof Error ? e.message : 'Gagal memuat riwayat.',
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const applyWeekPreset = () => {
+    const w = getWeekRangePb(data.today)
+    setStart(w.start)
+    setEnd(w.end)
+    fetchRiwayat(w.start, w.end)
+  }
+
+  const applyMonthPreset = () => {
+    const today = data.today
+    const startOfMonth = today.slice(0, 8) + '01'
+    const parts = today.split('-').map(Number)
+    const lastDay = new Date(parts[0], parts[1], 0).getDate()
+    const endOfMonth = `${today.slice(0, 8)}${String(lastDay).padStart(2, '0')}`
+    setStart(startOfMonth)
+    setEnd(endOfMonth)
+    fetchRiwayat(startOfMonth, endOfMonth)
+  }
 
   const openFillSlot = (slotId: string) => {
     if (selectedSlotId === slotId) {
@@ -112,7 +170,13 @@ export function PramubaktiClient({
     setCamera(false)
     setBusy(true)
     try {
-      const compressed = await compressAgendaImage(file)
+      const nowFormatted = new Date().toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      }) + ` ${currentTimeWIB().hhmm} WIB`
+      const watermarkText = `MAN 1 KOTA TASIKMALAYA · ${nowFormatted}`
+      const compressed = await compressAgendaImage(file, { watermarkText })
       setFoto(compressed)
     } catch {
       setMessage({ type: 'error', text: 'Foto gagal diproses. Silakan ambil ulang foto.' })
@@ -178,6 +242,24 @@ export function PramubaktiClient({
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {completed} dari {slots.length} slot wajib hari ini terselesaikan &middot; Jam sistem: {clock} WIB
           </p>
+          {slots.length > 0 && (
+            <div className="mt-2 w-full max-w-xs space-y-1">
+              <div className="flex justify-between text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                <span>Progres Hari Ini</span>
+                <span className={completed === slots.length ? 'text-emerald-600 dark:text-emerald-400 font-bold' : ''}>
+                  {Math.round((completed / slots.length) * 100)}%
+                </span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                <div
+                  className={`h-full transition-all duration-500 rounded-full ${
+                    completed === slots.length ? 'bg-emerald-500' : 'bg-emerald-600'
+                  }`}
+                  style={{ width: `${Math.round((completed / slots.length) * 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <Button
@@ -197,7 +279,7 @@ export function PramubaktiClient({
             className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-colors"
           >
             <Plus className="h-3.5 w-3.5 mr-1" />
-            Laporan Tambahan
+            Tambahan
           </Button>
         </div>
       </div>
@@ -236,12 +318,21 @@ export function PramubaktiClient({
           </TabsTrigger>
           <TabsTrigger value="riwayat" className="text-xs sm:text-sm py-2">
             <BookOpen className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />
-            Riwayat Saya
+            Riwayat
           </TabsTrigger>
         </TabsList>
 
         {/* TAB CONTENT: HARI INI */}
         <TabsContent value="hari-ini" className="space-y-3 mt-3">
+          {slots.length > 0 && (
+            <div className="flex items-center gap-2 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 px-3.5 py-2.5 text-xs text-amber-800 dark:text-amber-300">
+              <Clock className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                Form pengisian laporan dibuka mulai 5 menit sebelum jam kerja slot hingga jam selesai.
+              </span>
+            </div>
+          )}
+
           {slots.length === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-10 text-center">
               <BookOpen className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
@@ -249,11 +340,11 @@ export function PramubaktiClient({
                 Tidak ada kewajiban slot kerja hari ini.
               </p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Laporan pekerjaan di luar jadwal dapat dicatat melalui tombol <strong>Laporan Tambahan</strong>.
+                Laporan pekerjaan di luar jadwal dapat dicatat melalui tombol <strong>Tambahan</strong>.
               </p>
             </div>
           ) : (
-            slots.map(item => {
+            slots.map((item, index) => {
               const isExpanded = selectedSlotId === item.slot!.id
               const isDone = Boolean(item.report || item.leave)
               const allowedToFill = canFill(item)
@@ -264,50 +355,43 @@ export function PramubaktiClient({
                   className="rounded-lg border bg-white dark:bg-slate-900 overflow-hidden shadow-sm transition-all"
                 >
                   {/* Card Header (Identik dengan JadwalBlock Agenda Guru) */}
-                  <div className="grid grid-cols-1 gap-3 px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div className="flex items-center justify-between gap-3 px-4 py-3.5">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
+                      <div className="flex items-center gap-2">
                         <span className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-100">
-                          Slot Jam: {item.slot!.start} – {item.slot!.end} WIB
+                          Pekerjaan {index + 1}
                         </span>
-                        <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                          Kewajiban Wajib
+                        <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                          Wajib
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Laporan bukti kebersihan dan pemeliharaan lingkungan madrasah
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1 font-mono">
+                        <Clock className="h-3 w-3 inline text-slate-400" />
+                        {item.slot!.start} – {item.slot!.end} WIB
                       </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <div className="flex items-center gap-2 shrink-0">
                       {isDone ? (
                         <div className="flex items-center gap-2">
                           <PbStatus item={item} />
                           {item.report?.foto_url && (
-                            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium hidden sm:flex items-center gap-1">
                               <CheckCircle2 className="h-4 w-4" />
                               Tersimpan
                             </span>
                           )}
                         </div>
                       ) : (
-                        <>
-                          {!allowedToFill && (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700">
-                              <Clock className="h-3 w-3" />
-                              Dibuka 5 mnt sblm {item.slot!.start}
-                            </span>
-                          )}
-                          <Button
-                            size="sm"
-                            disabled={busy || !allowedToFill}
-                            onClick={() => openFillSlot(item.slot!.id)}
-                            className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-colors"
-                          >
-                            <ClipboardPen className="h-3.5 w-3.5 mr-1" />
-                            {isExpanded ? 'Tutup Form' : 'Isi Laporan'}
-                          </Button>
-                        </>
+                        <Button
+                          size="sm"
+                          disabled={busy || !allowedToFill}
+                          onClick={() => openFillSlot(item.slot!.id)}
+                          className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-colors"
+                        >
+                          <ClipboardPen className="h-3.5 w-3.5 mr-1" />
+                          {isExpanded ? 'Tutup Form' : 'Isi Laporan'}
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -364,6 +448,27 @@ export function PramubaktiClient({
                           placeholder="Contoh: Halaman depan madrasah, ruang guru, koridor kelas X..."
                           className="h-9 text-sm"
                         />
+                        {data.recentPlaces && data.recentPlaces.length > 0 && (
+                          <div className="space-y-1 pt-1">
+                            <p className="text-[11px] text-slate-400">Pilihan cepat dari riwayat Anda:</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {data.recentPlaces.map(p => (
+                                <button
+                                  key={p}
+                                  type="button"
+                                  onClick={() => setTempat(p)}
+                                  className={`text-xs px-2.5 py-1 rounded-md border transition-all ${
+                                    tempat === p
+                                      ? 'bg-emerald-100 dark:bg-emerald-950 border-emerald-400 text-emerald-800 dark:text-emerald-200 font-semibold shadow-xs'
+                                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  {p}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Step 3: Bukti Foto Kamera */}
@@ -447,7 +552,7 @@ export function PramubaktiClient({
           )}
         </TabsContent>
 
-        {/* TAB CONTENT: RIWAYAT SAYA */}
+        {/* TAB CONTENT: RIWAYAT */}
         <TabsContent value="riwayat" className="space-y-4 mt-3">
           <div className="rounded-lg border bg-white dark:bg-slate-900 p-4 space-y-3 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -455,11 +560,11 @@ export function PramubaktiClient({
                 <h3 className="font-semibold text-sm text-slate-800 dark:text-slate-100">
                   Riwayat Pekerjaan & Presensi
                 </h3>
-                <p className="text-xs text-slate-500">
-                  Lihat rekam jejak laporan yang pernah Anda kirimkan.
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Rekam jejak laporan tugas yang pernah Anda kirimkan.
                 </p>
               </div>
-              <Button asChild variant="outline" size="sm" className="h-8 text-xs">
+              <Button asChild variant="outline" size="sm" className="h-8 text-xs self-start sm:self-auto">
                 <Link href="/dashboard/ckh-generator">
                   <ExternalLink className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
                   Buka CKH Generator
@@ -468,52 +573,207 @@ export function PramubaktiClient({
             </div>
 
             <div className="flex flex-wrap items-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex-1 min-w-[140px]">
+              <div className="flex-1 min-w-[130px]">
                 <Label className="text-xs text-slate-500">Dari Tanggal</Label>
                 <Input
                   type="date"
                   value={start}
                   max={todayWIB()}
                   onChange={e => setStart(e.target.value)}
-                  className="h-9 text-sm"
+                  className="h-8 text-xs sm:text-sm"
                 />
               </div>
-              <div className="flex-1 min-w-[140px]">
+              <div className="flex-1 min-w-[130px]">
                 <Label className="text-xs text-slate-500">Sampai Tanggal</Label>
                 <Input
                   type="date"
                   value={end}
                   max={todayWIB()}
                   onChange={e => setEnd(e.target.value)}
-                  className="h-9 text-sm"
+                  className="h-8 text-xs sm:text-sm"
                 />
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true)
-                  try {
-                    const res = await getPramubaktiReports(start, end)
-                    setHistory(res.items)
-                  } catch (e) {
-                    setMessage({
-                      type: 'error',
-                      text: e instanceof Error ? e.message : 'Gagal memuat riwayat.',
-                    })
-                  } finally {
-                    setBusy(false)
-                  }
-                }}
-                className="h-9 px-4 font-medium"
-              >
-                {busy ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : 'Tampilkan'}
-              </Button>
+              <div className="flex items-center gap-1.5 self-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => fetchRiwayat(start, end)}
+                  className="h-8 px-3 text-xs font-medium"
+                >
+                  {busy ? <RefreshCw className="h-3.5 w-3.5 mr-1 animate-spin" /> : 'Tampilkan'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy}
+                  onClick={applyWeekPreset}
+                  className="h-8 px-2.5 text-xs"
+                >
+                  Minggu Ini
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy}
+                  onClick={applyMonthPreset}
+                  className="h-8 px-2.5 text-xs"
+                >
+                  Bulan Ini
+                </Button>
+              </div>
             </div>
           </div>
 
-          <PbDetails items={history} />
+          {/* Grouped History by Day */}
+          {groupedHistory.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-10 text-center">
+              <BookOpen className="h-9 w-9 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Tidak ada riwayat laporan.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Belum ada aktivitas tercatat pada rentang tanggal ini.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {groupedHistory.map(({ tanggal, items }) => (
+                <div key={tanggal} className="space-y-2.5">
+                  {/* Day Header - Sekali per tanggal */}
+                  <div className="flex items-center gap-2 px-1 pt-1">
+                    <Calendar className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
+                      {new Date(tanggal + 'T00:00:00').toLocaleDateString('id-ID', {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </span>
+                    <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                    <span className="text-[11px] font-medium text-slate-400">
+                      {items.length} aktivitas
+                    </span>
+                  </div>
+
+                  {/* List of slot/reports on that date */}
+                  <div className="space-y-2">
+                    {items.map(item => {
+                      const slotItems = items.filter(i => i.slot)
+                      const slotIdx = item.slot ? slotItems.findIndex(s => s.key === item.key) : -1
+                      const isWajib = Boolean(item.slot)
+                      const label = isWajib ? `Pekerjaan ${slotIdx + 1}` : 'Tambahan'
+
+                      return (
+                        <div
+                          key={item.key}
+                          className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 sm:p-4 shadow-sm space-y-3"
+                        >
+                          {/* Header row: Label + Badge + Time + Status */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 space-y-0.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                                  {label}
+                                </span>
+                                <span
+                                  className={`inline-flex items-center text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded border ${
+                                    isWajib
+                                      ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                                      : 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                                  }`}
+                                >
+                                  {isWajib ? 'Wajib' : 'Tambahan'}
+                                </span>
+                                {item.slot && (
+                                  <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                                    ({item.slot.start} – {item.slot.end} WIB)
+                                  </span>
+                                )}
+                              </div>
+
+                              {item.report?.waktu_input && (
+                                <p className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                                  <Clock className="h-3 w-3 inline" />
+                                  Waktu Kirim: {item.report.waktu_input.slice(11, 16)} WIB
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="shrink-0">
+                              <PbStatus item={item} />
+                            </div>
+                          </div>
+
+                          {/* Report Body */}
+                          {item.report && (
+                            <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                              {/* Photo Thumbnail */}
+                              {item.report.foto_url && (
+                                <div
+                                  className="relative group cursor-pointer w-28 h-20 sm:w-28 sm:h-20 shrink-0 rounded-md overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100"
+                                  onClick={() =>
+                                    setPreviewPhoto({
+                                      url: item.report!.foto_url,
+                                      title: `${label} - ${item.report!.tempat}`,
+                                    })
+                                  }
+                                >
+                                  <img
+                                    src={item.report.foto_url}
+                                    alt="Bukti"
+                                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                  />
+                                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                    <Maximize2 className="h-4 w-4" />
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Jobs & Place Details */}
+                              <div className="flex-1 space-y-2 min-w-0">
+                                {item.report.jobs && item.report.jobs.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {item.report.jobs.map((j, idx) => (
+                                      <span
+                                        key={idx}
+                                        className="inline-flex items-center text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium"
+                                      >
+                                        {j}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {item.report.tempat && (
+                                  <p className="text-slate-600 dark:text-slate-300 font-medium text-xs flex items-center gap-1.5">
+                                    <span className="text-slate-400">Tempat:</span>
+                                    {item.report.tempat}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Leave explanation */}
+                          {item.leave && (
+                            <div className="text-xs text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 p-2.5 rounded-md border border-sky-200 dark:border-sky-900">
+                              <span className="font-semibold">{item.leave.status}: </span>
+                              {item.leave.note || item.leave.reason_name || 'Tidak ada keterangan tambahan.'}
+                            </div>
+                          )}
+
+                          {/* Alfa notice */}
+                          {item.status === 'ALFA' && (
+                            <p className="text-xs text-rose-600 dark:text-rose-400 pt-1">
+                              Slot waktu kerja telah berakhir, namun laporan pekerjaan tidak diisi.
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -576,6 +836,27 @@ export function PramubaktiClient({
                 placeholder="Contoh: Gedung perpustakaan, laboratorium, aula utama..."
                 className="h-9 text-sm"
               />
+              {data.recentPlaces && data.recentPlaces.length > 0 && (
+                <div className="space-y-1 pt-1">
+                  <p className="text-[11px] text-slate-400">Pilihan cepat dari riwayat Anda:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {data.recentPlaces.map(p => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setTempat(p)}
+                        className={`text-xs px-2.5 py-1 rounded-md border transition-all ${
+                          tempat === p
+                            ? 'bg-purple-100 dark:bg-purple-950 border-purple-400 text-purple-800 dark:text-purple-200 font-semibold shadow-xs'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 3. Foto */}
@@ -641,9 +922,27 @@ export function PramubaktiClient({
               className="bg-purple-600 hover:bg-purple-700 text-white font-medium"
             >
               {busy ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
-              Kirim Laporan Tambahan
+              Kirim Laporan
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* PHOTO PREVIEW LIGHTBOX */}
+      <Dialog open={Boolean(previewPhoto)} onOpenChange={open => !open && setPreviewPhoto(null)}>
+        <DialogContent className="max-w-xl p-2 bg-black/95 border-slate-800">
+          <DialogHeader className="p-2 text-white">
+            <DialogTitle className="text-xs sm:text-sm font-medium">{previewPhoto?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center p-2 max-h-[75vh] overflow-hidden">
+            {previewPhoto && (
+              <img
+                src={previewPhoto.url}
+                alt={previewPhoto.title}
+                className="max-w-full max-h-[70vh] object-contain rounded-md"
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

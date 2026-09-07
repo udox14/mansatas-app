@@ -1285,6 +1285,49 @@ export async function dispatchConfiguredReminders(db: D1Database, runtimeEnv?: F
     }
   }
 
+  const pbReminder = await getActiveReminder('pramubakti_slot_reminder')
+  if (pbReminder) {
+    try {
+      const { minutes } = await import('@/lib/pramubakti')
+      const { getPbData } = await import('@/lib/pramubakti-db')
+      const currentHhmm = currentTimeWIB().hhmm
+      const currentMin = minutes(currentHhmm)
+      const leadMin = pbReminder.reminder.leadMinutes || 15
+      const frequency = Math.max(5, pbReminder.reminder.frequencyMinutes || 30)
+      const bucket = Math.floor(now / (frequency * 60_000))
+
+      const pbData = await getPbData(db, today, today)
+      for (const item of pbData.items) {
+        if (!item.slot || item.status !== 'BELUM' || item.report || item.leave) continue
+        const startMin = minutes(item.slot.start)
+        const endMin = minutes(item.slot.end)
+        if (currentMin < startMin - 5 || currentMin > endMin) continue
+
+        const minutesUntilEnd = endMin - currentMin
+        if (minutesUntilEnd > leadMin && currentMin < startMin + 20) continue
+
+        const slotWaktu = `${item.slot.start} - ${item.slot.end} WIB`
+        const result = await emitConfiguredNotification({
+          eventKey: 'pramubakti_slot_reminder',
+          sourceRef: `pb-slot-reminder:${today}:${item.slot.id}:${item.user_id}:${bucket}`,
+          context: {
+            userId: item.user_id,
+            userIds: [item.user_id],
+            nama_pegawai: item.nama_lengkap,
+            slot_waktu: slotWaktu,
+            jam_selesai: `${item.slot.end} WIB`,
+            tanggal: today,
+          },
+          db,
+          runtimeEnv,
+        })
+        if (result.status !== 'skipped' && result.status !== 'disabled') processed += 1
+      }
+    } catch (error) {
+      console.error('[notification] pramubakti_slot_reminder cron gagal:', error)
+    }
+  }
+
   try {
     const kbmReminderResult = await dispatchTeachingSessionReminders(db, runtimeEnv)
     processed += kbmReminderResult.processed

@@ -4,12 +4,27 @@ import { revalidatePath } from 'next/cache'
 import { uploadToR2, validateImageFile, deleteFromR2 } from '@/utils/r2'
 import { todayWIB, currentTimeWIB, nowWIBISO } from '@/lib/time'
 import { getPbData, getPbRules, requirePbAccess } from '@/lib/pramubakti-db'
-import { pbInputStatus } from '@/lib/pramubakti'
+import { pbInputStatus, getWeekRangePb } from '@/lib/pramubakti'
 
-export async function getPramubaktiReports(start = todayWIB().slice(0, 7) + '-01', end = todayWIB()) {
+export async function getPramubaktiReports(start?: string, end?: string) {
   const { db, actor } = await requirePbAccess('self')
-  const [data, rules] = await Promise.all([getPbData(db, start, end, actor.id), getPbRules()])
-  return { ...data, rules, today: todayWIB() }
+  const today = todayWIB()
+  const week = getWeekRangePb(today)
+  const startDate = start || week.start
+  const endDate = end || week.end
+  const [data, rules, recentPlacesRows] = await Promise.all([
+    getPbData(db, startDate, endDate, actor.id),
+    getPbRules(),
+    db.prepare(`
+      SELECT DISTINCT tempat 
+      FROM pb_reports 
+      WHERE user_id = ? AND tempat IS NOT NULL AND TRIM(tempat) != '' 
+      ORDER BY waktu_input DESC 
+      LIMIT 8
+    `).bind(actor.id).all<{ tempat: string }>()
+  ])
+  const recentPlaces = (recentPlacesRows.results || []).map(r => r.tempat.trim()).filter(Boolean)
+  return { ...data, rules, today, defaultStart: startDate, defaultEnd: endDate, recentPlaces }
 }
 
 export async function submitPramubaktiReport(form: FormData): Promise<{ error?: string; success?: string }> {

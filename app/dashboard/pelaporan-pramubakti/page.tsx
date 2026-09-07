@@ -21,7 +21,7 @@ export default async function Page() {
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
         title="Pelaporan Pramubakti"
-        description="Laporkan pekerjaan kebersihan dan pemeliharaan lingkungan madrasah sesuai jadwal harian Anda."
+        description="Pencatatan aktivitas pekerjaan dan presensi harian pramubakti."
       />
       <PramubaktiClient initialData={data} />
     </div>

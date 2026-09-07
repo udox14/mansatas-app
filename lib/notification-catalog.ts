@@ -458,6 +458,27 @@ export const NOTIFICATION_EVENT_DEFINITIONS: NotificationEventDefinition[] = [
     placeholders: ['dokumen', 'tanggal', 'status'],
     reminder: defaultReminder,
   },
+  {
+    key: 'pramubakti_slot_reminder',
+    label: 'Pengingat Laporan Pramubakti',
+    description: 'Mengingatkan petugas pramubakti yang belum mengisi laporan saat slot kerja sedang berlangsung atau mendekati jam berakhir.',
+    group: 'administrasi',
+    defaultEnabled: true,
+    defaultTitle: 'Pengingat Laporan: {slot_waktu}',
+    defaultBody: 'Halo {nama_pegawai}, pekerjaan {slot_waktu} hari ini belum diisi. Harap segera kirim laporan sebelum jam {jam_selesai}.',
+    defaultUrl: '/dashboard/pelaporan-pramubakti',
+    defaultChannels: ['fcm', 'webpush', 'in_app'],
+    defaultTarget: { kind: 'staff_role', value: 'pramubakti' },
+    defaultLevel: 'warning',
+    placeholders: ['nama_pegawai', 'slot_waktu', 'jam_selesai', 'tanggal'],
+    reminder: {
+      enabled: true,
+      leadMinutes: 15,
+      frequencyMinutes: 30,
+      windowStart: '06:00',
+      windowEnd: '16:00',
+    },
+  },
 ]
 
 export const NOTIFICATION_EVENT_MAP = new Map(

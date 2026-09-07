@@ -6,6 +6,7 @@ type CompressOptions = {
   targetBytes?: number
   minQuality?: number
   initialQuality?: number
+  watermarkText?: string
 }
 
 async function canvasToWebpFile(
@@ -29,6 +30,7 @@ export async function compressAgendaImage(
     targetBytes = 220 * 1024,
     initialQuality = 0.68,
     minQuality = 0.22,
+    watermarkText,
   }: CompressOptions = {}
 ): Promise<File> {
   return new Promise((resolve) => {
@@ -59,6 +61,19 @@ export async function compressAgendaImage(
         canvas.height = height
         ctx.clearRect(0, 0, width, height)
         ctx.drawImage(img, 0, 0, width, height)
+
+        if (watermarkText) {
+          const fontSize = Math.max(12, Math.round(width * 0.024))
+          ctx.save()
+          ctx.font = `600 ${fontSize}px sans-serif`
+          const barHeight = fontSize * 2
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.45)'
+          ctx.fillRect(0, height - barHeight, width, barHeight)
+          ctx.fillStyle = '#ffffff'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(watermarkText, 12, height - barHeight / 2)
+          ctx.restore()
+        }
 
         const compressed = await canvasToWebpFile(canvas, file.name, quality)
         if (!compressed) return resolve(bestFile || file)

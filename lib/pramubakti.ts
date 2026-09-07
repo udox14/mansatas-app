@@ -48,6 +48,22 @@ export function pbDates(start: string, end: string) {
   for (let date = start; date <= end; date = addDays(date, 1)) dates.push(date)
   return dates
 }
+
+export function getWeekRangePb(dateStr: string): { start: string; end: string } {
+  const d = new Date(dateStr + 'T00:00:00')
+  const day = d.getDay()
+  const diffToMonday = day === 0 ? -6 : 1 - day
+  const monday = new Date(d)
+  monday.setDate(d.getDate() + diffToMonday)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const toStr = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  return {
+    start: toStr(monday),
+    end: toStr(sunday),
+  }
+}
 export function minutes(time: string) { return Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)) }
 export function validateSlots(slots: PbSlot[]) {
   if (!Array.isArray(slots) || slots.length > 70) throw new Error('Maksimal 70 slot per minggu.')
