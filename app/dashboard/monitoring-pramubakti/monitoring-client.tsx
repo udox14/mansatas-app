@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import {
   Search, Loader2, Calendar, BarChart3, Printer, ShieldCheck, History,
   ChevronLeft, ChevronRight, CheckCircle2, Clock, AlertTriangle, XCircle,
-  PlusCircle, Edit3, FileText, Check, AlertCircle
+  PlusCircle, Edit3, FileText, Check, AlertCircle, Eye, EyeOff
 } from 'lucide-react'
 import { PbDetails } from '@/components/pramubakti/report-details'
 import { summarizePb, type PbItem } from '@/lib/pramubakti'
@@ -46,6 +46,7 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
   const [excused, setExcused] = useState(false)
   const [sort, setSort] = useState<'nama' | 'performa' | 'alfa'>('nama')
   const [excluded, setExcluded] = useState<string[]>([])
+  const [isPreviewLoaded, setIsPreviewLoaded] = useState(false)
 
   // Leave controls
   const [leave, setLeave] = useState({
@@ -177,18 +178,24 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
   }
 
   async function print() {
-    if (!printRef.current) return
+    if (!isPreviewLoaded) {
+      setIsPreviewLoaded(true)
+      await new Promise(r => setTimeout(r, 250))
+    }
+    const el = printRef.current
+    if (!el) return
     const win = window.open('', '_blank')
     if (!win) {
       setMessage({ type: 'error', text: 'Izinkan pop-up / jendela cetak pada browser.' })
       return
     }
     win.document.write(
-      `<!doctype html><html><head><title>Laporan Kehadiran Pramubakti</title><base href="${window.location.origin}/"><style>@page{size:215mm 330mm;margin:10mm}body{font:10pt Arial;color:#111}h1,h2,h3{text-align:center}table{border-collapse:collapse;width:100%;margin:12px 0}td,th{border:1px solid #777;padding:6px;text-align:left;vertical-align:top;overflow-wrap:anywhere}thead{display:table-header-group}tr{break-inside:avoid}section{break-after:page}section:last-child{break-after:auto}.kop{width:100%;margin-bottom:12px}.muted{font-size:9pt;color:#555}.cover{padding-top:40mm;text-align:center}.cover img{width:40mm}.footer{margin-top:20px;font-size:9pt}</style></head><body>${printRef.current.innerHTML}</body></html>`
+      `<!doctype html><html><head><title>Laporan Kehadiran Pramubakti - MAN 1 Tasikmalaya</title><base href="${window.location.origin}/"><style>@page{size:215mm 330mm;margin:8mm 8mm 10mm}html,body{margin:0;padding:0;background:#fff;color:#111;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}*{box-sizing:border-box}.print-page{width:100%!important;min-height:310mm!important;margin:0!important;padding:0!important;box-shadow:none!important;border:none!important;page-break-after:always;break-after:page;box-sizing:border-box}.print-page:last-child{page-break-after:auto;break-after:auto}.cover-page{display:flex;flex-direction:column;justify-content:space-between;align-items:center;text-align:center}.screen-page-indicator{display:none!important}table{border-collapse:collapse;width:100%;margin:10px 0}td,th{border:1px solid #666;padding:5px 6px;text-align:left;vertical-align:top;overflow-wrap:anywhere;font-size:8.5pt}th{background:#f1f5f9;font-weight:bold}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}.kop{width:100%;margin-bottom:8px;display:block}.muted{font-size:8pt;color:#555}.footer{margin-top:15px;font-size:8pt;color:#666}</style></head><body>${el.innerHTML}</body></html>`
     )
     win.document.close()
+    const images = Array.from(win.document.images)
     await Promise.all(
-      Array.from(win.document.images).map(img =>
+      images.map(img =>
         img.complete
           ? Promise.resolve()
           : new Promise<void>(resolve => {
@@ -684,9 +691,27 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
               </div>
 
               <Button
+                variant="outline"
+                onClick={() => setIsPreviewLoaded(prev => !prev)}
+                className="h-9 font-medium shadow-sm transition-colors text-xs"
+              >
+                {isPreviewLoaded ? (
+                  <>
+                    <EyeOff className="h-4 w-4 mr-1.5 text-slate-500" />
+                    Sembunyikan Pratinjau
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-4 w-4 mr-1.5 text-indigo-600" />
+                    Muat Pratinjau
+                  </>
+                )}
+              </Button>
+
+              <Button
                 disabled={busy || stale || !printed.length}
                 onClick={print}
-                className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm transition-colors"
+                className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm transition-colors text-xs"
               >
                 <Printer className="h-4 w-4 mr-1.5" />
                 Cetak / Simpan PDF
@@ -727,136 +752,262 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
             </p>
           </div>
 
-          {/* PRATINJAU DOKUMEN CETAK (Kertas Putih) */}
-          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 p-4">
-            <div
-              ref={printRef}
-              className="mx-auto min-w-[720px] max-w-[900px] bg-white text-black p-8 shadow-md rounded-lg"
-            >
-              {/* Cover */}
-              <section className="cover text-center pb-8 border-b">
-                <img
-                  src="/logokemenag.png"
-                  alt="Logo Kementerian Agama"
-                  className="mx-auto h-24 mb-4 object-contain"
-                />
-                <h1 className="text-xl font-bold uppercase tracking-wider text-black">
-                  Laporan Kehadiran & Pekerjaan Pramubakti
-                </h1>
-                <h2 className="text-base font-semibold mt-1 text-slate-800">
-                  {data.school.nama_madrasah || data.school.school_name || 'MAN 1 TASIKMALAYA'}
-                </h2>
-                <p className="text-xs text-slate-600 mt-2">
-                  Periode {loaded.start} s/d {loaded.end}
-                </p>
-              </section>
+          {/* PRATINJAU DOKUMEN CETAK (LAZY LOAD & COVER TERPISAH) */}
+          {!isPreviewLoaded ? (
+            <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-8 sm:p-12 text-center shadow-sm">
+              <div className="mx-auto w-14 h-14 rounded-full bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-4 ring-8 ring-indigo-50/50 dark:ring-indigo-950/30">
+                <FileText className="w-7 h-7" />
+              </div>
+              <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">
+                Pratinjau Dokumen Belum Dimuat
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1.5 mb-6 leading-relaxed">
+                Dokumen cetak menggunakan <strong>Lazy Load</strong> agar performa halaman tetap ringan dan cepat. Klik tombol di bawah untuk melihat pratinjau lengkap dengan Halaman Sampul (Cover) terpisah.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Button
+                  onClick={() => setIsPreviewLoaded(true)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-9 font-medium shadow-sm transition-colors"
+                >
+                  <Eye className="w-4 h-4 mr-1.5" />
+                  Muat Pratinjau Dokumen
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={print}
+                  disabled={busy || stale || !printed.length}
+                  className="text-xs h-9 font-medium"
+                >
+                  <Printer className="w-4 h-4 mr-1.5" />
+                  Langsung Cetak / Simpan PDF
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-950 p-4 sm:p-6">
+              <div ref={printRef} className="flex flex-col items-center gap-8 py-2">
+                {/* HALAMAN 1: COVER / SAMPUL (Halaman Terpisah) */}
+                <div className="w-full max-w-[215mm] mx-auto">
+                  <div className="screen-page-indicator flex items-center justify-between text-xs font-semibold text-slate-500 mb-2 px-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+                      Halaman 1: Sampul / Cover Laporan
+                    </span>
+                    <span className="text-[11px] bg-slate-200 dark:bg-slate-800 px-2.5 py-0.5 rounded-full text-slate-600 dark:text-slate-300 font-medium">
+                      Halaman Terpisah
+                    </span>
+                  </div>
 
-              {/* Rekapitulasi Umum */}
-              <section className="mt-8">
-                <img src="/kopsurat.png" alt="Kop Surat" className="kop w-full mb-4" />
-                <h2 className="text-center font-bold text-base mb-2 uppercase">
-                  Rekapitulasi Kinerja Pramubakti
-                </h2>
-                <p className="muted text-xs text-slate-500 mb-3 text-center">
-                  Kebijakan: {excused ? 'Sakit & izin biasa memperoleh kredit penuh' : 'Sakit & izin biasa mengurangi performa'}; Izin kepentingan dinas madrasah memperoleh kredit penuh. Telat dihitung hadir.
-                </p>
+                  <section
+                    className="print-page cover-page bg-white text-black shadow-xl rounded-xl border border-slate-200 overflow-hidden w-full"
+                    style={{ minHeight: '305mm', boxSizing: 'border-box' }}
+                  >
+                    <div
+                      className="cover-frame w-full h-full p-8 sm:p-12 flex flex-col items-center justify-between text-center"
+                      style={{
+                        minHeight: '305mm',
+                        border: '1.7pt solid #b38b2e',
+                        outline: '0.7pt solid #166534',
+                        outlineOffset: '-6pt',
+                        background: 'linear-gradient(180deg, #f8faf7 0%, #ffffff 50%, #f7f2e5 100%)',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <div style={{ width: '100%', height: '7pt', background: '#166534', borderBottom: '2pt solid #d4af37' }} />
 
-                <table className="w-full text-xs border border-collapse border-slate-400">
-                  <thead>
-                    <tr className="bg-slate-100">
-                      {['Nama Pegawai', 'Wajib Dinilai', 'Hadir', 'Telat', 'Sakit', 'Izin Biasa', 'Izin Dinas', 'Alfa', 'Ekstra', 'Performa'].map(h => (
-                        <th key={h} className="border border-slate-400 p-2 text-left font-semibold">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {printMembers.map(m => {
-                      const s = summarizePb(printed.filter(i => i.user_id === m.user_id))
-                      return (
-                        <tr key={m.user_id}>
-                          <td className="border border-slate-400 p-2 font-medium">{m.nama_lengkap}</td>
-                          <td className="border border-slate-400 p-2 text-center">{s.total}</td>
-                          <td className="border border-slate-400 p-2 text-center">{s.hadir}</td>
-                          <td className="border border-slate-400 p-2 text-center">{s.telat}</td>
-                          <td className="border border-slate-400 p-2 text-center">{s.sakit}</td>
-                          <td className="border border-slate-400 p-2 text-center">{s.izin - s.izinSekolah}</td>
-                          <td className="border border-slate-400 p-2 text-center">{s.izinSekolah}</td>
-                          <td className="border border-slate-400 p-2 text-center">{s.alfa}</td>
-                          <td className="border border-slate-400 p-2 text-center">{s.tambahan}</td>
-                          <td className="border border-slate-400 p-2 text-center font-bold">
-                            {s.total ? `${teacherPerformance(s, excused)}%` : '—'}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </section>
+                      <div className="my-auto py-8">
+                        <img
+                          src="/logokemenag.png"
+                          alt="Logo Kementerian Agama"
+                          style={{ width: '42mm', height: '42mm', objectFit: 'contain', display: 'block', margin: '0 auto 20px' }}
+                        />
+                        <div style={{ color: '#166534', fontSize: '11pt', fontWeight: 700, letterSpacing: '2.5pt', marginBottom: '8px' }}>
+                          DOKUMEN RESMI MADRASAH
+                        </div>
+                        <div style={{ width: '48mm', borderTop: '1.5pt solid #d4af37', margin: '0 auto 22px' }} />
+                        <h1 style={{ margin: '0 0 14px 0', fontSize: '20pt', lineHeight: 1.4, fontWeight: 800, color: '#163b2d', textTransform: 'uppercase' }}>
+                          Laporan Kehadiran & Pekerjaan Pramubakti
+                        </h1>
+                        <h2 style={{ margin: '0 0 12px 0', fontSize: '14pt', fontWeight: 700, color: '#166534' }}>
+                          {data.school.nama_madrasah || data.school.school_name || 'MAN 1 TASIKMALAYA'}
+                        </h2>
+                        <div style={{ display: 'inline-block', padding: '6px 18px', background: '#eef6f0', border: '1px solid #c7e2cd', borderRadius: '6px', fontSize: '11pt', fontWeight: 600, color: '#1b4d3e', marginTop: '12px' }}>
+                          Periode: {loaded.start} s/d {loaded.end}
+                        </div>
+                      </div>
 
-              {/* Rincian Tiap Pegawai */}
-              {printMembers.map(m => {
-                const rows = printed.filter(i => i.user_id === m.user_id)
-                return (
-                  <section key={m.user_id} className="mt-8 pt-6 border-t border-slate-300">
-                    <img className="kop w-full mb-4" src="/kopsurat.png" alt="Kop Surat" />
-                    <h3 className="text-center font-bold text-sm uppercase mb-1">
-                      Rincian Pekerjaan & Kehadiran: {m.nama_lengkap}
-                    </h3>
-                    <p className="text-xs text-center text-slate-500 mb-3">
+                      <div style={{ width: '100%' }}>
+                        <div style={{ fontSize: '13pt', fontWeight: 700, color: '#163b2d' }}>
+                          MADRASAH ALIYAH NEGERI 1 TASIKMALAYA
+                        </div>
+                        <div style={{ marginTop: '4pt', fontSize: '9.5pt', color: '#475569' }}>
+                          Kementerian Agama Republik Indonesia
+                        </div>
+                        <div style={{ width: '100%', height: '7pt', marginTop: '14mm', background: '#166534', borderTop: '2pt solid #d4af37' }} />
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                {/* HALAMAN 2: REKAPITULASI UMUM (Halaman Terpisah) */}
+                <div className="w-full max-w-[215mm] mx-auto">
+                  <div className="screen-page-indicator flex items-center justify-between text-xs font-semibold text-slate-500 mb-2 px-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                      Halaman 2: Rekapitulasi Kinerja Pramubakti
+                    </span>
+                    <span className="text-[11px] bg-slate-200 dark:bg-slate-800 px-2.5 py-0.5 rounded-full text-slate-600 dark:text-slate-300 font-medium">
+                      Halaman Terpisah
+                    </span>
+                  </div>
+
+                  <section
+                    className="print-page bg-white text-black shadow-xl rounded-xl border border-slate-200 p-8 sm:p-10 w-full"
+                    style={{ minHeight: '305mm', boxSizing: 'border-box' }}
+                  >
+                    <img src="/kopsurat.png" alt="Kop Surat" className="kop w-full mb-4" />
+                    <h2 className="text-center font-bold text-base mb-1 uppercase tracking-wide text-black">
+                      Rekapitulasi Kinerja Pramubakti
+                    </h2>
+                    <p className="text-center text-xs font-semibold text-slate-700 mb-1">
                       Periode: {loaded.start} s/d {loaded.end}
                     </p>
+                    <p className="muted text-[10px] text-slate-500 mb-4 text-center leading-relaxed">
+                      Kebijakan: {excused ? 'Sakit & izin biasa memperoleh kredit penuh' : 'Sakit & izin biasa mengurangi performa'}; Izin kepentingan dinas madrasah memperoleh kredit penuh. Telat dihitung hadir.
+                    </p>
+
                     <table className="w-full text-xs border border-collapse border-slate-400">
                       <thead>
                         <tr className="bg-slate-100">
-                          {['Tanggal', 'Slot Jam', 'Status', 'Pekerjaan', 'Lokasi / Keterangan', 'Waktu Input'].map(h => (
-                            <th key={h} className="border border-slate-400 p-1.5 font-semibold text-left">
+                          {['No', 'Nama Pegawai', 'Wajib Dinilai', 'Hadir', 'Telat', 'Sakit', 'Izin Biasa', 'Izin Dinas', 'Alfa', 'Ekstra', 'Performa'].map(h => (
+                            <th key={h} className="border border-slate-400 p-2 text-center font-semibold">
                               {h}
                             </th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {rows.map((item, index) => (
-                          <tr key={item.key}>
-                            {(index === 0 || rows[index - 1].tanggal !== item.tanggal) && (
-                              <td
-                                className="border border-slate-400 p-1.5 font-medium align-top"
-                                rowSpan={rows.filter(i => i.tanggal === item.tanggal).length}
-                              >
-                                {item.tanggal}
+                        {printMembers.map((m, idx) => {
+                          const s = summarizePb(printed.filter(i => i.user_id === m.user_id))
+                          return (
+                            <tr key={m.user_id}>
+                              <td className="border border-slate-400 p-2 text-center">{idx + 1}</td>
+                              <td className="border border-slate-400 p-2 font-medium text-left">{m.nama_lengkap}</td>
+                              <td className="border border-slate-400 p-2 text-center">{s.total}</td>
+                              <td className="border border-slate-400 p-2 text-center">{s.hadir}</td>
+                              <td className="border border-slate-400 p-2 text-center">{s.telat}</td>
+                              <td className="border border-slate-400 p-2 text-center">{s.sakit}</td>
+                              <td className="border border-slate-400 p-2 text-center">{s.izin - s.izinSekolah}</td>
+                              <td className="border border-slate-400 p-2 text-center">{s.izinSekolah}</td>
+                              <td className="border border-slate-400 p-2 text-center">{s.alfa}</td>
+                              <td className="border border-slate-400 p-2 text-center">{s.tambahan}</td>
+                              <td className="border border-slate-400 p-2 text-center font-bold">
+                                {s.total ? `${teacherPerformance(s, excused)}%` : '—'}
                               </td>
-                            )}
-                            <td className="border border-slate-400 p-1.5 align-top">
-                              {item.slot ? `${item.slot.start}–${item.slot.end}` : 'Tambahan'}
-                            </td>
-                            <td className="border border-slate-400 p-1.5 align-top">
-                              {item.status}
-                              {item.leave?.kepentingan_sekolah && ' (Dinas Madrasah)'}
-                            </td>
-                            <td className="border border-slate-400 p-1.5 align-top">
-                              {item.report?.jobs.join(', ') || '—'}
-                            </td>
-                            <td className="border border-slate-400 p-1.5 align-top">
-                              {item.report?.tempat}
-                              {item.leave && ` · ${item.leave.reason_name || 'Sakit'}: ${item.leave.note}`}
-                            </td>
-                            <td className="border border-slate-400 p-1.5 align-top">
-                              {item.report?.waktu_input || '—'}
-                            </td>
-                          </tr>
-                        ))}
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
-                    <p className="footer text-right text-[10px] text-slate-500 mt-4">
+
+                    {/* Titi Mangsa / Tanda Tangan */}
+                    <div className="mt-8 flex justify-end">
+                      <div className="text-center text-xs w-64 space-y-1">
+                        <p>Tasikmalaya, {new Intl.DateTimeFormat('id-ID', { dateStyle: 'long' }).format(new Date())}</p>
+                        <p className="font-semibold">Kepala Urusan Tata Usaha / Koordinator,</p>
+                        <div className="h-16" />
+                        <p className="font-bold underline">___________________________</p>
+                        <p className="text-[10px] text-slate-500">NIP. ........................................</p>
+                      </div>
+                    </div>
+
+                    <p className="footer text-right text-[10px] text-slate-500 mt-6 pt-2 border-t border-slate-200">
                       Dicetak pada {todayWIB()} &middot; Sistem Informasi Madrasah MANSATAS
                     </p>
                   </section>
-                )
-              })}
+                </div>
+
+                {/* HALAMAN 3+: RINCIAN TIAP PEGAWAI (Lampiran Terpisah) */}
+                {printMembers.map((m, mIdx) => {
+                  const rows = printed.filter(i => i.user_id === m.user_id)
+                  return (
+                    <div key={m.user_id} className="w-full max-w-[215mm] mx-auto">
+                      <div className="screen-page-indicator flex items-center justify-between text-xs font-semibold text-slate-500 mb-2 px-1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                          Halaman {mIdx + 3}: Lampiran Rincian Pegawai &mdash; {m.nama_lengkap}
+                        </span>
+                        <span className="text-[11px] bg-slate-200 dark:bg-slate-800 px-2.5 py-0.5 rounded-full text-slate-600 dark:text-slate-300 font-medium">
+                          Halaman Terpisah
+                        </span>
+                      </div>
+
+                      <section
+                        className="print-page bg-white text-black shadow-xl rounded-xl border border-slate-200 p-8 sm:p-10 w-full"
+                        style={{ minHeight: '305mm', boxSizing: 'border-box' }}
+                      >
+                        <img className="kop w-full mb-4" src="/kopsurat.png" alt="Kop Surat" />
+                        <h3 className="text-center font-bold text-sm uppercase mb-0.5 tracking-wide text-black">
+                          Rincian Pekerjaan & Kehadiran Pramubakti
+                        </h3>
+                        <p className="text-xs text-center font-semibold text-slate-700 mb-0.5">
+                          Nama: {m.nama_lengkap}
+                        </p>
+                        <p className="text-[11px] text-center text-slate-500 mb-3">
+                          Periode: {loaded.start} s/d {loaded.end}
+                        </p>
+                        <table className="w-full text-xs border border-collapse border-slate-400">
+                          <thead>
+                            <tr className="bg-slate-100">
+                              {['Tanggal', 'Slot Jam', 'Status', 'Pekerjaan', 'Lokasi / Keterangan', 'Waktu Input'].map(h => (
+                                <th key={h} className="border border-slate-400 p-1.5 font-semibold text-left">
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map((item, index) => (
+                              <tr key={item.key}>
+                                {(index === 0 || rows[index - 1].tanggal !== item.tanggal) && (
+                                  <td
+                                    className="border border-slate-400 p-1.5 font-medium align-top"
+                                    rowSpan={rows.filter(i => i.tanggal === item.tanggal).length}
+                                  >
+                                    {item.tanggal}
+                                  </td>
+                                )}
+                                <td className="border border-slate-400 p-1.5 align-top">
+                                  {item.slot ? `${item.slot.start}–${item.slot.end}` : 'Tambahan'}
+                                </td>
+                                <td className="border border-slate-400 p-1.5 align-top">
+                                  {item.status}
+                                  {item.leave?.kepentingan_sekolah && ' (Dinas Madrasah)'}
+                                </td>
+                                <td className="border border-slate-400 p-1.5 align-top">
+                                  {item.report?.jobs.join(', ') || '—'}
+                                </td>
+                                <td className="border border-slate-400 p-1.5 align-top">
+                                  {item.report?.tempat}
+                                  {item.leave && ` · ${item.leave.reason_name || 'Sakit'}: ${item.leave.note}`}
+                                </td>
+                                <td className="border border-slate-400 p-1.5 align-top">
+                                  {item.report?.waktu_input || '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <p className="footer text-right text-[10px] text-slate-500 mt-4 pt-2 border-t border-slate-200">
+                          Dicetak pada {todayWIB()} &middot; Sistem Informasi Madrasah MANSATAS
+                        </p>
+                      </section>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </TabsContent>
 
         {/* TAB 4: KELOLA IZIN & SAKIT (Khusus role wewenang) */}

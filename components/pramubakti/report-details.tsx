@@ -1,14 +1,21 @@
 /* eslint-disable @next/next/no-img-element -- Evidence uses authenticated media URLs and explicit lazy loading. */
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import type { PbItem } from '@/lib/pramubakti'
 import {
   CheckCircle2, Clock, XCircle, AlertTriangle, ShieldCheck,
-  PlusCircle, Edit3, MapPin, Eye, ChevronDown, ChevronUp
+  PlusCircle, Edit3, MapPin, Eye, ChevronsUpDown,
+  Maximize2, Minimize2, Calendar
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent
+} from '@/components/ui/accordion'
 
 export const PB_STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label: string }> = {
   TEPAT_WAKTU: {
@@ -75,6 +82,13 @@ export function PbStatus({ item }: { item: PbItem }) {
   )
 }
 
+function getAvatarInitials(name: string) {
+  if (!name) return 'PB'
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return (parts[0][0] + parts[1][0]).toUpperCase()
+}
+
 export function PbDetails({
   items,
   onCorrect
@@ -82,77 +96,125 @@ export function PbDetails({
   items: PbItem[]
   onCorrect?: (item: PbItem) => void
 }) {
-  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
+  const [openValues, setOpenValues] = useState<string[]>([])
   const [previewPhoto, setPreviewPhoto] = useState<{ url: string; title: string } | null>(null)
 
-  const toggleExpand = (key: string) => {
-    setExpandedKeys(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
+  const allKeys = useMemo(() => items.map(i => i.key), [items])
+
+  const handleExpandAll = () => {
+    setOpenValues(allKeys)
+  }
+
+  const handleCollapseAll = () => {
+    setOpenValues([])
   }
 
   if (!items.length) {
     return (
-      <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-8 text-center">
-        <Clock className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Tidak ada data pada periode ini.</p>
+      <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-10 text-center">
+        <Clock className="h-9 w-9 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Tidak ada data laporan.</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Belum ada aktivitas tercatat pada periode dan filter ini.</p>
       </div>
     )
   }
 
   return (
     <div className="space-y-3">
-      {items.map(item => {
-        const isExpanded = expandedKeys.has(item.key)
+      {/* Accordion Controls Bar */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+          {items.length} item laporan &middot; {openValues.length} terbuka
+        </span>
 
-        return (
-          <div
-            key={item.key}
-            className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm transition-all"
+        <div className="flex items-center gap-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleExpandAll}
+            className="h-7 px-2 text-[11px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
           >
-            {/* Header Row */}
-            <div
-              onClick={() => toggleExpand(item.key)}
-              className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3.5 sm:p-4 cursor-pointer hover:bg-slate-50/70 dark:hover:bg-slate-800/40 select-none transition-colors"
+            <Maximize2 className="h-3 w-3 mr-1" />
+            Buka Semua
+          </Button>
+          <span className="text-slate-300 dark:text-slate-700">|</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleCollapseAll}
+            className="h-7 px-2 text-[11px] text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+          >
+            <Minimize2 className="h-3 w-3 mr-1" />
+            Tutup Semua
+          </Button>
+        </div>
+      </div>
+
+      {/* SHADCN ACCORDION LIST */}
+      <Accordion
+        type="multiple"
+        value={openValues}
+        onValueChange={setOpenValues}
+        className="space-y-2.5"
+      >
+        {items.map(item => {
+          const initials = getAvatarInitials(item.nama_lengkap)
+
+          return (
+            <AccordionItem
+              key={item.key}
+              value={item.key}
+              className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm transition-all hover:border-slate-300 dark:hover:border-slate-700"
             >
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
-                <span className="font-semibold text-sm text-slate-800 dark:text-slate-200">
-                  {item.nama_lengkap}
-                </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  &middot; {item.tanggal}
-                </span>
-                <span className="inline-flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300 font-medium bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
-                  <Clock className="h-3 w-3 text-slate-400" />
-                  {item.slot ? `${item.slot.start}–${item.slot.end} WIB` : 'Laporan Tambahan'}
-                </span>
-              </div>
+              {/* ACCORDION TRIGGER (Header Row) */}
+              <AccordionTrigger className="p-3.5 sm:p-4 hover:no-underline">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full pr-3">
+                  {/* Left: Avatar + Pegawai + Tanggal + Jam */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-9 w-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold text-xs shrink-0 border border-slate-200 dark:border-slate-700">
+                      {initials}
+                    </div>
 
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <PbStatus item={item} />
-                <button
-                  type="button"
-                  aria-label="Toggle details"
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
-                >
-                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate">
+                          {item.nama_lengkap}
+                        </span>
+                        <span className="text-xs text-slate-400 hidden sm:inline">&middot;</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {item.tanggal}
+                        </span>
+                      </div>
 
-            {/* Expandable Details Section */}
-            {isExpanded && (
-              <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-4 space-y-3.5 text-sm animate-in fade-in-50 duration-200">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                          <Clock className="h-3 w-3 text-slate-400" />
+                          {item.slot ? `${item.slot.start}–${item.slot.end} WIB` : 'Laporan Tambahan'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Status Badge */}
+                  <div className="flex items-center gap-2 self-start sm:self-center">
+                    <PbStatus item={item} />
+                  </div>
+                </div>
+              </AccordionTrigger>
+
+              {/* ACCORDION CONTENT (Expanded Details) */}
+              <AccordionContent className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-4 space-y-3.5 text-sm">
                 {item.leave && (
                   <div className="p-3 rounded-lg border border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/30 text-sky-800 dark:text-sky-300">
-                    <p className="font-semibold text-xs uppercase tracking-wide">
+                    <p className="font-semibold text-xs uppercase tracking-wide flex items-center gap-1.5">
+                      <ShieldCheck className="h-3.5 w-3.5" />
                       {item.leave.reason_name || item.leave.status}
                       {item.leave.kepentingan_sekolah && ' (Kepentingan Dinas Madrasah)'}
                     </p>
-                    <p className="mt-1 text-sm">{item.leave.note}</p>
+                    <p className="mt-1 text-xs sm:text-sm">{item.leave.note}</p>
                   </div>
                 )}
 
@@ -160,7 +222,9 @@ export function PbDetails({
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Pekerjaan:</p>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                          Aktivitas Pekerjaan:
+                        </p>
                         <div className="flex flex-wrap gap-1.5">
                           {item.report.jobs.map((job, idx) => (
                             <span
@@ -174,7 +238,9 @@ export function PbDetails({
                       </div>
 
                       <div>
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Tempat / Lokasi:</p>
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                          Tempat / Lokasi:
+                        </p>
                         <p className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium">
                           <MapPin className="h-4 w-4 text-rose-500 shrink-0" />
                           {item.report.tempat}
@@ -201,8 +267,10 @@ export function PbDetails({
                     </div>
 
                     {item.report.foto_url && (
-                      <div>
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Foto Bukti:</p>
+                      <div className="pt-1">
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">
+                          Foto Bukti Pekerjaan:
+                        </p>
                         <div
                           onClick={(e) => {
                             e.stopPropagation()
@@ -234,11 +302,11 @@ export function PbDetails({
                     </p>
                   )
                 )}
-              </div>
-            )}
-          </div>
-        )
-      })}
+              </AccordionContent>
+            </AccordionItem>
+          )
+        })}
+      </Accordion>
 
       {/* Lightbox Photo Preview Dialog */}
       <Dialog open={!!previewPhoto} onOpenChange={(open) => !open && setPreviewPhoto(null)}>
