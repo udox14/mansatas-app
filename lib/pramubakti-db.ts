@@ -10,7 +10,7 @@ export async function requirePbAccess(mode: 'self' | 'monitor' | 'settings', wri
   const actor = await requireActionAccess(feature, write ? (mode === 'self' ? 'create' : 'update') : 'read')
   const db = await getDB()
   if (actor.kind !== 'staff') throw new Error('Akses pegawai diperlukan.')
-  if (mode === 'self' && !actor.roles.includes('pramubakti')) throw new Error('Pelaporan hanya untuk akun Pramubakti. Gunakan monitoring untuk mengelola laporan.')
+  if (mode === 'self' && !actor.roles.includes('pramubakti') && !actor.roles.includes('super_admin')) throw new Error('Pelaporan hanya untuk akun Pramubakti. Gunakan monitoring untuk mengelola laporan.')
   if (mode === 'settings' && !actor.roles.some(r => ['super_admin', 'admin_tu'].includes(r))) throw new Error('Pengaturan hanya dapat dikelola admin.')
   if (mode === 'monitor') {
     const allowed = actor.roles.some(r => ['super_admin', 'admin_tu', ...(!write ? ['kepsek'] : [])].includes(r))

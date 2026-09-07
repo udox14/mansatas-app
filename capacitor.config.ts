@@ -4,6 +4,7 @@ const config: CapacitorConfig = {
   appId: 'com.mansatas.app',
   appName: 'MANSATAS App',
   webDir: 'public',
+  appendUserAgent: 'MANSATAS_APP_NATIVE',
   server: {
     url: 'https://app.mansatas.com/',
     cleartext: false,

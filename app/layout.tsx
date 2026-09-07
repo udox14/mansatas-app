@@ -45,7 +45,9 @@ export default async function RootLayout({
 }>) {
   const requestHeaders = await headers()
   const nonce = requestHeaders.get('x-nonce') || undefined
-  const isAndroidRequest = /android/i.test(requestHeaders.get('user-agent') || '')
+  const userAgent = requestHeaders.get('user-agent') || ''
+  const isNativeApp = /MANSATAS_APP_NATIVE/i.test(userAgent)
+  const isAndroidRequest = !isNativeApp && /android/i.test(userAgent)
   const androidPlayStoreRequired = await getSystemSettingBoolean(
     SYSTEM_SETTING_KEYS.androidPlayStoreRequired,
     false

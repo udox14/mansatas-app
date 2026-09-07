@@ -109,3 +109,21 @@ export async function getActAsDate(): Promise<string | null> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateCookie.value)) return null
   return dateCookie.value
 }
+
+/**
+ * Ambil daftar pramubakti yang bisa di-act-as-kan oleh super admin.
+ */
+export async function getActAsPramubaktiList(): Promise<Array<{ id: string; nama_lengkap: string; role: string }>> {
+  const db = await getDB()
+  const result = await db.prepare(`
+    SELECT DISTINCT u.id, COALESCE(u.nama_lengkap, u.name, u.id) AS nama_lengkap, 'pramubakti' AS role
+    FROM "user" u
+    LEFT JOIN user_roles ur ON ur.user_id = u.id
+    LEFT JOIN pb_members m ON m.user_id = u.id
+    WHERE u.role = 'pramubakti' OR ur.role = 'pramubakti' OR m.id IS NOT NULL
+    ORDER BY nama_lengkap ASC
+  `).all<{ id: string; nama_lengkap: string; role: string }>()
+
+  return result.results || []
+}
+

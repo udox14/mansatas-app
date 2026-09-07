@@ -27,6 +27,7 @@ export async function setActAsUser(targetUserId: string): Promise<{ error?: stri
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/agenda')
   revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/pelaporan-pramubakti')
 
   return {}
 }
@@ -42,6 +43,7 @@ export async function clearActAs(): Promise<{ error?: string }> {
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/agenda')
   revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/pelaporan-pramubakti')
 
   return {}
 }
@@ -68,6 +70,7 @@ export async function setActAsDate(tanggal: string): Promise<{ error?: string }>
 
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/pelaporan-pramubakti')
 
   return {}
 }
@@ -81,6 +84,7 @@ export async function clearActAsDate(): Promise<{ error?: string }> {
 
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/pelaporan-pramubakti')
 
   return {}
 }

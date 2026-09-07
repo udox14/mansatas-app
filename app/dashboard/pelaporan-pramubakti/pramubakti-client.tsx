@@ -22,8 +22,12 @@ import { minutes, getWeekRangePb, type PbItem } from '@/lib/pramubakti'
 
 export function PramubaktiClient({
   initialData,
+  isActingAs = false,
+  actAsDate = null,
 }: {
   initialData: Awaited<ReturnType<typeof getPramubaktiReports>>
+  isActingAs?: boolean
+  actAsDate?: string | null
 }) {
   const [data, setData] = useState(initialData)
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null)
@@ -39,13 +43,24 @@ export function PramubaktiClient({
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [requestId, setRequestId] = useState('')
 
-  // Riwayat State (Default Mingguan)
+  // Riwayat State (Default Mingguan s/d Hari Ini)
   const defaultWeek = getWeekRangePb(data.today)
+  const defaultEndWeekly = defaultWeek.end > data.today ? data.today : defaultWeek.end
   const [start, setStart] = useState((data as any).defaultStart || defaultWeek.start)
-  const [end, setEnd] = useState((data as any).defaultEnd || defaultWeek.end)
+  const [end, setEnd] = useState((data as any).defaultEnd || defaultEndWeekly)
   const [history, setHistory] = useState(data.items)
   const [clock, setClock] = useState(() => currentTimeWIB().hhmm)
   const [previewPhoto, setPreviewPhoto] = useState<{ url: string; title: string } | null>(null)
+
+  // Sync state ketika server re-render karena Act As berganti user atau tanggal
+  useEffect(() => {
+    setData(initialData)
+    setHistory(initialData.items)
+    const dw = getWeekRangePb(initialData.today)
+    const de = dw.end > initialData.today ? initialData.today : dw.end
+    setStart((initialData as any).defaultStart || dw.start)
+    setEnd((initialData as any).defaultEnd || de)
+  }, [initialData])
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(currentTimeWIB().hhmm), 15000)
@@ -53,6 +68,7 @@ export function PramubaktiClient({
   }, [])
 
   function canFill(item: PbItem) {
+    if (isActingAs) return true
     return (
       data.today === todayWIB() &&
       (!data.rules.restricted ||
@@ -76,7 +92,9 @@ export function PramubaktiClient({
 
   const groupedHistory = useMemo(() => {
     const map = new Map<string, PbItem[]>()
-    const sorted = [...history].sort((a, b) => {
+    // Hanya tampilkan hari berjalan dan hari yang sudah dilewati (tanggal <= data.today)
+    const validHistory = history.filter(i => i.tanggal <= data.today)
+    const sorted = [...validHistory].sort((a, b) => {
       if (a.tanggal !== b.tanggal) return b.tanggal.localeCompare(a.tanggal)
       const timeA = a.slot?.start || a.report?.waktu_input?.slice(11, 16) || '99:99'
       const timeB = b.slot?.start || b.report?.waktu_input?.slice(11, 16) || '99:99'
@@ -94,12 +112,14 @@ export function PramubaktiClient({
       tanggal,
       items,
     }))
-  }, [history])
+  }, [history, data.today])
 
   const fetchRiwayat = async (startDate: string, endDate: string) => {
+    const cappedEnd = endDate > data.today ? data.today : endDate
+    const cappedStart = startDate > data.today ? data.today : startDate
     setBusy(true)
     try {
-      const res = await getPramubaktiReports(startDate, endDate)
+      const res = await getPramubaktiReports(cappedStart, cappedEnd, (data as any).targetUserId, actAsDate ?? undefined)
       setHistory(res.items)
     } catch (e) {
       setMessage({
@@ -113,9 +133,10 @@ export function PramubaktiClient({
 
   const applyWeekPreset = () => {
     const w = getWeekRangePb(data.today)
+    const cappedEnd = w.end > data.today ? data.today : w.end
     setStart(w.start)
-    setEnd(w.end)
-    fetchRiwayat(w.start, w.end)
+    setEnd(cappedEnd)
+    fetchRiwayat(w.start, cappedEnd)
   }
 
   const applyMonthPreset = () => {
@@ -123,10 +144,11 @@ export function PramubaktiClient({
     const startOfMonth = today.slice(0, 8) + '01'
     const parts = today.split('-').map(Number)
     const lastDay = new Date(parts[0], parts[1], 0).getDate()
-    const endOfMonth = `${today.slice(0, 8)}${String(lastDay).padStart(2, '0')}`
+    const rawEnd = `${today.slice(0, 8)}${String(lastDay).padStart(2, '0')}`
+    const cappedEnd = rawEnd > today ? today : rawEnd
     setStart(startOfMonth)
-    setEnd(endOfMonth)
-    fetchRiwayat(startOfMonth, endOfMonth)
+    setEnd(cappedEnd)
+    fetchRiwayat(startOfMonth, cappedEnd)
   }
 
   const openFillSlot = (slotId: string) => {
@@ -156,7 +178,7 @@ export function PramubaktiClient({
   async function refresh() {
     setBusy(true)
     try {
-      const fresh = await getPramubaktiReports()
+      const fresh = await getPramubaktiReports(undefined, undefined, (data as any).targetUserId, actAsDate ?? undefined)
       setData(fresh)
       setHistory(fresh.items)
     } catch (e) {
@@ -208,7 +230,7 @@ export function PramubaktiClient({
         setFoto(null)
         setJobs([])
         setTempat('')
-        const fresh = await getPramubaktiReports()
+        const fresh = await getPramubaktiReports(undefined, undefined, (data as any).targetUserId, actAsDate ?? undefined)
         setData(fresh)
         setHistory(fresh.items)
       }
@@ -324,7 +346,14 @@ export function PramubaktiClient({
 
         {/* TAB CONTENT: HARI INI */}
         <TabsContent value="hari-ini" className="space-y-3 mt-3">
-          {slots.length > 0 && (
+          {isActingAs ? (
+            <div className="flex items-center gap-2 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 px-3.5 py-2.5 text-xs text-amber-800 dark:text-amber-300">
+              <Sparkles className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>
+                Mode <strong>Act As</strong> aktif. Batasan jam kerja slot di-bypass untuk pengisian atas nama staf terpilih.
+              </span>
+            </div>
+          ) : slots.length > 0 && (
             <div className="flex items-center gap-2 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 px-3.5 py-2.5 text-xs text-amber-800 dark:text-amber-300">
               <Clock className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span>
@@ -399,6 +428,12 @@ export function PramubaktiClient({
                   {/* Expandable Form (Identik dengan form input Agenda Guru) */}
                   {isExpanded && !isDone && (
                     <div className="border-t bg-slate-50 dark:bg-slate-800/40 p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
+                      {isActingAs && (
+                        <div className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                          Mode Act As: Laporan dicatat atas nama staf yang dipilih dan berstatus Tepat Waktu.
+                        </div>
+                      )}
+
                       {/* Step 1: Pilihan Pekerjaan */}
                       <div className="space-y-2">
                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -791,6 +826,12 @@ export function PramubaktiClient({
           </DialogHeader>
 
           <div className="space-y-4 py-2 text-sm">
+            {isActingAs && (
+              <div className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                Mode Act As: Laporan tambahan dicatat atas nama staf yang dipilih.
+              </div>
+            )}
+
             {/* 1. Pilih Pekerjaan */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">1. Pilih Jenis Pekerjaan *</Label>

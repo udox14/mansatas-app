@@ -1,8 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { AlertCircle, CheckCircle2, ExternalLink, Loader2, Smartphone } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ExternalLink, Loader2 } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { OfflineBanner } from './offline-banner'
 import {
   downloadAndOpenNativeFile,
@@ -95,8 +99,37 @@ export async function unregisterNativePushToken() {
 }
 
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mansatas.app'
+const NATIVE_VERIFIED_KEY = 'mansatas_native_verified'
 
-type AndroidAccessState = 'allowed' | 'checking' | 'blocked'
+type AndroidAccessState = 'allowed' | 'blocked'
+
+function checkIsNativeAndroidSync(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    if (window.sessionStorage.getItem(NATIVE_VERIFIED_KEY) === '1') {
+      return true
+    }
+  } catch {}
+
+  const cap = (window as unknown as {
+    Capacitor?: {
+      isNativePlatform?: () => boolean
+      getPlatform?: () => string
+    }
+  }).Capacitor
+
+  if (cap && typeof cap.isNativePlatform === 'function') {
+    const isNative = Boolean(cap.isNativePlatform() && cap.getPlatform?.() === 'android')
+    if (isNative) {
+      try {
+        window.sessionStorage.setItem(NATIVE_VERIFIED_KEY, '1')
+      } catch {}
+      return true
+    }
+  }
+
+  return false
+}
 
 export function MobileRuntime({
   androidPlayStoreRequired = false,
@@ -107,9 +140,13 @@ export function MobileRuntime({
 }) {
   const pathname = usePathname()
   const [playStoreRequired, setPlayStoreRequired] = useState(androidPlayStoreRequired)
-  const [androidAccess, setAndroidAccess] = useState<AndroidAccessState>(
-    androidPlayStoreRequired && isAndroidRequest ? 'checking' : 'allowed'
-  )
+  // Mulai langsung dengan 'allowed' agar tidak ada flicker layar hitam saat transisi rute/fitur.
+  // Pengecekan native berjalan senyap di background.
+  const [androidAccess, setAndroidAccess] = useState<AndroidAccessState>(() => {
+    if (!androidPlayStoreRequired || !isAndroidRequest) return 'allowed'
+    if (checkIsNativeAndroidSync()) return 'allowed'
+    return 'allowed'
+  })
   const [isOffline, setIsOffline] = useState(false)
   const [hasSwUpdate, setHasSwUpdate] = useState(false)
   const [downloadState, setDownloadState] = useState<{
@@ -162,12 +199,25 @@ export function MobileRuntime({
       return
     }
 
+    // Jika sudah diverifikasi native di session ini atau via window.Capacitor, loloskan langsung.
+    if (checkIsNativeAndroidSync()) {
+      setAndroidAccess('allowed')
+      return
+    }
+
     let cancelled = false
     import('@capacitor/core')
       .then(({ Capacitor }) => {
         if (cancelled) return
         const isAndroidApp = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
-        setAndroidAccess(isAndroidApp ? 'allowed' : 'blocked')
+        if (isAndroidApp) {
+          try {
+            window.sessionStorage.setItem(NATIVE_VERIFIED_KEY, '1')
+          } catch {}
+          setAndroidAccess('allowed')
+        } else {
+          setAndroidAccess('blocked')
+        }
       })
       .catch(() => {
         if (!cancelled) setAndroidAccess('blocked')
@@ -523,42 +573,75 @@ export function MobileRuntime({
 
   return (
     <>
-      {androidAccess !== 'allowed' && (
+      {androidAccess === 'blocked' && (
         <div
-          className="fixed inset-0 z-[2147483647] flex min-h-[100dvh] items-center justify-center bg-slate-950 px-5 py-8 text-white"
-          role={androidAccess === 'blocked' ? 'dialog' : 'status'}
-          aria-modal={androidAccess === 'blocked' ? true : undefined}
+          className="fixed inset-0 z-[2147483647] flex min-h-[100dvh] items-center justify-center bg-background/80 p-4 backdrop-blur-sm sm:p-6"
+          role="dialog"
+          aria-modal="true"
           aria-live="polite"
         >
-          <div className="w-full max-w-sm text-center">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-500 shadow-2xl shadow-emerald-500/25">
-              {androidAccess === 'checking'
-                ? <Loader2 className="h-9 w-9 animate-spin" />
-                : <Smartphone className="h-9 w-9" />}
-            </div>
-            {androidAccess === 'checking' ? (
-              <>
-                <h1 className="mt-6 text-xl font-bold">Memeriksa aplikasi…</h1>
-                <p className="mt-2 text-sm text-slate-300">Mohon tunggu sebentar.</p>
-              </>
-            ) : (
-              <>
-                <h1 className="mt-6 text-2xl font-bold tracking-tight">Gunakan MANSATAS App</h1>
-                <p className="mt-3 text-sm leading-6 text-slate-300">
-                  Akses melalui browser Android telah dialihkan ke aplikasi resmi MANSATAS. Instal atau buka aplikasinya melalui Google Play untuk melanjutkan.
-                </p>
+          <Card className="w-full max-w-sm border-border bg-card text-card-foreground shadow-2xl rounded-2xl">
+            <CardHeader className="flex flex-col items-center text-center pb-3 pt-6 sm:pt-7">
+              {/* Logo Resmi MANSATAS App */}
+              <div className="relative mb-3 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-border bg-background p-2 shadow-sm">
+                <Image
+                  src="/icon-192x192.png"
+                  alt="Logo MANSATAS App"
+                  width={64}
+                  height={64}
+                  className="h-full w-full object-contain rounded-xl"
+                  priority
+                />
+              </div>
+
+              <Badge variant="secondary" className="mb-2 text-[11px] font-medium text-muted-foreground">
+                MAN 1 Tasikmalaya
+              </Badge>
+
+              <CardTitle className="text-xl font-bold tracking-tight">
+                Gunakan MANSATAS App
+              </CardTitle>
+
+              <CardDescription className="mt-1.5 text-xs leading-relaxed sm:text-sm">
+                Untuk kemudahan presensi harian, akses fitur lebih cepat, dan notifikasi madrasah langsung di perangkat Android, silakan gunakan aplikasi resmi.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="flex flex-col items-center gap-3 pt-1 pb-6 sm:pb-7">
+              <Button asChild size="lg" className="w-full h-11 gap-2 font-semibold shadow-sm">
                 <a
                   href={PLAY_STORE_URL}
-                  className="mt-7 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 text-sm font-bold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2 focus:ring-offset-slate-950"
-                  rel="noreferrer"
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  Buka di Google Play
+                  <span>Buka di Google Play</span>
                   <ExternalLink className="h-4 w-4" />
                 </a>
-                <p className="mt-4 text-xs text-slate-500">Pengguna komputer dan iPhone tetap dapat memakai versi web.</p>
-              </>
-            )}
-          </div>
+              </Button>
+
+              <a
+                href={PLAY_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Download MANSATAS App di Google Play (buka tab baru)"
+                className="transition-opacity hover:opacity-80"
+              >
+                <Image
+                  src="/google-play-badge.png"
+                  alt="Get it on Google Play"
+                  width={3840}
+                  height={1138}
+                  className="h-10 w-auto object-contain"
+                />
+              </a>
+
+              <div className="mt-2 w-full border-t border-border pt-4 text-center">
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Pengguna komputer/laptop dan iPhone (iOS) tetap dapat mengakses versi web.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
       <OfflineBanner isOffline={isOffline} hasSwUpdate={hasSwUpdate} />
