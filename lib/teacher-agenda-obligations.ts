@@ -1,4 +1,3 @@
-import 'server-only'
 import { getKalenderDateStatus, getKbmExceptionsForDate, splitTeachingSlotsByExceptions } from './kalender-pendidikan'
 import { enrichTeacherLeaveSessions } from './teacher-leave-db'
 

@@ -1,4 +1,3 @@
-import 'server-only'
 import { getDB } from '@/utils/db-server'
 import { requireActionAccess } from '@/lib/action-security'
 import { getUserRoles } from '@/lib/features'

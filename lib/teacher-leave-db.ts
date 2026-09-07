@@ -1,4 +1,3 @@
-import 'server-only'
 import type { TeacherLeaveMetadata, TeacherLeaveReason } from './teacher-leave'
 
 export async function readTeacherLeaveReasons(db: D1Database): Promise<TeacherLeaveReason[]> {
