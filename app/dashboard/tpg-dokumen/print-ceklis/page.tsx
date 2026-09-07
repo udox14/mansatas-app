@@ -146,12 +146,12 @@ export default async function PrintCeklisPage({ searchParams }: PageProps) {
   const namaBulanUpper = namaBulan.toUpperCase()
 
   return (
-    <div className="min-h-screen bg-slate-100 print:bg-white text-black font-sans antialiased">
+    <div className="min-h-screen bg-slate-100 print:bg-white text-black antialiased">
       <style>{`
         @media print {
           @page {
             size: 210mm 297mm;
-            margin: 12mm 15mm;
+            margin: 25mm 25mm 25mm 30mm;
           }
           body {
             -webkit-print-color-adjust: exact;
@@ -161,6 +161,10 @@ export default async function PrintCeklisPage({ searchParams }: PageProps) {
           .ceklis-sheet {
             page-break-after: always;
             break-after: page;
+            padding: 0 !important;
+            width: 100% !important;
+            min-height: 0 !important;
+            box-shadow: none !important;
           }
           .ceklis-sheet:last-child {
             page-break-after: auto;
@@ -180,9 +184,9 @@ export default async function PrintCeklisPage({ searchParams }: PageProps) {
           Tidak ada data guru yang ditemukan untuk dicetak.
         </div>
       ) : (
-        <main className="mx-auto max-w-[210mm] space-y-6 p-4 print:max-w-none print:p-0 print:space-y-0">
+        <main className="mx-auto max-w-[210mm] space-y-8 p-4 print:max-w-none print:p-0 print:space-y-0">
           {teachers.map(teacher => (
-            <div key={teacher.id} className="space-y-6 print:space-y-0">
+            <div key={teacher.id} className="space-y-8 print:space-y-0">
               {/* Sheet 1: ASLI */}
               <SingleCeklisSheet
                 type="ASLI"
@@ -233,75 +237,98 @@ function SingleCeklisSheet({
   const cellBorder: CSSProperties = { border: '1px solid #000' }
 
   return (
-    <div className="ceklis-sheet relative bg-white p-8 shadow-sm print:p-0 print:shadow-none print:w-full text-[13px] leading-relaxed text-black font-sans">
-      {/* Top Header: Box ASLI/SALINAN & Box No. Urut */}
+    <div
+      className="ceklis-sheet relative bg-white shadow-md print:shadow-none mx-auto text-black"
+      style={{
+        width: '210mm',
+        minHeight: '297mm',
+        padding: '25mm 25mm 25mm 30mm',
+        boxSizing: 'border-box',
+        fontFamily: "'Arial Narrow', Arial, 'Nimbus Sans Narrow', sans-serif",
+        fontSize: '12pt',
+        lineHeight: 1.3,
+      }}
+    >
+      {/* Top Header: Box ASLI/SALINAN & Box No. Urut (12pt) */}
       <div className="flex justify-end gap-2 mb-3">
-        <div className="border border-black px-4 py-1 text-center font-bold text-xs tracking-wider min-w-[75px]">
+        <div
+          className="border border-black px-4 py-0.5 text-center font-bold tracking-wider min-w-[75px]"
+          style={{ fontSize: '12pt' }}
+        >
           {type}
         </div>
-        <div className="border border-black px-4 py-1 text-center font-bold text-xs min-w-[85px]">
+        <div
+          className="border border-black px-4 py-0.5 text-center font-bold min-w-[85px]"
+          style={{ fontSize: '12pt' }}
+        >
           No.{teacher.no_urut ? teacher.no_urut : ''}
         </div>
       </div>
 
-      {/* Main Title */}
-      <div className="text-center font-bold text-[13.5px] leading-snug tracking-wide uppercase">
+      {/* Main Title (12pt Bold) */}
+      <div
+        className="text-center font-bold uppercase"
+        style={{ fontSize: '12pt', lineHeight: 1.25 }}
+      >
         <div>CEKLIST KELENGKAPAN</div>
         <div>PERSYARATAN PENCAIRAN TUNJANGAN PROFESI GURU MADRASAH/RA</div>
         <div>KABUPATEN TASIKMALAYA PERIODE {monthNameUpper} {year}</div>
       </div>
 
       {/* Thick Black Line under Title */}
-      <div className="w-[82%] mx-auto border-b-[4px] border-black mt-1.5 mb-3" />
+      <div className="w-[85%] mx-auto border-b-[3.5px] border-black mt-1 mb-2.5" />
 
-      {/* Right Status Box: PNS / PPPK / INPASSING / NON INPASSING *) */}
-      <div className="flex justify-end mb-4">
-        <div className="border border-black px-4 py-1.5 text-center text-[11px] font-medium leading-snug whitespace-nowrap">
+      {/* Right Status Box: PNS / PPPK / INPASSING / NON INPASSING *) (16pt) */}
+      <div className="flex justify-end mb-3.5">
+        <div
+          className="border border-black px-4 py-1 text-center font-normal leading-snug whitespace-nowrap"
+          style={{ fontSize: '16pt' }}
+        >
           <div>PNS &nbsp;&nbsp;/&nbsp;&nbsp; PPPK &nbsp;&nbsp;/</div>
           <div>INPASSING &nbsp;&nbsp;/&nbsp;&nbsp; NON INPASSING *)</div>
         </div>
       </div>
 
-      {/* Teacher Details with aligned colons */}
-      <div className="space-y-0.5 text-[12.5px] mb-5">
+      {/* Teacher Details with aligned colons (12pt) */}
+      <div className="space-y-0.5 mb-4" style={{ fontSize: '12pt', lineHeight: 1.35 }}>
         <div className="flex">
-          <span className="w-[170px] shrink-0 font-medium">NAMA</span>
+          <span className="w-[180px] shrink-0 font-medium">NAMA</span>
           <span className="w-[16px] shrink-0 text-center">:</span>
           <span className="font-bold">{teacher.nama_lengkap}</span>
         </div>
 
         <div className="flex">
-          <span className="w-[170px] shrink-0 font-medium">NIP</span>
+          <span className="w-[180px] shrink-0 font-medium">NIP</span>
           <span className="w-[16px] shrink-0 text-center">:</span>
           <span>{teacher.nip || '-'}</span>
         </div>
 
         <div className="flex">
-          <span className="w-[170px] shrink-0 font-medium">NUPTK</span>
+          <span className="w-[180px] shrink-0 font-medium">NUPTK</span>
           <span className="w-[16px] shrink-0 text-center">:</span>
           <span>{teacher.nuptk || '-'}</span>
         </div>
 
         <div className="flex">
-          <span className="w-[170px] shrink-0 font-medium">NRG</span>
+          <span className="w-[180px] shrink-0 font-medium">NRG</span>
           <span className="w-[16px] shrink-0 text-center">:</span>
           <span>{teacher.nrg || '-'}</span>
         </div>
 
         <div className="flex">
-          <span className="w-[170px] shrink-0 font-medium">PANGKAT/GOLONGAN</span>
+          <span className="w-[180px] shrink-0 font-medium">PANGKAT/GOLONGAN</span>
           <span className="w-[16px] shrink-0 text-center">:</span>
           <span>{teacher.pangkat_golongan || '-'}</span>
         </div>
 
         <div className="flex">
-          <span className="w-[170px] shrink-0 font-medium">TEMPAT TUGAS</span>
+          <span className="w-[180px] shrink-0 font-medium">TEMPAT TUGAS</span>
           <span className="w-[16px] shrink-0 text-center">:</span>
           <span>MAN 1 Tasikmalaya</span>
         </div>
 
         <div className="flex items-start">
-          <span className="w-[170px] shrink-0 font-medium">ALAMAT TEMPAT TUGAS</span>
+          <span className="w-[180px] shrink-0 font-medium">ALAMAT TEMPAT TUGAS</span>
           <span className="w-[16px] shrink-0 text-center">:</span>
           <div>
             <div>Kec. Sukarame Kab. Tasikmalaya</div>
@@ -309,8 +336,8 @@ function SingleCeklisSheet({
           </div>
         </div>
 
-        <div className="flex pt-1.5">
-          <span className="w-[170px] shrink-0 font-medium">TELP/HP</span>
+        <div className="flex pt-1">
+          <span className="w-[180px] shrink-0 font-medium">TELP/HP</span>
           <span className="w-[16px] shrink-0 text-center">:</span>
           <span className="italic">
             {teacher.nomor_whatsapp ? `${teacher.nomor_whatsapp} (WhatsApp)` : '-'}
@@ -318,93 +345,93 @@ function SingleCeklisSheet({
         </div>
       </div>
 
-      {/* Checklist Table */}
-      <table className="w-full border-collapse text-[12.5px] mb-2" style={cellBorder}>
+      {/* Checklist Table (Header: 14pt, Isi: 12pt) */}
+      <table className="w-full border-collapse mb-2" style={{ ...cellBorder, fontSize: '12pt' }}>
         <thead>
-          <tr className="bg-transparent">
-            <th style={cellBorder} className="w-[38px] py-1.5 px-1 text-center font-bold">
+          <tr className="bg-transparent" style={{ fontSize: '14pt' }}>
+            <th style={{ ...cellBorder, width: '42px', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold' }}>
               No.
             </th>
-            <th style={cellBorder} className="py-1.5 px-3 text-center font-bold">
+            <th style={{ ...cellBorder, padding: '3px 8px', textAlign: 'center', fontWeight: 'bold' }}>
               URAIAN
             </th>
-            <th style={cellBorder} className="w-[95px] py-1.5 px-1 text-center font-bold">
+            <th style={{ ...cellBorder, width: '105px', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold' }}>
               CHECKLIST
             </th>
-            <th style={cellBorder} className="w-[65px] py-1.5 px-1 text-center font-bold">
+            <th style={{ ...cellBorder, width: '70px', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold' }}>
               KET
             </th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td style={cellBorder} className="py-1.5 px-1 text-center align-middle font-medium">
+            <td style={{ ...cellBorder, padding: '3px 4px', textAlign: 'center', verticalAlign: 'middle' }}>
               1
             </td>
-            <td style={cellBorder} className="py-1.5 px-3 align-middle">
+            <td style={{ ...cellBorder, padding: '3px 8px', verticalAlign: 'middle' }}>
               FC SKAKPT (S36b/c) bulan {monthName} {year}
             </td>
-            <td style={cellBorder} className="py-1.5 px-1 text-center align-middle font-bold text-base">
+            <td style={{ ...cellBorder, padding: '3px 4px', textAlign: 'center', verticalAlign: 'middle', fontWeight: 'bold', fontSize: '14pt' }}>
               &#10003;
             </td>
-            <td style={cellBorder} className="py-1.5 px-1 text-center align-middle">
+            <td style={{ ...cellBorder, padding: '3px 4px', textAlign: 'center', verticalAlign: 'middle' }}>
             </td>
           </tr>
           <tr>
-            <td style={cellBorder} className="py-1.5 px-1 text-center align-middle font-medium">
+            <td style={{ ...cellBorder, padding: '3px 4px', textAlign: 'center', verticalAlign: 'middle' }}>
               2
             </td>
-            <td style={cellBorder} className="py-1.5 px-3 align-middle">
+            <td style={{ ...cellBorder, padding: '3px 8px', verticalAlign: 'middle' }}>
               FC Rekap Absen EMISGTK (S35) {monthName} {year}
             </td>
-            <td style={cellBorder} className="py-1.5 px-1 text-center align-middle font-bold text-base">
+            <td style={{ ...cellBorder, padding: '3px 4px', textAlign: 'center', verticalAlign: 'middle', fontWeight: 'bold', fontSize: '14pt' }}>
               &#10003;
             </td>
-            <td style={cellBorder} className="py-1.5 px-1 text-center align-middle">
+            <td style={{ ...cellBorder, padding: '3px 4px', textAlign: 'center', verticalAlign: 'middle' }}>
             </td>
           </tr>
           <tr>
-            <td style={cellBorder} className="py-1.5 px-1 text-center align-middle font-medium">
+            <td style={{ ...cellBorder, padding: '3px 4px', textAlign: 'center', verticalAlign: 'middle' }}>
               3
             </td>
-            <td style={cellBorder} className="py-1.5 px-3 align-middle">
+            <td style={{ ...cellBorder, padding: '3px 8px', verticalAlign: 'middle' }}>
               FC Laporan Kinerja Harian {monthName} {year}
             </td>
-            <td style={cellBorder} className="py-1.5 px-1 text-center align-middle font-bold text-base">
+            <td style={{ ...cellBorder, padding: '3px 4px', textAlign: 'center', verticalAlign: 'middle', fontWeight: 'bold', fontSize: '14pt' }}>
               &#10003;
             </td>
-            <td style={cellBorder} className="py-1.5 px-1 text-center align-middle">
+            <td style={{ ...cellBorder, padding: '3px 4px', textAlign: 'center', verticalAlign: 'middle' }}>
             </td>
           </tr>
           <tr>
-            <td style={cellBorder} className="py-1.5 px-1 text-center align-middle font-medium">
+            <td style={{ ...cellBorder, padding: '3px 4px', textAlign: 'center', verticalAlign: 'middle' }}>
               4
             </td>
-            <td style={cellBorder} className="py-1.5 px-3 align-middle">
+            <td style={{ ...cellBorder, padding: '3px 8px', verticalAlign: 'middle' }}>
               FC Surat Tugas, Cuti , Sakit , alasan penting (jika ada)
             </td>
-            <td style={cellBorder} className="py-1.5 px-1 text-center align-middle font-bold text-base">
+            <td style={{ ...cellBorder, padding: '3px 4px', textAlign: 'center', verticalAlign: 'middle', fontWeight: 'bold', fontSize: '14pt' }}>
               -
             </td>
-            <td style={cellBorder} className="py-1.5 px-1 text-center align-middle">
+            <td style={{ ...cellBorder, padding: '3px 4px', textAlign: 'center', verticalAlign: 'middle' }}>
             </td>
           </tr>
         </tbody>
       </table>
 
-      {/* Note below table */}
-      <div className="text-[12px] mb-8">
+      {/* Note below table (12pt) */}
+      <div className="mb-6" style={{ fontSize: '12pt' }}>
         Ket : Berkas disusun per-PTK
       </div>
 
-      {/* Signature Section on the Bottom Right */}
-      <div className="flex justify-end text-[12.5px]">
-        <div className="w-[240px] text-left leading-normal">
+      {/* Signature Section on the Bottom Right (12pt) */}
+      <div className="flex justify-end" style={{ fontSize: '12pt' }}>
+        <div className="w-[230px] text-left leading-normal">
           <div>
             {city}, {dateText ? dateText : `.................................... ${year}`}
           </div>
           <div className="mt-0.5">Penerima Berkas</div>
-          <div className="h-[75px]" />
+          <div className="h-[70px]" />
           <div className="tracking-tighter">....................................................</div>
         </div>
       </div>

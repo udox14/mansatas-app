@@ -96,11 +96,11 @@ function getGuruLabel(row: TpgUserStatus) {
 function StatusPill({ ok, label }: { ok: boolean; label: string }) {
   return (
     <span className={cn(
-      'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold',
+      'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap shrink-0 select-none',
       ok ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
     )}>
-      {ok ? <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> : <XCircle className="h-3 w-3 text-slate-400" />}
-      {label}
+      {ok ? <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" /> : <XCircle className="h-3 w-3 text-slate-400 shrink-0" />}
+      <span className="whitespace-nowrap">{label}</span>
     </span>
   )
 }
@@ -1003,18 +1003,19 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
             {periodFilters}
 
             <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
-              <div className="flex flex-col gap-3 border-b border-surface-2 px-4 py-3.5 lg:flex-row lg:items-center lg:justify-between">
+              {/* Header: Title Left, Search & PageSize Right */}
+              <div className="flex flex-col gap-3 border-b border-surface-2 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between bg-surface-2/20">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                    Monitoring TPG — Guru Mata Pelajaran
+                  <p className="text-base font-semibold text-slate-800 dark:text-slate-100">
+                    Dokumen TPG
                   </p>
                   <p className="text-xs text-slate-500">
                     S36: {monthLabel(data.s36Year, data.s36Month)} • CKH: {monthLabel(data.ckhYear, data.ckhMonth)}
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative w-full sm:w-56">
+                <div className="flex items-center gap-2">
+                  <div className="relative w-full sm:w-60">
                     <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
                     <Input
                       placeholder="Cari nama guru..."
@@ -1038,55 +1039,94 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                       <SelectItem value="100">100 / hal</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openS36Download('selected')}
-                    disabled={selected.length === 0}
-                    className="gap-1.5 text-xs h-8"
-                  >
-                    <Download className="h-3.5 w-3.5" /> S36 Terpilih
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openS36Download('all')}
-                    className="gap-1.5 text-xs h-8"
-                  >
-                    <Download className="h-3.5 w-3.5" /> Semua S36
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => openCkhPrint('selected')}
-                    disabled={selected.length === 0}
-                    className="gap-1.5 text-xs h-8 bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
-                  >
-                    <Printer className="h-3.5 w-3.5" /> CKH Terpilih
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => openCkhPrint('all')}
-                    className="gap-1.5 text-xs h-8 bg-emerald-600 text-white hover:bg-emerald-700"
-                  >
-                    <Printer className="h-3.5 w-3.5" /> Semua CKH
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => openCeklisPrintModal('selected')}
-                    disabled={selected.length === 0}
-                    className="gap-1.5 text-xs h-8 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300"
-                  >
-                    <Printer className="h-3.5 w-3.5" /> Ceklis Terpilih
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => openCeklisPrintModal('all')}
-                    className="gap-1.5 text-xs h-8 bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm"
-                  >
-                    <Printer className="h-3.5 w-3.5" /> Semua Ceklis
-                  </Button>
+              {/* Action Toolbar Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-surface-2 px-4 py-2.5 bg-surface">
+                <div className="text-xs text-slate-500 font-medium">
+                  {selected.length > 0 ? (
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {selected.length} guru dipilih
+                    </span>
+                  ) : (
+                    <span>Pilih guru untuk aksi terpilih, atau gunakan tombol cetak/unduh massal:</span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* S36 Group */}
+                  <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50/70 dark:bg-slate-900/60 shadow-xs">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openS36Download('selected')}
+                      disabled={selected.length === 0}
+                      className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-50"
+                      title="Download S36 guru yang dicentang"
+                    >
+                      <Download className="h-3.5 w-3.5 text-slate-500" /> S36 Terpilih
+                    </Button>
+                    <div className="w-[1px] bg-slate-200 dark:bg-slate-800 my-1" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openS36Download('all')}
+                      className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                      title="Download semua berkas S36"
+                    >
+                      <Download className="h-3.5 w-3.5 text-slate-500" /> Semua S36
+                    </Button>
+                  </div>
+
+                  {/* CKH Group */}
+                  <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50/70 dark:bg-slate-900/60 shadow-xs">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openCkhPrint('selected')}
+                      disabled={selected.length === 0}
+                      className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-50"
+                      title="Cetak CKH guru yang dicentang"
+                    >
+                      <Printer className="h-3.5 w-3.5 text-slate-500" /> CKH Terpilih
+                    </Button>
+                    <div className="w-[1px] bg-slate-200 dark:bg-slate-800 my-1" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openCkhPrint('all')}
+                      className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-emerald-50 text-emerald-700 dark:hover:bg-emerald-950/50 dark:text-emerald-400"
+                      title="Cetak semua berkas CKH"
+                    >
+                      <Printer className="h-3.5 w-3.5 text-emerald-600" /> Semua CKH
+                    </Button>
+                  </div>
+
+                  {/* Ceklis Group */}
+                  <div className="inline-flex rounded-lg border border-indigo-200 dark:border-indigo-900/60 p-0.5 bg-indigo-50/60 dark:bg-indigo-950/40 shadow-xs">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openCeklisPrintModal('selected')}
+                      disabled={selected.length === 0}
+                      className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-white text-indigo-700 dark:text-indigo-300 disabled:opacity-50"
+                      title="Cetak Lembar Ceklis guru yang dicentang"
+                    >
+                      <Printer className="h-3.5 w-3.5 text-indigo-600" /> Ceklis Terpilih
+                    </Button>
+                    <div className="w-[1px] bg-indigo-200 dark:bg-indigo-900/60 my-1" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openCeklisPrintModal('all')}
+                      className="gap-1.5 text-xs h-7 px-2.5 font-medium bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
+                      title="Cetak Lembar Ceklis untuk seluruh guru"
+                    >
+                      <Printer className="h-3.5 w-3.5" /> Semua Ceklis
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -1103,12 +1143,12 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                           className="rounded border-slate-300"
                         />
                       </th>
-                      <th className="px-4 py-3">Guru Mata Pelajaran</th>
-                      <th className="px-4 py-3">Profil TPG</th>
-                      <th className="px-4 py-3">S36 Upload</th>
-                      <th className="px-4 py-3">CKH Disimpan</th>
-                      <th className="px-4 py-3">Tanda Tangan</th>
-                      <th className="px-4 py-3">Update CKH</th>
+                      <th className="px-4 py-3 min-w-[220px]">Guru Mata Pelajaran</th>
+                      <th className="px-4 py-3 whitespace-nowrap">Profil TPG</th>
+                      <th className="px-4 py-3 whitespace-nowrap">S36 Upload</th>
+                      <th className="px-4 py-3 whitespace-nowrap">CKH Disimpan</th>
+                      <th className="px-4 py-3 whitespace-nowrap">Tanda Tangan</th>
+                      <th className="px-4 py-3 whitespace-nowrap">Update CKH</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-2">
@@ -1128,7 +1168,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                             {row.nip ? `NIP. ${row.nip} • ` : ''}{getGuruLabel(row)}
                           </p>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           {isTpgProfileComplete(row) ? (
                             <div>
                               <StatusPill ok={true} label="Lengkap" />
@@ -1145,27 +1185,27 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           {s36Required(row)
                             ? <StatusPill ok={hasS36(row)} label={hasS36(row) ? 'Sudah upload' : 'Belum'} />
-                            : <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">Tidak wajib</span>}
+                            : <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 whitespace-nowrap">Tidak wajib</span>}
                           {hasS36(row) && (
                             <p className="mt-1 text-xs text-slate-400">
                               {formatSize(row.s36_file_size)} • {formatDateTime(row.s36_uploaded_at)}
                             </p>
                           )}
                         </td>
-                        <td className="px-4 py-3">
-                          <StatusPill ok={isCkhFinal(row)} label={isCkhFinal(row) ? 'Tuntas' : 'Belum save'} />
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <StatusPill ok={isCkhFinal(row)} label={isCkhFinal(row) ? 'Tuntas' : 'Belum Save'} />
                           <p className="mt-1 text-xs text-slate-400">{row.ckh_row_count || 0} baris</p>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <StatusPill
                             ok={Boolean(row.signature_url && row.signature_enabled)}
                             label={row.signature_url && row.signature_enabled ? 'Aktif' : 'Tidak'}
                           />
                         </td>
-                        <td className="px-4 py-3 text-xs text-slate-500">{formatDateTime(row.ckh_updated_at)}</td>
+                        <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{formatDateTime(row.ckh_updated_at)}</td>
                       </tr>
                     ))}
                     {paginatedUsers.length === 0 && (
