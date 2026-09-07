@@ -89,6 +89,20 @@ function getAvatarInitials(name: string) {
   return (parts[0][0] + parts[1][0]).toUpperCase()
 }
 
+function formatTanggalWithDay(dateStr: string) {
+  try {
+    const d = new Date(dateStr + 'T00:00:00')
+    return new Intl.DateTimeFormat('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(d)
+  } catch {
+    return dateStr
+  }
+}
+
 export function PbDetails({
   items,
   onCorrect
@@ -183,9 +197,9 @@ export function PbDetails({
                           {item.nama_lengkap}
                         </span>
                         <span className="text-xs text-slate-400 hidden sm:inline">&middot;</span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {item.tanggal}
+                        <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 font-medium">
+                          <Calendar className="h-3 w-3 text-slate-400" />
+                          {formatTanggalWithDay(item.tanggal)}
                         </span>
                       </div>
 

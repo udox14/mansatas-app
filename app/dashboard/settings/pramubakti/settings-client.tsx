@@ -336,7 +336,7 @@ export function PramubaktiSettingsClient({ initialData }: { initialData: Setting
                   </div>
 
                   {/* Tabel Slot Langsung Edit */}
-                  <div className="p-3 flex-1">
+                  <div className="p-3 flex-1 overflow-x-auto">
                     {daySlots.length === 0 ? (
                       <div className="p-6 text-center text-xs text-slate-400 italic">
                         {weekday === 7
@@ -344,33 +344,33 @@ export function PramubaktiSettingsClient({ initialData }: { initialData: Setting
                           : 'Belum ada slot untuk hari ini.'}
                       </div>
                     ) : (
-                      <table className="w-full text-xs">
+                      <table className="w-full text-xs min-w-[280px]">
                         <thead>
                           <tr className="text-slate-400 border-b border-slate-100 dark:border-slate-800 text-[11px]">
-                            <th className="text-left py-1.5 w-12 font-medium">Slot</th>
-                            <th className="text-left py-1.5 font-medium">Jam Mulai</th>
-                            <th className="text-left py-1.5 font-medium">Jam Selesai</th>
-                            <th className="text-right py-1.5 w-8 font-medium"></th>
+                            <th className="text-left py-1.5 w-10 font-medium">Slot</th>
+                            <th className="text-left py-1.5 font-medium pl-1">Jam Mulai</th>
+                            <th className="text-left py-1.5 font-medium pl-1">Jam Selesai</th>
+                            <th className="text-right py-1.5 w-7 font-medium"></th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                           {daySlots.map((slot, index) => (
                             <tr key={slot.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                              <td className="py-2 text-slate-500 font-medium">#{index + 1}</td>
-                              <td className="py-2 pr-1.5">
+                              <td className="py-2 text-slate-500 font-medium text-xs">#{index + 1}</td>
+                              <td className="py-2 px-1">
                                 <Input
                                   type="time"
                                   value={slot.start}
                                   onChange={e => updateSlotTime(slot.id, 'start', e.target.value)}
-                                  className="h-8 text-xs w-24 font-mono font-medium"
+                                  className="h-8 text-xs w-full min-w-[120px] font-mono font-medium px-2"
                                 />
                               </td>
-                              <td className="py-2 pr-1.5">
+                              <td className="py-2 px-1">
                                 <Input
                                   type="time"
                                   value={slot.end}
                                   onChange={e => updateSlotTime(slot.id, 'end', e.target.value)}
-                                  className="h-8 text-xs w-24 font-mono font-medium"
+                                  className="h-8 text-xs w-full min-w-[120px] font-mono font-medium px-2"
                                 />
                               </td>
                               <td className="py-2 text-right">

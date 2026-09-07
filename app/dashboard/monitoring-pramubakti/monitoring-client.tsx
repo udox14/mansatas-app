@@ -11,13 +11,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import {
   Search, Loader2, Calendar, BarChart3, Printer, ShieldCheck, History,
   ChevronLeft, ChevronRight, CheckCircle2, Clock, AlertTriangle, XCircle,
   PlusCircle, Edit3, FileText, Check, AlertCircle, Eye, EyeOff
 } from 'lucide-react'
 import { PbDetails } from '@/components/pramubakti/report-details'
-import { summarizePb, type PbItem } from '@/lib/pramubakti'
+import { summarizePb, PB_DAYS, type PbItem } from '@/lib/pramubakti'
 import { teacherPerformance } from '@/lib/teacher-leave'
 import { todayWIB } from '@/lib/time'
 import { getPramubaktiMonitoring, setPramubaktiLeave, correctPramubaktiReport } from './actions'
@@ -420,7 +421,7 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
           </div>
 
           {allSlots.length > 0 && (
-            <div className="min-w-0 sm:w-44">
+            <div className="min-w-0 sm:w-56">
               <Label className="text-xs text-slate-500 dark:text-slate-400">Slot Jam</Label>
               <Select value={slotId} onValueChange={setSlotId}>
                 <SelectTrigger className="h-9 text-sm">
@@ -430,7 +431,7 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
                   <SelectItem value="ALL_SLOTS">Semua Slot</SelectItem>
                   {allSlots.map(s => (
                     <SelectItem key={`${s.id}-${s.effective_date}`} value={s.id}>
-                      {s.start}–{s.end} (Hari {s.weekday})
+                      {PB_DAYS[s.weekday] || `Hari ${s.weekday}`}: {s.start}–{s.end}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -475,68 +476,161 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
         </div>
       )}
 
-      {/* KPI STAT CARDS (Identik dengan Card Dashboard Monitoring) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-        <div className="rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm">
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Tingkat Performa</p>
-          <p className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">
-            {summary.performance === null ? '—' : `${summary.performance}%`}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">{summary.total} slot wajib dinilai</p>
-        </div>
+      {/* RINGKASAN STATISTIK & KPI (ACCORDION SHADCN) */}
+      <Accordion type="single" collapsible defaultValue="kpi-cards" className="w-full">
+        <AccordionItem value="kpi-cards" className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+          <AccordionTrigger className="py-3 px-4 hover:no-underline hover:bg-slate-50/80 dark:hover:bg-slate-800/50">
+            <div className="flex flex-wrap items-center justify-between w-full pr-2 gap-2 text-left">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                  <BarChart3 className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm text-slate-800 dark:text-slate-100">
+                      Ringkasan Statistik & KPI Monitoring
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-normal">
+                      ({summary.total} slot dinilai)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Buka untuk melihat rincian performa, kehadiran, dan filter cepat
+                  </p>
+                </div>
+              </div>
 
-        <div className="rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm border-l-4 border-l-emerald-500">
-          <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Hadir
-          </p>
-          <p className="text-xl sm:text-2xl font-bold text-emerald-800 dark:text-emerald-200 mt-1">
-            {summary.hadir}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Tepat waktu & telat</p>
-        </div>
+              {/* Quick glance pill badges on header */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px]">
+                  Performa: {summary.performance === null ? '—' : `${summary.performance}%`}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 text-[11px]">
+                  <CheckCircle2 className="h-3 w-3" /> {summary.hadir}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/60 text-[11px]">
+                  <Clock className="h-3 w-3" /> {summary.telat}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-400 border border-sky-200/60 dark:border-sky-800/60 text-[11px]">
+                  <AlertTriangle className="h-3 w-3" /> {summary.izin + summary.sakit}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 border border-rose-200/60 dark:border-rose-800/60 text-[11px]">
+                  <XCircle className="h-3 w-3" /> {summary.alfa}
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-400 border border-purple-200/60 dark:border-purple-800/60 text-[11px]">
+                  <PlusCircle className="h-3 w-3" /> {summary.tambahan}
+                </span>
+              </div>
+            </div>
+          </AccordionTrigger>
 
-        <div className="rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm border-l-4 border-l-amber-500">
-          <p className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" /> Telat
-          </p>
-          <p className="text-xl sm:text-2xl font-bold text-amber-800 dark:text-amber-200 mt-1">
-            {summary.telat}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Melewati batas waktu</p>
-        </div>
+          <AccordionContent className="p-3.5 pt-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+              {/* Card 1: Performa */}
+              <div
+                onClick={() => { setStatus(''); setKind('') }}
+                className={`rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm transition-all cursor-pointer hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-md ${
+                  !status && !kind ? 'ring-2 ring-indigo-500/40' : ''
+                }`}
+                title="Klik untuk melihat semua data"
+              >
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Tingkat Performa</p>
+                <p className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100 mt-1">
+                  {summary.performance === null ? '—' : `${summary.performance}%`}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{summary.total} slot wajib dinilai</p>
+              </div>
 
-        <div className="rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm border-l-4 border-l-sky-500">
-          <p className="text-xs font-medium text-sky-700 dark:text-sky-400 flex items-center gap-1">
-            <AlertTriangle className="h-3.5 w-3.5" /> Izin / Sakit
-          </p>
-          <p className="text-xl sm:text-2xl font-bold text-sky-800 dark:text-sky-200 mt-1">
-            {summary.izin + summary.sakit}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">
-            {summary.sakit} sakit, {summary.izin} izin
-          </p>
-        </div>
+              {/* Card 2: Hadir */}
+              <div
+                onClick={() => { setStatus(status === 'TEPAT_WAKTU' ? '' : 'TEPAT_WAKTU'); setKind('') }}
+                className={`rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm border-l-4 border-l-emerald-500 transition-all cursor-pointer hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md ${
+                  status === 'TEPAT_WAKTU' ? 'ring-2 ring-emerald-500/50 bg-emerald-50/20 dark:bg-emerald-950/20' : ''
+                }`}
+                title="Klik untuk memfilter status Hadir / Tepat Waktu"
+              >
+                <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Hadir
+                </p>
+                <p className="text-xl sm:text-2xl font-bold text-emerald-800 dark:text-emerald-200 mt-1">
+                  {summary.hadir}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Tepat waktu & telat</p>
+              </div>
 
-        <div className="rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm border-l-4 border-l-rose-500">
-          <p className="text-xs font-medium text-rose-700 dark:text-rose-400 flex items-center gap-1">
-            <XCircle className="h-3.5 w-3.5" /> Alfa
-          </p>
-          <p className="text-xl sm:text-2xl font-bold text-rose-800 dark:text-rose-200 mt-1">
-            {summary.alfa}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Tanpa keterangan</p>
-        </div>
+              {/* Card 3: Telat */}
+              <div
+                onClick={() => { setStatus(status === 'TELAT' ? '' : 'TELAT'); setKind('') }}
+                className={`rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm border-l-4 border-l-amber-500 transition-all cursor-pointer hover:border-amber-300 dark:hover:border-amber-700 hover:shadow-md ${
+                  status === 'TELAT' ? 'ring-2 ring-amber-500/50 bg-amber-50/20 dark:bg-amber-950/20' : ''
+                }`}
+                title="Klik untuk memfilter status Telat"
+              >
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5" /> Telat
+                </p>
+                <p className="text-xl sm:text-2xl font-bold text-amber-800 dark:text-amber-200 mt-1">
+                  {summary.telat}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Melewati batas waktu</p>
+              </div>
 
-        <div className="rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm border-l-4 border-l-purple-500">
-          <p className="text-xs font-medium text-purple-700 dark:text-purple-400 flex items-center gap-1">
-            <PlusCircle className="h-3.5 w-3.5" /> Tambahan
-          </p>
-          <p className="text-xl sm:text-2xl font-bold text-purple-800 dark:text-purple-200 mt-1">
-            {summary.tambahan}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Laporan ekstra</p>
-        </div>
-      </div>
+              {/* Card 4: Izin / Sakit */}
+              <div
+                onClick={() => { setStatus(status === 'IZIN' ? '' : 'IZIN'); setKind('') }}
+                className={`rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm border-l-4 border-l-sky-500 transition-all cursor-pointer hover:border-sky-300 dark:hover:border-sky-700 hover:shadow-md ${
+                  status === 'IZIN' || status === 'SAKIT' ? 'ring-2 ring-sky-500/50 bg-sky-50/20 dark:bg-sky-950/20' : ''
+                }`}
+                title="Klik untuk memfilter status Izin / Sakit"
+              >
+                <p className="text-xs font-medium text-sky-700 dark:text-sky-400 flex items-center gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5" /> Izin / Sakit
+                </p>
+                <p className="text-xl sm:text-2xl font-bold text-sky-800 dark:text-sky-200 mt-1">
+                  {summary.izin + summary.sakit}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {summary.sakit} sakit, {summary.izin} izin
+                </p>
+              </div>
+
+              {/* Card 5: Alfa */}
+              <div
+                onClick={() => { setStatus(status === 'ALFA' ? '' : 'ALFA'); setKind('') }}
+                className={`rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm border-l-4 border-l-rose-500 transition-all cursor-pointer hover:border-rose-300 dark:hover:border-rose-700 hover:shadow-md ${
+                  status === 'ALFA' ? 'ring-2 ring-rose-500/50 bg-rose-50/20 dark:bg-rose-950/20' : ''
+                }`}
+                title="Klik untuk memfilter status Alfa"
+              >
+                <p className="text-xs font-medium text-rose-700 dark:text-rose-400 flex items-center gap-1">
+                  <XCircle className="h-3.5 w-3.5" /> Alfa
+                </p>
+                <p className="text-xl sm:text-2xl font-bold text-rose-800 dark:text-rose-200 mt-1">
+                  {summary.alfa}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Tanpa keterangan</p>
+              </div>
+
+              {/* Card 6: Tambahan */}
+              <div
+                onClick={() => { setKind(kind === 'tambahan' ? '' : 'tambahan'); setStatus('') }}
+                className={`rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm border-l-4 border-l-purple-500 transition-all cursor-pointer hover:border-purple-300 dark:hover:border-purple-700 hover:shadow-md ${
+                  kind === 'tambahan' ? 'ring-2 ring-purple-500/50 bg-purple-50/20 dark:bg-purple-950/20' : ''
+                }`}
+                title="Klik untuk memfilter laporan Tambahan"
+              >
+                <p className="text-xs font-medium text-purple-700 dark:text-purple-400 flex items-center gap-1">
+                  <PlusCircle className="h-3.5 w-3.5" /> Tambahan
+                </p>
+                <p className="text-xl sm:text-2xl font-bold text-purple-800 dark:text-purple-200 mt-1">
+                  {summary.tambahan}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Laporan ekstra</p>
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       {/* TABS UTAMA */}
       <Tabs defaultValue="harian" className="space-y-3">
@@ -1137,7 +1231,7 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
                         }`}
                       >
                         {checked && <Check className="h-3 w-3" />}
-                        Hari {s.weekday}, {s.start}–{s.end}
+                        {PB_DAYS[s.weekday] || `Hari ${s.weekday}`}, {s.start}–{s.end}
                       </button>
                     )
                   })}
