@@ -13,7 +13,14 @@ const SHARED: DashItem[] = [
 
 // ── Registry: 1 group = 1 dashboard ────────────────────────────────────────
 export const DASHBOARD_GROUPS: DashGroup[] = [
-  { key: 'pramubakti', label: 'Pramubakti', items: [{ id: 'pramubakti_performa', label: 'Performa dan pekerjaan Pramubakti' }] },
+  {
+    key: 'pramubakti',
+    label: 'Pramubakti',
+    items: [
+      { id: 'jadwal_pramubakti', label: 'Jadwal Tugas Hari Ini', desc: 'Daftar slot pekerjaan pramubakti hari ini' },
+      { id: 'pramubakti_performa', label: 'Performa dan pekerjaan Pramubakti' },
+    ],
+  },
   {
     key: 'admin',
     label: 'Super Admin / Admin TU',

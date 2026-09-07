@@ -57,8 +57,21 @@ export async function getPbData(db: D1Database, start: string, end: string, user
   ])
   const reportRows: PbReport[] = reports.results.map(r => ({ ...r, jobs: JSON.parse(r.jobs_json) }))
   const leaveRows = leaves.results.map(l => ({ ...l, kepentingan_sekolah: l.kepentingan_sekolah === 1 }))
-  const items = buildPbItems({ start, end, today: todayWIB(), time: currentTimeWIB().hhmm, ...config, members: members.results, reports: reportRows, leaves: leaveRows })
-  return { ...config, members: members.results, reports: reportRows, leaves: leaveRows, items }
+  let memberRows = members.results
+  if (userId && memberRows.length === 0) {
+    const userRow = await db.prepare('SELECT id, COALESCE(nama_lengkap, name, id) AS nama_lengkap FROM "user" WHERE id = ?').bind(userId).first<{ id: string; nama_lengkap: string }>()
+    if (userRow) {
+      memberRows = [{
+        id: `auto_${userId}`,
+        user_id: userId,
+        nama_lengkap: userRow.nama_lengkap,
+        start_date: '2026-01-01',
+        end_date: null,
+      }]
+    }
+  }
+  const items = buildPbItems({ start, end, today: todayWIB(), time: currentTimeWIB().hhmm, ...config, members: memberRows, reports: reportRows, leaves: leaveRows })
+  return { ...config, members: memberRows, reports: reportRows, leaves: leaveRows, items }
 }
 
 export async function getPbCkhDates(db: D1Database, userId: string, start: string, end: string) {

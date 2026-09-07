@@ -15,6 +15,8 @@ import { GuruPiketDashboard }  from '@/components/dashboard/GuruPiketDashboard'
 import { ResepsionisDashboard } from '@/components/dashboard/ResepsionisDashboard'
 import { GuruPPLDashboard } from '@/components/dashboard/GuruPPLDashboard'
 import { BendaharaDashboard } from '@/components/dashboard/BendaharaDashboard'
+import { PramubaktiDashboard } from '@/components/dashboard/PramubaktiDashboard'
+import { JadwalPramubaktiToday } from '@/components/dashboard/shared/JadwalPramubaktiToday'
 import { DashboardSPAShell } from '@/components/dashboard/shared/DashboardSPAShell'
 import { WelcomeStrip } from '@/components/dashboard/shared/WelcomeStrip'
 import { DASHBOARD_VISIBILITY_KEY, dashboardKeyForRole, parseVisibility } from '@/lib/dashboard-visibility'
@@ -41,6 +43,7 @@ const ROLE_COLOR: Record<string, string> = {
   guru_tahfidz:'emerald',
   bendahara_komite:   'emerald',
   pengurus_koperasi:  'emerald',
+  pramubakti:         'emerald',
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -166,7 +169,7 @@ export default async function DashboardPage() {
   const dashboardContent = (() => {
     switch (userRole) {
       case 'pramubakti':
-        return userRoles.some(role => ['guru', 'guru_tahfidz', 'guru_piket'].includes(role)) ? <GuruDashboard {...commonProps} /> : null
+        return <PramubaktiDashboard {...commonProps} />
       case 'super_admin':
       case 'admin_tu':
         return <SuperAdminDashboard {...commonProps} />
@@ -231,7 +234,12 @@ export default async function DashboardPage() {
         polaJam={polaJam}
       >
         {dashboardContent}
-        {userRoles.includes('pramubakti') && allowedFeatures.includes('pelaporan-pramubakti') && dashboardVisibility.pramubakti_performa !== false && <PramubaktiCard userId={user.id} />}
+        {userRole !== 'pramubakti' && userRoles.includes('pramubakti') && allowedFeatures.includes('pelaporan-pramubakti') && (
+          <div className="space-y-3">
+            {dashboardVisibility.jadwal_pramubakti !== false && <JadwalPramubaktiToday userId={user.id} />}
+            {dashboardVisibility.pramubakti_performa !== false && <PramubaktiCard userId={user.id} />}
+          </div>
+        )}
         {extraWidgetsNode}
       </DashboardSPAShell>
     </div>

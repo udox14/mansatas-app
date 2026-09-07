@@ -78,3 +78,52 @@ describe('Pramubakti CKH rendering', () => {
     expect(pbCkhRow({ ...report, tempat: '{pekerjaan} $&' }, 'Bulanan', '{tempat} — {pekerjaan}').catatan_harian).toBe('{pekerjaan} $& — Membersihkan dan Membuang Sampah')
   })
 })
+
+describe('Pramubakti dashboard integration', () => {
+  it('registers pramubakti dashboard group with jadwal and performa items', async () => {
+    const { DASHBOARD_GROUPS, dashboardKeyForRole } = await import('./dashboard-visibility')
+    expect(dashboardKeyForRole('pramubakti')).toBe('pramubakti')
+
+    const pbGroup = DASHBOARD_GROUPS.find(g => g.key === 'pramubakti')
+    expect(pbGroup).toBeDefined()
+    const itemIds = pbGroup?.items.map(i => i.id) || []
+    expect(itemIds).toContain('jadwal_pramubakti')
+    expect(itemIds).toContain('pramubakti_performa')
+  })
+
+  it('correctly provides slot items and counts for today dashboard widget', () => {
+    const today = '2026-09-07'
+    const s1: PbSlot = { id: 's1', weekday: 1, start: '06:45', end: '08:00' }
+    const s2: PbSlot = { id: 's2', weekday: 1, start: '08:00', end: '10:00' }
+    const input = {
+      start: today,
+      end: today,
+      today,
+      time: '07:30',
+      versions: [{ id: 'v', effective_date: today, slots: [s1, s2] }],
+      holidays: [],
+      members: [member],
+      reports: [report],
+      leaves: [],
+    }
+
+    const items = buildPbItems(input)
+    expect(items).toHaveLength(2)
+
+    // Slot 1 is reported
+    expect(items[0].slot?.id).toBe('s1')
+    expect(items[0].status).toBe('TEPAT_WAKTU')
+    expect(items[0].report).toBeDefined()
+
+    // Slot 2 is upcoming / not reported
+    expect(items[1].slot?.id).toBe('s2')
+    expect(items[1].status).toBe('BELUM')
+    expect(items[1].report).toBeNull()
+
+    const doneCount = items.filter(i => i.report || i.leave).length
+    const pendingCount = items.filter(i => i.status === 'BELUM').length
+    expect(doneCount).toBe(1)
+    expect(pendingCount).toBe(1)
+  })
+})
+
