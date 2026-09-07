@@ -117,6 +117,7 @@ const roleOptions = [
 ]
 
 function sourceLabel(row: Pick<Row, 'source' | 'source_key'>) {
+  if (row.source_key?.startsWith('pramubakti:')) return 'Pramubakti'
   if (row.source_key?.startsWith('pattern:')) return 'Pola'
   if (row.source === 'assignment' || row.source_key?.startsWith('assignment:')) return 'Penugasan'
   if (row.source === 'autofill') return 'Agenda'
@@ -1101,6 +1102,12 @@ export function CkhGeneratorClient({
         setMessage({ type: 'error', text: res.error })
         return
       }
+      if ('removed' in res && res.removed) {
+        setRows(prev => prev.filter(row => row.id !== rowId))
+        setDocumentStatus('DRAFT')
+        setMessage({ type: 'success', text: 'Baris dihapus karena sumber laporan berstatus izin/sakit.' })
+        return
+      }
       setRows(prev => prev.map(row => row.id === rowId ? {
         ...row,
         kegiatan_bulanan: row.suggested_kegiatan_bulanan || row.kegiatan_bulanan,
@@ -1121,7 +1128,7 @@ export function CkhGeneratorClient({
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <TabsList className="grid w-full max-w-xl grid-cols-2">
             <TabsTrigger value="dokumen" className="gap-1.5"><FileText className="h-3.5 w-3.5" /> Dokumen</TabsTrigger>
-            <TabsTrigger value="pola" className="gap-1.5"><Settings2 className="h-3.5 w-3.5" /> Pola Harian</TabsTrigger>
+            {!initialData.userRoles.includes('pramubakti') && <TabsTrigger value="pola" className="gap-1.5"><Settings2 className="h-3.5 w-3.5" /> Pola Harian</TabsTrigger>}
           </TabsList>
           <div className="flex w-full min-w-0 items-center gap-1 rounded-lg border border-surface bg-surface p-1 sm:w-auto">
             <Button size="sm" variant="ghost" onClick={() => shiftMonth(-1)} className="h-8 w-8 shrink-0 p-0" title="Bulan sebelumnya">
@@ -1343,7 +1350,7 @@ export function CkhGeneratorClient({
                             <div className="mt-2 rounded border border-amber-300 bg-amber-100 p-2 text-[11px] text-amber-800">
                               <div className="flex items-start gap-1.5">
                                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                                <span>Agenda/penugasan/kalender punya versi baru: {row.suggested_catatan_harian}</span>
+                                <span>{row.source_key?.startsWith('pramubakti:') && !row.suggested_catatan_harian ? 'Sumber laporan dikecualikan karena izin/sakit. Terima perubahan untuk menghapus baris ini.' : `Sumber kegiatan punya versi baru: ${row.suggested_catatan_harian}`}</span>
                               </div>
                               <Button size="sm" variant="outline" className="mt-2 h-7 text-[11px]" onClick={() => acceptSuggestion(row.id)}>
                                 <Check className="mr-1 h-3 w-3" /> Pakai versi baru
@@ -1423,7 +1430,7 @@ export function CkhGeneratorClient({
         </div>
       </TabsContent>
 
-      <TabsContent value="pola" className="mt-0">
+      {!initialData.userRoles.includes('pramubakti') && <TabsContent value="pola" className="mt-0">
         <DayPatternEditor
           patterns={dayPatterns}
           onChange={setDayPatterns}
@@ -1433,7 +1440,7 @@ export function CkhGeneratorClient({
           }}
           onError={text => setMessage({ type: 'error', text })}
         />
-      </TabsContent>
+      </TabsContent>}
 
     </Tabs>
   )

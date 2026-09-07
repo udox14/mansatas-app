@@ -94,6 +94,12 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
   // Start with role-based features
   const allowed = new Set(roleFeatures)
 
+  // Sarana Prasarana is a structural assignment, not a separate role.
+  if (roles.includes('wakamad') && !roles.some(r => ['super_admin', 'admin_tu', 'kepsek'].includes(r))) {
+    const structural = await db.prepare('SELECT jabatan_struktural_id FROM "user" WHERE id=?').bind(userId).first<{ jabatan_struktural_id: string | null }>()
+    if (structural?.jabatan_struktural_id !== 'jbt_waka_sarpras') allowed.delete('monitoring-pramubakti')
+  }
+
   // Add grants
   for (const f of overrides.grants) allowed.add(f)
 

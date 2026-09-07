@@ -1,0 +1,10 @@
+/* eslint-disable @next/next/no-img-element -- Evidence uses authenticated media URLs and explicit lazy loading. */
+import type { PbItem } from '@/lib/pramubakti'
+
+export function PbStatus({ item }: { item: PbItem }) {
+  const labels = { TEPAT_WAKTU: 'Tepat waktu', TELAT: 'Telat', SAKIT: 'Sakit', IZIN: item.leave?.kepentingan_sekolah ? 'Izin — Kepentingan sekolah' : 'Izin biasa', ALFA: 'Alfa', BELUM: 'Belum selesai', TAMBAHAN: 'Tambahan' }
+  return <span className={`inline-block rounded-full px-2 py-1 text-xs ${item.status === 'ALFA' ? 'bg-rose-100 text-rose-800' : item.status === 'TELAT' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'}`}>{labels[item.status]}</span>
+}
+export function PbDetails({ items, onCorrect }: { items: PbItem[]; onCorrect?: (item: PbItem) => void }) {
+  return <div className="space-y-2">{!items.length && <p className="py-5 text-center text-sm text-slate-500">Tidak ada data pada periode ini.</p>}{items.map(item => <details key={item.key} className="rounded-lg border border-surface bg-surface p-3"><summary className="cursor-pointer text-sm"><span className="mr-2 font-medium">{item.tanggal} · {item.nama_lengkap} · {item.slot ? `${item.slot.start}–${item.slot.end}` : 'Tambahan'}</span><PbStatus item={item} /></summary><div className="mt-3 space-y-2 text-sm">{item.leave && <p>{item.leave.reason_name || 'Sakit'} — {item.leave.note}</p>}{item.report ? <><p><strong>Pekerjaan:</strong> {item.report.jobs.join(', ')}</p><p><strong>Tempat:</strong> {item.report.tempat}</p><p className="text-xs text-slate-500">Waktu input: {item.report.waktu_input} · Revisi {item.report.revision}</p><a href={item.report.foto_url} target="_blank" rel="noreferrer"><img loading="lazy" src={item.report.foto_url} alt={`Pekerjaan di ${item.report.tempat}`} className="max-h-60 rounded-lg object-contain" /></a>{onCorrect && <button className="text-emerald-700 underline" onClick={() => onCorrect(item)}>Koreksi laporan</button>}</> : <p className="text-slate-500">Belum ada bukti laporan pekerjaan.</p>}</div></details>)}</div>
+}

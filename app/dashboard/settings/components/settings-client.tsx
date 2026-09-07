@@ -1254,18 +1254,19 @@ export function SettingsClient({
         </TabsContent>
 
         <TabsContent value="perilaku" className="mt-0">
+          <a href="/dashboard/settings/pramubakti" className="mb-4 block rounded-lg border border-surface bg-surface p-3 text-sm text-emerald-700">Pengaturan Pramubakti: jadwal kerja, libur, pekerjaan, dan template CKH →</a>
           <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
         <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-surface-2">
           <div>
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Perilaku Input Guru</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Atur apakah agenda dan absensi siswa mengikuti batas waktu jam pelajaran.</p>
+            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Perilaku Input Guru dan Pramubakti</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Atur batas waktu agenda guru dan pelaporan Pramubakti. Absensi siswa tetap mengikuti jam pelajaran.</p>
           </div>
         </div>
         <div className="px-5 py-4 flex items-start justify-between gap-4 border-b border-surface-2">
           <div className="space-y-1">
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Batasi sesuai jam pelajaran</p>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Batasi sesuai slot waktu</p>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Jika aktif, agenda hanya bisa diisi saat slot pelajaran berlangsung. Jika nonaktif, guru bisa input di luar jam mengajar.
+              Jika aktif, agenda guru dan laporan wajib Pramubakti mengikuti slot masing-masing. Jika nonaktif, input boleh di luar slot. Laporan tambahan Pramubakti selalu bebas jam pada hari ini.
             </p>
           </div>
           <button

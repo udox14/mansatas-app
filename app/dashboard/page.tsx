@@ -1,5 +1,6 @@
 // Lokasi: app/dashboard/page.tsx
 import { redirect } from 'next/navigation'
+import { PramubaktiCard } from '@/components/dashboard/shared/PramubaktiCard'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { nowWIB } from '@/lib/time'
@@ -43,6 +44,7 @@ const ROLE_COLOR: Record<string, string> = {
 }
 
 const ROLE_LABEL: Record<string, string> = {
+  pramubakti: 'Pramubakti',
   play_reviewer: 'Google Play Reviewer (Read Only)',
   super_admin: 'Super Admin',
   admin_tu:    'Admin Tata Usaha',
@@ -163,6 +165,8 @@ export default async function DashboardPage() {
 
   const dashboardContent = (() => {
     switch (userRole) {
+      case 'pramubakti':
+        return userRoles.some(role => ['guru', 'guru_tahfidz', 'guru_piket'].includes(role)) ? <GuruDashboard {...commonProps} /> : null
       case 'super_admin':
       case 'admin_tu':
         return <SuperAdminDashboard {...commonProps} />
@@ -227,6 +231,7 @@ export default async function DashboardPage() {
         polaJam={polaJam}
       >
         {dashboardContent}
+        {userRoles.includes('pramubakti') && allowedFeatures.includes('pelaporan-pramubakti') && dashboardVisibility.pramubakti_performa !== false && <PramubaktiCard userId={user.id} />}
         {extraWidgetsNode}
       </DashboardSPAShell>
     </div>

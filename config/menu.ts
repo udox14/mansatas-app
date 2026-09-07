@@ -74,6 +74,9 @@ export type SidebarRoleOverrideConfig = {
 }
 
 export const MENU_ITEMS: MenuItem[] = [
+  { id: 'pelaporan-pramubakti', title: 'Pelaporan Pramubakti', href: '/dashboard/pelaporan-pramubakti', icon: ClipboardPen, roles: ['pramubakti'], desc: 'Melaporkan pekerjaan wajib dan tambahan dengan bukti foto' },
+  { id: 'monitoring-pramubakti', title: 'Monitoring Pramubakti', href: '/dashboard/monitoring-pramubakti', icon: BarChart3, roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad'], desc: 'Memantau pekerjaan Pramubakti, mengelola izin/sakit, dan mencetak laporan' },
+  { id: 'settings-pramubakti', title: 'Pengaturan Pramubakti', href: '/dashboard/settings/pramubakti', icon: Settings, roles: ['super_admin', 'admin_tu'], desc: 'Mengatur jadwal, libur, pekerjaan, dan template CKH Pramubakti' },
   {
     id: 'dashboard',
     title: 'Dashboard',
@@ -577,6 +580,7 @@ export const MENU_ITEMS: MenuItem[] = [
 ]
 
 export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
+  { id: 'pramubakti', label: 'Pramubakti', items: ['pelaporan-pramubakti', 'monitoring-pramubakti', 'settings-pramubakti'] },
   { id: 'data-master', label: 'Data Master', items: ['siswa', 'guru', 'kelas', 'plotting', 'ekstrakurikuler-master', 'pmb'] },
   { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'catatan-siswa', 'agenda-kelas', 'ckh-generator', 'rppm-generator', 'kehadiran', 'nilai-harian', 'penugasan', 'ekstrakurikuler'] },
   { id: 'monitoring-akademik', label: 'Monitoring Akademik', items: ['akademik', 'kalender-pendidikan', 'analitik', 'verifikasi-siswa'] },

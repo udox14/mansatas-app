@@ -12,6 +12,7 @@ export type MediaPolicy =
   | { visibility: 'internal' }
 
 const PREFIX_POLICIES: ReadonlyArray<{ prefix: string; policy: MediaPolicy }> = [
+  { prefix: 'pramubakti/', policy: { visibility: 'private', featureId: 'pelaporan-pramubakti' } },
   { prefix: 'system/', policy: { visibility: 'public', cacheControl: 'public, max-age=31536000, immutable' } },
   { prefix: 'foto_siswa/', policy: { visibility: 'private' } },
   { prefix: 'avatars/', policy: { visibility: 'private' } },
@@ -146,6 +147,14 @@ async function authorizeActor(actor: AuthenticatedActor, key: string, policy: Me
   }
 
   if (key.startsWith('avatars/')) return true
+  if (key.startsWith('pramubakti/')) {
+    const owner = key.split('/')[1]
+    if (owner === actor.id && await checkFeatureCrudAccess(env.DB, actor.id, 'pelaporan-pramubakti', 'read')) return true
+    if (!(await checkFeatureCrudAccess(env.DB, actor.id, 'monitoring-pramubakti', 'read'))) return false
+    if (actor.roles.some(r => ['super_admin', 'admin_tu', 'kepsek'].includes(r))) return true
+    const structural = await env.DB.prepare('SELECT jabatan_struktural_id FROM "user" WHERE id=?').bind(actor.id).first<{ jabatan_struktural_id: string }>()
+    return actor.roles.includes('wakamad') && structural?.jabatan_struktural_id === 'jbt_waka_sarpras'
+  }
   if (key.startsWith('foto_siswa/')) {
     const siswaId = key.split('/')[1]
     if (!siswaId) return false

@@ -13,6 +13,7 @@ const SHARED: DashItem[] = [
 
 // ── Registry: 1 group = 1 dashboard ────────────────────────────────────────
 export const DASHBOARD_GROUPS: DashGroup[] = [
+  { key: 'pramubakti', label: 'Pramubakti', items: [{ id: 'pramubakti_performa', label: 'Performa dan pekerjaan Pramubakti' }] },
   {
     key: 'admin',
     label: 'Super Admin / Admin TU',
@@ -104,6 +105,7 @@ export const DASHBOARD_GROUPS: DashGroup[] = [
 // Map role → group key dashboard
 export function dashboardKeyForRole(role: string): string {
   switch (role) {
+    case 'pramubakti': return 'pramubakti'
     case 'play_reviewer':
     case 'super_admin':
     case 'admin_tu':

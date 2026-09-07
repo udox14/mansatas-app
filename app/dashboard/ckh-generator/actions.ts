@@ -1,5 +1,7 @@
 'use server'
 
+import { isPramubakti, getPbData, getPbCkhDates } from '@/lib/pramubakti-db'
+import { pbCkhRow } from '@/lib/pramubakti'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
@@ -304,7 +306,23 @@ async function getTemplatesForUser(db: D1Database, userId: string, roles: string
   return Array.from(byTitle.values())
 }
 
+async function getUserCkhDates(db: D1Database, userId: string, year: number, month: number) {
+  if (await isPramubakti(db, userId)) {
+    const range = monthRange(year, month)
+    return getPbCkhDates(db, userId, range.startDate, range.endDate)
+  }
+  return getCkhEffectiveDates(db, year, month)
+}
+
 async function buildGeneratedRows(db: D1Database, userId: string, year: number, month: number) {
+  if (await isPramubakti(db, userId)) {
+    const range = monthRange(year, month)
+    const data = await getPbData(db, range.startDate, range.endDate, userId)
+    const excused = new Set(data.leaves.map(l => `${l.tanggal}:${l.slot_id}`))
+    return data.reports.filter(r => !r.slot_id || !excused.has(`${r.tanggal}:${r.slot_id}`))
+      .map(r => pbCkhRow(r, data.templates.monthly, data.templates.daily))
+  }
+
   const effectiveDates = await getCkhEffectiveDates(db, year, month)
   const effectiveSet = new Set(effectiveDates)
   if (effectiveDates.length === 0) return []
@@ -404,11 +422,11 @@ async function buildGeneratedRows(db: D1Database, userId: string, year: number, 
   return generated
 }
 
-async function insertInitialRows(db: D1Database, documentId: string, generated: CkhGeneratedRow[], year: number, month: number) {
+async function insertInitialRows(db: D1Database, documentId: string, generated: CkhGeneratedRow[], year: number, month: number, userId: string) {
   const existing = await getRows(db, documentId)
   if (existing.length > 0) return
 
-  const effectiveDates = await getCkhEffectiveDates(db, year, month)
+  const effectiveDates = await getUserCkhDates(db, userId, year, month)
   const generatedDates = new Set(generated.map(row => row.tanggal))
   const rows = [
     ...generated,
@@ -475,7 +493,9 @@ export async function getCkhPageData(year: number, month: number, targetUserIdOv
   ])
   const doc = await getOrCreateDocument(db, activeUserId, year, month)
   const generated = await buildGeneratedRows(db, activeUserId, year, month)
-  await insertInitialRows(db, doc.id, generated, year, month)
+  if (doc.status === 'DRAFT') await insertInitialRows(db, doc.id, generated, year, month, activeUserId)
+
+  if (doc.status === 'DRAFT' && activeUserRoles.includes('pramubakti')) await refreshCkhDraftInternal(doc.id, true)
 
   const [rows, patterns, templates, allTemplatesRes, kepsek, kepalaTu] = await Promise.all([
     getRows(db, doc.id),
@@ -601,7 +621,7 @@ export async function saveCkhRow(rowId: string, payload: {
   if (!row || (row.user_id !== authUser.id && !isAdmin)) return { error: 'Baris CKH tidak ditemukan.' }
   const { startDate, endDate } = monthRange(row.year, row.month)
   if (payload.tanggal < startDate || payload.tanggal > endDate) return { error: 'Tanggal harus berada dalam bulan dokumen CKH.' }
-  const effectiveDates = new Set(await getCkhEffectiveDates(db, row.year, row.month))
+  const effectiveDates = new Set(await getUserCkhDates(db, row.user_id, row.year, row.month))
   if (!effectiveDates.has(payload.tanggal)) return { error: 'Tanggal bukan hari kerja efektif CKH.' }
 
   await markCkhDocumentDraft(db, row.document_id)
@@ -640,6 +660,8 @@ export async function saveCkhDayPattern(payload: {
   const effective = await getEffectiveUser()
   const isAdmin = await isSuperAdmin(authUser.id)
   const targetUserId = (isAdmin && effective?.isActingAs && effective.effectiveUserId) ? effective.effectiveUserId : authUser.id
+
+  if (await isPramubakti(db, targetUserId)) return { error: 'Pramubakti menggunakan laporan pekerjaan sebagai sumber CKH, tanpa Pola Harian.' }
 
   if (!kegiatan && !catatan) {
     await db.prepare('DELETE FROM ckh_day_patterns WHERE user_id = ? AND weekday = ?').bind(targetUserId, weekday).run()
@@ -684,7 +706,7 @@ export async function finalizeCkhDocument(documentId: string) {
   if (!validation || Number(validation.total) === 0) return { error: 'Isi CKH dulu sebelum dikirim.' }
   if (Number(validation.incomplete) > 0) return { error: `Masih ada ${validation.incomplete} baris yang kegiatan atau catatannya belum lengkap.` }
   if (Number(validation.conflicts) > 0) return { error: `Selesaikan ${validation.conflicts} perubahan agenda terlebih dahulu.` }
-  const effectiveDates = await getCkhEffectiveDates(db, doc.year, doc.month)
+  const effectiveDates = await getUserCkhDates(db, doc.user_id, doc.year, doc.month)
   const coveredRows = await db.prepare(`
     SELECT DISTINCT tanggal
     FROM ckh_rows
@@ -865,7 +887,7 @@ export async function addCkhRow(documentId: string, tanggal: string) {
   if (!doc || (doc.user_id !== authUser.id && !isAdmin)) return { error: 'Dokumen CKH tidak ditemukan.' }
   const { startDate, endDate } = monthRange(doc.year, doc.month)
   if (tanggal < startDate || tanggal > endDate) return { error: 'Tanggal harus berada dalam bulan dokumen CKH.' }
-  const effectiveDates = new Set(await getCkhEffectiveDates(db, doc.year, doc.month))
+  const effectiveDates = new Set(await getUserCkhDates(db, doc.user_id, doc.year, doc.month))
   if (!effectiveDates.has(tanggal)) return { error: 'Tanggal bukan hari kerja efektif CKH.' }
 
   const maxRow = await db.prepare('SELECT COALESCE(MAX(row_order), 0) as max_order FROM ckh_rows WHERE document_id = ? AND tanggal = ?')
@@ -918,7 +940,7 @@ export async function copyCkhRowsFromPreviousMonth(documentId: string) {
     targetByDate.get(row.tanggal)!.push(row)
   }
 
-  const effectiveDates = new Set(await getCkhEffectiveDates(db, doc.year, doc.month))
+  const effectiveDates = new Set(await getUserCkhDates(db, doc.user_id, doc.year, doc.month))
   const lastDay = new Date(doc.year, doc.month, 0).getDate()
   const statements: D1PreparedStatement[] = []
   let copied = 0
@@ -999,23 +1021,36 @@ export async function deleteCkhRow(rowId: string) {
 }
 
 export async function refreshCkhDraft(documentId: string) {
+  return refreshCkhDraftInternal(documentId, false)
+}
+
+async function refreshCkhDraftInternal(documentId: string, automatic: boolean) {
   const authUser = await getCurrentUser()
   if (!authUser) return { error: 'Unauthorized' }
 
   const db = await getDB()
   await requireCkhAccess(db, authUser.id)
   const isAdmin = await isSuperAdmin(authUser.id)
-  const doc = await db.prepare('SELECT id, user_id, year, month FROM ckh_documents WHERE id = ?')
+  const doc = await db.prepare('SELECT id, user_id, year, month, status FROM ckh_documents WHERE id = ?')
     .bind(documentId).first<CkhDocument>()
   if (!doc || (doc.user_id !== authUser.id && !isAdmin)) return { error: 'Dokumen CKH tidak ditemukan.' }
 
-  await markCkhDocumentDraft(db, documentId)
+  if (automatic && doc.status !== 'DRAFT') return { success: 'Dokumen final dipertahankan.', rows: await getRows(db, documentId) }
+  if (!automatic) await markCkhDocumentDraft(db, documentId)
   const generated = await buildGeneratedRows(db, doc.user_id, doc.year, doc.month)
   const existing = await getRows(db, documentId)
   const existingBySource = new Map(existing.filter(row => row.source_key).map(row => [row.source_key!, row]))
   const generatedDates = new Set(generated.map(row => row.tanggal))
   const statements: D1PreparedStatement[] = []
   const generatedSourceKeys = new Set(generated.map(row => row.source_key))
+  const effectiveDates = await getUserCkhDates(db, doc.user_id, doc.year, doc.month)
+  const effectiveSet = new Set(effectiveDates)
+  const pramubakti = await isPramubakti(db, doc.user_id)
+  const removedBlanks = new Set(existing.filter(row => pramubakti && row.source_key?.startsWith('blank:') && !effectiveSet.has(row.tanggal) && !row.kegiatan_bulanan.trim() && !row.catatan_harian.trim()).map(row => row.id))
+  for (const id of removedBlanks) statements.push(db.prepare('DELETE FROM ckh_rows WHERE id=?').bind(id))
+  for (const row of existing.filter(row => pramubakti && Number(row.is_manual) === 1 && row.source_key?.startsWith('pramubakti:') && !generatedSourceKeys.has(row.source_key))) {
+    statements.push(db.prepare('UPDATE ckh_rows SET has_conflict=1,suggested_kegiatan_bulanan=NULL,suggested_catatan_harian=NULL WHERE id=?').bind(row.id))
+  }
 
   existing
     .filter(row => Number(row.is_manual) === 0 && row.source_key && !generatedSourceKeys.has(row.source_key))
@@ -1058,9 +1093,9 @@ export async function refreshCkhDraft(documentId: string) {
     }
   })
 
-  const effectiveDates = await getCkhEffectiveDates(db, doc.year, doc.month)
   const retainedDates = new Set(existing
     .filter(row => {
+      if (removedBlanks.has(row.id)) return false
       if (Number(row.is_manual) === 0 && row.source_key && !generatedSourceKeys.has(row.source_key)) return false
       if (generatedDates.has(row.tanggal) && !row.kegiatan_bulanan.trim() && !row.catatan_harian.trim()) return false
       return true
@@ -1082,8 +1117,10 @@ export async function refreshCkhDraft(documentId: string) {
 
   const rows = await getRows(db, documentId)
 
-  revalidatePath('/dashboard/ckh-generator')
-  revalidatePath('/dashboard/tpg-dokumen')
+  if (!automatic) {
+    revalidatePath('/dashboard/ckh-generator')
+    revalidatePath('/dashboard/tpg-dokumen')
+  }
   return { success: `Sinkron selesai. ${generated.length} baris sumber dicek.`, rows }
 }
 
@@ -1102,6 +1139,12 @@ export async function acceptCkhSuggestion(rowId: string) {
   `).bind(rowId).first<CkhRow & { document_id: string; user_id: string }>()
   if (!row || (row.user_id !== authUser.id && !isAdmin)) return { error: 'Baris CKH tidak ditemukan.' }
 
+  if (row.source_key?.startsWith('pramubakti:') && row.has_conflict && !row.suggested_catatan_harian && !row.suggested_kegiatan_bulanan) {
+    await markCkhDocumentDraft(db, row.document_id)
+    await db.prepare('DELETE FROM ckh_rows WHERE id=?').bind(rowId).run()
+    revalidatePath('/dashboard/ckh-generator')
+    return { success: true, rowId, removed: true }
+  }
   await markCkhDocumentDraft(db, row.document_id)
   await db.prepare(`
     UPDATE ckh_rows
