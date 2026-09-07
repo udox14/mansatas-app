@@ -81,6 +81,11 @@ export default async function RootLayout({
                 var serviceWorkerReloading = false;
                 navigator.serviceWorker.addEventListener('controllerchange', function() {
                   if (!hadServiceWorkerController || serviceWorkerReloading) return;
+                  var isNativeApp = !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+                  if (isNativeApp || document.visibilityState !== 'visible' || !navigator.onLine) {
+                    window.dispatchEvent(new Event('mansatas-sw-update-available'));
+                    return;
+                  }
                   serviceWorkerReloading = true;
                   window.location.reload();
                 });

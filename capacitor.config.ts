@@ -7,6 +7,7 @@ const config: CapacitorConfig = {
   server: {
     url: 'https://app.mansatas.com/',
     cleartext: false,
+    errorPath: 'offline.html',
   },
   plugins: {
     // MainActivity owns native insets for every Android/WebView version.

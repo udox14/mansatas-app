@@ -1,0 +1,7 @@
+﻿<id>
+Pembaruan stabilitas dan keandalan aplikasi MANSATAS:
+- Perbaikan masalah 'Halaman web tidak tersedia (net::ERR_FAILED)' saat membuka kembali aplikasi dari mode standby/latar belakang.
+- Pemulihan otomatis (auto-reconnect) saat koneksi internet tersambung kembali tanpa perlu menutup paksa aplikasi.
+- Tampilan pesan offline lokal yang lebih ramah dan informatif ketika perangkat tidak memiliki jaringan internet.
+- Peningkatan ketahanan memori agar aplikasi tidak tertutup saat HP berada dalam mode tidur panjang.
+</id>

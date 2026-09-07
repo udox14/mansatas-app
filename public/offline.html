@@ -37,7 +37,17 @@
         MANSATAS App memerlukan koneksi internet untuk mengambil data madrasah terbaru.
         Periksa jaringan, lalu coba kembali.
       </p>
-      <button type="button" onclick="location.reload()">Coba Lagi</button>
+      <button type="button" onclick="retry()">Coba Lagi</button>
     </main>
+    <script>
+      function retry() {
+        var isLocalAsset = window.location.origin.includes('localhost') || window.location.protocol === 'file:';
+        window.location.href = isLocalAsset ? 'https://app.mansatas.com/' : '/';
+      }
+      window.addEventListener('online', retry);
+      setInterval(function() {
+        if (navigator.onLine) retry();
+      }, 4000);
+    </script>
   </body>
 </html>
