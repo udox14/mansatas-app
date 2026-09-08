@@ -17,8 +17,8 @@ export const DASHBOARD_GROUPS: DashGroup[] = [
     key: 'pramubakti',
     label: 'Pramubakti',
     items: [
-      { id: 'jadwal_pramubakti', label: 'Jadwal Tugas Hari Ini', desc: 'Daftar slot pekerjaan pramubakti hari ini' },
       { id: 'pramubakti_performa', label: 'Performa dan pekerjaan Pramubakti' },
+      { id: 'jadwal_pramubakti', label: 'Jadwal Tugas Hari Ini', desc: 'Daftar pekerjaan pramubakti hari ini' },
     ],
   },
   {

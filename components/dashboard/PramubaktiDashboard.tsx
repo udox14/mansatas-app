@@ -20,14 +20,14 @@ export async function PramubaktiDashboard({ userId, taAktif, dashboardVisibility
 
   return (
     <div className="space-y-3 animate-in fade-in duration-500 pb-12">
+      {/* Performa dan Pekerjaan Bulanan */}
+      {show('pramubakti_performa') && <PramubaktiCard userId={userId} />}
+
       {/* Jadwal Tugas Hari Ini (Pramubakti) */}
       {show('jadwal_pramubakti') && <JadwalPramubaktiToday userId={userId} />}
 
       {/* Jadwal Mengajar (jika juga bertugas mengajar) */}
       {show('jadwal_mengajar') && <JadwalMengajarToday userId={userId} taAktif={taAktif} showAbsensiAction={true} />}
-
-      {/* Performa dan Pekerjaan Bulanan */}
-      {show('pramubakti_performa') && <PramubaktiCard userId={userId} />}
     </div>
   )
 }

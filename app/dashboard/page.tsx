@@ -236,8 +236,8 @@ export default async function DashboardPage() {
         {dashboardContent}
         {userRole !== 'pramubakti' && userRoles.includes('pramubakti') && allowedFeatures.includes('pelaporan-pramubakti') && (
           <div className="space-y-3">
-            {dashboardVisibility.jadwal_pramubakti !== false && <JadwalPramubaktiToday userId={user.id} />}
             {dashboardVisibility.pramubakti_performa !== false && <PramubaktiCard userId={user.id} />}
+            {dashboardVisibility.jadwal_pramubakti !== false && <JadwalPramubaktiToday userId={user.id} />}
           </div>
         )}
         {extraWidgetsNode}

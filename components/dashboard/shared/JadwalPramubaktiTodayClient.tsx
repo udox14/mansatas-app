@@ -67,22 +67,40 @@ export function JadwalPramubaktiTodayClient({
     )
   }
 
-  const regularSlots = items.filter(i => i.slot && i.status !== 'TAMBAHAN')
-  const totalSlots = regularSlots.length
+  const regularItems = items.filter(i => i.slot && i.status !== 'TAMBAHAN')
+  const totalPekerjaan = regularItems.length
   const sudahLapor = items.filter(i => i.report || i.leave).length
   const belumLapor = items.filter(i => i.status === 'BELUM').length
   const tambahanCount = items.filter(i => !i.slot || i.status === 'TAMBAHAN').length
 
-  const subtitleText = totalSlots === 0
-    ? 'Tidak ada jadwal tugas hari ini'
-    : `${totalSlots} slot tugas · ${sudahLapor} selesai${belumLapor > 0 ? ` · ${belumLapor} belum` : ''}${tambahanCount > 0 ? ` · ${tambahanCount} tambahan` : ''}`
+  const nowMins = minutes(clock)
+  const activeItem = regularItems.find(i => (
+    i.status === 'BELUM' &&
+    nowMins >= minutes(i.slot!.start) - 5 &&
+    nowMins <= minutes(i.slot!.end)
+  ))
+  const nextUpcoming = regularItems.find(i => (
+    i.status === 'BELUM' &&
+    nowMins < minutes(i.slot!.start) - 5
+  ))
 
-  let slotIndexCounter = 0
+  let subtitleText = 'Tidak ada jadwal pekerjaan hari ini'
+  if (totalPekerjaan > 0) {
+    if (activeItem) {
+      subtitleText = `${totalPekerjaan} pekerjaan · ${sudahLapor} selesai · 1 sedang berlangsung`
+    } else if (nextUpcoming) {
+      subtitleText = `${totalPekerjaan} pekerjaan · ${sudahLapor} selesai · Pekerjaan berikutnya ${nextUpcoming.slot!.start} WIB`
+    } else {
+      subtitleText = `${totalPekerjaan} pekerjaan · ${sudahLapor} selesai${belumLapor > 0 ? ` · ${belumLapor} belum` : ''}${tambahanCount > 0 ? ` · ${tambahanCount} tambahan` : ''}`
+    }
+  }
+
+  let indexCounter = 0
 
   return (
     <>
       <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden mb-3">
-        {/* Header Identik dengan Jadwal Mengajar Guru */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3 border-b border-surface-2">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <div className="p-1.5 rounded-md bg-emerald-50 border border-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/30 shrink-0">
@@ -110,33 +128,30 @@ export function JadwalPramubaktiTodayClient({
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-1.5 py-7 text-slate-400">
             <ClipboardCheck className="h-6 w-6 text-slate-300 dark:text-slate-600" />
-            <p className="text-xs">Tidak ada jadwal tugas hari ini</p>
+            <p className="text-xs">Tidak ada jadwal pekerjaan hari ini</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
             {items.map(item => {
               const isRegular = Boolean(item.slot && item.status !== 'TAMBAHAN')
-              const slotIdx = isRegular ? ++slotIndexCounter : null
-              const isDone = Boolean(item.report || item.leave)
+              const idx = isRegular ? ++indexCounter : null
               const isBelum = item.status === 'BELUM'
               const isAlfa = item.status === 'ALFA'
               const isLeave = Boolean(item.leave)
 
-              // Active window: 5 mins before slot start until slot end
-              const nowMins = minutes(clock)
+              // Active window: 5 mins before start until end
               const isWindowActive = Boolean(
                 item.slot &&
                 nowMins >= minutes(item.slot.start) - 5 &&
                 nowMins <= minutes(item.slot.end)
               )
-              const isPast = Boolean(item.slot && nowMins > minutes(item.slot.end))
 
               return (
                 <div
                   key={item.key}
                   className={`flex items-start gap-3 px-4 py-2.5 transition-colors ${
-                    isBelum
-                      ? 'bg-amber-50/20 dark:bg-amber-900/5'
+                    isWindowActive && isBelum
+                      ? 'bg-emerald-50/20 dark:bg-emerald-950/10'
                       : isAlfa
                       ? 'bg-rose-50/20 dark:bg-rose-900/5'
                       : 'hover:bg-slate-50/50 dark:hover:bg-slate-900/20'
@@ -156,7 +171,7 @@ export function JadwalPramubaktiTodayClient({
                         : item.status === 'TAMBAHAN'
                         ? 'bg-indigo-50 dark:bg-indigo-900/30'
                         : isWindowActive
-                        ? 'bg-amber-50 dark:bg-amber-900/30 ring-1 ring-amber-300 dark:ring-amber-700'
+                        ? 'bg-emerald-50 dark:bg-emerald-900/30 ring-1 ring-emerald-400 dark:ring-emerald-600'
                         : 'bg-slate-100 dark:bg-slate-800'
                     }`}
                   >
@@ -167,7 +182,7 @@ export function JadwalPramubaktiTodayClient({
                     {item.status === 'TAMBAHAN' && <Sparkles className="h-4 w-4 text-indigo-500" />}
                     {isBelum && (
                       <Clock
-                        className={`h-4 w-4 ${isWindowActive ? 'text-amber-500 animate-pulse' : 'text-slate-400'}`}
+                        className={`h-4 w-4 ${isWindowActive ? 'text-emerald-600 animate-pulse' : 'text-slate-400'}`}
                       />
                     )}
                   </div>
@@ -175,10 +190,8 @@ export function JadwalPramubaktiTodayClient({
                   {/* Middle Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-col gap-0.5 min-w-0">
-                      <span className="text-sm font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap truncate">
-                        {isRegular
-                          ? `Slot ${slotIdx} (${item.slot!.start} – ${item.slot!.end} WIB)`
-                          : 'Tugas Tambahan'}
+                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap truncate">
+                        {isRegular ? `Pekerjaan ${idx}` : 'Pekerjaan Tambahan'}
                       </span>
 
                       {/* Content details */}
@@ -190,7 +203,7 @@ export function JadwalPramubaktiTodayClient({
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                             <span>📍 {item.report.tempat}</span>
                             <span>•</span>
-                            <span>Dilaporkan {formatReportTime(item.report.waktu_input)}</span>
+                            <span>{formatReportTime(item.report.waktu_input)}</span>
                             {item.report.foto_url && (
                               <button
                                 type="button"
@@ -214,41 +227,22 @@ export function JadwalPramubaktiTodayClient({
                           )}
                         </>
                       ) : isAlfa ? (
-                        <>
-                          <p className="text-xs font-medium text-rose-600 dark:text-rose-400">
-                            Tidak Dilaporkan
-                          </p>
-                          <p className="text-[11px] text-rose-500 dark:text-rose-400/80 mt-0.5">
-                            Jadwal slot telah berakhir tanpa laporan pekerjaan.
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                            Tugas Rutin Kebersihan &amp; Pemeliharaan
-                          </p>
-                          {isWindowActive ? (
-                            <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">
-                              ● Sedang berlangsung — siap dilaporkan
-                            </p>
-                          ) : isPast ? (
-                            <p className="text-[11px] font-medium text-rose-500 dark:text-rose-400 mt-0.5">
-                              Batas waktu telah lewat ({item.slot?.end} WIB)
-                            </p>
-                          ) : (
-                            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                              Menunggu jam tugas mulai ({item.slot?.start} WIB)
-                            </p>
-                          )}
-                        </>
-                      )}
+                        <p className="text-xs text-rose-500 font-medium">
+                          Lewat batas waktu
+                        </p>
+                      ) : isWindowActive ? (
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          Sedang berlangsung
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
-                  {/* Right Status & Action */}
+                  {/* Right: Time & Status / Action */}
                   <div className="text-right shrink-0 min-w-0">
-                    <p className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                      {item.slot ? `${item.slot.start}–${item.slot.end}` : 'Tambahan'}
+                    <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                      {item.slot ? `${item.slot.start} – ${item.slot.end}` : 'Tambahan'}
                     </p>
                     <div className="mt-0.5">
                       {item.status === 'TEPAT_WAKTU' && (
@@ -291,7 +285,7 @@ export function JadwalPramubaktiTodayClient({
                           </Link>
                         ) : (
                           <span className="text-[10px] font-medium text-slate-400">
-                            Belum Lapor
+                            Menunggu
                           </span>
                         )
                       )}
@@ -303,11 +297,11 @@ export function JadwalPramubaktiTodayClient({
           </div>
         )}
 
-        {/* Warning bar if pending unreported tasks exist */}
+        {/* Warning bar if pending tasks exist */}
         {belumLapor > 0 && (
           <div className="px-4 py-2 border-t border-amber-100 dark:border-amber-900/30 bg-amber-50/60 dark:bg-amber-900/10 flex items-center justify-between">
             <p className="text-[10px] text-amber-700 dark:text-amber-400 whitespace-nowrap truncate">
-              ⚠ {belumLapor} tugas belum dilaporkan hari ini — segera laporkan sebelum batas waktu berakhir!
+              ⚠ {belumLapor} pekerjaan belum dilaporkan hari ini — segera laporkan sebelum batas waktu berakhir!
             </p>
             <Link
               href="/dashboard/pelaporan-pramubakti"
