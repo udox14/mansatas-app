@@ -1,4 +1,4 @@
-import { isSchoolLeave, type TeacherLeaveMetadata } from './teacher-leave'
+import { isSchoolLeave, teacherPerformance, type TeacherLeaveMetadata } from './teacher-leave'
 
 export const TEACHER_ATTENDANCE_START_DATE = '2026-07-20'
 
@@ -38,6 +38,30 @@ export type TeacherAttendanceResult = {
   rangeEnd: string
   summary: TeacherAttendanceSummary
   items: TeacherAttendanceItem[]
+}
+
+export type TeacherAttendancePublicSummary = Omit<TeacherAttendanceSummary, 'izinSekolah'> & {
+  performa: number
+}
+
+export type TeacherAttendancePublicItem = Omit<TeacherAttendanceItem,
+  'alasan_izin_guru_id' | 'alasan_izin_guru_nama' | 'kepentingan_sekolah'>
+
+export type TeacherAttendancePublicResult = Omit<TeacherAttendanceResult, 'summary' | 'items'> & {
+  summary: TeacherAttendancePublicSummary
+  items: TeacherAttendancePublicItem[]
+}
+
+export function toTeacherAttendancePublicResult(result: TeacherAttendanceResult): TeacherAttendancePublicResult {
+  const { izinSekolah, ...summary } = result.summary
+  return {
+    ...result,
+    summary: {
+      ...summary,
+      performa: teacherPerformance({ ...result.summary, izinSekolah }),
+    },
+    items: result.items.map(({ alasan_izin_guru_id: _reasonId, alasan_izin_guru_nama: _reasonName, kepentingan_sekolah: _school, ...item }) => item),
+  }
 }
 
 export function emptyTeacherAttendanceSummary(): TeacherAttendanceSummary {

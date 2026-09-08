@@ -4,6 +4,7 @@ import {
   normalizeTeacherAttendanceMonth,
   resolveTeacherAttendanceStatus,
   summarizeTeacherAttendance,
+  toTeacherAttendancePublicResult,
   type TeacherAttendanceItem,
   type TeacherAttendanceStatus,
 } from './teacher-attendance-core'
@@ -63,6 +64,24 @@ describe('summarizeTeacherAttendance', () => {
     ])
 
     expect(summary).toEqual({ total: 5, hadir: 2, telat: 1, sakit: 1, izin: 1, izinSekolah: 0, alfa: 1 })
+  })
+
+  it('menjaga kredit performa tanpa membocorkan kategori izin ke data guru', () => {
+    const schoolLeave = { ...item('IZIN', '2'), alasan_izin_guru_id: 'rapat', alasan_izin_guru_nama: 'Rapat', kepentingan_sekolah: true }
+    const items = [item('TEPAT_WAKTU', '1'), schoolLeave, item('IZIN', '3')]
+    const result = toTeacherAttendancePublicResult({
+      month: '2026-08',
+      rangeStart: '2026-08-01',
+      rangeEnd: '2026-08-31',
+      summary: summarizeTeacherAttendance(items),
+      items,
+    })
+
+    expect(result.summary).toEqual({ total: 3, hadir: 1, telat: 0, sakit: 0, izin: 2, alfa: 0, performa: 67 })
+    expect(result.items[1]).not.toHaveProperty('alasan_izin_guru_id')
+    expect(result.items[1]).not.toHaveProperty('alasan_izin_guru_nama')
+    expect(result.items[1]).not.toHaveProperty('kepentingan_sekolah')
+    expect(result.summary).not.toHaveProperty('izinSekolah')
   })
 })
 

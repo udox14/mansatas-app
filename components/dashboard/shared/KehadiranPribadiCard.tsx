@@ -1,6 +1,7 @@
 import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
 import { getTeacherAttendance, TEACHER_ATTENDANCE_START_DATE } from '@/lib/teacher-attendance'
+import { toTeacherAttendancePublicResult } from '@/lib/teacher-attendance-core'
 import { KehadiranPribadiCardClient } from './KehadiranPribadiCardClient'
 
 type Props = { userId: string }
@@ -17,7 +18,7 @@ export async function KehadiranPribadiCard({ userId }: Props) {
 
   const today = todayWIB()
   const month = today.slice(0, 7)
-  const result = await getTeacherAttendance(db, userId, month)
+  const result = toTeacherAttendancePublicResult(await getTeacherAttendance(db, userId, month))
   const monthStart = `${month}-01`
   const monthLabel = new Date(`${month}-01T00:00:00`).toLocaleDateString('id-ID', {
     month: 'long', year: 'numeric',

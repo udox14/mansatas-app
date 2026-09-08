@@ -1,6 +1,5 @@
 'use client'
 
-import { TeacherLeaveBadge } from '@/components/teacher-leave-controls'
 import { useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -15,12 +14,12 @@ import {
 import { formatTimeWIB, todayWIB } from '@/lib/time'
 import {
   TEACHER_ATTENDANCE_START_DATE,
-  type TeacherAttendanceItem,
-  type TeacherAttendanceResult,
+  type TeacherAttendancePublicItem,
+  type TeacherAttendancePublicResult,
   type TeacherAttendanceStatus,
 } from '@/lib/teacher-attendance-core'
 
-type AttendanceFilter = 'SEMUA' | 'HADIR' | 'IZIN_SEKOLAH' | TeacherAttendanceStatus
+type AttendanceFilter = 'SEMUA' | 'HADIR' | TeacherAttendanceStatus
 
 const STATUS_META: Record<TeacherAttendanceStatus, { label: string; classes: string; dot: string }> = {
   TEPAT_WAKTU: {
@@ -54,15 +53,13 @@ function formatDate(value: string, options: Intl.DateTimeFormatOptions) {
   return new Date(`${value}T00:00:00`).toLocaleDateString('id-ID', options)
 }
 
-function matchesFilter(item: TeacherAttendanceItem, filter: AttendanceFilter) {
+function matchesFilter(item: TeacherAttendancePublicItem, filter: AttendanceFilter) {
   if (filter === 'SEMUA') return true
   if (filter === 'HADIR') return item.status === 'TEPAT_WAKTU' || item.status === 'TELAT'
-  if (filter === 'IZIN_SEKOLAH') return item.status === 'IZIN' && item.kepentingan_sekolah
-  if (filter === 'IZIN') return item.status === 'IZIN' && !item.kepentingan_sekolah
   return item.status === filter
 }
 
-export function RiwayatKehadiranTab({ result }: { result: TeacherAttendanceResult }) {
+export function RiwayatKehadiranTab({ result }: { result: TeacherAttendancePublicResult }) {
   const [filter, setFilter] = useState<AttendanceFilter>('SEMUA')
   const router = useRouter()
   const pathname = usePathname()
@@ -73,7 +70,7 @@ export function RiwayatKehadiranTab({ result }: { result: TeacherAttendanceResul
     [filter, result.items]
   )
   const groupedItems = useMemo(() => {
-    const groups = new Map<string, TeacherAttendanceItem[]>()
+    const groups = new Map<string, TeacherAttendancePublicItem[]>()
     for (const item of filteredItems) {
       if (!groups.has(item.tanggal)) groups.set(item.tanggal, [])
       groups.get(item.tanggal)!.push(item)
@@ -100,8 +97,7 @@ export function RiwayatKehadiranTab({ result }: { result: TeacherAttendanceResul
     { filter: 'HADIR', label: 'Hadir', value: result.summary.hadir, color: 'text-emerald-600', icon: CheckCircle2 },
     { filter: 'TELAT', label: 'Telat', value: result.summary.telat, color: 'text-orange-600', icon: Clock3 },
     { filter: 'SAKIT', label: 'Sakit', value: result.summary.sakit, color: 'text-amber-600', icon: Stethoscope },
-    { filter: 'IZIN_SEKOLAH', label: 'Izin sekolah', value: result.summary.izinSekolah, color: 'text-emerald-600', icon: FileText },
-    { filter: 'IZIN', label: 'Izin biasa', value: result.summary.izin - result.summary.izinSekolah, color: 'text-blue-600', icon: FileText },
+    { filter: 'IZIN', label: 'Izin', value: result.summary.izin, color: 'text-blue-600', icon: FileText },
     { filter: 'ALFA', label: 'Alfa', value: result.summary.alfa, color: 'text-rose-600', icon: ShieldAlert },
   ]
 
@@ -196,7 +192,7 @@ export function RiwayatKehadiranTab({ result }: { result: TeacherAttendanceResul
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <p className="text-sm font-semibold leading-snug text-slate-800 dark:text-slate-100">{item.mapelNama}</p>
-                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${meta.classes}`}>{meta.label}</span><TeacherLeaveBadge data={item} />
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${meta.classes}`}>{meta.label}</span>
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-slate-500 dark:text-slate-400">
                             <span>{item.kelasLabel}</span>

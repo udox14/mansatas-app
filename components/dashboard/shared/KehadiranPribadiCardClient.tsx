@@ -1,7 +1,5 @@
 'use client'
 
-import { teacherPerformance } from '@/lib/teacher-leave'
-import { TeacherLeaveBadge } from '@/components/teacher-leave-controls'
 import { useState } from 'react'
 import Link from 'next/link'
 import { BookOpen, ChevronRight, Clock3 } from 'lucide-react'
@@ -13,17 +11,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type {
-  TeacherAttendanceItem,
+  TeacherAttendancePublicItem,
+  TeacherAttendancePublicSummary,
   TeacherAttendanceStatus,
-  TeacherAttendanceSummary,
 } from '@/lib/teacher-attendance-core'
 
-type DetailStatus = Extract<TeacherAttendanceStatus, 'SAKIT' | 'IZIN' | 'ALFA'> | 'IZIN_SEKOLAH'
+type DetailStatus = Extract<TeacherAttendanceStatus, 'SAKIT' | 'IZIN' | 'ALFA'>
 
 const STATUS_META: Record<DetailStatus, { label: string; color: string; bg: string; dot: string }> = {
   SAKIT: { label: 'Sakit', color: 'text-amber-600', bg: 'hover:bg-amber-50 dark:hover:bg-amber-900/20', dot: 'bg-amber-500' },
-  IZIN_SEKOLAH: { label: 'Izin sekolah', color: 'text-emerald-600', bg: 'hover:bg-emerald-50', dot: 'bg-emerald-500' },
-  IZIN: { label: 'Izin biasa', color: 'text-blue-600', bg: 'hover:bg-blue-50 dark:hover:bg-blue-900/20', dot: 'bg-blue-500' },
+  IZIN: { label: 'Izin', color: 'text-blue-600', bg: 'hover:bg-blue-50 dark:hover:bg-blue-900/20', dot: 'bg-blue-500' },
   ALFA: { label: 'Alfa', color: 'text-rose-600', bg: 'hover:bg-rose-50 dark:hover:bg-rose-900/20', dot: 'bg-rose-500' },
 }
 
@@ -33,7 +30,7 @@ function formatDate(value: string) {
   })
 }
 
-function jamLabel(item: TeacherAttendanceItem) {
+function jamLabel(item: TeacherAttendancePublicItem) {
   const jamKe = item.jamKeMulai === item.jamKeSelesai
     ? `Jam ke-${item.jamKeMulai}`
     : `Jam ke-${item.jamKeMulai}-${item.jamKeSelesai}`
@@ -52,13 +49,13 @@ export function KehadiranPribadiCardClient({
   month: string
   monthLabel: string
   subtitle: string
-  summary: TeacherAttendanceSummary
-  items: TeacherAttendanceItem[]
+  summary: TeacherAttendancePublicSummary
+  items: TeacherAttendancePublicItem[]
 }) {
   const [detailStatus, setDetailStatus] = useState<DetailStatus | null>(null)
-  const pct = summary.total > 0 ? teacherPerformance(summary) : null
+  const pct = summary.total > 0 ? summary.performa : null
   const pctColor = pct === null ? 'text-slate-400' : pct >= 90 ? 'text-emerald-600' : pct >= 75 ? 'text-amber-600' : 'text-rose-600'
-  const detailItems = detailStatus ? items.filter(item => detailStatus === 'IZIN_SEKOLAH' ? item.status === 'IZIN' && item.kepentingan_sekolah : item.status === detailStatus && (detailStatus !== 'IZIN' || !item.kepentingan_sekolah)) : []
+  const detailItems = detailStatus ? items.filter(item => item.status === detailStatus) : []
   const detailMeta = detailStatus ? STATUS_META[detailStatus] : null
 
   return (
@@ -80,14 +77,14 @@ export function KehadiranPribadiCardClient({
             <p className="text-xs text-slate-400 dark:text-slate-500">Tidak ada kewajiban agenda pada periode ini</p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-5 divide-x divide-slate-100 dark:divide-slate-800">
+          <div className="grid grid-cols-4 divide-x divide-slate-100 dark:divide-slate-800">
             <div className="flex flex-col items-center gap-0.5 py-3">
               <span className="text-xl font-bold leading-none tabular-nums text-emerald-600">{summary.hadir}</span>
               <span className="text-[10px] text-slate-400 dark:text-slate-500">Hadir</span>
             </div>
-            {(['SAKIT', 'IZIN', 'IZIN_SEKOLAH', 'ALFA'] as const).map(status => {
+            {(['SAKIT', 'IZIN', 'ALFA'] as const).map(status => {
               const meta = STATUS_META[status]
-              const value = status === 'SAKIT' ? summary.sakit : status === 'IZIN' ? summary.izin - summary.izinSekolah : status === 'IZIN_SEKOLAH' ? summary.izinSekolah : summary.alfa
+              const value = status === 'SAKIT' ? summary.sakit : status === 'IZIN' ? summary.izin : summary.alfa
               return (
                 <button
                   key={status}
@@ -109,7 +106,7 @@ export function KehadiranPribadiCardClient({
           <div className="flex items-center gap-1.5">
             {summary.telat > 0 && <Clock3 className="h-3 w-3 shrink-0 text-amber-500" />}
             <p className={`text-[10px] ${summary.telat > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
-              {summary.telat > 0 ? <>Terlambat <span className="font-bold">{summary.telat}×</span> sesi mengajar bulan ini</> : 'Izin sekolah mendapat kredit penuh'}
+              {summary.telat > 0 ? <>Terlambat <span className="font-bold">{summary.telat}×</span> sesi mengajar bulan ini</> : 'Belum ada catatan keterlambatan bulan ini'}
             </p>
           </div>
           <Link
@@ -146,7 +143,6 @@ export function KehadiranPribadiCardClient({
                     {jamLabel(item)}
                   </span>
                 </div>
-                <TeacherLeaveBadge data={item} />
                 {item.catatan && <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">{item.catatan}</p>}
                 {item.status === 'ALFA' && <p className="mt-1.5 text-[11px] text-rose-600 dark:text-rose-400">Agenda tidak diisi sampai jadwal selesai.</p>}
               </div>

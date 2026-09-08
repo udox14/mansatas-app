@@ -1,8 +1,6 @@
 // Lokasi: app/dashboard/penugasan/actions.ts
 'use server'
 
-import { enrichTeacherDelegations, validateTeacherLeaveReason } from '@/lib/teacher-leave-db'
-import type { TeacherLeaveMetadata } from '@/lib/teacher-leave'
 import { dbInsert, dbUpdate, dbDelete } from '@/utils/db'
 import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
@@ -36,7 +34,7 @@ export type JadwalBlock = {
   sudah_didelegasi: boolean
 }
 
-export type DelegasiMasuk = TeacherLeaveMetadata & {
+export type DelegasiMasuk = {
   delegasi_id: string
   delegasi_kelas_id: string
   dari_user_nama: string
@@ -322,8 +320,7 @@ export async function kirimDelegasiTugas(
   tanggal: string,
   items: Array<{ penugasan_mengajar_id: string; kelas_id: string; tugas: string }>,
   alasanKetidakhadiran: AlasanKetidakhadiran,
-  deskripsiKetidakhadiran: string,
-  alasanIzinGuruId?: string
+  deskripsiKetidakhadiran: string
 ): Promise<{ error?: string; success?: string }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
@@ -366,8 +363,6 @@ export async function kirimDelegasiTugas(
   }
 
   const db = await getDB()
-  let reasonId: string | null
-  try { reasonId = await validateTeacherLeaveReason(db, alasanKetidakhadiran, alasanIzinGuruId) } catch { return { error: 'Pilih alasan izin guru yang masih aktif.' } }
   const hari = getHariFromDate(tanggal)
   const guruPiket = await getGuruPiketHariIni(db, hari)
   if (guruPiket.length === 0) {
@@ -395,7 +390,8 @@ export async function kirimDelegasiTugas(
     tanggal,
     alasan_ketidakhadiran: alasanKetidakhadiran,
     deskripsi_ketidakhadiran: deskripsiAlasan,
-    alasan_izin_guru_id: reasonId,
+    // Kategori izin hanya boleh ditetapkan kemudian oleh super admin.
+    alasan_izin_guru_id: null,
     status: 'DIKIRIM',
   })
   if (delegasiResult.error) return { error: delegasiResult.error }
@@ -548,7 +544,7 @@ export async function getTugasMasuk(tanggal: string): Promise<{
     }
   })
 
-  return { error: null, data: await enrichTeacherDelegations(db, data), slots }
+  return { error: null, data, slots }
 }
 
 // ============================================================
@@ -556,7 +552,7 @@ export async function getTugasMasuk(tanggal: string): Promise<{
 // ============================================================
 export async function getDelegasiTerkirim(tanggal: string): Promise<{
   error: string | null
-  data: Array<TeacherLeaveMetadata & {
+  data: Array<{
     delegasi_id: string
     kepada_user_nama: string
     status: string
@@ -612,7 +608,7 @@ export async function getDelegasiTerkirim(tanggal: string): Promise<{
     })
   }
 
-  return { error: null, data: await enrichTeacherDelegations(db, Array.from(grouped.values())) }
+  return { error: null, data: Array.from(grouped.values()) }
 }
 
 // ============================================================

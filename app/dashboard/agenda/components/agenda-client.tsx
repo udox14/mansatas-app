@@ -2,8 +2,6 @@
 'use client'
 
 import { CameraCapture } from '@/components/shared/camera-capture'
-import { TeacherLeaveBadge } from '@/components/teacher-leave-controls'
-import type { TeacherLeaveMetadata } from '@/lib/teacher-leave'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
@@ -17,7 +15,7 @@ import type { SlotJam } from '@/app/dashboard/settings/types'
 import { compressAgendaImage } from './image-compression'
 import type { KbmException } from '@/lib/kalender-pendidikan'
 
-type JadwalBlock = TeacherLeaveMetadata & {
+type JadwalBlock = {
   penugasan_id: string
   mapel_nama: string
   kelas_label: string
@@ -293,7 +291,6 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                     <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700">
                       <Send className="h-3.5 w-3.5 shrink-0" /> {block.alasan_ketidakhadiran === 'SAKIT' ? 'Sakit' : 'Izin'} — tugas terkirim
                     </span>
-                    <TeacherLeaveBadge data={block} />
                   </>
                 ) : block.sudah_isi ? (
                   <>
@@ -301,7 +298,6 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                       <StatusIcon className="h-3.5 w-3.5 shrink-0" />
                       {style.label}
                     </div>
-                    <TeacherLeaveBadge data={block} />
                   </>
                 ) : (
                   <Button

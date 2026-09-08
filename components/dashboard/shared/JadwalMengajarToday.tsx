@@ -1,5 +1,3 @@
-import { enrichTeacherLeaveSessions } from '@/lib/teacher-leave-db'
-import { TeacherLeaveBadge } from '@/components/teacher-leave-controls'
 // components/dashboard/shared/JadwalMengajarToday.tsx
 import Link from 'next/link'
 import { getDB } from '@/utils/db-server'
@@ -93,8 +91,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
   } catch {}
 
   const kbmExceptions = await getKbmExceptionsForDate(db, today)
-  const enrichedRows = await enrichTeacherLeaveSessions(db, jadwalRows.map((j: any) => ({ ...j, tanggal: today, status: j.agenda_status || (j.delegasi_status ? 'IZIN' : '') })))
-  const displayJadwalRows = enrichedRows.map((j: any) => {
+  const displayJadwalRows = jadwalRows.map((j: any) => {
     const jamList = String(j.jam_list || '').split(',').map(Number).filter(Number.isFinite)
     const slotState = splitTeachingSlotsByExceptions(
       kbmExceptions,
@@ -186,7 +183,6 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
                     <span className="text-sm font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap" title={`Kelas ${formatNamaKelas(j.tingkat, j.nomor_kelas, j.kelompok)}`}>Kelas {formatNamaKelas(j.tingkat, j.nomor_kelas, j.kelompok)}</span>
                     <span className="text-xs font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap" title={j.nama_mapel}>{j.nama_mapel}</span>
                   </div>
-                  {!j.is_fully_excepted && <TeacherLeaveBadge data={j} />}
                   {j.exception_segments.map((segment: any) => (
                     <p key={`${segment.exception_id}-${segment.jam_ke_mulai}`} className="mt-1 text-[9px] font-medium text-sky-600">
                       Jam ke-{segment.jam_ke_mulai === segment.jam_ke_selesai ? segment.jam_ke_mulai : `${segment.jam_ke_mulai}-${segment.jam_ke_selesai}`} non-KBM: {segment.judul}

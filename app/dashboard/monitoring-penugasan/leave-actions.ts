@@ -9,8 +9,8 @@ import type { TeacherLeaveReason } from '@/lib/teacher-leave'
 function refresh() { revalidatePath('/dashboard', 'layout') }
 
 export async function getTeacherLeaveOptions() {
-  const actor = await requireActionAccess(['agenda', 'penugasan', 'monitoring-agenda', 'monitoring-penugasan'], 'read')
-  return { reasons: await readTeacherLeaveReasons(await getDB()), canManage: actor.kind === 'staff' && actor.roles.includes('super_admin') }
+  await requireActionAccess(['monitoring-agenda', 'monitoring-penugasan'], 'read', { allowedRoles: ['super_admin'] })
+  return { reasons: await readTeacherLeaveReasons(await getDB()), canManage: true }
 }
 
 export async function saveTeacherLeaveReason(input: TeacherLeaveReason) {

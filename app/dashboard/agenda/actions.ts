@@ -1,8 +1,6 @@
 // Lokasi: app/dashboard/agenda/actions.ts
 'use server'
 
-import { enrichTeacherLeaveSessions } from '@/lib/teacher-leave-db'
-import type { TeacherLeaveMetadata } from '@/lib/teacher-leave'
 import { dbInsert, dbUpdate } from '@/utils/db'
 import { getDB as getRawDB } from '@/utils/db-server'
 import { requireActionAccess } from '@/lib/action-security'
@@ -30,7 +28,7 @@ import {
 // ============================================================
 // TYPES
 // ============================================================
-type JadwalBlock = TeacherLeaveMetadata & {
+type JadwalBlock = {
   penugasan_id: string
   mapel_nama: string
   kelas_label: string
@@ -228,7 +226,7 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
   }
 
   blocks.sort((a, b) => a.jam_ke_mulai - b.jam_ke_mulai)
-  return { error: null, blocks: await enrichTeacherLeaveSessions(db, blocks.map(block => ({ ...block, tanggal, status: block.status || block.alasan_ketidakhadiran || '' }))), slots, tanggal, hari, kbmExceptions }
+  return { error: null, blocks, slots, tanggal, hari, kbmExceptions }
 }
 
 function parseAgendaLateThresholdByJam(raw: string): Record<string, number> {

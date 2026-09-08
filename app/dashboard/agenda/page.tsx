@@ -16,6 +16,7 @@ import { getJadwalPiketHariIni } from './actions-piket'
 import { getEffectiveUser, getActAsUserList, getActAsDate } from '@/lib/act-as'
 import { ActAsBanner } from '@/components/layout/act-as-banner'
 import { getTeacherAttendance } from '@/lib/teacher-attendance'
+import { toTeacherAttendancePublicResult } from '@/lib/teacher-attendance-core'
 
 export const metadata = { title: 'Agenda Guru - MANSATAS App' }
 
@@ -51,7 +52,7 @@ async function RiwayatDataFetcher({
   month?: string
 }) {
   const db = await getDB()
-  const result = await getTeacherAttendance(db, effectiveUserId, month)
+  const result = toTeacherAttendancePublicResult(await getTeacherAttendance(db, effectiveUserId, month))
   return <RiwayatKehadiranTab key={result.month} result={result} />
 }
 
