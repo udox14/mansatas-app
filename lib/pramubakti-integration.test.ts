@@ -77,6 +77,12 @@ describe('Pramubakti migration and server actions', () => {
     for (const mutate of [(f: FormData) => f.delete('foto'), (f: FormData) => f.delete('jobs'), (f: FormData) => f.set('tempat', ''), (f: FormData) => f.set('tanggal', '2026-09-06'), (f: FormData) => f.set('slot_id', 'fake'), (f: FormData) => f.set('jobs', 'fake')]) { const f = form(); mutate(f); expect((await submitPramubaktiReport(f)).error).toBeTruthy() }
     expect(state.uploads).toBe(0)
   })
+  it('accepts both stable job IDs and job names from a cached client', async () => {
+    const cachedClientForm = form()
+    cachedClientForm.set('jobs', 'Membersihkan')
+    expect((await submitPramubaktiReport(cachedClientForm)).success).toBeTruthy()
+    expect(JSON.parse(String(sqlite.prepare('SELECT jobs_json FROM pb_reports').get()?.jobs_json))).toEqual(['Membersihkan'])
+  })
   it('uses authenticated ownership and makes repeated request IDs idempotent', async () => {
     const f = form(); f.set('user_id', 'other')
     expect((await submitPramubaktiReport(f)).success).toBeTruthy()

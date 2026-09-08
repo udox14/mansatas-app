@@ -188,7 +188,13 @@ export function PramubaktiClient({
     }
   }
 
-  async function capture(file: File) {
+  async function capture(file: File, targetSlotId: string | null) {
+    if (!jobs.length || !tempat.trim()) {
+      setCamera(false)
+      setMessage({ type: 'error', text: 'Pilih pekerjaan dan isi tempat sebelum mengambil foto.' })
+      return
+    }
+
     setCamera(false)
     setBusy(true)
     try {
@@ -200,15 +206,17 @@ export function PramubaktiClient({
       const watermarkText = `MAN 1 KOTA TASIKMALAYA · ${nowFormatted}`
       const compressed = await compressAgendaImage(file, { watermarkText })
       setFoto(compressed)
+      await submit(targetSlotId, compressed)
     } catch {
       setMessage({ type: 'error', text: 'Foto gagal diproses. Silakan ambil ulang foto.' })
+      setFoto(null)
     } finally {
       setBusy(false)
     }
   }
 
-  async function submit(targetSlotId: string | null) {
-    if (!foto || !jobs.length || !tempat.trim()) return
+  async function submit(targetSlotId: string | null, capturedFoto: File | null = foto) {
+    if (!capturedFoto || !jobs.length || !tempat.trim()) return
     setBusy(true)
     setMessage(null)
     try {
@@ -217,7 +225,7 @@ export function PramubaktiClient({
       form.set('request_id', requestId)
       form.set('slot_id', targetSlotId || '')
       form.set('tempat', tempat.trim())
-      form.set('foto', foto)
+      form.set('foto', capturedFoto)
       jobs.forEach(job => form.append('jobs', job))
 
       const result = await submitPramubaktiReport(form)
@@ -443,12 +451,12 @@ export function PramubaktiClient({
                           {data.jobs
                             .filter(j => j.active === 1)
                             .map(job => {
-                              const isChecked = jobs.includes(job.name)
+                              const isChecked = jobs.includes(job.id)
                               return (
                                 <button
                                   type="button"
                                   key={job.id}
-                                  onClick={() => toggleJob(job.name)}
+                                  onClick={() => toggleJob(job.id)}
                                   className={`flex items-center gap-2 p-2.5 rounded-lg border text-left text-xs font-medium transition-all ${
                                     isChecked
                                       ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700 shadow-sm'
@@ -512,59 +520,61 @@ export function PramubaktiClient({
                           3. Foto Bukti Pekerjaan (Wajib Kamera) *
                         </Label>
 
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Setelah foto diambil, laporan langsung dikirim otomatis.
+                        </p>
+
                         {camera ? (
-                          <div className="rounded-lg overflow-hidden border p-2 bg-black">
-                            <CameraCapture onCapture={capture} onClose={() => setCamera(false)} />
+                          <CameraCapture onCapture={file => capture(file, item.slot!.id)} onClose={() => setCamera(false)} />
+                        ) : preview ? (
+                          <div className="relative">
+                            <img
+                              src={preview}
+                              alt="Pratinjau Foto"
+                              className="w-full max-h-64 object-cover rounded-lg border"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFoto(null)
+                                setPreview('')
+                              }}
+                              className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 hover:bg-black/70"
+                              title="Hapus foto"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                            {foto && <p className="mt-1 text-xs text-slate-400">{(foto.size / 1024).toFixed(0)} KB</p>}
                           </div>
                         ) : (
-                          <div className="flex flex-wrap items-center gap-3">
-                            {preview ? (
-                              <div className="relative w-36 h-28 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 shadow-sm">
-                                <img
-                                  src={preview}
-                                  alt="Pratinjau Foto"
-                                  className="w-full h-full object-cover"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setFoto(null)
-                                    setPreview('')
-                                  }}
-                                  className="absolute top-1 right-1 p-1 bg-black/60 hover:bg-black text-white rounded-full transition-colors"
-                                  title="Hapus foto"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ) : null}
-
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={busy}
-                              onClick={() => setCamera(true)}
-                              className="h-9 text-xs"
-                            >
-                              <Camera className="h-4 w-4 mr-1.5 text-emerald-600" />
-                              {foto ? 'Ambil Ulang Foto' : 'Buka Kamera'}
-                            </Button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setCamera(true)}
+                            disabled={busy || !jobs.length || !tempat.trim()}
+                            className="w-full flex flex-col items-center justify-center gap-2 py-8 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-300 disabled:hover:bg-white dark:disabled:hover:bg-slate-900"
+                          >
+                            <Camera className="h-8 w-8 text-slate-400" />
+                            <span className="text-sm text-slate-500 dark:text-slate-400">
+                              {jobs.length && tempat.trim() ? 'Ketuk untuk mengambil foto dan mengirim' : 'Pilih pekerjaan dan isi tempat terlebih dahulu'}
+                            </span>
+                          </button>
                         )}
                       </div>
 
-                      {/* Form Actions */}
-                      <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
-                        <Button
-                          disabled={busy || camera || !foto || !jobs.length || !tempat.trim()}
-                          onClick={() => submit(item.slot!.id)}
-                          size="sm"
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-colors"
-                        >
-                          {busy ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
-                          Kirim Laporan
+                      {busy && (
+                        <div className="flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                          <RefreshCw className="h-5 w-5 animate-spin" />
+                          Memproses foto dan mengirim laporan otomatis...
+                        </div>
+                      )}
+
+                      {!busy && foto && message?.type === 'error' && (
+                        <Button onClick={() => submit(item.slot!.id)} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+                          <RefreshCw className="h-4 w-4 mr-2" /> Coba Kirim Lagi
                         </Button>
+                      )}
+
+                      <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
                         <Button
                           type="button"
                           variant="outline"
@@ -839,12 +849,12 @@ export function PramubaktiClient({
                 {data.jobs
                   .filter(j => j.active === 1)
                   .map(job => {
-                    const isChecked = jobs.includes(job.name)
+                    const isChecked = jobs.includes(job.id)
                     return (
                       <button
                         type="button"
                         key={job.id}
-                        onClick={() => toggleJob(job.name)}
+                        onClick={() => toggleJob(job.id)}
                         className={`flex items-center gap-2 p-2 rounded-lg border text-left text-xs font-medium transition-all ${
                           isChecked
                             ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-800 dark:text-purple-200 border-purple-300 dark:border-purple-700 shadow-sm'
@@ -903,46 +913,50 @@ export function PramubaktiClient({
             {/* 3. Foto */}
             <div className="space-y-2">
               <Label className="text-xs font-semibold">3. Foto Bukti Pekerjaan *</Label>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Setelah foto diambil, laporan langsung dikirim otomatis.
+              </p>
               {camera ? (
-                <div className="rounded-lg overflow-hidden border p-2 bg-black">
-                  <CameraCapture onCapture={capture} onClose={() => setCamera(false)} />
+                <CameraCapture onCapture={file => capture(file, null)} onClose={() => setCamera(false)} />
+              ) : preview ? (
+                <div className="relative">
+                  <img src={preview} alt="Pratinjau Foto" className="w-full max-h-64 object-cover rounded-lg border" />
+                  <button
+                    type="button"
+                    onClick={() => { setFoto(null); setPreview('') }}
+                    className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 hover:bg-black/70"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  {foto && <p className="mt-1 text-xs text-slate-400">{(foto.size / 1024).toFixed(0)} KB</p>}
                 </div>
               ) : (
-                <div className="flex flex-wrap items-center gap-3">
-                  {preview ? (
-                    <div className="relative w-36 h-28 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 shadow-sm">
-                      <img
-                        src={preview}
-                        alt="Pratinjau Foto"
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFoto(null)
-                          setPreview('')
-                        }}
-                        className="absolute top-1 right-1 p-1 bg-black/60 hover:bg-black text-white rounded-full transition-colors"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ) : null}
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => setCamera(true)}
-                    className="h-9 text-xs"
-                  >
-                    <Camera className="h-4 w-4 mr-1.5 text-purple-600" />
-                    {foto ? 'Ambil Ulang Foto' : 'Buka Kamera'}
-                  </Button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setCamera(true)}
+                  disabled={busy || !jobs.length || !tempat.trim()}
+                  className="w-full flex flex-col items-center justify-center gap-2 py-8 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-300 disabled:hover:bg-white dark:disabled:hover:bg-slate-900"
+                >
+                  <Camera className="h-8 w-8 text-slate-400" />
+                  <span className="text-sm text-slate-500 dark:text-slate-400">
+                    {jobs.length && tempat.trim() ? 'Ketuk untuk mengambil foto dan mengirim' : 'Pilih pekerjaan dan isi tempat terlebih dahulu'}
+                  </span>
+                </button>
               )}
             </div>
+
+            {busy && (
+              <div className="flex items-center justify-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-4 py-3 text-sm font-semibold text-purple-700">
+                <RefreshCw className="h-5 w-5 animate-spin" />
+                Memproses foto dan mengirim laporan otomatis...
+              </div>
+            )}
+
+            {!busy && foto && message?.type === 'error' && (
+              <Button onClick={() => submit(null)} className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                <RefreshCw className="h-4 w-4 mr-2" /> Coba Kirim Lagi
+              </Button>
+            )}
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
@@ -955,15 +969,6 @@ export function PramubaktiClient({
               }}
             >
               Batal
-            </Button>
-            <Button
-              size="sm"
-              disabled={busy || camera || !foto || !jobs.length || !tempat.trim()}
-              onClick={() => submit(null)}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-medium"
-            >
-              {busy ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
-              Kirim Laporan
             </Button>
           </DialogFooter>
         </DialogContent>

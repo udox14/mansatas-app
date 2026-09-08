@@ -79,7 +79,9 @@ export async function submitPramubaktiReport(form: FormData): Promise<{ error?: 
     if (previous?.user_id === targetUserId) return { success: 'Laporan sudah tersimpan.' }
     if (previous) throw new Error('Identitas pengiriman sudah digunakan.')
     const [data, rules] = await Promise.all([getPbData(db, date, date, targetUserId), getPbRules()])
-    const jobs = jobIds.map(job => data.jobs.find(j => j.id === job && j.active === 1))
+    // The current client sends stable job IDs. Accept the job name as well so a
+    // previously cached client does not strand users after this contract fix.
+    const jobs = jobIds.map(job => data.jobs.find(j => j.active === 1 && (j.id === job || j.name === job)))
     if (jobs.some(j => !j)) throw new Error('Pilihan pekerjaan berubah. Muat ulang halaman.')
     const item = slotId ? data.items.find(i => i.slot?.id === slotId) : null
     if (slotId && (!item || item.report || item.leave)) throw new Error('Slot tidak tersedia, sudah dilaporkan, atau berstatus izin/sakit.')
