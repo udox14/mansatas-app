@@ -106,6 +106,10 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
   // Remove revokes
   for (const f of overrides.revokes) allowed.delete(f)
 
+  // View keuangan nonaktif adalah pasangan navigasi dari izin DSPT, bukan izin terpisah.
+  if (allowed.has('keuangan-dspt')) allowed.add('keuangan-dspt-nonaktif')
+  else allowed.delete('keuangan-dspt-nonaktif')
+
   // Super admin/reviewer tidak boleh terkunci dari modul sistem akibat seed role_features
   // yang tertinggal atau override lama. MENU_ITEMS menjadi sumber daftar lengkap.
   if (roles.includes('super_admin') || roles.includes(PLAY_REVIEWER_ROLE)) {

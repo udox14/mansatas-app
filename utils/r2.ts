@@ -246,6 +246,25 @@ export async function uploadPaymentProof(file: File, submissionId: string) {
   return uploadToR2(file, 'payment_proofs', `${submissionId}/bukti.webp`)
 }
 
+export async function uploadCashflowProof(file: File, entryId: string) {
+  await assertR2WriteAllowed()
+  if (!file?.size) return { url: null, error: 'File bukti kosong.' }
+  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+  const validationError = isPdf ? validatePdfFile(file) : validateImageFile(file)
+  if (validationError) return { url: null, error: validationError }
+  try {
+    const r2 = await getR2()
+    const ext = isPdf ? 'pdf' : file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+    const key = `cashflow_proofs/${entryId}/bukti.${ext}`
+    await r2.put(key, await file.arrayBuffer(), {
+      httpMetadata: { contentType: isPdf ? 'application/pdf' : (file.type || 'image/jpeg'), cacheControl: 'private, no-store' },
+    })
+    return { url: `/api/media/${key}`, error: null }
+  } catch (error: any) {
+    return { url: null, error: error?.message || 'Gagal mengunggah bukti transaksi.' }
+  }
+}
+
 export async function uploadKomiteQris(file: File) {
   const validationError = validateImageFile(file)
   if (validationError) return { url: null, error: validationError }

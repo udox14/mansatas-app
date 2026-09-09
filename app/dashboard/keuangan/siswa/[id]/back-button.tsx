@@ -1,13 +1,15 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 
 export function BackButton() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const scope = searchParams.get('scope') === 'inactive' ? 'inactive' : 'active'
   return (
     <button
-      onClick={() => router.back()}
+      onClick={() => router.push(scope === 'inactive' ? '/dashboard/keuangan/dspt/nonaktif' : '/dashboard/keuangan/dspt')}
       className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-50 dark:hover:text-slate-100 transition-colors"
     >
       <ChevronLeft className="h-3.5 w-3.5" /> Kembali

@@ -21,6 +21,7 @@ const PREFIX_POLICIES: ReadonlyArray<{ prefix: string; policy: MediaPolicy }> = 
   { prefix: 'ekskul/', policy: { visibility: 'private', featureId: 'ekstrakurikuler' } },
   { prefix: 'pelanggaran/', policy: { visibility: 'private', featureId: 'kedisiplinan' } },
   { prefix: 'payment_proofs/', policy: { visibility: 'private', featureId: 'keuangan-dspt' } },
+  { prefix: 'cashflow_proofs/', policy: { visibility: 'private', featureId: 'keuangan-kas-keluar' } },
   { prefix: 'keuangan_settings/', policy: { visibility: 'private', featureId: 'keuangan-pengaturan' } },
   { prefix: 'signatures/', policy: { visibility: 'private' } },
   { prefix: 'tpg/s36/', policy: { visibility: 'private', featureId: 'tpg-dokumen' } },

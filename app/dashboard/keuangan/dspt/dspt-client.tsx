@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useTransition, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import NextImage from 'next/image'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -22,11 +23,13 @@ import {
   getSiswaTemplate, getPendingDsptPaymentSubmissions, konfirmasiDsptPaymentSubmission, tolakDsptPaymentSubmission,
   getDsptPaymentProofSubmissions,
 } from '../actions'
+import type { StudentFinanceScope } from '../actions'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 import { FinanceExportExcelDialog, type FinanceExportRow } from '../components/export-excel-dialog'
-import { SiswaStatusFilter, matchSiswaStatusFilter, type SiswaStatusFilterValue } from '../components/siswa-status-filter'
+import { filterBillingRows, mergeBillingRows, type BillingRow } from './billing-list'
 
 interface DsptRow {
+  source?: 'DSPT' | 'SPP'
   id: string | null
   siswa_id: string
   nama_lengkap: string
@@ -41,6 +44,24 @@ interface DsptRow {
   nomor_kelas: string | null
   kelompok: string | null
   catatan?: string | null
+  metode_bayar_set?: string | null
+  bulan_bayar_set?: string | null
+}
+
+interface SppTunggakanRow {
+  id: string
+  siswa_id: string
+  nama_lengkap: string
+  nisn: string | null
+  siswa_status: string
+  tahun_masuk: number | null
+  tingkat: number | null
+  nomor_kelas: number | null
+  kelompok: string | null
+  jumlah: number
+  total_dibayar: number
+  status: 'belum_bayar' | 'nyicil'
+  keterangan: string | null
   metode_bayar_set?: string | null
   bulan_bayar_set?: string | null
 }
@@ -86,9 +107,9 @@ async function parseExcelFile(file: File): Promise<any[]> {
   return XLSX.utils.sheet_to_json(ws, { defval: '' })
 }
 
-async function downloadDsptTemplate(angkatan?: number) {
+async function downloadDsptTemplate(scope: StudentFinanceScope, angkatan?: number) {
   const XLSX = await import('xlsx')
-  const { data } = await getSiswaTemplate(angkatan)
+  const { data } = await getSiswaTemplate(scope, angkatan)
   const rows = data.map((s: any) => ({
     'NISN': s.nisn ?? '',
     'Nama Siswa': s.nama_lengkap,
@@ -107,15 +128,17 @@ async function downloadDsptTemplate(angkatan?: number) {
   XLSX.writeFile(wb, `template_dspt${suffix}.xlsx`)
 }
 
-export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
+export function DsptClient({ initialData, initialSppData, angkatanList: initialAngkatanList, studentScope }: {
   initialData: DsptRow[]
+  initialSppData: SppTunggakanRow[]
   angkatanList?: number[]
+  studentScope: StudentFinanceScope
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
   const [search, setSearch] = useState('')
-  const [filterSiswaStatus, setFilterSiswaStatus] = useState<SiswaStatusFilterValue>('aktif')
+  const [filterJenis, setFilterJenis] = useState<'semua' | 'DSPT' | 'SPP'>('semua')
   const [filterStatus, setFilterStatus] = useState('semua')
   const [filterMetode, setFilterMetode] = useState('semua')
   const [filterAngkatan, setFilterAngkatan] = useState(searchParams.get('angkatan') ?? 'semua')
@@ -124,8 +147,9 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
   const [msg, setMsg] = useState('')
 
   // ── Data state ──────────────────────────────────────────────────────────────
-  const [data, setData] = useState<DsptRow[]>(initialData)
+  const [data, setData] = useState<DsptRow[]>(initialData.map(row => ({ ...row, source: 'DSPT' })))
   useEffect(() => { setData(initialData) }, [initialData])
+  const combinedData = useMemo(() => mergeBillingRows(data as Omit<BillingRow, 'source'>[], initialSppData), [data, initialSppData])
   const [pendingPayments, setPendingPayments] = useState<PaymentProofSubmission[]>([])
   const [proofHistory, setProofHistory] = useState<PaymentProofSubmission[]>([])
   const [proofModal, setProofModal] = useState<PaymentProofSubmission | null>(null)
@@ -137,9 +161,9 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
 
   async function reloadData() {
     const [fresh, pending, history] = await Promise.all([
-      getDsptList(),
-      getPendingDsptPaymentSubmissions(),
-      getDsptPaymentProofSubmissions(),
+      getDsptList(studentScope),
+      getPendingDsptPaymentSubmissions(studentScope),
+      getDsptPaymentProofSubmissions(studentScope),
     ])
     setData(fresh.data as DsptRow[])
     setPendingPayments(pending.data as PaymentProofSubmission[])
@@ -147,13 +171,13 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
   }
 
   useEffect(() => {
-    Promise.all([getPendingDsptPaymentSubmissions(), getDsptPaymentProofSubmissions()])
+    Promise.all([getPendingDsptPaymentSubmissions(studentScope), getDsptPaymentProofSubmissions(studentScope)])
       .then(([pending, history]) => {
         setPendingPayments(pending.data as PaymentProofSubmission[])
         setProofHistory(history.data as PaymentProofSubmission[])
       })
       .catch(() => {})
-  }, [])
+  }, [studentScope])
 
   // ── Modal: Input DSPT baru (siswa belum diinput) ────────────────────────────
   const [modalSiswa, setModalSiswa] = useState<DsptRow | null>(null)
@@ -202,40 +226,30 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
 
   const kelasList = useMemo(() => {
     const set = new Set<string>()
-    data.forEach(d => {
+    combinedData.forEach(d => {
       if (d.tingkat && d.nomor_kelas) set.add(`${d.tingkat}-${d.nomor_kelas}${d.kelompok ? ' ' + d.kelompok : ''}`)
     })
     return [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
-  }, [data])
+  }, [combinedData])
 
   const bulanList = useMemo(() => {
     const set = new Set<string>()
-    data.forEach(d => {
+    combinedData.forEach(d => {
       if (d.bulan_bayar_set) {
         d.bulan_bayar_set.split(',').forEach(b => set.add(b.trim()))
       }
     })
     return [...set].sort((a, b) => b.localeCompare(a))
-  }, [data])
+  }, [combinedData])
 
   const filtered = useMemo(() => {
     reset()
-    return data.filter(row => {
-      const matchSearch = !search || row.nama_lengkap.toLowerCase().includes(search.toLowerCase()) || row.nisn?.includes(search)
-      const matchSiswaStatus = matchSiswaStatusFilter(row.siswa_status, filterSiswaStatus)
-      const matchStatus = filterStatus === 'semua' || row.status === filterStatus
-      const metodeSet = String(row.metode_bayar_set ?? '').split(',').map(metode => metode.trim())
-      const matchMetode = filterMetode === 'semua'
-        || (filterMetode === 'tunai'
-          ? metodeSet.includes('tunai')
-          : metodeSet.some(metode => metode === 'transfer' || metode === 'qris'))
-      const matchAngkatan = filterAngkatan === 'semua' || String(row.tahun_masuk) === filterAngkatan
-      const matchKelas = filterKelas === 'semua' || `${row.tingkat}-${row.nomor_kelas}${row.kelompok ? ' ' + row.kelompok : ''}` === filterKelas
-      const matchBulan = filterBulan === 'semua' || (row.bulan_bayar_set ?? '').includes(filterBulan)
-      return matchSearch && matchSiswaStatus && matchStatus && matchMetode && matchAngkatan && matchKelas && matchBulan
+    return filterBillingRows(combinedData, {
+      jenis: filterJenis, search, siswaStatus: 'semua', status: filterStatus,
+      metode: filterMetode, angkatan: filterAngkatan, kelas: filterKelas, bulan: filterBulan,
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, search, filterSiswaStatus, filterStatus, filterMetode, filterAngkatan, filterKelas, filterBulan])
+  }, [combinedData, search, filterJenis, filterStatus, filterMetode, filterAngkatan, filterKelas, filterBulan])
 
   const filteredProofHistory = useMemo(() => {
     const term = proofSearch.trim().toLowerCase()
@@ -253,20 +267,29 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
   }, [proofHistory, proofMetode, proofSearch, proofStatus])
 
   const paginated = paginate(filtered)
-  const withDspt = filtered.filter(r => r.status !== 'tidak_ada')
+  const withDspt = filtered.filter(r => r.source === 'DSPT' && r.status !== 'tidak_ada')
+  const withSpp = filtered.filter(r => r.source === 'SPP')
   const totalTarget  = withDspt.reduce((s, r) => s + (r.nominal_target ?? 0), 0)
   const totalDibayar = withDspt.reduce((s, r) => s + (r.total_dibayar ?? 0), 0)
   const totalDiskon  = withDspt.reduce((s, r) => s + (r.total_diskon ?? 0), 0)
   const totalSisa    = totalTarget - totalDibayar - totalDiskon
+  const totalSppTarget = withSpp.reduce((s, r) => s + (r.nominal_target ?? 0), 0)
+  const totalSppDibayar = withSpp.reduce((s, r) => s + (r.total_dibayar ?? 0), 0)
+  const totalSppSisa = Math.max(0, totalSppTarget - totalSppDibayar)
 
-  const exportRows = useMemo<FinanceExportRow[]>(() => data.map(row => {
+  const exportRows = useMemo<FinanceExportRow[]>(() => combinedData.map(row => {
     const kelas = row.tingkat && row.nomor_kelas
       ? `${row.tingkat}-${row.nomor_kelas}${row.kelompok ? ' ' + row.kelompok : ''}`
       : '-'
     const target = row.nominal_target ?? 0
     const dibayar = row.total_dibayar ?? 0
     const diskon = row.total_diskon ?? 0
-    return {
+    return row.source === 'SPP' ? {
+      source: 'SPP', siswa_id: row.siswa_id, nama_lengkap: row.nama_lengkap, nisn: row.nisn,
+      siswa_status: row.siswa_status, tahun_masuk: row.tahun_masuk, kelas,
+      spp_tunggakan: target, spp_dibayar: dibayar, spp_sisa: Math.max(0, target - dibayar),
+      spp_status: row.status, spp_keterangan: row.catatan, metode_bayar: row.metode_bayar_set,
+    } : {
       source: 'DSPT',
       siswa_id: row.siswa_id,
       nama_lengkap: row.nama_lengkap,
@@ -282,7 +305,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
       dspt_catatan: row.catatan,
       metode_bayar: row.metode_bayar_set,
     }
-  }), [data])
+  }), [combinedData])
 
   const currentExportRows = useMemo<FinanceExportRow[]>(() => filtered.map(row => {
     const kelas = row.tingkat && row.nomor_kelas
@@ -291,7 +314,12 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
     const target = row.nominal_target ?? 0
     const dibayar = row.total_dibayar ?? 0
     const diskon = row.total_diskon ?? 0
-    return {
+    return row.source === 'SPP' ? {
+      source: 'SPP', siswa_id: row.siswa_id, nama_lengkap: row.nama_lengkap, nisn: row.nisn,
+      siswa_status: row.siswa_status, tahun_masuk: row.tahun_masuk, kelas,
+      spp_tunggakan: target, spp_dibayar: dibayar, spp_sisa: Math.max(0, target - dibayar),
+      spp_status: row.status, spp_keterangan: row.catatan, metode_bayar: row.metode_bayar_set,
+    } : {
       source: 'DSPT',
       siswa_id: row.siswa_id,
       nama_lengkap: row.nama_lengkap,
@@ -326,7 +354,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
     e.preventDefault()
     if (!modalSiswa || !nominal) return
     startTransition(async () => {
-      const res = await createDspt(modalSiswa.siswa_id, parseInt(nominal), catatan)
+      const res = await createDspt(modalSiswa.siswa_id, parseInt(nominal), catatan, studentScope)
       if (res.error) { setModalMsg(res.error); return }
       setModalSiswa(null)
       await reloadData()
@@ -340,9 +368,9 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
     const nominalVal = parseInt(editNominal) || 0
     const dibayarVal = parseInt(editDibayar) || 0
     startTransition(async () => {
-      const r1 = await updateDsptTarget(editModal.id!, nominalVal, editCatatan)
+      const r1 = await updateDsptTarget(editModal.id!, nominalVal, editCatatan, studentScope)
       if (r1.error) { setEditMsg(r1.error); return }
-      const r2 = await updateDsptPembayaran(editModal.id!, dibayarVal)
+      const r2 = await updateDsptPembayaran(editModal.id!, dibayarVal, studentScope)
       if (r2.error) { setEditMsg(r2.error); return }
       setEditModal(null)
       await reloadData()
@@ -354,7 +382,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
     e.stopPropagation()
     if (!row.id) return
     startTransition(async () => {
-      const res = await tandaiDsptLunas(row.id!)
+      const res = await tandaiDsptLunas(row.id!, studentScope)
       setMsg(res.error ?? res.success ?? '')
       if (!res.error) await reloadData()
     })
@@ -362,7 +390,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
 
   async function handleConfirmPayment(submissionId: string) {
     startTransition(async () => {
-      const res = await konfirmasiDsptPaymentSubmission(submissionId)
+      const res = await konfirmasiDsptPaymentSubmission(submissionId, studentScope)
       setMsg(res.error ?? res.success ?? '')
       if (!res.error) {
         setProofModal(null)
@@ -375,7 +403,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
     const reason = window.prompt('Alasan penolakan bukti pembayaran:')
     if (!reason) return
     startTransition(async () => {
-      const res = await tolakDsptPaymentSubmission(submissionId, reason)
+      const res = await tolakDsptPaymentSubmission(submissionId, reason, studentScope)
       setMsg(res.error ?? res.success ?? '')
       if (!res.error) {
         setProofModal(null)
@@ -386,7 +414,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
 
   async function handleAddSearch() {
     if (addSearch.trim().length < 2) return
-    const res = await searchSiswa(addSearch)
+    const res = await searchSiswa(addSearch, studentScope)
     setAddResults(res.data)
   }
 
@@ -394,7 +422,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
     e.preventDefault()
     if (!addSelected || !addNominal) { setAddMsg('Pilih siswa dan isi nominal'); return }
     startTransition(async () => {
-      const res = await createDspt(addSelected.id, parseInt(addNominal), addCatatan)
+      const res = await createDspt(addSelected.id, parseInt(addNominal), addCatatan, studentScope)
       if (res.error) { setAddMsg(res.error); return }
       setAddModal(false); setAddSelected(null); setAddSearch(''); setAddNominal(''); setAddCatatan(''); setAddResults([])
       await reloadData()
@@ -406,7 +434,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
     e.preventDefault()
     if (!massalAngkatan || !massalNominal) { setMassalMsg('Pilih angkatan dan isi nominal'); return }
     startTransition(async () => {
-      const res = await setNominalDsptMassal(parseInt(massalAngkatan), parseInt(massalNominal))
+      const res = await setNominalDsptMassal(parseInt(massalAngkatan), parseInt(massalNominal), studentScope)
       setMassalMsg(res.error ?? res.success ?? '')
       if (!res.error) { await reloadData() }
     })
@@ -439,7 +467,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
       catatan: String(r['Catatan'] ?? r['catatan'] ?? '').trim() || undefined,
     })).filter(r => r.nisn || r.nama)
 
-    const res = await importDsptBulk(mapped)
+    const res = await importDsptBulk(mapped, studentScope)
     setImportMsg((res.error ? res.error + ' — ' : '') + res.success)
     if (!res.error || res.sukses > 0) { await reloadData(); setImportRows([]) }
     setImportLoading(false)
@@ -454,7 +482,14 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           <Input placeholder="Cari nama atau NISN..." value={search}
             onChange={e => setSearch(e.target.value)} className="pl-8 h-8 text-sm rounded-md" />
         </div>
-        <SiswaStatusFilter value={filterSiswaStatus} onValueChange={setFilterSiswaStatus} />
+        <Select value={filterJenis} onValueChange={value => setFilterJenis(value as typeof filterJenis)}>
+          <SelectTrigger className="h-8 w-36 text-xs rounded-md"><SelectValue placeholder="Jenis Tagihan" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="semua">DSPT & SPP</SelectItem>
+            <SelectItem value="DSPT">DSPT</SelectItem>
+            <SelectItem value="SPP">SPP</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="h-8 w-36 text-xs rounded-md"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
@@ -507,10 +542,10 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           <FinanceExportExcelDialog
             rows={exportRows}
             currentRows={currentExportRows}
-            sources={['DSPT']}
-            defaultSources={['DSPT']}
+            sources={['DSPT', 'SPP']}
+            defaultSources={filterJenis === 'semua' ? ['DSPT', 'SPP'] : [filterJenis]}
             triggerLabel="Export Excel"
-            filePrefix="MANSATAS_DSPT"
+            filePrefix={studentScope === 'active' ? 'MANSATAS_DSPT_SPP_AKTIF' : 'MANSATAS_DSPT_SPP_NONAKTIF'}
           />
           <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
             onClick={() => { setMassalModal(true); setMassalMsg(''); setMassalAngkatan(angkatanList[0] ? String(angkatanList[0]) : ''); setMassalNominal('') }}>
@@ -543,13 +578,12 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
         </div>
       )}
 
-      {/* Summary Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
-          { label: 'Total Target', value: formatRupiah(totalTarget), color: 'text-slate-900 dark:text-slate-50' },
-          { label: 'Terkumpul', value: formatRupiah(totalDibayar), color: 'text-emerald-600 dark:text-emerald-400' },
-          { label: 'Diskon', value: formatRupiah(totalDiskon), color: 'text-blue-600 dark:text-blue-400' },
-          { label: 'Sisa Tunggakan', value: formatRupiah(totalSisa), color: 'text-rose-600 dark:text-rose-400' },
+          { label: 'Target DSPT', value: formatRupiah(totalTarget), color: 'text-slate-900 dark:text-slate-50' },
+          { label: 'Sisa DSPT', value: formatRupiah(totalSisa), color: 'text-rose-600 dark:text-rose-400' },
+          { label: 'Tunggakan SPP', value: formatRupiah(totalSppTarget), color: 'text-slate-900 dark:text-slate-50' },
+          { label: 'Sisa SPP', value: formatRupiah(totalSppSisa), color: 'text-rose-600 dark:text-rose-400' },
         ].map(s => (
           <div key={s.label} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2">
             <p className="text-[11px] text-slate-500 dark:text-slate-400">{s.label}</p>
@@ -563,11 +597,13 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+              <TableHead className="text-xs font-semibold">Jenis</TableHead>
               <TableHead className="text-xs font-semibold">Nama Siswa</TableHead>
               <TableHead className="text-xs font-semibold">Angkatan</TableHead>
               <TableHead className="text-xs font-semibold">Kelas</TableHead>
               <TableHead className="text-xs font-semibold text-right">Target</TableHead>
               <TableHead className="text-xs font-semibold text-right">Dibayar</TableHead>
+              <TableHead className="text-xs font-semibold text-right">Keringanan</TableHead>
               <TableHead className="text-xs font-semibold text-right">Sisa</TableHead>
               <TableHead className="text-xs font-semibold">Status</TableHead>
               <TableHead className="w-28 text-xs font-semibold text-center">Aksi</TableHead>
@@ -576,7 +612,9 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           <TableBody>
             {paginated.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-10 text-slate-400 text-sm">Tidak ada data</TableCell>
+                <TableCell colSpan={10} className="text-center py-10 text-slate-400 text-sm">
+                  {studentScope === 'active' ? 'Tidak ada tagihan siswa aktif sesuai filter' : 'Tidak ada tagihan siswa nonaktif sesuai filter'}
+                </TableCell>
               </TableRow>
             )}
             {paginated.map(row => {
@@ -586,10 +624,15 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
               const belumInput = row.status === 'tidak_ada'
               return (
                 <TableRow
-                  key={row.siswa_id}
+                  key={`${row.source}-${row.id ?? row.siswa_id}`}
                   className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                  onClick={() => router.push(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=dspt`)}
+                  onClick={() => router.push(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=${row.source === 'SPP' ? 'spp' : 'dspt'}&scope=${studentScope}`)}
                 >
+                  <TableCell>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${row.source === 'SPP' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {row.source === 'SPP' ? 'SPP Lama' : 'DSPT'}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
                     <p className="text-[11px] text-slate-400">{row.nisn ?? '-'}</p>
@@ -600,6 +643,9 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
                   </TableCell>
                   <TableCell className="text-sm text-right font-medium">{belumInput ? '-' : formatRupiah(row.nominal_target ?? 0)}</TableCell>
                   <TableCell className="text-sm text-right text-emerald-600 font-medium">{belumInput ? '-' : formatRupiah(row.total_dibayar ?? 0)}</TableCell>
+                  <TableCell className="text-sm text-right text-blue-600 font-medium">
+                    {belumInput || row.source === 'SPP' ? '-' : formatRupiah(row.total_diskon ?? 0)}
+                  </TableCell>
                   <TableCell className={`text-sm text-right font-medium ${sisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                     {belumInput ? '-' : formatRupiah(sisa)}
                   </TableCell>
@@ -610,7 +656,12 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-center gap-1">
-                      {belumInput ? (
+                      {row.source === 'SPP' ? (
+                        <Button size="sm" variant="outline" className="h-6 px-2 text-[11px]"
+                          onClick={e => { e.stopPropagation(); router.push(`/dashboard/keuangan/siswa/${row.siswa_id}?tab=spp&scope=${studentScope}`) }}>
+                          Detail
+                        </Button>
+                      ) : belumInput ? (
                         <Button size="sm" variant="outline" className="h-6 text-[11px] px-2"
                           onClick={e => { e.stopPropagation(); openSetDspt(row) }}>Input</Button>
                       ) : (
@@ -641,10 +692,10 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           pageSize={pageSize}
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
-          entityLabel="siswa"
+          entityLabel="tagihan"
         />
         <div className="px-4 py-1.5 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
-          {withDspt.length} dari {filtered.length} sudah diinput DSPT
+          {withDspt.length} item DSPT · {withSpp.length} item tunggakan SPP
         </div>
       </div>
 
@@ -778,9 +829,12 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
           </div>
           <div className="max-h-[72vh] overflow-auto bg-slate-50 p-4 dark:bg-slate-950">
             {proofModal?.bukti_url && (
-              <img
+              <NextImage
                 src={proofModal.bukti_url}
                 alt="Bukti pembayaran DSPT"
+                width={1200}
+                height={1600}
+                unoptimized
                 className="mx-auto rounded-lg bg-white object-contain transition-transform"
                 style={{ width: `${proofZoom * 100}%`, maxWidth: 'none' }}
               />
@@ -938,7 +992,7 @@ export function DsptClient({ initialData, angkatanList: initialAngkatanList }: {
                   disabled={templateLoading}
                   onClick={async () => {
                     setTemplateLoading(true)
-                    await downloadDsptTemplate(templateAngkatan !== 'semua' ? parseInt(templateAngkatan) : undefined)
+                    await downloadDsptTemplate(studentScope, templateAngkatan !== 'semua' ? parseInt(templateAngkatan) : undefined)
                     setTemplateLoading(false)
                   }}>
                   <Upload className="h-3.5 w-3.5 rotate-180" />

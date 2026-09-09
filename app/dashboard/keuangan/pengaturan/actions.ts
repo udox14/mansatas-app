@@ -1,7 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { checkFeatureAccess } from '@/lib/features'
+import { checkFeatureAccess, checkFeatureCrudAccess } from '@/lib/features'
+import type { CashDirection } from '@/lib/cashflow'
 import { setSystemSetting } from '@/lib/system-settings'
 import type { KomitePaymentAccount } from '@/lib/komite-payment-settings'
 import { getSession } from '@/utils/auth/server'
@@ -80,4 +81,42 @@ export async function uploadKomiteQrisAction(formData: FormData) {
   revalidatePath('/dashboard/keuangan/pengaturan')
   revalidatePath('/portal-ortu')
   return { error: null, success: 'QR code komite berhasil diperbarui.', url: uploaded.url }
+}
+
+export async function saveCashflowCategories(rows: Array<{
+  id: string
+  direction: CashDirection
+  name: string
+  sortOrder: number
+  isActive: boolean
+  isNew?: boolean
+}>) {
+  const { db, userId } = await requirePengaturanKomite()
+  if (!(await checkFeatureCrudAccess(db, userId, 'keuangan-pengaturan', 'update'))) {
+    return { error: 'Anda tidak memiliki izin mengubah jenis arus kas.', success: null }
+  }
+  if (!Array.isArray(rows) || rows.length < 2 || rows.length > 100) return { error: 'Daftar jenis arus kas tidak valid.', success: null }
+  const cleaned = rows.map((row, index) => ({
+    id: String(row.id || '').trim(), direction: row.direction,
+    name: String(row.name || '').trim().replace(/\s+/g, ' '),
+    sortOrder: index * 10 + 10, isActive: Boolean(row.isActive), isNew: Boolean(row.isNew),
+  }))
+  if (cleaned.some(row => !row.id || !['income','expense'].includes(row.direction) || row.name.length < 2 || row.name.length > 100)) {
+    return { error: 'Setiap nama jenis wajib diisi 2–100 karakter.', success: null }
+  }
+  for (const direction of ['income','expense'] as const) {
+    const names = cleaned.filter(row => row.direction === direction).map(row => row.name.toLocaleLowerCase('id-ID'))
+    if (new Set(names).size !== names.length) return { error: `Nama kategori ${direction === 'income' ? 'pemasukan' : 'pengeluaran'} tidak boleh duplikat.`, success: null }
+    if (!cleaned.some(row => row.direction === direction && row.isActive)) return { error: `Minimal satu kategori ${direction === 'income' ? 'pemasukan' : 'pengeluaran'} harus aktif.`, success: null }
+  }
+  const existing = await db.prepare('SELECT id,direction FROM fin_cashflow_categories').all<{ id: string; direction: CashDirection }>()
+  const directionById = new Map((existing.results ?? []).map(row => [row.id,row.direction]))
+  if (cleaned.some(row => directionById.has(row.id) && directionById.get(row.id) !== row.direction)) return { error: 'Arah kategori yang sudah dipakai tidak dapat diubah.', success: null }
+  await db.batch(cleaned.map(row => row.isNew
+    ? db.prepare(`INSERT INTO fin_cashflow_categories (id,direction,name,sort_order,is_active,is_system,created_by,updated_by) VALUES (?,?,?,?,?,0,?,?)`).bind(row.id,row.direction,row.name,row.sortOrder,row.isActive ? 1 : 0,userId,userId)
+    : db.prepare(`UPDATE fin_cashflow_categories SET name=?,sort_order=?,is_active=?,updated_by=?,updated_at=datetime('now') WHERE id=? AND direction=?`).bind(row.name,row.sortOrder,row.isActive ? 1 : 0,userId,row.id,row.direction)
+  ))
+  revalidatePath('/dashboard/keuangan/pengaturan')
+  revalidatePath('/dashboard/keuangan/kas-keluar')
+  return { error: null, success: 'Jenis arus kas berhasil disimpan.' }
 }

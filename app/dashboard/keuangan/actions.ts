@@ -6,6 +6,8 @@ import { revalidatePath } from 'next/cache'
 import { checkFeatureAccess } from '@/lib/features'
 import { todayWIB } from '@/lib/time'
 import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
+import { studentFinanceScopeSql, type StudentFinanceScope } from './student-finance-scope'
+export type { StudentFinanceScope } from './student-finance-scope'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -18,24 +20,29 @@ async function requireAuth(featureId: string) {
   return { db, userId: session.user.id }
 }
 
-async function requireAnyAuth(featureIds: string[]) {
-  const session = await getSession()
-  if (!session?.user) throw new Error('Unauthorized')
-  const db = await getDB()
-  for (const featureId of featureIds) {
-    if (await checkFeatureAccess(db, session.user.id, featureId)) {
-      return { db, userId: session.user.id }
-    }
-  }
-  throw new Error('Forbidden')
-}
-
 function generateId() {
   return crypto.randomUUID()
 }
 
 type DsptStatus = 'belum_bayar' | 'nyicil' | 'lunas' | 'tidak_ada'
 const DSPT_ZERO_UNINPUT_START_YEAR = 2026
+
+function studentScopeSql(scope: StudentFinanceScope, alias = 's') {
+  return studentFinanceScopeSql(scope, alias)
+}
+
+async function studentMatchesScope(db: D1Database, siswaId: string, scope: StudentFinanceScope) {
+  const row = await db.prepare(`SELECT id FROM siswa s WHERE id=? AND ${studentScopeSql(scope)}`).bind(siswaId).first()
+  return Boolean(row)
+}
+
+function revalidateFinanceStudentViews() {
+  revalidatePath('/dashboard/keuangan/dspt')
+  revalidatePath('/dashboard/keuangan/dspt/nonaktif')
+  revalidatePath('/dashboard/keuangan/export')
+  revalidatePath('/dashboard/keuangan/laporan')
+  revalidatePath('/dashboard')
+}
 
 function isDsptZeroUninput(
   tahunMasuk: number | string | null | undefined,
@@ -91,11 +98,9 @@ async function ensurePaymentSubmissionTable(db: D1Database) {
   `).run()
 }
 
-const SPP_REGULER_DISABLED_MESSAGE = 'SPP reguler dinonaktifkan. Gunakan pembayaran tunggakan awal SPP saja.'
-
 // ─── DSPT ───────────────────────────────────────────────────────────────────
 
-export async function getDsptList(filters?: { status?: string; angkatan?: string }) {
+export async function getDsptList(scope: StudentFinanceScope = 'active', filters?: { status?: string; angkatan?: string }) {
   const { db } = await requireAuth('keuangan-dspt')
   // LEFT JOIN dari siswa → semua siswa tampil, termasuk yang belum punya tagihan DSPT
   let query = `
@@ -104,12 +109,14 @@ export async function getDsptList(filters?: { status?: string; angkatan?: string
       COALESCE(d.status, 'tidak_ada') as status, d.catatan,
       s.id as siswa_id, s.nama_lengkap, s.nisn, s.status AS siswa_status,
       s.tahun_masuk,
-      k.tingkat, k.nomor_kelas, k.kelompok,
+      COALESCE(k.tingkat, (SELECT rk.kelas_tingkat FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1)) AS tingkat,
+      COALESCE(k.nomor_kelas, (SELECT rk.kelas_nomor FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1)) AS nomor_kelas,
+      COALESCE(k.kelompok, (SELECT rk.kelas_kelompok FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1)) AS kelompok,
       mb.metode_bayar_set,
       mb.bulan_bayar_set
     FROM siswa s
     LEFT JOIN fin_dspt d ON d.siswa_id = s.id
-    LEFT JOIN kelas k ON k.id = s.kelas_id
+    LEFT JOIN kelas k ON k.id = COALESCE(s.kelas_id, s.kelas_id_sebelum_keluar)
     LEFT JOIN (
       SELECT td.ref_id, 
              GROUP_CONCAT(DISTINCT t.metode_bayar) AS metode_bayar_set,
@@ -120,7 +127,7 @@ export async function getDsptList(filters?: { status?: string; angkatan?: string
         AND t.is_void = 0
       GROUP BY td.ref_id
     ) mb ON mb.ref_id = d.id
-    WHERE 1=1
+    WHERE ${studentScopeSql(scope)}
   `
   const params: any[] = []
   if (filters?.angkatan && filters.angkatan !== 'semua') {
@@ -147,8 +154,9 @@ export async function getDsptList(filters?: { status?: string; angkatan?: string
   }
 }
 
-export async function createDspt(siswaId: string, nominalTarget: number, catatan?: string) {
+export async function createDspt(siswaId: string, nominalTarget: number, catatan: string | undefined, scope: StudentFinanceScope) {
   const { db } = await requireAuth('keuangan-dspt')
+  if (!(await studentMatchesScope(db, siswaId, scope))) return { error: 'Status siswa sudah berpindah dari view ini. Muat ulang halaman.', success: null }
   const siswa = await db.prepare('SELECT tahun_masuk FROM siswa WHERE id = ?').bind(siswaId).first<any>()
   const existing = await db.prepare('SELECT id, nominal_target, total_dibayar, total_diskon FROM fin_dspt WHERE siswa_id = ?').bind(siswaId).first<any>()
   const status = recalcDsptStatus(0, 0, nominalTarget, siswa?.tahun_masuk)
@@ -161,7 +169,7 @@ export async function createDspt(siswaId: string, nominalTarget: number, catatan
       SET nominal_target = ?, total_dibayar = 0, total_diskon = 0, status = ?, catatan = ?, updated_at = datetime('now')
       WHERE id = ?
     `).bind(nominalTarget, status, catatan ?? null, existing.id).run()
-    revalidatePath('/dashboard/keuangan/dspt')
+    revalidateFinanceStudentViews()
     revalidatePath(`/dashboard/keuangan/siswa/${siswaId}`)
     return { error: null, success: 'Tagihan DSPT berhasil dibuat' }
   }
@@ -169,18 +177,18 @@ export async function createDspt(siswaId: string, nominalTarget: number, catatan
     INSERT INTO fin_dspt (id, siswa_id, nominal_target, status, catatan)
     VALUES (?, ?, ?, ?, ?)
   `).bind(generateId(), siswaId, nominalTarget, status, catatan ?? null).run()
-  revalidatePath('/dashboard/keuangan/dspt')
+  revalidateFinanceStudentViews()
   return { error: null, success: 'Tagihan DSPT berhasil dibuat' }
 }
 
-export async function getSiswaTemplate(angkatan?: number) {
+export async function getSiswaTemplate(scope: StudentFinanceScope, angkatan?: number) {
   const { db } = await requireAuth('keuangan-dspt')
   let query = `
     SELECT s.nama_lengkap, s.nisn, s.tahun_masuk,
            k.tingkat, k.nomor_kelas, k.kelompok
     FROM siswa s
-    LEFT JOIN kelas k ON k.id = s.kelas_id
-    WHERE 1=1
+    LEFT JOIN kelas k ON k.id = COALESCE(s.kelas_id, s.kelas_id_sebelum_keluar)
+    WHERE ${studentScopeSql(scope)}
   `
   const params: any[] = []
   if (angkatan) { query += ' AND s.tahun_masuk = ?'; params.push(angkatan) }
@@ -189,7 +197,7 @@ export async function getSiswaTemplate(angkatan?: number) {
   return { data: result.results ?? [] }
 }
 
-export async function searchSiswa(q: string) {
+export async function searchSiswa(q: string, scope: StudentFinanceScope) {
   const { db } = await requireAuth('keuangan-dspt')
   if (!q || q.trim().length < 2) return { data: [] }
   const term = `%${q.trim()}%`
@@ -198,73 +206,73 @@ export async function searchSiswa(q: string) {
            k.tingkat, k.nomor_kelas, k.kelompok,
            s.tahun_masuk
     FROM siswa s
-    LEFT JOIN kelas k ON k.id = s.kelas_id
-    WHERE s.status = 'aktif' AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)
+    LEFT JOIN kelas k ON k.id = COALESCE(s.kelas_id, s.kelas_id_sebelum_keluar)
+    WHERE ${studentScopeSql(scope)} AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)
     ORDER BY s.nama_lengkap ASC
     LIMIT 20
   `).bind(term, term).all<any>()
   return { data: result.results ?? [] }
 }
 
-export async function updateDsptTarget(dsptId: string, nominalTarget: number, catatan?: string) {
+export async function updateDsptTarget(dsptId: string, nominalTarget: number, catatan: string | undefined, scope: StudentFinanceScope) {
   const { db } = await requireAuth('keuangan-dspt')
   const rec = await db.prepare(`
     SELECT d.total_dibayar, d.total_diskon, d.siswa_id, s.tahun_masuk
     FROM fin_dspt d
     LEFT JOIN siswa s ON s.id = d.siswa_id
-    WHERE d.id = ?
+    WHERE d.id = ? AND ${studentScopeSql(scope)}
   `).bind(dsptId).first<any>()
   if (!rec) return { error: 'Data tidak ditemukan', success: null }
   const status = recalcDsptStatus(rec.total_dibayar ?? 0, rec.total_diskon ?? 0, nominalTarget, rec.tahun_masuk)
   await db.prepare(`
     UPDATE fin_dspt SET nominal_target = ?, catatan = ?, status = ?, updated_at = datetime('now') WHERE id = ?
   `).bind(nominalTarget, catatan ?? null, status, dsptId).run()
-  revalidatePath('/dashboard/keuangan/dspt')
+  revalidateFinanceStudentViews()
   revalidatePath(`/dashboard/keuangan/siswa/${rec.siswa_id}`)
   return { error: null, success: 'Target DSPT berhasil diperbarui' }
 }
 
-export async function updateDsptPembayaran(dsptId: string, totalDibayar: number) {
+export async function updateDsptPembayaran(dsptId: string, totalDibayar: number, scope: StudentFinanceScope) {
   const { db } = await requireAuth('keuangan-dspt')
   const rec = await db.prepare(`
     SELECT d.nominal_target, d.total_diskon, d.siswa_id, s.tahun_masuk
     FROM fin_dspt d
     LEFT JOIN siswa s ON s.id = d.siswa_id
-    WHERE d.id = ?
+    WHERE d.id = ? AND ${studentScopeSql(scope)}
   `).bind(dsptId).first<any>()
   if (!rec) return { error: 'Data tidak ditemukan', success: null }
   const status = recalcDsptStatus(totalDibayar, rec.total_diskon ?? 0, rec.nominal_target, rec.tahun_masuk)
   await db.prepare(`
     UPDATE fin_dspt SET total_dibayar = ?, status = ?, updated_at = datetime('now') WHERE id = ?
   `).bind(totalDibayar, status, dsptId).run()
-  revalidatePath('/dashboard/keuangan/dspt')
+  revalidateFinanceStudentViews()
   revalidatePath(`/dashboard/keuangan/siswa/${rec.siswa_id}`)
   return { error: null, success: 'Pembayaran DSPT berhasil diperbarui' }
 }
 
-export async function tandaiDsptLunas(dsptId: string) {
+export async function tandaiDsptLunas(dsptId: string, scope: StudentFinanceScope) {
   const { db } = await requireAuth('keuangan-dspt')
-  const rec = await db.prepare('SELECT nominal_target, total_diskon FROM fin_dspt WHERE id = ?').bind(dsptId).first<any>()
+  const rec = await db.prepare(`SELECT d.nominal_target, d.total_diskon FROM fin_dspt d JOIN siswa s ON s.id=d.siswa_id WHERE d.id = ? AND ${studentScopeSql(scope)}`).bind(dsptId).first<any>()
   if (!rec) return { error: 'Data tidak ditemukan', success: null }
   const totalDibayar = Math.max(0, (rec.nominal_target ?? 0) - (rec.total_diskon ?? 0))
   await db.prepare(`
     UPDATE fin_dspt SET total_dibayar = ?, status = 'lunas', updated_at = datetime('now') WHERE id = ?
   `).bind(totalDibayar, dsptId).run()
-  revalidatePath('/dashboard/keuangan/dspt')
+  revalidateFinanceStudentViews()
   return { error: null, success: 'DSPT berhasil ditandai lunas' }
 }
 
-export async function setNominalDsptMassal(angkatan: number, nominal: number) {
+export async function setNominalDsptMassal(angkatan: number, nominal: number, scope: StudentFinanceScope) {
   const { db } = await requireAuth('keuangan-dspt')
   // Buat DSPT baru untuk yang belum ada, update nominal untuk yang sudah ada
   const siswaRes = await db.prepare(`
-    SELECT s.id as siswa_id FROM siswa s WHERE s.tahun_masuk = ?
+    SELECT s.id as siswa_id FROM siswa s WHERE s.tahun_masuk = ? AND ${studentScopeSql(scope)}
   `).bind(angkatan).all<{ siswa_id: string }>()
   const siswaList = siswaRes.results ?? []
   if (!siswaList.length) return { error: 'Tidak ada siswa untuk angkatan ini', success: null }
 
   const existingRes = await db.prepare(
-    'SELECT id, siswa_id, total_dibayar, total_diskon FROM fin_dspt WHERE siswa_id IN (SELECT id FROM siswa WHERE tahun_masuk = ?)'
+    `SELECT id, siswa_id, total_dibayar, total_diskon FROM fin_dspt WHERE siswa_id IN (SELECT id FROM siswa s WHERE tahun_masuk = ? AND ${studentScopeSql(scope)})`
   ).bind(angkatan).all<any>()
   const existingMap = new Map((existingRes.results ?? []).map(r => [r.siswa_id, r]))
 
@@ -280,11 +288,11 @@ export async function setNominalDsptMassal(angkatan: number, nominal: number) {
     }
   }
   for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
-  revalidatePath('/dashboard/keuangan/dspt')
+  revalidateFinanceStudentViews()
   return { error: null, success: `Nominal DSPT Rp ${nominal.toLocaleString('id-ID')} berhasil diset untuk ${stmts.length} siswa angkatan ${angkatan}` }
 }
 
-export async function importDsptBulk(rows: { nisn?: string; nama?: string; nominal_target: number; total_dibayar: number; catatan?: string }[]) {
+export async function importDsptBulk(rows: { nisn?: string; nama?: string; nominal_target: number; total_dibayar: number; catatan?: string }[], scope: StudentFinanceScope) {
   const { db } = await requireAuth('keuangan-dspt')
   if (!rows.length) return { error: null, success: '0 data diimport', sukses: 0, gagal: [] }
 
@@ -296,12 +304,12 @@ export async function importDsptBulk(rows: { nisn?: string; nama?: string; nomin
 
   if (nisnList.length) {
     const ph = nisnList.map(() => '?').join(',')
-    const res = await db.prepare(`SELECT id, nisn, tahun_masuk FROM siswa WHERE nisn IN (${ph})`).bind(...nisnList).all<any>()
+    const res = await db.prepare(`SELECT id, nisn, tahun_masuk FROM siswa s WHERE nisn IN (${ph}) AND ${studentScopeSql(scope)}`).bind(...nisnList).all<any>()
     for (const s of res.results ?? []) siswaNisnMap.set(s.nisn, { id: s.id, tahun_masuk: s.tahun_masuk })
   }
   if (namaList.length) {
     const ph = namaList.map(() => '?').join(',')
-    const res = await db.prepare(`SELECT id, tahun_masuk, LOWER(nama_lengkap) as nama_l FROM siswa WHERE LOWER(nama_lengkap) IN (${ph.replace(/\?/g, 'LOWER(?)')})`).bind(...namaList).all<any>()
+    const res = await db.prepare(`SELECT id, tahun_masuk, LOWER(nama_lengkap) as nama_l FROM siswa s WHERE LOWER(nama_lengkap) IN (${ph.replace(/\?/g, 'LOWER(?)')}) AND ${studentScopeSql(scope)}`).bind(...namaList).all<any>()
     for (const s of res.results ?? []) siswaNamaMap.set(s.nama_l, { id: s.id, tahun_masuk: s.tahun_masuk })
   }
 
@@ -337,7 +345,7 @@ export async function importDsptBulk(rows: { nisn?: string; nama?: string; nomin
 
   // 1 subrequest: batch semua insert/update
   for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
-  revalidatePath('/dashboard/keuangan/dspt')
+  revalidateFinanceStudentViews()
   return { error: gagal.length ? `${gagal.length} baris gagal (siswa tidak ditemukan): ${gagal.slice(0, 5).join(', ')}` : null, success: `${sukses} data DSPT berhasil diimport`, sukses, gagal }
 }
 
@@ -363,17 +371,18 @@ export async function tandaiLunasMigrasiDspt() {
     `).bind(generateId(), id)
   )
   for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
-  revalidatePath('/dashboard/keuangan/dspt')
+  revalidateFinanceStudentViews()
   return { error: null, success: `${siswaList.length} siswa berhasil ditandai lunas DSPT (migrasi)`, jumlah: siswaList.length }
 }
 
 // ─── SPP Saldo Awal (data migrasi tanpa rincian bulan) ──────────────────────
 
-export async function setSppSaldoAwal(siswaId: string, jumlah: number, keterangan?: string) {
-  const { db } = await requireAuth('keuangan-spp')
-  const existing = await db.prepare('SELECT id FROM fin_spp_saldo_awal WHERE siswa_id = ?').bind(siswaId).first<any>()
+export async function setSppSaldoAwal(siswaId: string, jumlah: number, keterangan: string | undefined, scope: StudentFinanceScope) {
+  const { db } = await requireAuth('keuangan-dspt')
+  if (!(await studentMatchesScope(db, siswaId, scope))) return { error: 'Status siswa sudah berpindah dari view ini. Muat ulang halaman.', success: null }
+  const existing = await db.prepare('SELECT id, total_dibayar FROM fin_spp_saldo_awal WHERE siswa_id = ?').bind(siswaId).first<any>()
   if (existing) {
-    const status = jumlah <= 0 ? 'lunas' : 'belum_bayar'
+    const status = recalcStatus(Number(existing.total_dibayar || 0), 0, jumlah)
     await db.prepare(`
       UPDATE fin_spp_saldo_awal SET jumlah=?, keterangan=?, status=?, updated_at=datetime('now') WHERE id=?
     `).bind(jumlah, keterangan ?? null, status, existing.id).run()
@@ -385,12 +394,13 @@ export async function setSppSaldoAwal(siswaId: string, jumlah: number, keteranga
     `).bind(generateId(), siswaId, jumlah, status, keterangan ?? null).run()
   }
   revalidatePath(`/dashboard/keuangan/siswa/${siswaId}`)
+  revalidateFinanceStudentViews()
   return { error: null, success: 'Saldo awal SPP disimpan' }
 }
 
-export async function bayarSaldoAwalSpp(saldoAwalId: string, jumlahBayar: number) {
-  const { db, userId } = await requireAuth('keuangan-spp')
-  const rec = await db.prepare('SELECT siswa_id, jumlah, total_dibayar FROM fin_spp_saldo_awal WHERE id = ?').bind(saldoAwalId).first<any>()
+export async function bayarSaldoAwalSpp(saldoAwalId: string, jumlahBayar: number, scope: StudentFinanceScope) {
+  const { db, userId } = await requireAuth('keuangan-dspt')
+  const rec = await db.prepare(`SELECT sa.siswa_id, sa.jumlah, sa.total_dibayar FROM fin_spp_saldo_awal sa JOIN siswa s ON s.id=sa.siswa_id WHERE sa.id = ? AND ${studentScopeSql(scope)}`).bind(saldoAwalId).first<any>()
   if (!rec) return { error: 'Data tidak ditemukan', success: null }
   if (jumlahBayar <= 0) return { error: 'Jumlah bayar harus lebih dari 0', success: null }
   const currentDibayar = rec.total_dibayar ?? 0
@@ -421,303 +431,9 @@ export async function bayarSaldoAwalSpp(saldoAwalId: string, jumlahBayar: number
     `).bind(generateId(), transaksiId, saldoAwalId, jumlahTercatat),
   ])
   revalidatePath(`/dashboard/keuangan/siswa/${rec.siswa_id}`)
-  revalidatePath('/dashboard/keuangan/spp')
+  revalidateFinanceStudentViews()
   revalidatePath('/dashboard/keuangan/transaksi')
   return { error: null, success: `Pembayaran ${status === 'lunas' ? '— Tunggakan awal LUNAS!' : 'berhasil dicatat'}` }
-}
-
-// ─── SPP Mulai (tanggal mulai per angkatan / per siswa) ────────────────────
-
-export async function getSppMulaiList() {
-  const { db } = await requireAuth('keuangan-spp')
-  const res = await db.prepare(`
-    SELECT * FROM fin_spp_mulai ORDER BY tahun_masuk DESC
-  `).all<any>()
-  return { data: res.results ?? [] }
-}
-
-export async function setSppMulaiAngkatan(tahunMasuk: number, bulanMulai: number, tahunMulai: number) {
-  const { db } = await requireAuth('keuangan-spp')
-  const existing = await db.prepare(
-    `SELECT id FROM fin_spp_mulai WHERE tahun_masuk = ? AND siswa_id IS NULL`
-  ).bind(tahunMasuk).first<any>()
-  if (existing) {
-    await db.prepare(`
-      UPDATE fin_spp_mulai SET bulan_mulai=?, tahun_mulai=?, updated_at=datetime('now')
-      WHERE id=?
-    `).bind(bulanMulai, tahunMulai, existing.id).run()
-  } else {
-    await db.prepare(`
-      INSERT INTO fin_spp_mulai (id, tahun_masuk, bulan_mulai, tahun_mulai)
-      VALUES (?, ?, ?, ?)
-    `).bind(generateId(), tahunMasuk, bulanMulai, tahunMulai).run()
-  }
-  revalidatePath('/dashboard/keuangan/spp')
-  return { error: null, success: 'Pengaturan mulai SPP disimpan' }
-}
-
-export async function setSppMulaiSiswa(siswaId: string, bulanMulai: number, tahunMulai: number) {
-  const { db } = await requireAuth('keuangan-spp')
-  const existing = await db.prepare(
-    `SELECT id FROM fin_spp_mulai WHERE siswa_id = ?`
-  ).bind(siswaId).first<any>()
-  if (existing) {
-    await db.prepare(`
-      UPDATE fin_spp_mulai SET bulan_mulai=?, tahun_mulai=?, updated_at=datetime('now')
-      WHERE id=?
-    `).bind(bulanMulai, tahunMulai, existing.id).run()
-  } else {
-    await db.prepare(`
-      INSERT INTO fin_spp_mulai (id, siswa_id, bulan_mulai, tahun_mulai)
-      VALUES (?, ?, ?, ?)
-    `).bind(generateId(), siswaId, bulanMulai, tahunMulai).run()
-  }
-  revalidatePath('/dashboard/keuangan/spp')
-  return { error: null, success: 'Override mulai SPP siswa disimpan' }
-}
-
-// ─── SPP Setting ────────────────────────────────────────────────────────────
-
-export async function getSppSettings() {
-  const { db } = await requireAuth('keuangan-spp')
-  const result = await db.prepare('SELECT * FROM fin_spp_setting ORDER BY tingkat ASC').all<any>()
-  return { data: result.results ?? [], error: null }
-}
-
-export async function updateSppSetting(tingkat: number, nominal: number, aktif: number) {
-  const { db, userId } = await requireAuth('keuangan-spp')
-
-  // 1. Update setting
-  await db.prepare(`
-    UPDATE fin_spp_setting
-    SET nominal = ?, aktif = ?, updated_by = ?, updated_at = datetime('now')
-    WHERE tingkat = ?
-  `).bind(nominal, aktif, userId, tingkat).run()
-
-  // 2. Timpa nominal semua tagihan yang belum lunas di tingkat ini
-  //    (yang sudah lunas tidak diubah agar histori bayar tetap akurat)
-  const siswaSubquery = `
-    SELECT s.id FROM siswa s
-    LEFT JOIN kelas k ON k.id = s.kelas_id
-    WHERE k.tingkat = ?
-  `
-  if (nominal === 0) {
-    // Nominal 0 = tidak ada tagihan → hapus semua tagihan yang belum ada bayar nyata
-    // (termasuk yang status='lunas' palsu akibat nominal=0 sebelumnya)
-    await db.prepare(`
-      DELETE FROM fin_spp_tagihan
-      WHERE total_dibayar = 0
-        AND siswa_id IN (${siswaSubquery})
-    `).bind(tingkat).run()
-  } else {
-    // Nominal > 0 → update nominal + recalc status
-    // Guard: hanya ubah tagihan yang belum ada bayaran nyata (total_dibayar=0)
-    // agar histori siswa yang sudah bayar tidak terganggu
-    await db.prepare(`
-      UPDATE fin_spp_tagihan
-      SET nominal    = ?,
-          updated_at = datetime('now'),
-          status = CASE
-            WHEN (total_dibayar + total_diskon) >= ? THEN 'lunas'
-            WHEN total_dibayar > 0                   THEN 'nyicil'
-            ELSE 'belum_bayar'
-          END
-      WHERE total_dibayar = 0
-        AND siswa_id IN (${siswaSubquery})
-    `).bind(nominal, nominal, tingkat).run()
-  }
-
-  revalidatePath('/dashboard/keuangan/spp')
-  return { error: null, success: 'Pengaturan SPP disimpan & nominal tagihan diperbarui' }
-}
-
-export async function getSppTagihanList(filters: { bulan: number; tahun: number; status?: string }) {
-  const { db } = await requireAuth('keuangan-spp')
-  // LEFT JOIN dari siswa → semua siswa muncul, termasuk yang belum punya tagihan bulan ini
-  let query = `
-    SELECT
-      t.id,
-      s.id AS siswa_id, s.nama_lengkap, s.nisn, s.tahun_masuk,
-      COALESCE(t.bulan, ?) AS bulan,
-      COALESCE(t.tahun, ?) AS tahun,
-      COALESCE(t.nominal, 0) AS nominal,
-      COALESCE(t.total_dibayar, 0) AS total_dibayar,
-      COALESCE(t.total_diskon, 0) AS total_diskon,
-      COALESCE(t.status, 'tidak_ada') AS status,
-      k.tingkat, k.nomor_kelas, k.kelompok
-    FROM siswa s
-    LEFT JOIN fin_spp_tagihan t ON t.siswa_id = s.id AND t.bulan = ? AND t.tahun = ?
-    LEFT JOIN kelas k ON k.id = s.kelas_id
-    WHERE 1=1
-  `
-  const params: any[] = [filters.bulan, filters.tahun, filters.bulan, filters.tahun]
-  if (filters.status && filters.status !== 'semua') {
-    if (filters.status === 'tidak_ada') {
-      query += ' AND t.id IS NULL'
-    } else {
-      query += ' AND t.status = ?'; params.push(filters.status)
-    }
-  }
-  query += ' ORDER BY s.nama_lengkap ASC'
-  const result = await db.prepare(query).bind(...params).all<any>()
-  return { data: result.results ?? [], error: null }
-}
-
-export async function buatSppTagihanSiswa(siswaId: string, bulan: number, tahun: number, nominal: number) {
-  const { db } = await requireAuth('keuangan-spp')
-  void db; void siswaId; void bulan; void tahun; void nominal
-  return { error: SPP_REGULER_DISABLED_MESSAGE, success: null }
-  const exists = await db.prepare(
-    'SELECT id FROM fin_spp_tagihan WHERE siswa_id = ? AND bulan = ? AND tahun = ?'
-  ).bind(siswaId, bulan, tahun).first()
-  if (exists) return { error: 'Tagihan sudah ada untuk periode ini', success: null }
-  await db.prepare(
-    'INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal) VALUES (?, ?, ?, ?, ?)'
-  ).bind(generateId(), siswaId, bulan, tahun, nominal).run()
-  revalidatePath('/dashboard/keuangan/spp')
-  return { error: null, success: 'Tagihan SPP berhasil dibuat' }
-}
-
-/** Batch: buat tagihan jika belum ada, lalu tandai lunas semua bulan sekaligus — 1 batch write */
-export async function simpanSppBulanTerpilih(
-  siswaId: string,
-  bulanList: number[],  // bulan yang dipilih
-  tahun: number,
-) {
-  const { db } = await requireAuth('keuangan-spp')
-  void db; void siswaId; void bulanList; void tahun
-  return { error: SPP_REGULER_DISABLED_MESSAGE, success: null }
-  if (!bulanList.length) return { error: 'Tidak ada bulan dipilih', success: null }
-
-  // Nominal dari setting (butuh tingkat siswa)
-  const siswaRow = await db.prepare(`
-    SELECT s.id, k.tingkat FROM siswa s LEFT JOIN kelas k ON k.id = s.kelas_id WHERE s.id = ?
-  `).bind(siswaId).first<any>()
-  const setting = siswaRow?.tingkat
-    ? await db.prepare('SELECT nominal FROM fin_spp_setting WHERE tingkat = ?').bind(siswaRow.tingkat).first<any>()
-    : null
-  const nominal = setting?.nominal ?? 0
-
-  // Tagihan yang sudah ada untuk bulan-bulan ini
-  const placeholders = bulanList.map(() => '?').join(',')
-  const existing = await db.prepare(
-    `SELECT id, bulan, nominal AS nom, total_diskon FROM fin_spp_tagihan WHERE siswa_id = ? AND tahun = ? AND bulan IN (${placeholders})`
-  ).bind(siswaId, tahun, ...bulanList).all<any>()
-  const existingMap = new Map<number, any>()
-  for (const r of existing.results ?? []) existingMap.set(r.bulan, r)
-
-  const stmts: D1PreparedStatement[] = []
-  for (const bulan of bulanList) {
-    const ex = existingMap.get(bulan)
-    if (ex) {
-      // Sudah ada → update jadi lunas
-      const dibayar = Math.max(0, (ex.nom ?? nominal) - (ex.total_diskon ?? 0))
-      stmts.push(db.prepare(
-        `UPDATE fin_spp_tagihan SET total_dibayar = ?, status = 'lunas', updated_at = datetime('now') WHERE id = ?`
-      ).bind(dibayar, ex.id))
-    } else {
-      // Belum ada → insert + langsung lunas
-      const id = generateId()
-      const dibayar = Math.max(0, nominal)
-      stmts.push(db.prepare(
-        `INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal, total_dibayar, status) VALUES (?, ?, ?, ?, ?, ?, 'lunas')`
-      ).bind(id, siswaId, bulan, tahun, nominal, dibayar))
-    }
-  }
-
-  if (stmts.length) await db.batch(stmts)
-  revalidatePath('/dashboard/keuangan/spp')
-  return { error: null, success: `${bulanList.length} bulan SPP berhasil disimpan` }
-}
-
-export async function tandaiSppLunas(tagihanId: string) {
-  const { db } = await requireAuth('keuangan-spp')
-  void db; void tagihanId
-  return { error: SPP_REGULER_DISABLED_MESSAGE, success: null }
-  const rec = await db.prepare('SELECT nominal, total_diskon FROM fin_spp_tagihan WHERE id = ?').bind(tagihanId).first<any>()
-  if (!rec) return { error: 'Tagihan tidak ditemukan', success: null }
-  const totalDibayar = Math.max(0, (rec.nominal ?? 0) - (rec.total_diskon ?? 0))
-  await db.prepare(`UPDATE fin_spp_tagihan SET total_dibayar = ?, status = 'lunas', updated_at = datetime('now') WHERE id = ?`)
-    .bind(totalDibayar, tagihanId).run()
-  revalidatePath('/dashboard/keuangan/spp')
-  return { error: null, success: 'SPP berhasil ditandai lunas' }
-}
-
-export async function updateSppTagihanNominal(tagihanId: string, nominal: number, totalDibayar: number) {
-  const { db } = await requireAuth('keuangan-spp')
-  void db; void tagihanId; void nominal; void totalDibayar
-  return { error: SPP_REGULER_DISABLED_MESSAGE, success: null }
-  const rec = await db.prepare('SELECT total_diskon FROM fin_spp_tagihan WHERE id = ?').bind(tagihanId).first<any>()
-  if (!rec) return { error: 'Tagihan tidak ditemukan', success: null }
-  const status = recalcStatus(totalDibayar, rec.total_diskon ?? 0, nominal)
-  await db.prepare(`UPDATE fin_spp_tagihan SET nominal=?, total_dibayar=?, status=?, updated_at=datetime('now') WHERE id=?`)
-    .bind(nominal, totalDibayar, status, tagihanId).run()
-  revalidatePath('/dashboard/keuangan/spp')
-  return { error: null, success: 'Tagihan SPP berhasil diperbarui' }
-}
-
-export async function importSppBulk(rows: { nisn?: string; nama?: string; bulan: number; tahun: number; nominal: number; total_dibayar: number }[]) {
-  const { db } = await requireAuth('keuangan-spp')
-  void db; void rows
-  return { error: SPP_REGULER_DISABLED_MESSAGE, success: '0 tagihan SPP diimport', sukses: 0, gagal: [] }
-  if (!rows.length) return { error: null, success: '0 data diimport', sukses: 0, gagal: [] }
-
-  // 1 subrequest: load semua siswa sekaligus
-  const nisnList = rows.map(r => r.nisn).filter(Boolean) as string[]
-  const namaList = rows.map(r => r.nama).filter(Boolean) as string[]
-  const siswaNisnMap = new Map<string, string>()
-  const siswaNamaMap = new Map<string, string>()
-
-  if (nisnList.length) {
-    const ph = nisnList.map(() => '?').join(',')
-    const res = await db.prepare(`SELECT id, nisn FROM siswa WHERE nisn IN (${ph})`).bind(...nisnList).all<any>()
-    for (const s of res.results ?? []) siswaNisnMap.set(s.nisn, s.id)
-  }
-  if (namaList.length) {
-    const ph = namaList.map(() => '?').join(',')
-    const res = await db.prepare(`SELECT id, LOWER(nama_lengkap) as nama_l FROM siswa WHERE LOWER(nama_lengkap) IN (${ph.replace(/\?/g, 'LOWER(?)')})`).bind(...namaList).all<any>()
-    for (const s of res.results ?? []) siswaNamaMap.set(s.nama_l, s.id)
-  }
-
-  // Tentukan periode unik yang ada di rows agar bisa pre-load tagihan
-  const allSiswaIds = [...new Set([...siswaNisnMap.values(), ...siswaNamaMap.values()])]
-  const periodeSet = new Set(rows.map(r => `${r.bulan}-${r.tahun}`))
-  const existingMap = new Map<string, any>()  // `${siswa_id}-${bulan}-${tahun}` → tagihan row
-
-  // 1 subrequest per periode unik (biasanya cuma 1 periode saat import)
-  for (const periode of periodeSet) {
-    const [bulan, tahun] = periode.split('-').map(Number)
-    if (!allSiswaIds.length) break
-    const ph = allSiswaIds.map(() => '?').join(',')
-    const res = await db.prepare(`SELECT id, siswa_id, total_diskon FROM fin_spp_tagihan WHERE bulan=? AND tahun=? AND siswa_id IN (${ph})`)
-      .bind(bulan, tahun, ...allSiswaIds).all<any>()
-    for (const r of res.results ?? []) existingMap.set(`${r.siswa_id}-${bulan}-${tahun}`, r)
-  }
-
-  const stmts: D1PreparedStatement[] = []
-  let sukses = 0; const gagal: string[] = []
-
-  for (const row of rows) {
-    const siswaId = (row.nisn ? siswaNisnMap.get(row.nisn as string) : undefined)
-      ?? (row.nama ? siswaNamaMap.get((row.nama as string).toLowerCase()) : undefined)
-    if (!siswaId) { gagal.push(row.nisn ?? row.nama ?? '?'); continue }
-
-    const key = `${siswaId}-${row.bulan}-${row.tahun}`
-    const existing = existingMap.get(key)
-    const status = recalcStatus(row.total_dibayar, existing?.total_diskon ?? 0, row.nominal)
-    if (existing) {
-      stmts.push(db.prepare(`UPDATE fin_spp_tagihan SET nominal=?, total_dibayar=?, status=?, updated_at=datetime('now') WHERE id=?`)
-        .bind(row.nominal, row.total_dibayar, status, existing.id))
-    } else {
-      stmts.push(db.prepare(`INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal, total_dibayar, status) VALUES (?,?,?,?,?,?,?)`)
-        .bind(generateId(), siswaId, row.bulan, row.tahun, row.nominal, row.total_dibayar, status))
-    }
-    sukses++
-  }
-
-  for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
-  revalidatePath('/dashboard/keuangan/spp')
-  return { error: gagal.length ? `${gagal.length} baris gagal: ${gagal.slice(0, 5).join(', ')}` : null, success: `${sukses} tagihan SPP berhasil diimport`, sukses, gagal }
 }
 
 // ─── Koperasi ───────────────────────────────────────────────────────────────
@@ -874,15 +590,12 @@ export async function generateKoperasiTagihanBulk(tahunAjaranId: string) {
 
 export async function catatTransaksi(payload: {
   siswaId: string
-  kategori: 'dspt' | 'spp'
+  kategori: 'dspt'
   metodeBayar: 'tunai' | 'transfer'
   details: Array<{ refType: string; refId: string; jumlah: number }>
-}) {
+}, scope: StudentFinanceScope) {
   const { db, userId } = await requireAuth('keuangan-dspt')
-  if (payload.kategori === 'spp' || payload.details.some(d => d.refType === 'spp_tagihan')) {
-    return { error: SPP_REGULER_DISABLED_MESSAGE, success: null }
-  }
-
+  if (!(await studentMatchesScope(db, payload.siswaId, scope))) return { error: 'Status siswa sudah berpindah dari view ini. Muat ulang halaman.', success: null }
   const jumlahTotal = payload.details.reduce((sum, d) => sum + d.jumlah, 0)
   if (jumlahTotal <= 0) return { error: 'Jumlah pembayaran tidak valid', success: null }
 
@@ -937,13 +650,13 @@ export async function catatTransaksi(payload: {
   await recalcTagihanStatus(db, payload.details)
 
   revalidatePath('/dashboard/keuangan')
-  revalidatePath('/dashboard/keuangan/dspt')
+  revalidateFinanceStudentViews()
   revalidatePath('/dashboard/keuangan/transaksi')
   revalidatePath(`/dashboard/keuangan/siswa/${payload.siswaId}`)
   return { error: null, success: 'Transaksi berhasil disimpan', data: { transaksiId, nomorKuitansi } }
 }
 
-export async function getPendingDsptPaymentSubmissions() {
+export async function getPendingDsptPaymentSubmissions(scope: StudentFinanceScope = 'active') {
   const { db } = await requireAuth('keuangan-dspt')
   await ensurePaymentSubmissionTable(db)
   const result = await db.prepare(`
@@ -957,13 +670,13 @@ export async function getPendingDsptPaymentSubmissions() {
     JOIN siswa s ON s.id = p.siswa_id
     LEFT JOIN kelas k ON k.id = s.kelas_id
     JOIN fin_dspt d ON d.id = p.dspt_id
-    WHERE p.kategori = 'dspt' AND p.status = 'menunggu_konfirmasi'
+    WHERE p.kategori = 'dspt' AND p.status = 'menunggu_konfirmasi' AND ${studentScopeSql(scope)}
     ORDER BY datetime(p.bukti_uploaded_at) ASC, datetime(p.created_at) ASC
   `).all<any>()
   return { data: result.results ?? [], error: null }
 }
 
-export async function getDsptPaymentProofSubmissions() {
+export async function getDsptPaymentProofSubmissions(scope: StudentFinanceScope = 'active') {
   const { db } = await requireAuth('keuangan-dspt')
   await ensurePaymentSubmissionTable(db)
   const result = await db.prepare(`
@@ -978,13 +691,13 @@ export async function getDsptPaymentProofSubmissions() {
     JOIN siswa s ON s.id = p.siswa_id
     LEFT JOIN kelas k ON k.id = s.kelas_id
     JOIN fin_dspt d ON d.id = p.dspt_id
-    WHERE p.kategori = 'dspt' AND p.bukti_url IS NOT NULL AND p.bukti_url != ''
+    WHERE p.kategori = 'dspt' AND p.bukti_url IS NOT NULL AND p.bukti_url != '' AND ${studentScopeSql(scope)}
     ORDER BY datetime(COALESCE(p.bukti_uploaded_at, p.updated_at, p.created_at)) DESC
   `).all<any>()
   return { data: result.results ?? [], error: null }
 }
 
-export async function konfirmasiDsptPaymentSubmission(submissionId: string) {
+export async function konfirmasiDsptPaymentSubmission(submissionId: string, scope: StudentFinanceScope) {
   const { db, userId } = await requireAuth('keuangan-dspt')
   await ensurePaymentSubmissionTable(db)
 
@@ -992,7 +705,8 @@ export async function konfirmasiDsptPaymentSubmission(submissionId: string) {
     SELECT p.*, d.nominal_target, d.total_dibayar, d.total_diskon
     FROM fin_payment_submissions p
     JOIN fin_dspt d ON d.id = p.dspt_id
-    WHERE p.id = ?
+    JOIN siswa s ON s.id = p.siswa_id
+    WHERE p.id = ? AND ${studentScopeSql(scope)}
   `).bind(submissionId).first<any>()
   if (!submission) return { error: 'Pengajuan pembayaran tidak ditemukan', success: null }
   if (submission.status !== 'menunggu_konfirmasi') return { error: 'Bukti pembayaran belum siap dikonfirmasi', success: null }
@@ -1059,20 +773,20 @@ export async function konfirmasiDsptPaymentSubmission(submissionId: string) {
   }
 
   revalidatePath('/dashboard/keuangan')
-  revalidatePath('/dashboard/keuangan/dspt')
+  revalidateFinanceStudentViews()
   revalidatePath('/dashboard/keuangan/transaksi')
   revalidatePath(`/dashboard/keuangan/siswa/${submission.siswa_id}`)
   revalidatePath('/portal-ortu')
   return { error: null, success: 'Bukti pembayaran berhasil dikonfirmasi', data: { transaksiId, nomorKuitansi } }
 }
 
-export async function tolakDsptPaymentSubmission(submissionId: string, reason: string) {
+export async function tolakDsptPaymentSubmission(submissionId: string, reason: string, scope: StudentFinanceScope) {
   const { db, userId } = await requireAuth('keuangan-dspt')
   await ensurePaymentSubmissionTable(db)
   const alasan = reason.trim()
   if (alasan.length < 3) return { error: 'Alasan penolakan wajib diisi', success: null }
 
-  const submission = await db.prepare('SELECT siswa_id, jumlah, metode_bayar, status, bukti_uploaded_at, updated_at FROM fin_payment_submissions WHERE id = ?').bind(submissionId).first<any>()
+  const submission = await db.prepare(`SELECT p.siswa_id, p.jumlah, p.metode_bayar, p.status, p.bukti_uploaded_at, p.updated_at FROM fin_payment_submissions p JOIN siswa s ON s.id=p.siswa_id WHERE p.id = ? AND ${studentScopeSql(scope)}`).bind(submissionId).first<any>()
   if (!submission) return { error: 'Pengajuan pembayaran tidak ditemukan', success: null }
   if (submission.status === 'terkonfirmasi') return { error: 'Pengajuan sudah terkonfirmasi dan tidak bisa ditolak', success: null }
 
@@ -1106,15 +820,15 @@ export async function tolakDsptPaymentSubmission(submissionId: string, reason: s
     console.error('[notification] finance_payment_rejected gagal:', error)
   }
 
-  revalidatePath('/dashboard/keuangan/dspt')
+  revalidateFinanceStudentViews()
   revalidatePath('/portal-ortu')
   return { error: null, success: 'Bukti pembayaran ditolak' }
 }
 
-export async function voidTransaksi(transaksiId: string, alasan: string) {
-  const { db, userId } = await requireAnyAuth(['keuangan-dspt', 'keuangan-spp'])
+export async function voidTransaksi(transaksiId: string, alasan: string, scope: StudentFinanceScope) {
+  const { db, userId } = await requireAuth('keuangan-dspt')
 
-  const trx = await db.prepare('SELECT * FROM fin_transaksi WHERE id = ?').bind(transaksiId).first<any>()
+  const trx = await db.prepare(`SELECT t.* FROM fin_transaksi t JOIN siswa s ON s.id=t.siswa_id WHERE t.id = ? AND ${studentScopeSql(scope)}`).bind(transaksiId).first<any>()
   if (!trx) return { error: 'Transaksi tidak ditemukan', success: null }
   if (trx.is_void) return { error: 'Transaksi sudah di-void sebelumnya', success: null }
 
@@ -1147,7 +861,7 @@ export async function voidTransaksi(transaksiId: string, alasan: string) {
   await recalcTagihanStatus(db, (details.results ?? []).map(d => ({ refType: d.ref_type, refId: d.ref_id, jumlah: d.jumlah })))
 
   revalidatePath('/dashboard/keuangan')
-  revalidatePath('/dashboard/keuangan/dspt')
+  revalidateFinanceStudentViews()
   revalidatePath('/dashboard/keuangan/transaksi')
   if (trx.siswa_id) revalidatePath(`/dashboard/keuangan/siswa/${trx.siswa_id}`)
   return { error: null, success: 'Transaksi berhasil di-void' }
@@ -1157,13 +871,14 @@ export async function voidTransaksi(transaksiId: string, alasan: string) {
 
 export async function beriDiskon(payload: {
   siswaId: string
-  targetType: 'dspt' | 'spp_tagihan'
+  targetType: 'dspt'
   targetId: string
   jumlah: number
   alasan: string
   keterangan?: string
-}) {
+}, scope: StudentFinanceScope) {
   const { db, userId } = await requireAuth('keuangan-dspt')
+  if (!(await studentMatchesScope(db, payload.siswaId, scope))) return { error: 'Status siswa sudah berpindah dari view ini. Muat ulang halaman.', success: null }
 
   const tabel = refTypeToTable(payload.targetType)
   if (!tabel) return { error: 'Target tidak valid', success: null }
@@ -1183,14 +898,14 @@ export async function beriDiskon(payload: {
   await recalcTagihanStatus(db, [{ refType: payload.targetType, refId: payload.targetId, jumlah: 0 }])
 
   revalidatePath('/dashboard/keuangan')
-  revalidatePath('/dashboard/keuangan/dspt')
+  revalidateFinanceStudentViews()
   return { error: null, success: 'Keringanan berhasil diberikan' }
 }
 
-export async function batalkanDiskon(diskonId: string) {
+export async function batalkanDiskon(diskonId: string, scope: StudentFinanceScope) {
   const { db } = await requireAuth('keuangan-dspt')
 
-  const diskon = await db.prepare('SELECT * FROM fin_diskon WHERE id = ?').bind(diskonId).first<any>()
+  const diskon = await db.prepare(`SELECT d.* FROM fin_diskon d JOIN siswa s ON s.id=d.siswa_id WHERE d.id = ? AND ${studentScopeSql(scope)}`).bind(diskonId).first<any>()
   if (!diskon) return { error: 'Data keringanan tidak ditemukan', success: null }
 
   const tabel = refTypeToTable(diskon.target_type)
@@ -1208,51 +923,9 @@ export async function batalkanDiskon(diskonId: string) {
   await recalcTagihanStatus(db, [{ refType: diskon.target_type, refId: diskon.target_id, jumlah: 0 }])
 
   revalidatePath('/dashboard/keuangan')
-  revalidatePath('/dashboard/keuangan/dspt')
+  revalidateFinanceStudentViews()
   revalidatePath(`/dashboard/keuangan/siswa/${diskon.siswa_id}`)
   return { error: null, success: 'Keringanan berhasil dibatalkan' }
-}
-
-// ─── Kas Keluar ─────────────────────────────────────────────────────────────
-
-export async function getKasKeluarList(filters?: { bulan?: number; tahun?: number }) {
-  const { db } = await requireAuth('keuangan-kas-keluar')
-  let query = `
-    SELECT k.*, u.nama_lengkap AS nama_pembuat
-    FROM fin_kas_keluar k
-    LEFT JOIN "user" u ON u.id = k.dibuat_oleh
-    WHERE 1=1
-  `
-  const params: any[] = []
-  if (filters?.bulan) { query += ` AND strftime('%m', k.tanggal) = ?`; params.push(String(filters.bulan).padStart(2, '0')) }
-  if (filters?.tahun) { query += ` AND strftime('%Y', k.tanggal) = ?`; params.push(String(filters.tahun)) }
-  query += ' ORDER BY k.tanggal DESC'
-  const result = await db.prepare(query).bind(...params).all<any>()
-  return { data: result.results ?? [], error: null }
-}
-
-export async function catatKasKeluar(payload: {
-  jumlah: number
-  keterangan: string
-  kategori: string
-  metode: 'tunai' | 'transfer'
-  tanggal: string
-}) {
-  const { db, userId } = await requireAuth('keuangan-kas-keluar')
-  await db.prepare(`
-    INSERT INTO fin_kas_keluar (id, jumlah, keterangan, kategori, metode, tanggal, dibuat_oleh)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).bind(generateId(), payload.jumlah, payload.keterangan, payload.kategori,
-    payload.metode, payload.tanggal, userId).run()
-  revalidatePath('/dashboard/keuangan/kas-keluar')
-  return { error: null, success: 'Pengeluaran berhasil dicatat' }
-}
-
-export async function hapusKasKeluar(id: string) {
-  const { db } = await requireAuth('keuangan-kas-keluar')
-  await db.prepare('DELETE FROM fin_kas_keluar WHERE id = ?').bind(id).run()
-  revalidatePath('/dashboard/keuangan/kas-keluar')
-  return { error: null, success: 'Data pengeluaran dihapus' }
 }
 
 // ── [DEV] Reset semua data keuangan ─────────────────────────────────────────
@@ -1264,9 +937,11 @@ export async function devResetDataKeuangan() {
     db.prepare('DELETE FROM fin_diskon'),
     db.prepare('DELETE FROM fin_janji_bayar'),
     db.prepare('DELETE FROM fin_dspt'),
-    db.prepare('DELETE FROM fin_spp_tagihan'),
+    db.prepare('DELETE FROM fin_spp_saldo_awal'),
     db.prepare('DELETE FROM fin_koperasi_tagihan_item'),
     db.prepare('DELETE FROM fin_koperasi_tagihan'),
+    db.prepare('DELETE FROM fin_cashflow_audit'),
+    db.prepare('DELETE FROM fin_cashflow_entries'),
     db.prepare('DELETE FROM fin_kas_keluar'),
     db.prepare("UPDATE fin_nomor_kuitansi_seq SET counter = 0 WHERE id = 'singleton'"),
   ])
@@ -1290,44 +965,48 @@ export async function getDashboardStats(tahunAjaran?: string) {
         SUM(CASE WHEN status='lunas' THEN 1 ELSE 0 END) as lunas,
         SUM(CASE WHEN status='nyicil' THEN 1 ELSE 0 END) as nyicil,
         SUM(CASE WHEN status='belum_bayar' THEN 1 ELSE 0 END) as belum_bayar
-      FROM fin_dspt
+      FROM fin_dspt d JOIN siswa s ON s.id=d.siswa_id
+      WHERE s.status='aktif'
     `).first<any>(),
     db.prepare(`
       SELECT
         COUNT(*) as total_tagihan,
-        SUM(nominal) as total_nominal,
+        SUM(jumlah) as total_nominal,
         SUM(total_dibayar) as total_dibayar,
         SUM(CASE WHEN status='lunas' THEN 1 ELSE 0 END) as lunas,
         SUM(CASE WHEN status='belum_bayar' THEN 1 ELSE 0 END) as belum_bayar
-      FROM fin_spp_tagihan
-      WHERE tahun = ?
-    `).bind(tahun).first<any>(),
+      FROM fin_spp_saldo_awal sp JOIN siswa s ON s.id=sp.siswa_id
+      WHERE s.status='aktif'
+    `).first<any>(),
     db.prepare(`
-      SELECT SUM(jumlah) as total_keluar
-      FROM fin_kas_keluar
-      WHERE strftime('%Y', tanggal) = ?
+      SELECT SUM(amount) as total_keluar
+      FROM fin_cashflow_entries
+      WHERE direction='expense' AND is_void=0 AND strftime('%Y', transaction_date) = ?
     `).bind(String(tahun)).first<any>(),
   ])
 
   // Cashflow bulanan masuk (dari transaksi yang tidak di-void)
   const cashflowMasuk = await db.prepare(`
-    SELECT
-      CAST(strftime('%m', created_at) AS INTEGER) as bulan,
-      SUM(jumlah_total) as total
-    FROM fin_transaksi
-    WHERE is_void = 0 AND strftime('%Y', created_at) = ?
-    GROUP BY strftime('%m', created_at)
+    SELECT bulan, SUM(total) total FROM (
+      SELECT CAST(strftime('%m',t.created_at) AS INTEGER) bulan, t.jumlah_total total
+      FROM fin_transaksi t JOIN siswa s ON s.id=t.siswa_id
+      WHERE t.is_void=0 AND s.status='aktif' AND t.kategori IN ('dspt','spp') AND strftime('%Y',t.created_at)=?
+      UNION ALL
+      SELECT CAST(strftime('%m',transaction_date) AS INTEGER) bulan, amount total
+      FROM fin_cashflow_entries
+      WHERE direction='income' AND is_void=0 AND strftime('%Y',transaction_date)=?
+    ) GROUP BY bulan
     ORDER BY bulan ASC
-  `).bind(String(tahun)).all<any>()
+  `).bind(String(tahun), String(tahun)).all<any>()
 
   // Cashflow bulanan keluar
   const cashflowKeluar = await db.prepare(`
     SELECT
-      CAST(strftime('%m', tanggal) AS INTEGER) as bulan,
-      SUM(jumlah) as total
-    FROM fin_kas_keluar
-    WHERE strftime('%Y', tanggal) = ?
-    GROUP BY strftime('%m', tanggal)
+      CAST(strftime('%m', transaction_date) AS INTEGER) as bulan,
+      SUM(amount) as total
+    FROM fin_cashflow_entries
+    WHERE direction='expense' AND is_void=0 AND strftime('%Y', transaction_date) = ?
+    GROUP BY strftime('%m', transaction_date)
     ORDER BY bulan ASC
   `).bind(String(tahun)).all<any>()
 
@@ -1344,27 +1023,19 @@ export async function getDashboardStats(tahunAjaran?: string) {
 // ─── Buku Besar Siswa ───────────────────────────────────────────────────────
 
 export async function getBukuBesarSiswa(siswaId: string) {
-  const { db } = await requireAnyAuth(['keuangan-dspt', 'keuangan-spp'])
+  const { db } = await requireAuth('keuangan-dspt')
 
-  const [siswa, dspt, sppTagihan, sppMulaiRow, sppSaldoAwal, transaksi, janjiList, diskonList] = await Promise.all([
+  const [siswa, dspt, sppSaldoAwal, transaksi, janjiList, diskonList] = await Promise.all([
     db.prepare(`
-      SELECT s.*, k.tingkat, k.nomor_kelas, k.kelompok
+      SELECT s.*,
+        COALESCE(k.tingkat, (SELECT rk.kelas_tingkat FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1)) AS tingkat,
+        COALESCE(k.nomor_kelas, (SELECT rk.kelas_nomor FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1)) AS nomor_kelas,
+        COALESCE(k.kelompok, (SELECT rk.kelas_kelompok FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1)) AS kelompok
       FROM siswa s
-      LEFT JOIN kelas k ON k.id = s.kelas_id
+      LEFT JOIN kelas k ON k.id = COALESCE(s.kelas_id, s.kelas_id_sebelum_keluar)
       WHERE s.id = ?
     `).bind(siswaId).first<any>(),
     db.prepare('SELECT * FROM fin_dspt WHERE siswa_id = ?').bind(siswaId).first<any>(),
-    db.prepare('SELECT * FROM fin_spp_tagihan WHERE siswa_id = ? ORDER BY tahun DESC, bulan DESC').bind(siswaId).all<any>(),
-    // Per-siswa override dulu, jika tidak ada cari level angkatan
-    db.prepare(`
-      SELECT m.bulan_mulai, m.tahun_mulai FROM fin_spp_mulai m
-      WHERE m.siswa_id = ?
-      UNION ALL
-      SELECT m2.bulan_mulai, m2.tahun_mulai FROM fin_spp_mulai m2
-      INNER JOIN siswa s2 ON s2.tahun_masuk = m2.tahun_masuk
-      WHERE s2.id = ? AND m2.siswa_id IS NULL
-      LIMIT 1
-    `).bind(siswaId, siswaId).first<any>(),
     db.prepare('SELECT * FROM fin_spp_saldo_awal WHERE siswa_id = ?').bind(siswaId).first<any>(),
     db.prepare(`
       SELECT t.*, u.nama_lengkap as nama_input
@@ -1382,51 +1053,6 @@ export async function getBukuBesarSiswa(siswaId: string) {
       ORDER BY d.created_at DESC
     `).bind(siswaId).all<any>(),
   ])
-
-  // SPP reguler sedang dinonaktifkan; hanya tunggakan awal yang ditagih.
-  // Blok lama dipertahankan tidak aktif agar data lama masih bisa dibaca tanpa membuat tagihan baru.
-  let freshSppTagihan = sppTagihan.results ?? []
-  if (false && sppMulaiRow && siswa) {
-    const now = new Date()
-    const nowBulan = now.getMonth() + 1
-    const nowTahun = now.getFullYear()
-
-    // Hitung semua bulan yang seharusnya ada (mulai → sekarang)
-    const expectedMonths: { bulan: number; tahun: number }[] = []
-    let b = sppMulaiRow.bulan_mulai as number
-    let t = sppMulaiRow.tahun_mulai as number
-    while (t < nowTahun || (t === nowTahun && b <= nowBulan)) {
-      expectedMonths.push({ bulan: b, tahun: t })
-      b++; if (b > 12) { b = 1; t++ }
-    }
-
-    if (expectedMonths.length > 0) {
-      // Cek mana yang belum ada
-      const existingSet = new Set(freshSppTagihan.map((r: any) => `${r.bulan}-${r.tahun}`))
-      const missing = expectedMonths.filter(m => !existingSet.has(`${m.bulan}-${m.tahun}`))
-
-      if (missing.length > 0) {
-        // Ambil nominal dari setting sesuai tingkat
-        const setting = siswa.tingkat
-          ? await db.prepare('SELECT nominal FROM fin_spp_setting WHERE tingkat = ?').bind(siswa.tingkat).first<any>()
-          : null
-        const nominal = setting?.nominal ?? 0
-
-        const stmts = missing.map(m =>
-          db.prepare('INSERT INTO fin_spp_tagihan (id, siswa_id, bulan, tahun, nominal) VALUES (?,?,?,?,?)')
-            .bind(generateId(), siswaId, m.bulan, m.tahun, nominal)
-        )
-        // Batch per 100
-        for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
-
-        // Fetch ulang setelah insert
-        const updated = await db.prepare(
-          'SELECT * FROM fin_spp_tagihan WHERE siswa_id = ? ORDER BY tahun DESC, bulan DESC'
-        ).bind(siswaId).all<any>()
-        freshSppTagihan = updated.results ?? []
-      }
-    }
-  }
 
   const transaksiRows = transaksi.results ?? []
   if (sppSaldoAwal && (sppSaldoAwal.total_dibayar ?? 0) > 0) {
@@ -1470,8 +1096,6 @@ export async function getBukuBesarSiswa(siswaId: string) {
   return {
     siswa,
     dspt: effectiveDspt,
-    sppTagihan: freshSppTagihan,
-    sppMulai: sppMulaiRow ?? null,
     sppSaldoAwal: sppSaldoAwal ?? null,
     kopTagihan: null,
     kopItems: [],
@@ -1488,8 +1112,9 @@ export async function simpanJanjiBayar(payload: {
   targetId: string
   tanggalJanji: string
   catatan?: string
-}) {
+}, scope: StudentFinanceScope) {
   const { db, userId } = await requireAuth('keuangan-dspt')
+  if (!(await studentMatchesScope(db, payload.siswaId, scope))) return { error: 'Status siswa sudah berpindah dari view ini. Muat ulang halaman.', success: null }
   const existing = await db.prepare(
     'SELECT id FROM fin_janji_bayar WHERE siswa_id = ? AND target_type = ? AND target_id = ?'
   ).bind(payload.siswaId, payload.targetType, payload.targetId).first<any>()
@@ -1535,7 +1160,6 @@ export async function getRekapAngkatan() {
 function refTypeToTable(refType: string): string | null {
   switch (refType) {
     case 'dspt': return 'fin_dspt'
-    case 'spp_tagihan': return 'fin_spp_tagihan'
     case 'spp_saldo_awal': return 'fin_spp_saldo_awal'
     default: return null
   }
@@ -1556,7 +1180,7 @@ async function recalcTagihanStatus(db: D1Database, details: Array<{ refType: str
   }
 
   const updateStmts: D1PreparedStatement[] = []
-  // 1 subrequest per tipe (max 2 tipe: dspt, spp_tagihan)
+  // 1 subrequest per tipe tagihan
   for (const [refType, ids] of byType) {
     const tabel = refTypeToTable(refType)
     if (!tabel) continue

@@ -11,6 +11,14 @@ import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
 const FK_FIELDS = ['kelas_id', 'wali_murid_id']
 
+function revalidateFinanceStudentViews() {
+  revalidatePath('/dashboard/keuangan/dspt')
+  revalidatePath('/dashboard/keuangan/dspt/nonaktif')
+  revalidatePath('/dashboard/keuangan/export')
+  revalidatePath('/dashboard/keuangan/laporan')
+  revalidatePath('/dashboard')
+}
+
 // Helper untuk otentikasi role CRUD siswa (Hanya Super Admin & Admin TU)
 async function verifyAdminAccess() {
   const user = await getCurrentUser()
@@ -69,6 +77,7 @@ export async function tambahSiswa(prevState: any, formData: FormData) {
   })
 
   revalidatePath('/dashboard/siswa')
+  revalidateFinanceStudentViews()
   return { error: null, success: 'Siswa berhasil ditambahkan' }
 }
 
@@ -108,8 +117,6 @@ export async function hapusSiswa(id: string) {
       db.prepare('DELETE FROM fin_janji_bayar WHERE siswa_id = ?').bind(id),
       db.prepare('DELETE FROM fin_koperasi_tagihan_item WHERE tagihan_id IN (SELECT id FROM fin_koperasi_tagihan WHERE siswa_id = ?)').bind(id),
       db.prepare('DELETE FROM fin_koperasi_tagihan WHERE siswa_id = ?').bind(id),
-      db.prepare('DELETE FROM fin_spp_tagihan WHERE siswa_id = ?').bind(id),
-      db.prepare('DELETE FROM fin_spp_mulai WHERE siswa_id = ?').bind(id),
       db.prepare('DELETE FROM fin_spp_saldo_awal WHERE siswa_id = ?').bind(id),
       db.prepare('DELETE FROM fin_dspt WHERE siswa_id = ?').bind(id),
       db.prepare('DELETE FROM siswa WHERE id = ?').bind(id),
@@ -136,6 +143,7 @@ export async function hapusSiswa(id: string) {
   })
 
   revalidatePath('/dashboard/siswa')
+  revalidateFinanceStudentViews()
   return { success: 'Data siswa berhasil dihapus permanen.' }
 }
 
@@ -185,6 +193,7 @@ export async function editSiswa(id: string, payload: any) {
 
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${id}`)
+  if (payload.status && payload.status !== before.status) revalidateFinanceStudentViews()
   return { error: null, success: 'Data siswa berhasil diperbarui.' }
 }
 
@@ -228,6 +237,7 @@ export async function editDetailSiswa(id: string, payload: any) {
 
   revalidatePath(`/dashboard/siswa/${id}`)
   revalidatePath('/dashboard/siswa')
+  if (payload.status && payload.status !== before.status) revalidateFinanceStudentViews()
   return { error: null, success: 'Data lengkap siswa berhasil diperbarui.' }
 }
 
@@ -261,6 +271,7 @@ export async function ubahStatusSiswa(id: string, status: string) {
     diff: createActivityDiff(before, after),
   })
   revalidatePath('/dashboard/siswa')
+  revalidateFinanceStudentViews()
   return { success: `Status siswa berhasil diubah menjadi ${status}.` }
 }
 
@@ -310,6 +321,7 @@ export async function tandaiSiswaKeluar(payload: {
   })
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${payload.siswa_id}`)
+  revalidateFinanceStudentViews()
   return { success: 'Siswa berhasil ditandai keluar.' }
 }
 
@@ -366,6 +378,7 @@ export async function batalkanKeluarSiswa(siswa_id: string) {
   })
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${siswa_id}`)
+  revalidateFinanceStudentViews()
   return {
     success: kelasId
       ? 'Status keluar siswa berhasil dibatalkan dan kelas asal dipulihkan.'
@@ -771,6 +784,7 @@ export async function importSiswaMassal(dataSiswa: any[]) {
   })
 
   revalidatePath('/dashboard/siswa')
+  revalidateFinanceStudentViews()
   return {
     error: errors.length > 0 ? errors.slice(0, 5).join('; ') : null,
     success: `Import selesai: ${insertCount} ditambahkan, ${updateCount} diperbarui.`,
@@ -851,6 +865,7 @@ export async function editSiswaLengkap(prevState: any, formData: FormData) {
 
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${id}`)
+  if (payload.status && payload.status !== existing.status) revalidateFinanceStudentViews()
   return { error: null, success: 'Biodata lengkap berhasil diperbarui!' }
 }
 
@@ -889,6 +904,7 @@ export async function bulkSetTahunMasuk(kelasId: string, tahunMasuk: number) {
     })),
   })
   revalidatePath('/dashboard/siswa')
+  revalidateFinanceStudentViews()
   return { error: null, success: `${result.meta.changes} data siswa berhasil diperbarui angkatannya` }
 }
 

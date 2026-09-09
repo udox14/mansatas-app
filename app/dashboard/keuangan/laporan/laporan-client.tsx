@@ -25,7 +25,6 @@ import {
 } from '@/components/ui/table'
 import { formatRupiah } from '@/lib/utils'
 import { dateInputWIB, formatDateTimeWIB, formatDateWIB, todayWIB } from '@/lib/time'
-import { SiswaStatusFilter, matchSiswaStatusFilter, type SiswaStatusFilterValue } from '../components/siswa-status-filter'
 
 interface DsptRow {
   siswa_id: string
@@ -56,6 +55,7 @@ interface TransaksiRow {
   siswa_id: string
   nama_lengkap: string
   nisn: string | null
+  siswa_status: string
   tahun_masuk: number | null
   kelas: string | null
   kategori: string
@@ -108,6 +108,7 @@ interface LaporanClientProps {
 const KATEGORI_LABEL: Record<string, string> = {
   dspt: 'DSPT',
   spp: 'SPP Tunggakan',
+  manual: 'Pemasukan Manual',
 }
 
 const TUNGGAKAN_LABEL: Record<string, string> = {
@@ -156,7 +157,6 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
   const [tanggalAkhir, setTanggalAkhir] = useState(todayInput())
   const [kategori, setKategori] = useState('semua')
   const [metodeBayar, setMetodeBayar] = useState('semua')
-  const [filterSiswaStatus, setFilterSiswaStatus] = useState<SiswaStatusFilterValue>('aktif')
   const [search, setSearch] = useState('')
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [judul, setJudul] = useState('Laporan Keuangan Madrasah')
@@ -186,7 +186,6 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
         || (row.nomor_kuitansi ?? '').toLowerCase().includes(term)
       return matchTanggal && matchKategori && matchMetode && matchSearch
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transaksi, tanggalAwal, tanggalAkhir, kategori, metodeBayar, search])
 
   const kasKeluarPeriode = useMemo(() => {
@@ -198,7 +197,6 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
           : row.metode === 'transfer' || row.metode === 'qris')
       return matchTanggal && matchMetode
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kasKeluar, tanggalAwal, tanggalAkhir, metodeBayar])
 
   const tunggakanFiltered = useMemo(() => {
@@ -206,20 +204,17 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
     return tunggakan.filter(row => {
       const matchKategori = kategori === 'semua'
         || (kategori === 'spp' ? row.jenis === 'spp_tunggakan_awal' : row.jenis === kategori)
-      const matchSiswaStatus = matchSiswaStatusFilter(row.siswa_status, filterSiswaStatus)
       const matchSearch = !term
         || row.nama_lengkap.toLowerCase().includes(term)
         || (row.nisn ?? '').toLowerCase().includes(term)
         || String(row.tahun_masuk ?? '').includes(term)
-      return matchKategori && matchSiswaStatus && matchSearch
+      return matchKategori && matchSearch
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tunggakan, kategori, filterSiswaStatus, search])
+  }, [tunggakan, kategori, search])
 
   const rekapAngkatan = useMemo(() => {
     const groups = new Map<number, RekapAngkatan>()
     for (const row of dsptRows) {
-      if (!matchSiswaStatusFilter(row.siswa_status, filterSiswaStatus)) continue
       let group = groups.get(row.tahun_masuk)
       if (!group) {
         group = {
@@ -243,7 +238,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
       group.dspt_diskon += row.total_diskon ?? 0
     }
     return [...groups.values()].sort((a, b) => b.tahun_masuk - a.tahun_masuk)
-  }, [dsptRows, filterSiswaStatus])
+  }, [dsptRows])
 
   const transaksiAktif = transaksiPeriode.filter(row => !row.is_void)
   const pemasukan = sumBy(transaksiAktif, row => row.jumlah_total)
@@ -260,7 +255,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
     : sumBy(transaksiAktif.filter(r => r.tahun_masuk === Number(printAngkatan)), r => r.jumlah_total)
   const saldoPrint = pemasukanPrint - pengeluaran
 
-  const kategoriSummary = ['dspt', 'spp'].map(key => ({
+  const kategoriSummary = ['dspt', 'spp', 'manual'].map(key => ({
     key,
     label: KATEGORI_LABEL[key],
     total: sumBy(transaksiAktif.filter(row => row.kategori === key), row => row.jumlah_total),
@@ -359,8 +354,8 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
       <section className="no-print space-y-3">
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           <SummaryCard label="Pemasukan Periode" value={formatRupiah(pemasukan)} icon={ArrowUpRight} tone="emerald" />
-          <SummaryCard label="Pengeluaran Periode" value={formatRupiah(pengeluaran)} icon={ArrowDownRight} tone="rose" />
-          <SummaryCard label="Saldo Bersih" value={formatRupiah(saldo)} icon={BarChart3} tone={saldo >= 0 ? 'blue' : 'rose'} />
+          <SummaryCard label="Kas Keluar Umum" value={formatRupiah(pengeluaran)} icon={ArrowDownRight} tone="rose" />
+          <SummaryCard label="Saldo Setelah Kas Umum" value={formatRupiah(saldo)} icon={BarChart3} tone={saldo >= 0 ? 'blue' : 'rose'} />
           <SummaryCard label="Total Tunggakan" value={formatRupiah(totalTunggakan)} icon={AlertTriangle} tone="amber" />
         </div>
 
@@ -396,12 +391,9 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
                   <SelectItem value="semua">Semua Sumber</SelectItem>
                   <SelectItem value="dspt">DSPT</SelectItem>
                   <SelectItem value="spp">SPP Tunggakan</SelectItem>
+                  <SelectItem value="manual">Pemasukan Manual</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-semibold text-slate-500">Status Siswa</label>
-              <SiswaStatusFilter value={filterSiswaStatus} onValueChange={setFilterSiswaStatus} className="h-9 w-full text-xs" />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-semibold text-slate-500">Metode</label>
@@ -575,7 +567,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
               <div className="grid grid-cols-4 gap-2">
                 <PrintMetric label="Pemasukan" value={formatRupiah(pemasukanPrint)} />
                 <PrintMetric label="Pengeluaran" value={formatRupiah(pengeluaran)} />
-                <PrintMetric label="Saldo Bersih" value={formatRupiah(saldoPrint)} />
+                <PrintMetric label="Saldo Setelah Kas Umum" value={formatRupiah(saldoPrint)} />
                 <PrintMetric label="Tunggakan Aktif" value={formatRupiah(totalTunggakan)} />
               </div>
             </PrintSection>
@@ -587,7 +579,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
                 {kategoriSummary.map(row => (
                   <tr key={row.key}><td>{row.label}</td><td>{row.count}</td><td className="text-right">{formatRupiah(row.total)}</td></tr>
                 ))}
-                <tr><td>Kas Keluar</td><td>{kasKeluarPeriode.length}</td><td className="text-right">({formatRupiah(pengeluaran)})</td></tr>
+                <tr><td>Pengeluaran Arus Kas</td><td>{kasKeluarPeriode.length}</td><td className="text-right">({formatRupiah(pengeluaran)})</td></tr>
               </PrintTable>
             </PrintSection>
           ) : null}

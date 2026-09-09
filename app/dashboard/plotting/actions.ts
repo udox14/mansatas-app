@@ -527,6 +527,11 @@ export async function simpanPlottingMassal(
     revalidatePath('/dashboard/kelas')
     revalidatePath('/dashboard/plotting')
     revalidatePath('/dashboard/siswa')
+    revalidatePath('/dashboard/keuangan/dspt')
+    revalidatePath('/dashboard/keuangan/dspt/nonaktif')
+    revalidatePath('/dashboard/keuangan/export')
+    revalidatePath('/dashboard/keuangan/laporan')
+    revalidatePath('/dashboard')
 
     await logActivity({
       db,
@@ -586,6 +591,11 @@ export async function prosesKelulusanMassal(siswaIds: string[]) {
     revalidatePath('/dashboard/kelas')
     revalidatePath('/dashboard/plotting')
     revalidatePath('/dashboard/siswa')
+    revalidatePath('/dashboard/keuangan/dspt')
+    revalidatePath('/dashboard/keuangan/dspt/nonaktif')
+    revalidatePath('/dashboard/keuangan/export')
+    revalidatePath('/dashboard/keuangan/laporan')
+    revalidatePath('/dashboard')
     await logActivity({
       db,
       module: 'plotting',
@@ -721,6 +731,11 @@ export async function batalkanKelulusanMassal(siswaIds: string[]) {
     revalidatePath('/dashboard/kelas')
     revalidatePath('/dashboard/plotting')
     revalidatePath('/dashboard/siswa')
+    revalidatePath('/dashboard/keuangan/dspt')
+    revalidatePath('/dashboard/keuangan/dspt/nonaktif')
+    revalidatePath('/dashboard/keuangan/export')
+    revalidatePath('/dashboard/keuangan/laporan')
+    revalidatePath('/dashboard')
 
     const skipped = siswaIds.length - rows.length
     await logActivity({

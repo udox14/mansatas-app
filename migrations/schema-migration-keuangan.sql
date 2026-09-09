@@ -20,41 +20,6 @@ CREATE TABLE IF NOT EXISTS fin_dspt (
 CREATE INDEX IF NOT EXISTS idx_fin_dspt_siswa ON fin_dspt(siswa_id);
 CREATE INDEX IF NOT EXISTS idx_fin_dspt_status ON fin_dspt(status);
 
--- 2. Pengaturan SPP per tingkat kelas (toggle aktif/nonaktif)
-CREATE TABLE IF NOT EXISTS fin_spp_setting (
-  id          TEXT PRIMARY KEY,
-  tingkat     INTEGER NOT NULL,  -- 10 | 11 | 12
-  nominal     INTEGER NOT NULL DEFAULT 0,
-  -- aktif: 1 = SPP ditagihkan untuk tingkat ini, 0 = dinonaktifkan
-  aktif       INTEGER NOT NULL DEFAULT 1,
-  updated_by  TEXT REFERENCES user(id),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(tingkat)
-);
-INSERT OR IGNORE INTO fin_spp_setting (id, tingkat, nominal, aktif) VALUES
-  ('spp-10', 10, 0, 1),
-  ('spp-11', 11, 0, 1),
-  ('spp-12', 12, 0, 1);
-
--- 3. Tagihan SPP per bulan per siswa
-CREATE TABLE IF NOT EXISTS fin_spp_tagihan (
-  id               TEXT PRIMARY KEY,
-  siswa_id         TEXT NOT NULL REFERENCES siswa(id),
-  bulan            INTEGER NOT NULL,  -- 1–12
-  tahun            INTEGER NOT NULL,
-  nominal          INTEGER NOT NULL DEFAULT 0,
-  total_dibayar    INTEGER NOT NULL DEFAULT 0,
-  total_diskon     INTEGER NOT NULL DEFAULT 0,
-  -- status: belum_bayar | lunas
-  status           TEXT NOT NULL DEFAULT 'belum_bayar',
-  created_at       TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE(siswa_id, bulan, tahun)
-);
-CREATE INDEX IF NOT EXISTS idx_fin_spp_siswa ON fin_spp_tagihan(siswa_id);
-CREATE INDEX IF NOT EXISTS idx_fin_spp_periode ON fin_spp_tagihan(tahun, bulan);
-CREATE INDEX IF NOT EXISTS idx_fin_spp_status ON fin_spp_tagihan(status);
-
 -- 4. Master item koperasi (seragam, buku, dll)
 CREATE TABLE IF NOT EXISTS fin_koperasi_master_item (
   id               TEXT PRIMARY KEY,
@@ -127,7 +92,7 @@ CREATE INDEX IF NOT EXISTS idx_fin_trx_void ON fin_transaksi(is_void);
 CREATE TABLE IF NOT EXISTS fin_transaksi_detail (
   id            TEXT PRIMARY KEY,
   transaksi_id  TEXT NOT NULL REFERENCES fin_transaksi(id),
-  -- ref_type: dspt | spp_tagihan | koperasi_item
+  -- ref_type: dspt | spp_saldo_awal | koperasi_item
   ref_type      TEXT NOT NULL,
   ref_id        TEXT NOT NULL,
   jumlah        INTEGER NOT NULL DEFAULT 0
@@ -138,7 +103,7 @@ CREATE INDEX IF NOT EXISTS idx_fin_trx_detail_trx ON fin_transaksi_detail(transa
 CREATE TABLE IF NOT EXISTS fin_diskon (
   id           TEXT PRIMARY KEY,
   siswa_id     TEXT NOT NULL REFERENCES siswa(id),
-  -- target_type: dspt | spp_tagihan | koperasi_item
+  -- target_type: dspt | koperasi_item
   target_type  TEXT NOT NULL,
   target_id    TEXT NOT NULL,
   jumlah       INTEGER NOT NULL DEFAULT 0,
@@ -209,14 +174,12 @@ INSERT OR IGNORE INTO fin_nomor_kuitansi_seq (id, counter) VALUES ('singleton', 
 INSERT OR IGNORE INTO role_features (role, feature_id) VALUES
   ('bendahara_komite', 'keuangan-dashboard'),
   ('bendahara_komite', 'keuangan-dspt'),
-  ('bendahara_komite', 'keuangan-spp'),
   ('bendahara_komite', 'keuangan-koperasi'),
   ('bendahara_komite', 'keuangan-kas-keluar'),
   ('bendahara_komite', 'keuangan-laporan'),
   ('bendahara_komite', 'keuangan-kuitansi'),
   ('super_admin', 'keuangan-dashboard'),
   ('super_admin', 'keuangan-dspt'),
-  ('super_admin', 'keuangan-spp'),
   ('super_admin', 'keuangan-koperasi'),
   ('super_admin', 'keuangan-kas-keluar'),
   ('super_admin', 'keuangan-laporan'),
@@ -226,19 +189,6 @@ INSERT OR IGNORE INTO role_features (role, feature_id) VALUES
 INSERT OR IGNORE INTO role_features (role, feature_id) VALUES
   ('pengurus_koperasi', 'keuangan-koperasi'),
   ('pengurus_koperasi', 'keuangan-kuitansi');
-
--- Tabel mulai SPP per angkatan (dan override per siswa)
-CREATE TABLE IF NOT EXISTS fin_spp_mulai (
-  id          TEXT PRIMARY KEY,
-  tahun_masuk INTEGER,    -- angkatan (NULL jika override per siswa)
-  siswa_id    TEXT REFERENCES siswa(id),  -- NULL jika angkatan-level
-  bulan_mulai INTEGER NOT NULL,  -- 1-12
-  tahun_mulai INTEGER NOT NULL,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_spp_mulai_angkatan ON fin_spp_mulai(tahun_masuk) WHERE siswa_id IS NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_spp_mulai_siswa    ON fin_spp_mulai(siswa_id)    WHERE siswa_id IS NOT NULL;
 
 -- Tunggakan Awal SPP (data migrasi — total hutang tanpa rincian bulan)
 CREATE TABLE IF NOT EXISTS fin_spp_saldo_awal (

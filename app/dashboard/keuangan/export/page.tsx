@@ -5,6 +5,7 @@ import { checkFeatureAccess } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { KeuanganExportClient } from './export-client'
 import type { ExportSource, FinanceExportRow } from '../components/export-excel-dialog'
+import { isStudentInFinanceScope } from '../student-finance-scope'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Export Keuangan | MANSATAS' }
@@ -20,11 +21,8 @@ export default async function KeuanganExportPage() {
   if (!session?.user) redirect('/login')
 
   const db = await getDB()
-  const [canDspt, canSpp] = await Promise.all([
-    checkFeatureAccess(db, session.user.id, 'keuangan-dspt'),
-    checkFeatureAccess(db, session.user.id, 'keuangan-spp'),
-  ])
-  if (!canDspt && !canSpp) redirect('/dashboard')
+  const canDspt = await checkFeatureAccess(db, session.user.id, 'keuangan-dspt')
+  if (!canDspt) redirect('/dashboard')
 
   const rows: FinanceExportRow[] = []
   const sources: ExportSource[] = []
@@ -36,10 +34,12 @@ export default async function KeuanganExportPage() {
         d.id, d.nominal_target, d.total_dibayar, d.total_diskon,
         COALESCE(d.status, 'tidak_ada') AS status, d.catatan,
         s.id AS siswa_id, s.nama_lengkap, s.nisn, s.status AS siswa_status, s.tahun_masuk,
-        k.tingkat, k.nomor_kelas, k.kelompok
+        COALESCE(k.tingkat, (SELECT rk.kelas_tingkat FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1)) AS tingkat,
+        COALESCE(k.nomor_kelas, (SELECT rk.kelas_nomor FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1)) AS nomor_kelas,
+        COALESCE(k.kelompok, (SELECT rk.kelas_kelompok FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1)) AS kelompok
       FROM siswa s
       LEFT JOIN fin_dspt d ON d.siswa_id = s.id
-      LEFT JOIN kelas k ON k.id = s.kelas_id
+      LEFT JOIN kelas k ON k.id = COALESCE(s.kelas_id, s.kelas_id_sebelum_keluar)
       ORDER BY s.nama_lengkap ASC
     `).all<any>()
 
@@ -65,16 +65,18 @@ export default async function KeuanganExportPage() {
     }
   }
 
-  if (canSpp) {
+  if (canDspt) {
     sources.push('SPP')
     const sppRes = await db.prepare(`
       SELECT
         sa.id, sa.siswa_id, sa.jumlah, sa.total_dibayar, sa.status, sa.keterangan,
         s.nama_lengkap, s.nisn, s.status AS siswa_status, s.tahun_masuk,
-        k.tingkat, k.nomor_kelas, k.kelompok
+        COALESCE(k.tingkat, (SELECT rk.kelas_tingkat FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1)) AS tingkat,
+        COALESCE(k.nomor_kelas, (SELECT rk.kelas_nomor FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1)) AS nomor_kelas,
+        COALESCE(k.kelompok, (SELECT rk.kelas_kelompok FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1)) AS kelompok
       FROM fin_spp_saldo_awal sa
       INNER JOIN siswa s ON s.id = sa.siswa_id
-      LEFT JOIN kelas k ON k.id = s.kelas_id
+      LEFT JOIN kelas k ON k.id = COALESCE(s.kelas_id, s.kelas_id_sebelum_keluar)
       WHERE sa.status != 'lunas' AND sa.jumlah > sa.total_dibayar
       ORDER BY s.nama_lengkap ASC
     `).all<any>()
@@ -103,7 +105,11 @@ export default async function KeuanganExportPage() {
         title="Export Keuangan"
         description="Export data DSPT, SPP, atau keduanya ke Excel"
       />
-      <KeuanganExportClient rows={rows} sources={sources} />
+      <KeuanganExportClient
+        activeRows={rows.filter(row => isStudentInFinanceScope(row.siswa_status, 'active'))}
+        inactiveRows={rows.filter(row => isStudentInFinanceScope(row.siswa_status, 'inactive'))}
+        sources={sources}
+      />
     </div>
   )
 }

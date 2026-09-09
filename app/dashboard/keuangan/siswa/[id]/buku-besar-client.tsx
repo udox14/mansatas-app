@@ -20,6 +20,7 @@ import { formatRupiah } from '@/lib/utils'
 import { formatDateWIB, nowWIBISO } from '@/lib/time'
 import { getKuitansiTahunAjaran } from '@/lib/tahun-ajaran'
 import { catatTransaksi, voidTransaksi, beriDiskon, batalkanDiskon, simpanJanjiBayar, setSppSaldoAwal, bayarSaldoAwalSpp } from '../../actions'
+import type { StudentFinanceScope } from '../../actions'
 import { KuitansiModal, type KuitansiData } from '../../components/kuitansi-print'
 
 const STATUS_MAP = {
@@ -29,18 +30,18 @@ const STATUS_MAP = {
   tidak_ada: { label: 'Belum Diinput', icon: Ban, cls: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400' },
 }
 
-const BULAN_LABEL = ['', 'Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']
-
 export function BukuBesarClient({
   data,
   masterItem,
   tahunAjaranId,
   tahunAjaranNama,
+  studentScope,
 }: {
   data: any
   masterItem: any[]
   tahunAjaranId?: string
   tahunAjaranNama?: string
+  studentScope: StudentFinanceScope
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -49,7 +50,7 @@ export function BukuBesarClient({
     : 'dspt'
   const [isPending, startTransition] = useTransition()
   const [msg, setMsg] = useState('')
-  const [bayarModal, setBayarModal] = useState<{ type: 'dspt' | 'spp'; target?: any } | null>(null)
+  const [bayarModal, setBayarModal] = useState<{ type: 'dspt' } | null>(null)
   const [diskonModal, setDiskonModal] = useState<{ type: string; targetId: string; label: string } | null>(null)
   const [batalDiskonModal, setBatalDiskonModal] = useState<any | null>(null)
   const [voidModal, setVoidModal] = useState<string | null>(null)
@@ -62,7 +63,7 @@ export function BukuBesarClient({
   const [voidAlasan, setVoidAlasan] = useState('')
   const [janjiForm, setJanjiForm] = useState({ tanggal: '', catatan: '' })
 
-  const { siswa, dspt, sppTagihan, sppSaldoAwal, transaksi, janjiList, diskonList = [] } = data
+  const { siswa, dspt, sppSaldoAwal, transaksi, janjiList, diskonList = [] } = data
   const tahunAjaranKuitansi = getKuitansiTahunAjaran(tahunAjaranNama, Boolean(siswa.tingkat))
 
   // Saldo Awal (tunggakan migrasi)
@@ -77,7 +78,7 @@ export function BukuBesarClient({
   async function handleSaveSaldoAwal(e: React.FormEvent) {
     e.preventDefault()
     startTransition(async () => {
-      const res = await setSppSaldoAwal(siswa.id, parseInt(saldoAwalForm.jumlah) || 0, saldoAwalForm.keterangan || undefined)
+      const res = await setSppSaldoAwal(siswa.id, parseInt(saldoAwalForm.jumlah) || 0, saldoAwalForm.keterangan || undefined, studentScope)
       setMsg(res.error ?? res.success ?? '')
       if (!res.error) { setSaldoAwalModal(false); router.refresh() }
     })
@@ -87,7 +88,7 @@ export function BukuBesarClient({
     e.preventDefault()
     if (!sppSaldoAwal?.id || !saldoAwalBayarJumlah) return
     startTransition(async () => {
-      const res = await bayarSaldoAwalSpp(sppSaldoAwal.id, parseInt(saldoAwalBayarJumlah))
+      const res = await bayarSaldoAwalSpp(sppSaldoAwal.id, parseInt(saldoAwalBayarJumlah), studentScope)
       setMsg(res.error ?? res.success ?? '')
       if (!res.error) { setSaldoAwalBayarModal(false); setSaldoAwalBayarJumlah(''); router.refresh() }
     })
@@ -141,7 +142,7 @@ export function BukuBesarClient({
     }
   }
 
-  function openKuitansiRekap(kategori: 'dspt' | 'spp', target?: any) {
+  function openKuitansiRekap(kategori: 'dspt') {
     const kelas = siswa.tingkat
       ? `Kelas ${siswa.tingkat}-${siswa.nomor_kelas}${siswa.kelompok ? ' ' + siswa.kelompok : ''}`
       : '-'
@@ -170,27 +171,6 @@ export function BukuBesarClient({
         ],
         sisaTunggakan: sisa > 0 ? [{ label: 'DSPT', sisa }] : [],
         isLunas: dspt.status === 'lunas',
-      })
-      setKuitansiOpen(true)
-    } else if (kategori === 'spp' && target) {
-      const sisa = target.nominal - target.total_dibayar - target.total_diskon
-      setKuitansiData({
-        nomorKuitansi: `REKAP-SPP-${target.bulan}-${target.tahun}`,
-        tanggal: nowWIBISO(),
-        kategori: 'SPP',
-        tahunAjaran: tahunAjaranKuitansi,
-        namaSiswa: siswa.nama_lengkap,
-        nisn: siswa.nisn ?? '-',
-        kelas,
-        namaPerugas: 'Bendahara Komite',
-        metodeBayar: 'Tunai',
-        jumlahDiserahkan: target.total_dibayar,
-        jumlahTagihan: target.nominal,
-        rincianBayar: [
-          { label: `SPP ${BULAN_LABEL[target.bulan]} ${target.tahun}`, nominal: target.nominal },
-        ],
-        sisaTunggakan: sisa > 0 ? [{ label: `SPP ${BULAN_LABEL[target.bulan]} ${target.tahun}`, sisa }] : [],
-        isLunas: target.status === 'lunas',
       })
       setKuitansiOpen(true)
     }
@@ -222,7 +202,7 @@ export function BukuBesarClient({
       sisaTunggakan: [],
       isLunas: trx.kategori === 'dspt'
         ? (dspt?.status === 'lunas')
-        : (sppTagihan.find((s: any) => s.id === trx.ref_id)?.status === 'lunas'),
+        : (sppSaldoAwal?.status === 'lunas'),
     })
     setKuitansiOpen(true)
   }
@@ -242,11 +222,6 @@ export function BukuBesarClient({
       jumlahDibayar = parseInt(bayarForm.jumlah)
       details = [{ refType: 'dspt', refId: dspt.id, jumlah: jumlahDibayar }]
       rincianBayar = [{ label: 'DSPT (Dana Sumbangan Pembangunan Tahunan)', nominal: jumlahDibayar }]
-    } else if (bayarModal.type === 'spp' && bayarModal.target) {
-      if (!bayarForm.jumlah) { setMsg('Masukkan jumlah pembayaran'); return }
-      jumlahDibayar = parseInt(bayarForm.jumlah)
-      details = [{ refType: 'spp_tagihan', refId: bayarModal.target.id, jumlah: jumlahDibayar }]
-      rincianBayar = [{ label: `SPP ${BULAN_LABEL[bayarModal.target.bulan]} ${bayarModal.target.tahun}`, nominal: jumlahDibayar }]
     }
 
     startTransition(async () => {
@@ -255,15 +230,13 @@ export function BukuBesarClient({
         kategori: bayarModal.type,
         metodeBayar: bayarForm.metode as 'tunai' | 'transfer',
         details,
-      })
+      }, studentScope)
       if (res.error) { setMsg(res.error); return }
       setBayarModal(null)
       setBayarForm({ jumlah: '', metode: 'tunai', selectedItems: [] })
 
       if (res.data?.nomorKuitansi) {
-        const isLunas = bayarModal.type === 'dspt'
-          ? (dspt.nominal_target - (dspt.total_dibayar + jumlahDibayar) - dspt.total_diskon) <= 0
-          : (bayarModal.target?.nominal - (bayarModal.target?.total_dibayar + jumlahDibayar) - bayarModal.target?.total_diskon) <= 0
+        const isLunas = (dspt.nominal_target - (dspt.total_dibayar + jumlahDibayar) - dspt.total_diskon) <= 0
 
         setKuitansiData(buildKuitansiData(
           res.data.nomorKuitansi,
@@ -290,7 +263,7 @@ export function BukuBesarClient({
         jumlah: parseInt(diskonForm.jumlah),
         alasan: diskonForm.alasan,
         keterangan: diskonForm.keterangan,
-      })
+      }, studentScope)
       setMsg(res.error ?? res.success ?? '')
       if (!res.error) { setDiskonModal(null); router.refresh() }
     })
@@ -300,7 +273,7 @@ export function BukuBesarClient({
     e.preventDefault()
     if (!batalDiskonModal) return
     startTransition(async () => {
-      const res = await batalkanDiskon(batalDiskonModal.id)
+      const res = await batalkanDiskon(batalDiskonModal.id, studentScope)
       setMsg(res.error ?? res.success ?? '')
       if (!res.error) { setBatalDiskonModal(null); router.refresh() }
     })
@@ -312,7 +285,7 @@ export function BukuBesarClient({
     if (!voidAlasan.trim()) { setMsg('Wajib mengisi alasan pembatalan'); return }
     startTransition(async () => {
       try {
-        const res = await voidTransaksi(voidModal, voidAlasan)
+        const res = await voidTransaksi(voidModal, voidAlasan, studentScope)
         setMsg(res.error ?? res.success ?? '')
         if (!res.error) { setVoidModal(null); setVoidAlasan(''); router.refresh() }
       } catch {
@@ -331,7 +304,7 @@ export function BukuBesarClient({
         targetId: janjiModal.targetId,
         tanggalJanji: janjiForm.tanggal,
         catatan: janjiForm.catatan,
-      })
+      }, studentScope)
       setMsg(res.error ?? res.success ?? '')
       if (!res.error) { setJanjiModal(null); router.refresh() }
     })
@@ -362,7 +335,7 @@ export function BukuBesarClient({
       <Tabs defaultValue={defaultTab} className="space-y-3">
         <TabsList className="h-8 text-xs">
           <TabsTrigger value="dspt" className="text-xs h-7 px-3">DSPT</TabsTrigger>
-          <TabsTrigger value="spp" className="text-xs h-7 px-3">SPP</TabsTrigger>
+          <TabsTrigger value="spp" className="text-xs h-7 px-3">Tunggakan SPP</TabsTrigger>
           <TabsTrigger value="riwayat" className="text-xs h-7 px-3">Riwayat Transaksi</TabsTrigger>
         </TabsList>
 
@@ -510,8 +483,8 @@ export function BukuBesarClient({
         {/* ── TAB SPP ── */}
         <TabsContent value="spp" className="space-y-3 mt-0">
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/10">
-            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Mode SPP: hanya tunggakan terdahulu</p>
-            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">Pembayaran SPP bulanan reguler dinonaktifkan. Gunakan bagian tunggakan awal di bawah ini untuk mencatat pembayaran terdahulu.</p>
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">SPP: hanya tunggakan terdahulu</p>
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">Bagian ini khusus untuk mencatat dan menyelesaikan tunggakan SPP dari kebijakan lama.</p>
           </div>
 
           {/* ── Tunggakan Awal (Migrasi) ── */}
@@ -709,21 +682,18 @@ export function BukuBesarClient({
         </TabsContent>
       </Tabs>
 
-      {/* ── Modal Bayar DSPT / SPP ── */}
+      {/* ── Modal Bayar DSPT ── */}
       <Dialog open={!!bayarModal} onOpenChange={v => { if (!v) setBayarModal(null) }}>
         <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
           <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
             <DialogTitle className="text-sm font-semibold">
               Catat Pembayaran {bayarModal?.type?.toUpperCase()}
-              {bayarModal?.type === 'spp' && bayarModal.target && ` — ${BULAN_LABEL[bayarModal.target.bulan]} ${bayarModal.target.tahun}`}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleBayar} className="p-5 space-y-4">
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-sm">
               Sisa tagihan: <strong className="text-rose-600">
-                {bayarModal?.type === 'dspt' ? formatRupiah(dsptSisa)
-                  : bayarModal?.target ? formatRupiah(bayarModal.target.nominal - bayarModal.target.total_dibayar - bayarModal.target.total_diskon)
-                  : '-'}
+                {formatRupiah(dsptSisa)}
               </strong>
             </div>
             <div className="space-y-1.5">

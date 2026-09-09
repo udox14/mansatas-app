@@ -42,9 +42,8 @@ export default async function ParentReceiptPage({ params }: { params: Promise<{ 
   if (!transaksi) notFound()
 
   const detailRows = await db.prepare(`
-    SELECT d.ref_type, d.jumlah, st.bulan, st.tahun
+    SELECT d.ref_type, d.jumlah
     FROM fin_transaksi_detail d
-    LEFT JOIN fin_spp_tagihan st ON st.id = d.ref_id
     WHERE d.transaksi_id = ?
     ORDER BY d.rowid ASC
   `).bind(id).all<any>()
@@ -52,10 +51,8 @@ export default async function ParentReceiptPage({ params }: { params: Promise<{ 
   const kategori = String(transaksi.kategori || '').toLowerCase()
   const label = kategoriLabel(kategori)
   const rincianBayar = (detailRows.results || []).map((row: any) => {
-    if (row.ref_type === 'spp_tagihan') {
-      const bulan = row.bulan ? ` bulan ${row.bulan}` : ''
-      const tahun = row.tahun ? ` ${row.tahun}` : ''
-      return { label: `Pembayaran SPP${bulan}${tahun}`, nominal: Number(row.jumlah || 0) }
+    if (row.ref_type === 'spp_saldo_awal') {
+      return { label: 'Pembayaran tunggakan SPP terdahulu', nominal: Number(row.jumlah || 0) }
     }
     if (row.ref_type === 'dspt') {
       return { label: 'DSPT - Dana Sumbangan Pendidikan Tahunan', nominal: Number(row.jumlah || 0) }

@@ -208,6 +208,11 @@ export async function terimaJadiSiswa(pendaftarId: string) {
   })
   revalidatePath('/dashboard/pmb')
   revalidatePath('/dashboard/siswa')
+  revalidatePath('/dashboard/keuangan/dspt')
+  revalidatePath('/dashboard/keuangan/dspt/nonaktif')
+  revalidatePath('/dashboard/keuangan/export')
+  revalidatePath('/dashboard/keuangan/laporan')
+  revalidatePath('/dashboard')
   return { success: `${p.nama_lengkap} berhasil menjadi siswa` }
 }
 
@@ -260,6 +265,11 @@ export async function bulkTerimaJadiSiswa(pendaftarIds: string[]) {
 
   revalidatePath('/dashboard/pmb')
   revalidatePath('/dashboard/siswa')
+  revalidatePath('/dashboard/keuangan/dspt')
+  revalidatePath('/dashboard/keuangan/dspt/nonaktif')
+  revalidatePath('/dashboard/keuangan/export')
+  revalidatePath('/dashboard/keuangan/laporan')
+  revalidatePath('/dashboard')
   await logActivity({
     db,
     module: 'pmb',

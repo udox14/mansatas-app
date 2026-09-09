@@ -343,7 +343,6 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
     sanksiConfig,
     dspt,
     sppSaldoAwal,
-    sppSummary,
     transaksiTerbaru,
     paymentSubmissions,
     parentSuggestions,
@@ -412,13 +411,6 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
       FROM fin_spp_saldo_awal
       WHERE siswa_id = ?
       LIMIT 1
-    `).bind(siswaId).first<any>(),
-    db.prepare(`
-      SELECT
-        COALESCE(SUM(nominal), 0) AS total_nominal,
-        COALESCE(SUM(total_dibayar), 0) AS total_dibayar
-      FROM fin_spp_tagihan
-      WHERE siswa_id = ?
     `).bind(siswaId).first<any>(),
     db.prepare(`
       SELECT t.id, t.nomor_kuitansi, t.kategori, t.metode_bayar, t.jumlah_total, t.created_at,
@@ -561,8 +553,8 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
   const dsptIsInput = dsptStatus !== 'tidak_ada'
   const dsptIsLunas = dsptStatus === 'lunas'
   const dsptNeedsInput = dsptStatus === 'tidak_ada'
-  const sppNominal = Number(sppSummary?.total_nominal || 0) + Number(sppSaldoAwal?.jumlah || 0)
-  const sppBayar = Number(sppSummary?.total_dibayar || 0) + Number(sppSaldoAwal?.total_dibayar || 0)
+  const sppNominal = Number(sppSaldoAwal?.jumlah || 0)
+  const sppBayar = Number(sppSaldoAwal?.total_dibayar || 0)
   const sppSisa = Math.max(0, sppNominal - sppBayar)
   const totalDisiplinPoin = Number(disciplineInitial?.lifetimeSummary.totalPoin ?? disiplinRekap?.total_poin ?? 0)
   const totalDisiplinKasus = Number(disciplineInitial?.lifetimeSummary.totalKasus ?? disiplinRekap?.total_kasus ?? 0)

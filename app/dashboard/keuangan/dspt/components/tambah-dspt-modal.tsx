@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Plus } from 'lucide-react'
 import { createDspt } from '../../actions'
+import type { StudentFinanceScope } from '../../actions'
 
-export function TambahDsptModal({ onSuccess }: { onSuccess: () => void }) {
+export function TambahDsptModal({ onSuccess, studentScope = 'active' }: { onSuccess: () => void; studentScope?: StudentFinanceScope }) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [nisn, setNisn] = useState('')
@@ -24,7 +25,7 @@ export function TambahDsptModal({ onSuccess }: { onSuccess: () => void }) {
       // Note: createDspt needs siswaId, not NISN. In practice,
       // this modal would include a combobox search by name/NISN.
       // For now we pass nisn as placeholder — implement siswa picker as needed.
-      const res = await createDspt(nisn, parseInt(nominal.replace(/\D/g, '')), catatan)
+      const res = await createDspt(nisn, parseInt(nominal.replace(/\D/g, '')), catatan, studentScope)
       if (res.error) { setError(res.error); return }
       setOpen(false); setNisn(''); setNominal(''); setCatatan('')
       onSuccess()

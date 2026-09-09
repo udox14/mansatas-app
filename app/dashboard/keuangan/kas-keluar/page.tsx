@@ -2,23 +2,18 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
-import { checkFeatureAccess } from '@/lib/features'
+import { checkFeatureAccess, checkFeatureCrudAccess } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
-import { todayWIB } from '@/lib/time'
-import { getKasKeluarList } from '../actions'
+import { getCashflowPage } from './actions'
 import { KasKeluarClient } from './kas-keluar-client'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'Kas Keluar | Keuangan MANSATAS' }
+export const metadata = { title: 'Arus Kas | Keuangan MANSATAS' }
 
-async function KasKeluarDataFetcher() {
-  const today = todayWIB()
-  const tahun = Number(today.slice(0, 4))
-  const bulan = Number(today.slice(5, 7))
-  const { data } = await getKasKeluarList({ tahun, bulan })
-
-  return <KasKeluarClient initialData={data} defaultTahun={tahun} defaultBulan={bulan} />
+async function KasKeluarDataFetcher({ permissions }: { permissions: { create: boolean; update: boolean; delete: boolean } }) {
+  const data = await getCashflowPage({ page: 1, pageSize: 20 })
+  return <KasKeluarClient initialData={data} permissions={permissions} />
 }
 
 export default async function KasKeluarPage() {
@@ -27,15 +22,20 @@ export default async function KasKeluarPage() {
   const db = await getDB()
   const allowed = await checkFeatureAccess(db, session.user.id, 'keuangan-kas-keluar')
   if (!allowed) redirect('/dashboard')
+  const [canCreate, canUpdate, canDelete] = await Promise.all([
+    checkFeatureCrudAccess(db, session.user.id, 'keuangan-kas-keluar', 'create'),
+    checkFeatureCrudAccess(db, session.user.id, 'keuangan-kas-keluar', 'update'),
+    checkFeatureCrudAccess(db, session.user.id, 'keuangan-kas-keluar', 'delete'),
+  ])
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
       <PageHeader
-        title="Kas Keluar"
-        description="Pencatatan pengeluaran dan penggunaan dana komite"
+        title="Arus Kas"
+        description="Pemasukan DSPT, SPP, pemasukan lain, dan pengeluaran dalam satu tempat"
       />
-      <Suspense fallback={<PageLoading text="Memuat data kas keluar..." />}>
-        <KasKeluarDataFetcher />
+      <Suspense fallback={<PageLoading text="Memuat arus kas..." />}>
+        <KasKeluarDataFetcher permissions={{ create: canCreate, update: canUpdate, delete: canDelete }} />
       </Suspense>
     </div>
   )

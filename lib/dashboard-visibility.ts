@@ -99,7 +99,7 @@ export const DASHBOARD_GROUPS: DashGroup[] = [
       { id: 'kehadiran_pribadi', label: 'Kartu Kehadiran Pribadi', desc: 'Presensi pribadi pegawai' },
       { id: 'quick_links', label: 'Tautan Cepat', desc: 'DSPT, SPP, Export, Kas, Laporan' },
       { id: 'stat_keuangan', label: 'Kartu Statistik Keuangan', desc: 'Ringkasan DSPT & SPP' },
-      { id: 'kas_transaksi', label: 'Kas Keluar & Transaksi Terbaru', desc: 'Kas bulan ini & transaksi' },
+      { id: 'kas_transaksi', label: 'Arus Kas & Transaksi Terbaru', desc: 'Pengeluaran bulan ini & transaksi' },
     ],
   },
   {

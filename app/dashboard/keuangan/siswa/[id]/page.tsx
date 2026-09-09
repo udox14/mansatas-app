@@ -8,11 +8,12 @@ import { PageLoading } from '@/components/layout/page-loading'
 import { getBukuBesarSiswa } from '../../actions'
 import { BukuBesarClient } from './buku-besar-client'
 import { BackButton } from './back-button'
+import type { StudentFinanceScope } from '../../actions'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Buku Besar Siswa | Keuangan MANSATAS' }
 
-async function BukuBesarDataFetcher({ id }: { id: string }) {
+async function BukuBesarDataFetcher({ id, scope }: { id: string; scope: StudentFinanceScope }) {
   const db = await getDB()
 
   const [data, tahunAjaran] = await Promise.all([
@@ -21,6 +22,9 @@ async function BukuBesarDataFetcher({ id }: { id: string }) {
   ])
 
   if (!data.siswa) notFound()
+  if (data.siswa.status === 'dihapus') notFound()
+  const actualScope: StudentFinanceScope = data.siswa.status === 'aktif' ? 'active' : 'inactive'
+  if (actualScope !== scope) redirect(`/dashboard/keuangan/siswa/${id}?scope=${actualScope}`)
 
   return (
     <>
@@ -33,18 +37,20 @@ async function BukuBesarDataFetcher({ id }: { id: string }) {
         masterItem={[]}
         tahunAjaranId={tahunAjaran?.id}
         tahunAjaranNama={tahunAjaran?.nama ?? '-'}
+        studentScope={scope}
       />
     </>
   )
 }
 
-export default async function BukuBesarPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function BukuBesarPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ scope?: string }> }) {
   const { id } = await params
+  const query = await searchParams
+  const scope: StudentFinanceScope = query.scope === 'inactive' ? 'inactive' : 'active'
   const session = await getSession()
   if (!session?.user) redirect('/login')
   const db = await getDB()
   const allowed = await checkFeatureAccess(db, session.user.id, 'keuangan-dspt')
-    || await checkFeatureAccess(db, session.user.id, 'keuangan-spp')
   if (!allowed) redirect('/dashboard')
 
   return (
@@ -53,7 +59,7 @@ export default async function BukuBesarPage({ params }: { params: Promise<{ id: 
         <BackButton />
       </div>
       <Suspense fallback={<PageLoading text="Memuat data siswa..." />}>
-        <BukuBesarDataFetcher id={id} />
+        <BukuBesarDataFetcher id={id} scope={scope} />
       </Suspense>
     </div>
   )

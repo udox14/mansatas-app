@@ -450,19 +450,19 @@ export const MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'keuangan-dspt',
-    title: 'DSPT',
+    title: 'DSPT & SPP',
     href: '/dashboard/keuangan/dspt',
     icon: HandCoins,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Mengelola tagihan, cicilan, dan rekapitulasi pembayaran Dana Sumbangan Pendidikan Tahunan (DSPT)'
+    desc: 'Mengelola DSPT dan tunggakan SPP terdahulu dalam satu daftar tagihan'
   },
   {
-    id: 'keuangan-spp',
-    title: 'SPP',
-    href: '/dashboard/keuangan/spp',
-    icon: CalendarDays,
+    id: 'keuangan-dspt-nonaktif',
+    title: 'DSPT & SPP Nonaktif',
+    href: '/dashboard/keuangan/dspt/nonaktif',
+    icon: FileArchive,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Mencatat pembayaran tunggakan SPP/iuran bulanan masa lalu untuk siswa lama'
+    desc: 'Mengelola keuangan siswa lulus, pindah, keluar, dan status nonaktif lainnya'
   },
   {
     id: 'keuangan-export',
@@ -474,11 +474,11 @@ export const MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'keuangan-kas-keluar',
-    title: 'Kas Keluar',
+    title: 'Arus Kas',
     href: '/dashboard/keuangan/kas-keluar',
     icon: TrendingDown,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Mencatat pengeluaran dan penggunaan dana komite untuk operasional madrasah'
+    desc: 'Mencatat pemasukan lain dan pengeluaran serta menganalisis arus kas madrasah'
   },
   {
     id: 'keuangan-laporan',
@@ -588,7 +588,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'sp', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'documentation', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
-  { id: 'keuangan', label: 'Komite', items: ['komite-pengajuan', 'keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-spp', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
+  { id: 'keuangan', label: 'Komite', items: ['komite-pengajuan', 'keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-dspt-nonaktif', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
   { id: 'sistem', label: 'Sistem', items: ['settings', 'log-aktivitas', 'whatsapp', 'settings-notifications', 'settings-jadwal-notif', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
 ]
 
@@ -664,7 +664,7 @@ export function getSidebarFeatureIds(allowedFeatures: string[] = []): string[] {
     .filter(item =>
       (allowedSet.has(item.id) && !SIDEBAR_ROOT_ITEM_ID_SET.has(item.id)) ||
       (item.id === 'keuangan-transaksi' && allowedSet.has('keuangan-laporan')) ||
-      (item.id === 'keuangan-export' && (allowedSet.has('keuangan-dspt') || allowedSet.has('keuangan-spp')))
+      (item.id === 'keuangan-export' && allowedSet.has('keuangan-dspt'))
     )
     .map(item => item.id)
   return Array.from(new Set(ids))

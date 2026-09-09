@@ -235,7 +235,7 @@ export async function loadFullStudentReport(
     violations, warningLetters, warningFollowups, warningDecision, sanctionConfigs,
     bkRows, notesRows, tahfidzProgress, tahfidzLogs, tahfidzScores,
     extracurricularRows, extracurricularAttendance,
-    dspt, sppRows, sppOpening, cooperativeRows, transactions, discounts, promises, paymentSubmissions,
+    dspt, sppOpening, cooperativeRows, transactions, discounts, promises, paymentSubmissions,
     parentNotifications, parentSummons, parentNotes, parentSuggestions, outgoingLetters,
     principal, latestHomeroom,
   ] = await Promise.all([
@@ -340,9 +340,6 @@ export async function loadFullStudentReport(
       WHERE a.siswa_id = ?${taFilter('p.tahun_ajaran_id').sql}
       GROUP BY e.nama, UPPER(a.status) ORDER BY e.nama`, [studentId, ...taBinds]),
     safeFirst<any>(db, `SELECT nominal_target, total_dibayar, total_diskon, status FROM fin_dspt WHERE siswa_id = ?`, [studentId]),
-    (() => { const f = !period ? '' : period.startDate && period.endDate ? ' AND printf(\'%04d-%02d-01\', tahun, bulan) BETWEEN ? AND ?' : ' AND 1 = 0'; return safeAll<any>(db, `SELECT COUNT(*) AS bulan,
-      SUM(nominal) AS nominal, SUM(total_dibayar) AS dibayar, SUM(total_diskon) AS diskon
-      FROM fin_spp_tagihan WHERE siswa_id = ?${f}`, period?.startDate && period.endDate ? [studentId, period.startDate, period.endDate] : [studentId]) })(),
     safeFirst<any>(db, `SELECT jumlah, total_dibayar, status FROM fin_spp_saldo_awal WHERE siswa_id = ?`, [studentId]),
     safeAll<any>(db, `SELECT COUNT(*) AS tagihan, SUM(total_nominal) AS nominal,
       SUM(total_dibayar) AS dibayar, SUM(total_diskon) AS diskon
@@ -436,9 +433,7 @@ export async function loadFullStudentReport(
     .find(item => violationPoints >= number(item.poin_minimal))
   const transactionTotal = transactions.reduce((sum, row) => sum + number(row.total), 0)
   const dsptOutstanding = Math.max(0, number(dspt?.nominal_target) - number(dspt?.total_dibayar) - number(dspt?.total_diskon))
-  const spp = sppRows[0] || {}
-  const sppOutstanding = Math.max(0, number(spp.nominal) - number(spp.dibayar) - number(spp.diskon)) +
-    Math.max(0, number(sppOpening?.jumlah) - number(sppOpening?.total_dibayar))
+  const sppOutstanding = Math.max(0, number(sppOpening?.jumlah) - number(sppOpening?.total_dibayar))
   const coop = cooperativeRows[0] || {}
   const coopOutstanding = Math.max(0, number(coop.nominal) - number(coop.dibayar) - number(coop.diskon))
 
@@ -552,7 +547,7 @@ export async function loadFullStudentReport(
     ], [
       { title: 'Ringkasan Tagihan', headers: ['Jenis', 'Nominal', 'Dibayar', 'Diskon', 'Sisa'], rows: [
         ['DSPT', rupiah(dspt?.nominal_target), rupiah(dspt?.total_dibayar), rupiah(dspt?.total_diskon), rupiah(dsptOutstanding)],
-        ['SPP', rupiah(number(spp.nominal) + number(sppOpening?.jumlah)), rupiah(number(spp.dibayar) + number(sppOpening?.total_dibayar)), rupiah(spp.diskon), rupiah(sppOutstanding)],
+        ['SPP terdahulu', rupiah(sppOpening?.jumlah), rupiah(sppOpening?.total_dibayar), rupiah(0), rupiah(sppOutstanding)],
         ['Koperasi', rupiah(coop.nominal), rupiah(coop.dibayar), rupiah(coop.diskon), rupiah(coopOutstanding)],
       ] },
       { title: 'Transaksi per Kategori', headers: ['Kategori', 'Transaksi', 'Total Sah', 'Dibatalkan'], rows: transactions.map(row => [text(row.kategori), integer(row.jumlah), rupiah(row.total), integer(row.void)]) },
