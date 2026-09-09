@@ -80,11 +80,11 @@ export function pbSlotsForDate(versions: PbVersion[], holidays: PbHoliday[], dat
   const weekday = new Date(date + 'T00:00:00Z').getUTCDay() || 7
   return (version?.slots || []).filter(s => s.weekday === weekday).sort((a, b) => a.start.localeCompare(b.start))
 }
-export function pbInputStatus(slot: PbSlot | null, time: string, restricted: boolean, late: boolean, threshold: number): PbReport['status'] {
+export function pbInputStatus(slot: PbSlot | null, time: string, restricted: boolean, _late: boolean, _threshold: number): PbReport['status'] {
   if (!slot) return 'TAMBAHAN'
   const now = minutes(time)
   if (restricted && (now < minutes(slot.start) - 5 || now > minutes(slot.end))) throw new Error(`Laporan hanya dapat dikirim mulai lima menit sebelum ${slot.start} sampai ${slot.end} WIB.`)
-  return late && now > minutes(slot.start) + threshold ? 'TELAT' : 'TEPAT_WAKTU'
+  return 'TEPAT_WAKTU'
 }
 export function buildPbItems(input: { start: string; end: string; today: string; time: string; versions: PbVersion[]; holidays: PbHoliday[]; members: PbMember[]; reports: PbReport[]; leaves: PbLeave[] }): PbItem[] {
   const { start, end, today, time, versions, holidays, members, reports, leaves } = input
@@ -118,7 +118,6 @@ export function summarizePb(items: PbItem[]) {
     if (item.status === 'BELUM') { result.belum++; continue }
     result.total++
     if (item.status === 'TEPAT_WAKTU' || item.status === 'TELAT') result.hadir++
-    if (item.status === 'TELAT') result.telat++
     if (item.status === 'SAKIT') result.sakit++
     if (item.status === 'IZIN') { result.izin++; if (item.leave?.kepentingan_sekolah) result.izinSekolah++ }
     if (item.status === 'ALFA') result.alfa++

@@ -438,7 +438,7 @@ export function PramubaktiClient({
                     <div className="border-t bg-slate-50 dark:bg-slate-800/40 p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
                       {isActingAs && (
                         <div className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
-                          Mode Act As: Laporan dicatat atas nama staf yang dipilih dan berstatus Tepat Waktu.
+                          Mode Act As: Laporan dicatat atas nama staf yang dipilih dan berstatus Selesai.
                         </div>
                       )}
 

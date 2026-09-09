@@ -23,6 +23,7 @@ import { getPbData, getPbCkhDates, requirePbAccess } from './pramubakti-db'
 
 let sqlite: DatabaseSync
 const migration = readFileSync('migrations/0096_pramubakti.sql', 'utf8')
+const completedStatusMigration = readFileSync('migrations/0100_pramubakti_start_date_and_completed_status.sql', 'utf8')
 beforeEach(() => {
   state.actor = 'p'; state.roles = ['pramubakti']; state.date = '2026-09-07'; state.time = '07:05'; state.uploads = 0; state.denied = false
   sqlite = new DatabaseSync(':memory:')
@@ -72,6 +73,14 @@ describe('Pramubakti migration and server actions', () => {
     expect(sqlite.prepare("SELECT start_date FROM pb_members WHERE user_id='other' AND end_date IS NULL").get()).toBeTruthy()
     sqlite.exec("DELETE FROM user_roles WHERE user_id='other'")
     expect(sqlite.prepare("SELECT id FROM pb_members WHERE user_id='other' AND end_date IS NULL").get()).toBeUndefined()
+  })
+  it('starts Pramubakti obligations on 9 September 2026 and normalizes legacy late reports', async () => {
+    sqlite.exec(completedStatusMigration)
+    expect(sqlite.prepare("SELECT start_date FROM pb_members WHERE user_id='p'").get()?.start_date).toBe('2026-09-09')
+    expect((await getPbData(state.db, '2026-09-07', '2026-09-08', 'p')).items).toHaveLength(0)
+    sqlite.exec("INSERT INTO pb_reports(id,user_id,tanggal,slot_id,jobs_json,tempat,foto_url,waktu_input,status,actor_id) VALUES('legacy','p','2026-09-07','slot','[\"Membersihkan\"]','Halaman','/foto.jpg','2026-09-07T07:30:00+07:00','TELAT','p')")
+    sqlite.exec(completedStatusMigration)
+    expect(sqlite.prepare('SELECT status FROM pb_reports').get()?.status).toBe('TEPAT_WAKTU')
   })
   it('rejects incomplete, historical, forged-slot and inactive-job submissions before upload', async () => {
     for (const mutate of [(f: FormData) => f.delete('foto'), (f: FormData) => f.delete('jobs'), (f: FormData) => f.set('tempat', ''), (f: FormData) => f.set('tanggal', '2026-09-06'), (f: FormData) => f.set('slot_id', 'fake'), (f: FormData) => f.set('jobs', 'fake')]) { const f = form(); mutate(f); expect((await submitPramubaktiReport(f)).error).toBeTruthy() }
@@ -128,7 +137,7 @@ describe('Pramubakti migration and server actions', () => {
   })
   it('audits corrections and rejects a stale revision', async () => {
     const f = form(); await submitPramubaktiReport(f); admin()
-    const payload = { id: String(f.get('request_id')), revision: 1, jobs: ['Membersihkan'], tempat: 'Koridor', status: 'TELAT' as const, reason: 'Perbaikan tempat' }
+    const payload = { id: String(f.get('request_id')), revision: 1, jobs: ['Membersihkan'], tempat: 'Koridor', status: 'TEPAT_WAKTU' as const, reason: 'Perbaikan tempat' }
     expect((await correctPramubaktiReport(payload)).success).toBeTruthy()
     expect((await correctPramubaktiReport(payload)).error).toMatch(/berubah/)
     expect(sqlite.prepare("SELECT COUNT(*) n FROM pb_audit WHERE action='report.correct'").get()?.n).toBe(1)

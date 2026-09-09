@@ -86,7 +86,7 @@ export async function submitPramubaktiReport(form: FormData): Promise<{ error?: 
     const item = slotId ? data.items.find(i => i.slot?.id === slotId) : null
     if (slotId && (!item || item.report || item.leave)) throw new Error('Slot tidak tersedia, sudah dilaporkan, atau berstatus izin/sakit.')
     
-    // Status: Jika act-as, selalu TEPAT_WAKTU seperti di Agenda Guru
+    // Every report submitted inside its work window is complete; Pramubakti has no late status.
     const status = isActingAs
       ? (slotId ? 'TEPAT_WAKTU' : 'TAMBAHAN')
       : pbInputStatus(item?.slot || null, currentTimeWIB().hhmm, rules.restricted, rules.late, rules.threshold)

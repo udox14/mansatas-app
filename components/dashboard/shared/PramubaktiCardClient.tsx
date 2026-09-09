@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ClipboardCheck, ChevronRight, Clock3 } from 'lucide-react'
+import { ClipboardCheck, ChevronRight } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -79,7 +79,7 @@ export function PramubaktiCardClient({
           <div className="grid grid-cols-4 divide-x divide-slate-100 dark:divide-slate-800">
             <div className="flex flex-col items-center gap-0.5 py-3">
               <span className="text-xl font-bold leading-none tabular-nums text-emerald-600">{summary.hadir}</span>
-              <span className="text-[10px] text-slate-400 dark:text-slate-500">Hadir</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500">Selesai</span>
             </div>
             {(['SAKIT', 'IZIN', 'ALFA'] as const).map(status => {
               const meta = STATUS_META[status]
@@ -101,16 +101,13 @@ export function PramubaktiCardClient({
           </div>
         )}
 
-        <div className={`flex items-center justify-between gap-2 border-t border-surface-2 px-4 py-2 ${summary.telat > 0 ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}`}>
+        <div className="flex items-center justify-between gap-2 border-t border-surface-2 px-4 py-2">
           <div className="flex items-center gap-1.5">
-            {summary.telat > 0 && <Clock3 className="h-3 w-3 shrink-0 text-amber-500" />}
-            <p className={`text-[10px] ${summary.telat > 0 ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
-              {summary.telat > 0 ? (
-                <>Terlambat <span className="font-bold">{summary.telat}×</span> slot pekerjaan bulan ini</>
-              ) : summary.tambahan > 0 ? (
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+              {summary.tambahan > 0 ? (
                 <>{summary.tambahan} tugas tambahan dicatat bulan ini</>
               ) : (
-                'Seluruh slot kerja terlaksana tepat waktu'
+                'Laporan yang terisi pada rentang kerja dinyatakan selesai'
               )}
             </p>
           </div>

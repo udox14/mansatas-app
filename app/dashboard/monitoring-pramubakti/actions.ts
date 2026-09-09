@@ -41,10 +41,10 @@ export async function setPramubaktiLeave(payload: { userId: string; start: strin
   } catch (error) { return { error: error instanceof Error ? error.message : 'Gagal mengubah status.' } }
 }
 
-export async function correctPramubaktiReport(payload: { id: string; revision: number; jobs: string[]; tempat: string; status: 'TEPAT_WAKTU' | 'TELAT' | 'TAMBAHAN'; reason: string }) {
+export async function correctPramubaktiReport(payload: { id: string; revision: number; jobs: string[]; tempat: string; status: 'TEPAT_WAKTU' | 'TAMBAHAN'; reason: string }) {
   try {
     const { db, actor } = await requirePbAccess('monitor', true)
-    if (!payload.reason.trim() || payload.reason.length > 1000 || !payload.tempat.trim() || payload.tempat.length > 300 || !payload.jobs.length || payload.jobs.length > 50 || payload.jobs.some(j => !j.trim() || j.length > 100) || !['TEPAT_WAKTU', 'TELAT', 'TAMBAHAN'].includes(payload.status)) throw new Error('Pekerjaan, tempat, status, dan alasan koreksi wajib diisi dengan benar.')
+    if (!payload.reason.trim() || payload.reason.length > 1000 || !payload.tempat.trim() || payload.tempat.length > 300 || !payload.jobs.length || payload.jobs.length > 50 || payload.jobs.some(j => !j.trim() || j.length > 100) || !['TEPAT_WAKTU', 'TAMBAHAN'].includes(payload.status)) throw new Error('Pekerjaan, tempat, status, dan alasan koreksi wajib diisi dengan benar.')
     const old = await db.prepare('SELECT * FROM pb_reports WHERE id=?').bind(payload.id).first<{ id: string; revision: number; slot_id: string | null }>()
     if (!old || old.revision !== payload.revision) throw new Error('Laporan sudah berubah. Muat ulang sebelum mengoreksi.')
     if ((old.slot_id === null) !== (payload.status === 'TAMBAHAN')) throw new Error('Jenis wajib/tambahan tidak dapat diubah melalui koreksi.')

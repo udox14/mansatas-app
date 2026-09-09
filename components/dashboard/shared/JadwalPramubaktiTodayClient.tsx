@@ -160,10 +160,8 @@ export function JadwalPramubaktiTodayClient({
                   {/* Status Icon */}
                   <div
                     className={`h-8 w-8 shrink-0 rounded-lg flex items-center justify-center ${
-                      item.status === 'TEPAT_WAKTU'
+                      item.status === 'TEPAT_WAKTU' || item.status === 'TELAT'
                         ? 'bg-emerald-50 dark:bg-emerald-900/30'
-                        : item.status === 'TELAT'
-                        ? 'bg-amber-50 dark:bg-amber-900/30'
                         : isLeave
                         ? 'bg-blue-50 dark:bg-blue-900/30'
                         : isAlfa
@@ -175,8 +173,7 @@ export function JadwalPramubaktiTodayClient({
                         : 'bg-slate-100 dark:bg-slate-800'
                     }`}
                   >
-                    {item.status === 'TEPAT_WAKTU' && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
-                    {item.status === 'TELAT' && <Clock className="h-4 w-4 text-amber-500" />}
+                    {(item.status === 'TEPAT_WAKTU' || item.status === 'TELAT') && <CheckCircle2 className="h-4 w-4 text-emerald-500" />}
                     {isLeave && <UserCheck className="h-4 w-4 text-blue-500" />}
                     {isAlfa && <AlertCircle className="h-4 w-4 text-rose-500" />}
                     {item.status === 'TAMBAHAN' && <Sparkles className="h-4 w-4 text-indigo-500" />}
@@ -245,14 +242,9 @@ export function JadwalPramubaktiTodayClient({
                       {item.slot ? `${item.slot.start} – ${item.slot.end}` : 'Tambahan'}
                     </p>
                     <div className="mt-0.5">
-                      {item.status === 'TEPAT_WAKTU' && (
+                      {(item.status === 'TEPAT_WAKTU' || item.status === 'TELAT') && (
                         <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                          Tepat Waktu
-                        </span>
-                      )}
-                      {item.status === 'TELAT' && (
-                        <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
-                          Terlambat
+                          Selesai
                         </span>
                       )}
                       {item.status === 'SAKIT' && (

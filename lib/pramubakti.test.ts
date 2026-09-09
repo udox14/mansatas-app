@@ -12,13 +12,13 @@ describe('Pramubakti work obligations', () => {
     expect(() => pbInputStatus(slot, '06:54', true, true, 10)).toThrow()
     expect(pbInputStatus(slot, '06:55', true, true, 10)).toBe('TEPAT_WAKTU')
     expect(pbInputStatus(slot, '07:10', true, true, 10)).toBe('TEPAT_WAKTU')
-    expect(pbInputStatus(slot, '07:11', true, true, 10)).toBe('TELAT')
-    expect(pbInputStatus(slot, '08:00', true, true, 10)).toBe('TELAT')
+    expect(pbInputStatus(slot, '07:11', true, true, 10)).toBe('TEPAT_WAKTU')
+    expect(pbInputStatus(slot, '08:00', true, true, 10)).toBe('TEPAT_WAKTU')
     expect(() => pbInputStatus(slot, '08:01', true, true, 10)).toThrow()
   })
   it('shares timing switches but leaves extra reports unrestricted', () => {
     expect(pbInputStatus(slot, '22:00', false, false, 10)).toBe('TEPAT_WAKTU')
-    expect(pbInputStatus(slot, '22:00', false, true, 10)).toBe('TELAT')
+    expect(pbInputStatus(slot, '22:00', false, true, 10)).toBe('TEPAT_WAKTU')
     expect(pbInputStatus(null, '23:59', true, true, 10)).toBe('TAMBAHAN')
   })
   it('rejects overlap, invalid times, overnight slots and invalid weekdays', () => {
@@ -43,9 +43,9 @@ describe('Pramubakti work obligations', () => {
     expect(buildPbItems({ ...base, time: '08:01' })[0].status).toBe('ALFA')
     expect(buildPbItems({ ...base, today: '2026-09-06', time: '23:59' })[0].status).toBe('BELUM')
   })
-  it('counts late as attendance and extra reports outside the denominator', () => {
+  it('treats legacy late reports as completed and keeps extra reports outside the denominator', () => {
     const items = buildPbItems({ ...base, reports: [{ ...report, status: 'TELAT' }, { ...report, id: 'extra', slot_id: null, status: 'TAMBAHAN' }] })
-    expect(summarizePb(items)).toMatchObject({ total: 1, hadir: 1, telat: 1, tambahan: 1, performance: 100 })
+    expect(summarizePb(items)).toMatchObject({ total: 1, hadir: 1, telat: 0, tambahan: 1, performance: 100 })
   })
   it('preserves evidence when leave overrides attendance and credits school leave only', () => {
     const leave = { user_id: 'p', tanggal: base.start, slot_id: 's1', status: 'IZIN' as const, reason_id: 'school', reason_name: 'Dinas', kepentingan_sekolah: true, note: 'Koreksi' }
@@ -126,4 +126,3 @@ describe('Pramubakti dashboard integration', () => {
     expect(pendingCount).toBe(1)
   })
 })
-

@@ -67,7 +67,7 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
   const [edit, setEdit] = useState({
     jobs: '',
     tempat: '',
-    status: 'TEPAT_WAKTU' as 'TEPAT_WAKTU' | 'TELAT' | 'TAMBAHAN',
+    status: 'TEPAT_WAKTU' as 'TEPAT_WAKTU' | 'TAMBAHAN',
     reason: '',
   })
 
@@ -77,10 +77,10 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
 
   const filtered = data.items.filter(
     i => (!userId || userId === 'ALL_USERS' || i.user_id === userId) &&
-         (!status || status === 'ALL_STATUS' || i.status === status) &&
+         (!status || status === 'ALL_STATUS' || i.status === status || (status === 'TEPAT_WAKTU' && i.status === 'TELAT')) &&
          (!slotId || slotId === 'ALL_SLOTS' || i.slot?.id === slotId) &&
          (!kind || kind === 'ALL_KINDS' || (kind === 'tambahan' ? i.status === 'TAMBAHAN' : i.status !== 'TAMBAHAN')) &&
-         (!attentionOnly || (i.status === 'BELUM' || i.status === 'TELAT' || i.status === 'ALFA'))
+         (!attentionOnly || i.status === 'BELUM' || i.status === 'ALFA')
   )
   const printed = filtered.filter(i => !excluded.includes(i.user_id))
   const stale = start !== loaded.start || end !== loaded.end
@@ -218,7 +218,7 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
     setEdit({
       jobs: item.report.jobs.join('\n'),
       tempat: item.report.tempat,
-      status: item.report.status,
+      status: item.report.status === 'TELAT' ? 'TEPAT_WAKTU' : item.report.status,
       reason: '',
     })
   }
@@ -397,8 +397,7 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL_STATUS">Semua Status</SelectItem>
-                <SelectItem value="TEPAT_WAKTU">Tepat Waktu</SelectItem>
-                <SelectItem value="TELAT">Telat</SelectItem>
+                <SelectItem value="TEPAT_WAKTU">Selesai</SelectItem>
                 <SelectItem value="SAKIT">Sakit</SelectItem>
                 <SelectItem value="IZIN">Izin</SelectItem>
                 <SelectItem value="ALFA">Alfa</SelectItem>
@@ -525,9 +524,6 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 text-[11px]">
                   <CheckCircle2 className="h-3 w-3" /> {summary.hadir}
                 </span>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/60 text-[11px]">
-                  <Clock className="h-3 w-3" /> {summary.telat}
-                </span>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium bg-sky-50 dark:bg-sky-950/50 text-sky-700 dark:text-sky-400 border border-sky-200/60 dark:border-sky-800/60 text-[11px]">
                   <AlertTriangle className="h-3 w-3" /> {summary.izin + summary.sakit}
                 </span>
@@ -542,7 +538,7 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
           </AccordionTrigger>
 
           <AccordionContent className="p-3.5 pt-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
               {/* Card 1: Performa */}
               <div
                 onClick={() => { setStatus(''); setKind('') }}
@@ -564,32 +560,15 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
                 className={`rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm border-l-4 border-l-emerald-500 transition-all cursor-pointer hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-md ${
                   status === 'TEPAT_WAKTU' ? 'ring-2 ring-emerald-500/50 bg-emerald-50/20 dark:bg-emerald-950/20' : ''
                 }`}
-                title="Klik untuk memfilter status Hadir / Tepat Waktu"
+                title="Klik untuk memfilter status Selesai"
               >
                 <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Hadir
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Selesai
                 </p>
                 <p className="text-xl sm:text-2xl font-bold text-emerald-800 dark:text-emerald-200 mt-1">
                   {summary.hadir}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Tepat waktu & telat</p>
-              </div>
-
-              {/* Card 3: Telat */}
-              <div
-                onClick={() => { setStatus(status === 'TELAT' ? '' : 'TELAT'); setKind('') }}
-                className={`rounded-lg border bg-white dark:bg-slate-900 p-3.5 shadow-sm border-l-4 border-l-amber-500 transition-all cursor-pointer hover:border-amber-300 dark:hover:border-amber-700 hover:shadow-md ${
-                  status === 'TELAT' ? 'ring-2 ring-amber-500/50 bg-amber-50/20 dark:bg-amber-950/20' : ''
-                }`}
-                title="Klik untuk memfilter status Telat"
-              >
-                <p className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5" /> Telat
-                </p>
-                <p className="text-xl sm:text-2xl font-bold text-amber-800 dark:text-amber-200 mt-1">
-                  {summary.telat}
-                </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Melewati batas waktu</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Terisi dalam rentang kerja</p>
               </div>
 
               {/* Card 4: Izin / Sakit */}
@@ -701,8 +680,7 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
                   <TableRow>
                     <TableHead className="font-semibold">Nama Pegawai</TableHead>
                     <TableHead className="font-semibold text-center">Wajib Dinilai</TableHead>
-                    <TableHead className="font-semibold text-center">Hadir</TableHead>
-                    <TableHead className="font-semibold text-center">Telat</TableHead>
+                    <TableHead className="font-semibold text-center">Selesai</TableHead>
                     <TableHead className="font-semibold text-center">Sakit</TableHead>
                     <TableHead className="font-semibold text-center">Izin Biasa</TableHead>
                     <TableHead className="font-semibold text-center">Izin Sekolah</TableHead>
@@ -734,9 +712,6 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
                           <TableCell className="text-center">{s.total}</TableCell>
                           <TableCell className="text-center text-emerald-600 dark:text-emerald-400 font-medium">
                             {s.hadir}
-                          </TableCell>
-                          <TableCell className="text-center text-amber-600 dark:text-amber-400">
-                            {s.telat}
                           </TableCell>
                           <TableCell className="text-center text-blue-600 dark:text-blue-400">
                             {s.sakit}
@@ -984,13 +959,13 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
                       Periode: {loaded.start} s/d {loaded.end}
                     </p>
                     <p className="muted text-[10px] text-slate-500 mb-4 text-center leading-relaxed">
-                      Kebijakan: {excused ? 'Sakit & izin biasa memperoleh kredit penuh' : 'Sakit & izin biasa mengurangi performa'}; Izin kepentingan dinas madrasah memperoleh kredit penuh. Telat dihitung hadir.
+                      Kebijakan: laporan yang terisi dalam rentang kerja dinyatakan selesai; {excused ? 'sakit & izin biasa memperoleh kredit penuh' : 'sakit & izin biasa mengurangi performa'}; izin kepentingan dinas madrasah memperoleh kredit penuh.
                     </p>
 
                     <table className="w-full text-xs border border-collapse border-slate-400">
                       <thead>
                         <tr className="bg-slate-100">
-                          {['No', 'Nama Pegawai', 'Wajib Dinilai', 'Hadir', 'Telat', 'Sakit', 'Izin Biasa', 'Izin Dinas', 'Alfa', 'Ekstra', 'Performa'].map(h => (
+                          {['No', 'Nama Pegawai', 'Wajib Dinilai', 'Selesai', 'Sakit', 'Izin Biasa', 'Izin Dinas', 'Alfa', 'Ekstra', 'Performa'].map(h => (
                             <th key={h} className="border border-slate-400 p-2 text-center font-semibold">
                               {h}
                             </th>
@@ -1006,7 +981,6 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
                               <td className="border border-slate-400 p-2 font-medium text-left">{m.nama_lengkap}</td>
                               <td className="border border-slate-400 p-2 text-center">{s.total}</td>
                               <td className="border border-slate-400 p-2 text-center">{s.hadir}</td>
-                              <td className="border border-slate-400 p-2 text-center">{s.telat}</td>
                               <td className="border border-slate-400 p-2 text-center">{s.sakit}</td>
                               <td className="border border-slate-400 p-2 text-center">{s.izin - s.izinSekolah}</td>
                               <td className="border border-slate-400 p-2 text-center">{s.izinSekolah}</td>
@@ -1386,8 +1360,7 @@ export function PramubaktiMonitoringClient({ initialData }: { initialData: Data 
                 <SelectContent>
                   {correction?.report?.slot_id ? (
                     <>
-                      <SelectItem value="TEPAT_WAKTU">Tepat Waktu</SelectItem>
-                      <SelectItem value="TELAT">Telat</SelectItem>
+                      <SelectItem value="TEPAT_WAKTU">Selesai</SelectItem>
                     </>
                   ) : (
                     <SelectItem value="TAMBAHAN">Tambahan</SelectItem>

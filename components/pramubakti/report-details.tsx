@@ -22,13 +22,13 @@ export const PB_STATUS_STYLE: Record<string, { bg: string; text: string; icon: a
     bg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800',
     text: 'text-emerald-700 dark:text-emerald-400',
     icon: CheckCircle2,
-    label: 'Tepat Waktu'
+    label: 'Selesai'
   },
   TELAT: {
-    bg: 'bg-amber-50 dark:bg-amber-950/50 border-amber-200 dark:border-amber-800',
-    text: 'text-amber-700 dark:text-amber-400',
-    icon: Clock,
-    label: 'Telat'
+    bg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800',
+    text: 'text-emerald-700 dark:text-emerald-400',
+    icon: CheckCircle2,
+    label: 'Selesai'
   },
   ALFA: {
     bg: 'bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800',

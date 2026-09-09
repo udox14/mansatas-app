@@ -55,7 +55,7 @@
     "framer-motion": "^12.38.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.575.0",
-    "next": "16.3.1",
+    "next": "16.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-to-print": "^3.3.0",
