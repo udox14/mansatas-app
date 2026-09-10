@@ -15,6 +15,7 @@ import { GuruPiketDashboard }  from '@/components/dashboard/GuruPiketDashboard'
 import { ResepsionisDashboard } from '@/components/dashboard/ResepsionisDashboard'
 import { GuruPPLDashboard } from '@/components/dashboard/GuruPPLDashboard'
 import { BendaharaDashboard } from '@/components/dashboard/BendaharaDashboard'
+import { GeneralDashboard } from '@/components/dashboard/GeneralDashboard'
 import { PramubaktiDashboard } from '@/components/dashboard/PramubaktiDashboard'
 import { JadwalPramubaktiToday } from '@/components/dashboard/shared/JadwalPramubaktiToday'
 import { DashboardSPAShell } from '@/components/dashboard/shared/DashboardSPAShell'
@@ -66,7 +67,12 @@ const ROLE_LABEL: Record<string, string> = {
 
 const SIDEBAR_TEMPLATE_KEY = 'default'
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ period?: string }>
+}) {
+  const query = searchParams ? await searchParams : {}
   const user = await getCurrentUser()
   if (!user) redirect('/login')
 
@@ -196,8 +202,14 @@ export default async function DashboardPage() {
         return <GuruPPLDashboard {...commonProps} />
 
       case 'bendahara_komite':
+        return <BendaharaDashboard
+          {...commonProps}
+          allowedFeatures={allowedFeatures}
+          period={query.period}
+        />
+
       case 'pengurus_koperasi':
-        return <BendaharaDashboard {...commonProps} />
+        return <GeneralDashboard userId={user.id} dashboardVisibility={dashboardVisibility} />
 
       case 'guru':
       case 'guru_tahfidz':

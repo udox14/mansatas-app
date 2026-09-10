@@ -94,12 +94,21 @@ export const DASHBOARD_GROUPS: DashGroup[] = [
   },
   {
     key: 'bendahara',
-    label: 'Bendahara Komite / Pengurus Koperasi',
+    label: 'Bendahara Komite',
     items: [
       { id: 'kehadiran_pribadi', label: 'Kartu Kehadiran Pribadi', desc: 'Presensi pribadi pegawai' },
-      { id: 'quick_links', label: 'Tautan Cepat', desc: 'DSPT, SPP, Export, Kas, Laporan' },
-      { id: 'stat_keuangan', label: 'Kartu Statistik Keuangan', desc: 'Ringkasan DSPT & SPP' },
-      { id: 'kas_transaksi', label: 'Arus Kas & Transaksi Terbaru', desc: 'Pengeluaran bulan ini & transaksi' },
+      { id: 'cash_position', label: 'Posisi Kas', desc: 'Saldo awal, pemasukan, pengeluaran, dan saldo akhir' },
+      { id: 'attention_queue', label: 'Perlu Ditindaklanjuti', desc: 'Bukti bayar, review pengajuan, dan realisasi SPB' },
+      { id: 'quick_links', label: 'Modul Keuangan Komite', desc: 'Akses cepat seluruh modul keuangan' },
+      { id: 'stat_keuangan', label: 'Kesehatan Tagihan', desc: 'Ringkasan DSPT, SPP lama, dan siswa nonaktif' },
+      { id: 'kas_transaksi', label: 'Aktivitas Kas Terbaru', desc: 'Transaksi buku kas pada periode terpilih' },
+    ],
+  },
+  {
+    key: 'general',
+    label: 'Beranda Umum',
+    items: [
+      { id: 'feature_shortcuts', label: 'Jalan Pintas Akses', desc: 'Fitur yang diizinkan untuk akun' },
     ],
   },
   {
@@ -125,8 +134,8 @@ export function dashboardKeyForRole(role: string): string {
     case 'resepsionis': return 'resepsionis'
     case 'guru_ppl': return 'guru_ppl'
     case 'bendahara_komite':
-    case 'pengurus_koperasi':
       return 'bendahara'
+    case 'pengurus_koperasi': return 'general'
     case 'guru':
     case 'guru_tahfidz':
     default:
