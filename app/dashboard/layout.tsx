@@ -6,7 +6,10 @@ import { getDB } from '@/utils/db-server'
 import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { BottomNav } from '@/components/layout/bottom-nav'
-import { getUserAllowedFeatures, getUserRoles, getPrimaryRole } from '@/lib/features'
+import { getUserAllowedFeatures, getUserRoles } from '@/lib/features'
+import { DashboardFrame } from '@/components/layout/dashboard-frame'
+import { DashboardNavigationProvider } from '@/components/layout/dashboard-navigation'
+import { groupDashboardMenus, parseDashboardShortcuts, resolveDashboardMenus, resolveDashboardShortcuts } from '@/lib/dashboard-menu'
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
 import { DEFAULT_SIDEBAR_GROUPS, parseSidebarGroups, resolveSidebarGroups, type SidebarGroupConfig } from '@/config/menu'
@@ -94,10 +97,10 @@ export default async function DashboardLayout({
     const featureLabelRows = await db.prepare('SELECT feature_id, title FROM feature_display_settings').all<{ feature_id: string; title: string }>()
     if (freshUser?.bottom_nav_override) {
       try {
-        navLinks = JSON.parse(freshUser.bottom_nav_override)
+        navLinks = parseDashboardShortcuts(freshUser.bottom_nav_override) ?? []
       } catch (e) {}
     } else if (roleConfig?.mobile_nav_links) {
-      navLinks = JSON.parse(roleConfig.mobile_nav_links)
+      navLinks = parseDashboardShortcuts(roleConfig.mobile_nav_links) ?? []
     }
     const templateGroups = parseSidebarGroups(roleConfig?.sidebar_template, DEFAULT_SIDEBAR_GROUPS)
     sidebarGroups = resolveSidebarGroups(templateGroups, roleConfig?.role_sidebar_override, allowedFeatures)
@@ -127,11 +130,22 @@ export default async function DashboardLayout({
     }
   }
   
-  const navEnabled = navLinks.length > 0;
   const isPlayReviewer = userRoles.includes(PLAY_REVIEWER_ROLE)
+  const menus = resolveDashboardMenus(allowedFeatures, featureLabels, featureBadges)
+  const menuGroups = groupDashboardMenus(menus, sidebarGroups)
+  let storedShortcuts: string[] | null = null
+  try {
+    const preferences = await db.prepare('SELECT shortcut_ids FROM user_dashboard_preferences WHERE user_id = ?')
+      .bind(user.id).first<{ shortcut_ids: string }>()
+    storedShortcuts = parseDashboardShortcuts(preferences?.shortcut_ids)
+  } catch {
+    // Keep the dashboard readable while migration 0103 is being rolled out.
+  }
+  const shortcutIds = resolveDashboardShortcuts(storedShortcuts, navLinks, menuGroups)
 
   return (
-    <div className="flex h-[100dvh] w-full bg-slate-50 dark:bg-slate-800 dark:bg-slate-950 text-slate-900 dark:text-slate-50 dark:text-slate-100 overflow-hidden">
+    <DashboardNavigationProvider key={user.id} menus={menus} groups={menuGroups} initialShortcutIds={shortcutIds} readOnly={isPlayReviewer}>
+    <div className="flex h-[100dvh] w-full overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       {!isPlayReviewer && <PushNotificationBanner />}
       <Sidebar
         userRoles={userRoles}
@@ -141,18 +155,15 @@ export default async function DashboardLayout({
         sidebarGroups={sidebarGroups}
         featureLabels={featureLabels}
         featureBadges={featureBadges}
-        navEnabled={navEnabled}
+        navEnabled={true}
       />
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        <Header
+      <DashboardFrame header={<Header
           userRoles={userRoles}
           primaryRole={primaryRole}
           userName={userName}
           userEmail={user.email || ''}
           avatarUrl={avatarUrl}
-        />
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-5">
-          <div className={`mx-auto max-w-7xl ${navEnabled ? 'pb-24' : 'pb-8'}`}>
+        />}>
             {isPlayReviewer && (
               <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                 Mode Google Play Reviewer: akses hanya-baca. Data pribadi telah disamarkan dan seluruh perubahan diblokir.
@@ -161,12 +172,9 @@ export default async function DashboardLayout({
             <Suspense fallback={<PageSkeleton />}>
               {children}
             </Suspense>
-          </div>
-        </main>
-      </div>
-      {navEnabled && (
-        <BottomNav activeIds={navLinks} allowedItems={allowedFeatures} featureLabels={featureLabels} />
-      )}
+      </DashboardFrame>
+      <BottomNav activeIds={navLinks} />
     </div>
+    </DashboardNavigationProvider>
   )
 }

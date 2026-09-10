@@ -1,109 +1,90 @@
+'use client'
+
 import Link from 'next/link'
-import { UserGear as UserCog, CalendarCheck, Gear } from '@phosphor-icons/react/dist/ssr'
+import { useEffect, useState } from 'react'
+import { CalendarCheck, Clock, LogOut, Megaphone, RotateCw, Settings, User } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { unregisterNativePushToken } from '@/components/native/mobile-runtime'
+import { getDashboardPeriod, type LessonPattern } from '@/lib/dashboard-period'
 
 type Props = {
-  nama: string
-  namaDepan: string
-  avatarUrl: string | null
-  roleLabel: string
-  roleColor?: string
-  taAktif?: { nama: string; semester: number } | null
-  sapaan: string
-  bgImageUrl?: string
-  runningText?: string
-  textColor?: string
-  runningTextBg?: string
-  runningTextColor?: string
+  nama: string; namaDepan: string; avatarUrl: string | null; roleLabel: string; roleColor?: string
+  taAktif?: { nama: string; semester: number } | null; sapaan: string; bgImageUrl?: string
+  runningText?: string; textColor?: string; runningTextBg?: string; runningTextColor?: string
+  polaJam?: LessonPattern[]; primaryRole?: string
+}
+const EMPTY_PATTERNS: LessonPattern[] = []
+
+function PeriodChip({ patterns }: { patterns: LessonPattern[] }) {
+  const [label, setLabel] = useState('Menghitung...')
+  useEffect(() => {
+    const update = () => setLabel(getDashboardPeriod(new Date(), patterns))
+    const initial = window.setTimeout(update, 0)
+    const timer = window.setInterval(update, 30_000)
+    return () => { window.clearTimeout(initial); window.clearInterval(timer) }
+  }, [patterns])
+  return <span className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/20 bg-white/15 px-3 py-2 text-xs font-semibold backdrop-blur-md"><Clock size={15} aria-hidden="true" />{label}</span>
 }
 
-const AVATAR_BG: Record<string, string> = {
-  blue: 'bg-blue-500', purple: 'bg-purple-500', cyan: 'bg-cyan-500',
-  emerald: 'bg-emerald-500', amber: 'bg-amber-500', rose: 'bg-rose-500',
-  orange: 'bg-orange-500', sky: 'bg-sky-500',
-}
-
-export function WelcomeStrip({ 
-  nama, namaDepan, avatarUrl, roleLabel, roleColor = 'emerald', taAktif, sapaan,
-  bgImageUrl, runningText, textColor = 'white',
-  runningTextBg = '#1e1e1e', runningTextColor = '#ffffff'
+export function WelcomeStrip({ nama, namaDepan, avatarUrl, roleLabel, taAktif, sapaan, bgImageUrl, runningText,
+  textColor = 'white', runningTextBg = '#1e1e1e', runningTextColor = '#ffffff', polaJam = EMPTY_PATTERNS, primaryRole,
 }: Props) {
-  const avatarBg = AVATAR_BG[roleColor] ?? AVATAR_BG.emerald
-
-  // Fallback gradient if no background image is provided
-  const fallbackGradient = {
-    emerald: 'from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20',
-    blue: 'from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20',
-    purple: 'from-purple-50 to-fuchsia-50 dark:from-purple-900/20 dark:to-fuchsia-900/20',
-    cyan: 'from-cyan-50 to-sky-50 dark:from-cyan-900/20 dark:to-sky-900/20',
-    amber: 'from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20',
-    rose: 'from-rose-50 to-pink-50 dark:from-rose-900/20 dark:to-pink-900/20',
-    orange: 'from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20',
-    sky: 'from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20',
-  }[roleColor] ?? 'from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20'
-
-  const containerStyle = bgImageUrl 
-    ? { backgroundImage: `url(${bgImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } 
-    : {}
-
-  // We only use the fallback gradient if no background image is provided
-  const overlayClass = bgImageUrl 
-    ? '' // No gradient effect if image is provided
-    : `bg-gradient-to-r ${fallbackGradient}`
-
-  const textClass = textColor === 'white' ? 'text-white drop-shadow-md' : 'text-slate-800 drop-shadow-none'
-  const subTextClass = textColor === 'white' ? 'text-slate-200 drop-shadow-md' : 'text-slate-600 drop-shadow-none'
-
-  return (
-    <div 
-      className="relative w-full rounded-[2rem] overflow-hidden shadow-sm transition-all flex flex-col justify-end aspect-[16/9] sm:aspect-auto sm:h-56 lg:h-64"
-      style={containerStyle}
-    >
-      {/* Overlay for text readability */}
-      <div className={`absolute inset-0 ${overlayClass} transition-all`} />
-
-      <div className={`relative z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4 px-5 md:px-8 py-5 md:py-8 w-full h-full ${runningText ? 'pb-12 md:pb-16' : ''}`}>
-        <div className="flex items-center md:items-end gap-3 md:gap-5 min-w-0 mt-auto">
-          {/* Avatar (Hidden on small screens) */}
-          <div className={`hidden md:flex relative h-16 w-16 md:h-20 md:w-20 shrink-0 rounded-full ${avatarBg} items-center justify-center overflow-hidden shadow-md ring-4 ring-white/50 dark:ring-slate-800/50`}>
-            {avatarUrl
-              ? <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
-              : <span className="text-2xl md:text-3xl font-bold text-white select-none">{namaDepan.charAt(0).toUpperCase()}</span>
-            }
-            <span className="absolute bottom-1 right-1 h-3 md:h-3.5 w-3 md:w-3.5 rounded-full bg-emerald-400 border-2 border-white dark:border-slate-800" />
-          </div>
-          
-          <div className="min-w-0 pb-0.5 md:pb-1">
-            <p className={`text-[10px] md:text-xs font-bold uppercase tracking-[0.2em] mb-1 md:mb-1.5 ${subTextClass}`}>{sapaan}</p>
-            <h1 className={`text-xl sm:text-2xl md:text-3xl font-black tracking-tight leading-none truncate mb-2 md:mb-2.5 ${textClass}`}>
-              {nama}
-            </h1>
-            <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
-              <span className={`text-[10px] md:text-xs font-bold px-2.5 py-0.5 md:px-3 md:py-1 rounded-full backdrop-blur-md shadow-sm ${textColor === 'white' ? 'bg-white/20 text-white' : 'bg-black/10 text-slate-700'}`}>
-                {roleLabel}
-              </span>
-              {taAktif && (
-                <span className={`text-[10px] md:text-xs font-semibold flex items-center gap-1 md:gap-1.5 backdrop-blur-md px-2.5 py-0.5 md:px-3 md:py-1 rounded-full shadow-sm ${textColor === 'white' ? 'bg-black/20 text-white' : 'bg-white/40 text-slate-800'}`}>
-                  <CalendarCheck className="h-3.5 w-3.5 md:h-4 md:w-4" weight="duotone" />
-                  TA {taAktif.nama} • Smt {taAktif.semester}
-                </span>
-              )}
+  const [logoutError, setLogoutError] = useState('')
+  const [loggingOut, setLoggingOut] = useState(false)
+  async function logout() {
+    setLoggingOut(true)
+    setLogoutError('')
+    try {
+      await unregisterNativePushToken()
+      const response = await fetch('/api/auth/sign-out', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}), credentials: 'include' })
+      if (!response.ok) throw new Error('sign-out failed')
+      // A full navigation clears account-scoped client state after sign-out.
+      window.location.assign(new URL('/', window.location.origin).href)
+    } catch { setLogoutError('Belum berhasil keluar. Silakan coba lagi.'); setLoggingOut(false) }
+  }
+  const lightText = textColor === 'white'
+  return <section aria-label="Selamat datang" className="overflow-hidden">
+    <div className={`dashboard-hero relative flex flex-col justify-end ${lightText ? 'bg-emerald-900 text-white' : 'bg-emerald-50 text-slate-900'}`}
+      style={bgImageUrl ? { backgroundImage: `url(${JSON.stringify(bgImageUrl)})`, backgroundPosition: 'center', backgroundSize: 'cover' } : undefined}>
+      <div aria-hidden="true" className={`absolute inset-0 ${lightText ? 'bg-gradient-to-t from-emerald-950/85 via-emerald-950/25 to-transparent' : 'bg-gradient-to-t from-white/90 via-white/35 to-transparent'}`} />
+      {!bgImageUrl && <div aria-hidden="true" className="pointer-events-none absolute -right-14 -top-28 h-96 w-96 rounded-full border-[48px] border-emerald-400/10" />}
+      <div className="relative mx-auto w-full max-w-7xl px-5 pb-6 pt-8 sm:px-6 lg:px-8">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button aria-label="Buka menu akun" className="mb-4 block rounded-[18px] text-left shadow-lg ring-2 ring-white/60 transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-4 motion-reduce:transition-none">
+              <Avatar className="h-14 w-14 rounded-[18px] sm:h-16 sm:w-16">
+                <AvatarImage src={avatarUrl || ''} alt={nama} className="object-cover" />
+                <AvatarFallback className="rounded-[18px] bg-emerald-100 text-2xl font-bold text-emerald-800">{namaDepan.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
+              </Avatar>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-60 rounded-2xl p-2">
+            <p className="px-2 py-2 text-sm font-semibold">{nama}</p>
+            <DropdownMenuItem asChild className="min-h-11 rounded-xl"><Link href="/dashboard/settings/profile"><User className="mr-2 h-4 w-4" />Profil saya</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild className="min-h-11 rounded-xl"><Link href={primaryRole === 'super_admin' ? '/dashboard/settings' : '/dashboard/settings/profile'}><Settings className="mr-2 h-4 w-4" />Pengaturan</Link></DropdownMenuItem>
+            <DropdownMenuItem onClick={() => window.location.reload()} className="min-h-11 rounded-xl"><RotateCw className="mr-2 h-4 w-4" />Refresh halaman</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled={loggingOut} onClick={logout} className="min-h-11 rounded-xl text-rose-600"><LogOut className="mr-2 h-4 w-4" />{loggingOut ? 'Keluar...' : 'Keluar sistem'}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <div className="flex flex-wrap items-end justify-between gap-x-5 gap-y-3">
+          <div className="min-w-0 flex-[1_1_190px]">
+            <p className="mb-1 text-xs font-medium opacity-80">{sapaan},</p>
+            <h1 className="break-words text-2xl font-bold leading-tight tracking-tight sm:text-3xl">{nama}</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium opacity-90 sm:text-xs">
+              <span>{roleLabel}</span>
+              {taAktif && <span className="inline-flex items-center gap-1"><CalendarCheck className="h-3.5 w-3.5" />TA {taAktif.nama} · Smt {taAktif.semester}</span>}
             </div>
           </div>
+          <div className="shrink-0"><PeriodChip patterns={polaJam} /></div>
         </div>
+        {logoutError && <p role="alert" className="mt-3 rounded-xl bg-white p-3 text-xs text-rose-700">{logoutError}</p>}
       </div>
-
-      {/* Running Text / Marquee directly overlay at bottom */}
-      {runningText && (
-        <div 
-          className="absolute bottom-0 left-0 w-full overflow-hidden text-[10px] md:text-xs font-medium py-1.5 md:py-2 px-5 flex items-center whitespace-nowrap z-20 border-t border-black/20"
-          style={{ backgroundColor: runningTextBg, color: runningTextColor }}
-        >
-          <div className="w-full overflow-hidden relative flex items-center">
-            {/* @ts-ignore - marquee is deprecated but still works fine for simple needs */}
-            <marquee className="w-full h-full font-semibold" scrollamount="4">{runningText}</marquee>
-          </div>
-        </div>
-      )}
     </div>
-  )
+    {runningText && <div className="flex items-center gap-3 px-5 py-3 text-xs sm:px-6 lg:px-8" style={{ backgroundColor: runningTextBg, color: runningTextColor }}>
+      <Megaphone className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <div className="dashboard-announcement min-w-0 flex-1 overflow-hidden"><p className="dashboard-announcement-text w-max min-w-full whitespace-nowrap font-medium">{runningText}</p></div>
+    </div>}
+  </section>
 }

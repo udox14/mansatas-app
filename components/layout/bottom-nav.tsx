@@ -2,112 +2,33 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { MENU_ITEMS } from '@/config/menu'
+import { House, User } from '@phosphor-icons/react'
 import { getIconComponent } from '@/lib/icons'
-import { cn } from '@/lib/utils'
-import { House } from '@phosphor-icons/react'
+import { useDashboardNavigation } from './dashboard-navigation'
 
-type Props = {
-  activeIds: string[] // dari konfigurasi admin atau override user
-  allowedItems: string[] // list feature_id dari RBAC user (string)
-  featureLabels?: Record<string, string>
-}
-
-export function BottomNav({ activeIds, allowedItems, featureLabels = {} }: Props) {
+export function BottomNav({ activeIds }: { activeIds: string[] }) {
   const pathname = usePathname()
-
-  // Filter menu: hanya ambil yang ada di activeIds DAN allowedItems, jangan ambil dashboard karena dashboard akan difix di tengah
-  const navItems = activeIds
-    .filter(id => allowedItems.includes(id) && id !== 'dashboard')
-    .map(id => MENU_ITEMS.find(item => item.id === id))
-    .filter(Boolean) as typeof MENU_ITEMS
-
-  // Batasi max 4 (karena 1 untuk Home di tengah)
-  const selectedFeatures = navItems.slice(0, 4)
-  
-  // Pisahkan kiri dan kanan agar Home bisa di tengah
-  const leftItems = selectedFeatures.slice(0, 2)
-  const rightItems = selectedFeatures.slice(2, 4)
-
-  return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 safe-area-pb shadow-[0_-4px_20px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.2)]">
-      <nav className="flex items-end justify-around px-2 h-16 relative">
-        
-        {/* LEFT ITEMS */}
-        {leftItems.map((item) => {
-          const Icon = getIconComponent(item.icon)
-          const isActive = pathname.startsWith(item.href) && item.href !== '/dashboard'
-
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              className={cn(
-                "flex flex-col items-center justify-start w-16 h-14 gap-1 pt-1.5 transition-colors",
-                isActive 
-                  ? "text-emerald-600 dark:text-emerald-400" 
-                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
-              )}
-            >
-              <div className={cn("relative flex items-center justify-center transition-all duration-300", isActive ? "-translate-y-0.5" : "")}>
-                <Icon weight={isActive ? "fill" : "regular"} className="h-[22px] w-[22px] shrink-0" />
-              </div>
-              <span className={cn(
-                "text-[9px] text-center leading-tight tracking-tight line-clamp-2 w-full px-0.5", 
-                isActive ? "font-bold" : "font-medium"
-              )}>
-                {featureLabels[item.id] || item.title}
-              </span>
-            </Link>
-          )
-        })}
-
-        {/* CENTER HOME BUTTON */}
-        <Link
-          href="/dashboard"
-          className="flex flex-col items-center justify-end w-16 h-full relative group z-10"
-        >
-          <div className="absolute -top-5 flex items-center justify-center w-[52px] h-[52px] bg-emerald-600 hover:bg-emerald-700 rounded-full text-white shadow-[0_4px_12px_rgba(5,150,105,0.4)] border-[4px] border-white dark:border-slate-950 transition-transform duration-300 group-hover:scale-105 group-active:scale-95">
-            <House weight={pathname === '/dashboard' ? "fill" : "regular"} className="h-6 w-6" />
-          </div>
-          <span className={cn(
-            "text-[9px] text-center leading-tight tracking-tight mb-1.5",
-            pathname === '/dashboard' ? "font-bold text-emerald-600 dark:text-emerald-400" : "font-medium text-slate-500 dark:text-slate-400"
-          )}>
-            HOME
-          </span>
-        </Link>
-
-        {/* RIGHT ITEMS */}
-        {rightItems.map((item) => {
-          const Icon = getIconComponent(item.icon)
-          const isActive = pathname.startsWith(item.href) && item.href !== '/dashboard'
-
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              className={cn(
-                "flex flex-col items-center justify-start w-16 h-14 gap-1 pt-1.5 transition-colors",
-                isActive 
-                  ? "text-emerald-600 dark:text-emerald-400" 
-                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
-              )}
-            >
-              <div className={cn("relative flex items-center justify-center transition-all duration-300", isActive ? "-translate-y-0.5" : "")}>
-                <Icon weight={isActive ? "fill" : "regular"} className="h-[22px] w-[22px] shrink-0" />
-              </div>
-              <span className={cn(
-                "text-[9px] text-center leading-tight tracking-tight line-clamp-2 w-full px-0.5", 
-                isActive ? "font-bold" : "font-medium"
-              )}>
-                {featureLabels[item.id] || item.title}
-              </span>
-            </Link>
-          )
-        })}
-
-      </nav>
-    </div>
-  )
+  const { menus, openMenu } = useDashboardNavigation()
+  const selected = [...new Set(activeIds)].flatMap(id => menus.find(item => item.id === id) ?? []).slice(0, 4)
+  function item(index: number) {
+    const menu = selected[index]
+    if (!menu) return <span aria-hidden="true" />
+    const Icon = getIconComponent(menu.icon)
+    const active = pathname === menu.href || pathname.startsWith(`${menu.href}/`)
+    return <Link href={menu.href} className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 focus-visible:ring-2 focus-visible:ring-emerald-500 ${active ? 'font-semibold text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+      <span className="relative"><Icon weight={active ? 'fill' : 'regular'} className="h-[22px] w-[22px]" />{menu.badge > 0 && <span className="absolute -right-2 -top-1 h-2 w-2 rounded-full bg-rose-500"><span className="sr-only">{menu.badge} pemberitahuan</span></span>}</span>
+      <span className="line-clamp-2 text-center text-[10px] leading-3">{menu.title}</span>
+    </Link>
+  }
+  return <div className="dashboard-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-slate-100 bg-white/95 px-2 pt-1 shadow-[0_-4px_24px_rgba(15,23,42,0.04)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 lg:hidden">
+    <nav aria-label="Navigasi utama" className="mx-auto grid max-w-xl grid-cols-5 items-end gap-1">
+      {item(0)}{item(1)}
+      <button onClick={openMenu} aria-label="Home, buka semua menu" aria-haspopup="dialog" className="group flex min-h-16 flex-col items-center justify-end gap-1 rounded-xl pb-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+        <span className="-mt-4 flex h-[52px] w-[52px] items-center justify-center rounded-[18px] border-4 border-white bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 transition-transform group-active:scale-95 motion-reduce:transition-none dark:border-slate-950"><House weight={pathname === '/dashboard' ? 'fill' : 'regular'} className="h-6 w-6" /></span>
+        <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">Home</span>
+      </button>
+      {item(2)}
+      {selected.length ? item(3) : <Link href="/dashboard/settings/profile" className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-slate-500 focus-visible:ring-2 focus-visible:ring-emerald-500"><User className="h-[22px] w-[22px]" /><span className="text-[10px]">Profil</span></Link>}
+    </nav>
+  </div>
 }

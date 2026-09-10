@@ -14,7 +14,7 @@ type Props = {
 export async function GuruDashboard({ userId, nama, namaDepan, avatarUrl, roleLabel, roleColor, sapaan, taAktif, isGuruPiket, dashboardVisibility }: Props) {
   const show = (id: string) => dashboardVisibility?.[id] !== false
   return (
-    <div className="space-y-3 animate-in fade-in duration-500 pb-12">
+    <div className="grid items-start gap-4 xl:grid-cols-2 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
 
 
       {show('kehadiran_pribadi') && <KehadiranPribadiCard userId={userId} />}

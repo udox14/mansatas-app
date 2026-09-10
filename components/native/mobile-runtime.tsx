@@ -512,6 +512,9 @@ export function MobileRuntime({
 
       const getSettings = () => readMobileRuntimeSettings()
       backListener = await App.addListener('backButton', async ({ canGoBack }) => {
+        // A dashboard sheet consumes Back before page navigation or exit preferences.
+        const overlayBack = new Event('mansatas:close-overlay', { cancelable: true })
+        if (!window.dispatchEvent(overlayBack)) return
         const settings = getSettings()
         if (settings.haptics) Haptics.impact({ style: ImpactStyle.Light }).catch(() => {})
 
