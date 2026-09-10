@@ -7,13 +7,14 @@ import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
 import { getCashflowPage } from './actions'
 import { KasKeluarClient } from './kas-keluar-client'
+import { getKomiteReportSettings } from '@/lib/komite-report-settings'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Arus Kas | Keuangan MANSATAS' }
 
 async function KasKeluarDataFetcher({ permissions }: { permissions: { create: boolean; update: boolean; delete: boolean } }) {
-  const data = await getCashflowPage({ page: 1, pageSize: 20 })
-  return <KasKeluarClient initialData={data} permissions={permissions} />
+  const [data, reportSettings] = await Promise.all([getCashflowPage({ page: 1, pageSize: 20 }),getKomiteReportSettings()])
+  return <KasKeluarClient initialData={data} permissions={permissions} proofNumberMode={reportSettings.proofNumberMode} />
 }
 
 export default async function KasKeluarPage() {

@@ -17,6 +17,7 @@ import {
 import { getSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { uploadCashflowProof } from '@/utils/r2'
+import { getKomiteReportSettings } from '@/lib/komite-report-settings'
 
 const FEATURE_ID = 'keuangan-kas-keluar'
 
@@ -44,7 +45,7 @@ const ledgerCte = `
       substr(t.created_at,1,10) AS transaction_date, t.jumlah_total AS amount,
       t.metode_bayar AS method, s.nama_lengkap AS counterparty,
       COALESCE(t.nomor_kuitansi,'Pembayaran siswa') AS description,
-      t.bukti_transfer_url AS proof_url, t.input_oleh AS recorder_id,
+      t.bukti_transfer_url AS proof_url, t.nomor_kuitansi AS proof_number, t.input_oleh AS recorder_id,
       COALESCE(u.nama_lengkap,u.name,'Sistem') AS recorder_name,
       s.id AS student_id, s.nama_lengkap AS student_name,
       trim(COALESCE(k.tingkat || '-' || k.nomor_kelas || CASE WHEN k.kelompok IS NOT NULL AND k.kelompok<>'' THEN ' ' || k.kelompok ELSE '' END,'-')) AS student_class,
@@ -63,7 +64,7 @@ const ledgerCte = `
     SELECT
       'student-dspt-balance-' || d.id, 'student', 'income', 'dspt', NULL, 'DSPT',
       substr(COALESCE(d.updated_at,d.created_at),1,10), d.total_dibayar-COALESCE(r.total_recorded,0),
-      'tunai', s.nama_lengkap, 'Saldo DSPT tanpa rincian transaksi', NULL, NULL, 'Sistem',
+      'tunai', s.nama_lengkap, 'Saldo DSPT tanpa rincian transaksi', NULL, NULL, NULL, 'Sistem',
       s.id, s.nama_lengkap,
       trim(COALESCE(k.tingkat || '-' || k.nomor_kelas || CASE WHEN k.kelompok IS NOT NULL AND k.kelompok<>'' THEN ' ' || k.kelompok ELSE '' END,'-')),
       s.tahun_masuk, 'active', NULL, COALESCE(d.updated_at,d.created_at), s.kelas_id
@@ -82,7 +83,7 @@ const ledgerCte = `
     SELECT
       'student-spp-balance-' || sp.id, 'student', 'income', 'spp', NULL, 'SPP',
       substr(COALESCE(sp.updated_at,sp.created_at),1,10), sp.total_dibayar-COALESCE(r.total_recorded,0),
-      'tunai', s.nama_lengkap, 'Saldo SPP tanpa rincian transaksi', NULL, NULL, 'Sistem',
+      'tunai', s.nama_lengkap, 'Saldo SPP tanpa rincian transaksi', NULL, NULL, NULL, 'Sistem',
       s.id, s.nama_lengkap,
       trim(COALESCE(k.tingkat || '-' || k.nomor_kelas || CASE WHEN k.kelompok IS NOT NULL AND k.kelompok<>'' THEN ' ' || k.kelompok ELSE '' END,'-')),
       s.tahun_masuk, 'active', NULL, COALESCE(sp.updated_at,sp.created_at), s.kelas_id
@@ -101,7 +102,7 @@ const ledgerCte = `
     SELECT
       e.id, 'manual', e.direction, 'manual', e.category_id, c.name,
       e.transaction_date, e.amount, e.method, e.counterparty, e.description,
-      e.proof_url, e.created_by,
+      e.proof_url, e.proof_number, e.created_by,
       COALESCE(u.nama_lengkap,u.name,'-'), NULL, NULL, NULL, NULL,
       CASE WHEN e.is_void=1 THEN 'void' ELSE 'active' END,
       e.void_reason, e.created_at, NULL
@@ -141,7 +142,7 @@ function toEntry(row: any): CashflowEntry {
     id: row.id, origin: row.origin, direction: row.direction, source: row.source,
     categoryId: row.category_id, categoryName: row.category_name,
     transactionDate: row.transaction_date, amount: number(row.amount), method: row.method,
-    counterparty: row.counterparty || '', description: row.description || '', proofUrl: row.proof_url || null,
+    counterparty: row.counterparty || '', description: row.description || '', proofUrl: row.proof_url || null, proofNumber: row.proof_number || null,
     recorderId: row.recorder_id || null, recorderName: row.recorder_name || '-', studentId: row.student_id || null,
     studentName: row.student_name || null, studentClass: row.student_class || null,
     angkatan: row.angkatan == null ? null : number(row.angkatan), status: row.status,
@@ -211,6 +212,7 @@ type ManualEntryInput = {
   method: CashMethod
   counterparty: string
   description: string
+  proofNumber?: string
 }
 
 async function validateEntry(db: D1Database, input: ManualEntryInput) {
@@ -220,12 +222,22 @@ async function validateEntry(db: D1Database, input: ManualEntryInput) {
   if (!CASH_METHODS.includes(input.method)) return 'Metode transaksi tidak valid.'
   if (!input.description?.trim() || input.description.trim().length > 500) return 'Keterangan wajib diisi maksimal 500 karakter.'
   if ((input.counterparty || '').trim().length > 150) return 'Sumber/penerima maksimal 150 karakter.'
+  if ((input.proofNumber || '').trim().length > 80) return 'Nomor bukti maksimal 80 karakter.'
   const category = await db.prepare('SELECT id FROM fin_cashflow_categories WHERE id=? AND direction=? AND is_active=1').bind(input.categoryId,input.direction).first()
   return category ? null : 'Kategori tidak aktif atau tidak sesuai jenis transaksi.'
 }
 
 function cleanInput(input: ManualEntryInput): ManualEntryInput {
-  return { ...input, amount: Number(input.amount), counterparty: (input.counterparty || '').trim(), description: (input.description || '').trim() }
+  return { ...input, amount: Number(input.amount), counterparty: (input.counterparty || '').trim(), description: (input.description || '').trim(), proofNumber: (input.proofNumber || '').trim() }
+}
+
+async function allocateProofNumber(db: D1Database, direction: CashDirection, transactionDate: string) {
+  const period = transactionDate.slice(0, 7)
+  const prefix = direction === 'income' ? 'KM' : 'KK'
+  const row = await db.prepare(`INSERT INTO fin_cashflow_proof_sequences(direction,period,counter,updated_at) VALUES(?,?,1,datetime('now')) ON CONFLICT(direction,period) DO UPDATE SET counter=counter+1,updated_at=datetime('now') RETURNING counter`)
+    .bind(direction,period).first<{ counter: number }>()
+  if (!row) throw new Error('Gagal membuat nomor bukti otomatis.')
+  return `${prefix}-${period.replace('-','')}-${String(row.counter).padStart(4,'0')}`
 }
 
 export async function createCashflowEntry(input: ManualEntryInput, proof?: FormData) {
@@ -233,6 +245,11 @@ export async function createCashflowEntry(input: ManualEntryInput, proof?: FormD
   const value = cleanInput(input)
   const error = await validateEntry(db, value)
   if (error) return { error, success: null }
+  const reportSettings = await getKomiteReportSettings()
+  let proofNumber = value.proofNumber || ''
+  if (reportSettings.proofNumberMode === 'manual' && !proofNumber) return { error: 'Nomor bukti wajib diisi sesuai pengaturan laporan.', success: null }
+  if (reportSettings.proofNumberMode === 'automatic' || (!proofNumber && reportSettings.proofNumberMode === 'source_first')) proofNumber = await allocateProofNumber(db,value.direction,value.transactionDate)
+  if (proofNumber && await db.prepare('SELECT 1 FROM fin_cashflow_entries WHERE lower(proof_number)=lower(?) LIMIT 1').bind(proofNumber).first()) return { error: 'Nomor bukti sudah digunakan.', success: null }
   const id = crypto.randomUUID()
   let proofUrl: string | null = null
   const file = proof?.get('proof') as File | null
@@ -241,10 +258,10 @@ export async function createCashflowEntry(input: ManualEntryInput, proof?: FormD
     if (uploaded.error) return { error: uploaded.error, success: null }
     proofUrl = uploaded.url
   }
-  const snapshot = { ...value, proofUrl }
+  const snapshot = { ...value, proofUrl, proofNumber }
   await db.batch([
-    db.prepare(`INSERT INTO fin_cashflow_entries (id,direction,category_id,transaction_date,amount,method,counterparty,description,proof_url,created_by) VALUES (?,?,?,?,?,?,?,?,?,?)`)
-      .bind(id,value.direction,value.categoryId,value.transactionDate,value.amount,value.method,value.counterparty,value.description,proofUrl,userId),
+    db.prepare(`INSERT INTO fin_cashflow_entries (id,direction,category_id,transaction_date,amount,method,counterparty,description,proof_url,proof_number,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind(id,value.direction,value.categoryId,value.transactionDate,value.amount,value.method,value.counterparty,value.description,proofUrl,proofNumber,userId),
     db.prepare(`INSERT INTO fin_cashflow_audit (id,entry_id,action,after_json,actor_id) VALUES (?,?, 'create', ?,?)`)
       .bind(crypto.randomUUID(),id,JSON.stringify(snapshot),userId),
   ])
@@ -259,6 +276,13 @@ export async function updateCashflowEntry(id: string, input: ManualEntryInput, p
   const value = cleanInput(input)
   const error = await validateEntry(db, value)
   if (error) return { error, success: null }
+  const reportSettings = await getKomiteReportSettings()
+  let proofNumber = reportSettings.proofNumberMode === 'automatic'
+    ? before.proof_number || ''
+    : value.proofNumber || before.proof_number || ''
+  if (reportSettings.proofNumberMode === 'manual' && !proofNumber) return { error: 'Nomor bukti wajib diisi sesuai pengaturan laporan.', success: null }
+  if (!proofNumber && reportSettings.proofNumberMode !== 'manual') proofNumber = await allocateProofNumber(db,value.direction,value.transactionDate)
+  if (proofNumber && await db.prepare('SELECT 1 FROM fin_cashflow_entries WHERE lower(proof_number)=lower(?) AND id<>? LIMIT 1').bind(proofNumber,id).first()) return { error: 'Nomor bukti sudah digunakan.', success: null }
   let proofUrl = before.proof_url || null
   const file = proof?.get('proof') as File | null
   if (file?.size) {
@@ -266,10 +290,10 @@ export async function updateCashflowEntry(id: string, input: ManualEntryInput, p
     if (uploaded.error) return { error: uploaded.error, success: null }
     proofUrl = uploaded.url
   }
-  const after = { ...value, proofUrl }
+  const after = { ...value, proofUrl, proofNumber }
   await db.batch([
-    db.prepare(`UPDATE fin_cashflow_entries SET direction=?,category_id=?,transaction_date=?,amount=?,method=?,counterparty=?,description=?,proof_url=?,updated_by=?,updated_at=datetime('now') WHERE id=?`)
-      .bind(value.direction,value.categoryId,value.transactionDate,value.amount,value.method,value.counterparty,value.description,proofUrl,userId,id),
+    db.prepare(`UPDATE fin_cashflow_entries SET direction=?,category_id=?,transaction_date=?,amount=?,method=?,counterparty=?,description=?,proof_url=?,proof_number=?,updated_by=?,updated_at=datetime('now') WHERE id=?`)
+      .bind(value.direction,value.categoryId,value.transactionDate,value.amount,value.method,value.counterparty,value.description,proofUrl,proofNumber || null,userId,id),
     db.prepare(`INSERT INTO fin_cashflow_audit (id,entry_id,action,before_json,after_json,actor_id) VALUES (?,?,'update',?,?,?)`)
       .bind(crypto.randomUUID(),id,JSON.stringify(before),JSON.stringify(after),userId),
   ])

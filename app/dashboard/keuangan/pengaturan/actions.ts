@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { checkFeatureAccess, checkFeatureCrudAccess } from '@/lib/features'
 import type { CashDirection } from '@/lib/cashflow'
 import { setSystemSetting } from '@/lib/system-settings'
+import { KOMITE_REPORT_SETTING_KEYS, type OpeningBalanceMode, type ProofNumberMode } from '@/lib/komite-report-settings'
 import type { KomitePaymentAccount } from '@/lib/komite-payment-settings'
 import { getSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
@@ -119,4 +120,40 @@ export async function saveCashflowCategories(rows: Array<{
   revalidatePath('/dashboard/keuangan/pengaturan')
   revalidatePath('/dashboard/keuangan/kas-keluar')
   return { error: null, success: 'Jenis arus kas berhasil disimpan.' }
+}
+
+export async function saveKomiteReportSettings(input: {
+  openingBalanceMode: OpeningBalanceMode
+  proofNumberMode: ProofNumberMode
+  signaturesEnabled: boolean
+  treasurerName: string
+  chairmanName: string
+  principalName: string
+  storedPeriod?: string
+  storedAmount?: number
+  storedNote?: string
+}) {
+  const { db, userId } = await requirePengaturanKomite()
+  if (!(await checkFeatureCrudAccess(db, userId, 'keuangan-pengaturan', 'update'))) return { error: 'Anda tidak memiliki izin mengubah pengaturan laporan.', success: null }
+  if (!['cumulative','manual','stored'].includes(input.openingBalanceMode)) return { error: 'Metode saldo awal tidak valid.', success: null }
+  if (!['manual','automatic','source_first'].includes(input.proofNumberMode)) return { error: 'Mode nomor bukti tidak valid.', success: null }
+  const names = [input.treasurerName,input.chairmanName,input.principalName].map(value => String(value || '').trim())
+  if (names.some(value => value.length > 120)) return { error: 'Nama penanda tangan maksimal 120 karakter.', success: null }
+  await Promise.all([
+    setSystemSetting(KOMITE_REPORT_SETTING_KEYS.openingBalanceMode, input.openingBalanceMode),
+    setSystemSetting(KOMITE_REPORT_SETTING_KEYS.proofNumberMode, input.proofNumberMode),
+    setSystemSetting(KOMITE_REPORT_SETTING_KEYS.signaturesEnabled, input.signaturesEnabled ? '1' : '0'),
+    setSystemSetting(KOMITE_REPORT_SETTING_KEYS.treasurerName, names[0]),
+    setSystemSetting(KOMITE_REPORT_SETTING_KEYS.chairmanName, names[1]),
+    setSystemSetting(KOMITE_REPORT_SETTING_KEYS.principalName, names[2]),
+  ])
+  if (input.storedPeriod) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(input.storedPeriod) || !Number.isSafeInteger(input.storedAmount)) return { error: 'Periode atau nominal saldo bulanan tidak valid.', success: null }
+    const note = String(input.storedNote || '').trim().slice(0, 300)
+    await db.prepare(`INSERT INTO fin_monthly_opening_balances(period,amount,note,updated_by,updated_at) VALUES(?,?,?,?,datetime('now')) ON CONFLICT(period) DO UPDATE SET amount=excluded.amount,note=excluded.note,updated_by=excluded.updated_by,updated_at=datetime('now')`)
+      .bind(input.storedPeriod,input.storedAmount,note || null,userId).run()
+  }
+  revalidatePath('/dashboard/keuangan/pengaturan')
+  revalidatePath('/dashboard/keuangan/laporan')
+  return { error: null, success: 'Pengaturan laporan keuangan berhasil disimpan.' }
 }

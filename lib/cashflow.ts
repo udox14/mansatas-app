@@ -41,6 +41,7 @@ export interface CashflowEntry {
   counterparty: string
   description: string
   proofUrl: string | null
+  proofNumber: string | null
   recorderId: string | null
   recorderName: string
   studentId: string | null

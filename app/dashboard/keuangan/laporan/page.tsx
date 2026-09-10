@@ -6,7 +6,7 @@ import { checkFeatureAccess } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
 import { LaporanClient } from './laporan-client'
-import { isStudentInFinanceScope } from '../student-finance-scope'
+import { getKomiteReportSettings } from '@/lib/komite-report-settings'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Laporan Keuangan | MANSATAS' }
@@ -73,7 +73,7 @@ type TunggakanRow = {
 async function LaporanDataFetcher() {
   const db = await getDB()
 
-  const [dsptRows, transaksi, kasKeluar, tunggakan] = await Promise.all([
+  const [dsptRows, transaksi, kasKeluar, tunggakan, reportSettings] = await Promise.all([
     db.prepare(`
       SELECT
         s.id as siswa_id, s.nama_lengkap, s.nisn, s.status AS siswa_status, s.tahun_masuk,
@@ -222,24 +222,18 @@ async function LaporanDataFetcher() {
       )
       ORDER BY sisa DESC, nama_lengkap ASC
     `).all<TunggakanRow>(),
+    getKomiteReportSettings(),
   ])
 
-  const active = (status: string) => isStudentInFinanceScope(status, 'active')
-  const inactive = (status: string) => isStudentInFinanceScope(status, 'inactive')
-  return <div className="space-y-8">
-    <section><h2 className="mb-3 text-sm font-semibold">Laporan Siswa Aktif</h2><LaporanClient
-      dsptRows={(dsptRows.results ?? []).filter(row => active(row.siswa_status))}
-      transaksi={(transaksi.results ?? []).filter(row => active(row.siswa_status))}
+  return (
+    <LaporanClient
+      dsptRows={dsptRows.results ?? []}
+      transaksi={transaksi.results ?? []}
       kasKeluar={kasKeluar.results ?? []}
-      tunggakan={(tunggakan.results ?? []).filter(row => active(row.siswa_status))}
-    /></section>
-    <section><h2 className="mb-3 text-sm font-semibold">Laporan Siswa Nonaktif</h2><LaporanClient
-      dsptRows={(dsptRows.results ?? []).filter(row => inactive(row.siswa_status))}
-      transaksi={(transaksi.results ?? []).filter(row => inactive(row.siswa_status))}
-      kasKeluar={kasKeluar.results ?? []}
-      tunggakan={(tunggakan.results ?? []).filter(row => inactive(row.siswa_status))}
-    /></section>
-  </div>
+      tunggakan={tunggakan.results ?? []}
+      reportSettings={reportSettings}
+    />
+  )
 }
 
 export default async function LaporanPage() {
@@ -253,7 +247,7 @@ export default async function LaporanPage() {
     <div className="space-y-4 animate-in fade-in duration-500">
       <PageHeader
         title="Laporan Keuangan"
-        description="Subtotal siswa aktif dan nonaktif dipisahkan; kas keluar tetap ditampilkan sebagai angka umum"
+        description="Ringkasan dan rincian pemasukan, pengeluaran, serta tunggakan sesuai periode dan filter"
       />
       <Suspense fallback={<PageLoading text="Memuat laporan keuangan..." />}>
         <LaporanDataFetcher />

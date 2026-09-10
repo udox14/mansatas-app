@@ -25,6 +25,13 @@ import {
 } from '@/components/ui/table'
 import { formatRupiah } from '@/lib/utils'
 import { dateInputWIB, formatDateTimeWIB, formatDateWIB, todayWIB } from '@/lib/time'
+import type { KomiteReportSettings } from '@/lib/komite-report-settings'
+import { OfficialReportDialog } from './official-report-dialog'
+import {
+  SiswaStatusFilter,
+  matchSiswaStatusFilter,
+  type SiswaStatusFilterValue,
+} from '../components/siswa-status-filter'
 
 interface DsptRow {
   siswa_id: string
@@ -96,13 +103,14 @@ interface TunggakanRow {
   updated_at: string
 }
 
-type MateriKey = 'ringkasan' | 'arusKas' | 'angkatan'
+type MateriKey = 'ringkasan' | 'arusKas' | 'angkatan' | 'tunggakan'
 
 interface LaporanClientProps {
   dsptRows: DsptRow[]
   transaksi: TransaksiRow[]
   kasKeluar: KasKeluarRow[]
   tunggakan: TunggakanRow[]
+  reportSettings: KomiteReportSettings
 }
 
 const KATEGORI_LABEL: Record<string, string> = {
@@ -150,13 +158,13 @@ function sumBy<T>(rows: T[], picker: (row: T) => number) {
   return rows.reduce((sum, row) => sum + picker(row), 0)
 }
 
-export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: LaporanClientProps) {
-  const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
+export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, reportSettings }: LaporanClientProps) {
   const printRef = useRef<HTMLElement>(null)
   const [tanggalAwal, setTanggalAwal] = useState(firstDayOfMonthInput())
   const [tanggalAkhir, setTanggalAkhir] = useState(todayInput())
   const [kategori, setKategori] = useState('semua')
   const [metodeBayar, setMetodeBayar] = useState('semua')
+  const [filterSiswaStatus, setFilterSiswaStatus] = useState<SiswaStatusFilterValue>('aktif')
   const [search, setSearch] = useState('')
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [judul, setJudul] = useState('Laporan Keuangan Madrasah')
@@ -168,6 +176,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
     ringkasan: true,
     arusKas: true,
     angkatan: true,
+    tunggakan: true,
   })
 
   const transaksiPeriode = useMemo(() => {
@@ -176,6 +185,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
       const tanggal = dateOnly(row.created_at)
       const matchTanggal = tanggal >= tanggalAwal && tanggal <= tanggalAkhir
       const matchKategori = kategori === 'semua' || row.kategori === kategori
+      const matchSiswaStatus = matchSiswaStatusFilter(row.siswa_status, filterSiswaStatus)
       const matchMetode = metodeBayar === 'semua'
         || (metodeBayar === 'tunai'
           ? row.metode_bayar === 'tunai'
@@ -184,9 +194,9 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
         || row.nama_lengkap.toLowerCase().includes(term)
         || (row.nisn ?? '').toLowerCase().includes(term)
         || (row.nomor_kuitansi ?? '').toLowerCase().includes(term)
-      return matchTanggal && matchKategori && matchMetode && matchSearch
+      return matchTanggal && matchKategori && matchSiswaStatus && matchMetode && matchSearch
     })
-  }, [transaksi, tanggalAwal, tanggalAkhir, kategori, metodeBayar, search])
+  }, [transaksi, tanggalAwal, tanggalAkhir, kategori, filterSiswaStatus, metodeBayar, search])
 
   const kasKeluarPeriode = useMemo(() => {
     return kasKeluar.filter(row => {
@@ -204,17 +214,19 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
     return tunggakan.filter(row => {
       const matchKategori = kategori === 'semua'
         || (kategori === 'spp' ? row.jenis === 'spp_tunggakan_awal' : row.jenis === kategori)
+      const matchSiswaStatus = matchSiswaStatusFilter(row.siswa_status, filterSiswaStatus)
       const matchSearch = !term
         || row.nama_lengkap.toLowerCase().includes(term)
         || (row.nisn ?? '').toLowerCase().includes(term)
         || String(row.tahun_masuk ?? '').includes(term)
-      return matchKategori && matchSearch
+      return matchKategori && matchSiswaStatus && matchSearch
     })
-  }, [tunggakan, kategori, search])
+  }, [tunggakan, kategori, filterSiswaStatus, search])
 
   const rekapAngkatan = useMemo(() => {
     const groups = new Map<number, RekapAngkatan>()
     for (const row of dsptRows) {
+      if (!matchSiswaStatusFilter(row.siswa_status, filterSiswaStatus)) continue
       let group = groups.get(row.tahun_masuk)
       if (!group) {
         group = {
@@ -238,7 +250,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
       group.dspt_diskon += row.total_diskon ?? 0
     }
     return [...groups.values()].sort((a, b) => b.tahun_masuk - a.tahun_masuk)
-  }, [dsptRows])
+  }, [dsptRows, filterSiswaStatus])
 
   const transaksiAktif = transaksiPeriode.filter(row => !row.is_void)
   const pemasukan = sumBy(transaksiAktif, row => row.jumlah_total)
@@ -250,9 +262,14 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
   const rekapAngkatanPrint = printAngkatan === 'semua'
     ? rekapAngkatan
     : rekapAngkatan.filter(r => r.tahun_masuk === Number(printAngkatan))
-  const pemasukanPrint = printAngkatan === 'semua'
-    ? pemasukan
-    : sumBy(transaksiAktif.filter(r => r.tahun_masuk === Number(printAngkatan)), r => r.jumlah_total)
+  const transaksiPrint = printAngkatan === 'semua'
+    ? transaksiAktif
+    : transaksiAktif.filter(r => r.tahun_masuk === Number(printAngkatan))
+  const tunggakanPrint = printAngkatan === 'semua'
+    ? tunggakanFiltered
+    : tunggakanFiltered.filter(r => r.tahun_masuk === Number(printAngkatan))
+  const pemasukanPrint = sumBy(transaksiPrint, row => row.jumlah_total)
+  const totalTunggakanPrint = sumBy(tunggakanPrint, row => row.sisa)
   const saldoPrint = pemasukanPrint - pengeluaran
 
   const kategoriSummary = ['dspt', 'spp', 'manual'].map(key => ({
@@ -261,6 +278,21 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
     total: sumBy(transaksiAktif.filter(row => row.kategori === key), row => row.jumlah_total),
     count: transaksiAktif.filter(row => row.kategori === key).length,
   }))
+  const kategoriSummaryPrint = ['dspt', 'spp', 'manual'].map(key => ({
+    key,
+    label: KATEGORI_LABEL[key],
+    total: sumBy(transaksiPrint.filter(row => row.kategori === key), row => row.jumlah_total),
+    count: transaksiPrint.filter(row => row.kategori === key).length,
+  }))
+  const tunggakanSummaryPrint = ['dspt', 'spp_tunggakan_awal'].map(key => {
+    const rows = tunggakanPrint.filter(row => row.jenis === key)
+    return {
+      key,
+      label: TUNGGAKAN_LABEL[key],
+      count: rows.length,
+      total: sumBy(rows, row => row.sisa),
+    }
+  })
 
   const toggleMateri = (key: MateriKey) => {
     setMateri(prev => ({ ...prev, [key]: !prev[key] }))
@@ -272,6 +304,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
     ['ringkasan', 'Ringkasan'],
     ['arusKas', 'Arus Kas'],
     ['angkatan', 'Rekap Angkatan'],
+    ['tunggakan', 'Tunggakan'],
   ]
   const printPageStyle = `
     @page { size: A4 ${orientasi}; margin: 12mm; }
@@ -360,7 +393,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-          <div className="grid gap-2 xl:grid-cols-[1fr_1fr_170px_170px_150px_auto]">
+          <div className="grid gap-2 xl:grid-cols-[1fr_1fr_160px_170px_150px_auto]">
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="mb-1 block text-[11px] font-semibold text-slate-500">Tanggal Awal</label>
@@ -396,6 +429,14 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
               </Select>
             </div>
             <div>
+              <label className="mb-1 block text-[11px] font-semibold text-slate-500">Status Siswa</label>
+              <SiswaStatusFilter
+                value={filterSiswaStatus}
+                onValueChange={setFilterSiswaStatus}
+                className="h-9 w-full text-xs"
+              />
+            </div>
+            <div>
               <label className="mb-1 block text-[11px] font-semibold text-slate-500">Metode</label>
               <Select value={metodeBayar} onValueChange={setMetodeBayar}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
@@ -410,7 +451,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
               <Dialog open={printModalOpen} onOpenChange={setPrintModalOpen}>
                 <DialogTrigger asChild>
                   <Button className="h-9 w-full gap-2 text-xs xl:w-auto">
-                    <Printer className="h-4 w-4" /> {isMobile ? 'Simpan PDF' : 'Cetak Laporan'}
+                    <Printer className="h-4 w-4" /> Cetak / Simpan PDF
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-h-[88vh] overflow-y-auto rounded-xl p-0 sm:max-w-lg">
@@ -487,7 +528,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
                       </div>
                     </div>
                     <div className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500 dark:bg-slate-800/60">
-                      Periode: {periodeLabel}. Sumber: {kategori === 'semua' ? 'Semua Sumber' : (KATEGORI_LABEL[kategori] ?? kategori)}. Metode: {metodeBayar === 'semua' ? 'Semua Metode' : metodeBayar === 'tunai' ? 'Tunai' : 'Transfer'}. Angkatan: {printAngkatan === 'semua' ? 'Semua' : printAngkatan}.
+                      Periode: {periodeLabel}. Status siswa: {filterSiswaStatus === 'semua' ? 'Semua' : filterSiswaStatus}. Sumber: {kategori === 'semua' ? 'Semua Sumber' : (KATEGORI_LABEL[kategori] ?? kategori)}. Metode: {metodeBayar === 'semua' ? 'Semua Metode' : metodeBayar === 'tunai' ? 'Tunai' : 'Transfer'}. Angkatan: {printAngkatan === 'semua' ? 'Semua' : printAngkatan}.
                     </div>
                   </div>
 
@@ -496,7 +537,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
                       Batal
                     </Button>
                     <Button size="sm" className="h-8 gap-2 text-xs" onClick={() => handlePrint()}>
-                      <Printer className="h-3.5 w-3.5" /> {isMobile ? 'Simpan PDF' : 'Cetak Sekarang'}
+                      <Printer className="h-3.5 w-3.5" /> Buat Laporan
                     </Button>
                   </div>
                 </DialogContent>
@@ -504,6 +545,10 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="no-print flex justify-end">
+        <OfficialReportDialog settings={reportSettings} />
       </section>
 
       <section className="no-print grid gap-3 lg:grid-cols-3">
@@ -568,15 +613,15 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
                 <PrintMetric label="Pemasukan" value={formatRupiah(pemasukanPrint)} />
                 <PrintMetric label="Pengeluaran" value={formatRupiah(pengeluaran)} />
                 <PrintMetric label="Saldo Setelah Kas Umum" value={formatRupiah(saldoPrint)} />
-                <PrintMetric label="Tunggakan Aktif" value={formatRupiah(totalTunggakan)} />
+                <PrintMetric label="Tunggakan" value={formatRupiah(totalTunggakanPrint)} />
               </div>
             </PrintSection>
           ) : null}
 
           {materi.arusKas ? (
             <PrintSection title="Arus Kas per Sumber">
-              <PrintTable headers={['Sumber', 'Transaksi Aktif', 'Total Masuk']}>
-                {kategoriSummary.map(row => (
+              <PrintTable headers={['Sumber', 'Transaksi Sah', 'Total Masuk']}>
+                {kategoriSummaryPrint.map(row => (
                   <tr key={row.key}><td>{row.label}</td><td>{row.count}</td><td className="text-right">{formatRupiah(row.total)}</td></tr>
                 ))}
                 <tr><td>Pengeluaran Arus Kas</td><td>{kasKeluarPeriode.length}</td><td className="text-right">({formatRupiah(pengeluaran)})</td></tr>
@@ -599,6 +644,79 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan }: Lap
                     <td className="text-right">{formatRupiah(Math.max(row.dspt_target - row.dspt_dibayar - row.dspt_diskon, 0))}</td>
                   </tr>
                 ))}
+              </PrintTable>
+            </PrintSection>
+          ) : null}
+
+          {!isDetail && materi.tunggakan ? (
+            <PrintSection title="Ringkasan Tunggakan">
+              <PrintTable headers={['Jenis Tagihan', 'Jumlah Tagihan', 'Total Sisa']}>
+                {tunggakanSummaryPrint.map(row => (
+                  <tr key={row.key}>
+                    <td>{row.label}</td>
+                    <td>{row.count}</td>
+                    <td className="text-right">{formatRupiah(row.total)}</td>
+                  </tr>
+                ))}
+              </PrintTable>
+            </PrintSection>
+          ) : null}
+
+          {isDetail && materi.arusKas ? (
+            <>
+              <PrintSection title={`Rincian Pemasukan (${transaksiPrint.length} transaksi)`}>
+                <PrintTable headers={['Tanggal', 'Kuitansi', 'Nama', 'Kelas', 'Sumber', 'Metode', 'Rincian', 'Jumlah']}>
+                  {transaksiPrint.map(row => (
+                    <tr key={row.id}>
+                      <td className="whitespace-nowrap">{formatTanggalJam(row.created_at)}</td>
+                      <td>{row.nomor_kuitansi ?? '-'}</td>
+                      <td>{row.nama_lengkap}</td>
+                      <td>{row.kelas ?? '-'}</td>
+                      <td>{KATEGORI_LABEL[row.kategori] ?? row.kategori}</td>
+                      <td className="capitalize">{row.metode_bayar}</td>
+                      <td>{row.rincian ?? '-'}</td>
+                      <td className="whitespace-nowrap text-right">{formatRupiah(row.jumlah_total)}</td>
+                    </tr>
+                  ))}
+                  {transaksiPrint.length === 0 ? <EmptyPrintRow colSpan={8} /> : null}
+                </PrintTable>
+              </PrintSection>
+
+              <PrintSection title={`Rincian Pengeluaran (${kasKeluarPeriode.length} transaksi)`}>
+                <PrintTable headers={['Tanggal', 'Kategori', 'Keterangan', 'Metode', 'Diinput Oleh', 'Jumlah']}>
+                  {kasKeluarPeriode.map(row => (
+                    <tr key={row.id}>
+                      <td className="whitespace-nowrap">{formatTanggal(row.tanggal)}</td>
+                      <td>{row.kategori ?? '-'}</td>
+                      <td>{row.keterangan}</td>
+                      <td className="capitalize">{row.metode}</td>
+                      <td>{row.nama_input ?? '-'}</td>
+                      <td className="whitespace-nowrap text-right">{formatRupiah(row.jumlah)}</td>
+                    </tr>
+                  ))}
+                  {kasKeluarPeriode.length === 0 ? <EmptyPrintRow colSpan={6} /> : null}
+                </PrintTable>
+              </PrintSection>
+            </>
+          ) : null}
+
+          {isDetail && materi.tunggakan ? (
+            <PrintSection title={`Rincian Tunggakan (${tunggakanPrint.length} tagihan)`}>
+              <PrintTable headers={['Nama', 'NISN', 'Kelas', 'Jenis', 'Nominal', 'Dibayar', 'Diskon', 'Sisa', 'Status']}>
+                {tunggakanPrint.map(row => (
+                  <tr key={`${row.jenis}-${row.id}`}>
+                    <td>{row.nama_lengkap}</td>
+                    <td>{row.nisn ?? '-'}</td>
+                    <td>{row.kelas ?? '-'}</td>
+                    <td>{TUNGGAKAN_LABEL[row.jenis] ?? row.jenis}</td>
+                    <td className="whitespace-nowrap text-right">{formatRupiah(row.nominal)}</td>
+                    <td className="whitespace-nowrap text-right">{formatRupiah(row.dibayar)}</td>
+                    <td className="whitespace-nowrap text-right">{formatRupiah(row.diskon)}</td>
+                    <td className="whitespace-nowrap text-right">{formatRupiah(row.sisa)}</td>
+                    <td>{String(row.status || '-').replaceAll('_', ' ')}</td>
+                  </tr>
+                ))}
+                {tunggakanPrint.length === 0 ? <EmptyPrintRow colSpan={9} /> : null}
               </PrintTable>
             </PrintSection>
           ) : null}
@@ -731,4 +849,8 @@ function PrintTable({ headers, children }: { headers: string[]; children: React.
       </tbody>
     </table>
   )
+}
+
+function EmptyPrintRow({ colSpan }: { colSpan: number }) {
+  return <tr><td colSpan={colSpan} className="py-3 text-center text-slate-500">Tidak ada data sesuai filter.</td></tr>
 }
