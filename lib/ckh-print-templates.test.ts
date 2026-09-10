@@ -2,6 +2,8 @@ import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 import { buildCkhDocxBytes } from './docx/ckh-template'
 import { buildCkhHtml } from './pdf/ckh-template'
+import { PDFDocument } from 'pdf-lib'
+import { stampVerificationFooter } from './pdf/verification-footer'
 
 const baseData = {
   documentId: 'ckh-doc-2026-08-unique',
@@ -44,9 +46,28 @@ describe('CKH print templates', () => {
 
     expect(html).toContain('width:48mm">KEGIATAN BULANAN')
     expect(html).toContain('Dokumen ini dicetak dari MANSATAS App • ID Dokumen: ckh-doc-2026-08-unique')
-    expect(html).not.toContain('.document-verification { position: fixed')
-    expect(html).toContain('document-verification-spacer')
-    expect(html).toContain('alignCkhVerificationFooter')
+    expect(html).not.toContain('class="document-verification"')
+    expect(html).not.toContain('document-verification-spacer')
+    expect(html).toContain('name="ckh-document-verification"')
+  })
+
+  it('menempelkan verifikasi hanya pada halaman PDF terakhir tanpa menambah halaman', async () => {
+    const source = await PDFDocument.create()
+    source.addPage([595, 842])
+    source.addPage([595, 842])
+    const sourceBytes = await source.save()
+
+    const stampedBytes = await stampVerificationFooter(
+      sourceBytes,
+      'Dokumen ini dicetak dari MANSATAS App • ID Dokumen: ckh-test',
+      12,
+    )
+    const stamped = await PDFDocument.load(stampedBytes)
+    const pages = stamped.getPages()
+
+    expect(pages).toHaveLength(2)
+    expect(pages[0].node.Contents()).toBeUndefined()
+    expect(pages[1].node.Contents()).toBeDefined()
   })
 
   it('menambahkan footer verifikasi kanan bawah pada Word (.docx)', async () => {

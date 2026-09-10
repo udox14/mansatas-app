@@ -10,6 +10,8 @@ import { getSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { buildCkhHtml, type CkhPdfData } from '@/lib/pdf/ckh-template'
 import { renderPdfWithCache } from '@/lib/pdf-cache'
 import { createSignedMediaUrl } from '@/lib/media-security'
+import { formatCkhDocumentVerification } from '@/lib/ckh-document-verification'
+import { stampVerificationFooter } from '@/lib/pdf/verification-footer'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,7 +88,6 @@ export async function POST(request: Request) {
     year: body.year,
     month: body.month,
     paperCss,
-    margins: m,
     baseUrl: new URL(request.url).origin,
   })
 
@@ -110,9 +111,8 @@ export async function POST(request: Request) {
               image.addEventListener('error', () => resolve(), { once: true })
             })
           }))
-          ;(window as any).alignCkhVerificationFooter?.()
         })
-        return await page.pdf({
+        const renderedPdf = await page.pdf({
           width: w,
           height: h,
           printBackground: true,
@@ -123,6 +123,11 @@ export async function POST(request: Request) {
             left: `${m.left}mm`,
           },
         })
+        return stampVerificationFooter(
+          renderedPdf,
+          formatCkhDocumentVerification(ckhDocument.id),
+          m.right,
+        )
       } finally {
         await browser.close()
       }
