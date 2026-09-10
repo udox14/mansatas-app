@@ -1,6 +1,7 @@
 import { getKomiteFinancialReport, isValidReportPeriod, reportPeriodLabel } from '@/lib/komite-financial-report'
 import type { KomiteLedgerRow, KomiteFinancialReport } from '@/lib/komite-financial-report'
 import { todayWIB } from '@/lib/time'
+import { getOrSetFinanceCache } from '@/lib/finance-cache'
 
 export type DashboardSection<T> =
   | { status: 'ready'; data: T }
@@ -205,6 +206,8 @@ export async function loadBendaharaDashboardData(input: {
 }): Promise<BendaharaDashboardData> {
   const { db, userId, allowedFeatures } = input
   const period = resolveDashboardPeriod(input.period)
+  const cacheKey = `dashboard:${userId}:${period}:${[...allowedFeatures].sort().join(',')}`
+  return getOrSetFinanceCache(cacheKey, async () => {
   const allowed = (featureId: string) => canAccessFinanceFeature(allowedFeatures, featureId)
 
   const cashPromise = allowed('keuangan-laporan')
@@ -244,4 +247,5 @@ export async function loadBendaharaDashboardData(input: {
     approvalQueue,
     releaseQueue,
   }
+  })
 }

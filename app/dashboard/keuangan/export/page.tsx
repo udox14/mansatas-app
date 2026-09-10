@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { KeuanganExportClient } from './export-client'
 import type { ExportSource, FinanceExportRow } from '../components/export-excel-dialog'
 import { isStudentInFinanceScope } from '../student-finance-scope'
+import { getOrSetFinanceCache } from '@/lib/finance-cache'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Export Keuangan | MANSATAS' }
@@ -24,6 +25,7 @@ export default async function KeuanganExportPage() {
   const canDspt = await checkFeatureAccess(db, session.user.id, 'keuangan-dspt')
   if (!canDspt) redirect('/dashboard')
 
+  const { rows, sources } = await getOrSetFinanceCache(`export-page:${session.user.id}`, async () => {
   const rows: FinanceExportRow[] = []
   const sources: ExportSource[] = []
 
@@ -98,6 +100,9 @@ export default async function KeuanganExportPage() {
       })
     }
   }
+
+  return { rows, sources }
+  })
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">

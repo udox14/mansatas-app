@@ -3,12 +3,13 @@
 import { revalidatePath } from 'next/cache'
 import { checkFeatureAccess, checkFeatureCrudAccess } from '@/lib/features'
 import type { CashDirection } from '@/lib/cashflow'
-import { setSystemSetting } from '@/lib/system-settings'
+import { setSystemSetting, setSystemSettings } from '@/lib/system-settings'
 import { KOMITE_REPORT_SETTING_KEYS, type OpeningBalanceMode, type ProofNumberMode } from '@/lib/komite-report-settings'
 import type { KomitePaymentAccount } from '@/lib/komite-payment-settings'
 import { getSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { uploadKomiteQris } from '@/utils/r2'
+import { invalidateFinanceCache } from '@/lib/finance-cache'
 
 async function requirePengaturanKomite() {
   const session = await getSession()
@@ -56,14 +57,14 @@ export async function saveKomitePaymentSettings(formData: FormData) {
   }
 
   const primaryAccount = accounts.find((account) => account.isActive) || accounts[0]
-  await Promise.all([
-    setSystemSetting('keuangan_komite_accounts', JSON.stringify(accounts)),
-    setSystemSetting('keuangan_komite_bank_label', primaryAccount.bankLabel),
-    setSystemSetting('keuangan_komite_rekening', primaryAccount.rekening),
-    setSystemSetting('keuangan_komite_atas_nama', primaryAccount.atasNama),
-    setSystemSetting('keuangan_komite_whatsapp', whatsapp),
-    setSystemSetting('keuangan_komite_qris_enabled', qrisEnabled ? '1' : '0'),
-  ])
+  await setSystemSettings({
+    keuangan_komite_accounts: JSON.stringify(accounts),
+    keuangan_komite_bank_label: primaryAccount.bankLabel,
+    keuangan_komite_rekening: primaryAccount.rekening,
+    keuangan_komite_atas_nama: primaryAccount.atasNama,
+    keuangan_komite_whatsapp: whatsapp,
+    keuangan_komite_qris_enabled: qrisEnabled ? '1' : '0',
+  })
 
   revalidatePath('/dashboard/keuangan/pengaturan')
   revalidatePath('/portal-ortu')
@@ -117,6 +118,7 @@ export async function saveCashflowCategories(rows: Array<{
     ? db.prepare(`INSERT INTO fin_cashflow_categories (id,direction,name,sort_order,is_active,is_system,created_by,updated_by) VALUES (?,?,?,?,?,0,?,?)`).bind(row.id,row.direction,row.name,row.sortOrder,row.isActive ? 1 : 0,userId,userId)
     : db.prepare(`UPDATE fin_cashflow_categories SET name=?,sort_order=?,is_active=?,updated_by=?,updated_at=datetime('now') WHERE id=? AND direction=?`).bind(row.name,row.sortOrder,row.isActive ? 1 : 0,userId,row.id,row.direction)
   ))
+  invalidateFinanceCache()
   revalidatePath('/dashboard/keuangan/pengaturan')
   revalidatePath('/dashboard/keuangan/kas-keluar')
   return { error: null, success: 'Jenis arus kas berhasil disimpan.' }
@@ -139,20 +141,21 @@ export async function saveKomiteReportSettings(input: {
   if (!['manual','automatic','source_first'].includes(input.proofNumberMode)) return { error: 'Mode nomor bukti tidak valid.', success: null }
   const names = [input.treasurerName,input.chairmanName,input.principalName].map(value => String(value || '').trim())
   if (names.some(value => value.length > 120)) return { error: 'Nama penanda tangan maksimal 120 karakter.', success: null }
-  await Promise.all([
-    setSystemSetting(KOMITE_REPORT_SETTING_KEYS.openingBalanceMode, input.openingBalanceMode),
-    setSystemSetting(KOMITE_REPORT_SETTING_KEYS.proofNumberMode, input.proofNumberMode),
-    setSystemSetting(KOMITE_REPORT_SETTING_KEYS.signaturesEnabled, input.signaturesEnabled ? '1' : '0'),
-    setSystemSetting(KOMITE_REPORT_SETTING_KEYS.treasurerName, names[0]),
-    setSystemSetting(KOMITE_REPORT_SETTING_KEYS.chairmanName, names[1]),
-    setSystemSetting(KOMITE_REPORT_SETTING_KEYS.principalName, names[2]),
-  ])
+  await setSystemSettings({
+    [KOMITE_REPORT_SETTING_KEYS.openingBalanceMode]: input.openingBalanceMode,
+    [KOMITE_REPORT_SETTING_KEYS.proofNumberMode]: input.proofNumberMode,
+    [KOMITE_REPORT_SETTING_KEYS.signaturesEnabled]: input.signaturesEnabled ? '1' : '0',
+    [KOMITE_REPORT_SETTING_KEYS.treasurerName]: names[0],
+    [KOMITE_REPORT_SETTING_KEYS.chairmanName]: names[1],
+    [KOMITE_REPORT_SETTING_KEYS.principalName]: names[2],
+  })
   if (input.storedPeriod) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(input.storedPeriod) || !Number.isSafeInteger(input.storedAmount)) return { error: 'Periode atau nominal saldo bulanan tidak valid.', success: null }
     const note = String(input.storedNote || '').trim().slice(0, 300)
     await db.prepare(`INSERT INTO fin_monthly_opening_balances(period,amount,note,updated_by,updated_at) VALUES(?,?,?,?,datetime('now')) ON CONFLICT(period) DO UPDATE SET amount=excluded.amount,note=excluded.note,updated_by=excluded.updated_by,updated_at=datetime('now')`)
       .bind(input.storedPeriod,input.storedAmount,note || null,userId).run()
   }
+  invalidateFinanceCache()
   revalidatePath('/dashboard/keuangan/pengaturan')
   revalidatePath('/dashboard/keuangan/laporan')
   return { error: null, success: 'Pengaturan laporan keuangan berhasil disimpan.' }

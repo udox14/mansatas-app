@@ -44,6 +44,9 @@ describe('CKH print templates', () => {
 
     expect(html).toContain('width:48mm">KEGIATAN BULANAN')
     expect(html).toContain('Dokumen ini dicetak dari MANSATAS App • ID Dokumen: ckh-doc-2026-08-unique')
+    expect(html).not.toContain('.document-verification { position: fixed')
+    expect(html).toContain('document-verification-spacer')
+    expect(html).toContain('alignCkhVerificationFooter')
   })
 
   it('menambahkan footer verifikasi kanan bawah pada Word (.docx)', async () => {

@@ -1,4 +1,4 @@
-import { getSystemSetting } from '@/lib/system-settings'
+import { getSystemSettings } from '@/lib/system-settings'
 
 export type KomitePaymentAccount = {
   id: string
@@ -39,15 +39,19 @@ export function normalizeKomiteAccounts(raw: string): KomitePaymentAccount[] {
 }
 
 export async function getKomitePaymentSettings(): Promise<KomitePaymentSettings> {
-  const [accountsRaw, bankLabel, rekening, atasNama, whatsapp, qrisUrl, qrisEnabledRaw] = await Promise.all([
-    getSystemSetting('keuangan_komite_accounts', ''),
-    getSystemSetting('keuangan_komite_bank_label', 'BJB Syariah'),
-    getSystemSetting('keuangan_komite_rekening', '5160256984318'),
-    getSystemSetting('keuangan_komite_atas_nama', 'Komite MAN 1 Tasikmalaya'),
-    getSystemSetting('keuangan_komite_whatsapp', '6282215860650'),
-    getSystemSetting('keuangan_komite_qris_url', '/QRISkomite.jpeg'),
-    getSystemSetting('keuangan_komite_qris_enabled', '1'),
-  ])
+  const settings = await getSystemSettings({
+    keuangan_komite_accounts: '',
+    keuangan_komite_bank_label: 'BJB Syariah',
+    keuangan_komite_rekening: '5160256984318',
+    keuangan_komite_atas_nama: 'Komite MAN 1 Tasikmalaya',
+    keuangan_komite_whatsapp: '6282215860650',
+    keuangan_komite_qris_url: '/QRISkomite.jpeg',
+    keuangan_komite_qris_enabled: '1',
+  })
+  const accountsRaw = settings.keuangan_komite_accounts
+  const bankLabel = settings.keuangan_komite_bank_label
+  const rekening = settings.keuangan_komite_rekening
+  const atasNama = settings.keuangan_komite_atas_nama
 
   const accounts = normalizeKomiteAccounts(accountsRaw)
   if (accounts.length === 0 && bankLabel && rekening && atasNama) {
@@ -62,8 +66,8 @@ export async function getKomitePaymentSettings(): Promise<KomitePaymentSettings>
 
   return {
     accounts,
-    whatsapp,
-    qrisUrl,
-    qrisEnabled: qrisEnabledRaw !== '0' && qrisEnabledRaw.toLowerCase() !== 'false',
+    whatsapp: settings.keuangan_komite_whatsapp,
+    qrisUrl: settings.keuangan_komite_qris_url,
+    qrisEnabled: settings.keuangan_komite_qris_enabled !== '0' && settings.keuangan_komite_qris_enabled.toLowerCase() !== 'false',
   }
 }

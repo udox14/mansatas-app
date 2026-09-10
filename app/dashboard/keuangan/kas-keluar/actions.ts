@@ -18,6 +18,7 @@ import { getSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { uploadCashflowProof } from '@/utils/r2'
 import { getKomiteReportSettings } from '@/lib/komite-report-settings'
+import { getOrSetFinanceCache, invalidateFinanceCache } from '@/lib/finance-cache'
 
 const FEATURE_ID = 'keuangan-kas-keluar'
 
@@ -30,6 +31,7 @@ async function requireCashflow(action: CrudAction) {
 }
 
 function revalidateCashflow() {
+  invalidateFinanceCache()
   revalidatePath('/dashboard/keuangan/kas-keluar')
   revalidatePath('/dashboard/keuangan/laporan')
   revalidatePath('/dashboard/keuangan/pengaturan')
@@ -150,21 +152,27 @@ function toEntry(row: any): CashflowEntry {
   }
 }
 
-function mappedSeries(result: D1Result<any>) {
-  return (result.results ?? []).map((row: any) => ({ key: String(row.key), label: String(row.label), total: number(row.total), count: number(row.count) }))
+function mappedSeriesJson(value: unknown) {
+  try {
+    const rows = JSON.parse(String(value || '[]'))
+    if (!Array.isArray(rows)) return []
+    return rows.map((row: any) => ({ key: String(row.key), label: String(row.label), total: number(row.total), count: number(row.count) }))
+  } catch {
+    return []
+  }
 }
 
 export async function getCashflowPage(filters: CashflowFilters = {}): Promise<CashflowPageData> {
-  const { db } = await requireCashflow('read')
+  const { db, userId } = await requireCashflow('read')
   const { f, where, params } = ledgerWhere(filters)
-  const offset = (f.page - 1) * f.pageSize
-  const query = (select: string, extra: unknown[] = []) => db.prepare(`${ledgerCte} ${select}`).bind(...params,...extra).all<any>()
-  const [rowsResult, totalsResult, summaryResult, monthlyIncomeResult, monthlyExpenseResult,
-    incomeSourcesResult, incomeMethodsResult, incomeCategoriesResult, expenseMethodsResult,
-    expenseCategoriesResult, categoriesResult, recordersResult, classesResult, angkatanResult] = await Promise.all([
-    query(`SELECT * FROM ledger WHERE ${where} ORDER BY transaction_date DESC, created_at DESC LIMIT ? OFFSET ?`, [f.pageSize,offset]),
-    query(`SELECT COUNT(*) total_rows FROM ledger WHERE ${where}`),
-    query(`SELECT
+  const cacheKey = `cashflow:${userId}:${JSON.stringify(f)}`
+  return getOrSetFinanceCache(cacheKey, async () => {
+    const offset = (f.page - 1) * f.pageSize
+    const analyticsSql = `${ledgerCte}, filtered AS MATERIALIZED (
+      SELECT * FROM ledger WHERE ${where}
+    )
+    SELECT
+      COUNT(*) total_rows,
       COALESCE(SUM(CASE WHEN status='active' AND direction='income' THEN amount ELSE 0 END),0) total_income,
       COALESCE(SUM(CASE WHEN status='active' AND direction='income' AND origin='manual' THEN amount ELSE 0 END),0) manual_income,
       COALESCE(SUM(CASE WHEN status='active' AND direction='expense' THEN amount ELSE 0 END),0) total_expense,
@@ -173,35 +181,54 @@ export async function getCashflowPage(filters: CashflowFilters = {}): Promise<Ca
       COALESCE(MAX(CASE WHEN status='active' AND direction='income' THEN amount END),0) income_largest,
       SUM(CASE WHEN status='active' AND direction='expense' THEN 1 ELSE 0 END) expense_count,
       COALESCE(AVG(CASE WHEN status='active' AND direction='expense' THEN amount END),0) expense_average,
-      COALESCE(MAX(CASE WHEN status='active' AND direction='expense' THEN amount END),0) expense_largest
-      FROM ledger WHERE ${where}`),
-    query(`SELECT substr(transaction_date,1,7) key, substr(transaction_date,1,7) label, SUM(amount) total, COUNT(*) count FROM ledger WHERE ${where} AND status='active' AND direction='income' GROUP BY key ORDER BY key`),
-    query(`SELECT substr(transaction_date,1,7) key, substr(transaction_date,1,7) label, SUM(amount) total, COUNT(*) count FROM ledger WHERE ${where} AND status='active' AND direction='expense' GROUP BY key ORDER BY key`),
-    query(`SELECT source key, CASE source WHEN 'manual' THEN 'Manual' ELSE upper(source) END label, SUM(amount) total, COUNT(*) count FROM ledger WHERE ${where} AND status='active' AND direction='income' GROUP BY source ORDER BY total DESC`),
-    query(`SELECT method key, CASE method WHEN 'qris' THEN 'QRIS' WHEN 'transfer' THEN 'Transfer' ELSE 'Tunai' END label, SUM(amount) total, COUNT(*) count FROM ledger WHERE ${where} AND status='active' AND direction='income' GROUP BY method ORDER BY total DESC`),
-    query(`SELECT category_id key, category_name label, SUM(amount) total, COUNT(*) count FROM ledger WHERE ${where} AND status='active' AND direction='income' AND origin='manual' GROUP BY category_id,category_name ORDER BY total DESC LIMIT 10`),
-    query(`SELECT method key, CASE method WHEN 'qris' THEN 'QRIS' WHEN 'transfer' THEN 'Transfer' ELSE 'Tunai' END label, SUM(amount) total, COUNT(*) count FROM ledger WHERE ${where} AND status='active' AND direction='expense' GROUP BY method ORDER BY total DESC`),
-    query(`SELECT category_id key, category_name label, SUM(amount) total, COUNT(*) count FROM ledger WHERE ${where} AND status='active' AND direction='expense' GROUP BY category_id,category_name ORDER BY total DESC LIMIT 10`),
-    db.prepare('SELECT id,direction,name,sort_order,is_active,is_system FROM fin_cashflow_categories ORDER BY direction,sort_order,name').all<any>(),
-    db.prepare(`SELECT DISTINCT u.id, COALESCE(u.nama_lengkap,u.name,'-') name FROM "user" u WHERE EXISTS (SELECT 1 FROM fin_transaksi t WHERE t.input_oleh=u.id) OR EXISTS (SELECT 1 FROM fin_cashflow_entries e WHERE e.created_by=u.id) ORDER BY name`).all<any>(),
-    db.prepare(`SELECT id, trim(tingkat || '-' || nomor_kelas || CASE WHEN kelompok IS NOT NULL AND kelompok<>'' THEN ' ' || kelompok ELSE '' END) label FROM kelas ORDER BY tingkat,nomor_kelas,kelompok`).all<any>(),
-    db.prepare("SELECT DISTINCT tahun_masuk FROM siswa WHERE status='aktif' AND tahun_masuk IS NOT NULL ORDER BY tahun_masuk DESC").all<any>(),
-  ])
-  const aggregate = summaryResult.results?.[0] ?? {}
-  const summary = { totalIncome: number(aggregate.total_income), manualIncome: number(aggregate.manual_income), totalExpense: number(aggregate.total_expense) }
-  const analytics: CashflowAnalytics = {
-    income: { total: summary.totalIncome, count: number(aggregate.income_count), average: Math.round(number(aggregate.income_average)), largest: number(aggregate.income_largest) },
-    expense: { total: summary.totalExpense, count: number(aggregate.expense_count), average: Math.round(number(aggregate.expense_average)), largest: number(aggregate.expense_largest) },
-    monthlyIncome: mappedSeries(monthlyIncomeResult), monthlyExpense: mappedSeries(monthlyExpenseResult),
-    incomeSources: mappedSeries(incomeSourcesResult), incomeMethods: mappedSeries(incomeMethodsResult), incomeCategories: mappedSeries(incomeCategoriesResult),
-    expenseMethods: mappedSeries(expenseMethodsResult), expenseCategories: mappedSeries(expenseCategoriesResult),
-  }
-  return {
-    entries: (rowsResult.results ?? []).map(toEntry), totalRows: number(totalsResult.results?.[0]?.total_rows), summary, analytics,
-    categories: (categoriesResult.results ?? []).map((row: any): CashflowCategory => ({ id: row.id, direction: row.direction, name: row.name, sortOrder: number(row.sort_order), isActive: row.is_active === 1, isSystem: row.is_system === 1 })),
-    recorders: recordersResult.results ?? [], classes: classesResult.results ?? [],
-    angkatan: (angkatanResult.results ?? []).map((row: any) => number(row.tahun_masuk)),
-  }
+      COALESCE(MAX(CASE WHEN status='active' AND direction='expense' THEN amount END),0) expense_largest,
+      (SELECT COALESCE(json_group_array(json_object('key',key,'label',label,'total',total,'count',count)),'[]') FROM (
+        SELECT substr(transaction_date,1,7) key, substr(transaction_date,1,7) label, SUM(amount) total, COUNT(*) count FROM filtered WHERE status='active' AND direction='income' GROUP BY key ORDER BY key
+      )) monthly_income_json,
+      (SELECT COALESCE(json_group_array(json_object('key',key,'label',label,'total',total,'count',count)),'[]') FROM (
+        SELECT substr(transaction_date,1,7) key, substr(transaction_date,1,7) label, SUM(amount) total, COUNT(*) count FROM filtered WHERE status='active' AND direction='expense' GROUP BY key ORDER BY key
+      )) monthly_expense_json,
+      (SELECT COALESCE(json_group_array(json_object('key',key,'label',label,'total',total,'count',count)),'[]') FROM (
+        SELECT source key, CASE source WHEN 'manual' THEN 'Manual' ELSE upper(source) END label, SUM(amount) total, COUNT(*) count FROM filtered WHERE status='active' AND direction='income' GROUP BY source ORDER BY total DESC
+      )) income_sources_json,
+      (SELECT COALESCE(json_group_array(json_object('key',key,'label',label,'total',total,'count',count)),'[]') FROM (
+        SELECT method key, CASE method WHEN 'qris' THEN 'QRIS' WHEN 'transfer' THEN 'Transfer' ELSE 'Tunai' END label, SUM(amount) total, COUNT(*) count FROM filtered WHERE status='active' AND direction='income' GROUP BY method ORDER BY total DESC
+      )) income_methods_json,
+      (SELECT COALESCE(json_group_array(json_object('key',key,'label',label,'total',total,'count',count)),'[]') FROM (
+        SELECT category_id key, category_name label, SUM(amount) total, COUNT(*) count FROM filtered WHERE status='active' AND direction='income' AND origin='manual' GROUP BY category_id,category_name ORDER BY total DESC LIMIT 10
+      )) income_categories_json,
+      (SELECT COALESCE(json_group_array(json_object('key',key,'label',label,'total',total,'count',count)),'[]') FROM (
+        SELECT method key, CASE method WHEN 'qris' THEN 'QRIS' WHEN 'transfer' THEN 'Transfer' ELSE 'Tunai' END label, SUM(amount) total, COUNT(*) count FROM filtered WHERE status='active' AND direction='expense' GROUP BY method ORDER BY total DESC
+      )) expense_methods_json,
+      (SELECT COALESCE(json_group_array(json_object('key',key,'label',label,'total',total,'count',count)),'[]') FROM (
+        SELECT category_id key, category_name label, SUM(amount) total, COUNT(*) count FROM filtered WHERE status='active' AND direction='expense' GROUP BY category_id,category_name ORDER BY total DESC LIMIT 10
+      )) expense_categories_json
+    FROM filtered`
+
+    const [rowsResult, aggregate, categoriesResult, recordersResult, classesResult, angkatanResult] = await Promise.all([
+      db.prepare(`${ledgerCte} SELECT * FROM ledger WHERE ${where} ORDER BY transaction_date DESC, created_at DESC LIMIT ? OFFSET ?`).bind(...params,f.pageSize,offset).all<any>(),
+      db.prepare(analyticsSql).bind(...params).first<any>(),
+      db.prepare('SELECT id,direction,name,sort_order,is_active,is_system FROM fin_cashflow_categories ORDER BY direction,sort_order,name').all<any>(),
+      db.prepare(`SELECT DISTINCT u.id, COALESCE(u.nama_lengkap,u.name,'-') name FROM "user" u WHERE EXISTS (SELECT 1 FROM fin_transaksi t WHERE t.input_oleh=u.id) OR EXISTS (SELECT 1 FROM fin_cashflow_entries e WHERE e.created_by=u.id) ORDER BY name`).all<any>(),
+      db.prepare(`SELECT id, trim(tingkat || '-' || nomor_kelas || CASE WHEN kelompok IS NOT NULL AND kelompok<>'' THEN ' ' || kelompok ELSE '' END) label FROM kelas ORDER BY tingkat,nomor_kelas,kelompok`).all<any>(),
+      db.prepare("SELECT DISTINCT tahun_masuk FROM siswa WHERE status='aktif' AND tahun_masuk IS NOT NULL ORDER BY tahun_masuk DESC").all<any>(),
+    ])
+    const row = aggregate ?? {}
+    const summary = { totalIncome: number(row.total_income), manualIncome: number(row.manual_income), totalExpense: number(row.total_expense) }
+    const analytics: CashflowAnalytics = {
+      income: { total: summary.totalIncome, count: number(row.income_count), average: Math.round(number(row.income_average)), largest: number(row.income_largest) },
+      expense: { total: summary.totalExpense, count: number(row.expense_count), average: Math.round(number(row.expense_average)), largest: number(row.expense_largest) },
+      monthlyIncome: mappedSeriesJson(row.monthly_income_json), monthlyExpense: mappedSeriesJson(row.monthly_expense_json),
+      incomeSources: mappedSeriesJson(row.income_sources_json), incomeMethods: mappedSeriesJson(row.income_methods_json), incomeCategories: mappedSeriesJson(row.income_categories_json),
+      expenseMethods: mappedSeriesJson(row.expense_methods_json), expenseCategories: mappedSeriesJson(row.expense_categories_json),
+    }
+    return {
+      entries: (rowsResult.results ?? []).map(toEntry), totalRows: number(row.total_rows), summary, analytics,
+      categories: (categoriesResult.results ?? []).map((item: any): CashflowCategory => ({ id: item.id, direction: item.direction, name: item.name, sortOrder: number(item.sort_order), isActive: item.is_active === 1, isSystem: item.is_system === 1 })),
+      recorders: recordersResult.results ?? [], classes: classesResult.results ?? [],
+      angkatan: (angkatanResult.results ?? []).map((item: any) => number(item.tahun_masuk)),
+    }
+  })
 }
 
 type ManualEntryInput = {

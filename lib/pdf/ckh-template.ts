@@ -41,6 +41,7 @@ export type CkhPdfData = {
   year: number
   month: number
   paperCss: string // "210mm 297mm" | "215mm 330mm"
+  margins?: { top: number; right: number; bottom: number; left: number }
   baseUrl: string // origin untuk @font-face
 }
 
@@ -86,6 +87,8 @@ export function buildCkhHtml(data: CkhPdfData): string {
     ? new Date(lastRow.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
     : new Date(year, month, 0).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
   const verificationText = formatCkhDocumentVerification(documentId)
+  const pageHeightMm = Number.parseFloat(paperCss.split(/\s+/)[1]) || 330
+  const margins = data.margins || { top: 15, right: 12, bottom: 15, left: 12 }
 
   const bodyRows = rows.map(row => {
     const span = dateSpans.get(row)
@@ -125,7 +128,8 @@ export function buildCkhHtml(data: CkhPdfData): string {
   body { font-family: Tahoma, sans-serif; color: #000; background: #fff; font-size: 10.5pt; }
   thead { display: table-header-group; }
   .ckh-print-table tr { break-inside: avoid; page-break-inside: avoid; }
-  .document-verification { position: fixed; right: 0; bottom: -8mm; width: 100%; text-align: right; font-size: 7pt; color: #555; }
+  .document-verification-spacer { height: 0; }
+  .document-verification { width: 100%; text-align: right; font-size: 7pt; line-height: 1.2; color: #555; break-inside: avoid; page-break-inside: avoid; }
   @page { size: ${paperCss}; }
 </style>
 </head>
@@ -177,7 +181,29 @@ export function buildCkhHtml(data: CkhPdfData): string {
       <div>NIP. ${user.nip ? esc(user.nip) : MISSING}</div>
     </div>
   </div>
+  <div class="document-verification-spacer" aria-hidden="true"></div>
   <div class="document-verification">${esc(verificationText)}</div>
+  <script>
+    window.alignCkhVerificationFooter = function () {
+      var spacer = document.querySelector('.document-verification-spacer');
+      var footer = document.querySelector('.document-verification');
+      if (!spacer || !footer) return;
+
+      spacer.style.height = '0px';
+      var mmToPx = 96 / 25.4;
+      var printablePageHeight = (${pageHeightMm} - ${margins.top} - ${Math.max(margins.bottom, 10)}) * mmToPx;
+      if (printablePageHeight <= 0) return;
+
+      // Sisakan 1 mm agar pembulatan Chromium tidak mendorong footer ke halaman baru.
+      var targetBottom = printablePageHeight - mmToPx;
+      var footerBottom = footer.offsetTop + footer.offsetHeight;
+      var positionOnPage = ((footerBottom % printablePageHeight) + printablePageHeight) % printablePageHeight;
+      var spacerHeight = targetBottom - positionOnPage;
+      if (spacerHeight < -0.5) spacerHeight += printablePageHeight;
+      if (Math.abs(spacerHeight) <= 0.5) spacerHeight = 0;
+      spacer.style.height = spacerHeight + 'px';
+    };
+  </script>
 </body>
 </html>`
 }

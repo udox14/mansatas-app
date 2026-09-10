@@ -86,6 +86,7 @@ export async function POST(request: Request) {
     year: body.year,
     month: body.month,
     paperCss,
+    margins: m,
     baseUrl: new URL(request.url).origin,
   })
 
@@ -109,6 +110,7 @@ export async function POST(request: Request) {
               image.addEventListener('error', () => resolve(), { once: true })
             })
           }))
+          ;(window as any).alignCkhVerificationFooter?.()
         })
         return await page.pdf({
           width: w,

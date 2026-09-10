@@ -3,6 +3,7 @@
 import { getDB } from '@/utils/db-server'
 import { getSession } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
+import { getOrSetFinanceCache, invalidateFinanceCache } from '@/lib/finance-cache'
 import { checkFeatureAccess } from '@/lib/features'
 import { todayWIB } from '@/lib/time'
 import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
@@ -37,6 +38,7 @@ async function studentMatchesScope(db: D1Database, siswaId: string, scope: Stude
 }
 
 function revalidateFinanceStudentViews() {
+  invalidateFinanceCache()
   revalidatePath('/dashboard/keuangan/dspt')
   revalidatePath('/dashboard/keuangan/dspt/nonaktif')
   revalidatePath('/dashboard/keuangan/export')
@@ -101,7 +103,9 @@ async function ensurePaymentSubmissionTable(db: D1Database) {
 // ─── DSPT ───────────────────────────────────────────────────────────────────
 
 export async function getDsptList(scope: StudentFinanceScope = 'active', filters?: { status?: string; angkatan?: string }) {
-  const { db } = await requireAuth('keuangan-dspt')
+  const { db, userId } = await requireAuth('keuangan-dspt')
+  const cacheKey = `dspt-list:${userId}:${scope}:${filters?.status || 'semua'}:${filters?.angkatan || 'semua'}`
+  return getOrSetFinanceCache(cacheKey, async () => {
   // LEFT JOIN dari siswa → semua siswa tampil, termasuk yang belum punya tagihan DSPT
   let query = `
     SELECT
@@ -152,6 +156,7 @@ export async function getDsptList(scope: StudentFinanceScope = 'active', filters
       : data,
     error: null,
   }
+  })
 }
 
 export async function createDspt(siswaId: string, nominalTarget: number, catatan: string | undefined, scope: StudentFinanceScope) {

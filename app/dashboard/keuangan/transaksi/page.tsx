@@ -6,6 +6,7 @@ import { checkFeatureAccess } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
 import { TransaksiClient } from './transaksi-client'
+import { getOrSetFinanceCache } from '@/lib/finance-cache'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Riwayat Transaksi | Keuangan MANSATAS' }
@@ -29,9 +30,9 @@ interface TransaksiRow {
   is_synthetic?: number
 }
 
-async function TransaksiDataFetcher() {
+async function TransaksiDataFetcher({ cacheScope }: { cacheScope: string }) {
   const db = await getDB()
-  const [transaksi, taAktif] = await Promise.all([
+  const [transaksi, taAktif] = await getOrSetFinanceCache(`transaction-history:${cacheScope}`, () => Promise.all([
     db.prepare(`
     WITH recorded_saldo_awal AS (
       SELECT d.ref_id, SUM(CASE WHEN t.is_void = 0 THEN d.jumlah ELSE 0 END) AS total_recorded
@@ -98,7 +99,7 @@ async function TransaksiDataFetcher() {
     ORDER BY created_at DESC
   `).all<TransaksiRow>(),
     db.prepare('SELECT nama FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ nama: string | null }>(),
-  ])
+  ]))
 
   return <TransaksiClient initialData={transaksi.results ?? []} tahunAjaranAktif={taAktif?.nama ?? '-'} />
 }
@@ -117,7 +118,7 @@ export default async function TransaksiPage() {
         description="Semua transaksi keuangan lintas siswa, terbaru ditampilkan paling atas"
       />
       <Suspense fallback={<PageLoading text="Memuat riwayat transaksi..." />}>
-        <TransaksiDataFetcher />
+        <TransaksiDataFetcher cacheScope={session.user.id} />
       </Suspense>
     </div>
   )

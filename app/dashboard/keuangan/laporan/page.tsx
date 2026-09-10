@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
 import { LaporanClient } from './laporan-client'
 import { getKomiteReportSettings } from '@/lib/komite-report-settings'
+import { getOrSetFinanceCache } from '@/lib/finance-cache'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Laporan Keuangan | MANSATAS' }
@@ -70,10 +71,9 @@ type TunggakanRow = {
   updated_at: string
 }
 
-async function LaporanDataFetcher() {
+async function LaporanDataFetcher({ cacheScope }: { cacheScope: string }) {
   const db = await getDB()
-
-  const [dsptRows, transaksi, kasKeluar, tunggakan, reportSettings] = await Promise.all([
+  const [dsptRows, transaksi, kasKeluar, tunggakan, reportSettings] = await getOrSetFinanceCache(`report-page:${cacheScope}`, () => Promise.all([
     db.prepare(`
       SELECT
         s.id as siswa_id, s.nama_lengkap, s.nisn, s.status AS siswa_status, s.tahun_masuk,
@@ -223,7 +223,7 @@ async function LaporanDataFetcher() {
       ORDER BY sisa DESC, nama_lengkap ASC
     `).all<TunggakanRow>(),
     getKomiteReportSettings(),
-  ])
+  ]))
 
   return (
     <LaporanClient
@@ -250,7 +250,7 @@ export default async function LaporanPage() {
         description="Ringkasan dan rincian pemasukan, pengeluaran, serta tunggakan sesuai periode dan filter"
       />
       <Suspense fallback={<PageLoading text="Memuat laporan keuangan..." />}>
-        <LaporanDataFetcher />
+        <LaporanDataFetcher cacheScope={session.user.id} />
       </Suspense>
     </div>
   )

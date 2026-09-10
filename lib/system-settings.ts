@@ -82,6 +82,38 @@ export async function getSystemSetting(key: string, fallback = ''): Promise<stri
   return value
 }
 
+export async function getSystemSettings<const T extends string>(
+  fallbacks: Record<T, string>,
+): Promise<Record<T, string>> {
+  const entries = Object.entries(fallbacks) as Array<[T, string]>
+  const values = {} as Record<T, string>
+  const missing: Array<[T, string]> = []
+
+  for (const [key, fallback] of entries) {
+    const cached = getMemCache<string>(`sys-setting:${key}`)
+    if (cached === undefined) missing.push([key, fallback])
+    else values[key] = cached
+  }
+
+  if (missing.length > 0) {
+    const db = await getDB()
+    await ensureSchemaOnce('system-settings', () => ensureSystemSettingsTable(db))
+    const placeholders = missing.map(() => '?').join(',')
+    const rows = await db.prepare(
+      `SELECT key, value FROM system_settings WHERE key IN (${placeholders})`,
+    ).bind(...missing.map(([key]) => key)).all<{ key: T; value: string }>()
+    const stored = new Map((rows.results ?? []).map(row => [row.key, row.value]))
+
+    for (const [key, fallback] of missing) {
+      const value = stored.get(key) ?? fallback
+      values[key] = value
+      setMemCache(`sys-setting:${key}`, value, 60_000)
+    }
+  }
+
+  return values
+}
+
 export async function getSystemSettingBoolean(key: string, fallback = false): Promise<boolean> {
   const raw = await getSystemSetting(key, fallback ? '1' : '0')
   return raw === '1' || raw.toLowerCase() === 'true'
@@ -104,4 +136,21 @@ export async function setSystemSetting(key: string, value: string): Promise<void
       updated_at = CURRENT_TIMESTAMP
   `).bind(key, value).run()
   deleteMemCache(`sys-setting:${key}`)
+}
+
+export async function setSystemSettings(values: Record<string, string>): Promise<void> {
+  const entries = Object.entries(values)
+  if (entries.length === 0) return
+
+  const db = await getDB()
+  await ensureSchemaOnce('system-settings', () => ensureSystemSettingsTable(db))
+  await db.batch(entries.map(([key, value]) => db.prepare(`
+    INSERT INTO system_settings (key, value, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET
+      value = excluded.value,
+      updated_at = CURRENT_TIMESTAMP
+  `).bind(key, value)))
+
+  for (const [key] of entries) deleteMemCache(`sys-setting:${key}`)
 }

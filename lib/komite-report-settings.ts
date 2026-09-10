@@ -1,4 +1,4 @@
-import { getSystemSetting } from '@/lib/system-settings'
+import { getSystemSettings } from '@/lib/system-settings'
 
 export type OpeningBalanceMode = 'cumulative' | 'manual' | 'stored'
 export type ProofNumberMode = 'manual' | 'automatic' | 'source_first'
@@ -22,21 +22,23 @@ export const KOMITE_REPORT_SETTING_KEYS = {
 } as const
 
 export async function getKomiteReportSettings(): Promise<KomiteReportSettings> {
-  const [opening, proof, enabled, treasurer, chairman, principal] = await Promise.all([
-    getSystemSetting(KOMITE_REPORT_SETTING_KEYS.openingBalanceMode, 'cumulative'),
-    getSystemSetting(KOMITE_REPORT_SETTING_KEYS.proofNumberMode, 'automatic'),
-    getSystemSetting(KOMITE_REPORT_SETTING_KEYS.signaturesEnabled, '1'),
-    getSystemSetting(KOMITE_REPORT_SETTING_KEYS.treasurerName, ''),
-    getSystemSetting(KOMITE_REPORT_SETTING_KEYS.chairmanName, ''),
-    getSystemSetting(KOMITE_REPORT_SETTING_KEYS.principalName, ''),
-  ])
+  const settings = await getSystemSettings({
+    [KOMITE_REPORT_SETTING_KEYS.openingBalanceMode]: 'cumulative',
+    [KOMITE_REPORT_SETTING_KEYS.proofNumberMode]: 'automatic',
+    [KOMITE_REPORT_SETTING_KEYS.signaturesEnabled]: '1',
+    [KOMITE_REPORT_SETTING_KEYS.treasurerName]: '',
+    [KOMITE_REPORT_SETTING_KEYS.chairmanName]: '',
+    [KOMITE_REPORT_SETTING_KEYS.principalName]: '',
+  })
+  const opening = settings[KOMITE_REPORT_SETTING_KEYS.openingBalanceMode]
+  const proof = settings[KOMITE_REPORT_SETTING_KEYS.proofNumberMode]
+  const enabled = settings[KOMITE_REPORT_SETTING_KEYS.signaturesEnabled]
   return {
     openingBalanceMode: ['cumulative', 'manual', 'stored'].includes(opening) ? opening as OpeningBalanceMode : 'cumulative',
     proofNumberMode: ['manual', 'automatic', 'source_first'].includes(proof) ? proof as ProofNumberMode : 'automatic',
     signaturesEnabled: enabled === '1' || enabled === 'true',
-    treasurerName: treasurer,
-    chairmanName: chairman,
-    principalName: principal,
+    treasurerName: settings[KOMITE_REPORT_SETTING_KEYS.treasurerName],
+    chairmanName: settings[KOMITE_REPORT_SETTING_KEYS.chairmanName],
+    principalName: settings[KOMITE_REPORT_SETTING_KEYS.principalName],
   }
 }
-

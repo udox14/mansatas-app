@@ -7,6 +7,7 @@ import { checkFeatureAccess } from '@/lib/features'
 import { dateInputWIB, todayWIB } from '@/lib/time'
 import { getKuitansiTahunAjaran } from '@/lib/tahun-ajaran'
 import type { KuitansiData } from '../components/kuitansi-print'
+import { invalidateFinanceCache } from '@/lib/finance-cache'
 
 function generateId() { return crypto.randomUUID() }
 
@@ -103,6 +104,7 @@ function siswaBaruWhere(q?: string) {
 }
 
 function revalidateDsptViews(siswaId?: string) {
+  invalidateFinanceCache()
   revalidatePath('/dashboard/keuangan')
   revalidatePath('/dashboard/keuangan/dspt')
   revalidatePath('/dashboard/keuangan/transaksi')
