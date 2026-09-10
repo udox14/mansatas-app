@@ -1,12 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { CalendarCheck, Clock, LogOut, Megaphone, Menu, MoreHorizontal, RotateCw, Settings, User } from 'lucide-react'
+import { useState } from 'react'
+import { CalendarCheck, LogOut, Megaphone, Menu, MoreHorizontal, RotateCw, Settings, User } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { unregisterNativePushToken } from '@/components/native/mobile-runtime'
-import { getDashboardPeriod, type LessonPattern } from '@/lib/dashboard-period'
 import { FittedUserName } from './FittedUserName'
 import { RunningText } from './RunningText'
 
@@ -14,23 +13,11 @@ type Props = {
   nama: string; namaDepan: string; avatarUrl: string | null; roleLabel: string; roleColor?: string
   taAktif?: { nama: string; semester: number } | null; sapaan: string; bgImageUrl?: string
   runningText?: string; textColor?: string; runningTextBg?: string; runningTextColor?: string
-  polaJam?: LessonPattern[]; primaryRole?: string
-}
-const EMPTY_PATTERNS: LessonPattern[] = []
-
-function PeriodChip({ patterns }: { patterns: LessonPattern[] }) {
-  const [label, setLabel] = useState('Menghitung...')
-  useEffect(() => {
-    const update = () => setLabel(getDashboardPeriod(new Date(), patterns))
-    const initial = window.setTimeout(update, 0)
-    const timer = window.setInterval(update, 30_000)
-    return () => { window.clearTimeout(initial); window.clearInterval(timer) }
-  }, [patterns])
-  return <span className="inline-flex min-h-10 items-center gap-2 rounded-full border border-white/20 bg-white/15 px-3 py-2 text-xs font-semibold backdrop-blur-md"><Clock size={15} aria-hidden="true" />{label}</span>
+  primaryRole?: string
 }
 
 export function WelcomeStrip({ nama, namaDepan, avatarUrl, roleLabel, taAktif, sapaan, bgImageUrl, runningText,
-  textColor = 'white', runningTextBg = '#1e1e1e', runningTextColor = '#ffffff', polaJam = EMPTY_PATTERNS, primaryRole,
+  textColor = 'white', runningTextBg = '#1e1e1e', runningTextColor = '#ffffff', primaryRole,
 }: Props) {
   const [logoutError, setLogoutError] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
@@ -76,14 +63,9 @@ export function WelcomeStrip({ nama, namaDepan, avatarUrl, roleLabel, taAktif, s
         </Avatar>
         <p className="mb-1 text-xs font-medium opacity-80">{sapaan},</p>
         <FittedUserName name={nama} />
-        <div className="flex flex-wrap items-end justify-between gap-x-5 gap-y-3">
-          <div className="min-w-0 flex-[1_1_190px]">
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium opacity-90 sm:text-xs">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium opacity-90 sm:text-xs">
               <span>{roleLabel}</span>
               {taAktif && <span className="inline-flex items-center gap-1"><CalendarCheck className="h-3.5 w-3.5" />TA {taAktif.nama} · Smt {taAktif.semester}</span>}
-            </div>
-          </div>
-          <div className="shrink-0"><PeriodChip patterns={polaJam} /></div>
         </div>
         {logoutError && <p role="alert" className="mt-3 rounded-xl bg-white p-3 text-xs text-rose-700">{logoutError}</p>}
       </div>

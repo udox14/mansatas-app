@@ -1,0 +1,8 @@
+<id>
+Pembaruan MANSATAS App:
+- Perbaikan masalah "Halaman web tidak tersedia" saat membuka aplikasi dari standby/background.
+- Pemulihan otomatis saat internet tersambung kembali tanpa perlu tutup paksa aplikasi.
+- Dashboard & pintasan menu baru yang lebih cepat dan fleksibel.
+- Fitur pelaporan harian Pramubakti dengan kompresi foto & watermark.
+- Pembaruan laporan kas komite, cetak dokumen TPG/CKH, dan performa presensi.
+</id>

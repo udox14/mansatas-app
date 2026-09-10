@@ -213,7 +213,8 @@ export default async function DashboardPage({
 
   return (
       <DashboardSPAShell
-        heroNode={<WelcomeStrip {...commonProps} polaJam={polaJam} />}
+        heroNode={<WelcomeStrip {...commonProps} />}
+        polaJam={polaJam}
       >
         {dashboardContent}
         {userRole !== 'pramubakti' && userRoles.includes('pramubakti') && allowedFeatures.includes('pelaporan-pramubakti') && (
