@@ -36,7 +36,7 @@ export function DashboardNavigationProvider({ children, menus, groups, initialSh
   const [viewportHeight, setViewportHeight] = useState<number>()
   const [viewportBottom, setViewportBottom] = useState(0)
   const opener = useRef<HTMLElement | null>(null)
-  const pendingHref = useRef<string | null>(null)
+  const navigating = useRef(false)
   const closing = useRef(false)
 
   useEffect(() => {
@@ -48,11 +48,6 @@ export function DashboardNavigationProvider({ children, menus, groups, initialSh
     function sync() {
       setOverlay(locationOverlay())
       closing.current = false
-      if (pendingHref.current) {
-        const href = pendingHref.current
-        pendingHref.current = null
-        router.push(href)
-      }
     }
     const timer = window.setTimeout(sync, 0)
     window.addEventListener('popstate', sync)
@@ -74,6 +69,7 @@ export function DashboardNavigationProvider({ children, menus, groups, initialSh
 
   function open(next: Exclude<Overlay, null>) {
     opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    navigating.current = false
     setQuery('')
     if (!locationOverlay()) window.history.pushState({ ...window.history.state, [HISTORY_KEY]: true }, '', `#${next}`)
     else window.history.replaceState(window.history.state, '', `#${next}`)
@@ -82,14 +78,23 @@ export function DashboardNavigationProvider({ children, menus, groups, initialSh
 
   function close(href?: string) {
     if (closing.current) return
+    if (href) {
+      // Replace the temporary drawer entry directly. Going back and then pushing
+      // inside popstate races Next's own history restoration and can lose clicks.
+      navigating.current = true
+      const state = { ...window.history.state }
+      delete state[HISTORY_KEY]
+      window.history.replaceState(state, '', window.location.pathname + window.location.search)
+      setOverlay(null)
+      router.replace(href)
+      return
+    }
     if (window.history.state?.[HISTORY_KEY]) {
       closing.current = true
-      pendingHref.current = href ?? null
       window.history.back()
     } else {
       window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search)
       setOverlay(null)
-      if (href) router.push(href)
     }
   }
 
@@ -116,11 +121,11 @@ export function DashboardNavigationProvider({ children, menus, groups, initialSh
       <SheetContent side="bottom" className="dashboard-menu-sheet inset-x-0 mx-auto flex max-w-2xl flex-col gap-0 overflow-hidden rounded-t-[28px] border-0 bg-white p-0 text-slate-900 data-[state=open]:duration-200 data-[state=closed]:duration-200 dark:bg-slate-950 dark:text-slate-100"
         data-compact={viewportHeight !== undefined && viewportHeight < 480}
         style={viewportHeight ? { maxHeight: Math.max(0, viewportHeight - 12), bottom: viewportBottom } : undefined}
-        onOpenAutoFocus={event => { event.preventDefault(); document.getElementById('dashboard-menu-title')?.focus() }}
-        onCloseAutoFocus={event => { event.preventDefault(); if (!pendingHref.current) opener.current?.focus() }}>
+        onOpenAutoFocus={event => { event.preventDefault(); document.querySelector<HTMLElement>('[data-dashboard-menu-title]')?.focus() }}
+        onCloseAutoFocus={event => { event.preventDefault(); if (!navigating.current) opener.current?.focus() }}>
         <div className="dashboard-sheet-heading shrink-0 px-5 pb-4 pt-3 sm:px-6">
           <div aria-hidden="true" className="dashboard-sheet-handle mx-auto mb-5 h-1 w-10 rounded-full bg-slate-300 dark:bg-slate-700" />
-          <SheetTitle id="dashboard-menu-title" tabIndex={-1} className="pr-10 text-2xl font-bold tracking-tight outline-none">{overlay === 'shortcuts' ? 'Atur menu favorit' : 'Semua menu'}</SheetTitle>
+          <SheetTitle data-dashboard-menu-title tabIndex={-1} className="pr-10 text-2xl font-bold tracking-tight outline-none">{overlay === 'shortcuts' ? 'Atur menu favorit' : 'Semua menu'}</SheetTitle>
           <SheetDescription className="dashboard-sheet-description mt-1 text-xs">{overlay === 'shortcuts' ? 'Pilih hingga 8 menu. Tersimpan di akun Anda.' : 'Akses semua kebutuhan Anda dalam satu tempat.'}</SheetDescription>
         </div>
         {overlay === 'shortcuts' ? <ShortcutEditor menus={menus} initialIds={visibleShortcuts} readOnly={readOnly}

@@ -55,9 +55,13 @@ export function parseDashboardShortcuts(value: string | null | undefined): strin
   } catch { return null }
 }
 
-export function resolveDashboardShortcuts(stored: string[] | null, nav: string[], groups: DashboardMenuGroup[]) {
+export function resolveDashboardShortcuts(stored: string[] | null, nav: string[], groups: DashboardMenuGroup[], roles: readonly string[] = []) {
   const allowed = new Set(groups.flatMap(group => group.items.map(item => item.id)))
-  const candidates = stored ?? [...nav, ...allowed]
+  const defaults = roles.includes('guru') ? [
+    'agenda', 'kehadiran', 'penugasan', roles.includes('wali_kelas') ? 'kelas-binaan' : 'siswa',
+    'catatan-siswa', 'nilai-harian', 'ckh-generator', 'tpg-dokumen',
+  ] : [...nav, ...allowed]
+  const candidates = stored ?? defaults
   return [...new Set(candidates)].filter(id => allowed.has(id)).slice(0, MAX_DASHBOARD_SHORTCUTS)
 }
 

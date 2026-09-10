@@ -484,7 +484,13 @@ export function Sidebar({
         {renderNavContent(true)}
       </aside>
 
-      <button id="mobile-sidebar-trigger" onClick={() => setIsOpen(true)} className="hidden" aria-label="Buka menu" />
+      <button id="mobile-sidebar-trigger" onClick={() => {
+        if (window.matchMedia('(min-width: 1024px)').matches) {
+          setIsCollapsed(false)
+          userCollapsedRef.current = false
+          localStorage.setItem('mansatas_collapsed', 'false')
+        } else setIsOpen(true)
+      }} className="hidden" aria-label="Buka menu" />
     </>
   )
 }

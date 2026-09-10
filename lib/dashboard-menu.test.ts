@@ -66,3 +66,23 @@ describe('dashboard favorite preferences', () => {
     expect(initial).toEqual(ids.slice(0, 3))
   })
 })
+
+describe('subject teacher default favorites', () => {
+  const base = ['agenda', 'kehadiran', 'penugasan', 'siswa', 'catatan-siswa', 'nilai-harian', 'ckh-generator', 'tpg-dokumen']
+  const groups = groupDashboardMenus(resolveDashboardMenus([...base, 'kelas-binaan', 'rapat']), [])
+  it.each([['guru'], ['kepsek', 'guru'], ['guru_bk', 'guru']])('uses the same defaults for roles %j', (...roles) => {
+    expect(resolveDashboardShortcuts(null, ['rapat'], groups, roles)).toEqual(base)
+  })
+  it('uses Kelas Binaan in slot four for a teacher who is also wali kelas', () => {
+    expect(resolveDashboardShortcuts(null, [], groups, ['wali_kelas', 'guru'])).toEqual(base.map(id => id === 'siswa' ? 'kelas-binaan' : id))
+  })
+  it('retains saved preferences and never grants an unauthorized default', () => {
+    expect(resolveDashboardShortcuts(['rapat'], [], groups, ['guru'])).toEqual(['rapat'])
+    expect(resolveDashboardShortcuts([], [], groups, ['guru'])).toEqual([])
+    const limited = groupDashboardMenus(resolveDashboardMenus(['agenda', 'siswa']), [])
+    expect(resolveDashboardShortcuts(null, [], limited, ['guru'])).toEqual(['agenda', 'siswa'])
+  })
+  it('does not apply teacher defaults to other teacher roles without guru membership', () => {
+    expect(resolveDashboardShortcuts(null, ['rapat'], groups, ['guru_bk'])[0]).toBe('rapat')
+  })
+})

@@ -17,16 +17,16 @@
 .dashboard-menu-sheet[data-compact="true"] .dashboard-sheet-heading { padding-top: 10px; padding-bottom: 10px; }
 .dashboard-menu-sheet[data-compact="true"] .dashboard-sheet-handle { display: none; }
 .dashboard-menu-sheet[data-compact="true"] .dashboard-sheet-description { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.dashboard-menu-sheet[data-compact="true"] #dashboard-menu-title { font-size: 18px; line-height: 24px; }
+.dashboard-menu-sheet[data-compact="true"] [data-dashboard-menu-title] { font-size: 18px; line-height: 24px; }
 .dashboard-menu-sheet[data-compact="true"] > button { top: 0; }
 .dashboard-home-content, .dashboard-hero > .relative { padding-left: max(clamp(20px, 2.4vw, 32px), env(safe-area-inset-left, 0px)); padding-right: max(clamp(20px, 2.4vw, 32px), env(safe-area-inset-right, 0px)); }
 .dashboard-bottom-nav { padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
 .dashboard-icon-button { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 12px; }
 .dashboard-icon-button:focus-visible { outline: 2px solid #10b981; outline-offset: -2px; }
 .dashboard-widgets { min-width: 0; }
-.dashboard-announcement-text { animation: dashboard-announcement 28s linear infinite; }
-.dashboard-announcement:hover .dashboard-announcement-text { animation-play-state: paused; }
-@keyframes dashboard-announcement { 0%, 15% { transform: translateX(0); } 90%, 100% { transform: translateX(-100%); } }
+.dashboard-announcement[data-ready="true"] .dashboard-announcement-text { animation: dashboard-announcement var(--announcement-duration) linear infinite both; }
+@media (hover: hover) { .dashboard-announcement:hover .dashboard-announcement-text { animation-play-state: paused; } }
+@keyframes dashboard-announcement { from { transform: translateX(var(--announcement-start)); } to { transform: translateX(var(--announcement-end)); } }
 @media (min-width: 1024px) {
   .dashboard-page-content { padding-bottom: 32px; }
   .dashboard-hero { min-height: 280px; }
@@ -36,7 +36,7 @@
   .dashboard-menu-sheet { height: calc(100dvh - 12px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .dashboard-announcement-text { animation: none; white-space: normal; width: auto; }
+  .dashboard-announcement[data-ready="true"] .dashboard-announcement-text { animation: none; transform: none; white-space: normal; width: auto; }
   .dashboard-announcement { overflow: visible; }
   .dashboard-menu-sheet { animation: none !important; transition: none !important; }
 }

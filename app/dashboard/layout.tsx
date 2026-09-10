@@ -141,7 +141,7 @@ export default async function DashboardLayout({
   } catch {
     // Keep the dashboard readable while migration 0103 is being rolled out.
   }
-  const shortcutIds = resolveDashboardShortcuts(storedShortcuts, navLinks, menuGroups)
+  const shortcutIds = resolveDashboardShortcuts(storedShortcuts, navLinks, menuGroups, [...new Set([primaryRole, ...userRoles])])
 
   return (
     <DashboardNavigationProvider key={user.id} menus={menus} groups={menuGroups} initialShortcutIds={shortcutIds} readOnly={isPlayReviewer}>
