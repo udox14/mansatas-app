@@ -83,6 +83,7 @@ async function LaporanDataFetcher({ cacheScope }: { cacheScope: string }) {
       ORDER BY s.nama_lengkap ASC
     `).all<DsptRow>(),
     db.prepare(`
+      SELECT * FROM (
       SELECT
         t.id,
         t.nomor_kuitansi,
@@ -97,7 +98,7 @@ async function LaporanDataFetcher({ cacheScope }: { cacheScope: string }) {
         t.jumlah_total,
         t.is_void,
         t.void_alasan,
-        t.created_at,
+        t.created_at AS created_at,
         u.name as nama_input,
         GROUP_CONCAT(d.ref_type || ':' || d.jumlah, ', ') as rincian
       FROM fin_transaksi t
@@ -156,7 +157,7 @@ async function LaporanDataFetcher({ cacheScope }: { cacheScope: string }) {
       JOIN fin_cashflow_categories c ON c.id=e.category_id
       LEFT JOIN user u ON u.id=e.created_by
       WHERE e.direction='income'
-
+      )
       ORDER BY created_at DESC
     `).all<TransaksiRow>(),
     db.prepare(`
