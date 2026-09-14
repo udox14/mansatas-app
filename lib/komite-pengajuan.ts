@@ -12,6 +12,37 @@ export type KomiteStatus = 'draft' | 'menunggu_bendahara' | 'menunggu_ketua' | '
 export type KomiteStage = keyof typeof KOMITE_STAGE_ROLE
 export type KomiteReviewAction = 'setujui' | 'minta_revisi' | 'tolak'
 
+export type KomiteNotificationPlan = {
+  eventKey: string
+  recipient: 'applicant' | 'reviewer'
+  suffix: string
+}
+
+export function komiteReviewNotificationPlans(
+  stage: KomiteStage,
+  action: KomiteReviewAction,
+): KomiteNotificationPlan[] {
+  if (action === 'minta_revisi') {
+    return [{ eventKey: 'komite_revision_requested', recipient: 'applicant', suffix: 'revision-requested' }]
+  }
+  if (action === 'tolak') {
+    return [{ eventKey: 'komite_rejected', recipient: 'applicant', suffix: 'rejected' }]
+  }
+  if (stage === 'bendahara') {
+    return [
+      { eventKey: 'komite_treasurer_approved', recipient: 'applicant', suffix: 'approved' },
+      { eventKey: 'komite_chairman_review_requested', recipient: 'reviewer', suffix: 'waiting-chairman' },
+    ]
+  }
+  if (stage === 'ketua') {
+    return [
+      { eventKey: 'komite_chairman_approved', recipient: 'applicant', suffix: 'approved' },
+      { eventKey: 'komite_principal_review_requested', recipient: 'reviewer', suffix: 'waiting-principal' },
+    ]
+  }
+  return [{ eventKey: 'komite_final_approved', recipient: 'applicant', suffix: 'final-approved' }]
+}
+
 export function stageForStatus(status: string): KomiteStage | null {
   if (status === 'menunggu_bendahara') return 'bendahara'
   if (status === 'menunggu_ketua') return 'ketua'

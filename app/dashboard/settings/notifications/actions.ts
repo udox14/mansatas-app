@@ -78,6 +78,11 @@ export async function sendAutomaticNotificationTest(eventKey: string) {
     nama_pelanggaran: 'Contoh pelanggaran',
     level_sanksi: 'Teguran',
     nomor_surat: 'TEST/SP/0001',
+    judul_pengajuan: 'Contoh pengajuan Komite',
+    nama_pengaju: access.user.name || 'Contoh Pengaju',
+    nama_reviewer: 'Contoh Reviewer',
+    tahap: 'Bendahara Komite',
+    nomor_spb: 'SPB / 001 / KOMITE / IX / 2026',
     url: definition.defaultUrl,
     userId: access.user.id,
     userIds: [access.user.id],
@@ -93,7 +98,14 @@ export async function sendAutomaticNotificationTest(eventKey: string) {
   })
   if (result.status === 'failed') return { error: result.error || 'Pengiriman tes gagal.' }
   if (result.status === 'disabled') return { error: 'Event masih nonaktif. Aktifkan dahulu untuk mengirim tes.' }
-  return { success: 'Notifikasi tes dikirim ke perangkat Anda.' }
+  if (result.status === 'skipped' || (result.sent === 0 && result.queued === 0)) {
+    return { error: 'Tidak ada perangkat aktif untuk akun Anda. Buka aplikasi/portal, izinkan notifikasi, lalu coba lagi.' }
+  }
+  return {
+    success: result.status === 'queued'
+      ? 'Notifikasi tes masuk antrean pengiriman.'
+      : `Notifikasi tes terkirim ke ${result.sent} channel/perangkat.`,
+  }
 }
 
 export async function sendCustomNotification(

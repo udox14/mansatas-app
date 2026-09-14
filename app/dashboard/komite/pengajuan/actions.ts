@@ -7,14 +7,55 @@ import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import {
   KOMITE_FEATURE_ID, KOMITE_STAGE_ROLE,
   canReviewKomite, canSubmitKomite, ensureKomitePengajuanSchema, stageForStatus,
+  komiteReviewNotificationPlans,
   type KomiteReviewAction,
 } from '@/lib/komite-pengajuan'
 import { deleteKomiteObjects, uploadKomitePdfs } from '@/utils/r2'
 import { logActivity } from '@/lib/activity-log'
-import { notify } from '@/lib/notify'
+import { emitConfiguredNotification, type NotificationContext } from '@/lib/notification-engine'
+import { formatRupiah } from '@/lib/utils'
 
 const PAGE_PATH = '/dashboard/komite/pengajuan'
 const MAX_DETAIL_ROWS = 10
+
+const KOMITE_STAGE_LABEL: Record<string, string> = {
+  bendahara: 'Bendahara Komite',
+  ketua: 'Ketua Komite',
+  kepala: 'Kepala Madrasah',
+}
+
+function komiteNotificationContext(row: any, extra: NotificationContext = {}): NotificationContext {
+  return {
+    judul_pengajuan: row.judul || '',
+    nominal: formatRupiah(Number(row.nominal || 0)),
+    nama_pengaju: row.pengaju_name || '',
+    nama_reviewer: '',
+    tahap: '',
+    catatan: '-',
+    nomor_spb: row.nomor_spb || '-',
+    ...extra,
+  }
+}
+
+async function sendKomiteNotification(
+  db: D1Database,
+  input: {
+    eventKey: string
+    sourceRef: string
+    context: NotificationContext
+  },
+) {
+  try {
+    const result = await emitConfiguredNotification({ ...input, db })
+    if (result.status === 'failed') {
+      console.error(`[notification] ${input.eventKey} gagal:`, result.error)
+    }
+    return result
+  } catch (error) {
+    console.error(`[notification] ${input.eventKey} gagal:`, error)
+    return null
+  }
+}
 
 type RincianInput = {
   id: string
@@ -321,7 +362,12 @@ export async function saveKomiteDraftAction(formData: FormData) {
 
 export async function submitKomiteAction(id: string) {
   const { db, user } = await requireContext()
-  const row = await db.prepare('SELECT * FROM komite_pengajuan WHERE id=?').bind(id).first<any>()
+  const row = await db.prepare(`
+    SELECT p.*, COALESCE(up.nama_lengkap,up.name,up.email) AS pengaju_name
+    FROM komite_pengajuan p
+    JOIN "user" up ON up.id=p.pengaju_id
+    WHERE p.id=?
+  `).bind(id).first<any>()
   if (!row || row.pengaju_id !== user.id || !['draft','perlu_revisi'].includes(row.status)) return { error: 'Pengajuan tidak dapat dikirim.' }
   const version = await db.prepare(`SELECT v.id,(SELECT COUNT(*) FROM komite_pengajuan_files f WHERE f.version_id=v.id) AS file_count,
       (SELECT COUNT(*) FROM komite_pengajuan_rincian r WHERE r.pengajuan_id=?) AS detail_count
@@ -333,9 +379,12 @@ export async function submitKomiteAction(id: string) {
     db.prepare(`UPDATE komite_pengajuan_versions SET submitted_at=datetime('now') WHERE id=?`).bind(version.id),
   ])
   await logActivity({ db, module: 'komite_pengajuan', action: 'submit', summary: `Mengirim pengajuan ${row.judul} ke Bendahara Komite`, entityType: 'komite_pengajuan', entityId: id, entityLabel: row.judul })
-  await notify({ title: 'Pengajuan dana baru', body: `${user.nama_lengkap || user.name} mengirim "${row.judul}".`, url: PAGE_PATH }, { role: 'bendahara_komite' }, {
-    eventKey: 'komite_review',
+  await sendKomiteNotification(db, {
+    eventKey: 'komite_submission_received',
     sourceRef: `komite:${id}:submitted:${row.current_version}`,
+    context: komiteNotificationContext(row, {
+      nama_pengaju: user.nama_lengkap || user.name || '',
+    }),
   })
   revalidatePath(PAGE_PATH)
   return { success: 'Pengajuan dikirim ke Bendahara Komite.' }
@@ -379,7 +428,12 @@ export async function reviewKomiteAction(formData: FormData) {
   if (!['setujui','minta_revisi','tolak'].includes(action)) return { error: 'Aksi review tidak valid.' }
   if (action !== 'setujui' && !catatan) return { error: 'Catatan wajib diisi untuk revisi atau penolakan.' }
   if (action === 'tolak' && formData.get('reject_confirmation') !== 'TOLAK') return { error: 'Ketik TOLAK untuk mengonfirmasi penolakan.' }
-  const row = await db.prepare('SELECT * FROM komite_pengajuan WHERE id=?').bind(id).first<any>()
+  const row = await db.prepare(`
+    SELECT p.*, COALESCE(up.nama_lengkap,up.name,up.email) AS pengaju_name
+    FROM komite_pengajuan p
+    JOIN "user" up ON up.id=p.pengaju_id
+    WHERE p.id=?
+  `).bind(id).first<any>()
   if (!row) return { error: 'Pengajuan tidak ditemukan.' }
   const permission = await canReviewKomite(db, user.id, row, roles)
   if (!permission.allowed || !permission.stage) return { error: 'Anda tidak berwenang memproses tahap ini.' }
@@ -443,15 +497,32 @@ export async function reviewKomiteAction(formData: FormData) {
   }
   await logActivity({ db, module: 'komite_pengajuan', action: `review_${action}`, severity: action === 'tolak' ? 'warning' : 'info', summary: `${action === 'setujui' ? 'Menyetujui' : action === 'minta_revisi' ? 'Meminta revisi' : 'Menolak'} pengajuan ${row.judul} pada tahap ${permission.stage}`, entityType: 'komite_pengajuan', entityId: id, entityLabel: row.judul, metadata: { stage: permission.stage, bypass: permission.bypass, version: row.current_version } })
 
-  const reviewNotificationOptions = {
-    eventKey: 'komite_review',
-    sourceRef: `komite:${id}:review:${row.current_version}:${nextStatus}`,
+  const commonContext = komiteNotificationContext({ ...row, nomor_spb: nomorSpb, nominal }, {
+    userId: row.pengaju_id,
+    userIds: [row.pengaju_id],
+    nama_reviewer: actor?.name || user.name || '',
+    tahap: KOMITE_STAGE_LABEL[permission.stage] || permission.stage,
+    catatan: catatan || '-',
+    nomor_spb: nomorSpb || '-',
+  })
+  const notifyApplicant = (eventKey: string, suffix: string) => sendKomiteNotification(db, {
+    eventKey,
+    sourceRef: `komite:${id}:review:${row.current_version}:${permission.stage}:${suffix}:applicant`,
+    context: commonContext,
+  })
+  const reviewerContext = { ...commonContext }
+  delete reviewerContext.userId
+  delete reviewerContext.userIds
+  const notifyNextReviewer = (eventKey: string, suffix: string) => sendKomiteNotification(db, {
+    eventKey,
+    sourceRef: `komite:${id}:review:${row.current_version}:${permission.stage}:${suffix}:reviewer`,
+    context: reviewerContext,
+  })
+
+  for (const plan of komiteReviewNotificationPlans(permission.stage, action)) {
+    if (plan.recipient === 'applicant') await notifyApplicant(plan.eventKey, plan.suffix)
+    else await notifyNextReviewer(plan.eventKey, plan.suffix)
   }
-  if (nextStatus === 'menunggu_ketua') await notify({ title: 'Pengajuan menunggu review', body: `"${row.judul}" menunggu persetujuan Ketua Komite.`, url: PAGE_PATH }, { role: 'ketua_komite' }, reviewNotificationOptions)
-  else if (nextStatus === 'menunggu_kepala') await notify({ title: 'Pengajuan menunggu review', body: `"${row.judul}" menunggu persetujuan Kepala Madrasah.`, url: PAGE_PATH }, { role: 'kepsek' }, reviewNotificationOptions)
-  else if (nextStatus === 'perlu_revisi') await notify({ title: 'Pengajuan perlu revisi', body: `"${row.judul}" perlu diperbaiki. Buka riwayat untuk melihat catatan reviewer.`, url: PAGE_PATH }, { userId: row.pengaju_id }, reviewNotificationOptions)
-  else if (nextStatus === 'ditolak') await notify({ title: 'Pengajuan ditolak', body: `"${row.judul}" ditolak.`, url: PAGE_PATH }, { userId: row.pengaju_id }, reviewNotificationOptions)
-  else if (nextStatus === 'disetujui') await notify({ title: 'Pengajuan disetujui', body: `"${row.judul}" disetujui. SPB telah tersedia.`, url: PAGE_PATH }, { userId: row.pengaju_id }, reviewNotificationOptions)
   revalidatePath(PAGE_PATH)
   return { success: nextStatus === 'disetujui' ? 'Pengajuan disetujui dan SPB telah terbit.' : 'Review berhasil disimpan.' }
 }
@@ -465,7 +536,8 @@ export async function delegateKetuaReviewAction(formData: FormData) {
   if (memberId === user.id) return { error: 'Ketua Komite harus memilih anggota lain sebagai penerima delegasi.' }
 
   const [row, member] = await Promise.all([
-    db.prepare(`SELECT * FROM komite_pengajuan WHERE id=?`).bind(id).first<any>(),
+    db.prepare(`SELECT p.*,COALESCE(up.nama_lengkap,up.name,up.email) AS pengaju_name
+      FROM komite_pengajuan p JOIN "user" up ON up.id=p.pengaju_id WHERE p.id=?`).bind(id).first<any>(),
     db.prepare(`SELECT u.id,COALESCE(u.nama_lengkap,u.name,u.email) AS name
       FROM "user" u
       WHERE u.id=? AND (u.role='anggota_komite' OR EXISTS (
@@ -490,13 +562,15 @@ export async function delegateKetuaReviewAction(formData: FormData) {
     entityLabel: row.judul,
     metadata: { delegateId: member.id, delegateName: member.name, delegatedBy: user.id },
   })
-  await notify({
-    title: 'Delegasi review Komite',
-    body: `Ketua Komite mendelegasikan review "${row.judul}" kepada Anda.`,
-    url: PAGE_PATH,
-  }, { userId: member.id }, {
-    eventKey: 'komite_review',
-    sourceRef: `komite:${id}:delegate:${member.id}`,
+  await sendKomiteNotification(db, {
+    eventKey: 'komite_review_delegated',
+    sourceRef: `komite:${id}:delegate:${row.current_version}:${member.id}`,
+    context: komiteNotificationContext(row, {
+      userId: member.id,
+      userIds: [member.id],
+      nama_reviewer: user.name || '',
+      tahap: KOMITE_STAGE_LABEL.ketua,
+    }),
   })
   revalidatePath(PAGE_PATH)
   return { success: `Review berhasil didelegasikan kepada ${member.name}.` }

@@ -78,6 +78,13 @@ const GROUP_LABEL: Record<NotificationEventDefinition['group'], string> = {
   administrasi: 'Administrasi',
 }
 
+const CRON_REMINDER_KEYS = new Set([
+  'attendance_missing_reminder',
+  'meeting_reminder',
+  'task_pending_reminder',
+  'pramubakti_slot_reminder',
+])
+
 const SAMPLE_VALUES: Record<string, string> = {
   nama_siswa: 'Ahmad Fauzan',
   kelas: 'XII IPA 1',
@@ -95,6 +102,11 @@ const SAMPLE_VALUES: Record<string, string> = {
   nama_pelanggaran: 'Terlambat masuk kelas',
   level_sanksi: 'Teguran',
   nomor_surat: 'SP/2026/0001',
+  judul_pengajuan: 'Pengadaan perlengkapan kegiatan siswa',
+  nama_pengaju: 'Bapak/Ibu Pengaju',
+  nama_reviewer: 'Bapak/Ibu Reviewer',
+  tahap: 'Bendahara Komite',
+  nomor_spb: 'SPB / 001 / KOMITE / IX / 2026',
   jumlah_sesi: '2',
   status: 'belum selesai',
   mata_pelajaran: 'Matematika',
@@ -142,6 +154,12 @@ function getChannelLabels(channels: NotificationChannel[]) {
     .map((channel) => CHANNELS.find((item) => item.value === channel)?.shortLabel)
     .filter(Boolean)
     .join(' + ') || '—'
+}
+
+function getReminderLabel(definition: NotificationEventDefinition, draft: Draft) {
+  if (definition.key === 'kbm_teaching_reminder') return `${draft.reminder.leadMinutes} menit setelah mulai`
+  if (CRON_REMINDER_KEYS.has(definition.key)) return `Setiap ${draft.reminder.frequencyMinutes} menit`
+  return '—'
 }
 
 export function AutomaticNotificationSettings({ definitions, settings }: Props) {
@@ -304,7 +322,7 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                     </div>
                     <div className="min-w-0">
                       <dt className="text-muted-foreground">Reminder</dt>
-                      <dd className="mt-0.5 font-medium">{draft.reminder.enabled ? `${draft.reminder.frequencyMinutes} menit` : 'Nonaktif'}</dd>
+                      <dd className="mt-0.5 font-medium">{getReminderLabel(definition, draft)}</dd>
                     </div>
                     <div className="col-span-2 min-w-0">
                       <dt className="text-muted-foreground">Penerima</dt>
@@ -361,7 +379,7 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                     <TableCell className="align-top text-xs text-muted-foreground">{getChannelLabels(draft.channels)}</TableCell>
                     <TableCell className="align-top text-xs text-muted-foreground">{getTargetLabel(draft.target)}</TableCell>
                     <TableCell className="align-top text-xs text-muted-foreground">
-                      {draft.reminder.enabled ? `${draft.reminder.frequencyMinutes} menit` : 'Nonaktif'}
+                      {getReminderLabel(definition, draft)}
                     </TableCell>
                     <TableCell className="align-top text-right">
                       <Button type="button" size="sm" variant="outline" onClick={() => setSelectedKey(definition.key)}>
@@ -501,16 +519,11 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                     </div>
                   </div>
 
-                  <div className="space-y-4 rounded-lg border p-4">
-                    <label className="flex items-center gap-2 text-sm font-medium">
-                      <Checkbox
-                        checked={selectedDraft.reminder.enabled}
-                        onCheckedChange={(checked) => updateDraft(selectedDefinition.key, {
-                          reminder: { ...selectedDraft.reminder, enabled: checked === true },
-                        })}
-                      />
-                      Kirim sebagai reminder berkala
-                    </label>
+                  {CRON_REMINDER_KEYS.has(selectedDefinition.key) && <div className="space-y-4 rounded-lg border p-4">
+                    <div>
+                      <p className="text-sm font-medium">Waktu reminder</p>
+                      <p className="text-xs text-muted-foreground">Pengiriman mengikuti status event Aktif di atas.</p>
+                    </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="notification-lead">Lead (menit)</Label>
@@ -537,7 +550,7 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                         />
                       </div>
                     </div>
-                  </div>
+                  </div>}
 
                   <div className="space-y-2">
                     <Label>Level</Label>

@@ -771,8 +771,12 @@ async function deliverNotification(
     attemptedChannels += 1
     try {
       const result = await sendFcmNotification(notification, target, { db, env: runtimeEnv })
-      sent += Number((result as any).sent || 0)
-      if ((result as any).success) successfulChannels += 1
+      const channelSent = Number((result as any).sent || 0)
+      sent += channelSent
+      if ((result as any).success && channelSent > 0) successfulChannels += 1
+      if ((result as any).success && channelSent === 0) {
+        errors.push('Tidak ada token FCM aktif untuk target.')
+      }
       if (!(result as any).success) {
         const error = (result as any).error || (result as any).message || 'FCM gagal'
         errors.push(String(error))
@@ -799,8 +803,12 @@ async function deliverNotification(
         target,
         { db, env: runtimeEnv },
       )
-      sent += Number((result as any).sent || 0)
-      if ((result as any).success) successfulChannels += 1
+      const channelSent = Number((result as any).sent || 0)
+      sent += channelSent
+      if ((result as any).success && channelSent > 0) successfulChannels += 1
+      if ((result as any).success && channelSent === 0) {
+        errors.push('Tidak ada subscription Web Push aktif untuk target.')
+      }
       if (!(result as any).success) {
         const error = (result as any).error || (result as any).message || 'Web Push gagal'
         errors.push(String(error))
@@ -1179,7 +1187,10 @@ export async function dispatchConfiguredReminders(db: D1Database, runtimeEnv?: F
     const setting = await getNotificationSetting(eventKey, db)
     if (!definition || !setting || Number(setting.enabled) !== 1) return null
     const reminder = getNotificationReminderConfig(setting, definition)
-    return reminder.enabled ? { definition, setting, reminder } : null
+    // Event reminder memakai `setting.enabled` sebagai satu-satunya sakelar.
+    // reminder.enabled adalah field warisan UI lama; menjadikannya syarat kedua
+    // membuat event tampak aktif tetapi tidak pernah diproses oleh cron.
+    return { definition, setting, reminder }
   }
 
   const attendance = await getActiveReminder('attendance_missing_reminder')

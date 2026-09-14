@@ -26,6 +26,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(FileSaverPlugin.class);
         registerPlugin(NativePrintPlugin.class);
+        registerPlugin(NotificationSettingsPlugin.class);
         super.onCreate(savedInstanceState);
         // Izinkan Android/Google Password Manager mengenali dan mengisi form login WebView.
         // Password tetap dikelola oleh penyedia Autofill perangkat, bukan disimpan aplikasi.

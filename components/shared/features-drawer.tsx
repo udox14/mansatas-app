@@ -210,7 +210,6 @@ const featureDescriptions: Record<string, string> = {
   settings: 'Tempat mengatur tahun ajaran, jurusan, pola jam pelajaran, tahun aktif, dan konfigurasi dasar aplikasi.',
   'settings-fitur': 'Mengatur fitur apa saja yang boleh diakses tiap role, membuat role khusus, override akses user, dan bottom nav mobile.',
   'settings-notifications': 'Mengirim pengumuman atau broadcast ke pengguna tertentu melalui notifikasi aplikasi.',
-  'settings-jadwal-notif': 'Menjadwalkan notifikasi rutin, mengaktifkan atau mematikan jadwal, menghapus jadwal, dan mencoba kirim notifikasi.',
   'pengumuman-ortu': 'Membuat pengumuman untuk Portal Orang Tua dengan target semua wali, angkatan, atau kelas tertentu.',
   'kotak-saran-ortu': 'Meninjau, memproses, dan menindaklanjuti saran yang dikirim orang tua melalui portal.',
 }

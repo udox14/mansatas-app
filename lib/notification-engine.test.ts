@@ -4,6 +4,7 @@ import {
   validateNotificationTemplate,
   validateNotificationUrl,
 } from './notification-engine'
+import { getNotificationDefinition } from './notification-catalog'
 
 describe('notification templates', () => {
   it('renders valid placeholders', () => {
@@ -26,5 +27,53 @@ describe('notification templates', () => {
     expect(validateNotificationUrl('https://app.mansatas.com/portal-ortu')).toBe(true)
     expect(validateNotificationUrl('javascript:alert(1)')).toBe(false)
     expect(validateNotificationUrl('http://app.mansatas.com')).toBe(false)
+  })
+})
+
+describe('notification reminder defaults', () => {
+  it('keeps the KBM reminder enabled at the advertised 10-minute lead time', () => {
+    const definition = getNotificationDefinition('kbm_teaching_reminder')
+
+    expect(definition?.defaultEnabled).toBe(true)
+    expect(definition?.reminder).toMatchObject({
+      enabled: true,
+      leadMinutes: 10,
+    })
+  })
+})
+
+describe('Komite notification catalog', () => {
+  const eventKeys = [
+    'komite_submission_received',
+    'komite_treasurer_approved',
+    'komite_chairman_review_requested',
+    'komite_chairman_approved',
+    'komite_principal_review_requested',
+    'komite_final_approved',
+    'komite_revision_requested',
+    'komite_rejected',
+    'komite_review_delegated',
+  ]
+
+  it('exposes every workflow stage as an enabled configurable event', () => {
+    for (const eventKey of eventKeys) {
+      const definition = getNotificationDefinition(eventKey)
+      expect(definition, eventKey).toBeDefined()
+      expect(definition?.defaultEnabled, eventKey).toBe(true)
+      expect(definition?.defaultChannels, eventKey).toEqual(['fcm', 'webpush'])
+      expect(validateNotificationTemplate(definition?.defaultTitle || '', definition?.placeholders || []), eventKey).toEqual([])
+      expect(validateNotificationTemplate(definition?.defaultBody || '', definition?.placeholders || []), eventKey).toEqual([])
+    }
+  })
+
+  it('routes queue events to reviewers and decision events to the applicant context', () => {
+    expect(getNotificationDefinition('komite_submission_received')?.defaultTarget)
+      .toEqual({ kind: 'staff_role', value: 'bendahara_komite' })
+    expect(getNotificationDefinition('komite_chairman_review_requested')?.defaultTarget)
+      .toEqual({ kind: 'staff_role', value: 'ketua_komite' })
+    expect(getNotificationDefinition('komite_principal_review_requested')?.defaultTarget)
+      .toEqual({ kind: 'staff_role', value: 'kepsek' })
+    expect(getNotificationDefinition('komite_treasurer_approved')?.defaultTarget)
+      .toEqual({ kind: 'staff_users' })
   })
 })

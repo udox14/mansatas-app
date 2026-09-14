@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { AlertCircle, CheckCircle2, ExternalLink, Loader2 } from 'lucide-react'
+import { AlertCircle, BellRing, CheckCircle2, ExternalLink, Loader2, Settings } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -102,6 +102,9 @@ const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mansat
 const NATIVE_VERIFIED_KEY = 'mansatas_native_verified'
 
 type AndroidAccessState = 'allowed' | 'blocked'
+type NativePushGateState = 'hidden' | 'prompt' | 'denied' | 'requesting' | 'error'
+
+const NATIVE_PUSH_REQUEST_EVENT = 'mansatas-request-native-push'
 
 function checkIsNativeAndroidSync(): boolean {
   if (typeof window === 'undefined') return false
@@ -149,6 +152,7 @@ export function MobileRuntime({
   })
   const [isOffline, setIsOffline] = useState(false)
   const [hasSwUpdate, setHasSwUpdate] = useState(false)
+  const [nativePushGate, setNativePushGate] = useState<NativePushGateState>('hidden')
   const [downloadState, setDownloadState] = useState<{
     phase: 'idle' | 'loading' | 'success' | 'error'
     filename?: string
@@ -315,13 +319,17 @@ export function MobileRuntime({
     return () => { cancelled = true }
   }, [isAuthenticatedArea, pathname])
 
-  // FCM baru dimulai setelah pengguna masuk. Token yang gagal dikirim karena sesi
-  // belum siap disimpan sementara dan dicoba ulang saat aplikasi kembali aktif.
+  // FCM baru dimulai setelah pengguna masuk. Pada aplikasi native, izin tidak lagi
+  // diminta diam-diam: layar wajib izin di bawah memicu permintaan dari aksi pengguna.
   useEffect(() => {
-    if (!isAuthenticatedArea) return
+    if (!isAuthenticatedArea) {
+      setNativePushGate('hidden')
+      return
+    }
 
     const listeners: { remove: () => Promise<void> }[] = []
     let cancelled = false
+    let requestInFlight = false
 
     async function registerTokenWithServer(token: string, platform: string) {
       window.localStorage.setItem(CURRENT_FCM_TOKEN_KEY, token)
@@ -337,28 +345,17 @@ export function MobileRuntime({
     }
 
     async function initPush() {
-      const [{ Capacitor }, { PushNotifications }] = await Promise.all([
+      const [{ Capacitor, registerPlugin }, { PushNotifications }, { App }] = await Promise.all([
         import('@capacitor/core'),
         import('@capacitor/push-notifications'),
+        import('@capacitor/app'),
       ])
       if (cancelled || !Capacitor.isNativePlatform()) return
 
       const platform = Capacitor.getPlatform()
-      const permission = await PushNotifications.requestPermissions()
-      if (permission.receive !== 'granted' || cancelled) return
-
-      if (platform === 'android') {
-        await PushNotifications.createChannel({
-          id: 'default',
-          name: 'Notifikasi Utama',
-          description: 'Notifikasi penting dari MANSATAS App',
-          importance: 5,
-          visibility: 1,
-          sound: 'default',
-          vibration: true,
-        }).catch(() => {})
-      }
-
+      const NotificationSettings = registerPlugin<{
+        check: () => Promise<{ enabled: boolean }>
+      }>('NotificationSettings')
       listeners.push(
         await PushNotifications.addListener('registration', (token) => {
           registerTokenWithServer(token.value, platform).catch((error) => {
@@ -380,9 +377,78 @@ export function MobileRuntime({
         }),
       )
 
-      const pendingToken = window.localStorage.getItem(PENDING_FCM_TOKEN_KEY)
-      if (pendingToken) await registerTokenWithServer(pendingToken, platform).catch(() => {})
-      await PushNotifications.register()
+      async function registerDevice() {
+        if (platform === 'android') {
+          await PushNotifications.createChannel({
+            id: 'default',
+            name: 'Notifikasi Utama',
+            description: 'Notifikasi penting dari MANSATAS App',
+            importance: 5,
+            visibility: 1,
+            sound: 'default',
+            vibration: true,
+          }).catch(() => {})
+        }
+
+        const pendingToken = window.localStorage.getItem(PENDING_FCM_TOKEN_KEY)
+        if (pendingToken) await registerTokenWithServer(pendingToken, platform).catch(() => {})
+        await PushNotifications.register()
+      }
+
+      async function refreshPermission() {
+        const [permission, systemStatus] = await Promise.all([
+          PushNotifications.checkPermissions(),
+          NotificationSettings.check(),
+        ])
+        if (cancelled) return
+        if (permission.receive === 'granted' && systemStatus.enabled) {
+          setNativePushGate('hidden')
+          await registerDevice()
+        } else {
+          setNativePushGate(
+            permission.receive === 'prompt' || permission.receive === 'prompt-with-rationale'
+              ? 'prompt'
+              : 'denied',
+          )
+        }
+      }
+
+      async function requestPermission() {
+        if (requestInFlight) return
+        requestInFlight = true
+        setNativePushGate('requesting')
+        try {
+          const permission = await PushNotifications.requestPermissions()
+          if (cancelled) return
+          if (permission.receive === 'granted') {
+            setNativePushGate('hidden')
+            await registerDevice()
+          } else {
+            setNativePushGate('denied')
+          }
+        } catch (error) {
+          console.error('Permintaan izin notifikasi gagal:', error)
+          if (!cancelled) setNativePushGate('error')
+        } finally {
+          requestInFlight = false
+        }
+      }
+
+      const handlePermissionRequest = () => { void requestPermission() }
+      const handleAppFocus = () => { void refreshPermission() }
+      window.addEventListener(NATIVE_PUSH_REQUEST_EVENT, handlePermissionRequest)
+      window.addEventListener('focus', handleAppFocus)
+      listeners.push({
+        remove: async () => {
+          window.removeEventListener(NATIVE_PUSH_REQUEST_EVENT, handlePermissionRequest)
+          window.removeEventListener('focus', handleAppFocus)
+        },
+      })
+      listeners.push(await App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) void refreshPermission()
+      }))
+
+      await refreshPermission()
     }
 
     const retryPendingToken = async () => {
@@ -643,6 +709,71 @@ export function MobileRuntime({
                   Pengguna komputer/laptop dan iPhone (iOS) tetap dapat mengakses versi web.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      {isAuthenticatedArea && nativePushGate !== 'hidden' && (
+        <div
+          className="fixed inset-0 z-[2147483646] flex min-h-[100dvh] items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm sm:p-6"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="native-push-title"
+          aria-describedby="native-push-description"
+        >
+          <Card className="w-full max-w-sm rounded-2xl border-amber-200 bg-white text-slate-950 shadow-2xl dark:border-amber-900 dark:bg-slate-950 dark:text-slate-50">
+            <CardHeader className="items-center pb-3 pt-6 text-center">
+              <div className="mb-2 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                <BellRing className="h-7 w-7" />
+              </div>
+              <CardTitle id="native-push-title" className="text-xl">
+                Notifikasi wajib diaktifkan
+              </CardTitle>
+              <CardDescription id="native-push-description" className="mt-1.5 leading-relaxed">
+                {nativePushGate === 'denied'
+                  ? 'Notifikasi MANSATAS sedang diblokir. Buka pengaturan aplikasi, pilih Notifikasi, lalu aktifkan izin notifikasi.'
+                  : nativePushGate === 'error'
+                    ? 'Izin notifikasi belum berhasil diperiksa. Silakan coba kembali agar informasi penting tidak terlewat.'
+                    : 'Aktifkan notifikasi untuk menerima pengingat KBM, agenda, pengajuan, dan informasi penting lainnya.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pb-6">
+              <Button
+                type="button"
+                size="lg"
+                className="h-11 w-full gap-2 font-semibold"
+                disabled={nativePushGate === 'requesting'}
+                onClick={async () => {
+                  if (nativePushGate === 'denied') {
+                    try {
+                      const { registerPlugin } = await import('@capacitor/core')
+                      const NotificationSettings = registerPlugin<{ open: () => Promise<void> }>('NotificationSettings')
+                      await NotificationSettings.open()
+                    } catch (error) {
+                      console.error('Gagal membuka pengaturan notifikasi:', error)
+                      setNativePushGate('error')
+                    }
+                    return
+                  }
+                  window.dispatchEvent(new Event(NATIVE_PUSH_REQUEST_EVENT))
+                }}
+              >
+                {nativePushGate === 'requesting' ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : nativePushGate === 'denied' ? (
+                  <Settings className="h-4 w-4" />
+                ) : (
+                  <BellRing className="h-4 w-4" />
+                )}
+                {nativePushGate === 'requesting'
+                  ? 'Meminta izin…'
+                  : nativePushGate === 'denied'
+                    ? 'Buka Pengaturan Notifikasi'
+                    : 'Izinkan Notifikasi'}
+              </Button>
+              <p className="mt-3 text-center text-[11px] leading-relaxed text-muted-foreground">
+                Peringatan ini akan hilang otomatis setelah izin notifikasi aktif.
+              </p>
             </CardContent>
           </Card>
         </div>

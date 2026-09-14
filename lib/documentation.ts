@@ -915,23 +915,6 @@ const FEATURE_DOCS: Record<string, { summary: string; sections: string[] }> = {
       '- User harus pernah mengizinkan push notification agar bisa menerima notifikasi perangkat.',
     ],
   },
-  'settings-jadwal-notif': {
-    summary: 'Mengelola notifikasi terjadwal, waktu kirim, target, pesan, dan status aktif/nonaktif.',
-    sections: [
-      '## Fungsi yang tersedia',
-      '- Membuat jadwal notifikasi otomatis.',
-      '- Mengatur waktu, target, judul, isi pesan, dan status aktif.',
-      '- Mengedit atau menonaktifkan jadwal yang tidak dipakai.',
-      '## Tombol dan aksi',
-      '- Tambah Jadwal membuat notifikasi baru.',
-      '- Edit mengubah jadwal.',
-      '- Aktif/Nonaktif mengubah status pengiriman.',
-      '- Hapus menghapus jadwal.',
-      '## Filter dan data',
-      '- Filter status, target, atau kata kunci membantu mencari jadwal.',
-      '- Jadwal berjalan melalui endpoint cron/reminder sesuai konfigurasi aplikasi.',
-    ],
-  },
   'pengumuman-ortu': {
     summary: 'Membuat pengumuman untuk orang tua, menentukan target kelas/angkatan/semua, jadwal publish, dan masa berlaku.',
     sections: [

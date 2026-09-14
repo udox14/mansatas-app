@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDB } from '@/utils/db-server'
-import { dispatchRawNotification } from '@/lib/notification-engine'
-import { nowWIB } from '@/lib/time'
-import { getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
-import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { constantTimeSecretEqual } from '@/lib/constant-time'
 import { internalErrorJson } from '@/lib/request-security'
 import { dispatchConfiguredReminders, dispatchDueParentAnnouncements } from '@/lib/notification-engine'
 
 /**
- * Master Cron Dispatcher — dipanggil setiap 5 menit oleh Cloudflare Cron Trigger.
- * Cek tabel jadwal_notifikasi, lalu kirim yang jamnya sesuai jam sekarang (WIB).
- * Bila pengiriman otomatis dinonaktifkan di pengaturan, langsung skip.
+ * Dispatcher notifikasi otomatis — dipanggil setiap 5 menit oleh Cloudflare Cron Trigger.
+ * Setiap event mengikuti status dan konfigurasi reminder masing-masing.
  * 
  * GET /api/cron/reminder-jadwal
  * Auth: Bearer {CRON_SECRET}
@@ -27,133 +22,24 @@ export async function GET(req: NextRequest) {
   try {
     const db = await getDB()
 
-    const enabled = await getSystemSettingBoolean(SYSTEM_SETTING_KEYS.cronReminderEnabled, true)
-    if (!enabled) {
-      return NextResponse.json({
-        success: true,
-        disabled: true,
-        message: 'Pengiriman notifikasi terjadwal dinonaktifkan di pengaturan.',
-      })
-    }
-
-    const now = nowWIB()
-
     let announcementResult = { processed: 0 }
     try {
       announcementResult = await dispatchDueParentAnnouncements(db)
     } catch (error) {
       console.error('[notification] parent announcement cron gagal:', error)
     }
-    let automaticReminderResult = { processed: 0 }
+    let automaticReminderResult: { processed: number; checkedAt?: string } = { processed: 0 }
     try {
       automaticReminderResult = await dispatchConfiguredReminders(db)
     } catch (error) {
       console.error('[notification] automatic reminder cron gagal:', error)
     }
 
-    // Jam & menit sekarang WIB
-    const jammenit = `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`
-    const today = now.toISOString().split('T')[0]
-    const hariIni = now.getUTCDay() === 0 ? 7 : now.getUTCDay() // 1=Sen … 7=Min
-
-    // Ambil semua jadwal aktif yang jamnya = sekarang
-    const { results: jadwals } = await db.prepare(`
-      SELECT * FROM jadwal_notifikasi
-      WHERE is_active = 1 AND jam = ?
-    `).bind(jammenit).all<any>()
-
-    if (!jadwals || jadwals.length === 0) {
-      return NextResponse.json({ message: `Tidak ada jadwal untuk jam ${jammenit}`, announcementsProcessed: announcementResult.processed, automaticRemindersProcessed: automaticReminderResult.processed })
-    }
-
-    const log: any[] = []
-
-    for (const jadwal of jadwals) {
-      // Cek hari aktif
-      let hariAktif: number[] = [1, 2, 3, 4, 5, 6]
-      try { hariAktif = JSON.parse(jadwal.hari_aktif || '[1,2,3,4,5,6]') } catch {}
-      if (!hariAktif.includes(hariIni)) {
-        log.push({ jadwal: jadwal.nama, skipped: 'hari tidak aktif' })
-        continue
-      }
-
-      // Tentukan target push
-      let target: any = {}
-      const targetType = jadwal.target_type || 'all'
-
-      if (targetType === 'all') {
-        target.all = true
-      } else if (targetType === 'role') {
-        target.role = jadwal.target_role
-      } else if (targetType === 'guru') {
-        // Khusus: kirim ke guru yang punya jadwal mengajar hari ini
-        const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
-        if (!ta) { log.push({ jadwal: jadwal.nama, skipped: 'tidak ada tahun ajaran aktif' }); continue }
-        const { results: jadwalRows } = await db.prepare(`
-          SELECT pm.guru_id, jm.penugasan_id, MIN(jm.jam_ke) as jam_mulai, MAX(jm.jam_ke) as jam_selesai,
-            k.id as kelas_id, k.tingkat
-          FROM jadwal_mengajar jm
-          JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
-          JOIN kelas k ON pm.kelas_id = k.id
-          WHERE jm.hari = ? AND jm.tahun_ajaran_id = ?
-            AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
-          GROUP BY pm.guru_id, jm.penugasan_id, k.id, k.tingkat
-        `).bind(hariIni, ta.id, today).all<any>()
-        const exceptions = await getKbmExceptionsForDate(db, today)
-        const guruIds = Array.from(new Set((jadwalRows || [])
-          .filter((r: any) => hasActiveTeachingSlotsInRange(
-            exceptions,
-            { id: r.kelas_id, tingkat: Number(r.tingkat) },
-            Number(r.jam_mulai),
-            Number(r.jam_selesai)
-          ))
-          .map((r: any) => r.guru_id)))
-        if (guruIds.length === 0) { log.push({ jadwal: jadwal.nama, skipped: 'tidak ada guru mengajar hari ini' }); continue }
-        target.userIds = guruIds
-      } else if (targetType === 'custom') {
-        let ids: string[] = []
-        try { ids = JSON.parse(jadwal.target_user_ids || '[]') } catch {}
-        if (ids.length === 0) { log.push({ jadwal: jadwal.nama, skipped: 'target_user_ids kosong' }); continue }
-        target.userIds = ids
-      }
-
-      const notificationTarget = targetType === 'all'
-        ? { kind: 'staff_all' as const }
-        : targetType === 'role'
-          ? { kind: 'staff_role' as const, value: target.role }
-          : { kind: 'staff_users' as const }
-      const notification = await dispatchRawNotification({
-        eventKey: 'scheduled_broadcast',
-        sourceRef: `scheduled:${jadwal.id || jadwal.nama}:${today}:${jammenit}`,
-        title: jadwal.judul,
-        body: jadwal.isi,
-        url: jadwal.url || '/dashboard',
-        channels: ['fcm', 'webpush'],
-        target: notificationTarget,
-        context: target.userIds ? { userIds: target.userIds } : {},
-        db,
-      })
-
-      log.push({
-        jadwal: jadwal.nama,
-        jam: jadwal.jam,
-        targetType,
-        sent: notification.sent || 0,
-        queued: notification.queued || 0,
-        success: notification.status !== 'failed',
-        error: notification.error,
-      })
-    }
-
     return NextResponse.json({
       success: true,
-      waktu: now.toISOString(),
-      jammenit,
-      hariIni,
-      processed: log.length,
       announcementsProcessed: announcementResult.processed,
       automaticRemindersProcessed: automaticReminderResult.processed,
-      log,
+      checkedAt: automaticReminderResult.checkedAt,
     })
 
   } catch (error: unknown) {

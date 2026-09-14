@@ -13,7 +13,7 @@ const ALLOWED_TABLES = new Set<string>([
   'agenda_guru', 'agenda_piket', 'bk_rekaman', 'bk_topik', 'buku_tamu',
   'delegasi_tugas', 'delegasi_tugas_kelas', 'ekstrakurikuler', 'ekstrakurikuler_pertemuan',
   'izin_keluar_komplek', 'izin_tidak_masuk_kelas', 'jadwal_guru_piket', 'jadwal_mengajar',
-  'jadwal_notifikasi', 'kelas', 'master_pelanggaran', 'mata_pelajaran', 'nilai_harian_header',
+  'kelas', 'master_pelanggaran', 'mata_pelajaran', 'nilai_harian_header',
   'penerimaan_pt', 'pengaturan_akademik', 'penugasan_mengajar', 'peserta_rapat',
   'pmb_jadwal_tes', 'pmb_pendaftar', 'psikotes_rekom_mapping', 'siswa',
   'siswa_pelanggaran', 'siswa_psikotes', 'tahun_ajaran', 'undangan_rapat', 'user',

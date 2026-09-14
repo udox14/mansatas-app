@@ -25,7 +25,6 @@ const Megaphone = 'Megaphone'
 const MessageSquarePlus = 'MessageSquarePlus'
 const MessageCircle = 'MessageCircle'
 const Radio = 'Radio'
-const AlarmClock = 'AlarmClock'
 const ClipboardEdit = 'ClipboardEdit'
 const BookHeart = 'BookHeart'
 const BookUser = 'BookUser'
@@ -538,14 +537,6 @@ export const MENU_ITEMS: MenuItem[] = [
     desc: 'Mengirimkan notifikasi push pengumuman secara langsung ke peramban web pengguna'
   },
   {
-    id: 'settings-jadwal-notif',
-    title: 'Notifikasi Terjadwal',
-    href: '/dashboard/settings/jadwal-notif',
-    icon: AlarmClock,
-    roles: ['super_admin'],
-    desc: 'Mengonfigurasi agenda pengiriman notifikasi push otomatis terjadwal ke target tertentu'
-  },
-  {
     id: 'settings-mobile-app',
     title: 'Mobile App',
     href: '/dashboard/settings/mobile-app',
@@ -589,7 +580,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'sp', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'documentation', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
   { id: 'keuangan', label: 'Komite', items: ['komite-pengajuan', 'keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-dspt-nonaktif', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
-  { id: 'sistem', label: 'Sistem', items: ['settings', 'log-aktivitas', 'whatsapp', 'settings-notifications', 'settings-jadwal-notif', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
+  { id: 'sistem', label: 'Sistem', items: ['settings', 'log-aktivitas', 'whatsapp', 'settings-notifications', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
 ]
 
 export const SIDEBAR_ROOT_ITEM_IDS = ['dashboard'] as const
